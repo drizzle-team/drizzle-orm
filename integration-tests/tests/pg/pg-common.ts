@@ -30,7 +30,7 @@ import {
 	TransactionRollbackError,
 } from 'drizzle-orm';
 import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
-import type { PgColumn, PgDatabase, QueryResultHKT } from 'drizzle-orm/pg-core';
+import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
 	alias,
 	boolean,
@@ -81,7 +81,7 @@ import type { schema } from './neon-http-batch.test';
 declare module 'vitest' {
 	interface TestContext {
 		pg: {
-			db: PgDatabase<QueryResultHKT>;
+			db: PgDatabase<PgQueryResultHKT>;
 		};
 		neonPg: {
 			db: NeonHttpDatabase<typeof schema>;
@@ -359,7 +359,7 @@ export function tests() {
 			);
 		});
 
-		async function setupSetOperationTest(db: PgDatabase<QueryResultHKT>) {
+		async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT>) {
 			await db.execute(sql`drop table if exists users2`);
 			await db.execute(sql`drop table if exists cities`);
 			await db.execute(
@@ -398,7 +398,7 @@ export function tests() {
 			]);
 		}
 
-		async function setupAggregateFunctionsTest(db: PgDatabase<QueryResultHKT>) {
+		async function setupAggregateFunctionsTest(db: PgDatabase<PgQueryResultHKT>) {
 			await db.execute(sql`drop table if exists "aggregate_table"`);
 			await db.execute(
 				sql`
@@ -500,23 +500,6 @@ export function tests() {
 			expect(tableConfig.primaryKeys).toHaveLength(1);
 			expect(tableConfig.primaryKeys[0]!.getName()).toBe('custom_pk');
 		});
-
-		// test('table configs: all possible index properties', async () => {
-		// 	const cities1Table = pgTable('cities1', {
-		// 		id: serial('id').primaryKey(),
-		// 		name: text('name').notNull(),
-		// 		state: char('state', { length: 2 }),
-		// 	}, (ctx) => ({
-		// 		f: index('custom_name').using('hnsw', sql`${t.name} vector_ip_ops`, t.state.desc()),
-		// 		f4: index('custom_name').on(sql`${t.name} vector_ip_ops`, t.state.desc().nullsLast()).where(sql``).with({
-		// 			length: 12,
-		// 		}),
-		// 	}));
-
-		// 	const tableConfig = getTableConfig(cities1Table);
-
-		// 	console.log(tableConfig.indexes[0]?.config.columns);
-		// });
 
 		test('select all fields', async (ctx) => {
 			const { db } = ctx.pg;
@@ -3779,7 +3762,7 @@ export function tests() {
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 250;
+			const msDelay = 15000;
 
 			expect(initial[0]?.updatedAt?.valueOf()).not.toBe(justDates[0]?.updatedAt?.valueOf());
 

@@ -110,8 +110,6 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	/** @internal */
 	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown>) | undefined = undefined;
 
-	[IsDrizzleTable] = true;
-
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;
 		this[Schema] = schema;
@@ -159,7 +157,7 @@ export type InferModelFromColumns<
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
 > = Simplify<
-	TInferMode extends 'insert' ? 
+	TInferMode extends 'insert' ?
 			& {
 				[
 					Key in keyof TColumns & string as RequiredKeyOnly<

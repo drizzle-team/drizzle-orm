@@ -9,7 +9,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
 
-// eslint-disable-next-line drizzle/require-entity-kind
+// eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
 	constructor(private db: pg.Client) {
 		const { types } = pg;

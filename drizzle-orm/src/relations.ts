@@ -240,7 +240,7 @@ export type DBQueryConfig<
 				operators: { sql: Operators['sql'] },
 			) => Record<string, SQL.Aliased>);
 	}
-	& (TRelationType extends 'many' ? 
+	& (TRelationType extends 'many' ?
 			& {
 				where?:
 					| SQL
@@ -323,7 +323,7 @@ export type BuildRelationResult<
 			TSchema,
 			FindTableByDBName<TSchema, TRel['referencedTableName']>,
 			Assume<TInclude[K], true | Record<string, unknown>>
-		> extends infer TResult ? TRel extends One ? 
+		> extends infer TResult ? TRel extends One ?
 					| TResult
 					| (Equal<TRel['isNullable'], false> extends true ? null : never)
 			: TResult[]
@@ -361,7 +361,7 @@ export type BuildQueryResult<
 									keyof TTableConfig['columns'],
 									NonUndefinedKeysOnly<TFullSelection['columns']>
 								>
-								: 
+								:
 									& {
 										[K in keyof TFullSelection['columns']]: Equal<
 											TFullSelection['columns'][K],

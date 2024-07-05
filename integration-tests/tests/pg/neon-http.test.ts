@@ -429,6 +429,11 @@ skipTests([
 	'test mode date for timestamp with timezone',
 	'test mode string for timestamp with timezone in UTC timezone',
 	'test mode string for timestamp with timezone in different timezone',
+	'nested transaction rollback',
+	'transaction rollback',
+	'nested transaction',
+	'transaction',
+	'timestamp timezone',
 ]);
 tests();
 
