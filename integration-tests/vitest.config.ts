@@ -10,7 +10,11 @@ export default defineConfig({
 			// 'tests/pg/pglite.test.ts',
 			// 'tests/pg/pg-custom.test.ts',
 			// 'tests/pg/pg-proxy.test.ts',
-			'tests/pg/neon-http.test.ts',
+			// 'tests/pg/neon-http.test.ts',
+			// 'tests/mysql/mysql.test.ts',
+			// 'tests/mysql/mysql-proxy.test.ts',
+			// 'tests/mysql/mysql-prefixed.test.ts',
+			'tests/mysql/mysql-planetscale.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
