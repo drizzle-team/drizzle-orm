@@ -1,8 +1,10 @@
-import { type Client, createClient, ResultSet } from '@libsql/client';
+import { createClient } from '@libsql/client';
+import type { Client, ResultSet } from '@libsql/client';
 import retry from 'async-retry';
 import { eq, relations, sql } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
-import { AnySQLiteColumn, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
 const ENABLE_LOGGING = false;
@@ -158,7 +160,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	client?.close();
+	// client?.close();
 });
 
 beforeEach(async () => {

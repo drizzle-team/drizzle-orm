@@ -3,7 +3,6 @@ import { sql } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 

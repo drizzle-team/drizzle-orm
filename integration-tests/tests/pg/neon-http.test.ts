@@ -6,8 +6,8 @@ import { migrate } from 'drizzle-orm/neon-http/migrator';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
+import { randomString } from '~/utils';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;

@@ -1,13 +1,13 @@
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { createSQLiteDB } from '@miniflare/shared';
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import { drizzle } from 'drizzle-orm/d1';
 import { migrate } from 'drizzle-orm/d1/migrator';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
-import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
-import { anotherUsersMigratorTable, citiesTable, tests, users2Table, usersMigratorTable } from './sqlite-common';
+import { randomString } from '~/utils';
+import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 
 const ENABLE_LOGGING = false;
 

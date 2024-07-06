@@ -1,4 +1,4 @@
-import { type AnyTable, getTableUniqueName, type InferModelFromColumns, isTable, Table } from '~/table.ts';
+import { type AnyTable, getTableUniqueName, type InferModelFromColumns, Table } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { PrimaryKeyBuilder } from './pg-core/primary-keys.ts';
@@ -429,7 +429,7 @@ export function extractTablesRelationalConfig<
 	> = {};
 	const tablesConfig: TablesRelationalConfig = {};
 	for (const [key, value] of Object.entries(schema)) {
-		if (isTable(value)) {
+		if (is(value, Table)) {
 			const dbName = getTableUniqueName(value);
 			const bufferedRelations = relationsBuffer[dbName];
 			tableNamesMap[dbName] = key;

@@ -21,7 +21,7 @@ import { migrate } from 'drizzle-orm/mysql2/migrator';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { toLocalDate } from '~/__old/utils';
+import { toLocalDate } from '~/utils';
 import { createDockerDB } from './mysql-common';
 
 const ENABLE_LOGGING = false;

@@ -6,7 +6,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { alias, customType, pgTable, pgTableCreator, serial, text } from 'drizzle-orm/pg-core';
 import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { randomString } from '~/__old/utils';
+import { randomString } from '~/utils';
 import { createDockerDB } from './pg-common';
 
 const ENABLE_LOGGING = false;

@@ -4,8 +4,8 @@ import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { drizzle, type VercelPgDatabase } from 'drizzle-orm/vercel-postgres';
 import { migrate } from 'drizzle-orm/vercel-postgres/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
+import { randomString } from '~/utils';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;

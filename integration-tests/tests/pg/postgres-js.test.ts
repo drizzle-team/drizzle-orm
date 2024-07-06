@@ -7,8 +7,8 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { Name, sql } from 'drizzle-orm';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
+import { randomString } from '~/utils';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;

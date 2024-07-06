@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/no-empty-file */
 // import 'dotenv/config';
 
 // import { RDSDataClient } from '@aws-sdk/client-rds-data';

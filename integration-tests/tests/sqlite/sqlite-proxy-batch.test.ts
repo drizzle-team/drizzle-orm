@@ -1,7 +1,9 @@
+/* eslint-disable drizzle-internal/require-entity-kind */
 import type BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
 import { eq, relations, sql } from 'drizzle-orm';
-import { AnySQLiteColumn, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { SqliteRemoteDatabase, SqliteRemoteResult } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';

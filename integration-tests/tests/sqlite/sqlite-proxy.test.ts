@@ -1,20 +1,12 @@
+/* eslint-disable drizzle-internal/require-entity-kind */
 import type BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
-import { eq, Name, sql } from 'drizzle-orm';
+import { Name, sql } from 'drizzle-orm';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
-import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
-import {
-	anotherUsersMigratorTable,
-	citiesTable,
-	tests,
-	users2Table,
-	usersMigratorTable,
-	usersTable,
-} from './sqlite-common';
+import { tests, usersTable } from './sqlite-common';
 
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
@@ -109,13 +101,13 @@ beforeEach(async () => {
 	await db.run(sql`drop table if exists ${usersTable}`);
 
 	await db.run(sql`
-	  create table ${usersTable} (
-		  id integer primary key,
-		  name text not null,
-		  verified integer not null default 0,
-		  json blob,
-		  created_at integer not null default (strftime('%s', 'now'))
-	  )
+		create table ${usersTable} (
+		 id integer primary key,
+		 name text not null,
+		 verified integer not null default 0,
+		 json blob,
+		 created_at integer not null default (strftime('%s', 'now'))
+		)
 	`);
 });
 

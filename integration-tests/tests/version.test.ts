@@ -9,5 +9,5 @@ test('shape', () => {
 		compatibilityVersion: z.number(),
 		npmVersion: z.string(),
 	});
-	expect(shape.parse(version)).not.toThrowError();
+	expect(() => shape.parse(version)).not.toThrowError();
 });

@@ -5,8 +5,8 @@ import { drizzle } from 'drizzle-orm/xata-http';
 import type { XataHttpClient, XataHttpDatabase } from 'drizzle-orm/xata-http';
 import { migrate } from 'drizzle-orm/xata-http/migrator';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
-import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
+import { randomString } from '~/utils';
 import { getXataClient } from '../xata/xata.ts';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
 

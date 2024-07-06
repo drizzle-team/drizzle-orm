@@ -5,7 +5,6 @@ import { migrate } from 'drizzle-orm/sql-js/migrator';
 import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 

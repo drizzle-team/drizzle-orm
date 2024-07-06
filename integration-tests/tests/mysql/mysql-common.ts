@@ -66,8 +66,8 @@ import { migrate } from 'drizzle-orm/mysql2/migrator';
 import getPort from 'get-port';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeEach, describe, expect, test } from 'vitest';
-import type { Equal } from '~/__old/utils.ts';
-import { Expect, toLocalDate } from '~/__old/utils.ts';
+import { Expect, toLocalDate } from '~/utils.ts';
+import type { Equal } from '~/utils.ts';
 
 type TestMySQLDB = MySqlDatabase<any, any>;
 

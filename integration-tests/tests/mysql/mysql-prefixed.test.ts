@@ -25,7 +25,7 @@ import { drizzle } from 'drizzle-orm/mysql2';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { Expect, toLocalDate } from '~/__old/utils';
+import { Expect, toLocalDate } from '~/utils';
 import { createDockerDB } from './mysql-common';
 
 const ENABLE_LOGGING = false;

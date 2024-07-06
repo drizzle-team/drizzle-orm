@@ -43,7 +43,8 @@ import {
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
 import { beforeEach, describe, expect, test } from 'vitest';
-import { Equal, Expect } from '~/__old/utils';
+import type { Equal } from '~/utils';
+import { Expect } from '~/utils';
 
 declare module 'vitest' {
 	interface TestContext {
@@ -276,7 +277,7 @@ export function tests() {
 			]);
 		}
 
-		test('table config: foreign keys name', async (ctx) => {
+		test('table config: foreign keys name', async () => {
 			const table = sqliteTable('cities', {
 				id: int('id').primaryKey(),
 				name: text('name').notNull(),
@@ -293,7 +294,7 @@ export function tests() {
 			expect(tableConfig.foreignKeys[1]!.getName()).toBe('custom_fk_deprecated');
 		});
 
-		test('table config: primary keys name', async (ctx) => {
+		test('table config: primary keys name', async () => {
 			const table = sqliteTable('cities', {
 				id: int('id').primaryKey(),
 				name: text('name').notNull(),
