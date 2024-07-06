@@ -11,7 +11,7 @@
 		"lint": "concurrently -n eslint,dprint \"eslint --ext ts .\" \"dprint check --list-different\""
 	},
 	"devDependencies": {
-		"@arethetypeswrong/cli": "^0.12.1",
+		"@arethetypeswrong/cli": "^0.15.3",
 		"@trivago/prettier-plugin-sort-imports": "^4.2.0",
 		"@typescript-eslint/eslint-plugin": "^6.7.3",
 		"@typescript-eslint/experimental-utils": "^5.62.0",
