@@ -229,6 +229,9 @@ importers:
       rollup:
         specifier: ^3.20.7
         version: 3.27.2
+      vite-tsconfig-paths:
+        specifier: ^4.3.2
+        version: 4.3.2(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.31.0))
       vitest:
         specifier: ^1.6.0
         version: 1.6.0(@types/node@18.15.10)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.31.0)
@@ -262,6 +265,9 @@ importers:
       valibot:
         specifier: ^0.30.0
         version: 0.30.0
+      vite-tsconfig-paths:
+        specifier: ^4.3.2
+        version: 4.3.2(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.31.0))
       vitest:
         specifier: ^1.6.0
         version: 1.6.0(@types/node@18.15.10)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.31.0)
@@ -292,6 +298,9 @@ importers:
       rollup:
         specifier: ^3.20.7
         version: 3.20.7
+      vite-tsconfig-paths:
+        specifier: ^4.3.2
+        version: 4.3.2(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.31.0))
       vitest:
         specifier: ^1.6.0
         version: 1.6.0(@types/node@18.15.10)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.31.0)
@@ -19446,6 +19455,17 @@ snapshots:
       - sugarss
       - supports-color
       - terser
+
+  vite-tsconfig-paths@4.3.2(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.31.0)):
+    dependencies:
+      debug: 4.3.4
+      globrex: 0.1.2
+      tsconfck: 3.0.3(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))
+    optionalDependencies:
+      vite: 5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.31.0)
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
 
   vite-tsconfig-paths@4.3.2(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))(vite@5.3.3(@types/node@20.12.12)(lightningcss@1.25.1)(terser@5.31.0)):
     dependencies:

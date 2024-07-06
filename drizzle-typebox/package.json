@@ -9,7 +9,7 @@
 		"test:types": "cd tests && tsc",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz",
-		"test": "NODE_OPTIONS='--loader=tsx --no-warnings' ava"
+		"test": "vitest run"
 	},
 	"exports": {
 		".": {
@@ -34,18 +34,6 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
-	},
-	"ava": {
-		"files": [
-			"tests/**/*.test.ts",
-			"!tests/bun/**/*"
-		],
-		"extensions": {
-			"ts": "module"
-		},
-		"nodeArguments": [
-			"--loader=tsx"
-		]
 	},
 	"keywords": [
 		"typebox",
@@ -79,6 +67,7 @@
 		"drizzle-orm": "link:../drizzle-orm/dist",
 		"rimraf": "^5.0.0",
 		"rollup": "^3.20.7",
+		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "^1.6.0",
 		"zx": "^7.2.2"
 	}

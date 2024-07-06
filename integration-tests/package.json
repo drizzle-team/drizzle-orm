@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"test:types": "tsc",
-		"test": "pnpm test:esm && pnpm test:vitest",
+		"test": "pnpm test:vitest",
 		"test:vitest": "vitest run",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
 		"test:data-api": "sst shell vitest run tests/awsdatapi.test.ts"
