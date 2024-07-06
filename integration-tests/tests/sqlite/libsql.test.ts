@@ -1,11 +1,11 @@
 import { type Client, createClient } from '@libsql/client';
 import retry from 'async-retry';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { randomString } from '~/__old/utils';
-import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+import { anotherUsersMigratorTable, citiesTable, tests, users2Table, usersMigratorTable } from './sqlite-common';
 
 const ENABLE_LOGGING = false;
 
