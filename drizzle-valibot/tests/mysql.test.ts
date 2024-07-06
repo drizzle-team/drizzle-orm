@@ -1,4 +1,3 @@
-import test from 'ava';
 import {
 	bigint,
 	binary,
@@ -44,6 +43,7 @@ import {
 	picklist,
 	string,
 } from 'valibot';
+import { expect, test } from 'vitest';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils.ts';
 
@@ -140,39 +140,35 @@ const testTableRow = {
 	autoIncrement: 1,
 };
 
-test('insert valid row', (t) => {
+test('insert valid row', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.deepEqual(parse(schema, testTableRow), testTableRow);
+	expect(parse(schema, testTableRow)).toStrictEqual(testTableRow);
 });
 
-test('insert invalid varchar length', (t) => {
+test('insert invalid varchar length', () => {
 	const schema = createInsertSchema(testTable);
-	t.throws(
-		() =>
-			parse(schema, {
-				...testTableRow,
-				varchar: 'A'.repeat(201),
-			}),
-		undefined, /* schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success */
-	);
+
+	expect(() =>
+		parse(schema, {
+			...testTableRow,
+			varchar: 'A'.repeat(201),
+		})
+	).toThrow(undefined);
 });
 
-test('insert smaller char length should work', (t) => {
+test('insert smaller char length should work', () => {
 	const schema = createInsertSchema(testTable);
 
 	const input = { ...testTableRow, char: 'abc' };
 
-	t.deepEqual(parse(schema, input), input);
+	expect(parse(schema, input)).toStrictEqual(input);
 });
 
-test('insert larger char length should fail', (t) => {
+test('insert larger char length should fail', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.throws(
-		() => parse(schema, { ...testTableRow, char: 'abcde' }),
-		undefined,
-	);
+	expect(() => parse(schema, { ...testTableRow, char: 'abcde' })).toThrow(undefined);
 });
 
 test('insert schema', (t) => {

@@ -33,7 +33,7 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
-import { Expect, randomString } from './utils.ts';
+import { Expect, randomString } from '../utils.ts';
 
 const ENABLE_LOGGING = false;
 

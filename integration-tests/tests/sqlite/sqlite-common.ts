@@ -151,87 +151,85 @@ export function tests() {
 			await db.run(sql`drop table if exists ${pkExampleTable}`);
 
 			await db.run(sql`
-              create table ${usersTable} (
-              	id integer primary key,
-              	name text not null,
-              	verified integer not null default 0,
-              	json blob,
-              	created_at integer not null default (strftime('%s', 'now'))
-              )
-            `);
+				create table ${usersTable} (
+					id integer primary key,
+					name text not null,
+					verified integer not null default 0,
+					json blob,
+					created_at integer not null default (strftime('%s', 'now'))
+				)
+			`);
 
 			await db.run(sql`
-              create table ${citiesTable} (
-              	id integer primary key,
-              	name text not null
-              )
-            `);
+				create table ${citiesTable} (
+					id integer primary key,
+					name text not null
+				)
+			`);
 			await db.run(sql`
-              create table ${courseCategoriesTable} (
-              	id integer primary key,
-              	name text not null
-              )
-            `);
+				create table ${courseCategoriesTable} (
+					id integer primary key,
+					name text not null
+				)
+			`);
 
 			await db.run(sql`
-              create table ${users2Table} (
-              	id integer primary key,
-              	name text not null,
-              	city_id integer references ${citiesTable}(${sql.identifier(citiesTable.id.name)})
-              )
-            `);
+				create table ${users2Table} (
+					id integer primary key,
+					name text not null,
+					city_id integer references ${citiesTable}(${sql.identifier(citiesTable.id.name)})
+				)
+			`);
 			await db.run(sql`
-              create table ${coursesTable} (
-              	id integer primary key,
-              	name text not null,
-              	category_id integer references ${courseCategoriesTable}(${
-				sql.identifier(courseCategoriesTable.id.name)
-			})
-              )
-            `);
+				create table ${coursesTable} (
+					id integer primary key,
+					name text not null,
+					category_id integer references ${courseCategoriesTable}(${sql.identifier(courseCategoriesTable.id.name)})
+				)
+			`);
 			await db.run(sql`
-              create table ${orders} (
-              	id integer primary key,
-              	region text not null,
-              	product text not null,
-              	amount integer not null,
-              	quantity integer not null
-              )
-            `);
+				create table ${orders} (
+					id integer primary key,
+					region text not null,
+					product text not null,
+					amount integer not null,
+					quantity integer not null
+				)
+			`);
 			await db.run(sql`
-              create table ${pkExampleTable} (
-              	id integer not null,
-              	name text not null,
-              	email text not null,
-              	primary key (id, name)
-              )
-            `);
+				create table ${pkExampleTable} (
+					id integer not null,
+					name text not null,
+					email text not null,
+					primary key (id, name)
+				)
+			`);
 			await db.run(sql`
-              create table ${bigIntExample} (
-                id integer primary key,
-                name text not null,
-                big_int blob not null
-              )
-            `);
+				create table ${bigIntExample} (
+				  id integer primary key,
+				  name text not null,
+				  big_int blob not null
+				)
+			`);
 		});
 
 		async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any>) {
 			await db.run(sql`drop table if exists users2`);
 			await db.run(sql`drop table if exists cities`);
 			await db.run(sql`
-              create table \`cities\` (
-                  id integer primary key,
-                  name text not null
-              )
-            `);
+				create table \`cities\` (
+				    id integer primary key,
+				    name text not null
+				)
+			`);
 
 			await db.run(sql`
-              create table \`users2\` (
-                  id integer primary key,
-                  name text not null,
-                  city_id integer references ${citiesTable}(${sql.identifier(citiesTable.id.name)})
-              )
-            `);
+				create table \`users2\` (
+				    id integer primary key,
+				    name text not null,
+				    city_id integer references ${citiesTable}(${sql.identifier(citiesTable.id.name)})
+				)
+			`);
 
 			await db.insert(citiesTable).values([
 				{ id: 1, name: 'New York' },
@@ -255,15 +253,15 @@ export function tests() {
 			await db.run(sql`drop table if exists "aggregate_table"`);
 			await db.run(
 				sql`
-                  create table "aggregate_table" (
-                      "id" integer primary key autoincrement not null,
-                      "name" text not null,
-                      "a" integer,
-                      "b" integer,
-                      "c" integer,
-                      "null_only" integer
-                  );
-                `,
+					create table "aggregate_table" (
+					    "id" integer primary key autoincrement not null,
+					    "name" text not null,
+					    "a" integer,
+					    "b" integer,
+					    "c" integer,
+					    "null_only" integer
+					);
+				`,
 			);
 			await db.insert(aggregateTable).values([
 				{ name: 'value 1', a: 5, b: 10, c: 20 },
@@ -1225,12 +1223,12 @@ export function tests() {
 
 			await db.run(sql`drop table if exists ${products}`);
 			await db.run(sql`
-                create table ${products} (
-                    id integer primary key,
-                    price numeric not null,
-                    cheap integer not null default 0
-                )
-            `);
+				create table ${products} (
+				    id integer primary key,
+				    price numeric not null,
+				    cheap integer not null default 0
+				)
+			`);
 
 			await db.insert(products).values([
 				{ price: '10.99' },
@@ -2649,14 +2647,14 @@ export function tests() {
 
 			await db.run(
 				sql`
-                    create table ${usersOnUpdate} (
-                    id integer primary key autoincrement,
-                    name text not null,
-                    update_counter integer default 1 not null,
-                    updated_at integer,
-                    always_null text
-                    )
-                `,
+					create table ${usersOnUpdate} (
+					id integer primary key autoincrement,
+					name text not null,
+					update_counter integer default 1 not null,
+					updated_at integer,
+					always_null text
+					)
+				`,
 			);
 
 			await db.insert(usersOnUpdate).values([
@@ -2691,14 +2689,14 @@ export function tests() {
 
 			await db.run(
 				sql`
-                    create table ${usersOnUpdate} (
-                    id integer primary key autoincrement,
-                    name text not null,
-                    update_counter integer default 1,
-                    updated_at integer,
-                    always_null text
-                    )
-                `,
+					create table ${usersOnUpdate} (
+					id integer primary key autoincrement,
+					name text not null,
+					update_counter integer default 1,
+					updated_at integer,
+					always_null text
+					)
+				`,
 			);
 
 			await db.insert(usersOnUpdate).values([

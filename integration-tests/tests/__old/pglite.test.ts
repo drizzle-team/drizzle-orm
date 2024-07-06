@@ -73,7 +73,7 @@ import {
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect, randomString } from './utils.ts';
+import { type Equal, Expect, randomString } from '../utils.ts';
 
 const ENABLE_LOGGING = false;
 

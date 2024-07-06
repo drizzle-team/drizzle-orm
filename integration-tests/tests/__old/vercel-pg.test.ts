@@ -50,7 +50,7 @@ import { drizzle, type VercelPgDatabase } from 'drizzle-orm/vercel-postgres';
 import { migrate } from 'drizzle-orm/vercel-postgres/migrator';
 import getPort from 'get-port';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect, randomString } from './utils.ts';
+import { type Equal, Expect, randomString } from '../utils.ts';
 
 const ENABLE_LOGGING = false;
 

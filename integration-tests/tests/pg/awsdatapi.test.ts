@@ -22,8 +22,8 @@ import {
 import { Resource } from 'sst';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
-import type { Equal } from './utils.ts';
-import { Expect, randomString } from './utils.ts';
+import type { Equal } from '../utils.ts';
+import { Expect, randomString } from '../utils.ts';
 
 dotenv.config();
 

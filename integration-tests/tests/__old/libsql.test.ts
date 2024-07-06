@@ -49,7 +49,7 @@ import {
 	union,
 	unionAll,
 } from 'drizzle-orm/sqlite-core';
-import { type Equal, Expect, randomString } from './utils.ts';
+import { type Equal, Expect, randomString } from '../utils.ts';
 
 const ENABLE_LOGGING = false;
 

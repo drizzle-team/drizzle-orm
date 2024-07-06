@@ -1,5 +1,5 @@
-import test from 'ava';
 import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { expect, test } from 'vitest';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils.ts';
@@ -34,16 +34,16 @@ const testUser = {
 	role: 'admin',
 };
 
-test('users insert valid user', (t) => {
+test('users insert valid user', () => {
 	const schema = createInsertSchema(users);
 
-	t.is(schema.safeParse(testUser).success, true);
+	expect(schema.safeParse(testUser).success).toBeTruthy();
 });
 
-test('users insert invalid text length', (t) => {
+test('users insert invalid text length', () => {
 	const schema = createInsertSchema(users);
 
-	t.is(schema.safeParse({ ...testUser, text: 'a'.repeat(256) }).success, false);
+	expect(schema.safeParse({ ...testUser, text: 'a'.repeat(256) }).success).toBeFalsy();
 });
 
 test('users insert schema', (t) => {

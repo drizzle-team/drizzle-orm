@@ -52,7 +52,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect, randomString } from './utils.ts';
+import { type Equal, Expect, randomString } from '../utils.ts';
 
 const { Client } = pg;
 

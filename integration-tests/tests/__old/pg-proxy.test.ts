@@ -56,8 +56,8 @@ import { migrate } from 'drizzle-orm/pg-proxy/migrator';
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import type { Equal } from './utils.ts';
-import { Expect } from './utils.ts';
+import type { Equal } from '../utils.ts';
+import { Expect } from '../utils.ts';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {

@@ -28,7 +28,7 @@ import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 
-import { toLocalDate } from './utils.ts';
+import { toLocalDate } from '../utils.ts';
 
 const mySchema = mysqlSchema('mySchema');
 

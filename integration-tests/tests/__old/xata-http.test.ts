@@ -43,8 +43,8 @@ import type { XataHttpClient, XataHttpDatabase } from 'drizzle-orm/xata-http';
 import { migrate } from 'drizzle-orm/xata-http/migrator';
 import { v4 as uuid } from 'uuid';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
+import { type Equal, Expect, randomString } from '../utils.ts';
 import { getXataClient } from '../xata/xata.ts';
-import { type Equal, Expect, randomString } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 

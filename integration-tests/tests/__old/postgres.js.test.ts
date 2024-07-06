@@ -51,7 +51,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import getPort from 'get-port';
 import postgres, { type Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect, randomString } from './utils.ts';
+import { type Equal, Expect, randomString } from '../utils.ts';
 
 const QUERY_LOGGING = false;
 

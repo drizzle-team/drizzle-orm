@@ -73,7 +73,7 @@ import {
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
 import { afterAll, beforeEach, describe, expect, test } from 'vitest';
-import { Expect } from '~/__old/utils';
+import { Expect } from '~/utils';
 import type { schema } from './neon-http-batch.test';
 // eslint-disable-next-line @typescript-eslint/no-import-type-side-effects
 // import { type NodePgDatabase } from 'drizzle-orm/node-postgres';

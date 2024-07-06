@@ -63,7 +63,7 @@ import type { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { drizzle } from 'drizzle-orm/tidb-serverless';
 import { migrate } from 'drizzle-orm/tidb-serverless/migrator';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
-import { type Equal, Expect, toLocalDate } from './__old/utils.ts';
+import { type Equal, Expect, toLocalDate } from '../utils.ts';
 
 const ENABLE_LOGGING = false;
 

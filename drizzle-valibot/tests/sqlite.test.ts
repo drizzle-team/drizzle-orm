@@ -1,4 +1,3 @@
-import test from 'ava';
 import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import {
 	bigint as valibigint,
@@ -14,6 +13,7 @@ import {
 	picklist,
 	string,
 } from 'valibot';
+import { expect, test } from 'vitest';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils.ts';
 
@@ -51,18 +51,15 @@ const testUser = {
 	role: 'admin' as const,
 };
 
-test('users insert valid user', (t) => {
+test('users insert valid user', () => {
 	const schema = createInsertSchema(users);
 	//
-	t.deepEqual(parse(schema, testUser), testUser);
+	expect(parse(schema, testUser)).toStrictEqual(testUser);
 });
 
-test('users insert invalid text length', (t) => {
+test('users insert invalid text length', () => {
 	const schema = createInsertSchema(users);
-	t.throws(
-		() => parse(schema, { ...testUser, text: 'a'.repeat(256) }),
-		undefined,
-	);
+	expect(() => parse(schema, { ...testUser, text: 'a'.repeat(256) })).toThrow(undefined);
 });
 
 test('users insert schema', (t) => {
