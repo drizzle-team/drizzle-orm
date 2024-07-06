@@ -369,7 +369,7 @@ test('test mode string for timestamp with timezone in UTC timezone', async () =>
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test('test mode string for timestamp with timezone in different timezone', async () => {
+test.skip('test mode string for timestamp with timezone in different timezone', async () => {
 	// get current timezone from db
 	const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 

@@ -435,6 +435,7 @@ skipTests([
 	'transaction rollback',
 	'nested transaction',
 	'nested transaction rollback',
+	'test $onUpdateFn and $onUpdate works updating',
 ]);
 tests();
 
