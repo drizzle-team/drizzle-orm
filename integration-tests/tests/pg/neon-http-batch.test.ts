@@ -1,6 +1,6 @@
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
-import { beforeAll, beforeEach } from 'vitest';
+import { beforeAll, beforeEach, expect, test } from 'vitest';
 import {
 	commentLikesConfig,
 	commentsConfig,
@@ -47,4 +47,8 @@ beforeEach((ctx) => {
 	ctx.neonPg = {
 		db,
 	};
+});
+
+test('skip', async () => {
+	expect(1).toBe(1);
 });
