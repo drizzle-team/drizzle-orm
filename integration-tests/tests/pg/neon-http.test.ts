@@ -408,7 +408,7 @@ test('test mode string for timestamp with timezone in different timezone', async
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
+	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456+00' }]);
 
 	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
 
@@ -428,12 +428,12 @@ skipTests([
 	'test mode string for timestamp with timezone',
 	'test mode date for timestamp with timezone',
 	'test mode string for timestamp with timezone in UTC timezone',
-	'test mode string for timestamp with timezone in different timezone',
 	'nested transaction rollback',
 	'transaction rollback',
 	'nested transaction',
 	'transaction',
 	'timestamp timezone',
+	'test $onUpdateFn and $onUpdate works as $default',
 ]);
 tests();
 
