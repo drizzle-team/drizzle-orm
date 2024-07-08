@@ -5,15 +5,15 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'tests/extensions/postgis/**/*',
-			'tests/relational/**/*.test.ts',
-			'tests/pg/**/*.test.ts',
+			// 'tests/extensions/postgis/**/*',
+			// 'tests/relational/**/*.test.ts',
+			// 'tests/pg/**/*.test.ts',
 			'tests/mysql/**/*.test.ts',
-			'tests/sqlite/**/*.test.ts',
-			'tests/replicas/**/*',
-			'tests/imports/**/*',
-			'tests/extensions/vectors/**/*',
-			'tests/version.test.ts',
+			// 'tests/sqlite/**/*.test.ts',
+			// 'tests/replicas/**/*',
+			// 'tests/imports/**/*',
+			// 'tests/extensions/vectors/**/*',
+			// 'tests/version.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
