@@ -40,6 +40,8 @@ export const IsAlias = Symbol.for('drizzle:IsAlias');
 /** @internal */
 export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
 
+const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
+
 export interface Table<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	T extends TableConfig = TableConfig,
@@ -115,6 +117,10 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	}
 }
 
+export function isTable(table: unknown): table is Table {
+	return typeof table === 'object' && table !== null && IsDrizzleTable in table;
+}
+
 /**
  * Any table with a specified boundary.
  *
@@ -136,6 +142,10 @@ export type AnyTable<TPartial extends Partial<TableConfig>> = Table<UpdateTableC
 
 export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];
+}
+
+export function getTableUniqueName<T extends Table>(table: T): `${T['_']['schema']}.${T['_']['name']}` {
+	return `${table[Schema] ?? 'public'}.${table[TableName]}`;
 }
 
 export type MapColumnName<TName extends string, TColumn extends Column, TDBColumNames extends boolean> =

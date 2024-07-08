@@ -1,4 +1,4 @@
-import { type AnyTable, type InferModelFromColumns, Table } from '~/table.ts';
+import { type AnyTable, getTableUniqueName, type InferModelFromColumns, Table } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { PrimaryKeyBuilder } from './pg-core/primary-keys.ts';
@@ -430,7 +430,7 @@ export function extractTablesRelationalConfig<
 	const tablesConfig: TablesRelationalConfig = {};
 	for (const [key, value] of Object.entries(schema)) {
 		if (is(value, Table)) {
-			const dbName = value[Table.Symbol.Name];
+			const dbName = getTableUniqueName(value);
 			const bufferedRelations = relationsBuffer[dbName];
 			tableNamesMap[dbName] = key;
 			tablesConfig[key] = {
@@ -462,7 +462,7 @@ export function extractTablesRelationalConfig<
 				}
 			}
 		} else if (is(value, Relations)) {
-			const dbName: string = value.table[Table.Symbol.Name];
+			const dbName = getTableUniqueName(value.table);
 			const tableName = tableNamesMap[dbName];
 			const relations: Record<string, Relation> = value.config(
 				configHelpers(value.table),
@@ -561,7 +561,7 @@ export function normalizeRelation(
 		};
 	}
 
-	const referencedTableTsName = tableNamesMap[relation.referencedTable[Table.Symbol.Name]];
+	const referencedTableTsName = tableNamesMap[getTableUniqueName(relation.referencedTable)];
 	if (!referencedTableTsName) {
 		throw new Error(
 			`Table "${relation.referencedTable[Table.Symbol.Name]}" not found in schema`,
@@ -574,7 +574,7 @@ export function normalizeRelation(
 	}
 
 	const sourceTable = relation.sourceTable;
-	const sourceTableTsName = tableNamesMap[sourceTable[Table.Symbol.Name]];
+	const sourceTableTsName = tableNamesMap[getTableUniqueName(sourceTable)];
 	if (!sourceTableTsName) {
 		throw new Error(
 			`Table "${sourceTable[Table.Symbol.Name]}" not found in schema`,
