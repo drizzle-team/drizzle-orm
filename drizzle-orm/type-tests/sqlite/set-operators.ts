@@ -151,7 +151,7 @@ const exceptAll2Test = await except(
 	db.select({
 		userId: newYorkers.userId,
 		cityId: newYorkers.cityId,
-	}).from(newYorkers).leftJoin(newYorkers, sql``),
+	}).from(newYorkers).leftJoin(users, sql``),
 );
 
 Expect<Equal<{ userId: number; cityId: number | null }[], typeof exceptAll2Test>>;
