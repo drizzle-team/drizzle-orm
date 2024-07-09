@@ -214,12 +214,16 @@ export async function createDockerDB(): Promise<string> {
 	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
 }
 
-afterAll(async () => {
-	await mysqlContainer?.stop().catch(console.error);
-});
+// afterAll(async () => {
+// 	await mysqlContainer?.stop().catch(console.error);
+// });
 
 export function tests(driver?: string) {
 	describe('common', () => {
+		afterAll(async () => {
+			await mysqlContainer?.stop().catch(console.error);
+		});
+
 		beforeEach(async (ctx) => {
 			const { db } = ctx.mysql;
 			await db.execute(sql`drop table if exists userstest`);
@@ -296,6 +300,18 @@ export function tests(driver?: string) {
 				);
 			}
 		});
+
+		async function setupReturningFunctionsTest(db: MySqlDatabase<any, any>) {
+			await db.execute(sql`drop table if exists \`users_default_fn\``);
+			await db.execute(
+				sql`
+					create table \`users_default_fn\` (
+						\`id\` varchar(256) primary key,
+						\`name\` text not null
+					);
+				`,
+			);
+		}
 
 		async function setupSetOperationTest(db: TestMySQLDB) {
 			await db.execute(sql`drop table if exists \`users2\``);
@@ -3325,6 +3341,88 @@ export function tests(driver?: string) {
 			}]);
 		});
 
+		test('insert $returningId: serail as id', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const result = await db.insert(usersTable).values({ name: 'John' }).$returningId();
+
+			expectTypeOf(result).toEqualTypeOf<{
+				id: number;
+			}[]>();
+
+			expect(result).toStrictEqual([{ id: 1 }]);
+		});
+
+		test('insert $returningId: serail as id, batch insert', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const result = await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).$returningId();
+
+			expectTypeOf(result).toEqualTypeOf<{
+				id: number;
+			}[]>();
+
+			expect(result).toStrictEqual([{ id: 1 }, { id: 2 }]);
+		});
+
+		test('insert $returningId: $default as primary key', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];
+			let iterator = 0;
+
+			const usersTableDefFn = mysqlTable('users_default_fn', {
+				customId: varchar('id', { length: 256 }).primaryKey().$defaultFn(() => {
+					const value = uniqueKeys[iterator]!;
+					iterator++;
+					return value;
+				}),
+				name: text('name').notNull(),
+			});
+
+			await setupReturningFunctionsTest(db);
+
+			const result = await db.insert(usersTableDefFn).values([{ name: 'John' }, { name: 'John1' }])
+				//    ^?
+				.$returningId();
+
+			expectTypeOf(result).toEqualTypeOf<{
+				customId: string;
+			}[]>();
+
+			expect(result).toStrictEqual([{ customId: 'ao865jf3mcmkfkk8o5ri495z' }, {
+				customId: 'dyqs529eom0iczo2efxzbcut',
+			}]);
+		});
+
+		test('insert $returningId: $default as primary key with value', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];
+			let iterator = 0;
+
+			const usersTableDefFn = mysqlTable('users_default_fn', {
+				customId: varchar('id', { length: 256 }).primaryKey().$defaultFn(() => {
+					const value = uniqueKeys[iterator]!;
+					iterator++;
+					return value;
+				}),
+				name: text('name').notNull(),
+			});
+
+			await setupReturningFunctionsTest(db);
+
+			const result = await db.insert(usersTableDefFn).values([{ name: 'John', customId: 'test' }, { name: 'John1' }])
+				//    ^?
+				.$returningId();
+
+			expectTypeOf(result).toEqualTypeOf<{
+				customId: string;
+			}[]>();
+
+			expect(result).toStrictEqual([{ customId: 'test' }, { customId: 'ao865jf3mcmkfkk8o5ri495z' }]);
+		});
+
 		test('mySchema :: view', async (ctx) => {
 			const { db } = ctx.mysql;
 
@@ -3389,95 +3487,3 @@ export function tests(driver?: string) {
 		});
 	});
 }
-
-async function setupReturningFunctionsTest(db: MySqlDatabase<any, any>) {
-	await db.execute(sql`drop table if exists \`users_default_fn\``);
-	await db.execute(
-		sql`
-			create table \`users_default_fn\` (
-				\`id\` varchar(256) primary key,
-				\`name\` text not null
-			);
-		`,
-	);
-}
-
-test('insert $returningId: serail as id', async (ctx) => {
-	const { db } = ctx.mysql;
-
-	const result = await db.insert(usersTable).values({ name: 'John' }).$returningId();
-
-	expectTypeOf(result).toEqualTypeOf<{
-		id: number;
-	}[]>();
-
-	expect(result).toStrictEqual([{ id: 1 }]);
-});
-
-test('insert $returningId: serail as id, batch insert', async (ctx) => {
-	const { db } = ctx.mysql;
-
-	const result = await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).$returningId();
-
-	expectTypeOf(result).toEqualTypeOf<{
-		id: number;
-	}[]>();
-
-	expect(result).toStrictEqual([{ id: 1 }, { id: 2 }]);
-});
-
-test('insert $returningId: $default as primary key', async (ctx) => {
-	const { db } = ctx.mysql;
-
-	const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];
-	let iterator = 0;
-
-	const usersTableDefFn = mysqlTable('users_default_fn', {
-		customId: varchar('id', { length: 256 }).primaryKey().$defaultFn(() => {
-			const value = uniqueKeys[iterator]!;
-			iterator++;
-			return value;
-		}),
-		name: text('name').notNull(),
-	});
-
-	await setupReturningFunctionsTest(db);
-
-	const result = await db.insert(usersTableDefFn).values([{ name: 'John' }, { name: 'John1' }])
-		//    ^?
-		.$returningId();
-
-	expectTypeOf(result).toEqualTypeOf<{
-		customId: string;
-	}[]>();
-
-	expect(result).toStrictEqual([{ customId: 'ao865jf3mcmkfkk8o5ri495z' }, { customId: 'dyqs529eom0iczo2efxzbcut' }]);
-});
-
-test('insert $returningId: $default as primary key with value', async (ctx) => {
-	const { db } = ctx.mysql;
-
-	const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];
-	let iterator = 0;
-
-	const usersTableDefFn = mysqlTable('users_default_fn', {
-		customId: varchar('id', { length: 256 }).primaryKey().$defaultFn(() => {
-			const value = uniqueKeys[iterator]!;
-			iterator++;
-			return value;
-		}),
-		name: text('name').notNull(),
-	});
-
-	await setupReturningFunctionsTest(db);
-
-	const result = await db.insert(usersTableDefFn).values([{ name: 'John', customId: 'test' }, { name: 'John1' }])
-		//    ^?
-		.$returningId();
-
-	expectTypeOf(result).toEqualTypeOf<{
-		customId: string;
-	}[]>();
-
-	expect(result).toStrictEqual([{ customId: 'test' }, { customId: 'ao865jf3mcmkfkk8o5ri495z' }]);
-});
