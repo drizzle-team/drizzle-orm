@@ -149,6 +149,12 @@
 		},
 		"@tidbcloud/serverless": {
 			"optional": true
+		},
+		"prisma": {
+			"optional": true
+		},
+		"@prisma/client": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
