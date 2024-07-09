@@ -3341,7 +3341,7 @@ export function tests(driver?: string) {
 			}]);
 		});
 
-		test('insert $returningId: serail as id', async (ctx) => {
+		test('insert $returningId: serial as id', async (ctx) => {
 			const { db } = ctx.mysql;
 
 			const result = await db.insert(usersTable).values({ name: 'John' }).$returningId();
@@ -3353,7 +3353,7 @@ export function tests(driver?: string) {
 			expect(result).toStrictEqual([{ id: 1 }]);
 		});
 
-		test('insert $returningId: serail as id, batch insert', async (ctx) => {
+		test('insert $returningId: serial as id, batch insert', async (ctx) => {
 			const { db } = ctx.mysql;
 
 			const result = await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).$returningId();
