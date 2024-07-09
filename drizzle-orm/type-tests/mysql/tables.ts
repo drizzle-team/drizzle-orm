@@ -12,6 +12,7 @@ import {
 	foreignKey,
 	index,
 	int,
+	json,
 	longtext,
 	mediumtext,
 	type MySqlColumn,
@@ -22,6 +23,7 @@ import {
 	text,
 	timestamp,
 	tinytext,
+	unique,
 	uniqueIndex,
 	varchar,
 } from '~/mysql-core/index.ts';
@@ -711,4 +713,50 @@ Expect<
 		// @ts-expect-error - should be number
 		id4: int('id').$defaultFn(() => '1'),
 	});
+}
+{
+	const emailLog = mysqlTable(
+		'email_log',
+		{
+			id: int('id', { unsigned: true }).autoincrement().notNull(),
+			clientId: int('id_client', { unsigned: true }).references((): MySqlColumn => emailLog.id, {
+				onDelete: 'set null',
+				onUpdate: 'cascade',
+			}),
+			receiverEmail: varchar('receiver_email', { length: 255 }).notNull(),
+			messageId: varchar('message_id', { length: 255 }),
+			contextId: int('context_id', { unsigned: true }),
+			contextType: mysqlEnum('context_type', ['test']).$type<['test']>(),
+			action: varchar('action', { length: 80 }).$type<['test']>(),
+			events: json('events').$type<{ t: 'test' }[]>(),
+			createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
+			updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().onUpdateNow(),
+		},
+		(table) => {
+			return {
+				emailLogId: primaryKey({ columns: [table.id], name: 'email_log_id' }),
+				emailLogMessageIdUnique: unique('email_log_message_id_unique').on(table.messageId),
+			};
+		},
+	);
+
+	Expect<
+		Equal<{
+			receiverEmail: string;
+			id?: number | undefined;
+			createdAt?: string | undefined;
+			clientId?: number | null | undefined;
+			messageId?: string | null | undefined;
+			contextId?: number | null | undefined;
+			contextType?: ['test'] | null | undefined;
+			action?: ['test'] | null | undefined;
+			events?:
+				| {
+					t: 'test';
+				}[]
+				| null
+				| undefined;
+			updatedAt?: string | null | undefined;
+		}, typeof emailLog.$inferInsert>
+	>;
 }
