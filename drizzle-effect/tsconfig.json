@@ -1,0 +1,14 @@
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+     "strict": true,
+    "exactOptionalPropertyTypes": true,
+		"outDir": "dist",
+		"baseUrl": ".",
+		"declaration": true,
+		"paths": {
+			"~/*": ["src/*"]
+		}
+	},
+	"include": ["src", "*.ts"]
+}
