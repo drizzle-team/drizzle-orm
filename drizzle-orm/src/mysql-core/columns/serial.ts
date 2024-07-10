@@ -2,6 +2,8 @@ import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderRuntimeConfig,
 	HasDefault,
+	IsAutoincrement,
+	IsPrimaryKey,
 	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
@@ -10,16 +12,21 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlSerialBuilderInitial<TName extends string> = NotNull<
-	HasDefault<
-		MySqlSerialBuilder<{
-			name: TName;
-			dataType: 'number';
-			columnType: 'MySqlSerial';
-			data: number;
-			driverParam: number;
-			enumValues: undefined;
-		}>
+export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
+	IsPrimaryKey<
+		NotNull<
+			HasDefault<
+				MySqlSerialBuilder<{
+					name: TName;
+					dataType: 'number';
+					columnType: 'MySqlSerial';
+					data: number;
+					driverParam: number;
+					enumValues: undefined;
+					generated: undefined;
+				}>
+			>
+		>
 	>
 >;
 

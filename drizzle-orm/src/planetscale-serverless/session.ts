@@ -1,5 +1,6 @@
 import type { Client, Connection, ExecutedQuery, Transaction } from '@planetscale/database';
-import { entityKind } from '~/entity.ts';
+import { Column } from '~/column.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -29,6 +30,10 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		// Keys that were used in $default and the value that was generated for them
+		private generatedIds?: Record<string, unknown>[],
+		// Keys that should be returned, it has the column with all properries + key from object
+		private returningIds?: SelectedFieldsOrdered,
 	) {
 		super();
 	}
@@ -38,11 +43,47 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 
 		this.logger.logQuery(this.queryString, params);
 
-		const { fields, client, queryString, rawQuery, query, joinsNotNullableMap, customResultMapper } = this;
+		const {
+			fields,
+			client,
+			queryString,
+			rawQuery,
+			query,
+			joinsNotNullableMap,
+			customResultMapper,
+			returningIds,
+			generatedIds,
+		} = this;
 		if (!fields && !customResultMapper) {
-			return client.execute(queryString, params, rawQuery);
-		}
+			const res = await client.execute(queryString, params, rawQuery);
 
+			const insertId = Number.parseFloat(res.insertId);
+			const affectedRows = res.rowsAffected;
+
+			// for each row, I need to check keys from
+			if (returningIds) {
+				const returningResponse = [];
+				let j = 0;
+				for (let i = insertId; i < insertId + affectedRows; i++) {
+					for (const column of returningIds) {
+						const key = returningIds[0]!.path[0]!;
+						if (is(column.field, Column)) {
+							// @ts-ignore
+							if (column.field.primary && column.field.autoIncrement) {
+								returningResponse.push({ [key]: i });
+							}
+							if (column.field.defaultFn && generatedIds) {
+								// generatedIds[rowIdx][key]
+								returningResponse.push({ [key]: generatedIds[j]![key] });
+							}
+						}
+					}
+					j++;
+				}
+				return returningResponse;
+			}
+			return res;
+		}
 		const { rows } = await client.execute(queryString, params, query);
 
 		if (customResultMapper) {
@@ -86,8 +127,19 @@ export class PlanetscaleSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
 	): MySqlPreparedQuery<T> {
-		return new PlanetScalePreparedQuery(this.client, query.sql, query.params, this.logger, fields, customResultMapper);
+		return new PlanetScalePreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			customResultMapper,
+			generatedIds,
+			returningIds,
+		);
 	}
 
 	async query(query: string, params: unknown[]): Promise<ExecutedQuery> {
@@ -106,7 +158,10 @@ export class PlanetscaleSession<
 	override all<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
-		return this.client.execute(querySql.sql, querySql.params, { as: 'object' }).then((eQuery) => eQuery.rows as T[]);
+
+		return this.client.execute(querySql.sql, querySql.params, { as: 'object' }).then((
+			eQuery,
+		) => eQuery.rows as T[]);
 	}
 
 	override transaction<T>(

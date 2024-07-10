@@ -3,6 +3,7 @@ import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasDefault,
+	IsPrimaryKey,
 	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
@@ -35,12 +36,12 @@ export abstract class SQLiteBaseIntegerBuilder<
 		this.config.autoIncrement = false;
 	}
 
-	override primaryKey(config?: PrimaryKeyConfig): HasDefault<NotNull<this>> {
+	override primaryKey(config?: PrimaryKeyConfig): IsPrimaryKey<HasDefault<NotNull<this>>> {
 		if (config?.autoIncrement) {
 			this.config.autoIncrement = true;
 		}
 		this.config.hasDefault = true;
-		return super.primaryKey() as HasDefault<NotNull<this>>;
+		return super.primaryKey() as IsPrimaryKey<HasDefault<NotNull<this>>>;
 	}
 
 	/** @internal */
@@ -69,6 +70,7 @@ export type SQLiteIntegerBuilderInitial<TName extends string> = SQLiteIntegerBui
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLiteInteger'>>
@@ -101,6 +103,7 @@ export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestam
 	data: Date;
 	driverParam: number;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'SQLiteTimestamp'>>
@@ -162,6 +165,7 @@ export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBui
 	data: boolean;
 	driverParam: number;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'SQLiteBoolean'>>

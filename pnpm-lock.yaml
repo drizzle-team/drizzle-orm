@@ -446,6 +446,12 @@ importers:
       '@neondatabase/serverless':
         specifier: 0.9.0
         version: 0.9.0
+      '@originjs/vite-plugin-commonjs':
+        specifier: ^1.0.3
+        version: 1.0.3
+      '@paralleldrive/cuid2':
+        specifier: ^2.2.2
+        version: 2.2.2
       '@types/async-retry':
         specifier: ^1.4.8
         version: 1.4.8
@@ -2601,6 +2607,10 @@ packages:
   '@neondatabase/serverless@0.9.3':
     resolution: {integrity: sha512-6ZBK8asl2Z3+ADEaELvbaVVGVlmY1oAzkxxZfpmXPKFuJhbDN+5fU3zYBamsahS/Ch1zE+CVWB3R+8QEI2LMSw==}
 
+  '@noble/hashes@1.4.0':
+    resolution: {integrity: sha512-V1JJ1WTRUqHHrOSh597hURcMqVKVGL/ea3kv0gSnEdsEZ0/+VyPghM1lMNGc00z7CIQorSvbKpuJkxvuHbvdbg==}
+    engines: {node: '>= 16'}
+
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
     engines: {node: '>= 8'}
@@ -2637,6 +2647,9 @@ packages:
 
   '@originjs/vite-plugin-commonjs@1.0.3':
     resolution: {integrity: sha512-KuEXeGPptM2lyxdIEJ4R11+5ztipHoE7hy8ClZt3PYaOVQ/pyngd2alaSrPnwyFeOW1UagRBaQ752aA1dTMdOQ==}
+
+  '@paralleldrive/cuid2@2.2.2':
+    resolution: {integrity: sha512-ZOBkgDwEdoYVlSeRbYYXs0S9MejQofiVYoTbKzy/6GQa39/q5tQU2IX46+shYnUkpEl3wc+J6wRlar7r2EK2xA==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -9204,8 +9217,8 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
-      '@aws-sdk/client-sso-oidc': 3.583.0(@aws-sdk/client-sts@3.583.0)
-      '@aws-sdk/client-sts': 3.583.0
+      '@aws-sdk/client-sso-oidc': 3.583.0
+      '@aws-sdk/client-sts': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)
       '@aws-sdk/core': 3.582.0
       '@aws-sdk/credential-provider-node': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.583.0)
       '@aws-sdk/middleware-host-header': 3.577.0
@@ -9291,11 +9304,11 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0)':
+  '@aws-sdk/client-sso-oidc@3.583.0':
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
-      '@aws-sdk/client-sts': 3.583.0
+      '@aws-sdk/client-sts': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)
       '@aws-sdk/core': 3.582.0
       '@aws-sdk/credential-provider-node': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.583.0)
       '@aws-sdk/middleware-host-header': 3.577.0
@@ -9334,7 +9347,6 @@ snapshots:
       '@smithy/util-utf8': 3.0.0
       tslib: 2.6.2
     transitivePeerDependencies:
-      - '@aws-sdk/client-sts'
       - aws-crt
 
   '@aws-sdk/client-sso@3.478.0':
@@ -9601,11 +9613,11 @@ snapshots:
       - '@aws-sdk/client-sso-oidc'
       - aws-crt
 
-  '@aws-sdk/client-sts@3.583.0':
+  '@aws-sdk/client-sts@3.583.0(@aws-sdk/client-sso-oidc@3.583.0)':
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
-      '@aws-sdk/client-sso-oidc': 3.583.0(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/client-sso-oidc': 3.583.0
       '@aws-sdk/core': 3.582.0
       '@aws-sdk/credential-provider-node': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.583.0)
       '@aws-sdk/middleware-host-header': 3.577.0
@@ -9644,6 +9656,7 @@ snapshots:
       '@smithy/util-utf8': 3.0.0
       tslib: 2.6.2
     transitivePeerDependencies:
+      - '@aws-sdk/client-sso-oidc'
       - aws-crt
 
   '@aws-sdk/core@3.477.0':
@@ -9798,7 +9811,7 @@ snapshots:
 
   '@aws-sdk/credential-provider-ini@3.583.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.583.0)':
     dependencies:
-      '@aws-sdk/client-sts': 3.583.0
+      '@aws-sdk/client-sts': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)
       '@aws-sdk/credential-provider-env': 3.577.0
       '@aws-sdk/credential-provider-process': 3.577.0
       '@aws-sdk/credential-provider-sso': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)
@@ -10005,7 +10018,7 @@ snapshots:
 
   '@aws-sdk/credential-provider-web-identity@3.577.0(@aws-sdk/client-sts@3.583.0)':
     dependencies:
-      '@aws-sdk/client-sts': 3.583.0
+      '@aws-sdk/client-sts': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)
       '@aws-sdk/types': 3.577.0
       '@smithy/property-provider': 3.0.0
       '@smithy/types': 3.0.0
@@ -10206,7 +10219,7 @@ snapshots:
 
   '@aws-sdk/token-providers@3.568.0(@aws-sdk/client-sso-oidc@3.583.0)':
     dependencies:
-      '@aws-sdk/client-sso-oidc': 3.583.0(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/client-sso-oidc': 3.583.0
       '@aws-sdk/types': 3.567.0
       '@smithy/property-provider': 2.2.0
       '@smithy/shared-ini-file-loader': 2.4.0
@@ -10215,7 +10228,7 @@ snapshots:
 
   '@aws-sdk/token-providers@3.577.0(@aws-sdk/client-sso-oidc@3.583.0)':
     dependencies:
-      '@aws-sdk/client-sso-oidc': 3.583.0(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/client-sso-oidc': 3.583.0
       '@aws-sdk/types': 3.577.0
       '@smithy/property-provider': 3.0.0
       '@smithy/shared-ini-file-loader': 3.0.0
@@ -12250,6 +12263,8 @@ snapshots:
       '@types/pg': 8.11.6
     optional: true
 
+  '@noble/hashes@1.4.0': {}
+
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -12288,6 +12303,10 @@ snapshots:
   '@originjs/vite-plugin-commonjs@1.0.3':
     dependencies:
       esbuild: 0.14.54
+
+  '@paralleldrive/cuid2@2.2.2':
+    dependencies:
+      '@noble/hashes': 1.4.0
 
   '@pkgjs/parseargs@0.11.0':
     optional: true

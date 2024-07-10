@@ -73,6 +73,8 @@ export abstract class MySqlSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {

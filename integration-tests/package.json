@@ -16,6 +16,8 @@
 	"private": true,
 	"devDependencies": {
 		"@neondatabase/serverless": "0.9.0",
+		"@originjs/vite-plugin-commonjs": "^1.0.3",
+		"@paralleldrive/cuid2": "^2.2.2",
 		"@types/async-retry": "^1.4.8",
 		"@types/axios": "^0.14.0",
 		"@types/better-sqlite3": "^7.6.4",
