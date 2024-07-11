@@ -7,6 +7,11 @@ import { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query.ts';
 
 export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQLiteRelationalQuery<'sync', unknown>>(
 	query: T,
+	{
+		skip = false
+	}: {
+		skip: boolean
+	}
 ) => {
 	const [data, setData] = useState<Awaited<T>>(
 		(is(query, SQLiteRelationalQuery) && query.mode === 'first' ? undefined : []) as Awaited<T>,
@@ -15,6 +20,10 @@ export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQL
 	const [updatedAt, setUpdatedAt] = useState<Date>();
 
 	useEffect(() => {
+		if (skip) {
+			return ;
+		}
+
 		const entity = is(query, SQLiteRelationalQuery) ? query.table : (query as AnySQLiteSelect).config.table;
 
 		if (is(entity, Subquery) || is(entity, SQL)) {
@@ -43,7 +52,7 @@ export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQL
 		return () => {
 			listener?.remove();
 		};
-	}, []);
+	}, [skip]);
 
 	return {
 		data,
