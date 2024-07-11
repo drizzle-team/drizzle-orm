@@ -1,4 +1,3 @@
-import test from 'ava';
 import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import {
 	array,
@@ -15,8 +14,9 @@ import {
 	picklist,
 	string,
 } from 'valibot';
+import { expect, test } from 'vitest';
 import { createInsertSchema, createSelectSchema } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
@@ -52,29 +52,27 @@ const testUser = {
 	initials: 'JD',
 };
 
-test('users insert valid user', (t) => {
+test('users insert valid user', () => {
 	const schema = createInsertSchema(users);
 
-	t.deepEqual(parse(schema, testUser), testUser);
+	expect(parse(schema, testUser)).toStrictEqual(testUser);
 });
 
-test('users insert invalid varchar', (t) => {
+test('users insert invalid varchar', () => {
 	const schema = createInsertSchema(users);
 
-	t.throws(
-		() =>
-			parse(schema, {
-				...testUser,
-				profession: 'Chief Executive Officer',
-			}),
-		undefined,
-	);
+	expect(() =>
+		parse(schema, {
+			...testUser,
+			profession: 'Chief Executive Officer',
+		})
+	).toThrow(undefined);
 });
 
-test('users insert invalid char', (t) => {
+test('users insert invalid char', () => {
 	const schema = createInsertSchema(users);
 
-	t.throws(() => parse(schema, { ...testUser, initials: 'JoDo' }), undefined);
+	expect(() => parse(schema, { ...testUser, initials: 'JoDo' })).toThrow(undefined);
 });
 
 test('users insert schema', (t) => {

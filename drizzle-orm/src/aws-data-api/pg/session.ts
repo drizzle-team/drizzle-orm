@@ -10,11 +10,11 @@ import type { Logger } from '~/logger.ts';
 import {
 	type PgDialect,
 	PgPreparedQuery,
+	type PgQueryResultHKT,
 	PgSession,
 	PgTransaction,
 	type PgTransactionConfig,
 	type PreparedQueryConfig,
-	type QueryResultHKT,
 } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -265,6 +265,6 @@ export class AwsDataApiTransaction<
 
 export type AwsDataApiPgQueryResult<T> = ExecuteStatementCommandOutput & { rows: T[] };
 
-export interface AwsDataApiPgQueryResultHKT extends QueryResultHKT {
+export interface AwsDataApiPgQueryResultHKT extends PgQueryResultHKT {
 	type: AwsDataApiPgQueryResult<any>;
 }

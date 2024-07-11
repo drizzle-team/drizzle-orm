@@ -12,6 +12,7 @@ import {
 	foreignKey,
 	index,
 	int,
+	json,
 	longtext,
 	mediumtext,
 	type MySqlColumn,
@@ -22,6 +23,7 @@ import {
 	text,
 	timestamp,
 	tinytext,
+	unique,
 	uniqueIndex,
 	varchar,
 } from '~/mysql-core/index.ts';
@@ -74,11 +76,75 @@ export const cities = mysqlTable('cities_table', {
 }));
 
 Expect<
+	Equal<
+		{
+			id: MySqlColumn<{
+				name: 'id';
+				tableName: 'cities_table';
+				dataType: 'number';
+				columnType: 'MySqlSerial';
+				data: number;
+				driverParam: number;
+				notNull: true;
+				hasDefault: true;
+				isPrimaryKey: true;
+				enumValues: undefined;
+				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: true;
+				hasRuntimeDefault: false;
+			}, object>;
+			name: MySqlColumn<{
+				name: 'name_db';
+				tableName: 'cities_table';
+				dataType: 'string';
+				columnType: 'MySqlText';
+				data: string;
+				driverParam: string;
+				notNull: true;
+				hasDefault: false;
+				isPrimaryKey: false;
+				enumValues: [string, ...string[]];
+				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}, object>;
+			population: MySqlColumn<{
+				name: 'population';
+				tableName: 'cities_table';
+				dataType: 'number';
+				columnType: 'MySqlInt';
+				data: number;
+				driverParam: string | number;
+				notNull: false;
+				hasDefault: true;
+				isPrimaryKey: false;
+				enumValues: undefined;
+				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}, object>;
+		},
+		typeof cities._.columns
+	>
+>;
+
+Expect<
 	Equal<{
 		id: number;
 		name_db: string;
 		population: number | null;
 	}, InferSelectModel<typeof cities, { dbColumnNames: true }>>
+>;
+
+Expect<
+	Equal<{
+		id?: number;
+		name: string;
+		population?: number | null;
+	}, typeof cities.$inferInsert>
 >;
 
 export const customSchema = mysqlSchema('custom_schema');
@@ -135,6 +201,10 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: true;
+				hasRuntimeDefault: false;
 			}>;
 			cityId: MySqlColumn<{
 				name: 'id';
@@ -147,6 +217,10 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: true;
+				hasRuntimeDefault: false;
 			}>;
 		}>,
 		typeof newYorkers
@@ -184,6 +258,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: true;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'id';
@@ -196,6 +274,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: true;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -231,6 +313,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -243,6 +329,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -278,6 +368,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -290,6 +384,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -317,6 +415,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -329,6 +431,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -356,6 +462,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -368,6 +478,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -398,6 +512,10 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				dialect: 'mysql';
+				generated: undefined;
+				isPrimaryKey: false;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
 			},
 			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>
 		>
@@ -446,6 +564,41 @@ Expect<
 		test13: char('test', { enum: ['a', 'b', 'c'] as const }).notNull(),
 		test14: char('test', { enum: ['a', 'b', 'c'] }).notNull(),
 		test15: text('test').notNull(),
+	});
+	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test3.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test4.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test5.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test6.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test7.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test8.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test9.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test10.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test11.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test12.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test13.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test14.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.test15.enumValues>>;
+}
+
+{ // All types with generated columns
+	const test = mysqlTable('test', {
+		test1: mysqlEnum('test', ['a', 'b', 'c'] as const).generatedAlwaysAs(sql``),
+		test2: mysqlEnum('test', ['a', 'b', 'c']).generatedAlwaysAs(sql``),
+		test3: varchar('test', { length: 255, enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test4: varchar('test', { length: 255, enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test5: text('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test6: text('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test7: tinytext('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test8: tinytext('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test9: mediumtext('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test10: mediumtext('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test11: longtext('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test12: longtext('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test13: char('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test14: char('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test15: text('test').generatedAlwaysAs(sql``),
 	});
 	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;
@@ -560,4 +713,50 @@ Expect<
 		// @ts-expect-error - should be number
 		id4: int('id').$defaultFn(() => '1'),
 	});
+}
+{
+	const emailLog = mysqlTable(
+		'email_log',
+		{
+			id: int('id', { unsigned: true }).autoincrement().notNull(),
+			clientId: int('id_client', { unsigned: true }).references((): MySqlColumn => emailLog.id, {
+				onDelete: 'set null',
+				onUpdate: 'cascade',
+			}),
+			receiverEmail: varchar('receiver_email', { length: 255 }).notNull(),
+			messageId: varchar('message_id', { length: 255 }),
+			contextId: int('context_id', { unsigned: true }),
+			contextType: mysqlEnum('context_type', ['test']).$type<['test']>(),
+			action: varchar('action', { length: 80 }).$type<['test']>(),
+			events: json('events').$type<{ t: 'test' }[]>(),
+			createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
+			updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().onUpdateNow(),
+		},
+		(table) => {
+			return {
+				emailLogId: primaryKey({ columns: [table.id], name: 'email_log_id' }),
+				emailLogMessageIdUnique: unique('email_log_message_id_unique').on(table.messageId),
+			};
+		},
+	);
+
+	Expect<
+		Equal<{
+			receiverEmail: string;
+			id?: number | undefined;
+			createdAt?: string | undefined;
+			clientId?: number | null | undefined;
+			messageId?: string | null | undefined;
+			contextId?: number | null | undefined;
+			contextType?: ['test'] | null | undefined;
+			action?: ['test'] | null | undefined;
+			events?:
+				| {
+					t: 'test';
+				}[]
+				| null
+				| undefined;
+			updatedAt?: string | null | undefined;
+		}, typeof emailLog.$inferInsert>
+	>;
 }
