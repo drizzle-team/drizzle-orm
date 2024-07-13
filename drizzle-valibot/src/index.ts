@@ -44,9 +44,9 @@ import {
 	type OptionalSchema,
 	picklist,
 	type PicklistSchema,
+	pipe,
 	record,
 	type RecordIssue,
-	pipe,
 	type SchemaWithPipe,
 	string,
 	type StringIssue,
@@ -63,7 +63,14 @@ type LiteralIssue = StringIssue | NumberIssue | BooleanIssue | NullIssue;
 type JsonIssue = LiteralIssue | ArrayIssue | RecordIssue;
 type JsonSchema = BaseSchema<Json, Json, UnionIssue<JsonIssue> | JsonIssue>;
 export const jsonSchema = lazy(() =>
-	union([string(), number(), boolean(), null_(), array(jsonSchema), record(string(), jsonSchema)])
+	union([
+		string(),
+		number(),
+		boolean(),
+		null_(),
+		array(jsonSchema),
+		record(string(), jsonSchema),
+	])
 ) as JsonSchema;
 
 type MapInsertColumnToValibot<
@@ -76,7 +83,8 @@ type MapInsertColumnToValibot<
 type MapSelectColumnToValibot<
 	TColumn extends Column,
 	TType extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
-> = TColumn['_']['notNull'] extends false ? NullableSchema<TType, never> : TType;
+> = TColumn['_']['notNull'] extends false ? NullableSchema<TType, never>
+	: TType;
 
 type MapColumnToValibot<
 	TColumn extends Column,
@@ -98,13 +106,21 @@ type GetValibotType<TColumn extends Column> = TColumn['_']['dataType'] extends i
 	: TDataType extends 'json' ? JsonSchema
 	: TColumn extends { enumValues: [string, ...string[]] }
 		// TODO: Can we somehow check `.length` to know if it's a string schema with or without a max length check?
-		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? StringSchema<undefined> | SchemaWithPipe<[StringSchema<undefined>, MaxLengthAction<string, number, undefined>]>
+		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? 
+				| StringSchema<undefined>
+				| SchemaWithPipe<
+					[
+						StringSchema<undefined>,
+						MaxLengthAction<string, number, undefined>,
+					]
+				>
 		: PicklistSchema<TColumn['enumValues'], undefined>
 	: TDataType extends 'array'
-		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>, undefined> : never
+		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>, undefined>
+		: never
 	: TDataType extends 'bigint' ? BigintSchema<undefined>
 	: TDataType extends 'number' ? NumberSchema<undefined>
-	// TODO: I think Drizzle's MySQL `varbinary` returns the wrong type
+		// TODO: I think Drizzle's MySQL `varbinary` returns the wrong type
 	: TDataType extends 'string' ? StringSchema<undefined>
 	: TDataType extends 'boolean' ? BooleanSchema<undefined>
 	: TDataType extends 'date' ? DateSchema<undefined>
@@ -132,9 +148,12 @@ export type BuildInsertSchema<
 	string,
 	Column<any>
 > ? {
-	[K in keyof TColumns & string]: MaybeOptional<
+		[K in keyof TColumns & string]: MaybeOptional<
 			TColumns[K],
-			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, BaseSchema<unknown, unknown, BaseIssue<unknown>>>
+			K extends keyof TRefine ? Assume<
+					UnwrapValueOrUpdater<TRefine[K]>,
+					BaseSchema<unknown, unknown, BaseIssue<unknown>>
+				>
 				: GetValibotType<TColumns[K]>,
 			'insert',
 			TNoOptional
@@ -150,7 +169,10 @@ export type BuildSelectSchema<
 	{
 		[K in keyof TTable['_']['columns']]: MaybeOptional<
 			TTable['_']['columns'][K],
-			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, BaseSchema<unknown, unknown, BaseIssue<unknown>>>
+			K extends keyof TRefine ? Assume<
+					UnwrapValueOrUpdater<TRefine[K]>,
+					BaseSchema<unknown, unknown, BaseIssue<unknown>>
+				>
 				: GetValibotType<TTable['_']['columns'][K]>,
 			'select',
 			TNoOptional
@@ -200,11 +222,7 @@ export function createInsertSchema<
 						name,
 						typeof refineColumn === 'function'
 							? refineColumn(
-								schemaEntries as BuildInsertSchema<
-									TTable,
-									{},
-									true
-								>,
+								schemaEntries as BuildInsertSchema<TTable, {}, true>,
 							)
 							: refineColumn,
 					];
@@ -265,11 +283,7 @@ export function createSelectSchema<
 						name,
 						typeof refineColumn === 'function'
 							? refineColumn(
-								schemaEntries as BuildSelectSchema<
-									TTable,
-									{},
-									true
-								>,
+								schemaEntries as BuildSelectSchema<TTable, {}, true>,
 							)
 							: refineColumn,
 					];
@@ -297,50 +311,33 @@ function isWithEnum(
 	);
 }
 
-// TODO: This function could be rewritten into a single return statement
-function mapColumnToSchema(column: Column): BaseSchema<unknown, unknown, BaseIssue<unknown>> {
-	let type: BaseSchema<unknown, unknown, BaseIssue<unknown>> | undefined;
+function mapColumnToSchema(
+	column: Column,
+): BaseSchema<unknown, unknown, BaseIssue<unknown>> {
+	if (isWithEnum(column)) return picklist(column.enumValues);
 
-	if (isWithEnum(column)) {
-		// TODO: This is unnecessary because `isWithEnum` already checks for `column.enumValues.length`
-		type = column.enumValues?.length
-			? picklist(column.enumValues)
+	if (column.dataType === 'custom') return any();
+
+	if (column.dataType === 'json') return jsonSchema;
+	if (column.dataType === 'array') return array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
+
+	if (column.dataType === 'number') return number();
+
+	if (column.dataType === 'bigint') return bigint();
+
+	if (column.dataType === 'boolean') return boolean();
+	if (column.dataType === 'date') return date();
+	if (column.dataType === 'string') {
+		return (is(column, PgChar)
+				|| is(column, PgVarchar)
+				|| is(column, MySqlVarChar)
+				|| is(column, MySqlVarBinary)
+				|| is(column, MySqlChar)
+				|| is(column, SQLiteText))
+				&& typeof column.length === 'number'
+			? pipe(string(), maxLength(column.length))
 			: string();
 	}
-
-	if (!type) {
-		if (column.dataType === 'custom') {
-			type = any();
-		} else if (column.dataType === 'json') {
-			type = jsonSchema;
-		} else if (column.dataType === 'array') {
-			type = array(
-				mapColumnToSchema((column as PgArray<any, any>).baseColumn),
-			);
-		} else if (column.dataType === 'number') {
-			type = number();
-		} else if (column.dataType === 'bigint') {
-			type = bigint();
-		} else if (column.dataType === 'boolean') {
-			type = boolean();
-		} else if (column.dataType === 'date') {
-			type = date();
-		} else if (column.dataType === 'string') {
-			type = (is(column, PgChar)
-					|| is(column, PgVarchar)
-					|| is(column, MySqlVarChar)
-					|| is(column, MySqlVarBinary)
-					|| is(column, MySqlChar)
-					|| is(column, SQLiteText))
-				&& typeof column.length === 'number' ? pipe(string(), maxLength(column.length)) : string();
-		} else if (is(column, PgUUID)) {
-			type = pipe(string(), uuid());
-		}
-	}
-
-	if (!type) {
-		type = any();
-	}
-
-	return type;
+	if (is(column, PgUUID)) return pipe(string(), uuid());
+	return any();
 }
