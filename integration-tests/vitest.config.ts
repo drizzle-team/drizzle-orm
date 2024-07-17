@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { viteCommonjs } from '@originjs/vite-plugin-commonjs';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
@@ -8,27 +7,30 @@ export default defineConfig({
 		include: [
 			'tests/extensions/postgis/**/*',
 			'tests/relational/**/*.test.ts',
-			'tests/libsql-batch.test.ts',
-			'tests/d1-batch.test.ts',
-			'tests/sqlite-proxy-batch.test.ts',
-			'tests/neon-http-batch.test.ts',
+			'tests/pg/**/*.test.ts',
+			'tests/mysql/**/*.test.ts',
+			'tests/sqlite/**/*.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
-			'tests/xata-http.test.ts',
 			'tests/extensions/vectors/**/*',
-			'tests/tidb-serverless.test.ts',
-			// 'tests/awsdatapi.test.ts',
+			'tests/version.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
 				? [
 					'tests/relational/mysql.planetscale.test.ts',
 					'tests/neon-http-batch.test.ts',
-					'tests/xata-http.test.ts',
-					'tests/tidb-serverless.test.ts',
+					// 'tests/pg/xata-http.test.ts',
+					'tests/mysql/tidb-serverless.test.ts',
 				]
 				: []),
+			'tests/pg/awsdatapi.test.ts',
+			'tests/awsdatapi.alltypes.test.ts',
+			'tests/pg/vercel-pg.test.ts',
 			'tests/relational/vercel.test.ts',
+			// Have a strange "invalid SQL: ERROR: must be owner of schema public" error. Will need to check with xata team
+			'tests/pg/xata-http.test.ts',
+			'tests/pg/neon-http-batch.ts',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
@@ -36,6 +38,11 @@ export default defineConfig({
 		testTimeout: 100000,
 		hookTimeout: 100000,
 		isolate: false,
+		poolOptions: {
+			threads: {
+				singleThread: true,
+			},
+		},
 	},
-	plugins: [viteCommonjs(), tsconfigPaths()],
+	plugins: [tsconfigPaths()],
 });

@@ -11,6 +11,7 @@ const orders = mysqlTable('orders', {
 	product: text('product').notNull(),
 	amount: int('amount').notNull(),
 	quantity: int('quantity').notNull(),
+	generated: text('generatedText').generatedAlwaysAs(sql``),
 });
 
 {
@@ -61,5 +62,19 @@ const orders = mysqlTable('orders', {
 			productUnits: number;
 			productSales: number;
 		}[], typeof result>
+	>;
+
+	const allOrdersWith = db.$with('all_orders_with').as(db.select().from(orders));
+	const allFromWith = await db.with(allOrdersWith).select().from(allOrdersWith);
+
+	Expect<
+		Equal<{
+			id: number;
+			region: string;
+			product: string;
+			amount: number;
+			quantity: number;
+			generated: string | null;
+		}[], typeof allFromWith>
 	>;
 }
