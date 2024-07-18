@@ -64,7 +64,7 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date', 'PgTimestamp'>> exte
 	};
 
 	override mapToDriverValue = (value: Date): string => {
-		return value.toISOString();
+		return value instanceof Date ? value.toISOString() : value;
 	};
 }
 
