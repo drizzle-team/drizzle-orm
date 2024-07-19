@@ -2681,4 +2681,16 @@ export function tests() {
 		expect(columnField?.isUnique).toBeTruthy();
 		expect(columnField?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnField!.name]));
 	});
+
+	test('limit 0', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		await db.insert(usersTable).values({ name: 'John' });
+		const users = await db
+			.select()
+			.from(usersTable)
+			.limit(0);
+
+		expect(users).toEqual([]);
+	});
 }

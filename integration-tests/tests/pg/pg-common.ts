@@ -4428,5 +4428,17 @@ export function tests() {
 
 			await db.execute(sql`drop materialized view ${newYorkers1}`);
 		});
+
+		test('limit 0', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(usersTable).values({ name: 'John' });
+			const users = await db
+				.select()
+				.from(usersTable)
+				.limit(0);
+
+			expect(users).toEqual([]);
+		});
 	});
 }
