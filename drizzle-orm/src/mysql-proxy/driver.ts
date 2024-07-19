@@ -18,7 +18,7 @@ export type RemoteCallback = (
 	sql: string,
 	params: any[],
 	method: 'all' | 'execute',
-) => Promise<{ rows: any[] }>;
+) => Promise<{ rows: any[]; insertId?: number; affectedRows?: number }>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	callback: RemoteCallback,

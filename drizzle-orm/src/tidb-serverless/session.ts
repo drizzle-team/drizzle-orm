@@ -1,17 +1,18 @@
 import type { Connection, ExecuteOptions, FullResult, Tx } from '@tidbcloud/serverless';
+import { Column } from '~/column.ts';
 
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import {
+	MySqlPreparedQuery,
+	type MySqlPreparedQueryConfig,
+	type MySqlPreparedQueryHKT,
+	type MySqlQueryResultHKT,
 	MySqlSession,
 	MySqlTransaction,
-	PreparedQuery,
-	type PreparedQueryConfig,
-	type PreparedQueryHKT,
-	type QueryResultHKT,
 } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
@@ -20,7 +21,7 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 const executeRawConfig = { fullResult: true } satisfies ExecuteOptions;
 const queryConfig = { arrayMode: true } satisfies ExecuteOptions;
 
-export class TiDBServerlessPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlPreparedQuery<T> {
 	static readonly [entityKind]: string = 'TiDBPreparedQuery';
 
 	constructor(
@@ -30,6 +31,10 @@ export class TiDBServerlessPreparedQuery<T extends PreparedQueryConfig> extends 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		// Keys that were used in $default and the value that was generated for them
+		private generatedIds?: Record<string, unknown>[],
+		// Keys that should be returned, it has the column with all properries + key from object
+		private returningIds?: SelectedFieldsOrdered,
 	) {
 		super();
 	}
@@ -39,9 +44,35 @@ export class TiDBServerlessPreparedQuery<T extends PreparedQueryConfig> extends 
 
 		this.logger.logQuery(this.queryString, params);
 
-		const { fields, client, queryString, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, client, queryString, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } = this;
 		if (!fields && !customResultMapper) {
-			return client.execute(queryString, params, executeRawConfig);
+			const res = await client.execute(queryString, params, executeRawConfig) as FullResult;
+			const insertId = res.lastInsertId ?? 0;
+			const affectedRows = res.rowsAffected ?? 0;
+			// for each row, I need to check keys from
+			if (returningIds) {
+				const returningResponse = [];
+				let j = 0;
+				for (let i = insertId; i < insertId + affectedRows; i++) {
+					for (const column of returningIds) {
+						const key = returningIds[0]!.path[0]!;
+						if (is(column.field, Column)) {
+							// @ts-ignore
+							if (column.field.primary && column.field.autoIncrement) {
+								returningResponse.push({ [key]: i });
+							}
+							if (column.field.defaultFn && generatedIds) {
+								// generatedIds[rowIdx][key]
+								returningResponse.push({ [key]: generatedIds[j]![key] });
+							}
+						}
+					}
+					j++;
+				}
+
+				return returningResponse;
+			}
+			return res;
 		}
 
 		const rows = await client.execute(queryString, params, queryConfig) as unknown[][];
@@ -83,11 +114,13 @@ export class TiDBServerlessSession<
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+	prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
+	): MySqlPreparedQuery<T> {
 		return new TiDBServerlessPreparedQuery(
 			this.client,
 			query.sql,
@@ -95,6 +128,8 @@ export class TiDBServerlessSession<
 			this.logger,
 			fields,
 			customResultMapper,
+			generatedIds,
+			returningIds,
 		);
 	}
 
@@ -162,10 +197,10 @@ export class TiDBServerlessTransaction<
 	}
 }
 
-export interface TiDBServerlessQueryResultHKT extends QueryResultHKT {
+export interface TiDBServerlessQueryResultHKT extends MySqlQueryResultHKT {
 	type: FullResult;
 }
 
-export interface TiDBServerlessPreparedQueryHKT extends PreparedQueryHKT {
-	type: TiDBServerlessPreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
+export interface TiDBServerlessPreparedQueryHKT extends MySqlPreparedQueryHKT {
+	type: TiDBServerlessPreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
 }

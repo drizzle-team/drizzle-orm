@@ -1,6 +1,5 @@
 import { Type } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
-import test from 'ava';
 import {
 	bigint,
 	binary,
@@ -31,8 +30,9 @@ import {
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
+import { expect, test } from 'vitest';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 const customInt = customType<{ data: number }>({
 	dataType() {
@@ -127,40 +127,34 @@ const testTableRow = {
 	autoIncrement: 1,
 };
 
-test('insert valid row', (t) => {
+test('insert valid row', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.is(
-		Value.Check(
-			schema,
-			testTableRow,
-		),
-		true,
-	);
+	expect(Value.Check(
+		schema,
+		testTableRow,
+	)).toBeTruthy();
 });
 
-test('insert invalid varchar length', (t) => {
+test('insert invalid varchar length', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.is(
-		Value.Check(schema, {
-			...testTableRow,
-			varchar: 'A'.repeat(201),
-		}), /* schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success */
-		false,
-	);
+	expect(Value.Check(schema, {
+		...testTableRow,
+		varchar: 'A'.repeat(201),
+	})).toBeFalsy();
 });
 
-test('insert smaller char length should work', (t) => {
+test('insert smaller char length should work', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.is(Value.Check(schema, { ...testTableRow, char: 'abc' }), true);
+	expect(Value.Check(schema, { ...testTableRow, char: 'abc' })).toBeTruthy();
 });
 
-test('insert larger char length should fail', (t) => {
+test('insert larger char length should fail', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.is(Value.Check(schema, { ...testTableRow, char: 'abcde' }), false);
+	expect(Value.Check(schema, { ...testTableRow, char: 'abcde' })).toBeFalsy();
 });
 
 test('insert schema', (t) => {

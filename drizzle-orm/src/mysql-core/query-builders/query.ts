@@ -11,7 +11,13 @@ import {
 import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
-import type { Mode, MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
+import type {
+	Mode,
+	MySqlPreparedQueryConfig,
+	MySqlSession,
+	PreparedQueryHKTBase,
+	PreparedQueryKind,
+} from '../session.ts';
 import type { MySqlTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
@@ -102,7 +108,7 @@ export class MySqlRelationalQuery<
 				}
 				return rows as TResult;
 			},
-		) as PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true>;
+		) as PreparedQueryKind<TPreparedQueryHKT, MySqlPreparedQueryConfig & { execute: TResult }, true>;
 	}
 
 	private _getQuery() {

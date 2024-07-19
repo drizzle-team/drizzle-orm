@@ -166,6 +166,10 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+				isPrimaryKey: true;
 			}>;
 			cityId: SQLiteColumn<{
 				name: 'id';
@@ -178,6 +182,10 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+				isPrimaryKey: true;
 			}>;
 		}>,
 		typeof newYorkers
@@ -209,6 +217,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					isPrimaryKey: false;
 				}>;
 				cityId: SQLiteColumn<{
 					name: 'city_id';
@@ -221,6 +233,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					isPrimaryKey: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -248,6 +264,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					isPrimaryKey: false;
 				}>;
 				cityId: SQLiteColumn<{
 					name: 'city_id';
@@ -260,6 +280,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					isPrimaryKey: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -409,4 +433,30 @@ Expect<
 			dataTyped: { a: number };
 		}, typeof table.$inferSelect>
 	>;
+}
+
+{
+	const test = sqliteTable('test', {
+		test1: text('test', { length: 255, enum: ['a', 'b', 'c'] as const }).notNull(),
+		test2: text('test', { length: 255, enum: ['a', 'b', 'c'] }).notNull(),
+		test3: text('test', { enum: ['a', 'b', 'c'] as const }).notNull(),
+		test4: text('test', { enum: ['a', 'b', 'c'] }).notNull(),
+	});
+	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test3.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test4.enumValues>>;
+}
+
+{ // All types with generated columns
+	const test = sqliteTable('test', {
+		test1: text('test', { length: 255, enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test2: text('test', { length: 255, enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test3: text('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test4: text('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+	});
+	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test3.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test4.enumValues>>;
 }

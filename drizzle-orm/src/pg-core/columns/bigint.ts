@@ -3,7 +3,8 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import { PgColumn } from './common.ts';
+import { PgIntColumnBaseBuilder } from './int.common.ts';
 
 export type PgBigInt53BuilderInitial<TName extends string> = PgBigInt53Builder<{
 	name: TName;
@@ -12,9 +13,12 @@ export type PgBigInt53BuilderInitial<TName extends string> = PgBigInt53Builder<{
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
-export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBigInt53'>> extends PgColumnBuilder<T> {
+export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBigInt53'>>
+	extends PgIntColumnBaseBuilder<T>
+{
 	static readonly [entityKind]: string = 'PgBigInt53Builder';
 
 	constructor(name: T['name']) {
@@ -51,9 +55,12 @@ export type PgBigInt64BuilderInitial<TName extends string> = PgBigInt64Builder<{
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
-export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBigInt64'>> extends PgColumnBuilder<T> {
+export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBigInt64'>>
+	extends PgIntColumnBaseBuilder<T>
+{
 	static readonly [entityKind]: string = 'PgBigInt64Builder';
 
 	constructor(name: T['name']) {
