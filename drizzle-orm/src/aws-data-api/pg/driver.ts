@@ -56,17 +56,14 @@ export class AwsPgDialect extends PgDialect {
 		{ table, values, onConflict, returning }: PgInsertConfig<PgTable<TableConfig>>,
 	): SQL<unknown> {
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, PgColumn][] = Object.entries(columns);
 		for (const value of values) {
-			for (const [fieldName, col] of colEntries) {
+			for (const fieldName of Object.keys(columns)) {
 				const colValue = value[fieldName];
 				if (
 					is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
 					&& Array.isArray(colValue.value)
 				) {
-					value[fieldName] = sql`cast(${col.mapToDriverValue(colValue.value)} as ${
-						sql.raw(colValue.encoder.getSQLType())
-					})`;
+					value[fieldName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
 				}
 			}
 		}
@@ -83,9 +80,7 @@ export class AwsPgDialect extends PgDialect {
 				currentColumn && is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
 				&& Array.isArray(colValue.value)
 			) {
-				set[colName] = sql`cast(${currentColumn?.mapToDriverValue(colValue.value)} as ${
-					sql.raw(colValue.encoder.getSQLType())
-				})`;
+				set[colName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
 			}
 		}
 		return super.buildUpdateSet(table, set);

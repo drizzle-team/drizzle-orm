@@ -47,7 +47,7 @@ import {
 	type SQLChunk,
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
+import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
@@ -462,7 +462,7 @@ export class PgDialect {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, PgColumn][] = Object.entries(columns);
+		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
@@ -535,12 +535,13 @@ export class PgDialect {
 		}
 	}
 
-	sqlToQuery(sql: SQL): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			prepareTyping: this.prepareTyping,
+			invokeSource,
 		});
 	}
 
@@ -1224,7 +1225,7 @@ export class PgDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(

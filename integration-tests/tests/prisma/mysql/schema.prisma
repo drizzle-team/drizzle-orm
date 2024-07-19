@@ -1,0 +1,20 @@
+generator client {
+  provider = "prisma-client-js"
+  output = "./client"
+}
+
+generator drizzle {
+  provider = "drizzle-prisma-generator"
+  output   = "./drizzle"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("MYSQL_CONNECTION_STRING")
+}
+
+model User {
+  id    Int     @id @default(autoincrement())
+  email String  @unique
+  name  String?
+}

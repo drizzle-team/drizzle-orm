@@ -8,12 +8,12 @@ import {
 	QueryBuilder,
 } from '~/pg-core/query-builders/index.ts';
 import type {
+	PgQueryResultHKT,
+	PgQueryResultKind,
 	PgSession,
 	PgTransaction,
 	PgTransactionConfig,
 	PreparedQueryConfig,
-	QueryResultHKT,
-	QueryResultKind,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -31,7 +31,7 @@ import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { PgMaterializedView } from './view.ts';
 
 export class PgDatabase<
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
@@ -589,10 +589,12 @@ export class PgDatabase<
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper,
-	): PgRaw<QueryResultKind<TQueryResult, TRow>> {
+	): PgRaw<PgQueryResultKind<TQueryResult, TRow>> {
 		const sql = query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sql);
-		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: QueryResultKind<TQueryResult, TRow> }>(
+		const prepared = this.session.prepareQuery<
+			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
+		>(
 			builtQuery,
 			undefined,
 			undefined,
@@ -617,7 +619,7 @@ export class PgDatabase<
 export type PgWithReplicas<Q> = Q & { $primary: Q };
 
 export const withReplicas = <
-	HKT extends QueryResultHKT,
+	HKT extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 	Q extends PgDatabase<HKT, TFullSchema, TSchema>,

@@ -23,7 +23,7 @@ import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
+import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
@@ -382,7 +382,9 @@ export abstract class SQLiteDialect {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, SQLiteColumn][] = Object.entries(columns);
+		const colEntries: [string, SQLiteColumn][] = Object.entries(columns).filter(([_, col]) =>
+			!col.shouldDisableInsert()
+		);
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		for (const [valueIndex, value] of values.entries()) {
@@ -432,11 +434,12 @@ export abstract class SQLiteDialect {
 		return sql`${withSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	sqlToQuery(sql: SQL): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			invokeSource,
 		});
 	}
 
@@ -590,7 +593,7 @@ export abstract class SQLiteDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				// const relationTable = schema[relationTableTsName]!;
@@ -784,7 +787,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 
 	async migrate(
 		migrations: MigrationMeta[],
-		session: SQLiteSession<'async', unknown, any, TablesRelationalConfig>,
+		session: SQLiteSession<'async', any, any, any>,
 		config?: string | MigrationConfig,
 	): Promise<void> {
 		const migrationsTable = config === undefined
