@@ -1,0 +1,31 @@
+import { AnyMySqlTable, MySqlTable } from "drizzle-orm/mysql-core";
+import { is } from "drizzle-orm";
+import { safeRegister } from "../cli/commands/utils";
+
+export const prepareFromExports = (exports: Record<string, unknown>) => {
+  const tables: AnyMySqlTable[] = [];
+
+  const i0values = Object.values(exports);
+  i0values.forEach((t) => {
+    if (is(t, MySqlTable)) {
+      tables.push(t);
+    }
+  });
+
+  return { tables };
+};
+
+export const prepareFromMySqlImports = async (imports: string[]) => {
+  const tables: AnyMySqlTable[] = [];
+
+  const { unregister } = await safeRegister();
+  for (let i = 0; i < imports.length; i++) {
+    const it = imports[i];
+    const i0: Record<string, unknown> = require(`${it}`);
+    const prepared = prepareFromExports(i0);
+
+    tables.push(...prepared.tables);
+  }
+  unregister();
+  return { tables: Array.from(new Set(tables)) };
+};
