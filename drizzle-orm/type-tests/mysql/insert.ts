@@ -1,10 +1,21 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { int, type MySqlInsert, mysqlTable, text } from '~/mysql-core/index.ts';
+import { int, mysqlTable, text } from '~/mysql-core/index.ts';
+import type { MySqlInsert } from '~/mysql-core/index.ts';
 import type { MySqlRawQueryResult } from '~/mysql2/index.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
+
+const mysqlInsertReturning = await db.insert(users).values({
+	//    ^?
+	homeCity: 1,
+	class: 'A',
+	age1: 1,
+	enumCol: 'a',
+}).$returningId();
+
+Expect<Equal<{ id: number; serialNullable: number; serialNotNull: number }[], typeof mysqlInsertReturning>>;
 
 const insert = await db.insert(users).values({
 	homeCity: 1,
@@ -110,6 +121,7 @@ Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 	const qbBase = db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0 }).$dynamic();
 	const qb = dynamic(qbBase);
 	const result = await qb;
+
 	Expect<Equal<MySqlRawQueryResult, typeof result>>;
 }
 

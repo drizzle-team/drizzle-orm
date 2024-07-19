@@ -6,7 +6,7 @@ import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery as PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
@@ -194,6 +194,6 @@ export class NeonTransaction<
 
 export type NeonHttpQueryResult<T> = Omit<FullQueryResults<false>, 'rows'> & { rows: T[] };
 
-export interface NeonHttpQueryResultHKT extends QueryResultHKT {
+export interface NeonHttpQueryResultHKT extends PgQueryResultHKT {
 	type: NeonHttpQueryResult<this['row']>;
 }

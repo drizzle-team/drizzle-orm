@@ -1,8 +1,8 @@
-import test from 'ava';
 import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { expect, test } from 'vitest';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
@@ -36,22 +36,22 @@ const testUser = {
 	initials: 'JD',
 };
 
-test('users insert valid user', (t) => {
+test('users insert valid user', () => {
 	const schema = createInsertSchema(users);
 
-	t.is(schema.safeParse(testUser).success, true);
+	expect(schema.safeParse(testUser).success).toBeTruthy();
 });
 
-test('users insert invalid varchar', (t) => {
+test('users insert invalid varchar', () => {
 	const schema = createInsertSchema(users);
 
-	t.is(schema.safeParse({ ...testUser, profession: 'Chief Executive Officer' }).success, false);
+	expect(schema.safeParse({ ...testUser, profession: 'Chief Executive Officer' }).success).toBeFalsy();
 });
 
-test('users insert invalid char', (t) => {
+test('users insert invalid char', () => {
 	const schema = createInsertSchema(users);
 
-	t.is(schema.safeParse({ ...testUser, initials: 'JoDo' }).success, false);
+	expect(schema.safeParse({ ...testUser, initials: 'JoDo' }).success).toBeFalsy();
 });
 
 test('users insert schema', (t) => {
