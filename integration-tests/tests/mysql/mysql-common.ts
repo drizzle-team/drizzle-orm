@@ -186,7 +186,7 @@ const citiesMySchemaTable = mySchema.table('cities', {
 });
 
 let mysqlContainer: Docker.Container;
-export async function createDockerDB(): Promise<string> {
+export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
 	const docker = new Docker();
 	const port = await getPort({ port: 3306 });
 	const image = 'mysql:8';
@@ -211,7 +211,7 @@ export async function createDockerDB(): Promise<string> {
 	await mysqlContainer.start();
 	await new Promise((resolve) => setTimeout(resolve, 4000));
 
-	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
+	return { connectionString: `mysql://root:mysql@127.0.0.1:${port}/drizzle`, container: mysqlContainer };
 }
 
 // afterAll(async () => {

@@ -20,8 +20,14 @@ export default defineConfig({
 				? [
 					'tests/relational/mysql.planetscale.test.ts',
 					'tests/neon-http-batch.test.ts',
-					// 'tests/pg/xata-http.test.ts',
 					'tests/mysql/tidb-serverless.test.ts',
+					'tests/mysql/mysql-planetscale.test.ts',
+					'tests/sqlite/libsql.test.ts',
+					'tests/mysql/tidb-serverless.test.ts',
+					'tests/sqlite/libsql-batch.test.ts',
+
+					'tests/pg/neon-http.test.ts',
+					'tests/pg/neon-http-batch.test.ts',
 				]
 				: []),
 			'tests/pg/awsdatapi.test.ts',
@@ -37,12 +43,14 @@ export default defineConfig({
 		},
 		testTimeout: 100000,
 		hookTimeout: 100000,
-		isolate: false,
+		isolate: true,
 		poolOptions: {
 			threads: {
 				singleThread: true,
 			},
 		},
+		maxWorkers: 1,
+		fileParallelism: false,
 	},
 	plugins: [tsconfigPaths()],
 });
