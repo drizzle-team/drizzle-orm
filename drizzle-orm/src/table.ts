@@ -110,8 +110,6 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	/** @internal */
 	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown>) | undefined = undefined;
 
-	[IsDrizzleTable] = true;
-
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;
 		this[Schema] = schema;
@@ -146,6 +144,10 @@ export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];
 }
 
+export function getTableUniqueName<T extends Table>(table: T): `${T['_']['schema']}.${T['_']['name']}` {
+	return `${table[Schema] ?? 'public'}.${table[TableName]}`;
+}
+
 export type MapColumnName<TName extends string, TColumn extends Column, TDBColumNames extends boolean> =
 	TDBColumNames extends true ? TColumn['_']['name']
 		: TName;
@@ -155,7 +157,7 @@ export type InferModelFromColumns<
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
 > = Simplify<
-	TInferMode extends 'insert' ? 
+	TInferMode extends 'insert' ?
 			& {
 				[
 					Key in keyof TColumns & string as RequiredKeyOnly<

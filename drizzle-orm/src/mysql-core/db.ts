@@ -18,18 +18,18 @@ import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
 	Mode,
+	MySqlQueryResultHKT,
+	MySqlQueryResultKind,
 	MySqlSession,
 	MySqlTransaction,
 	MySqlTransactionConfig,
 	PreparedQueryHKTBase,
-	QueryResultHKT,
-	QueryResultKind,
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { MySqlTable } from './table.ts';
 
 export class MySqlDatabase<
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = {},
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
@@ -452,7 +452,7 @@ export class MySqlDatabase<
 
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
 		query: SQLWrapper,
-	): Promise<QueryResultKind<TQueryResult, T>> {
+	): Promise<MySqlQueryResultKind<TQueryResult, T>> {
 		return this.session.execute(query.getSQL());
 	}
 
@@ -470,7 +470,7 @@ export class MySqlDatabase<
 export type MySQLWithReplicas<Q> = Q & { $primary: Q };
 
 export const withReplicas = <
-	HKT extends QueryResultHKT,
+	HKT extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
