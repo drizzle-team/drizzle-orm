@@ -4440,5 +4440,17 @@ export function tests() {
 
 			expect(users).toEqual([]);
 		});
+
+		test('limit -1', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(usersTable).values({ name: 'John' });
+			const users = await db
+				.select()
+				.from(usersTable)
+				.limit(-1);
+
+			expect(users.length).toBeGreaterThan(0);
+		});
 	});
 }
