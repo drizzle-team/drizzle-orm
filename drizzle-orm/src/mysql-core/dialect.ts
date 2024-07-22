@@ -326,9 +326,8 @@ export class MySqlDialect {
 			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
 		}
 
-		const limitSql = 
-			typeof limit === "object" || (typeof limit === "number" && limit >= 0) 
-			? sql` limit ${limit}` 
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
 			: undefined;
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
@@ -406,9 +405,8 @@ export class MySqlDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
 		}
 
-		const limitSql = 
-			typeof limit === "object" || (typeof limit === "number" && limit >= 0) 
-			? sql` limit ${limit}` 
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
 			: undefined;
 
 		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
