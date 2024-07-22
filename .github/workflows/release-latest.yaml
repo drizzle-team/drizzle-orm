@@ -54,7 +54,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 55432:5432
+          - 55433:5432
       mysql:
         image: mysql:8
         env:
@@ -149,7 +149,7 @@ jobs:
       - name: Run tests
         if: steps.checks.outputs.has_new_release == 'true'
         env:
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55432/drizzle
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
