@@ -1,44 +1,49 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
+export type SingleStoreYearBuilderInitial<TName extends string> = SingleStoreYearBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlYear';
+	columnType: 'SingleStoreYear';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlYear'>> extends MySqlColumnBuilder<T> {
-	static readonly [entityKind]: string = 'MySqlYearBuilder';
+export class SingleStoreYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreYear'>>
+	extends SingleStoreColumnBuilder<T>
+{
+	static readonly [entityKind]: string = 'SingleStoreYearBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'number', 'MySqlYear');
+		super(name, 'number', 'SingleStoreYear');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlYear<MakeColumnConfig<T, TTableName>> {
-		return new MySqlYear<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreYear<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreYear<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlYear<
-	T extends ColumnBaseConfig<'number', 'MySqlYear'>,
-> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlYear';
+export class SingleStoreYear<
+	T extends ColumnBaseConfig<'number', 'SingleStoreYear'>,
+> extends SingleStoreColumn<T> {
+	static readonly [entityKind]: string = 'SingleStoreYear';
 
 	getSQLType(): string {
 		return `year`;
 	}
 }
 
-export function year<TName extends string>(name: TName): MySqlYearBuilderInitial<TName> {
-	return new MySqlYearBuilder(name);
+export function year<TName extends string>(name: TName): SingleStoreYearBuilderInitial<TName> {
+	return new SingleStoreYearBuilder(name);
 }

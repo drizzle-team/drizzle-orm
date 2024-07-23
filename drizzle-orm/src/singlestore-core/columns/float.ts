@@ -1,44 +1,49 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
+export type SingleStoreFloatBuilderInitial<TName extends string> = SingleStoreFloatBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlFloat';
+	columnType: 'SingleStoreFloat';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlFloat'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T>
+export class SingleStoreFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreFloat'>>
+	extends SingleStoreColumnBuilderWithAutoIncrement<T>
 {
-	static readonly [entityKind]: string = 'MySqlFloatBuilder';
+	static readonly [entityKind]: string = 'SingleStoreFloatBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'number', 'MySqlFloat');
+		super(name, 'number', 'SingleStoreFloat');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlFloat<MakeColumnConfig<T, TTableName>> {
-		return new MySqlFloat<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreFloat<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreFloat<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>> extends MySqlColumnWithAutoIncrement<T> {
-	static readonly [entityKind]: string = 'MySqlFloat';
+export class SingleStoreFloat<T extends ColumnBaseConfig<'number', 'SingleStoreFloat'>>
+	extends SingleStoreColumnWithAutoIncrement<T>
+{
+	static readonly [entityKind]: string = 'SingleStoreFloat';
 
 	getSQLType(): string {
 		return 'float';
 	}
 }
 
-export function float<TName extends string>(name: TName): MySqlFloatBuilderInitial<TName> {
-	return new MySqlFloatBuilder(name);
+export function float<TName extends string>(name: TName): SingleStoreFloatBuilderInitial<TName> {
+	return new SingleStoreFloatBuilder(name);
 }

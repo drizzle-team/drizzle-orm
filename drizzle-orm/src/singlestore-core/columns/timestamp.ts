@@ -1,45 +1,45 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Equal } from '~/utils.ts';
-import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
+import { SingleStoreDateBaseColumn, SingleStoreDateColumnBaseBuilder } from './date.common.ts';
 
-export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampBuilder<{
+export type SingleStoreTimestampBuilderInitial<TName extends string> = SingleStoreTimestampBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'MySqlTimestamp';
+	columnType: 'SingleStoreTimestamp';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlTimestamp'>>
-	extends MySqlDateColumnBaseBuilder<T, MySqlTimestampConfig>
+export class SingleStoreTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'SingleStoreTimestamp'>>
+	extends SingleStoreDateColumnBaseBuilder<T, SingleStoreTimestampConfig>
 {
-	static readonly [entityKind]: string = 'MySqlTimestampBuilder';
+	static readonly [entityKind]: string = 'SingleStoreTimestampBuilder';
 
-	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
-		super(name, 'date', 'MySqlTimestamp');
+	constructor(name: T['name'], config: SingleStoreTimestampConfig | undefined) {
+		super(name, 'date', 'SingleStoreTimestamp');
 		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTimestamp<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTimestamp<MakeColumnConfig<T, TTableName>>(
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreTimestamp<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreTimestamp<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlTimestamp<T extends ColumnBaseConfig<'date', 'MySqlTimestamp'>>
-	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
+export class SingleStoreTimestamp<T extends ColumnBaseConfig<'date', 'SingleStoreTimestamp'>>
+	extends SingleStoreDateBaseColumn<T, SingleStoreTimestampConfig>
 {
-	static readonly [entityKind]: string = 'MySqlTimestamp';
+	static readonly [entityKind]: string = 'SingleStoreTimestamp';
 
 	readonly fsp: number | undefined = this.config.fsp;
 
@@ -57,41 +57,41 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'date', 'MySqlTimestamp'>
 	}
 }
 
-export type MySqlTimestampStringBuilderInitial<TName extends string> = MySqlTimestampStringBuilder<{
+export type SingleStoreTimestampStringBuilderInitial<TName extends string> = SingleStoreTimestampStringBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlTimestampString';
+	columnType: 'SingleStoreTimestampString';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTimestampString'>>
-	extends MySqlDateColumnBaseBuilder<T, MySqlTimestampConfig>
-{
-	static readonly [entityKind]: string = 'MySqlTimestampStringBuilder';
+export class SingleStoreTimestampStringBuilder<
+	T extends ColumnBuilderBaseConfig<'string', 'SingleStoreTimestampString'>,
+> extends SingleStoreDateColumnBaseBuilder<T, SingleStoreTimestampConfig> {
+	static readonly [entityKind]: string = 'SingleStoreTimestampStringBuilder';
 
-	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
-		super(name, 'string', 'MySqlTimestampString');
+	constructor(name: T['name'], config: SingleStoreTimestampConfig | undefined) {
+		super(name, 'string', 'SingleStoreTimestampString');
 		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTimestampString<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTimestampString<MakeColumnConfig<T, TTableName>>(
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreTimestampString<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreTimestampString<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlTimestampString<T extends ColumnBaseConfig<'string', 'MySqlTimestampString'>>
-	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
+export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string', 'SingleStoreTimestampString'>>
+	extends SingleStoreDateBaseColumn<T, SingleStoreTimestampConfig>
 {
-	static readonly [entityKind]: string = 'MySqlTimestampString';
+	static readonly [entityKind]: string = 'SingleStoreTimestampString';
 
 	readonly fsp: number | undefined = this.config.fsp;
 
@@ -103,19 +103,19 @@ export class MySqlTimestampString<T extends ColumnBaseConfig<'string', 'MySqlTim
 
 export type TimestampFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export interface MySqlTimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> {
+export interface SingleStoreTimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> {
 	mode?: TMode;
 	fsp?: TimestampFsp;
 }
 
-export function timestamp<TName extends string, TMode extends MySqlTimestampConfig['mode'] & {}>(
+export function timestamp<TName extends string, TMode extends SingleStoreTimestampConfig['mode'] & {}>(
 	name: TName,
-	config?: MySqlTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilderInitial<TName>
-	: MySqlTimestampBuilderInitial<TName>;
-export function timestamp(name: string, config: MySqlTimestampConfig = {}) {
+	config?: SingleStoreTimestampConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? SingleStoreTimestampStringBuilderInitial<TName>
+	: SingleStoreTimestampBuilderInitial<TName>;
+export function timestamp(name: string, config: SingleStoreTimestampConfig = {}) {
 	if (config.mode === 'string') {
-		return new MySqlTimestampStringBuilder(name, config);
+		return new SingleStoreTimestampStringBuilder(name, config);
 	}
-	return new MySqlTimestampBuilder(name, config);
+	return new SingleStoreTimestampBuilder(name, config);
 }

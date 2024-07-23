@@ -1,31 +1,31 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { MySqlDialect } from '~/mysql-core/dialect.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type {
-	AnyMySqlQueryResultHKT,
-	MySqlPreparedQueryConfig,
-	MySqlQueryResultHKT,
-	MySqlQueryResultKind,
-	MySqlSession,
+	AnySingleStoreQueryResultHKT,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
-} from '~/mysql-core/session.ts';
-import type { MySqlTable } from '~/mysql-core/table.ts';
-import { QueryPromise } from '~/query-promise.ts';
+	SingleStorePreparedQueryConfig,
+	SingleStoreQueryResultHKT,
+	SingleStoreQueryResultKind,
+	SingleStoreSession,
+} from '~/singlestore-core/session.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { mapUpdateSet, type UpdateSet } from '~/utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
-export interface MySqlUpdateConfig {
+export interface SingleStoreUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
-	table: MySqlTable;
+	table: SingleStoreTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 }
 
-export type MySqlUpdateSetSource<TTable extends MySqlTable> =
+export type SingleStoreUpdateSetSource<TTable extends SingleStoreTable> =
 	& {
 		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
@@ -33,12 +33,12 @@ export type MySqlUpdateSetSource<TTable extends MySqlTable> =
 	}
 	& {};
 
-export class MySqlUpdateBuilder<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export class SingleStoreUpdateBuilder<
+	TTable extends SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
-	static readonly [entityKind]: string = 'MySqlUpdateBuilder';
+	static readonly [entityKind]: string = 'SingleStoreUpdateBuilder';
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -46,22 +46,28 @@ export class MySqlUpdateBuilder<
 
 	constructor(
 		private table: TTable,
-		private session: MySqlSession,
-		private dialect: MySqlDialect,
+		private session: SingleStoreSession,
+		private dialect: SingleStoreDialect,
 		private withList?: Subquery[],
 	) {}
 
-	set(values: MySqlUpdateSetSource<TTable>): MySqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MySqlUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect, this.withList);
+	set(values: SingleStoreUpdateSetSource<TTable>): SingleStoreUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
+		return new SingleStoreUpdateBase(
+			this.table,
+			mapUpdateSet(this.table, values),
+			this.session,
+			this.dialect,
+			this.withList,
+		);
 	}
 }
 
-export type MySqlUpdateWithout<
-	T extends AnyMySqlUpdateBase,
+export type SingleStoreUpdateWithout<
+	T extends AnySingleStoreUpdateBase,
 	TDynamic extends boolean,
 	K extends keyof T & string,
 > = TDynamic extends true ? T : Omit<
-	MySqlUpdateBase<
+	SingleStoreUpdateBase<
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['preparedQueryHKT'],
@@ -71,36 +77,36 @@ export type MySqlUpdateWithout<
 	T['_']['excludedMethods'] | K
 >;
 
-export type MySqlUpdatePrepare<T extends AnyMySqlUpdateBase> = PreparedQueryKind<
+export type SingleStoreUpdatePrepare<T extends AnySingleStoreUpdateBase> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
-	MySqlPreparedQueryConfig & {
-		execute: MySqlQueryResultKind<T['_']['queryResult'], never>;
+	SingleStorePreparedQueryConfig & {
+		execute: SingleStoreQueryResultKind<T['_']['queryResult'], never>;
 		iterator: never;
 	},
 	true
 >;
 
-export type MySqlUpdateDynamic<T extends AnyMySqlUpdateBase> = MySqlUpdate<
+export type SingleStoreUpdateDynamic<T extends AnySingleStoreUpdateBase> = SingleStoreUpdate<
 	T['_']['table'],
 	T['_']['queryResult'],
 	T['_']['preparedQueryHKT']
 >;
 
-export type MySqlUpdate<
-	TTable extends MySqlTable = MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT = AnyMySqlQueryResultHKT,
+export type SingleStoreUpdate<
+	TTable extends SingleStoreTable = SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT = AnySingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-> = MySqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
+> = SingleStoreUpdateBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
 
-export type AnyMySqlUpdateBase = MySqlUpdateBase<any, any, any, any, any>;
+export type AnySingleStoreUpdateBase = SingleStoreUpdateBase<any, any, any, any, any>;
 
-export interface MySqlUpdateBase<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export interface SingleStoreUpdateBase<
+	TTable extends SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>>, SQLWrapper {
+> extends QueryPromise<SingleStoreQueryResultKind<TQueryResult, never>>, SQLWrapper {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
@@ -110,25 +116,25 @@ export interface MySqlUpdateBase<
 	};
 }
 
-export class MySqlUpdateBase<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export class SingleStoreUpdateBase<
+	TTable extends SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> implements SQLWrapper {
-	static readonly [entityKind]: string = 'MySqlUpdate';
+> extends QueryPromise<SingleStoreQueryResultKind<TQueryResult, never>> implements SQLWrapper {
+	static readonly [entityKind]: string = 'SingleStoreUpdate';
 
-	private config: MySqlUpdateConfig;
+	private config: SingleStoreUpdateConfig;
 
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: MySqlSession,
-		private dialect: MySqlDialect,
+		private session: SingleStoreSession,
+		private dialect: SingleStoreDialect,
 		withList?: Subquery[],
 	) {
 		super();
@@ -168,7 +174,7 @@ export class MySqlUpdateBase<
 	 *   .where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	 */
-	where(where: SQL | undefined): MySqlUpdateWithout<this, TDynamic, 'where'> {
+	where(where: SQL | undefined): SingleStoreUpdateWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
 		return this as any;
 	}
@@ -183,11 +189,11 @@ export class MySqlUpdateBase<
 		return rest;
 	}
 
-	prepare(): MySqlUpdatePrepare<this> {
+	prepare(): SingleStoreUpdatePrepare<this> {
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
-		) as MySqlUpdatePrepare<this>;
+		) as SingleStoreUpdatePrepare<this>;
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
@@ -203,7 +209,7 @@ export class MySqlUpdateBase<
 
 	iterator = this.createIterator();
 
-	$dynamic(): MySqlUpdateDynamic<this> {
+	$dynamic(): SingleStoreUpdateDynamic<this> {
 		return this as any;
 	}
 }

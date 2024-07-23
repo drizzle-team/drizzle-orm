@@ -1,45 +1,50 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
+export type SingleStoreTimeBuilderInitial<TName extends string> = SingleStoreTimeBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlTime';
+	columnType: 'SingleStoreTime';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTime'>> extends MySqlColumnBuilder<
-	T,
-	TimeConfig
-> {
-	static readonly [entityKind]: string = 'MySqlTimeBuilder';
+export class SingleStoreTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreTime'>>
+	extends SingleStoreColumnBuilder<
+		T,
+		TimeConfig
+	>
+{
+	static readonly [entityKind]: string = 'SingleStoreTimeBuilder';
 
 	constructor(
 		name: T['name'],
 		config: TimeConfig | undefined,
 	) {
-		super(name, 'string', 'MySqlTime');
+		super(name, 'string', 'SingleStoreTime');
 		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTime<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTime<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreTime<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreTime<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlTime<
-	T extends ColumnBaseConfig<'string', 'MySqlTime'>,
-> extends MySqlColumn<T, TimeConfig> {
-	static readonly [entityKind]: string = 'MySqlTime';
+export class SingleStoreTime<
+	T extends ColumnBaseConfig<'string', 'SingleStoreTime'>,
+> extends SingleStoreColumn<T, TimeConfig> {
+	static readonly [entityKind]: string = 'SingleStoreTime';
 
 	readonly fsp: number | undefined = this.config.fsp;
 
@@ -53,6 +58,6 @@ export type TimeConfig = {
 	fsp?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
 };
 
-export function time<TName extends string>(name: TName, config?: TimeConfig): MySqlTimeBuilderInitial<TName> {
-	return new MySqlTimeBuilder(name, config);
+export function time<TName extends string>(name: TName, config?: TimeConfig): SingleStoreTimeBuilderInitial<TName> {
+	return new SingleStoreTimeBuilder(name, config);
 }

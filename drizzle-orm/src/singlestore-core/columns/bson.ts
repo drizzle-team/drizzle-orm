@@ -1,36 +1,41 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type MySqlBsonBuilderInitial<TName extends string> = MySqlBsonBuilder<{
+export type SingleStoreBsonBuilderInitial<TName extends string> = SingleStoreBsonBuilder<{
 	name: TName;
 	dataType: 'json'; // The bson is stored as a json string the same way binary is stored as a string (check `./binary.ts`)
-	columnType: 'MySqlBson';
+	columnType: 'SingleStoreBson';
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlBsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlBson'>> extends MySqlColumnBuilder<T> {
-	static readonly [entityKind]: string = 'MySqlBsonBuilder';
+export class SingleStoreBsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SingleStoreBson'>>
+	extends SingleStoreColumnBuilder<T>
+{
+	static readonly [entityKind]: string = 'SingleStoreBsonBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'json', 'MySqlBson');
+		super(name, 'json', 'SingleStoreBson');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBson<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBson<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreBson<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreBson<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlBson<T extends ColumnBaseConfig<'json', 'MySqlBson'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlBson';
+export class SingleStoreBson<T extends ColumnBaseConfig<'json', 'SingleStoreBson'>> extends SingleStoreColumn<T> {
+	static readonly [entityKind]: string = 'SingleStoreBson';
 
 	getSQLType(): string {
 		return 'bson';
@@ -41,6 +46,6 @@ export class MySqlBson<T extends ColumnBaseConfig<'json', 'MySqlBson'>> extends 
 	}
 }
 
-export function bson<TName extends string>(name: TName): MySqlBsonBuilderInitial<TName> {
-	return new MySqlBsonBuilder(name);
+export function bson<TName extends string>(name: TName): SingleStoreBsonBuilderInitial<TName> {
+	return new SingleStoreBsonBuilder(name);
 }
