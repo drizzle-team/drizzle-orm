@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
 import type { Equal } from '~/utils.ts';
+import { hexStringToBuffer } from '../utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
@@ -41,8 +42,8 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> 
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer): bigint {
-		return BigInt(value.toString());
+	override mapFromDriverValue(value: Buffer | string): bigint {
+		return BigInt(typeof value === 'string' ? value : value.toString());
 	}
 
 	override mapToDriverValue(value: bigint): Buffer {
@@ -87,8 +88,8 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer): T['data'] {
-		return JSON.parse(value.toString());
+	override mapFromDriverValue(value: Buffer | string): T['data'] {
+		return JSON.parse(typeof value === 'string' ? value : value.toString());
 	}
 
 	override mapToDriverValue(value: T['data']): Buffer {
@@ -128,6 +129,13 @@ export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'buffer', 'SQLiteBlobBu
 
 	getSQLType(): string {
 		return 'blob';
+	}
+
+	override mapFromDriverValue(value: Buffer | string): Buffer {
+		if (typeof value === 'string') {
+			value = hexStringToBuffer(value);
+		}
+		return value;
 	}
 }
 

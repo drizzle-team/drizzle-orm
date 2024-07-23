@@ -645,7 +645,13 @@ export abstract class SQLiteDialect {
 			let field = sql`json_array(${
 				sql.join(
 					selection.map(({ field }) =>
-						is(field, SQLiteColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
+						is(field, SQLiteColumn)
+							? field.getSQLType() === 'blob'
+								? sql.raw(`hex("${field.name}")`)
+								: sql.identifier(field.name)
+							: is(field, SQL.Aliased)
+							? field.sql
+							: field
 					),
 					sql`, `,
 				)
