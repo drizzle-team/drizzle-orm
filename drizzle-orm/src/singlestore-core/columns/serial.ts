@@ -9,17 +9,17 @@ import type {
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
+export type SingleStoreSerialBuilderInitial<TName extends string> = IsAutoincrement<
 	IsPrimaryKey<
 		NotNull<
 			HasDefault<
-				MySqlSerialBuilder<{
+				SingleStoreSerialBuilder<{
 					name: TName;
 					dataType: 'number';
-					columnType: 'MySqlSerial';
+					columnType: 'SingleStoreSerial';
 					data: number;
 					driverParam: number;
 					enumValues: undefined;
@@ -30,29 +30,32 @@ export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
 	>
 >;
 
-export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSerial'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T>
+export class SingleStoreSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreSerial'>>
+	extends SingleStoreColumnBuilderWithAutoIncrement<T>
 {
-	static readonly [entityKind]: string = 'MySqlSerialBuilder';
+	static readonly [entityKind]: string = 'SingleStoreSerialBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'number', 'MySqlSerial');
+		super(name, 'number', 'SingleStoreSerial');
 		this.config.hasDefault = true;
 		this.config.autoIncrement = true;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlSerial<MakeColumnConfig<T, TTableName>> {
-		return new MySqlSerial<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreSerial<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreSerial<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlSerial<
-	T extends ColumnBaseConfig<'number', 'MySqlSerial'>,
-> extends MySqlColumnWithAutoIncrement<T> {
-	static readonly [entityKind]: string = 'MySqlSerial';
+export class SingleStoreSerial<
+	T extends ColumnBaseConfig<'number', 'SingleStoreSerial'>,
+> extends SingleStoreColumnWithAutoIncrement<T> {
+	static readonly [entityKind]: string = 'SingleStoreSerial';
 
 	getSQLType(): string {
 		return 'serial';
@@ -66,6 +69,6 @@ export class MySqlSerial<
 	}
 }
 
-export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName> {
-	return new MySqlSerialBuilder(name) as MySqlSerialBuilderInitial<TName>;
+export function serial<TName extends string>(name: TName): SingleStoreSerialBuilderInitial<TName> {
+	return new SingleStoreSerialBuilder(name) as SingleStoreSerialBuilderInitial<TName>;
 }

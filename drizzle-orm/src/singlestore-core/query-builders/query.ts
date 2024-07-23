@@ -10,38 +10,38 @@ import {
 } from '~/relations.ts';
 import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
-import type { MySqlDialect } from '../dialect.ts';
+import type { SingleStoreDialect } from '../dialect.ts';
 import type {
 	Mode,
-	MySqlPreparedQueryConfig,
-	MySqlSession,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
+	SingleStorePreparedQueryConfig,
+	SingleStoreSession,
 } from '../session.ts';
-import type { MySqlTable } from '../table.ts';
+import type { SingleStoreTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
 > {
-	static readonly [entityKind]: string = 'MySqlRelationalQueryBuilder';
+	static readonly [entityKind]: string = 'SingleStoreRelationalQueryBuilder';
 
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
-		private table: MySqlTable,
+		private table: SingleStoreTable,
 		private tableConfig: TableRelationalConfig,
-		private dialect: MySqlDialect,
-		private session: MySqlSession,
+		private dialect: SingleStoreDialect,
+		private session: SingleStoreSession,
 		private mode: Mode,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
-	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
-		return new MySqlRelationalQuery(
+	): SingleStoreRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
+		return new SingleStoreRelationalQuery(
 			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
@@ -57,8 +57,8 @@ export class RelationalQueryBuilder<
 
 	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
 		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
-	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
-		return new MySqlRelationalQuery(
+	): SingleStoreRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
+		return new SingleStoreRelationalQuery(
 			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
@@ -73,22 +73,22 @@ export class RelationalQueryBuilder<
 	}
 }
 
-export class MySqlRelationalQuery<
+export class SingleStoreRelationalQuery<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TResult,
 > extends QueryPromise<TResult> {
-	static readonly [entityKind]: string = 'MySqlRelationalQuery';
+	static readonly [entityKind]: string = 'SingleStoreRelationalQuery';
 
-	declare protected $brand: 'MySqlRelationalQuery';
+	declare protected $brand: 'SingleStoreRelationalQuery';
 
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
-		private table: MySqlTable,
+		private table: SingleStoreTable,
 		private tableConfig: TableRelationalConfig,
-		private dialect: MySqlDialect,
-		private session: MySqlSession,
+		private dialect: SingleStoreDialect,
+		private session: SingleStoreSession,
 		private config: DBQueryConfig<'many', true> | true,
 		private queryMode: 'many' | 'first',
 		private mode?: Mode,
@@ -108,7 +108,7 @@ export class MySqlRelationalQuery<
 				}
 				return rows as TResult;
 			},
-		) as PreparedQueryKind<TPreparedQueryHKT, MySqlPreparedQueryConfig & { execute: TResult }, true>;
+		) as PreparedQueryKind<TPreparedQueryHKT, SingleStorePreparedQueryConfig & { execute: TResult }, true>;
 	}
 
 	private _getQuery() {

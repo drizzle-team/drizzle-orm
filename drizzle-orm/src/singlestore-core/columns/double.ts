@@ -1,42 +1,45 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder<{
+export type SingleStoreDoubleBuilderInitial<TName extends string> = SingleStoreDoubleBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlDouble';
+	columnType: 'SingleStoreDouble';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlDouble'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDoubleConfig>
+export class SingleStoreDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreDouble'>>
+	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreDoubleConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDoubleBuilder';
+	static readonly [entityKind]: string = 'SingleStoreDoubleBuilder';
 
-	constructor(name: T['name'], config: MySqlDoubleConfig | undefined) {
-		super(name, 'number', 'MySqlDouble');
+	constructor(name: T['name'], config: SingleStoreDoubleConfig | undefined) {
+		super(name, 'number', 'SingleStoreDouble');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDouble<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDouble<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreDouble<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreDouble<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlDouble<T extends ColumnBaseConfig<'number', 'MySqlDouble'>>
-	extends MySqlColumnWithAutoIncrement<T, MySqlDoubleConfig>
+export class SingleStoreDouble<T extends ColumnBaseConfig<'number', 'SingleStoreDouble'>>
+	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDoubleConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDouble';
+	static readonly [entityKind]: string = 'SingleStoreDouble';
 
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;
@@ -52,14 +55,14 @@ export class MySqlDouble<T extends ColumnBaseConfig<'number', 'MySqlDouble'>>
 	}
 }
 
-export interface MySqlDoubleConfig {
+export interface SingleStoreDoubleConfig {
 	precision?: number;
 	scale?: number;
 }
 
 export function double<TName extends string>(
 	name: TName,
-	config?: MySqlDoubleConfig,
-): MySqlDoubleBuilderInitial<TName> {
-	return new MySqlDoubleBuilder(name, config);
+	config?: SingleStoreDoubleConfig,
+): SingleStoreDoubleBuilderInitial<TName> {
+	return new SingleStoreDoubleBuilder(name, config);
 }

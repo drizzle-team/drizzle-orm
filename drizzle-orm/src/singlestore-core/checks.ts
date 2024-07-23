@@ -1,27 +1,27 @@
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
-import type { MySqlTable } from './table.ts';
+import type { SingleStoreTable } from './table.ts';
 
 export class CheckBuilder {
-	static readonly [entityKind]: string = 'MySqlCheckBuilder';
+	static readonly [entityKind]: string = 'SingleStoreCheckBuilder';
 
-	protected brand!: 'MySqlConstraintBuilder';
+	protected brand!: 'SingleStoreConstraintBuilder';
 
 	constructor(public name: string, public value: SQL) {}
 
 	/** @internal */
-	build(table: MySqlTable): Check {
+	build(table: SingleStoreTable): Check {
 		return new Check(table, this);
 	}
 }
 
 export class Check {
-	static readonly [entityKind]: string = 'MySqlCheck';
+	static readonly [entityKind]: string = 'SingleStoreCheck';
 
 	readonly name: string;
 	readonly value: SQL;
 
-	constructor(public table: MySqlTable, builder: CheckBuilder) {
+	constructor(public table: SingleStoreTable, builder: CheckBuilder) {
 		this.name = builder.name;
 		this.value = builder.value;
 	}

@@ -1,44 +1,44 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Builder<{
+export type SingleStoreBigInt53BuilderInitial<TName extends string> = SingleStoreBigInt53Builder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlBigInt53';
+	columnType: 'SingleStoreBigInt53';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'MySqlBigInt53'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
+export class SingleStoreBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreBigInt53'>>
+	extends SingleStoreColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static readonly [entityKind]: string = 'MySqlBigInt53Builder';
+	static readonly [entityKind]: string = 'SingleStoreBigInt53Builder';
 
 	constructor(name: T['name'], unsigned: boolean = false) {
-		super(name, 'number', 'MySqlBigInt53');
+		super(name, 'number', 'SingleStoreBigInt53');
 		this.config.unsigned = unsigned;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBigInt53<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBigInt53<MakeColumnConfig<T, TTableName>>(
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreBigInt53<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreBigInt53<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlBigInt53<T extends ColumnBaseConfig<'number', 'MySqlBigInt53'>>
-	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
+export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number', 'SingleStoreBigInt53'>>
+	extends SingleStoreColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static readonly [entityKind]: string = 'MySqlBigInt53';
+	static readonly [entityKind]: string = 'SingleStoreBigInt53';
 
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -52,41 +52,41 @@ export class MySqlBigInt53<T extends ColumnBaseConfig<'number', 'MySqlBigInt53'>
 	}
 }
 
-export type MySqlBigInt64BuilderInitial<TName extends string> = MySqlBigInt64Builder<{
+export type SingleStoreBigInt64BuilderInitial<TName extends string> = SingleStoreBigInt64Builder<{
 	name: TName;
 	dataType: 'bigint';
-	columnType: 'MySqlBigInt64';
+	columnType: 'SingleStoreBigInt64';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'MySqlBigInt64'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
+export class SingleStoreBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'SingleStoreBigInt64'>>
+	extends SingleStoreColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static readonly [entityKind]: string = 'MySqlBigInt64Builder';
+	static readonly [entityKind]: string = 'SingleStoreBigInt64Builder';
 
 	constructor(name: T['name'], unsigned: boolean = false) {
-		super(name, 'bigint', 'MySqlBigInt64');
+		super(name, 'bigint', 'SingleStoreBigInt64');
 		this.config.unsigned = unsigned;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBigInt64<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBigInt64<MakeColumnConfig<T, TTableName>>(
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreBigInt64<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreBigInt64<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MySqlBigInt64'>>
-	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
+export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint', 'SingleStoreBigInt64'>>
+	extends SingleStoreColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static readonly [entityKind]: string = 'MySqlBigInt64';
+	static readonly [entityKind]: string = 'SingleStoreBigInt64';
 
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -98,18 +98,18 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MySqlBigInt64'>
 	}
 }
 
-interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+interface SingleStoreBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
 	mode: T;
 	unsigned?: boolean;
 }
 
-export function bigint<TName extends string, TMode extends MySqlBigIntConfig['mode']>(
+export function bigint<TName extends string, TMode extends SingleStoreBigIntConfig['mode']>(
 	name: TName,
-	config: MySqlBigIntConfig<TMode>,
-): TMode extends 'number' ? MySqlBigInt53BuilderInitial<TName> : MySqlBigInt64BuilderInitial<TName>;
-export function bigint(name: string, config: MySqlBigIntConfig) {
+	config: SingleStoreBigIntConfig<TMode>,
+): TMode extends 'number' ? SingleStoreBigInt53BuilderInitial<TName> : SingleStoreBigInt64BuilderInitial<TName>;
+export function bigint(name: string, config: SingleStoreBigIntConfig) {
 	if (config.mode === 'number') {
-		return new MySqlBigInt53Builder(name, config.unsigned);
+		return new SingleStoreBigInt53Builder(name, config.unsigned);
 	}
-	return new MySqlBigInt64Builder(name, config.unsigned);
+	return new SingleStoreBigInt64Builder(name, config.unsigned);
 }

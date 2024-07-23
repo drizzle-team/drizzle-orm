@@ -5,12 +5,12 @@ import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import type { MySqlColumn, MySqlColumnBuilderBase } from './columns/index.ts';
+import type { SingleStoreColumn, SingleStoreColumnBuilderBase } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
-import { mysqlTable } from './table.ts';
-import { MySqlViewBase } from './view-base.ts';
-import { MySqlViewConfig } from './view-common.ts';
+import { singlestoreTable } from './table.ts';
+import { SingleStoreViewBase } from './view-base.ts';
+import { SingleStoreViewConfig } from './view-common.ts';
 
 export interface ViewBuilderConfig {
 	algorithm?: 'undefined' | 'merge' | 'temptable';
@@ -20,7 +20,7 @@ export interface ViewBuilderConfig {
 }
 
 export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
-	static readonly [entityKind]: string = 'MySqlViewBuilder';
+	static readonly [entityKind]: string = 'SingleStoreViewBuilder';
 
 	declare readonly _: {
 		readonly name: TConfig['name'];
@@ -64,11 +64,11 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
-	static readonly [entityKind]: string = 'MySqlViewBuilder';
+	static readonly [entityKind]: string = 'SingleStoreViewBuilder';
 
 	as<TSelectedFields extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
-	): MySqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'mysql'>> {
+	): SingleStoreViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'singlestore'>> {
 		if (typeof qb === 'function') {
 			qb = qb(new QueryBuilder());
 		}
@@ -80,8 +80,8 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 		});
 		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
 		return new Proxy(
-			new MySqlView({
-				mysqlConfig: this.config,
+			new SingleStoreView({
+				singlestoreConfig: this.config,
 				config: {
 					name: this.name,
 					schema: this.schema,
@@ -90,17 +90,17 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 				},
 			}),
 			selectionProxy as any,
-		) as MySqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'mysql'>>;
+		) as SingleStoreViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'singlestore'>>;
 	}
 }
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, MySqlColumnBuilderBase> = Record<string, MySqlColumnBuilderBase>,
+	TColumns extends Record<string, SingleStoreColumnBuilderBase> = Record<string, SingleStoreColumnBuilderBase>,
 > extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
-	static readonly [entityKind]: string = 'MySqlManualViewBuilder';
+	static readonly [entityKind]: string = 'SingleStoreManualViewBuilder';
 
-	private columns: Record<string, MySqlColumn>;
+	private columns: Record<string, SingleStoreColumn>;
 
 	constructor(
 		name: TName,
@@ -108,13 +108,13 @@ export class ManualViewBuilder<
 		schema: string | undefined,
 	) {
 		super(name, schema);
-		this.columns = getTableColumns(mysqlTable(name, columns)) as BuildColumns<TName, TColumns, 'mysql'>;
+		this.columns = getTableColumns(singlestoreTable(name, columns)) as BuildColumns<TName, TColumns, 'singlestore'>;
 	}
 
-	existing(): MySqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mysql'>> {
+	existing(): SingleStoreViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'singlestore'>> {
 		return new Proxy(
-			new MySqlView({
-				mysqlConfig: undefined,
+			new SingleStoreView({
+				singlestoreConfig: undefined,
 				config: {
 					name: this.name,
 					schema: this.schema,
@@ -128,13 +128,13 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as MySqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mysql'>>;
+		) as SingleStoreViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'singlestore'>>;
 	}
 
-	as(query: SQL): MySqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'mysql'>> {
+	as(query: SQL): SingleStoreViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'singlestore'>> {
 		return new Proxy(
-			new MySqlView({
-				mysqlConfig: this.config,
+			new SingleStoreView({
+				singlestoreConfig: this.config,
 				config: {
 					name: this.name,
 					schema: this.schema,
@@ -148,23 +148,23 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as MySqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'mysql'>>;
+		) as SingleStoreViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'singlestore'>>;
 	}
 }
 
-export class MySqlView<
+export class SingleStoreView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> extends MySqlViewBase<TName, TExisting, TSelectedFields> {
-	static readonly [entityKind]: string = 'MySqlView';
+> extends SingleStoreViewBase<TName, TExisting, TSelectedFields> {
+	static readonly [entityKind]: string = 'SingleStoreView';
 
-	declare protected $MySqlViewBrand: 'MySqlView';
+	declare protected $SingleStoreViewBrand: 'SingleStoreView';
 
-	[MySqlViewConfig]: ViewBuilderConfig | undefined;
+	[SingleStoreViewConfig]: ViewBuilderConfig | undefined;
 
-	constructor({ mysqlConfig, config }: {
-		mysqlConfig: ViewBuilderConfig | undefined;
+	constructor({ singlestoreConfig, config }: {
+		singlestoreConfig: ViewBuilderConfig | undefined;
 		config: {
 			name: TName;
 			schema: string | undefined;
@@ -173,20 +173,20 @@ export class MySqlView<
 		};
 	}) {
 		super(config);
-		this[MySqlViewConfig] = mysqlConfig;
+		this[SingleStoreViewConfig] = singlestoreConfig;
 	}
 }
 
-export type MySqlViewWithSelection<
+export type SingleStoreViewWithSelection<
 	TName extends string,
 	TExisting extends boolean,
 	TSelectedFields extends ColumnsSelection,
-> = MySqlView<TName, TExisting, TSelectedFields> & TSelectedFields;
+> = SingleStoreView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
 /** @internal */
-export function mysqlViewWithSchema(
+export function singlestoreViewWithSchema(
 	name: string,
-	selection: Record<string, MySqlColumnBuilderBase> | undefined,
+	selection: Record<string, SingleStoreColumnBuilderBase> | undefined,
 	schema: string | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
@@ -195,14 +195,14 @@ export function mysqlViewWithSchema(
 	return new ViewBuilder(name, schema);
 }
 
-export function mysqlView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function mysqlView<TName extends string, TColumns extends Record<string, MySqlColumnBuilderBase>>(
+export function singlestoreView<TName extends string>(name: TName): ViewBuilder<TName>;
+export function singlestoreView<TName extends string, TColumns extends Record<string, SingleStoreColumnBuilderBase>>(
 	name: TName,
 	columns: TColumns,
 ): ManualViewBuilder<TName, TColumns>;
-export function mysqlView(
+export function singlestoreView(
 	name: string,
-	selection?: Record<string, MySqlColumnBuilderBase>,
+	selection?: Record<string, SingleStoreColumnBuilderBase>,
 ): ViewBuilder | ManualViewBuilder {
-	return mysqlViewWithSchema(name, selection, undefined);
+	return singlestoreViewWithSchema(name, selection, undefined);
 }

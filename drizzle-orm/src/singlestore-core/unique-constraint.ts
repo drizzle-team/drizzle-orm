@@ -1,36 +1,36 @@
 import { entityKind } from '~/entity.ts';
-import type { MySqlColumn } from './columns/index.ts';
-import { MySqlTable } from './table.ts';
+import type { SingleStoreColumn } from './columns/index.ts';
+import { SingleStoreTable } from './table.ts';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);
 }
 
-export function uniqueKeyName(table: MySqlTable, columns: string[]) {
-	return `${table[MySqlTable.Symbol.Name]}_${columns.join('_')}_unique`;
+export function uniqueKeyName(table: SingleStoreTable, columns: string[]) {
+	return `${table[SingleStoreTable.Symbol.Name]}_${columns.join('_')}_unique`;
 }
 
 export class UniqueConstraintBuilder {
-	static readonly [entityKind]: string = 'MySqlUniqueConstraintBuilder';
+	static readonly [entityKind]: string = 'SingleStoreUniqueConstraintBuilder';
 
 	/** @internal */
-	columns: MySqlColumn[];
+	columns: SingleStoreColumn[];
 
 	constructor(
-		columns: MySqlColumn[],
+		columns: SingleStoreColumn[],
 		private name?: string,
 	) {
 		this.columns = columns;
 	}
 
 	/** @internal */
-	build(table: MySqlTable): UniqueConstraint {
+	build(table: SingleStoreTable): UniqueConstraint {
 		return new UniqueConstraint(table, this.columns, this.name);
 	}
 }
 
 export class UniqueOnConstraintBuilder {
-	static readonly [entityKind]: string = 'MySqlUniqueOnConstraintBuilder';
+	static readonly [entityKind]: string = 'SingleStoreUniqueOnConstraintBuilder';
 
 	/** @internal */
 	name?: string;
@@ -41,19 +41,19 @@ export class UniqueOnConstraintBuilder {
 		this.name = name;
 	}
 
-	on(...columns: [MySqlColumn, ...MySqlColumn[]]) {
+	on(...columns: [SingleStoreColumn, ...SingleStoreColumn[]]) {
 		return new UniqueConstraintBuilder(columns, this.name);
 	}
 }
 
 export class UniqueConstraint {
-	static readonly [entityKind]: string = 'MySqlUniqueConstraint';
+	static readonly [entityKind]: string = 'SingleStoreUniqueConstraint';
 
-	readonly columns: MySqlColumn[];
+	readonly columns: SingleStoreColumn[];
 	readonly name?: string;
 	readonly nullsNotDistinct: boolean = false;
 
-	constructor(readonly table: MySqlTable, columns: MySqlColumn[], name?: string) {
+	constructor(readonly table: SingleStoreTable, columns: SingleStoreColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 	}

@@ -1,48 +1,54 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Writable } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type MySqlTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'longtext';
+export type SingleStoreTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'longtext';
 
-export type MySqlTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MySqlTextBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MySqlText';
-	data: TEnum[number];
-	driverParam: string;
-	enumValues: TEnum;
-	generated: undefined;
-}>;
+export type SingleStoreTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> =
+	SingleStoreTextBuilder<{
+		name: TName;
+		dataType: 'string';
+		columnType: 'SingleStoreText';
+		data: TEnum[number];
+		driverParam: string;
+		enumValues: TEnum;
+		generated: undefined;
+	}>;
 
-export class MySqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlText'>> extends MySqlColumnBuilder<
-	T,
-	{ textType: MySqlTextColumnType; enumValues: T['enumValues'] }
-> {
-	static readonly [entityKind]: string = 'MySqlTextBuilder';
+export class SingleStoreTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreText'>>
+	extends SingleStoreColumnBuilder<
+		T,
+		{ textType: SingleStoreTextColumnType; enumValues: T['enumValues'] }
+	>
+{
+	static readonly [entityKind]: string = 'SingleStoreTextBuilder';
 
-	constructor(name: T['name'], textType: MySqlTextColumnType, config: MySqlTextConfig<T['enumValues']>) {
-		super(name, 'string', 'MySqlText');
+	constructor(name: T['name'], textType: SingleStoreTextColumnType, config: SingleStoreTextConfig<T['enumValues']>) {
+		super(name, 'string', 'SingleStoreText');
 		this.config.textType = textType;
 		this.config.enumValues = config.enum;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlText<MakeColumnConfig<T, TTableName>> {
-		return new MySqlText<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreText<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreText<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlText<T extends ColumnBaseConfig<'string', 'MySqlText'>>
-	extends MySqlColumn<T, { textType: MySqlTextColumnType; enumValues: T['enumValues'] }>
+export class SingleStoreText<T extends ColumnBaseConfig<'string', 'SingleStoreText'>>
+	extends SingleStoreColumn<T, { textType: SingleStoreTextColumnType; enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'MySqlText';
+	static readonly [entityKind]: string = 'SingleStoreText';
 
-	private textType: MySqlTextColumnType = this.config.textType;
+	private textType: SingleStoreTextColumnType = this.config.textType;
 
 	override readonly enumValues = this.config.enumValues;
 
@@ -51,34 +57,34 @@ export class MySqlText<T extends ColumnBaseConfig<'string', 'MySqlText'>>
 	}
 }
 
-export interface MySqlTextConfig<TEnum extends readonly string[] | string[] | undefined> {
+export interface SingleStoreTextConfig<TEnum extends readonly string[] | string[] | undefined> {
 	enum?: TEnum;
 }
 
 export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	return new MySqlTextBuilder(name, 'text', config);
+	config: SingleStoreTextConfig<T | Writable<T>> = {},
+): SingleStoreTextBuilderInitial<TName, Writable<T>> {
+	return new SingleStoreTextBuilder(name, 'text', config);
 }
 
 export function tinytext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	return new MySqlTextBuilder(name, 'tinytext', config);
+	config: SingleStoreTextConfig<T | Writable<T>> = {},
+): SingleStoreTextBuilderInitial<TName, Writable<T>> {
+	return new SingleStoreTextBuilder(name, 'tinytext', config);
 }
 
 export function mediumtext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	return new MySqlTextBuilder(name, 'mediumtext', config);
+	config: SingleStoreTextConfig<T | Writable<T>> = {},
+): SingleStoreTextBuilderInitial<TName, Writable<T>> {
+	return new SingleStoreTextBuilder(name, 'mediumtext', config);
 }
 
 export function longtext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	return new MySqlTextBuilder(name, 'longtext', config);
+	config: SingleStoreTextConfig<T | Writable<T>> = {},
+): SingleStoreTextBuilderInitial<TName, Writable<T>> {
+	return new SingleStoreTextBuilder(name, 'longtext', config);
 }

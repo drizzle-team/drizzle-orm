@@ -9,26 +9,26 @@ import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
-import { MySqlTable } from './table.ts';
+import { SingleStoreTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
-import { MySqlViewConfig } from './view-common.ts';
-import type { MySqlView } from './view.ts';
+import { SingleStoreViewConfig } from './view-common.ts';
+import type { SingleStoreView } from './view.ts';
 
-export function getTableConfig(table: MySqlTable) {
-	const columns = Object.values(table[MySqlTable.Symbol.Columns]);
+export function getTableConfig(table: SingleStoreTable) {
+	const columns = Object.values(table[SingleStoreTable.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
 	const uniqueConstraints: UniqueConstraint[] = [];
-	const foreignKeys: ForeignKey[] = Object.values(table[MySqlTable.Symbol.InlineForeignKeys]);
+	const foreignKeys: ForeignKey[] = Object.values(table[SingleStoreTable.Symbol.InlineForeignKeys]);
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 	const baseName = table[Table.Symbol.BaseName];
 
-	const extraConfigBuilder = table[MySqlTable.Symbol.ExtraConfigBuilder];
+	const extraConfigBuilder = table[SingleStoreTable.Symbol.ExtraConfigBuilder];
 
 	if (extraConfigBuilder !== undefined) {
-		const extraConfig = extraConfigBuilder(table[MySqlTable.Symbol.Columns]);
+		const extraConfig = extraConfigBuilder(table[SingleStoreTable.Symbol.Columns]);
 		for (const builder of Object.values(extraConfig)) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
@@ -60,9 +60,9 @@ export function getTableConfig(table: MySqlTable) {
 export function getViewConfig<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
->(view: MySqlView<TName, TExisting>) {
+>(view: SingleStoreView<TName, TExisting>) {
 	return {
 		...view[ViewBaseConfig],
-		...view[MySqlViewConfig],
+		...view[SingleStoreViewConfig],
 	};
 }

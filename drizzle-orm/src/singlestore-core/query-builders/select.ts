@@ -1,9 +1,4 @@
 import { entityKind, is } from '~/entity.ts';
-import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
-import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
-import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
-import type { MySqlTable } from '~/mysql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -17,6 +12,15 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { SingleStoreColumn } from '~/singlestore-core/columns/index.ts';
+import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
+import type {
+	PreparedQueryHKTBase,
+	SingleStorePreparedQueryConfig,
+	SingleStoreSession,
+} from '~/singlestore-core/session.ts';
+import type { SubqueryWithSelection } from '~/singlestore-core/subquery.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { ColumnsSelection, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -24,45 +28,45 @@ import { Table } from '~/table.ts';
 import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { MySqlViewBase } from '../view-base.ts';
+import { SingleStoreViewBase } from '../view-base.ts';
 import type {
-	AnyMySqlSelect,
-	CreateMySqlSelectFromBuilderMode,
-	GetMySqlSetOperators,
+	AnySingleStoreSelect,
+	CreateSingleStoreSelectFromBuilderMode,
+	GetSingleStoreSetOperators,
 	LockConfig,
 	LockStrength,
-	MySqlCreateSetOperatorFn,
-	MySqlJoinFn,
-	MySqlSelectConfig,
-	MySqlSelectDynamic,
-	MySqlSelectHKT,
-	MySqlSelectHKTBase,
-	MySqlSelectPrepare,
-	MySqlSelectWithout,
-	MySqlSetOperatorExcludedMethods,
-	MySqlSetOperatorWithResult,
 	SelectedFields,
 	SetOperatorRightSelect,
+	SingleStoreCreateSetOperatorFn,
+	SingleStoreJoinFn,
+	SingleStoreSelectConfig,
+	SingleStoreSelectDynamic,
+	SingleStoreSelectHKT,
+	SingleStoreSelectHKTBase,
+	SingleStoreSelectPrepare,
+	SingleStoreSelectWithout,
+	SingleStoreSetOperatorExcludedMethods,
+	SingleStoreSetOperatorWithResult,
 } from './select.types.ts';
 
-export class MySqlSelectBuilder<
+export class SingleStoreSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
-	static readonly [entityKind]: string = 'MySqlSelectBuilder';
+	static readonly [entityKind]: string = 'SingleStoreSelectBuilder';
 
 	private fields: TSelection;
-	private session: MySqlSession | undefined;
-	private dialect: MySqlDialect;
+	private session: SingleStoreSession | undefined;
+	private dialect: SingleStoreDialect;
 	private withList: Subquery[] = [];
 	private distinct: boolean | undefined;
 
 	constructor(
 		config: {
 			fields: TSelection;
-			session: MySqlSession | undefined;
-			dialect: MySqlDialect;
+			session: SingleStoreSession | undefined;
+			dialect: SingleStoreDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
 		},
@@ -76,9 +80,9 @@ export class MySqlSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
+	from<TFrom extends SingleStoreTable | Subquery | SingleStoreViewBase | SQL>(
 		source: TFrom,
-	): CreateMySqlSelectFromBuilderMode<
+	): CreateSingleStoreSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
 		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
@@ -97,15 +101,15 @@ export class MySqlSelectBuilder<
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
-		} else if (is(source, MySqlViewBase)) {
+		} else if (is(source, SingleStoreViewBase)) {
 			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
 		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
-			fields = getTableColumns<MySqlTable>(source);
+			fields = getTableColumns<SingleStoreTable>(source);
 		}
 
-		return new MySqlSelectBase(
+		return new SingleStoreSelectBase(
 			{
 				table: source,
 				fields,
@@ -119,8 +123,8 @@ export class MySqlSelectBuilder<
 	}
 }
 
-export abstract class MySqlSelectQueryBuilderBase<
-	THKT extends MySqlSelectHKTBase,
+export abstract class SingleStoreSelectQueryBuilderBase<
+	THKT extends SingleStoreSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -132,7 +136,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
+	static readonly [entityKind]: string = 'SingleStoreSelectQueryBuilder';
 
 	override readonly _: {
 		readonly hkt: THKT;
@@ -147,21 +151,21 @@ export abstract class MySqlSelectQueryBuilderBase<
 		readonly selectedFields: TSelectedFields;
 	};
 
-	protected config: MySqlSelectConfig;
+	protected config: SingleStoreSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;
 	/** @internal */
-	readonly session: MySqlSession | undefined;
-	protected dialect: MySqlDialect;
+	readonly session: SingleStoreSession | undefined;
+	protected dialect: SingleStoreDialect;
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
-			table: MySqlSelectConfig['table'];
-			fields: MySqlSelectConfig['fields'];
+			table: SingleStoreSelectConfig['table'];
+			fields: SingleStoreSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: MySqlSession | undefined;
-			dialect: MySqlDialect;
+			session: SingleStoreSession | undefined;
+			dialect: SingleStoreDialect;
 			withList: Subquery[];
 			distinct: boolean | undefined;
 		},
@@ -186,9 +190,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): MySqlJoinFn<this, TDynamic, TJoinType> {
+	): SingleStoreJoinFn<this, TDynamic, TJoinType> {
 		return (
-			table: MySqlTable | Subquery | MySqlViewBase | SQL,
+			table: SingleStoreTable | Subquery | SingleStoreViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
@@ -380,19 +384,19 @@ export abstract class MySqlSelectQueryBuilderBase<
 	private createSetOperator(
 		type: SetOperator,
 		isAll: boolean,
-	): <TValue extends MySqlSetOperatorWithResult<TResult>>(
+	): <TValue extends SingleStoreSetOperatorWithResult<TResult>>(
 		rightSelection:
-			| ((setOperators: GetMySqlSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| ((setOperators: GetSingleStoreSetOperators) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
-	) => MySqlSelectWithout<
+	) => SingleStoreSelectWithout<
 		this,
 		TDynamic,
-		MySqlSetOperatorExcludedMethods,
+		SingleStoreSetOperatorExcludedMethods,
 		true
 	> {
 		return (rightSelection) => {
 			const rightSelect = (typeof rightSelection === 'function'
-				? rightSelection(getMySqlSetOperators())
+				? rightSelection(getSingleStoreSetOperators())
 				: rightSelection) as TypedQueryBuilder<
 					any,
 					TResult
@@ -426,7 +430,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *     db.select({ name: customers.name }).from(customers)
 	 *   );
 	 * // or
-	 * import { union } from 'drizzle-orm/mysql-core'
+	 * import { union } from 'drizzle-orm/singlestore-core'
 	 *
 	 * await union(
 	 *   db.select({ name: users.name }).from(users),
@@ -453,7 +457,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *     db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
 	 *   );
 	 * // or
-	 * import { unionAll } from 'drizzle-orm/mysql-core'
+	 * import { unionAll } from 'drizzle-orm/singlestore-core'
 	 *
 	 * await unionAll(
 	 *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
@@ -480,7 +484,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *     db.select({ courseName: depB.courseName }).from(depB)
 	 *   );
 	 * // or
-	 * import { intersect } from 'drizzle-orm/mysql-core'
+	 * import { intersect } from 'drizzle-orm/singlestore-core'
 	 *
 	 * await intersect(
 	 *   db.select({ courseName: depA.courseName }).from(depA),
@@ -514,7 +518,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   .from(vipCustomerOrders)
 	 * );
 	 * // or
-	 * import { intersectAll } from 'drizzle-orm/mysql-core'
+	 * import { intersectAll } from 'drizzle-orm/singlestore-core'
 	 *
 	 * await intersectAll(
 	 *   db.select({
@@ -549,7 +553,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *     db.select({ courseName: depB.courseName }).from(depB)
 	 *   );
 	 * // or
-	 * import { except } from 'drizzle-orm/mysql-core'
+	 * import { except } from 'drizzle-orm/singlestore-core'
 	 *
 	 * await except(
 	 *   db.select({ courseName: depA.courseName }).from(depA),
@@ -583,7 +587,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   .from(vipCustomerOrders)
 	 * );
 	 * // or
-	 * import { exceptAll } from 'drizzle-orm/mysql-core'
+	 * import { exceptAll } from 'drizzle-orm/singlestore-core'
 	 *
 	 * await exceptAll(
 	 *   db.select({
@@ -602,10 +606,10 @@ export abstract class MySqlSelectQueryBuilderBase<
 	exceptAll = this.createSetOperator('except', true);
 
 	/** @internal */
-	addSetOperators(setOperators: MySqlSelectConfig['setOperators']): MySqlSelectWithout<
+	addSetOperators(setOperators: SingleStoreSelectConfig['setOperators']): SingleStoreSelectWithout<
 		this,
 		TDynamic,
-		MySqlSetOperatorExcludedMethods,
+		SingleStoreSetOperatorExcludedMethods,
 		true
 	> {
 		this.config.setOperators.push(...setOperators);
@@ -643,7 +647,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 */
 	where(
 		where: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
-	): MySqlSelectWithout<this, TDynamic, 'where'> {
+	): SingleStoreSelectWithout<this, TDynamic, 'where'> {
 		if (typeof where === 'function') {
 			where = where(
 				new Proxy(
@@ -680,7 +684,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 */
 	having(
 		having: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
-	): MySqlSelectWithout<this, TDynamic, 'having'> {
+	): SingleStoreSelectWithout<this, TDynamic, 'having'> {
 		if (typeof having === 'function') {
 			having = having(
 				new Proxy(
@@ -713,14 +717,14 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * ```
 	 */
 	groupBy(
-		builder: (aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
-	): MySqlSelectWithout<this, TDynamic, 'groupBy'>;
-	groupBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): MySqlSelectWithout<this, TDynamic, 'groupBy'>;
+		builder: (aliases: this['_']['selection']) => ValueOrArray<SingleStoreColumn | SQL | SQL.Aliased>,
+	): SingleStoreSelectWithout<this, TDynamic, 'groupBy'>;
+	groupBy(...columns: (SingleStoreColumn | SQL | SQL.Aliased)[]): SingleStoreSelectWithout<this, TDynamic, 'groupBy'>;
 	groupBy(
 		...columns:
-			| [(aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
-			| (MySqlColumn | SQL | SQL.Aliased)[]
-	): MySqlSelectWithout<this, TDynamic, 'groupBy'> {
+			| [(aliases: this['_']['selection']) => ValueOrArray<SingleStoreColumn | SQL | SQL.Aliased>]
+			| (SingleStoreColumn | SQL | SQL.Aliased)[]
+	): SingleStoreSelectWithout<this, TDynamic, 'groupBy'> {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
 				new Proxy(
@@ -730,7 +734,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 			);
 			this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
 		} else {
-			this.config.groupBy = columns as (MySqlColumn | SQL | SQL.Aliased)[];
+			this.config.groupBy = columns as (SingleStoreColumn | SQL | SQL.Aliased)[];
 		}
 		return this as any;
 	}
@@ -760,14 +764,14 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * ```
 	 */
 	orderBy(
-		builder: (aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
-	): MySqlSelectWithout<this, TDynamic, 'orderBy'>;
-	orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): MySqlSelectWithout<this, TDynamic, 'orderBy'>;
+		builder: (aliases: this['_']['selection']) => ValueOrArray<SingleStoreColumn | SQL | SQL.Aliased>,
+	): SingleStoreSelectWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (SingleStoreColumn | SQL | SQL.Aliased)[]): SingleStoreSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
-			| [(aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
-			| (MySqlColumn | SQL | SQL.Aliased)[]
-	): MySqlSelectWithout<this, TDynamic, 'orderBy'> {
+			| [(aliases: this['_']['selection']) => ValueOrArray<SingleStoreColumn | SQL | SQL.Aliased>]
+			| (SingleStoreColumn | SQL | SQL.Aliased)[]
+	): SingleStoreSelectWithout<this, TDynamic, 'orderBy'> {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -784,7 +788,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 				this.config.orderBy = orderByArray;
 			}
 		} else {
-			const orderByArray = columns as (MySqlColumn | SQL | SQL.Aliased)[];
+			const orderByArray = columns as (SingleStoreColumn | SQL | SQL.Aliased)[];
 
 			if (this.config.setOperators.length > 0) {
 				this.config.setOperators.at(-1)!.orderBy = orderByArray;
@@ -811,7 +815,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * await db.select().from(people).limit(10);
 	 * ```
 	 */
-	limit(limit: number): MySqlSelectWithout<this, TDynamic, 'limit'> {
+	limit(limit: number): SingleStoreSelectWithout<this, TDynamic, 'limit'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.limit = limit;
 		} else {
@@ -836,7 +840,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * await db.select().from(people).offset(10).limit(10);
 	 * ```
 	 */
-	offset(offset: number): MySqlSelectWithout<this, TDynamic, 'offset'> {
+	offset(offset: number): SingleStoreSelectWithout<this, TDynamic, 'offset'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
 		} else {
@@ -851,11 +855,12 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * Calling this method will specify a lock strength for this query that controls how strictly it acquires exclusive access to the rows being queried.
 	 *
 	 * See docs: {@link https://dev.mysql.com/doc/refman/8.0/en/innodb-locking-reads.html}
+	 * TODO(singlestore)
 	 *
 	 * @param strength the lock strength.
 	 * @param config the lock configuration.
 	 */
-	for(strength: LockStrength, config: LockConfig = {}): MySqlSelectWithout<this, TDynamic, 'for'> {
+	for(strength: LockStrength, config: LockConfig = {}): SingleStoreSelectWithout<this, TDynamic, 'for'> {
 		this.config.lockingClause = { strength, config };
 		return this as any;
 	}
@@ -887,12 +892,12 @@ export abstract class MySqlSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
-	$dynamic(): MySqlSelectDynamic<this> {
+	$dynamic(): SingleStoreSelectDynamic<this> {
 		return this as any;
 	}
 }
 
-export interface MySqlSelectBase<
+export interface SingleStoreSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -904,8 +909,8 @@ export interface MySqlSelectBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
-	MySqlSelectQueryBuilderBase<
-		MySqlSelectHKT,
+	SingleStoreSelectQueryBuilderBase<
+		SingleStoreSelectHKT,
 		TTableName,
 		TSelection,
 		TSelectMode,
@@ -919,7 +924,7 @@ export interface MySqlSelectBase<
 	QueryPromise<TResult>
 {}
 
-export class MySqlSelectBase<
+export class SingleStoreSelectBase<
 	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends SelectMode,
@@ -930,8 +935,8 @@ export class MySqlSelectBase<
 	TExcludedMethods extends string = never,
 	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends MySqlSelectQueryBuilderBase<
-	MySqlSelectHKT,
+> extends SingleStoreSelectQueryBuilderBase<
+	SingleStoreSelectHKT,
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -942,19 +947,19 @@ export class MySqlSelectBase<
 	TResult,
 	TSelectedFields
 > {
-	static readonly [entityKind]: string = 'MySqlSelect';
+	static readonly [entityKind]: string = 'SingleStoreSelect';
 
-	prepare(): MySqlSelectPrepare<this> {
+	prepare(): SingleStoreSelectPrepare<this> {
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
+		const fieldsList = orderSelectedFields<SingleStoreColumn>(this.config.fields);
 		const query = this.session.prepareQuery<
-			MySqlPreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
+			SingleStorePreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
 		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query as MySqlSelectPrepare<this>;
+		return query as SingleStoreSelectPrepare<this>;
 	}
 
 	execute = ((placeholderValues) => {
@@ -971,14 +976,14 @@ export class MySqlSelectBase<
 	iterator = this.createIterator();
 }
 
-applyMixins(MySqlSelectBase, [QueryPromise]);
+applyMixins(SingleStoreSelectBase, [QueryPromise]);
 
-function createSetOperator(type: SetOperator, isAll: boolean): MySqlCreateSetOperatorFn {
+function createSetOperator(type: SetOperator, isAll: boolean): SingleStoreCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {
 		const setOperators = [rightSelect, ...restSelects].map((select) => ({
 			type,
 			isAll,
-			rightSelect: select as AnyMySqlSelect,
+			rightSelect: select as AnySingleStoreSelect,
 		}));
 
 		for (const setOperator of setOperators) {
@@ -989,11 +994,11 @@ function createSetOperator(type: SetOperator, isAll: boolean): MySqlCreateSetOpe
 			}
 		}
 
-		return (leftSelect as AnyMySqlSelect).addSetOperators(setOperators) as any;
+		return (leftSelect as AnySingleStoreSelect).addSetOperators(setOperators) as any;
 	};
 }
 
-const getMySqlSetOperators = () => ({
+const getSingleStoreSetOperators = () => ({
 	union,
 	unionAll,
 	intersect,
@@ -1013,7 +1018,7 @@ const getMySqlSetOperators = () => ({
  *
  * ```ts
  * // Select all unique names from customers and users tables
- * import { union } from 'drizzle-orm/mysql-core'
+ * import { union } from 'drizzle-orm/singlestore-core'
  *
  * await union(
  *   db.select({ name: users.name }).from(users),
@@ -1040,7 +1045,7 @@ export const union = createSetOperator('union', false);
  *
  * ```ts
  * // Select all transaction ids from both online and in-store sales
- * import { unionAll } from 'drizzle-orm/mysql-core'
+ * import { unionAll } from 'drizzle-orm/singlestore-core'
  *
  * await unionAll(
  *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
@@ -1067,7 +1072,7 @@ export const unionAll = createSetOperator('union', true);
  *
  * ```ts
  * // Select course names that are offered in both departments A and B
- * import { intersect } from 'drizzle-orm/mysql-core'
+ * import { intersect } from 'drizzle-orm/singlestore-core'
  *
  * await intersect(
  *   db.select({ courseName: depA.courseName }).from(depA),
@@ -1094,7 +1099,7 @@ export const intersect = createSetOperator('intersect', false);
  *
  * ```ts
  * // Select all products and quantities that are ordered by both regular and VIP customers
- * import { intersectAll } from 'drizzle-orm/mysql-core'
+ * import { intersectAll } from 'drizzle-orm/singlestore-core'
  *
  * await intersectAll(
  *   db.select({
@@ -1136,7 +1141,7 @@ export const intersectAll = createSetOperator('intersect', true);
  *
  * ```ts
  * // Select all courses offered in department A but not in department B
- * import { except } from 'drizzle-orm/mysql-core'
+ * import { except } from 'drizzle-orm/singlestore-core'
  *
  * await except(
  *   db.select({ courseName: depA.courseName }).from(depA),
@@ -1163,7 +1168,7 @@ export const except = createSetOperator('except', false);
  *
  * ```ts
  * // Select all products that are ordered by regular customers but not by VIP customers
- * import { exceptAll } from 'drizzle-orm/mysql-core'
+ * import { exceptAll } from 'drizzle-orm/singlestore-core'
  *
  * await exceptAll(
  *   db.select({

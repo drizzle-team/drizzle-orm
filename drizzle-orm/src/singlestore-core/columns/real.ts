@@ -1,46 +1,51 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<{
+export type SingleStoreRealBuilderInitial<TName extends string> = SingleStoreRealBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlReal';
+	columnType: 'SingleStoreReal';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlReal'>>
-	extends MySqlColumnBuilderWithAutoIncrement<
+export class SingleStoreRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreReal'>>
+	extends SingleStoreColumnBuilderWithAutoIncrement<
 		T,
-		MySqlRealConfig
+		SingleStoreRealConfig
 	>
 {
-	static readonly [entityKind]: string = 'MySqlRealBuilder';
+	static readonly [entityKind]: string = 'SingleStoreRealBuilder';
 
-	constructor(name: T['name'], config: MySqlRealConfig | undefined) {
-		super(name, 'number', 'MySqlReal');
+	constructor(name: T['name'], config: SingleStoreRealConfig | undefined) {
+		super(name, 'number', 'SingleStoreReal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlReal<MakeColumnConfig<T, TTableName>> {
-		return new MySqlReal<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreReal<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreReal<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlReal<T extends ColumnBaseConfig<'number', 'MySqlReal'>> extends MySqlColumnWithAutoIncrement<
-	T,
-	MySqlRealConfig
-> {
-	static readonly [entityKind]: string = 'MySqlReal';
+export class SingleStoreReal<T extends ColumnBaseConfig<'number', 'SingleStoreReal'>>
+	extends SingleStoreColumnWithAutoIncrement<
+		T,
+		SingleStoreRealConfig
+	>
+{
+	static readonly [entityKind]: string = 'SingleStoreReal';
 
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;
@@ -56,11 +61,14 @@ export class MySqlReal<T extends ColumnBaseConfig<'number', 'MySqlReal'>> extend
 	}
 }
 
-export interface MySqlRealConfig {
+export interface SingleStoreRealConfig {
 	precision?: number;
 	scale?: number;
 }
 
-export function real<TName extends string>(name: TName, config: MySqlRealConfig = {}): MySqlRealBuilderInitial<TName> {
-	return new MySqlRealBuilder(name, config);
+export function real<TName extends string>(
+	name: TName,
+	config: SingleStoreRealConfig = {},
+): SingleStoreRealBuilderInitial<TName> {
+	return new SingleStoreRealBuilder(name, config);
 }
