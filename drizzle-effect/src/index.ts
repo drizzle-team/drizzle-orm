@@ -175,7 +175,7 @@ export const Json = Schema.suspend(
     Schema.Union(
       literalSchema,
       Schema.Array(Json),
-      Schema.Record(Schema.String, Json),
+      Schema.Record({ key: Schema.String, value: Json })
     ),
 );
 
