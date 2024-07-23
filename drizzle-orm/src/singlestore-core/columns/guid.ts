@@ -25,7 +25,7 @@ export class SingleStoreGUIDBuilder<T extends ColumnBuilderBaseConfig<"buffer", 
     }
 
     /** @internal */
-    build<TTableName extends string>(table: AnySingleStoreTable<{name: TTableName}>): SingleStoreGUID<MakeColumnConfig<T, TTableName>> {
+    override build<TTableName extends string>(table: AnySingleStoreTable<{name: TTableName}>): SingleStoreGUID<MakeColumnConfig<T, TTableName>> {
         return new SingleStoreGUID(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
     }
 }
@@ -64,7 +64,7 @@ export class SingleStoreGUIDStringBuilder<T extends ColumnBuilderBaseConfig<"str
     }
 
     /** @internal */
-    build<TTableName extends string>(table: AnySingleStoreTable<{name: TTableName}>): SingleStoreGUIDString<MakeColumnConfig<T, TTableName>> {
+    override build<TTableName extends string>(table: AnySingleStoreTable<{name: TTableName}>): SingleStoreGUIDString<MakeColumnConfig<T, TTableName>> {
         return new SingleStoreGUIDString(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
     }
 }

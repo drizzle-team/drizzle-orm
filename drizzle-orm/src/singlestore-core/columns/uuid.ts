@@ -23,7 +23,7 @@ export class SingleStoreUUIDBuilder<T extends ColumnBuilderBaseConfig<"string", 
     }
 
     /** @internal */
-    build<TTableName extends string>(table: AnySingleStoreTable<{name: TTableName}>): SingleStoreUUID<MakeColumnConfig<T, TTableName>> {
+    override build<TTableName extends string>(table: AnySingleStoreTable<{name: TTableName}>): SingleStoreUUID<MakeColumnConfig<T, TTableName>> {
         return new SingleStoreUUID(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
     }
 }
