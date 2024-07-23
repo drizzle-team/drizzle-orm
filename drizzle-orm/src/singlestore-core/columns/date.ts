@@ -1,41 +1,46 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Equal } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type MySqlDateBuilderInitial<TName extends string> = MySqlDateBuilder<{
+export type SingleStoreDateBuilderInitial<TName extends string> = SingleStoreDateBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'MySqlDate';
+	columnType: 'SingleStoreDate';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDate'>> extends MySqlColumnBuilder<T> {
-	static readonly [entityKind]: string = 'MySqlDateBuilder';
+export class SingleStoreDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'SingleStoreDate'>>
+	extends SingleStoreColumnBuilder<T>
+{
+	static readonly [entityKind]: string = 'SingleStoreDateBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'date', 'MySqlDate');
+		super(name, 'date', 'SingleStoreDate');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDate<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDate<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreDate<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreDate<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlDate<T extends ColumnBaseConfig<'date', 'MySqlDate'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlDate';
+export class SingleStoreDate<T extends ColumnBaseConfig<'date', 'SingleStoreDate'>> extends SingleStoreColumn<T> {
+	static readonly [entityKind]: string = 'SingleStoreDate';
 
 	constructor(
-		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateBuilder<T>['config'],
+		table: AnySingleStoreTable<{ name: T['tableName'] }>,
+		config: SingleStoreDateBuilder<T>['config'],
 	) {
 		super(table, config);
 	}
@@ -49,42 +54,44 @@ export class MySqlDate<T extends ColumnBaseConfig<'date', 'MySqlDate'>> extends 
 	}
 }
 
-export type MySqlDateStringBuilderInitial<TName extends string> = MySqlDateStringBuilder<{
+export type SingleStoreDateStringBuilderInitial<TName extends string> = SingleStoreDateStringBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlDateString';
+	columnType: 'SingleStoreDateString';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlDateString'>>
-	extends MySqlColumnBuilder<T>
+export class SingleStoreDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreDateString'>>
+	extends SingleStoreColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'MySqlDateStringBuilder';
+	static readonly [entityKind]: string = 'SingleStoreDateStringBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'string', 'MySqlDateString');
+		super(name, 'string', 'SingleStoreDateString');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDateString<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDateString<MakeColumnConfig<T, TTableName>>(
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreDateString<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreDateString<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlDateString<T extends ColumnBaseConfig<'string', 'MySqlDateString'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlDateString';
+export class SingleStoreDateString<T extends ColumnBaseConfig<'string', 'SingleStoreDateString'>>
+	extends SingleStoreColumn<T>
+{
+	static readonly [entityKind]: string = 'SingleStoreDateString';
 
 	constructor(
-		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateStringBuilder<T>['config'],
+		table: AnySingleStoreTable<{ name: T['tableName'] }>,
+		config: SingleStoreDateStringBuilder<T>['config'],
 	) {
 		super(table, config);
 	}
@@ -94,17 +101,18 @@ export class MySqlDateString<T extends ColumnBaseConfig<'string', 'MySqlDateStri
 	}
 }
 
-export interface MySqlDateConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {
+export interface SingleStoreDateConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {
 	mode?: TMode;
 }
 
-export function date<TName extends string, TMode extends MySqlDateConfig['mode'] & {}>(
+export function date<TName extends string, TMode extends SingleStoreDateConfig['mode'] & {}>(
 	name: TName,
-	config?: MySqlDateConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<TName> : MySqlDateBuilderInitial<TName>;
-export function date(name: string, config: MySqlDateConfig = {}) {
+	config?: SingleStoreDateConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? SingleStoreDateStringBuilderInitial<TName>
+	: SingleStoreDateBuilderInitial<TName>;
+export function date(name: string, config: SingleStoreDateConfig = {}) {
 	if (config.mode === 'string') {
-		return new MySqlDateStringBuilder(name);
+		return new SingleStoreDateStringBuilder(name);
 	}
-	return new MySqlDateBuilder(name);
+	return new SingleStoreDateBuilder(name);
 }

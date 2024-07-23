@@ -1,41 +1,44 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
+export type SingleStoreIntBuilderInitial<TName extends string> = SingleStoreIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlInt';
+	columnType: 'SingleStoreInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
+export class SingleStoreIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreInt'>>
+	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlIntBuilder';
+	static readonly [entityKind]: string = 'SingleStoreIntBuilder';
 
-	constructor(name: T['name'], config?: MySqlIntConfig) {
-		super(name, 'number', 'MySqlInt');
+	constructor(name: T['name'], config?: SingleStoreIntConfig) {
+		super(name, 'number', 'SingleStoreInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreInt<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreInt<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>>
-	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
+export class SingleStoreInt<T extends ColumnBaseConfig<'number', 'SingleStoreInt'>>
+	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlInt';
+	static readonly [entityKind]: string = 'SingleStoreInt';
 
 	getSQLType(): string {
 		return `int${this.config.unsigned ? ' unsigned' : ''}`;
@@ -49,10 +52,13 @@ export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>>
 	}
 }
 
-export interface MySqlIntConfig {
+export interface SingleStoreIntConfig {
 	unsigned?: boolean;
 }
 
-export function int<TName extends string>(name: TName, config?: MySqlIntConfig): MySqlIntBuilderInitial<TName> {
-	return new MySqlIntBuilder(name, config);
+export function int<TName extends string>(
+	name: TName,
+	config?: SingleStoreIntConfig,
+): SingleStoreIntBuilderInitial<TName> {
+	return new SingleStoreIntBuilder(name, config);
 }

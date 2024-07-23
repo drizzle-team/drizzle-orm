@@ -1,45 +1,45 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
-import type { MySqlIntConfig } from './int.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
+import type { SingleStoreIntConfig } from './int.ts';
 
-export type MySqlTinyIntBuilderInitial<TName extends string> = MySqlTinyIntBuilder<{
+export type SingleStoreTinyIntBuilderInitial<TName extends string> = SingleStoreTinyIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlTinyInt';
+	columnType: 'SingleStoreTinyInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlTinyInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
+export class SingleStoreTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreTinyInt'>>
+	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlTinyIntBuilder';
+	static readonly [entityKind]: string = 'SingleStoreTinyIntBuilder';
 
-	constructor(name: T['name'], config?: MySqlIntConfig) {
-		super(name, 'number', 'MySqlTinyInt');
+	constructor(name: T['name'], config?: SingleStoreIntConfig) {
+		super(name, 'number', 'SingleStoreTinyInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTinyInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTinyInt<MakeColumnConfig<T, TTableName>>(
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreTinyInt<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreTinyInt<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlTinyInt<T extends ColumnBaseConfig<'number', 'MySqlTinyInt'>>
-	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
+export class SingleStoreTinyInt<T extends ColumnBaseConfig<'number', 'SingleStoreTinyInt'>>
+	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlTinyInt';
+	static readonly [entityKind]: string = 'SingleStoreTinyInt';
 
 	getSQLType(): string {
 		return `tinyint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -53,6 +53,9 @@ export class MySqlTinyInt<T extends ColumnBaseConfig<'number', 'MySqlTinyInt'>>
 	}
 }
 
-export function tinyint<TName extends string>(name: TName, config?: MySqlIntConfig): MySqlTinyIntBuilderInitial<TName> {
-	return new MySqlTinyIntBuilder(name, config);
+export function tinyint<TName extends string>(
+	name: TName,
+	config?: SingleStoreIntConfig,
+): SingleStoreTinyIntBuilderInitial<TName> {
+	return new SingleStoreTinyIntBuilder(name, config);
 }

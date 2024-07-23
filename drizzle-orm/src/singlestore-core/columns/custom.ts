@@ -1,16 +1,16 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Equal } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
 	& {
 		name: TName;
 		dataType: 'custom';
-		columnType: 'MySqlCustomColumn';
+		columnType: 'SingleStoreCustomColumn';
 		data: T['data'];
 		driverParam: T['driverData'];
 		enumValues: undefined;
@@ -19,55 +19,57 @@ export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTy
 	& (T['notNull'] extends true ? { notNull: true } : {})
 	& (T['default'] extends true ? { hasDefault: true } : {});
 
-export interface MySqlCustomColumnInnerConfig {
+export interface SingleStoreCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'MySqlCustomColumn'>>
-	extends MySqlColumnBuilder<
+export class SingleStoreCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'SingleStoreCustomColumn'>>
+	extends SingleStoreColumnBuilder<
 		T,
 		{
 			fieldConfig: CustomTypeValues['config'];
 			customTypeParams: CustomTypeParams<any>;
 		},
 		{
-			mysqlColumnBuilderBrand: 'MySqlCustomColumnBuilderBrand';
+			singlestoreColumnBuilderBrand: 'SingleStoreCustomColumnBuilderBrand';
 		}
 	>
 {
-	static readonly [entityKind]: string = 'MySqlCustomColumnBuilder';
+	static readonly [entityKind]: string = 'SingleStoreCustomColumnBuilder';
 
 	constructor(
 		name: T['name'],
 		fieldConfig: CustomTypeValues['config'],
 		customTypeParams: CustomTypeParams<any>,
 	) {
-		super(name, 'custom', 'MySqlCustomColumn');
+		super(name, 'custom', 'SingleStoreCustomColumn');
 		this.config.fieldConfig = fieldConfig;
 		this.config.customTypeParams = customTypeParams;
 	}
 
 	/** @internal */
 	build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlCustomColumn<MakeColumnConfig<T, TTableName>> {
-		return new MySqlCustomColumn<MakeColumnConfig<T, TTableName>>(
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreCustomColumn<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreCustomColumn<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustomColumn'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlCustomColumn';
+export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom', 'SingleStoreCustomColumn'>>
+	extends SingleStoreColumn<T>
+{
+	static readonly [entityKind]: string = 'SingleStoreCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
 
 	constructor(
-		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlCustomColumnBuilder<T>['config'],
+		table: AnySingleStoreTable<{ name: T['tableName'] }>,
+		config: SingleStoreCustomColumnBuilder<T>['config'],
 	) {
 		super(table, config);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
@@ -199,23 +201,27 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 }
 
 /**
- * Custom mysql database data type generator
+ * Custom singlestore database data type generator
  */
 export function customType<T extends CustomTypeValues = CustomTypeValues>(
 	customTypeParams: CustomTypeParams<T>,
 ): Equal<T['configRequired'], true> extends true ? <TName extends string>(
 		dbName: TName,
 		fieldConfig: T['config'],
-	) => MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>
+	) => SingleStoreCustomColumnBuilder<ConvertCustomConfig<TName, T>>
 	: <TName extends string>(
 		dbName: TName,
 		fieldConfig?: T['config'],
-	) => MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>
+	) => SingleStoreCustomColumnBuilder<ConvertCustomConfig<TName, T>>
 {
 	return <TName extends string>(
 		dbName: TName,
 		fieldConfig?: T['config'],
-	): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
-		return new MySqlCustomColumnBuilder(dbName as ConvertCustomConfig<TName, T>['name'], fieldConfig, customTypeParams);
+	): SingleStoreCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
+		return new SingleStoreCustomColumnBuilder(
+			dbName as ConvertCustomConfig<TName, T>['name'],
+			fieldConfig,
+			customTypeParams,
+		);
 	};
 }

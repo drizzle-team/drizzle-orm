@@ -2,13 +2,13 @@ import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts'
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
-import type { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderBase } from './columns/common.ts';
+import type { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreColumnBuilderBase } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
-export type MySqlTableExtraConfig = Record<
+export type SingleStoreTableExtraConfig = Record<
 	string,
 	| AnyIndexBuilder
 	| CheckBuilder
@@ -17,13 +17,13 @@ export type MySqlTableExtraConfig = Record<
 	| UniqueConstraintBuilder
 >;
 
-export type TableConfig = TableConfigBase<MySqlColumn>;
+export type TableConfig = TableConfigBase<SingleStoreColumn>;
 
 /** @internal */
-export const InlineForeignKeys = Symbol.for('drizzle:MySqlInlineForeignKeys');
+export const InlineForeignKeys = Symbol.for('drizzle:SingleStoreInlineForeignKeys');
 
-export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
-	static readonly [entityKind]: string = 'MySqlTable';
+export class SingleStoreTable<T extends TableConfig = TableConfig> extends Table<T> {
+	static readonly [entityKind]: string = 'SingleStoreTable';
 
 	declare protected $columns: T['columns'];
 
@@ -40,51 +40,53 @@ export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
-		| ((self: Record<string, MySqlColumn>) => MySqlTableExtraConfig)
+		| ((self: Record<string, SingleStoreColumn>) => SingleStoreTableExtraConfig)
 		| undefined = undefined;
 }
 
-export type AnyMySqlTable<TPartial extends Partial<TableConfig> = {}> = MySqlTable<
+export type AnySingleStoreTable<TPartial extends Partial<TableConfig> = {}> = SingleStoreTable<
 	UpdateTableConfig<TableConfig, TPartial>
 >;
 
-export type MySqlTableWithColumns<T extends TableConfig> =
-	& MySqlTable<T>
+export type SingleStoreTableWithColumns<T extends TableConfig> =
+	& SingleStoreTable<T>
 	& {
 		[Key in keyof T['columns']]: T['columns'][Key];
 	};
 
-export function mysqlTableWithSchema<
+export function singlestoreTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig) | undefined,
+	extraConfig:
+		| ((self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfig)
+		| undefined,
 	schema: TSchemaName,
 	baseName = name,
-): MySqlTableWithColumns<{
+): SingleStoreTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
-	columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
-	dialect: 'mysql';
+	columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
+	dialect: 'singlestore';
 }> {
-	const rawTable = new MySqlTable<{
+	const rawTable = new SingleStoreTable<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
-		dialect: 'mysql';
+		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
+		dialect: 'singlestore';
 	}>(name, schema, baseName);
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilderBase]) => {
-			const colBuilder = colBuilderBase as MySqlColumnBuilder;
+			const colBuilder = colBuilderBase as SingleStoreColumnBuilder;
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
-	) as unknown as BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+	) as unknown as BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 
 	const table = Object.assign(rawTable, builtColumns);
 
@@ -92,40 +94,40 @@ export function mysqlTableWithSchema<
 	table[Table.Symbol.ExtraConfigColumns] = builtColumns as unknown as BuildExtraConfigColumns<
 		TTableName,
 		TColumnsMap,
-		'mysql'
+		'singlestore'
 	>;
 
 	if (extraConfig) {
-		table[MySqlTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (
-			self: Record<string, MySqlColumn>,
-		) => MySqlTableExtraConfig;
+		table[SingleStoreTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (
+			self: Record<string, SingleStoreColumn>,
+		) => SingleStoreTableExtraConfig;
 	}
 
 	return table;
 }
 
-export interface MySqlTableFn<TSchemaName extends string | undefined = undefined> {
+export interface SingleStoreTableFn<TSchemaName extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
-	): MySqlTableWithColumns<{
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfig,
+	): SingleStoreTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
-		dialect: 'mysql';
+		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
+		dialect: 'singlestore';
 	}>;
 }
 
-export const mysqlTable: MySqlTableFn = (name, columns, extraConfig) => {
-	return mysqlTableWithSchema(name, columns, extraConfig, undefined, name);
+export const singlestoreTable: SingleStoreTableFn = (name, columns, extraConfig) => {
+	return singlestoreTableWithSchema(name, columns, extraConfig, undefined, name);
 };
 
-export function mysqlTableCreator(customizeTableName: (name: string) => string): MySqlTableFn {
+export function singlestoreTableCreator(customizeTableName: (name: string) => string): SingleStoreTableFn {
 	return (name, columns, extraConfig) => {
-		return mysqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return singlestoreTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
 	};
 }

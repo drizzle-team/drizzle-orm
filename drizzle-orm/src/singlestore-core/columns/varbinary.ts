@@ -1,45 +1,45 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
+export type SingleStoreVarBinaryBuilderInitial<TName extends string> = SingleStoreVarBinaryBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlVarBinary';
+	columnType: 'SingleStoreVarBinary';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarBinary'>>
-	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>
+export class SingleStoreVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreVarBinary'>>
+	extends SingleStoreColumnBuilder<T, SingleStoreVarbinaryOptions>
 {
-	static readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
+	static readonly [entityKind]: string = 'SingleStoreVarBinaryBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: MySqlVarbinaryOptions) {
-		super(name, 'string', 'MySqlVarBinary');
+	constructor(name: T['name'], config: SingleStoreVarbinaryOptions) {
+		super(name, 'string', 'SingleStoreVarBinary');
 		this.config.length = config?.length;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlVarBinary<MakeColumnConfig<T, TTableName>> {
-		return new MySqlVarBinary<MakeColumnConfig<T, TTableName>>(
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreVarBinary<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreVarBinary<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlVarBinary<
-	T extends ColumnBaseConfig<'string', 'MySqlVarBinary'>,
-> extends MySqlColumn<T, MySqlVarbinaryOptions> {
-	static readonly [entityKind]: string = 'MySqlVarBinary';
+export class SingleStoreVarBinary<
+	T extends ColumnBaseConfig<'string', 'SingleStoreVarBinary'>,
+> extends SingleStoreColumn<T, SingleStoreVarbinaryOptions> {
+	static readonly [entityKind]: string = 'SingleStoreVarBinary';
 
 	length: number | undefined = this.config.length;
 
@@ -48,13 +48,13 @@ export class MySqlVarBinary<
 	}
 }
 
-export interface MySqlVarbinaryOptions {
+export interface SingleStoreVarbinaryOptions {
 	length: number;
 }
 
 export function varbinary<TName extends string>(
 	name: TName,
-	options: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<TName> {
-	return new MySqlVarBinaryBuilder(name, options);
+	options: SingleStoreVarbinaryOptions,
+): SingleStoreVarBinaryBuilderInitial<TName> {
+	return new SingleStoreVarBinaryBuilder(name, options);
 }
