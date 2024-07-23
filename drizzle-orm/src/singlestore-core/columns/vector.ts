@@ -1,8 +1,8 @@
-import { ColumnBaseConfig } from '~/column';
-import { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import { AnySingleStoreTable } from '~/singlestore-core/table';
-import { SingleStoreColumn, SingleStoreColumnBuilder } from './common';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type SingleStoreVectorBuilderInitial<TName extends string> = SingleStoreVectorBuilder<{
 	name: TName;

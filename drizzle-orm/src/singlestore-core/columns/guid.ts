@@ -1,10 +1,10 @@
-import { ColumnBaseConfig } from '~/column';
-import { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import { AnySingleStoreTable } from '~/singlestore-core/table';
-import { sql } from '~/sql/sql';
-import { Equal } from '~/utils';
-import { SingleStoreColumn, SingleStoreColumnBuilder } from './common';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table';
+import { sql } from '~/sql/sql.ts';
+import type { Equal } from '~/utils';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type SingleStoreGUIDBuilderInitial<TName extends string> = SingleStoreGUIDBuilder<{
 	name: TName;
@@ -21,7 +21,7 @@ export class SingleStoreGUIDBuilder<T extends ColumnBuilderBaseConfig<'buffer', 
 {
 	static readonly [entityKind]: string = 'SingleStoreGUIDBuilder';
 
-	constructor(name: T['name'], config?: SingleStoreGUIDConfig) {
+	constructor(name: T['name'], _config?: SingleStoreGUIDConfig) {
 		super(name, 'buffer', 'SingleStoreGUID');
 	}
 
@@ -64,7 +64,7 @@ export class SingleStoreGUIDStringBuilder<T extends ColumnBuilderBaseConfig<'str
 {
 	static readonly [entityKind]: string = 'SingleStoreGUIDStringBuilder';
 
-	constructor(name: T['name'], config?: SingleStoreGUIDConfig) {
+	constructor(name: T['name'], _config?: SingleStoreGUIDConfig) {
 		super(name, 'string', 'SingleStoreGUIDString');
 	}
 
@@ -95,9 +95,7 @@ export class SingleStoreGUIDString<T extends ColumnBaseConfig<'string', 'SingleS
 
 	override mapFromDriverValue(value: Uint8Array): string {
 		const hex = Buffer.from(value).toString('hex');
-		return `${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${
-			hex.substring(20)
-		}`;
+		return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 	}
 }
 
