@@ -27,9 +27,9 @@ export function substring(
 // Vectors
 
 export function dotProduct(column: SingleStoreColumn | SQL.Aliased, value: Array<number>) {
-	return sql`${column} <*> ${JSON.stringify(value)}`
+	return sql`${column} <*> ${JSON.stringify(value)}`;
 }
 
 export function euclideanDistance(column: SingleStoreColumn | SQL.Aliased, value: Array<number>) {
-	return sql`${column} <-> ${JSON.stringify(value)}`
+	return sql`${column} <-> ${JSON.stringify(value)}`;
 }
