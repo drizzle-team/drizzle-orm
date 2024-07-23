@@ -21,6 +21,7 @@ import {
 	lt,
 	max,
 	min,
+	notInArray,
 	or,
 	SQL,
 	sql,
@@ -537,6 +538,34 @@ export function tests() {
 			}).from(usersTable);
 
 			expect(users).toEqual([{ name: 'JOHN' }]);
+		});
+
+		test('select with empty array in inArray', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			const result = await db
+				.select({
+					name: sql`upper(${usersTable.name})`,
+				})
+				.from(usersTable)
+				.where(inArray(usersTable.id, []));
+
+			expect(result).toEqual([]);
+		});
+
+		test('select with empty array in notInArray', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			const result = await db
+				.select({
+					name: sql`upper(${usersTable.name})`,
+				})
+				.from(usersTable)
+				.where(notInArray(usersTable.id, []));
+
+			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 		});
 
 		test('$default function', async (ctx) => {
