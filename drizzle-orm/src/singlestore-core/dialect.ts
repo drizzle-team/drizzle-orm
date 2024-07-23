@@ -690,7 +690,7 @@ export class MySqlDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_array(${
+			let field = sql`json_to_array(${
 				sql.join(
 					selection.map(({ field, tsKey, isJson }) =>
 						isJson
@@ -703,7 +703,7 @@ export class MySqlDialect {
 				)
 			})`;
 			if (is(nestedQueryRelation, Many)) {
-				field = sql`coalesce(json_arrayagg(${field}), json_array())`;
+				field = sql`coalesce(json_to_arrayagg(${field}), json_to_array())`;
 			}
 			const nestedSelection = [{
 				dbKey: 'data',
@@ -961,7 +961,7 @@ export class MySqlDialect {
 				});
 				let fieldSql = sql`(${builtRelation.sql})`;
 				if (is(relation, Many)) {
-					fieldSql = sql`coalesce(${fieldSql}, json_array())`;
+					fieldSql = sql`coalesce(${fieldSql}, json_to_array())`;
 				}
 				const field = fieldSql.as(selectedRelationTsKey);
 				selection.push({
@@ -987,7 +987,7 @@ export class MySqlDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_array(${
+			let field = sql`json_to_array(${
 				sql.join(
 					selection.map(({ field }) =>
 						is(field, MySqlColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
@@ -996,7 +996,7 @@ export class MySqlDialect {
 				)
 			})`;
 			if (is(nestedQueryRelation, Many)) {
-				field = sql`json_arrayagg(${field})`;
+				field = sql`json_to_arrayagg(${field})`;
 			}
 			const nestedSelection = [{
 				dbKey: 'data',
