@@ -3515,4 +3515,28 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop view ${newYorkers1}`);
 		});
 	});
+
+	test('limit 0', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		await db.insert(usersTable).values({ name: 'John' });
+		const users = await db
+			.select()
+			.from(usersTable)
+			.limit(0);
+
+		expect(users).toEqual([]);
+	});
+
+	test('limit -1', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		await db.insert(usersTable).values({ name: 'John' });
+		const users = await db
+			.select()
+			.from(usersTable)
+			.limit(-1);
+
+		expect(users.length).toBeGreaterThan(0);
+	});
 }
