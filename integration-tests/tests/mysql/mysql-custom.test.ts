@@ -1,4 +1,5 @@
 import retry from 'async-retry';
+import type Docker from 'dockerode';
 import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
 import {
 	alias,
@@ -28,9 +29,17 @@ const ENABLE_LOGGING = false;
 
 let db: MySql2Database;
 let client: mysql.Connection;
+let container: Docker.Container | undefined;
 
 beforeAll(async () => {
-	const connectionString = process.env['MYSQL_CONNECTION_STRING'] ?? await createDockerDB();
+	let connectionString;
+	if (process.env['MYSQL_CONNECTION_STRING']) {
+		connectionString = process.env['MYSQL_CONNECTION_STRING'];
+	} else {
+		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
+		connectionString = conStr;
+		container = contrainerObj;
+	}
 	client = await retry(async () => {
 		client = await mysql.createConnection(connectionString);
 		await client.connect();
@@ -50,6 +59,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await client?.end();
+	await container?.stop().catch(console.error);
 });
 
 beforeEach((ctx) => {
