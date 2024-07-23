@@ -72,7 +72,13 @@ let client: pg.Client;
 let serverSimulator: ServerSimulator;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB();
+	let connectionString;
+	if (process.env['PG_CONNECTION_STRING']) {
+		connectionString = process.env['PG_CONNECTION_STRING'];
+	} else {
+		const { connectionString: conStr } = await createDockerDB();
+		connectionString = conStr;
+	}
 	client = await retry(async () => {
 		client = new pg.Client(connectionString);
 		await client.connect();
@@ -437,7 +443,6 @@ skipTests([
 	'nested transaction rollback',
 	'test $onUpdateFn and $onUpdate works updating',
 ]);
-tests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);
@@ -486,3 +491,5 @@ test('insert via db.execute w/ query builder', async () => {
 	);
 	expect(inserted).toEqual([{ id: 1, name: 'John' }]);
 });
+
+tests();
