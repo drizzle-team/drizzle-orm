@@ -10,10 +10,6 @@ jobs:
       matrix:
         package:
           - drizzle-orm
-          - drizzle-zod
-          - drizzle-typebox
-          - drizzle-valibot
-          - eslint-plugin-drizzle
     runs-on: ubuntu-20.04
     services:
       postgres-postgis:
@@ -163,35 +159,3 @@ jobs:
 
           # Post release message to Discord
           # curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
-
-      - name: Create GitHub release for ORM package
-        uses: actions/github-script@v6
-        if: matrix.package == 'drizzle-orm' && steps.checks.outputs.has_new_release == 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            try {
-              const fs = require("fs");
-              const path = require("path");
-
-              const version = "${{ steps.checks.outputs.version }}";
-              const changelog = fs.readFileSync("${{ steps.checks.outputs.changelog_path }}", "utf8");
-
-              const release = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: `${version}`,
-                name: `${version}`,
-                body: changelog,
-              });
-
-              await github.rest.repos.uploadReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: release.data.id,
-                name: `${{ matrix.package }}-${version}-dist.tgz`,
-                data: fs.readFileSync(path.resolve("${{ matrix.package }}", "package.tgz")),
-              });
-            } catch (e) {
-              core.setFailed(e.message);
-            }
