@@ -1,6 +1,7 @@
 export * from './bigint.ts';
 export * from './binary.ts';
 export * from './boolean.ts';
+export * from './bson.ts';
 export * from './char.ts';
 export * from './common.ts';
 export * from './custom.ts';

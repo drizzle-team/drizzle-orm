@@ -96,6 +96,23 @@ export abstract class MySqlColumnBuilder<
 	): MySqlColumn<MakeColumnConfig<T, TTableName>>;
 }
 
+export abstract class SingleStoreColumn<
+T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+TRuntimeConfig extends object = object,
+> extends Column<T, TRuntimeConfig, { dialect: 'mysql' }> {
+static readonly [entityKind]: string = 'MySqlColumn';
+
+constructor(
+	override readonly table: MySqlTable,
+	config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
+) {
+	if (!config.uniqueName) {
+		config.uniqueName = uniqueKeyName(table, [config.name]);
+	}
+	super(table, config);
+}
+}
+
 // To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class MySqlColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
