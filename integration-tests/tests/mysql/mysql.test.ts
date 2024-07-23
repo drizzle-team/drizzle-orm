@@ -11,7 +11,13 @@ let db: MySql2Database;
 let client: mysql.Connection;
 
 beforeAll(async () => {
-	const connectionString = process.env['MYSQL_CONNECTION_STRING'] ?? await createDockerDB();
+	let connectionString;
+	if (process.env['MYSQL_CONNECTION_STRING']) {
+		connectionString = process.env['MYSQL_CONNECTION_STRING'];
+	} else {
+		const { connectionString: conStr } = await createDockerDB();
+		connectionString = conStr;
+	}
 	client = await retry(async () => {
 		client = await mysql.createConnection(connectionString);
 		await client.connect();
