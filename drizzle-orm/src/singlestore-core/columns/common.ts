@@ -13,41 +13,41 @@ import type {
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys.ts';
-import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys.ts';
-import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
+import type { ForeignKey, UpdateDeleteAction } from '~/singlestore-core/foreign-keys.ts';
+import { ForeignKeyBuilder } from '~/singlestore-core/foreign-keys.ts';
+import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
 export interface ReferenceConfig {
-	ref: () => MySqlColumn;
+	ref: () => SingleStoreColumn;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
 	};
 }
 
-export interface MySqlColumnBuilderBase<
+export interface SingleStoreColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
-> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'mysql' }> {}
+> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'singlestore' }> {}
 
-export interface MySqlGeneratedColumnConfig {
+export interface SingleStoreGeneratedColumnConfig {
 	mode?: 'virtual' | 'stored';
 }
 
-export abstract class MySqlColumnBuilder<
+export abstract class SingleStoreColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
 		data: any;
 	},
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }, TExtraConfig>
-	implements MySqlColumnBuilderBase<T, TTypeConfig>
+> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'singlestore' }, TExtraConfig>
+	implements SingleStoreColumnBuilderBase<T, TTypeConfig>
 {
-	static readonly [entityKind]: string = 'MySqlColumnBuilder';
+	static readonly [entityKind]: string = 'SingleStoreColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
@@ -62,7 +62,7 @@ export abstract class MySqlColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: MySqlGeneratedColumnConfig): HasGenerated<this> {
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: SingleStoreGeneratedColumnConfig): HasGenerated<this> {
 		this.config.generated = {
 			as,
 			type: 'always',
@@ -72,7 +72,7 @@ export abstract class MySqlColumnBuilder<
 	}
 
 	/** @internal */
-	buildForeignKeys(column: MySqlColumn, table: MySqlTable): ForeignKey[] {
+	buildForeignKeys(column: SingleStoreColumn, table: SingleStoreTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
 			return ((ref, actions) => {
 				const builder = new ForeignKeyBuilder(() => {
@@ -92,19 +92,19 @@ export abstract class MySqlColumnBuilder<
 
 	/** @internal */
 	abstract build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlColumn<MakeColumnConfig<T, TTableName>>;
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreColumn<MakeColumnConfig<T, TTableName>>;
 }
 
-// To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.
-export abstract class MySqlColumn<
+// To understand how to use `SingleStoreColumn` and `AnySingleStoreColumn`, see `Column` and `AnyColumn` documentation.
+export abstract class SingleStoreColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-> extends Column<T, TRuntimeConfig, { dialect: 'mysql' }> {
-	static readonly [entityKind]: string = 'MySqlColumn';
+> extends Column<T, TRuntimeConfig, { dialect: 'singlestore' }> {
+	static readonly [entityKind]: string = 'SingleStoreColumn';
 
 	constructor(
-		override readonly table: MySqlTable,
+		override readonly table: SingleStoreTable,
 		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
 		if (!config.uniqueName) {
@@ -114,20 +114,21 @@ export abstract class MySqlColumn<
 	}
 }
 
-export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = MySqlColumn<
-	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
->;
+export type AnySingleStoreColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> =
+	SingleStoreColumn<
+		Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
+	>;
 
-export interface MySqlColumnWithAutoIncrementConfig {
+export interface SingleStoreColumnWithAutoIncrementConfig {
 	autoIncrement: boolean;
 }
 
-export abstract class MySqlColumnBuilderWithAutoIncrement<
+export abstract class SingleStoreColumnBuilderWithAutoIncrement<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlColumnWithAutoIncrementConfig, TExtraConfig> {
-	static readonly [entityKind]: string = 'MySqlColumnBuilderWithAutoIncrement';
+> extends SingleStoreColumnBuilder<T, TRuntimeConfig & SingleStoreColumnWithAutoIncrementConfig, TExtraConfig> {
+	static readonly [entityKind]: string = 'SingleStoreColumnBuilderWithAutoIncrement';
 
 	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
 		super(name, dataType, columnType);
@@ -141,11 +142,11 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 	}
 }
 
-export abstract class MySqlColumnWithAutoIncrement<
+export abstract class SingleStoreColumnWithAutoIncrement<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-> extends MySqlColumn<T, MySqlColumnWithAutoIncrementConfig & TRuntimeConfig> {
-	static readonly [entityKind]: string = 'MySqlColumnWithAutoIncrement';
+> extends SingleStoreColumn<T, SingleStoreColumnWithAutoIncrementConfig & TRuntimeConfig> {
+	static readonly [entityKind]: string = 'SingleStoreColumnWithAutoIncrement';
 
 	readonly autoIncrement: boolean = this.config.autoIncrement;
 }

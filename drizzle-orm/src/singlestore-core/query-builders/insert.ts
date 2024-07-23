@@ -1,27 +1,27 @@
 import { entityKind, is } from '~/entity.ts';
-import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type {
-	AnyMySqlQueryResultHKT,
-	MySqlPreparedQueryConfig,
-	MySqlQueryResultHKT,
-	MySqlQueryResultKind,
-	MySqlSession,
-	PreparedQueryHKTBase,
-	PreparedQueryKind,
-} from '~/mysql-core/session.ts';
-import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
+import type {
+	AnySingleStoreQueryResultHKT,
+	PreparedQueryHKTBase,
+	PreparedQueryKind,
+	SingleStorePreparedQueryConfig,
+	SingleStoreQueryResultHKT,
+	SingleStoreQueryResultKind,
+	SingleStoreSession,
+} from '~/singlestore-core/session.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
 import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
-import type { AnyMySqlColumn, MySqlColumn } from '../columns/common.ts';
+import type { AnySingleStoreColumn, SingleStoreColumn } from '../columns/common.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
-import type { MySqlUpdateSetSource } from './update.ts';
+import type { SingleStoreUpdateSetSource } from './update.ts';
 
-export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
+export interface SingleStoreInsertConfig<TTable extends SingleStoreTable = SingleStoreTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	ignore: boolean;
@@ -29,27 +29,27 @@ export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	returning?: SelectedFieldsOrdered;
 }
 
-export type AnyMySqlInsertConfig = MySqlInsertConfig<MySqlTable>;
+export type AnySingleStoreInsertConfig = SingleStoreInsertConfig<SingleStoreTable>;
 
-export type MySqlInsertValue<TTable extends MySqlTable> =
+export type SingleStoreInsertValue<TTable extends SingleStoreTable> =
 	& {
 		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
 	}
 	& {};
 
-export class MySqlInsertBuilder<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export class SingleStoreInsertBuilder<
+	TTable extends SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
-	static readonly [entityKind]: string = 'MySqlInsertBuilder';
+	static readonly [entityKind]: string = 'SingleStoreInsertBuilder';
 
 	private shouldIgnore = false;
 
 	constructor(
 		private table: TTable,
-		private session: MySqlSession,
-		private dialect: MySqlDialect,
+		private session: SingleStoreSession,
+		private dialect: SingleStoreDialect,
 	) {}
 
 	ignore(): this {
@@ -57,11 +57,11 @@ export class MySqlInsertBuilder<
 		return this;
 	}
 
-	values(value: MySqlInsertValue<TTable>): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
-	values(values: MySqlInsertValue<TTable>[]): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	values(value: SingleStoreInsertValue<TTable>): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	values(values: SingleStoreInsertValue<TTable>[]): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(
-		values: MySqlInsertValue<TTable> | MySqlInsertValue<TTable>[],
-	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
+		values: SingleStoreInsertValue<TTable> | SingleStoreInsertValue<TTable>[],
+	): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -76,58 +76,61 @@ export class MySqlInsertBuilder<
 			return result;
 		});
 
-		return new MySqlInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
+		return new SingleStoreInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
 	}
 }
 
-export type MySqlInsertWithout<T extends AnyMySqlInsert, TDynamic extends boolean, K extends keyof T & string> =
-	TDynamic extends true ? T
-		: Omit<
-			MySqlInsertBase<
-				T['_']['table'],
-				T['_']['queryResult'],
-				T['_']['preparedQueryHKT'],
-				T['_']['returning'],
-				TDynamic,
-				T['_']['excludedMethods'] | '$returning'
-			>,
-			T['_']['excludedMethods'] | K
-		>;
+export type SingleStoreInsertWithout<
+	T extends AnySingleStoreInsert,
+	TDynamic extends boolean,
+	K extends keyof T & string,
+> = TDynamic extends true ? T
+	: Omit<
+		SingleStoreInsertBase<
+			T['_']['table'],
+			T['_']['queryResult'],
+			T['_']['preparedQueryHKT'],
+			T['_']['returning'],
+			TDynamic,
+			T['_']['excludedMethods'] | '$returning'
+		>,
+		T['_']['excludedMethods'] | K
+	>;
 
-export type MySqlInsertDynamic<T extends AnyMySqlInsert> = MySqlInsert<
+export type SingleStoreInsertDynamic<T extends AnySingleStoreInsert> = SingleStoreInsert<
 	T['_']['table'],
 	T['_']['queryResult'],
 	T['_']['preparedQueryHKT'],
 	T['_']['returning']
 >;
 
-export type MySqlInsertPrepare<
-	T extends AnyMySqlInsert,
+export type SingleStoreInsertPrepare<
+	T extends AnySingleStoreInsert,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 > = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
-	MySqlPreparedQueryConfig & {
-		execute: TReturning extends undefined ? MySqlQueryResultKind<T['_']['queryResult'], never> : TReturning[];
+	SingleStorePreparedQueryConfig & {
+		execute: TReturning extends undefined ? SingleStoreQueryResultKind<T['_']['queryResult'], never> : TReturning[];
 		iterator: never;
 	},
 	true
 >;
 
-export type MySqlInsertOnDuplicateKeyUpdateConfig<T extends AnyMySqlInsert> = {
-	set: MySqlUpdateSetSource<T['_']['table']>;
+export type SingleStoreInsertOnDuplicateKeyUpdateConfig<T extends AnySingleStoreInsert> = {
+	set: SingleStoreUpdateSetSource<T['_']['table']>;
 };
 
-export type MySqlInsert<
-	TTable extends MySqlTable = MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT = AnyMySqlQueryResultHKT,
+export type SingleStoreInsert<
+	TTable extends SingleStoreTable = SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT = AnySingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-> = MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TReturning, true, never>;
+> = SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TReturning, true, never>;
 
-export type MySqlInsertReturning<
-	T extends AnyMySqlInsert,
+export type SingleStoreInsertReturning<
+	T extends AnySingleStoreInsert,
 	TDynamic extends boolean,
-> = MySqlInsertBase<
+> = SingleStoreInsertBase<
 	T['_']['table'],
 	T['_']['queryResult'],
 	T['_']['preparedQueryHKT'],
@@ -136,33 +139,36 @@ export type MySqlInsertReturning<
 	T['_']['excludedMethods'] | '$returning'
 >;
 
-export type AnyMySqlInsert = MySqlInsertBase<any, any, any, any, any, any>;
+export type AnySingleStoreInsert = SingleStoreInsertBase<any, any, any, any, any, any>;
 
-export interface MySqlInsertBase<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export interface SingleStoreInsertBase<
+	TTable extends SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends
-	QueryPromise<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[]>,
-	RunnableQuery<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[], 'mysql'>,
+	QueryPromise<TReturning extends undefined ? SingleStoreQueryResultKind<TQueryResult, never> : TReturning[]>,
+	RunnableQuery<
+		TReturning extends undefined ? SingleStoreQueryResultKind<TQueryResult, never> : TReturning[],
+		'singlestore'
+	>,
 	SQLWrapper
 {
 	readonly _: {
-		readonly dialect: 'mysql';
+		readonly dialect: 'singlestore';
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
 		readonly preparedQueryHKT: TPreparedQueryHKT;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
 		readonly returning: TReturning;
-		readonly result: TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[];
+		readonly result: TReturning extends undefined ? SingleStoreQueryResultKind<TQueryResult, never> : TReturning[];
 	};
 }
 
-export type PrimaryKeyKeys<T extends Record<string, AnyMySqlColumn>> = {
+export type PrimaryKeyKeys<T extends Record<string, AnySingleStoreColumn>> = {
 	[K in keyof T]: T[K]['_']['isPrimaryKey'] extends true ? T[K]['_']['isAutoincrement'] extends true ? K
 		: T[K]['_']['hasRuntimeDefault'] extends true ? T[K]['_']['isPrimaryKey'] extends true ? K : never
 		: never
@@ -170,13 +176,13 @@ export type PrimaryKeyKeys<T extends Record<string, AnyMySqlColumn>> = {
 		: never;
 }[keyof T];
 
-export type GetPrimarySerialOrDefaultKeys<T extends Record<string, AnyMySqlColumn>> = {
+export type GetPrimarySerialOrDefaultKeys<T extends Record<string, AnySingleStoreColumn>> = {
 	[K in PrimaryKeyKeys<T>]: T[K];
 };
 
-export class MySqlInsertBase<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export class SingleStoreInsertBase<
+	TTable extends SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -185,23 +191,26 @@ export class MySqlInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[]>
+> extends QueryPromise<TReturning extends undefined ? SingleStoreQueryResultKind<TQueryResult, never> : TReturning[]>
 	implements
-		RunnableQuery<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[], 'mysql'>,
+		RunnableQuery<
+			TReturning extends undefined ? SingleStoreQueryResultKind<TQueryResult, never> : TReturning[],
+			'singlestore'
+		>,
 		SQLWrapper
 {
-	static readonly [entityKind]: string = 'MySqlInsert';
+	static readonly [entityKind]: string = 'SingleStoreInsert';
 
 	declare protected $table: TTable;
 
-	private config: MySqlInsertConfig<TTable>;
+	private config: SingleStoreInsertConfig<TTable>;
 
 	constructor(
 		table: TTable,
-		values: MySqlInsertConfig['values'],
+		values: SingleStoreInsertConfig['values'],
 		ignore: boolean,
-		private session: MySqlSession,
-		private dialect: MySqlDialect,
+		private session: SingleStoreSession,
+		private dialect: SingleStoreDialect,
 	) {
 		super();
 		this.config = { table, values, ignore };
@@ -234,15 +243,15 @@ export class MySqlInsertBase<
 	 * ```
 	 */
 	onDuplicateKeyUpdate(
-		config: MySqlInsertOnDuplicateKeyUpdateConfig<this>,
-	): MySqlInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
+		config: SingleStoreInsertOnDuplicateKeyUpdateConfig<this>,
+	): SingleStoreInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		this.config.onConflict = sql`update ${setSql}`;
 		return this as any;
 	}
 
-	$returningId(): MySqlInsertWithout<
-		MySqlInsertReturning<this, TDynamic>,
+	$returningId(): SingleStoreInsertWithout<
+		SingleStoreInsertReturning<this, TDynamic>,
 		TDynamic,
 		'$returningId'
 	> {
@@ -252,7 +261,7 @@ export class MySqlInsertBase<
 				returning.push({ field: value, path: [key] });
 			}
 		}
-		this.config.returning = orderSelectedFields<MySqlColumn>(this.config.table[Table.Symbol.Columns]);
+		this.config.returning = orderSelectedFields<SingleStoreColumn>(this.config.table[Table.Symbol.Columns]);
 		return this as any;
 	}
 
@@ -266,7 +275,7 @@ export class MySqlInsertBase<
 		return rest;
 	}
 
-	prepare(): MySqlInsertPrepare<this, TReturning> {
+	prepare(): SingleStoreInsertPrepare<this, TReturning> {
 		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(sql),
@@ -274,7 +283,7 @@ export class MySqlInsertBase<
 			undefined,
 			generatedIds,
 			this.config.returning,
-		) as MySqlInsertPrepare<this, TReturning>;
+		) as SingleStoreInsertPrepare<this, TReturning>;
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
@@ -290,7 +299,7 @@ export class MySqlInsertBase<
 
 	iterator = this.createIterator();
 
-	$dynamic(): MySqlInsertDynamic<this> {
+	$dynamic(): SingleStoreInsertDynamic<this> {
 		return this as any;
 	}
 }

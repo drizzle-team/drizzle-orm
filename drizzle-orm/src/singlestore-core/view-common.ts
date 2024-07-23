@@ -1,1 +1,1 @@
-export const MySqlViewConfig = Symbol.for('drizzle:MySqlViewConfig');
+export const SingleStoreViewConfig = Symbol.for('drizzle:SingleStoreViewConfig');

@@ -1,41 +1,43 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuilder<{
+export type SingleStoreBooleanBuilderInitial<TName extends string> = SingleStoreBooleanBuilder<{
 	name: TName;
 	dataType: 'boolean';
-	columnType: 'MySqlBoolean';
+	columnType: 'SingleStoreBoolean';
 	data: boolean;
 	driverParam: number | boolean;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MySqlBoolean'>>
-	extends MySqlColumnBuilder<T>
+export class SingleStoreBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'SingleStoreBoolean'>>
+	extends SingleStoreColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'MySqlBooleanBuilder';
+	static readonly [entityKind]: string = 'SingleStoreBooleanBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'boolean', 'MySqlBoolean');
+		super(name, 'boolean', 'SingleStoreBoolean');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBoolean<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBoolean<MakeColumnConfig<T, TTableName>>(
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreBoolean<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreBoolean<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlBoolean<T extends ColumnBaseConfig<'boolean', 'MySqlBoolean'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlBoolean';
+export class SingleStoreBoolean<T extends ColumnBaseConfig<'boolean', 'SingleStoreBoolean'>>
+	extends SingleStoreColumn<T>
+{
+	static readonly [entityKind]: string = 'SingleStoreBoolean';
 
 	getSQLType(): string {
 		return 'boolean';
@@ -49,6 +51,6 @@ export class MySqlBoolean<T extends ColumnBaseConfig<'boolean', 'MySqlBoolean'>>
 	}
 }
 
-export function boolean<TName extends string>(name: TName): MySqlBooleanBuilderInitial<TName> {
-	return new MySqlBooleanBuilder(name);
+export function boolean<TName extends string>(name: TName): SingleStoreBooleanBuilderInitial<TName> {
+	return new SingleStoreBooleanBuilder(name);
 }

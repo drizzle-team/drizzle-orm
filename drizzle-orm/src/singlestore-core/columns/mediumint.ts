@@ -1,45 +1,45 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
-import type { MySqlIntConfig } from './int.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
+import type { SingleStoreIntConfig } from './int.ts';
 
-export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntBuilder<{
+export type SingleStoreMediumIntBuilderInitial<TName extends string> = SingleStoreMediumIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlMediumInt';
+	columnType: 'SingleStoreMediumInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlMediumInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
+export class SingleStoreMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreMediumInt'>>
+	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlMediumIntBuilder';
+	static readonly [entityKind]: string = 'SingleStoreMediumIntBuilder';
 
-	constructor(name: T['name'], config?: MySqlIntConfig) {
-		super(name, 'number', 'MySqlMediumInt');
+	constructor(name: T['name'], config?: SingleStoreIntConfig) {
+		super(name, 'number', 'SingleStoreMediumInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlMediumInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlMediumInt<MakeColumnConfig<T, TTableName>>(
+		table: AnySingleStoreTable<{ name: TTableName }>,
+	): SingleStoreMediumInt<MakeColumnConfig<T, TTableName>> {
+		return new SingleStoreMediumInt<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt'>>
-	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
+export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number', 'SingleStoreMediumInt'>>
+	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlMediumInt';
+	static readonly [entityKind]: string = 'SingleStoreMediumInt';
 
 	getSQLType(): string {
 		return `mediumint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -55,7 +55,7 @@ export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt
 
 export function mediumint<TName extends string>(
 	name: TName,
-	config?: MySqlIntConfig,
-): MySqlMediumIntBuilderInitial<TName> {
-	return new MySqlMediumIntBuilder(name, config);
+	config?: SingleStoreIntConfig,
+): SingleStoreMediumIntBuilderInitial<TName> {
+	return new SingleStoreMediumIntBuilder(name, config);
 }

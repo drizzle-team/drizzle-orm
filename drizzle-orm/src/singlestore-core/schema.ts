@@ -1,40 +1,41 @@
 import { entityKind, is } from '~/entity.ts';
-import { type MySqlTableFn, mysqlTableWithSchema } from './table.ts';
-import { type mysqlView, mysqlViewWithSchema } from './view.ts';
+import { type SingleStoreTableFn, singlestoreTableWithSchema } from './table.ts';
+import { type singlestoreView, singlestoreViewWithSchema } from './view.ts';
 
-export class MySqlSchema<TName extends string = string> {
-	static readonly [entityKind]: string = 'MySqlSchema';
+export class SingleStoreSchema<TName extends string = string> {
+	static readonly [entityKind]: string = 'SingleStoreSchema';
 
 	constructor(
 		public readonly schemaName: TName,
 	) {}
 
-	table: MySqlTableFn<TName> = (name, columns, extraConfig) => {
-		return mysqlTableWithSchema(name, columns, extraConfig, this.schemaName);
+	table: SingleStoreTableFn<TName> = (name, columns, extraConfig) => {
+		return singlestoreTableWithSchema(name, columns, extraConfig, this.schemaName);
 	};
 
 	view = ((name, columns) => {
-		return mysqlViewWithSchema(name, columns, this.schemaName);
-	}) as typeof mysqlView;
+		return singlestoreViewWithSchema(name, columns, this.schemaName);
+	}) as typeof singlestoreView;
 }
 
-/** @deprecated - use `instanceof MySqlSchema` */
-export function isMySqlSchema(obj: unknown): obj is MySqlSchema {
-	return is(obj, MySqlSchema);
+/** @deprecated - use `instanceof SingleStoreSchema` */
+export function isSingleStoreSchema(obj: unknown): obj is SingleStoreSchema {
+	return is(obj, SingleStoreSchema);
 }
 
 /**
  * Create a MySQL schema.
  * https://dev.mysql.com/doc/refman/8.0/en/create-database.html
+ * TODO(singlestore)
  *
- * @param name mysql use schema name
+ * @param name singlestore use schema name
  * @returns MySQL schema
  */
-export function mysqlDatabase<TName extends string>(name: TName) {
-	return new MySqlSchema(name);
+export function singlestoreDatabase<TName extends string>(name: TName) {
+	return new SingleStoreSchema(name);
 }
 
 /**
- * @see mysqlDatabase
+ * @see singlestoreDatabase
  */
-export const mysqlSchema = mysqlDatabase;
+export const singlestoreSchema = singlestoreDatabase;

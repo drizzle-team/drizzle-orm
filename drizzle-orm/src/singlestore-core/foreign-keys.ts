@@ -1,18 +1,18 @@
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
-import { MySqlTable } from './table.ts';
+import type { AnySingleStoreColumn, SingleStoreColumn } from './columns/index.ts';
+import { SingleStoreTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
 	readonly name?: string;
-	readonly columns: MySqlColumn[];
-	readonly foreignTable: MySqlTable;
-	readonly foreignColumns: MySqlColumn[];
+	readonly columns: SingleStoreColumn[];
+	readonly foreignTable: SingleStoreTable;
+	readonly foreignColumns: SingleStoreColumn[];
 };
 
 export class ForeignKeyBuilder {
-	static readonly [entityKind]: string = 'MySqlForeignKeyBuilder';
+	static readonly [entityKind]: string = 'SingleStoreForeignKeyBuilder';
 
 	/** @internal */
 	reference: Reference;
@@ -26,8 +26,8 @@ export class ForeignKeyBuilder {
 	constructor(
 		config: () => {
 			name?: string;
-			columns: MySqlColumn[];
-			foreignColumns: MySqlColumn[];
+			columns: SingleStoreColumn[];
+			foreignColumns: SingleStoreColumn[];
 		},
 		actions?: {
 			onUpdate?: UpdateDeleteAction;
@@ -36,7 +36,7 @@ export class ForeignKeyBuilder {
 	) {
 		this.reference = () => {
 			const { name, columns, foreignColumns } = config();
-			return { name, columns, foreignTable: foreignColumns[0]!.table as MySqlTable, foreignColumns };
+			return { name, columns, foreignTable: foreignColumns[0]!.table as SingleStoreTable, foreignColumns };
 		};
 		if (actions) {
 			this._onUpdate = actions.onUpdate;
@@ -55,7 +55,7 @@ export class ForeignKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: MySqlTable): ForeignKey {
+	build(table: SingleStoreTable): ForeignKey {
 		return new ForeignKey(table, this);
 	}
 }
@@ -63,13 +63,13 @@ export class ForeignKeyBuilder {
 export type AnyForeignKeyBuilder = ForeignKeyBuilder;
 
 export class ForeignKey {
-	static readonly [entityKind]: string = 'MySqlForeignKey';
+	static readonly [entityKind]: string = 'SingleStoreForeignKey';
 
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
-	constructor(readonly table: MySqlTable, builder: ForeignKeyBuilder) {
+	constructor(readonly table: SingleStoreTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
@@ -80,9 +80,9 @@ export class ForeignKey {
 		const columnNames = columns.map((column) => column.name);
 		const foreignColumnNames = foreignColumns.map((column) => column.name);
 		const chunks = [
-			this.table[MySqlTable.Symbol.Name],
+			this.table[SingleStoreTable.Symbol.Name],
 			...columnNames,
-			foreignColumns[0]!.table[MySqlTable.Symbol.Name],
+			foreignColumns[0]!.table[SingleStoreTable.Symbol.Name],
 			...foreignColumnNames,
 		];
 		return name ?? `${chunks.join('_')}_fk`;
@@ -91,20 +91,23 @@ export class ForeignKey {
 
 type ColumnsWithTable<
 	TTableName extends string,
-	TColumns extends MySqlColumn[],
-> = { [Key in keyof TColumns]: AnyMySqlColumn<{ tableName: TTableName }> };
+	TColumns extends SingleStoreColumn[],
+> = { [Key in keyof TColumns]: AnySingleStoreColumn<{ tableName: TTableName }> };
 
-export type GetColumnsTable<TColumns extends MySqlColumn | MySqlColumn[]> = (
-	TColumns extends MySqlColumn ? TColumns
-		: TColumns extends MySqlColumn[] ? TColumns[number]
+export type GetColumnsTable<TColumns extends SingleStoreColumn | SingleStoreColumn[]> = (
+	TColumns extends SingleStoreColumn ? TColumns
+		: TColumns extends SingleStoreColumn[] ? TColumns[number]
 		: never
-) extends AnyMySqlColumn<{ tableName: infer TTableName extends string }> ? TTableName
+) extends AnySingleStoreColumn<{ tableName: infer TTableName extends string }> ? TTableName
 	: never;
 
 export function foreignKey<
 	TTableName extends string,
 	TForeignTableName extends string,
-	TColumns extends [AnyMySqlColumn<{ tableName: TTableName }>, ...AnyMySqlColumn<{ tableName: TTableName }>[]],
+	TColumns extends [
+		AnySingleStoreColumn<{ tableName: TTableName }>,
+		...AnySingleStoreColumn<{ tableName: TTableName }>[],
+	],
 >(
 	config: {
 		name?: string;

@@ -22,21 +22,25 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { MySqlColumn } from './columns/common.ts';
-import type { MySqlDeleteConfig } from './query-builders/delete.ts';
-import type { MySqlInsertConfig } from './query-builders/insert.ts';
-import type { MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
-import type { MySqlUpdateConfig } from './query-builders/update.ts';
-import type { MySqlSession } from './session.ts';
-import { MySqlTable } from './table.ts';
-import { MySqlViewBase } from './view-base.ts';
+import { SingleStoreColumn } from './columns/common.ts';
+import type { SingleStoreDeleteConfig } from './query-builders/delete.ts';
+import type { SingleStoreInsertConfig } from './query-builders/insert.ts';
+import type {
+	SelectedFieldsOrdered,
+	SingleStoreSelectConfig,
+	SingleStoreSelectJoinConfig,
+} from './query-builders/select.types.ts';
+import type { SingleStoreUpdateConfig } from './query-builders/update.ts';
+import type { SingleStoreSession } from './session.ts';
+import { SingleStoreTable } from './table.ts';
+import { SingleStoreViewBase } from './view-base.ts';
 
-export class MySqlDialect {
-	static readonly [entityKind]: string = 'MySqlDialect';
+export class SingleStoreDialect {
+	static readonly [entityKind]: string = 'SingleStoreDialect';
 
 	async migrate(
 		migrations: MigrationMeta[],
-		session: MySqlSession,
+		session: SingleStoreSession,
 		config: Omit<MigrationConfig, 'migrationsSchema'>,
 	): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
@@ -100,7 +104,7 @@ export class MySqlDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList }: MySqlDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, withList }: SingleStoreDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -112,7 +116,7 @@ export class MySqlDialect {
 		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
+	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
 		const columnNames = Object.keys(tableColumns).filter((colName) =>
@@ -133,7 +137,7 @@ export class MySqlDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList }: MySqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList }: SingleStoreUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
@@ -177,7 +181,7 @@ export class MySqlDialect {
 						chunk.push(
 							new SQL(
 								query.queryChunks.map((c) => {
-									if (is(c, MySqlColumn)) {
+									if (is(c, SingleStoreColumn)) {
 										return sql.identifier(c.name);
 									}
 									return c;
@@ -225,16 +229,16 @@ export class MySqlDialect {
 			lockingClause,
 			distinct,
 			setOperators,
-		}: MySqlSelectConfig,
+		}: SingleStoreSelectConfig,
 	): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<SingleStoreColumn>(fields);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
 				&& getTableName(f.field.table)
 					!== (is(table, Subquery)
 						? table._.alias
-						: is(table, MySqlViewBase)
+						: is(table, SingleStoreViewBase)
 						? table[ViewBaseConfig].name
 						: is(table, SQL)
 						? undefined
@@ -279,10 +283,10 @@ export class MySqlDialect {
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
 
-				if (is(table, MySqlTable)) {
-					const tableName = table[MySqlTable.Symbol.Name];
-					const tableSchema = table[MySqlTable.Symbol.Schema];
-					const origTableName = table[MySqlTable.Symbol.OriginalName];
+				if (is(table, SingleStoreTable)) {
+					const tableName = table[SingleStoreTable.Symbol.Name];
+					const tableSchema = table[SingleStoreTable.Symbol.Schema];
+					const origTableName = table[SingleStoreTable.Symbol.OriginalName];
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
@@ -353,7 +357,7 @@ export class MySqlDialect {
 		return finalQuery;
 	}
 
-	buildSetOperations(leftSelect: SQL, setOperators: MySqlSelectConfig['setOperators']): SQL {
+	buildSetOperations(leftSelect: SQL, setOperators: SingleStoreSelectConfig['setOperators']): SQL {
 		const [setOperator, ...rest] = setOperators;
 
 		if (!setOperator) {
@@ -374,7 +378,7 @@ export class MySqlDialect {
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
-	}: { leftSelect: SQL; setOperator: MySqlSelectConfig['setOperators'][number] }): SQL {
+	}: { leftSelect: SQL; setOperator: SingleStoreSelectConfig['setOperators'][number] }): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
@@ -383,15 +387,15 @@ export class MySqlDialect {
 			const orderByValues: (SQL<unknown> | Name)[] = [];
 
 			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
-			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
+			// which is invalid SingleStore syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const orderByUnit of orderBy) {
-				if (is(orderByUnit, MySqlColumn)) {
+				if (is(orderByUnit, SingleStoreColumn)) {
 					orderByValues.push(sql.identifier(orderByUnit.name));
 				} else if (is(orderByUnit, SQL)) {
 					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
 						const chunk = orderByUnit.queryChunks[i];
 
-						if (is(chunk, MySqlColumn)) {
+						if (is(chunk, SingleStoreColumn)) {
 							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
@@ -417,12 +421,12 @@ export class MySqlDialect {
 	}
 
 	buildInsertQuery(
-		{ table, values, ignore, onConflict }: MySqlInsertConfig,
+		{ table, values, ignore, onConflict }: SingleStoreInsertConfig,
 	): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
-		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MySqlColumn][] = Object.entries(columns).filter(([_, col]) =>
+		const columns: Record<string, SingleStoreColumn> = table[Table.Symbol.Columns];
+		const colEntries: [string, SingleStoreColumn][] = Object.entries(columns).filter(([_, col]) =>
 			!col.shouldDisableInsert()
 		);
 
@@ -500,16 +504,16 @@ export class MySqlDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: MySqlTable;
+		table: SingleStoreTable;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
-		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
-		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where;
-		const joins: MySqlSelectJoinConfig[] = [];
+	}): BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn> {
+		let selection: BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn>['selection'] = [];
+		let limit, offset, orderBy: SingleStoreSelectConfig['orderBy'], where;
+		const joins: SingleStoreSelectJoinConfig[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -518,7 +522,7 @@ export class MySqlDialect {
 			) => ({
 				dbKey: value.name,
 				tsKey: key,
-				field: aliasedTableColumn(value as MySqlColumn, tableAlias),
+				field: aliasedTableColumn(value as SingleStoreColumn, tableAlias),
 				relationTableTsKey: undefined,
 				isJson: false,
 				selection: [],
@@ -535,7 +539,7 @@ export class MySqlDialect {
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: MySqlColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: { tsKey: string; value: SingleStoreColumn | SQL.Aliased }[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -566,7 +570,7 @@ export class MySqlDialect {
 			}
 
 			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as MySqlColumn;
+				const column = tableConfig.columns[field]! as SingleStoreColumn;
 				fieldsSelection.push({ tsKey: field, value: column });
 			}
 
@@ -619,7 +623,7 @@ export class MySqlDialect {
 			}
 			orderBy = orderByOrig.map((orderByValue) => {
 				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as MySqlColumn;
+					return aliasedTableColumn(orderByValue, tableAlias) as SingleStoreColumn;
 				}
 				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
 			});
@@ -651,7 +655,7 @@ export class MySqlDialect {
 					fullSchema,
 					schema,
 					tableNamesMap,
-					table: fullSchema[relationTableTsName] as MySqlTable,
+					table: fullSchema[relationTableTsName] as SingleStoreTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
 						? (selectedRelationConfigValue === true
@@ -747,7 +751,7 @@ export class MySqlDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, MySqlTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, SingleStoreTable) ? result : new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],
@@ -798,15 +802,15 @@ export class MySqlDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: MySqlTable;
+		table: SingleStoreTable;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
-		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
-		let limit, offset, orderBy: MySqlSelectConfig['orderBy'] = [], where;
+	}): BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn> {
+		let selection: BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn>['selection'] = [];
+		let limit, offset, orderBy: SingleStoreSelectConfig['orderBy'] = [], where;
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -815,7 +819,7 @@ export class MySqlDialect {
 			) => ({
 				dbKey: value.name,
 				tsKey: key,
-				field: aliasedTableColumn(value as MySqlColumn, tableAlias),
+				field: aliasedTableColumn(value as SingleStoreColumn, tableAlias),
 				relationTableTsKey: undefined,
 				isJson: false,
 				selection: [],
@@ -832,7 +836,7 @@ export class MySqlDialect {
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: MySqlColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: { tsKey: string; value: SingleStoreColumn | SQL.Aliased }[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -863,7 +867,7 @@ export class MySqlDialect {
 			}
 
 			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as MySqlColumn;
+				const column = tableConfig.columns[field]! as SingleStoreColumn;
 				fieldsSelection.push({ tsKey: field, value: column });
 			}
 
@@ -916,7 +920,7 @@ export class MySqlDialect {
 			}
 			orderBy = orderByOrig.map((orderByValue) => {
 				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as MySqlColumn;
+					return aliasedTableColumn(orderByValue, tableAlias) as SingleStoreColumn;
 				}
 				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
 			});
@@ -948,7 +952,7 @@ export class MySqlDialect {
 					fullSchema,
 					schema,
 					tableNamesMap,
-					table: fullSchema[relationTableTsName] as MySqlTable,
+					table: fullSchema[relationTableTsName] as SingleStoreTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
 						? (selectedRelationConfigValue === true
@@ -990,7 +994,7 @@ export class MySqlDialect {
 			let field = sql`json_array(${
 				sql.join(
 					selection.map(({ field }) =>
-						is(field, MySqlColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
+						is(field, SingleStoreColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
 					),
 					sql`, `,
 				)
@@ -1040,7 +1044,7 @@ export class MySqlDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, MySqlTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, SingleStoreTable) ? result : new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],

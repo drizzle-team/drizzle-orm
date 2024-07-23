@@ -3,47 +3,47 @@ import { TransactionRollbackError } from '~/errors.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
-import { MySqlDatabase } from './db.ts';
-import type { MySqlDialect } from './dialect.ts';
+import { SingleStoreDatabase } from './db.ts';
+import type { SingleStoreDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export type Mode = 'default' | 'planetscale';
 
-export interface MySqlQueryResultHKT {
-	readonly $brand: 'MySqlQueryResultHKT';
+export interface SingleStoreQueryResultHKT {
+	readonly $brand: 'SingleStoreQueryResultHKT';
 	readonly row: unknown;
 	readonly type: unknown;
 }
 
-export interface AnyMySqlQueryResultHKT extends MySqlQueryResultHKT {
+export interface AnySingleStoreQueryResultHKT extends SingleStoreQueryResultHKT {
 	readonly type: any;
 }
 
-export type MySqlQueryResultKind<TKind extends MySqlQueryResultHKT, TRow> = (TKind & {
+export type SingleStoreQueryResultKind<TKind extends SingleStoreQueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];
 
-export interface MySqlPreparedQueryConfig {
+export interface SingleStorePreparedQueryConfig {
 	execute: unknown;
 	iterator: unknown;
 }
 
-export interface MySqlPreparedQueryHKT {
-	readonly $brand: 'MySqlPreparedQueryHKT';
+export interface SingleStorePreparedQueryHKT {
+	readonly $brand: 'SingleStorePreparedQueryHKT';
 	readonly config: unknown;
 	readonly type: unknown;
 }
 
 export type PreparedQueryKind<
-	TKind extends MySqlPreparedQueryHKT,
-	TConfig extends MySqlPreparedQueryConfig,
+	TKind extends SingleStorePreparedQueryHKT,
+	TConfig extends SingleStorePreparedQueryConfig,
 	TAssume extends boolean = false,
 > = Equal<TAssume, true> extends true
-	? Assume<(TKind & { readonly config: TConfig })['type'], MySqlPreparedQuery<TConfig>>
+	? Assume<(TKind & { readonly config: TConfig })['type'], SingleStorePreparedQuery<TConfig>>
 	: (TKind & { readonly config: TConfig })['type'];
 
-export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
-	static readonly [entityKind]: string = 'MySqlPreparedQuery';
+export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig> {
+	static readonly [entityKind]: string = 'SingleStorePreparedQuery';
 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
@@ -53,23 +53,26 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 	abstract iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']>;
 }
 
-export interface MySqlTransactionConfig {
+export interface SingleStoreTransactionConfig {
 	withConsistentSnapshot?: boolean;
 	accessMode?: 'read only' | 'read write';
 	isolationLevel: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
 }
 
-export abstract class MySqlSession<
-	TQueryResult extends MySqlQueryResultHKT = MySqlQueryResultHKT,
+export abstract class SingleStoreSession<
+	TQueryResult extends SingleStoreQueryResultHKT = SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > {
-	static readonly [entityKind]: string = 'MySqlSession';
+	static readonly [entityKind]: string = 'SingleStoreSession';
 
-	constructor(protected dialect: MySqlDialect) {}
+	constructor(protected dialect: SingleStoreDialect) {}
 
-	abstract prepareQuery<T extends MySqlPreparedQueryConfig, TPreparedQueryHKT extends MySqlPreparedQueryHKT>(
+	abstract prepareQuery<
+		T extends SingleStorePreparedQueryConfig,
+		TPreparedQueryHKT extends SingleStorePreparedQueryHKT,
+	>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
@@ -78,7 +81,7 @@ export abstract class MySqlSession<
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T }, PreparedQueryHKTBase>(
+		return this.prepareQuery<SingleStorePreparedQueryConfig & { execute: T }, PreparedQueryHKTBase>(
 			this.dialect.sqlToQuery(query),
 			undefined,
 		).execute();
@@ -87,11 +90,11 @@ export abstract class MySqlSession<
 	abstract all<T = unknown>(query: SQL): Promise<T[]>;
 
 	abstract transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
-		config?: MySqlTransactionConfig,
+		transaction: (tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
+		config?: SingleStoreTransactionConfig,
 	): Promise<T>;
 
-	protected getSetTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
+	protected getSetTransactionSQL(config: SingleStoreTransactionConfig): SQL | undefined {
 		const parts: string[] = [];
 
 		if (config.isolationLevel) {
@@ -101,7 +104,7 @@ export abstract class MySqlSession<
 		return parts.length ? sql.join(['set transaction ', parts.join(' ')]) : undefined;
 	}
 
-	protected getStartTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
+	protected getStartTransactionSQL(config: SingleStoreTransactionConfig): SQL | undefined {
 		const parts: string[] = [];
 
 		if (config.withConsistentSnapshot) {
@@ -116,17 +119,17 @@ export abstract class MySqlSession<
 	}
 }
 
-export abstract class MySqlTransaction<
-	TQueryResult extends MySqlQueryResultHKT,
+export abstract class SingleStoreTransaction<
+	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
-> extends MySqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySqlTransaction';
+> extends SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SingleStoreTransaction';
 
 	constructor(
-		dialect: MySqlDialect,
-		session: MySqlSession,
+		dialect: SingleStoreDialect,
+		session: SingleStoreSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
 		mode: Mode,
@@ -140,10 +143,10 @@ export abstract class MySqlTransaction<
 
 	/** Nested transactions (aka savepoints) only work with InnoDB engine. */
 	abstract override transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T>;
 }
 
-export interface PreparedQueryHKTBase extends MySqlPreparedQueryHKT {
-	type: MySqlPreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
+export interface PreparedQueryHKTBase extends SingleStorePreparedQueryHKT {
+	type: SingleStorePreparedQuery<Assume<this['config'], SingleStorePreparedQueryConfig>>;
 }

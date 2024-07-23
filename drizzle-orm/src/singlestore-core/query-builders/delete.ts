@@ -1,27 +1,27 @@
 import { entityKind } from '~/entity.ts';
-import type { MySqlDialect } from '~/mysql-core/dialect.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type {
-	AnyMySqlQueryResultHKT,
-	MySqlPreparedQueryConfig,
-	MySqlQueryResultHKT,
-	MySqlQueryResultKind,
-	MySqlSession,
+	AnySingleStoreQueryResultHKT,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
-} from '~/mysql-core/session.ts';
-import type { MySqlTable } from '~/mysql-core/table.ts';
-import { QueryPromise } from '~/query-promise.ts';
+	SingleStorePreparedQueryConfig,
+	SingleStoreQueryResultHKT,
+	SingleStoreQueryResultKind,
+	SingleStoreSession,
+} from '~/singlestore-core/session.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
-export type MySqlDeleteWithout<
-	T extends AnyMySqlDeleteBase,
+export type SingleStoreDeleteWithout<
+	T extends AnySingleStoreDeleteBase,
 	TDynamic extends boolean,
 	K extends keyof T & string,
 > = TDynamic extends true ? T
 	: Omit<
-		MySqlDeleteBase<
+		SingleStoreDeleteBase<
 			T['_']['table'],
 			T['_']['queryResult'],
 			T['_']['preparedQueryHKT'],
@@ -31,43 +31,43 @@ export type MySqlDeleteWithout<
 		T['_']['excludedMethods'] | K
 	>;
 
-export type MySqlDelete<
-	TTable extends MySqlTable = MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT = AnyMySqlQueryResultHKT,
+export type SingleStoreDelete<
+	TTable extends SingleStoreTable = SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT = AnySingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-> = MySqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
+> = SingleStoreDeleteBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
 
-export interface MySqlDeleteConfig {
+export interface SingleStoreDeleteConfig {
 	where?: SQL | undefined;
-	table: MySqlTable;
+	table: SingleStoreTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 }
 
-export type MySqlDeletePrepare<T extends AnyMySqlDeleteBase> = PreparedQueryKind<
+export type SingleStoreDeletePrepare<T extends AnySingleStoreDeleteBase> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
-	MySqlPreparedQueryConfig & {
-		execute: MySqlQueryResultKind<T['_']['queryResult'], never>;
+	SingleStorePreparedQueryConfig & {
+		execute: SingleStoreQueryResultKind<T['_']['queryResult'], never>;
 		iterator: never;
 	},
 	true
 >;
 
-type MySqlDeleteDynamic<T extends AnyMySqlDeleteBase> = MySqlDelete<
+type SingleStoreDeleteDynamic<T extends AnySingleStoreDeleteBase> = SingleStoreDelete<
 	T['_']['table'],
 	T['_']['queryResult'],
 	T['_']['preparedQueryHKT']
 >;
 
-type AnyMySqlDeleteBase = MySqlDeleteBase<any, any, any, any, any>;
+type AnySingleStoreDeleteBase = SingleStoreDeleteBase<any, any, any, any, any>;
 
-export interface MySqlDeleteBase<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export interface SingleStoreDeleteBase<
+	TTable extends SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> {
+> extends QueryPromise<SingleStoreQueryResultKind<TQueryResult, never>> {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
@@ -77,23 +77,23 @@ export interface MySqlDeleteBase<
 	};
 }
 
-export class MySqlDeleteBase<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export class SingleStoreDeleteBase<
+	TTable extends SingleStoreTable,
+	TQueryResult extends SingleStoreQueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> implements SQLWrapper {
-	static readonly [entityKind]: string = 'MySqlDelete';
+> extends QueryPromise<SingleStoreQueryResultKind<TQueryResult, never>> implements SQLWrapper {
+	static readonly [entityKind]: string = 'SingleStoreDelete';
 
-	private config: MySqlDeleteConfig;
+	private config: SingleStoreDeleteConfig;
 
 	constructor(
 		private table: TTable,
-		private session: MySqlSession,
-		private dialect: MySqlDialect,
+		private session: SingleStoreSession,
+		private dialect: SingleStoreDialect,
 		withList?: Subquery[],
 	) {
 		super();
@@ -129,7 +129,7 @@ export class MySqlDeleteBase<
 	 * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	 */
-	where(where: SQL | undefined): MySqlDeleteWithout<this, TDynamic, 'where'> {
+	where(where: SQL | undefined): SingleStoreDeleteWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
 		return this as any;
 	}
@@ -144,11 +144,11 @@ export class MySqlDeleteBase<
 		return rest;
 	}
 
-	prepare(): MySqlDeletePrepare<this> {
+	prepare(): SingleStoreDeletePrepare<this> {
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
-		) as MySqlDeletePrepare<this>;
+		) as SingleStoreDeletePrepare<this>;
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
@@ -164,7 +164,7 @@ export class MySqlDeleteBase<
 
 	iterator = this.createIterator();
 
-	$dynamic(): MySqlDeleteDynamic<this> {
+	$dynamic(): SingleStoreDeleteDynamic<this> {
 		return this as any;
 	}
 }
