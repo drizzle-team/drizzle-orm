@@ -1,4 +1,4 @@
-name: Release to GitHub
+name: Release fork to NPM
 
 on: workflow_dispatch
 
@@ -111,8 +111,8 @@ jobs:
       - name: Build
         working-directory: ${{ matrix.package }}
         run: |
-          jq '.name="@singlestore-labs/${{ matrix.package }}"' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
-          # jq '.publishConfig.registry="https://npm.pkg.github.com/"' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
+          jq '.name="@drodrigues4/${{ matrix.package }}"' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
+          jq '.version="0.32.1-${{ github.sha }}"' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
           jq 'del(.publishConfig.provenance)' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
 
           pnpm build
@@ -158,15 +158,14 @@ jobs:
         working-directory: ${{ matrix.package }}
         shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
         run: |
           version=latest
 
-          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > .npmrc
-          echo "@singlestore-labs:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > .npmrc
 
           echo "Publishing ${{ matrix.package }}@$version"
-          npm run publish
+          npm publish package.tgz --access public
 
           echo "npm: \`+ ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
 
