@@ -98,7 +98,7 @@ export abstract class MySqlSession<
 			parts.push(`isolation level ${config.isolationLevel}`);
 		}
 
-    return parts.length ? sql`set transaction ${sql.raw(parts.join(' '))}` : undefined;
+		return parts.length ? sql`set transaction ${sql.raw(parts.join(' '))}` : undefined;
 	}
 
 	protected getStartTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
@@ -112,7 +112,7 @@ export abstract class MySqlSession<
 			parts.push(config.accessMode);
 		}
 
-    return parts.length ? sql`start transaction ${sql.raw(parts.join(' '))}` : undefined;
+		return parts.length ? sql`start transaction ${sql.raw(parts.join(' '))}` : undefined;
 	}
 }
 

@@ -2059,7 +2059,7 @@ export function tests(driver?: string) {
 			await db.transaction(async (tx) => {
 				await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id));
 				await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id));
-			}, { isolationLevel: "serializable" });
+			}, { isolationLevel: 'serializable' });
 
 			const result = await db.select().from(users);
 
