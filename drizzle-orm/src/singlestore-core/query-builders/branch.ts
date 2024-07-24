@@ -12,6 +12,7 @@ import type {
 	SingleStoreSession,
 } from '~/singlestore-core/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { SingleStoreAttachConfig } from './attach.ts';
 
 export type SingleStoreBranchWithout<
 	T extends AnySingleStoreBranchBase,
@@ -35,13 +36,9 @@ export type SingleStoreBranch<
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 > = SingleStoreBranchBase<TDatabase, TQueryResult, TPreparedQueryHKT, true, never>;
 
-export interface SingleStoreBranchConfig {
-	milestone?: string | undefined;
-	time?: Date | undefined;
-	database: string;
+export interface SingleStoreBranchConfig extends SingleStoreAttachConfig {
 	databaseAlias: string;
 	fromWorkspaceGroup?: string | undefined;
-	readOnly?: boolean | undefined;
 }
 
 export type SingleStoreBranchPrepare<T extends AnySingleStoreBranchBase> = PreparedQueryKind<
@@ -148,20 +145,14 @@ export class SingleStoreBranchBase<
 	}
 
 	// TODO(singlestore): docs
-	fromWorkspaceGroup(groupID: string): SingleStoreBranchWithout<this, TDynamic, 'fromWorkspaceGroup'> {
+	fromWorkspaceGroup(groupID: string): SingleStoreBranchWithout<this, true, 'fromWorkspaceGroup'> {
 		this.config.fromWorkspaceGroup = groupID;
-		return this as any;
-	}
-
-	// TODO(singlestore): docs
-	readOnly(): SingleStoreBranchWithout<this, TDynamic, 'readOnly'> {
-		this.config.readOnly = true;
 		return this as any;
 	}
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildBranchQuery(this.config);
+		return this.dialect.buildAttachQuery(this.config);
 	}
 
 	toSQL(): Query {

@@ -99,6 +99,9 @@ export class SingleStoreAttachBase<
 	}
 
 	as(dabataseAlias: string): SingleStoreAttachWithout<this, true, 'as'> {
+		if (this.config.readOnly) {
+			throw new DrizzleError({ message: 'Cannot set both databaseAlias and readOnly' });
+		}
 		this.config.databaseAlias = dabataseAlias;
 		return this as any;
 	}
@@ -151,7 +154,10 @@ export class SingleStoreAttachBase<
 	}
 
 	// TODO(singlestore): docs
-	readOnly(): SingleStoreAttachWithout<this, TDynamic, 'readOnly'> {
+	readOnly(): SingleStoreAttachWithout<this, true, 'readOnly'> {
+		if (this.config.databaseAlias) {
+			throw new DrizzleError({ message: 'Cannot set both databaseAlias and readOnly' });
+		}
 		this.config.readOnly = true;
 		return this as any;
 	}

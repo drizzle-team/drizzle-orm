@@ -129,23 +129,16 @@ export class SingleStoreDialect {
 		return sql`detach database ${database}${milestoneSql}${workspaceSql}`;
 	}
 
-	buildAttachQuery({ database, milestone, time, databaseAlias, readOnly }: SingleStoreAttachConfig): SQL {
+	buildAttachQuery(
+		{ database, milestone, time, databaseAlias, readOnly, ...rest }: SingleStoreAttachConfig | SingleStoreBranchConfig,
+	): SQL {
 		const asSql = databaseAlias ? sql` as ${sql.identifier(databaseAlias)}` : undefined;
 		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
 		const timeSql = time ? sql` at time ${time}` : undefined;
-		const readOnlySql = readOnly ? sql` READ ONLY` : undefined;
-
-		return sql`attach database ${sql.raw(database)}${readOnlySql}${asSql}${milestoneSql}${timeSql}`;
-	}
-
-	buildBranchQuery(
-		{ database, databaseAlias, fromWorkspaceGroup, milestone, readOnly, time }: SingleStoreBranchConfig,
-	): SQL {
-		const asSql = sql` as ${sql.identifier(databaseAlias)}`;
-		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
-		const timeSql = time ? sql` at time ${time}` : undefined;
-		const fromWorkspaceGroupSql = fromWorkspaceGroup ? sql` from workspace group ${fromWorkspaceGroup}` : undefined;
-		const readOnlySql = readOnly ? sql` READ ONLY` : undefined;
+		const readOnlySql = readOnly ? sql` read only` : undefined;
+		const fromWorkspaceGroupSql = 'fromWorkspaceGroup' in rest
+			? sql` from workspace group ${rest.fromWorkspaceGroup}`
+			: undefined;
 
 		return sql`attach database ${
 			sql.raw(database)
