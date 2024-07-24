@@ -523,9 +523,9 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 
 	/**
 	 * Adds `minus` set operator to the query.
-	 * 
+	 *
 	 * This is an alias of `except` supported by SingleStore.
-	 * 
+	 *
 	 * @example
 	 *
 	 * ```ts
@@ -1057,9 +1057,9 @@ export const except = createSetOperator('except', false);
 
 /**
  * Adds `minus` set operator to the query.
- * 
+ *
  * This is an alias of `except` supported by SingleStore.
- * 
+ *
  * @example
  *
  * ```ts
