@@ -3,7 +3,7 @@ import type { SQL } from '~/sql/sql.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from './columns/index.ts';
 import type { SingleStoreTable } from './table.ts';
 
-interface IndexCommonConfig {
+interface IndexConfig {
 	name: string;
 
 	columns: IndexColumn[];
@@ -12,6 +12,11 @@ interface IndexCommonConfig {
 	 * If true, the index will be created as `create unique index` instead of `create index`.
 	 */
 	unique?: boolean;
+
+	/**
+	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
+	 */
+	using?: 'btree' | 'hash';
 
 	/**
 	 * If set, the index will be created as `create index ... algorythm { 'default' | 'inplace' | 'copy' }`.
@@ -23,20 +28,6 @@ interface IndexCommonConfig {
 	 */
 	lock?: 'default' | 'none' | 'shared' | 'exclusive';
 }
-
-type IndexColumnstoreConfig = IndexCommonConfig & {
-	/**
-	 * If set, the index will be created as `create index ... using { 'hash' }`.
-	 */
-	using?: 'hash';
-};
-type IndexRowstoreConfig = IndexCommonConfig & {
-	/**
-	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
-	 */
-	using?: 'btree' | 'hash';
-};
-type IndexConfig = IndexColumnstoreConfig | IndexRowstoreConfig;
 
 export type IndexColumn = SingleStoreColumn | SQL;
 
@@ -50,31 +41,38 @@ export class IndexBuilderOn {
 	}
 }
 
-export class IndexBuilder<TConfig extends IndexConfig = IndexConfig> {
+export interface AnyIndexBuilder {
+	build(table: SingleStoreTable): Index;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface IndexBuilder extends AnyIndexBuilder {}
+
+export class IndexBuilder implements AnyIndexBuilder {
 	static readonly [entityKind]: string = 'SingleStoreIndexBuilder';
 
 	/** @internal */
-	config: TConfig;
+	config: IndexConfig;
 
 	constructor(name: string, columns: IndexColumn[], unique: boolean) {
 		this.config = {
 			name,
 			columns,
 			unique,
-		} as TConfig;
+		};
 	}
 
-	using(using: TConfig['using']): this {
+	using(using: IndexConfig['using']): this {
 		this.config.using = using;
 		return this;
 	}
 
-	algorythm(algorythm: TConfig['algorythm']): this {
+	algorythm(algorythm: IndexConfig['algorythm']): this {
 		this.config.algorythm = algorythm;
 		return this;
 	}
 
-	lock(lock: TConfig['lock']): this {
+	lock(lock: IndexConfig['lock']): this {
 		this.config.lock = lock;
 		return this;
 	}
@@ -83,14 +81,6 @@ export class IndexBuilder<TConfig extends IndexConfig = IndexConfig> {
 	build(table: SingleStoreTable): Index {
 		return new Index(this.config, table);
 	}
-}
-
-export class IndexColumnstoreBuilder extends IndexBuilder<IndexColumnstoreConfig> {
-	static readonly [entityKind]: string = 'SingleStoreColumnstoreIndexBuilder';
-}
-
-export class IndexRowstoreBuilder extends IndexBuilder<IndexRowstoreConfig> {
-	static readonly [entityKind]: string = 'SingleStoreRowstoreIndexBuilder';
 }
 
 export class Index {
