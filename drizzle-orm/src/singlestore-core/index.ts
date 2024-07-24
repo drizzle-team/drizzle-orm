@@ -1,5 +1,4 @@
 export * from './alias.ts';
-export * from './checks.ts';
 export * from './columns/index.ts';
 export * from './db.ts';
 export * from './dialect.ts';
