@@ -3,42 +3,57 @@ import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import type { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreColumnBuilderBase } from './columns/common.ts';
-import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
+import type { IndexColumnstoreBuilder, IndexRowstoreBuilder } from './indexes.ts';
 
-export type SingleStoreTableExtraConfig = Record<
+export type SingleStoreColumnstoreTableExtraConfig = Record<
 	string,
-	| AnyIndexBuilder
+	| IndexColumnstoreBuilder
 	| CheckBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder
 >;
+export type SingleStoreRowstoreTableExtraConfig = Record<
+	string,
+	| IndexRowstoreBuilder
+	| CheckBuilder
+	| PrimaryKeyBuilder
+	| UniqueConstraintBuilder
+>;
+export type SingleStoreTableExtraConfig = SingleStoreColumnstoreTableExtraConfig | SingleStoreRowstoreTableExtraConfig;
 
 export type TableConfig = TableConfigBase<SingleStoreColumn>;
 
-export abstract class SingleStoreTable<T extends TableConfig = TableConfig> extends Table<T> {
+export abstract class SingleStoreTable<
+	TColumn extends TableConfig = TableConfig,
+	TExtraConfig extends SingleStoreTableExtraConfig = SingleStoreTableExtraConfig,
+> extends Table<TColumn> {
 	static readonly [entityKind]: string = 'SingleStoreTable';
 
-	declare protected $columns: T['columns'];
+	declare protected $columns: TColumn['columns'];
 
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {});
 
 	/** @internal */
-	override [Table.Symbol.Columns]!: NonNullable<T['columns']>;
+	override [Table.Symbol.Columns]!: NonNullable<TColumn['columns']>;
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
-		| ((self: Record<string, SingleStoreColumn>) => SingleStoreTableExtraConfig)
+		| ((self: Record<string, SingleStoreColumn>) => TExtraConfig)
 		| undefined = undefined;
 }
 
-export class SingleStoreRowstoreTable<T extends TableConfig = TableConfig> extends SingleStoreTable<T> {
+export class SingleStoreRowstoreTable<T extends TableConfig = TableConfig>
+	extends SingleStoreTable<T, SingleStoreRowstoreTableExtraConfig>
+{
 	static readonly [entityKind]: string = 'SingleStoreRowstoreTable';
 }
 
-export class SingleStoreColumnstoreTable<T extends TableConfig = TableConfig> extends SingleStoreTable<T> {
+export class SingleStoreColumnstoreTable<T extends TableConfig = TableConfig>
+	extends SingleStoreTable<T, SingleStoreColumnstoreTableExtraConfig>
+{
 	static readonly [entityKind]: string = 'SingleStoreColumnstoreTable';
 }
 
@@ -124,14 +139,17 @@ export function singlestoreTableWithSchema<
 	return table;
 }
 
-export interface SingleStoreTableFn<TSchemaName extends string | undefined = undefined> {
+export interface SingleStoreTableFn<
+	TSchemaName extends string | undefined = undefined,
+	TExtraConfig extends SingleStoreTableExtraConfig = SingleStoreTableExtraConfig,
+> {
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfig,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => TExtraConfig,
 	): SingleStoreTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
@@ -140,11 +158,20 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 	}>;
 }
 
-export const singlestoreTable: SingleStoreTableFn = (name, columns, extraConfig) => {
+export const singlestoreTable: SingleStoreTableFn<undefined, SingleStoreColumnstoreTableExtraConfig> = (
+	name,
+	columns,
+	extraConfig,
+) => {
 	return singlestoreTableWithSchema(SinglestoreTableType.columnstore, name, columns, extraConfig, undefined, name);
 };
 
-export const singlestoreRowstoreTable: SingleStoreTableFn = (name, columns, extraConfig) => {
+// TODO: Need to access drizzle kit to add rowstore support on migrations
+export const singlestoreRowstoreTable: SingleStoreTableFn<undefined, SingleStoreRowstoreTableExtraConfig> = (
+	name,
+	columns,
+	extraConfig,
+) => {
 	return singlestoreTableWithSchema(SinglestoreTableType.rowstore, name, columns, extraConfig, undefined, name);
 };
 
