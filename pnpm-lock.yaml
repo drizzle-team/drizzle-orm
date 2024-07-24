@@ -89,6 +89,45 @@ importers:
         specifier: 5.4.5
         version: 5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme)
 
+  drizzle-effect:
+    devDependencies:
+      '@effect/schema':
+        specifier: ^0.69.1
+        version: 0.69.1(effect@3.5.6)
+      '@rollup/plugin-terser':
+        specifier: ^0.4.1
+        version: 0.4.1(rollup@3.27.2)
+      '@rollup/plugin-typescript':
+        specifier: ^11.1.0
+        version: 11.1.1(rollup@3.27.2)(tslib@2.6.2)(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))
+      '@types/node':
+        specifier: ^18.15.10
+        version: 18.19.33
+      cpy:
+        specifier: ^10.1.0
+        version: 10.1.0
+      drizzle-orm:
+        specifier: link:../drizzle-orm/dist
+        version: link:../drizzle-orm/dist
+      effect:
+        specifier: ^3.5.6
+        version: 3.5.6
+      rimraf:
+        specifier: ^5.0.0
+        version: 5.0.0
+      rollup:
+        specifier: ^3.20.7
+        version: 3.27.2
+      vite-tsconfig-paths:
+        specifier: ^4.3.2
+        version: 4.3.2(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))(vite@5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.31.0))
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.0(@types/node@18.19.33)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.31.0)
+      zx:
+        specifier: ^7.2.2
+        version: 7.2.2
+
   drizzle-orm:
     devDependencies:
       '@aws-sdk/client-rds-data':
@@ -199,45 +238,6 @@ importers:
       zod:
         specifier: ^3.20.2
         version: 3.23.7
-      zx:
-        specifier: ^7.2.2
-        version: 7.2.2
-
-  drizzle-schema:
-    devDependencies:
-      '@effect/schema':
-        specifier: ^0.68.26
-        version: 0.68.26(effect@3.5.6)
-      '@rollup/plugin-terser':
-        specifier: ^0.4.1
-        version: 0.4.1(rollup@3.27.2)
-      '@rollup/plugin-typescript':
-        specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(tslib@2.6.2)(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))
-      '@types/node':
-        specifier: ^18.15.10
-        version: 18.19.33
-      cpy:
-        specifier: ^10.1.0
-        version: 10.1.0
-      drizzle-orm:
-        specifier: link:../drizzle-orm/dist
-        version: link:../drizzle-orm/dist
-      effect:
-        specifier: ^3.5.6
-        version: 3.5.6
-      rimraf:
-        specifier: ^5.0.0
-        version: 5.0.0
-      rollup:
-        specifier: ^3.20.7
-        version: 3.27.2
-      vite-tsconfig-paths:
-        specifier: ^4.3.2
-        version: 4.3.2(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))(vite@5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.31.0))
-      vitest:
-        specifier: ^1.6.0
-        version: 1.6.0(@types/node@18.19.33)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.31.0)
       zx:
         specifier: ^7.2.2
         version: 7.2.2
@@ -1780,10 +1780,10 @@ packages:
   '@drizzle-team/studio@0.0.5':
     resolution: {integrity: sha512-ps5qF0tMxWRVu+V5gvCRrQNqlY92aTnIKdq27gm9LZMSdaKYZt6AVvSK1dlUMzs6Rt0Jm80b+eWct6xShBKhIw==}
 
-  '@effect/schema@0.68.26':
-    resolution: {integrity: sha512-o1O/ZmlHXRe9t548YrQ9sudjRWJqCtsU9KnQHzvZm5pHSc4reuZVQufCXctcR0aETf9OFOYUuETrxjEQehq/Lg==}
+  '@effect/schema@0.69.1':
+    resolution: {integrity: sha512-+Gq3KrQh02B8nxUnha9Df8lCwKwWnK2XgEk7JDY+67/BrJSbGxVf0TjBRRJdlsH8xsqJ+HkCApSngGKPXbWDVQ==}
     peerDependencies:
-      effect: ^3.5.6
+      effect: ^3.5.7
 
   '@electric-sql/pglite@0.1.5':
     resolution: {integrity: sha512-eymv4ONNvoPZQTvOQIi5dbpR+J5HzEv0qQH9o/y3gvNheJV/P/NFcrbsfJZYTsDKoq7DKrTiFNexsRkJKy8x9Q==}
@@ -11418,7 +11418,7 @@ snapshots:
 
   '@drizzle-team/studio@0.0.5': {}
 
-  '@effect/schema@0.68.26(effect@3.5.6)':
+  '@effect/schema@0.69.1(effect@3.5.6)':
     dependencies:
       effect: 3.5.6
       fast-check: 3.20.0
@@ -13842,7 +13842,7 @@ snapshots:
       pathe: 1.1.2
       picocolors: 1.0.1
       sirv: 2.0.4
-      vitest: 1.6.0(@types/node@20.12.12)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.31.0)
+      vitest: 1.6.0(@types/node@18.19.33)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.31.0)
 
   '@vitest/utils@1.6.0':
     dependencies:
