@@ -2,9 +2,9 @@ import type { Connection as CallbackConnection, Pool as CallbackPool } from 'mys
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/db.ts';
-import { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { Mode } from '~/mysql-core/session.ts';
+import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
+import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
+import type { Mode } from '~/singlestore-core/session.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -13,46 +13,46 @@ import {
 } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { DrizzleError } from '../index.ts';
-import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
-import { MySql2Session } from './session.ts';
+import type { SingleStore2Client, SingleStore2PreparedQueryHKT, SingleStore2QueryResultHKT } from './session.ts';
+import { SingleStore2Session } from './session.ts';
 
-export interface MySqlDriverOptions {
+export interface SingleStoreDriverOptions {
 	logger?: Logger;
 }
 
-export class MySql2Driver {
-	static readonly [entityKind]: string = 'MySql2Driver';
+export class SingleStore2Driver {
+	static readonly [entityKind]: string = 'SingleStore2Driver';
 
 	constructor(
-		private client: MySql2Client,
-		private dialect: MySqlDialect,
-		private options: MySqlDriverOptions = {},
+		private client: SingleStore2Client,
+		private dialect: SingleStoreDialect,
+		private options: SingleStoreDriverOptions = {},
 	) {
 	}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 		mode: Mode,
-	): MySql2Session<Record<string, unknown>, TablesRelationalConfig> {
-		return new MySql2Session(this.client, this.dialect, schema, { logger: this.options.logger, mode });
+	): SingleStore2Session<Record<string, unknown>, TablesRelationalConfig> {
+		return new SingleStore2Session(this.client, this.dialect, schema, { logger: this.options.logger, mode });
 	}
 }
 
-export { MySqlDatabase } from '~/mysql-core/db.ts';
+export { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 
-export type MySql2Database<
+export type SingleStore2Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema>;
+> = SingleStoreDatabase<SingleStore2QueryResultHKT, SingleStore2PreparedQueryHKT, TSchema>;
 
-export type MySql2DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
+export type SingleStore2DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
 	& Omit<DrizzleConfig<TSchema>, 'schema'>
 	& ({ schema: TSchema; mode: Mode } | { schema?: undefined; mode?: Mode });
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: MySql2Client | CallbackConnection | CallbackPool,
-	config: MySql2DrizzleConfig<TSchema> = {},
-): MySql2Database<TSchema> {
-	const dialect = new MySqlDialect();
+	client: SingleStore2Client | CallbackConnection | CallbackPool,
+	config: SingleStore2DrizzleConfig<TSchema> = {},
+): SingleStore2Database<TSchema> {
+	const dialect = new SingleStoreDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -85,13 +85,13 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const mode = config.mode ?? 'default';
 
-	const driver = new MySql2Driver(client as MySql2Client, dialect, { logger });
+	const driver = new SingleStore2Driver(client as SingleStore2Client, dialect, { logger });
 	const session = driver.createSession(schema, mode);
-	return new MySqlDatabase(dialect, session, schema, mode) as MySql2Database<TSchema>;
+	return new SingleStoreDatabase(dialect, session, schema, mode) as SingleStore2Database<TSchema>;
 }
 
 interface CallbackClient {
-	promise(): MySql2Client;
+	promise(): SingleStore2Client;
 }
 
 function isCallbackClient(client: any): client is CallbackClient {

@@ -14,40 +14,40 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
+import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
+import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
 import {
 	type Mode,
-	MySqlPreparedQuery,
-	type MySqlPreparedQueryConfig,
-	type MySqlPreparedQueryHKT,
-	type MySqlQueryResultHKT,
-	MySqlSession,
-	MySqlTransaction,
-	type MySqlTransactionConfig,
+	SingleStorePreparedQuery,
+	type SingleStorePreparedQueryConfig,
+	type SingleStorePreparedQueryHKT,
+	type SingleStoreQueryResultHKT,
+	SingleStoreSession,
+	SingleStoreTransaction,
+	type SingleStoreTransactionConfig,
 	type PreparedQueryKind,
-} from '~/mysql-core/session.ts';
+} from '~/singlestore-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export type MySql2Client = Pool | Connection;
+export type SingleStore2Client = Pool | Connection;
 
-export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
-export type MySqlQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
-export type MySqlQueryResult<
+export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
+export type SingleStoreQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
+export type SingleStoreQueryResult<
 	T = any,
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
-export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlPreparedQuery<T> {
-	static readonly [entityKind]: string = 'MySql2PreparedQuery';
+export class SingleStore2PreparedQuery<T extends SingleStorePreparedQueryConfig> extends SingleStorePreparedQuery<T> {
+	static readonly [entityKind]: string = 'SingleStore2PreparedQuery';
 
 	private rawQuery: QueryOptions;
 	private query: QueryOptions;
 
 	constructor(
-		private client: MySql2Client,
+		private client: SingleStore2Client,
 		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
@@ -181,41 +181,41 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 	}
 }
 
-export interface MySql2SessionOptions {
+export interface SingleStore2SessionOptions {
 	logger?: Logger;
 	mode: Mode;
 }
 
-export class MySql2Session<
+export class SingleStore2Session<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends MySqlSession<MySqlQueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySql2Session';
+> extends SingleStoreSession<SingleStoreQueryResultHKT, SingleStore2PreparedQueryHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SingleStore2Session';
 
 	private logger: Logger;
 	private mode: Mode;
 
 	constructor(
-		private client: MySql2Client,
-		dialect: MySqlDialect,
+		private client: SingleStore2Client,
+		dialect: SingleStoreDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
-		private options: MySql2SessionOptions,
+		private options: SingleStore2SessionOptions,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.mode = options.mode;
 	}
 
-	prepareQuery<T extends MySqlPreparedQueryConfig>(
+	prepareQuery<T extends SingleStorePreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
-	): PreparedQueryKind<MySql2PreparedQueryHKT, T> {
+	): PreparedQueryKind<SingleStore2PreparedQueryHKT, T> {
 		// Add returningId fields
 		// Each driver gets them from response from database
-		return new MySql2PreparedQuery(
+		return new SingleStore2PreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
@@ -224,14 +224,14 @@ export class MySql2Session<
 			customResultMapper,
 			generatedIds,
 			returningIds,
-		) as PreparedQueryKind<MySql2PreparedQueryHKT, T>;
+		) as PreparedQueryKind<SingleStore2PreparedQueryHKT, T>;
 	}
 
 	/**
 	 * @internal
 	 * What is its purpose?
 	 */
-	async query(query: string, params: unknown[]): Promise<MySqlQueryResult> {
+	async query(query: string, params: unknown[]): Promise<SingleStoreQueryResult> {
 		this.logger.logQuery(query, params);
 		const result = await this.client.query({
 			sql: query,
@@ -254,20 +254,20 @@ export class MySql2Session<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: MySql2Transaction<TFullSchema, TSchema>) => Promise<T>,
-		config?: MySqlTransactionConfig,
+		transaction: (tx: SingleStore2Transaction<TFullSchema, TSchema>) => Promise<T>,
+		config?: SingleStoreTransactionConfig,
 	): Promise<T> {
 		const session = isPool(this.client)
-			? new MySql2Session(
+			? new SingleStore2Session(
 				await this.client.getConnection(),
 				this.dialect,
 				this.schema,
 				this.options,
 			)
 			: this;
-		const tx = new MySql2Transaction<TFullSchema, TSchema>(
+		const tx = new SingleStore2Transaction<TFullSchema, TSchema>(
 			this.dialect,
-			session as MySqlSession<any, any, any, any>,
+			session as SingleStoreSession<any, any, any, any>,
 			this.schema,
 			0,
 			this.mode,
@@ -297,15 +297,15 @@ export class MySql2Session<
 	}
 }
 
-export class MySql2Transaction<
+export class SingleStore2Transaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends MySqlTransaction<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySql2Transaction';
+> extends SingleStoreTransaction<SingleStore2QueryResultHKT, SingleStore2PreparedQueryHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SingleStore2Transaction';
 
-	override async transaction<T>(transaction: (tx: MySql2Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(transaction: (tx: SingleStore2Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new MySql2Transaction<TFullSchema, TSchema>(
+		const tx = new SingleStore2Transaction<TFullSchema, TSchema>(
 			this.dialect,
 			this.session,
 			this.schema,
@@ -324,14 +324,14 @@ export class MySql2Transaction<
 	}
 }
 
-function isPool(client: MySql2Client): client is Pool {
+function isPool(client: SingleStore2Client): client is Pool {
 	return 'getConnection' in client;
 }
 
-export interface MySql2QueryResultHKT extends MySqlQueryResultHKT {
-	type: MySqlRawQueryResult;
+export interface SingleStore2QueryResultHKT extends SingleStoreQueryResultHKT {
+	type: SingleStoreRawQueryResult;
 }
 
-export interface MySql2PreparedQueryHKT extends MySqlPreparedQueryHKT {
-	type: MySql2PreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
+export interface SingleStore2PreparedQueryHKT extends SingleStorePreparedQueryHKT {
+	type: SingleStore2PreparedQuery<Assume<this['config'], SingleStorePreparedQueryConfig>>;
 }
