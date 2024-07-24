@@ -1,6 +1,10 @@
 name: Release fork to NPM
 
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 env:
   VERSION: 0.32.1-${{ github.sha }}
