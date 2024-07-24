@@ -1,6 +1,7 @@
 import type { ColumnBaseConfig } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table';
 import { sql } from '~/sql/sql.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
@@ -82,7 +83,7 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 			});
 			return sql`"POLYGON(${sql.join(rings, sql.raw(', '))})"`;
 		} else {
-			throw new Error('value is not Array');
+			throw new DrizzleError({ message: 'value is not Array' });
 		}
 	}
 
@@ -115,7 +116,7 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 				};
 			}
 			default: {
-				throw new Error('unexpected Geography type');
+				throw new DrizzleError({ message: 'Unexpected Geography type' });
 			}
 		}
 	}
