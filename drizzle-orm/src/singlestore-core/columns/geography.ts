@@ -84,7 +84,7 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 					const points = ring.map((point) => sql`${point[0]} ${point[1]}`);
 					return sql`(${sql.join(points, sql.raw(', '))})`;
 				});
-				return sql`"POLYGON(${sql.join(rings, sql.raw(', '))})`;
+				return sql`"POLYGON(${sql.join(rings, sql.raw(', '))})"`;
 			}
 		} else {
 			throw new Error('value is not Array');
