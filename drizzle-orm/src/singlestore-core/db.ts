@@ -28,6 +28,7 @@ import type {
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { SingleStoreTable } from './table.ts';
 import { SingleStoreDetachBase } from './query-builders/detach.ts';
+import { SingleStoreAttachBase } from './query-builders/attach.ts';
 
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
@@ -479,6 +480,12 @@ export class SingleStoreDatabase<
 		database: TDatabase,
 	): SingleStoreDetachBase<TDatabase, TQueryResult, TPreparedQueryHKT> {
 		return new SingleStoreDetachBase(database, this.session, this.dialect);
+	}
+
+	attach<TDatabase extends string>(
+		database: TDatabase,
+	): SingleStoreAttachBase<TDatabase, TQueryResult, TPreparedQueryHKT> {
+		return new SingleStoreAttachBase(database, this.session, this.dialect);
 	}
 }
 

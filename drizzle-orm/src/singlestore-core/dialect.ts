@@ -35,6 +35,7 @@ import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
 import { SingleStoreViewBase } from './view-base.ts';
 import type { SingleStoreDetachConfig } from './query-builders/detach.ts';
+import type { SingleStoreAttachConfig } from './query-builders/attach.ts';
 
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
@@ -123,6 +124,12 @@ export class SingleStoreDialect {
 		const workspaceSql = workspace ? sql` from workspace ${workspace}` : undefined;
 
 		return sql`detach database ${database}${milestoneSql}${workspaceSql}`;
+	}
+
+	buildAttachQuery({ database, milestone }: SingleStoreAttachConfig): SQL {
+		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
+
+		return sql`attach database ${database}${milestoneSql}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
