@@ -1,9 +1,9 @@
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from './columns/index.ts';
-import type { SingleStoreTable } from './table.ts';
+import type { SingleStoreColumnstoreTable, SingleStoreRowstoreTable, SingleStoreTable } from './table.ts';
 
-interface IndexConfig {
+interface IndexCommonConfig {
 	name: string;
 
 	columns: IndexColumn[];
@@ -28,6 +28,12 @@ interface IndexConfig {
 	 */
 	lock?: 'default' | 'none' | 'shared' | 'exclusive';
 }
+
+type IndexColumnstoreConfig = IndexCommonConfig & {
+	using?: 'hash';
+};
+type IndexRowstoreConfig = IndexCommonConfig;
+type IndexConfig = IndexColumnstoreConfig | IndexRowstoreConfig;
 
 export type IndexColumn = SingleStoreColumn | SQL;
 
@@ -86,7 +92,9 @@ export class IndexBuilder implements AnyIndexBuilder {
 export class Index {
 	static readonly [entityKind]: string = 'SingleStoreIndex';
 
-	readonly config: IndexConfig & { table: SingleStoreTable };
+	readonly config:
+		| (IndexColumnstoreConfig & { table: SingleStoreColumnstoreTable })
+		| (IndexRowstoreConfig & { table: SingleStoreRowstoreTable });
 
 	constructor(config: IndexConfig, table: SingleStoreTable) {
 		this.config = { ...config, table };
