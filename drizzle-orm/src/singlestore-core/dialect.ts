@@ -25,9 +25,12 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
 import type { SingleStoreAttachConfig } from './query-builders/attach.ts';
 import type { SingleStoreBranchConfig } from './query-builders/branch.ts';
+import type { SingleStoreCreateMilestoneConfig } from './query-builders/createMilestone.ts';
 import type { SingleStoreDeleteConfig } from './query-builders/delete.ts';
 import type { SingleStoreDetachConfig } from './query-builders/detach.ts';
+import type { SingleStoreDropMilestoneConfig } from './query-builders/dropMilestone.ts';
 import type { SingleStoreInsertConfig } from './query-builders/insert.ts';
+import type { SingleStoreOptimizeTableConfig } from './query-builders/optimizeTable.ts';
 import type {
 	SelectedFieldsOrdered,
 	SingleStoreSelectConfig,
@@ -37,9 +40,6 @@ import type { SingleStoreUpdateConfig } from './query-builders/update.ts';
 import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
 import { SingleStoreViewBase } from './view-base.ts';
-import type { SingleStoreCreateMilestoneConfig } from './query-builders/createMilestone.ts';
-import type { SingleStoreDropMilestoneConfig } from './query-builders/dropMilestone.ts';
-import type { SingleStoreOptimizeTableConfig } from './query-builders/optimizeTable.ts';
 
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
@@ -163,8 +163,12 @@ export class SingleStoreDialect {
 
 		let warmBlobCacheForColumnSql = undefined;
 		if (selection) {
-			const selectionField = selection.map((column) => { return { path: [], field: column } });
-			warmBlobCacheForColumnSql = sql` warm blob cache for column ${this.buildSelection(selectionField, { isSingleTable: true })}`;
+			const selectionField = selection.map((column) => {
+				return { path: [], field: column };
+			});
+			warmBlobCacheForColumnSql = sql` warm blob cache for column ${
+				this.buildSelection(selectionField, { isSingleTable: true })
+			}`;
 		}
 
 		return sql`optimize table ${table}${argSql}${warmBlobCacheForColumnSql}`;

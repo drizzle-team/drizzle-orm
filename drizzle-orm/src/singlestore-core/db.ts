@@ -9,7 +9,9 @@ import type { DrizzleTypeError } from '~/utils.ts';
 import type { SingleStoreDialect } from './dialect.ts';
 import { SingleStoreAttachBase } from './query-builders/attach.ts';
 import { SingleStoreBranchBase } from './query-builders/branch.ts';
+import { SingleStoreCreateMilestoneBase } from './query-builders/createMilestone.ts';
 import { SingleStoreDetachBase } from './query-builders/detach.ts';
+import { SingleStoreDropMilestoneBase } from './query-builders/dropMilestone.ts';
 import {
 	QueryBuilder,
 	SingleStoreDeleteBase,
@@ -17,6 +19,8 @@ import {
 	SingleStoreSelectBuilder,
 	SingleStoreUpdateBuilder,
 } from './query-builders/index.ts';
+import { SingleStoreOptimizeTableBase } from './query-builders/optimizeTable.ts';
+import type { OptimizeTableArgument } from './query-builders/optimizeTable.types.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
@@ -30,10 +34,6 @@ import type {
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { SingleStoreTable } from './table.ts';
-import { SingleStoreCreateMilestoneBase } from './query-builders/createMilestone.ts';
-import { SingleStoreDropMilestoneBase } from './query-builders/dropMilestone.ts';
-import { SingleStoreOptimizeTableBase } from './query-builders/optimizeTable.ts';
-import type { OptimizeTableArgument } from './query-builders/optimizeTable.types.ts';
 
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
