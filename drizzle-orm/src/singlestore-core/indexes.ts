@@ -14,11 +14,6 @@ interface IndexCommonConfig {
 	unique?: boolean;
 
 	/**
-	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
-	 */
-	using?: 'btree' | 'hash';
-
-	/**
 	 * If set, the index will be created as `create index ... algorythm { 'default' | 'inplace' | 'copy' }`.
 	 */
 	algorythm?: 'default' | 'inplace' | 'copy';
@@ -30,9 +25,17 @@ interface IndexCommonConfig {
 }
 
 type IndexColumnstoreConfig = IndexCommonConfig & {
+	/**
+	 * If set, the index will be created as `create index ... using { 'hash' }`.
+	 */
 	using?: 'hash';
 };
-type IndexRowstoreConfig = IndexCommonConfig;
+type IndexRowstoreConfig = IndexCommonConfig & {
+	/**
+	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
+	 */
+	using?: 'btree' | 'hash';
+};
 type IndexConfig = IndexColumnstoreConfig | IndexRowstoreConfig;
 
 export type IndexColumn = SingleStoreColumn | SQL;
