@@ -30,6 +30,8 @@ import type {
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { SingleStoreTable } from './table.ts';
+import { SingleStoreCreateMilestoneBase } from './query-builders/createMilestone.ts';
+import { SingleStoreDropMilestoneBase } from './query-builders/dropMilestone.ts';
 
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
@@ -494,6 +496,18 @@ export class SingleStoreDatabase<
 		branchName: string,
 	): SingleStoreBranchBase<TDatabase, TQueryResult, TPreparedQueryHKT> {
 		return new SingleStoreBranchBase(database, branchName, this.session, this.dialect);
+	}
+
+	createMilestone<TMilestone extends string>(
+		milestone: TMilestone,
+	): SingleStoreCreateMilestoneBase<TMilestone, TQueryResult, TPreparedQueryHKT> {
+		return new SingleStoreCreateMilestoneBase(milestone, this.session, this.dialect);
+	}
+
+	dropMilestone<TMilestone extends string>(
+		milestone: TMilestone,
+	): SingleStoreDropMilestoneBase<TMilestone, TQueryResult, TPreparedQueryHKT> {
+		return new SingleStoreDropMilestoneBase(milestone, this.session, this.dialect);
 	}
 }
 
