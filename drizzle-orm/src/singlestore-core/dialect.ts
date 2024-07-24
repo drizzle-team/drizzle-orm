@@ -117,6 +117,14 @@ export class SingleStoreDialect {
 		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
 	}
 
+	buildDetachQuery({ database, milestone, workspace }: SingleStoreDetachConfig): SQL {
+		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
+
+		const workspaceSql = workspace ? sql` from workspace ${workspace}` : undefined;
+
+		return sql`detach database ${database}${milestoneSql}${workspaceSql}`;
+	}
+
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
@@ -1078,11 +1086,5 @@ export class SingleStoreDialect {
 			sql: result,
 			selection,
 		};
-	}
-
-	buildDetachQuery({ database, milestone }: SingleStoreDetachConfig): SQL {
-		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
-
-		return sql`detach database ${database}${milestoneSql}`;
 	}
 }

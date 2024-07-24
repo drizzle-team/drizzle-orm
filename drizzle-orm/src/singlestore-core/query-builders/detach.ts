@@ -12,15 +12,32 @@ import type {
 } from '~/singlestore-core/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 
+export type SingleStoreDetachWithout<
+	T extends AnySingleStoreDetachBase,
+	TDynamic extends boolean,
+	K extends keyof T & string,
+> = TDynamic extends true ? T
+	: Omit<
+		SingleStoreDetachBase<
+			T['_']['database'],
+			T['_']['queryResult'],
+			T['_']['preparedQueryHKT'],
+			TDynamic,
+			T['_']['excludedMethods'] | K
+		>,
+		T['_']['excludedMethods'] | K
+	>;
+
 export type SingleStoreDetach<
 	TDatabase extends string = string,
 	TQueryResult extends SingleStoreQueryResultHKT = AnySingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-> = SingleStoreDetachBase<TDatabase, TQueryResult, TPreparedQueryHKT, never>;
+> = SingleStoreDetachBase<TDatabase, TQueryResult, TPreparedQueryHKT, true, never>;
 
 export interface SingleStoreDetachConfig {
-	database: string;
 	milestone?: string | undefined;
+	database: string;
+	workspace?: string | undefined;
 }
 
 export type SingleStoreDetachPrepare<T extends AnySingleStoreDetachBase> = PreparedQueryKind<
@@ -38,18 +55,20 @@ type SingleStoreDetachDynamic<T extends AnySingleStoreDetachBase> = SingleStoreD
 	T['_']['preparedQueryHKT']
 >;
 
-type AnySingleStoreDetachBase = SingleStoreDetachBase<any, any, any, any>;
+type AnySingleStoreDetachBase = SingleStoreDetachBase<any, any, any, any, any>;
 
 export interface SingleStoreDetachBase<
 	TDatabase extends string,
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends QueryPromise<SingleStoreQueryResultKind<TQueryResult, never>> {
 	readonly _: {
 		readonly database: TDatabase;
 		readonly queryResult: TQueryResult;
 		readonly preparedQueryHKT: TPreparedQueryHKT;
+		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
 	};
 }
@@ -59,6 +78,7 @@ export class SingleStoreDetachBase<
 	TQueryResult extends SingleStoreQueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
 > extends QueryPromise<SingleStoreQueryResultKind<TQueryResult, never>> implements SQLWrapper {
@@ -88,7 +108,7 @@ export class SingleStoreDetachBase<
 	 * You can use conditional operators and `sql function` to filter the rows to be deleted.
 	 *
 	 * ```ts
-	 * // Delete all cars with green color
+	 * // Detach all cars with green color
 	 * db.delete(cars).where(eq(cars.color, 'green'));
 	 * // or
 	 * db.delete(cars).where(sql`${cars.color} = 'green'`)
@@ -97,17 +117,23 @@ export class SingleStoreDetachBase<
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
 	 *
 	 * ```ts
-	 * // Delete all BMW cars with a green color
+	 * // Detach all BMW cars with a green color
 	 * db.delete(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
 	 *
-	 * // Delete all cars with the green or blue color
+	 * // Detach all cars with the green or blue color
 	 * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	 */
-	// atMilestone(milestone: string | undefined): SingleStoreDetach<this, TDynamic, 'where'> {
-	// 	this.config.milestone = milestone;
-	// 	return this as any;
-	// }
+	atMilestone(milestone: string | undefined): SingleStoreDetachWithout<this, TDynamic, 'atMilestone'> {
+		this.config.milestone = milestone;
+		return this as any;
+	}
+
+	// TODO: docs
+	fromWorkspace(workspace: string | undefined): SingleStoreDetachWithout<this, TDynamic, 'fromWorkspace'> {
+		this.config.workspace = workspace;
+		return this as any;
+	}
 
 	/** @internal */
 	getSQL(): SQL {
