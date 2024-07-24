@@ -453,6 +453,5 @@ export type GetSingleStoreSetOperators = {
 	intersect: SingleStoreCreateSetOperatorFn;
 	except: SingleStoreCreateSetOperatorFn;
 	unionAll: SingleStoreCreateSetOperatorFn;
-	intersectAll: SingleStoreCreateSetOperatorFn;
-	exceptAll: SingleStoreCreateSetOperatorFn;
+	minus: SingleStoreCreateSetOperatorFn;
 };
