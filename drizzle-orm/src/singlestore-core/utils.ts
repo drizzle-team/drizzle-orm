@@ -3,8 +3,6 @@ import { Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
-import type { ForeignKey } from './foreign-keys.ts';
-import { ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
@@ -20,7 +18,6 @@ export function getTableConfig(table: SingleStoreTable) {
 	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
 	const uniqueConstraints: UniqueConstraint[] = [];
-	const foreignKeys: ForeignKey[] = Object.values(table[SingleStoreTable.Symbol.InlineForeignKeys]);
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 	const baseName = table[Table.Symbol.BaseName];
@@ -38,8 +35,6 @@ export function getTableConfig(table: SingleStoreTable) {
 				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
-			} else if (is(builder, ForeignKeyBuilder)) {
-				foreignKeys.push(builder.build(table));
 			}
 		}
 	}
@@ -47,7 +42,6 @@ export function getTableConfig(table: SingleStoreTable) {
 	return {
 		columns,
 		indexes,
-		foreignKeys,
 		checks,
 		primaryKeys,
 		uniqueConstraints,

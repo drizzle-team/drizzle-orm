@@ -3,7 +3,6 @@ import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import type { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreColumnBuilderBase } from './columns/common.ts';
-import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
@@ -12,15 +11,11 @@ export type SingleStoreTableExtraConfig = Record<
 	string,
 	| AnyIndexBuilder
 	| CheckBuilder
-	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder
 >;
 
 export type TableConfig = TableConfigBase<SingleStoreColumn>;
-
-/** @internal */
-export const InlineForeignKeys = Symbol.for('drizzle:SingleStoreInlineForeignKeys');
 
 export class SingleStoreTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static readonly [entityKind]: string = 'SingleStoreTable';
@@ -29,14 +24,10 @@ export class SingleStoreTable<T extends TableConfig = TableConfig> extends Table
 
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
-		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
 	});
 
 	/** @internal */
 	override [Table.Symbol.Columns]!: NonNullable<T['columns']>;
-
-	/** @internal */
-	[InlineForeignKeys]: ForeignKey[] = [];
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
@@ -83,7 +74,6 @@ export function singlestoreTableWithSchema<
 		Object.entries(columns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as SingleStoreColumnBuilder;
 			const column = colBuilder.build(rawTable);
-			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
 	) as unknown as BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
