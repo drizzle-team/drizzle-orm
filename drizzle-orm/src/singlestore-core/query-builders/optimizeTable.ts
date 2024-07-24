@@ -12,8 +12,7 @@ import type {
 } from '~/singlestore-core/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SingleStoreTable } from '../table.ts';
-import type { SelectedFields } from './select.types.ts';
-import type { OptimizeTableArgument } from './optimizeTable.types.ts';
+import type { OptimizeTableArgument, SelectedColumns } from './optimizeTable.types.ts';
 
 export type SingleStoreOptimizeTableWithout<
 	T extends AnySingleStoreOptimizeTableBase,
@@ -42,7 +41,7 @@ export type SingleStoreOptimizeTable<
 export interface SingleStoreOptimizeTableConfig {
 	table: SingleStoreTable;
 	arg?: OptimizeTableArgument | undefined;
-	selection?: SelectedFields | undefined;
+	selection?: SelectedColumns | undefined;
 }
 
 export type SingleStoreOptimizeTablePrepare<T extends AnySingleStoreOptimizeTableBase> = PreparedQueryKind<
@@ -106,7 +105,7 @@ export class SingleStoreOptimizeTableBase<
 	}
 
 	// TODO(singlestore): docs
-	warmBlobCacheForColumn(selection: SelectedFields): SingleStoreOptimizeTableWithout<this, TDynamic, 'warmBlobCacheForColumn'> {
+	warmBlobCacheForColumn(...selection: SelectedColumns): SingleStoreOptimizeTableWithout<this, TDynamic, 'warmBlobCacheForColumn'> {
 		if (this.config.arg) {
 			throw new Error('Cannot call warmBlobCacheForColumn with an argument');
 		}

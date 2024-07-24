@@ -158,8 +158,12 @@ export class SingleStoreDialect {
 		return sql`drop milestone ${milestone}${forSql}`;
 	}
 
-	buildOptimizeTable({ table }: SingleStoreOptimizeTableConfig): SQL {
-		return sql`optimize table ${table}`;
+	buildOptimizeTable({ table, arg, selection }: SingleStoreOptimizeTableConfig): SQL {
+		const warmBlobCacheForColumnSql = selection ?
+			sql`warm blob cache for column ${selection}`
+			: undefined;
+
+		return sql`optimize table ${table}${arg}${warmBlobCacheForColumnSql}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
