@@ -34,6 +34,7 @@ import type { SingleStoreUpdateConfig } from './query-builders/update.ts';
 import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
 import { SingleStoreViewBase } from './view-base.ts';
+import type { SingleStoreDetachConfig } from './query-builders/detach.ts';
 
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
@@ -1077,5 +1078,11 @@ export class SingleStoreDialect {
 			sql: result,
 			selection,
 		};
+	}
+
+	buildDetachQuery({ database, milestone }: SingleStoreDetachConfig): SQL {
+		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
+
+		return sql`detach database ${database}${milestoneSql}`;
 	}
 }
