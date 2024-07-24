@@ -129,7 +129,7 @@ export class SingleStoreDialect {
 	buildAttachQuery({ database, milestone }: SingleStoreAttachConfig): SQL {
 		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
 
-		return sql`attach database ${database}${milestoneSql}`;
+		return sql`attach database ${sql.raw(database)}${milestoneSql}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
