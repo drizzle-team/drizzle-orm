@@ -124,13 +124,14 @@ export class SingleStoreDetachBase<
 	 * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	 */
-	atMilestone(milestone: string | undefined): SingleStoreDetachWithout<this, TDynamic, 'atMilestone'> {
+	// TODO(singlestore): docs
+	atMilestone(milestone: string): SingleStoreDetachWithout<this, TDynamic, 'atMilestone'> {
 		this.config.milestone = milestone;
 		return this as any;
 	}
 
-	// TODO: docs
-	fromWorkspace(workspace: string | undefined): SingleStoreDetachWithout<this, TDynamic, 'fromWorkspace'> {
+	// TODO(singlestore): docs
+	fromWorkspace(workspace: string): SingleStoreDetachWithout<this, TDynamic, 'fromWorkspace'> {
 		this.config.workspace = workspace;
 		return this as any;
 	}
