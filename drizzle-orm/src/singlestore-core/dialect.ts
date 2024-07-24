@@ -126,11 +126,12 @@ export class SingleStoreDialect {
 		return sql`detach database ${database}${milestoneSql}${workspaceSql}`;
 	}
 
-	buildAttachQuery({ database, milestone, time }: SingleStoreAttachConfig): SQL {
+	buildAttachQuery({ database, milestone, time, databaseAlias }: SingleStoreAttachConfig): SQL {
+		const asSql = databaseAlias ? sql` as ${sql.identifier(databaseAlias)}` : undefined;
 		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
 		const timeSql = time ? sql` at time ${time}` : undefined;
 
-		return sql`attach database ${sql.raw(database)}${milestoneSql}${timeSql}`;
+		return sql`attach database ${sql.raw(database)}${asSql}${milestoneSql}${timeSql}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
