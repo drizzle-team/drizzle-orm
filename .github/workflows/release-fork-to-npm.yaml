@@ -2,6 +2,9 @@ name: Release fork to NPM
 
 on: workflow_dispatch
 
+env:
+  VERSION: 0.32.1-${{ github.sha }}
+
 jobs:
   release:
     permissions: write-all
@@ -112,7 +115,7 @@ jobs:
         working-directory: ${{ matrix.package }}
         run: |
           jq '.name="@drodrigues4/${{ matrix.package }}"' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
-          jq '.version="0.32.1-${{ github.sha }}"' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
+          jq '.version="$VERSION"' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
           jq 'del(.publishConfig.provenance)' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
 
           pnpm build
@@ -160,14 +163,12 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
         run: |
-          version=latest
-
           echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > .npmrc
 
-          echo "Publishing ${{ matrix.package }}@$version"
+          echo "Publishing ${{ matrix.package }}@$VERSION"
           npm publish package.tgz --access public
 
-          echo "npm: \`+ ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
+          echo "npm: \`+ ${{ matrix.package }}@$VERSION\`" >> $GITHUB_STEP_SUMMARY
 
           # Post release message to Discord
           # curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
