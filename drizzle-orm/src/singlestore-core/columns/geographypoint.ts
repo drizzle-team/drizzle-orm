@@ -4,14 +4,13 @@ import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table';
 import { sql } from '~/sql/sql.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
-
-type GeographyPoint = [number, number];
+import type { LngLat } from './geography';
 
 export type SingleStoreGeographyPointBuilderInitial<TName extends string> = SingleStoreGeographyPointBuilder<{
 	name: TName;
 	dataType: 'array';
 	columnType: 'SingleStoreGeographyPoint';
-	data: GeographyPoint;
+	data: LngLat;
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
@@ -50,13 +49,13 @@ export class SingleStoreGeographyPoint<T extends ColumnBaseConfig<'array', 'Sing
 		return 'geographypoint';
 	}
 
-	override mapToDriverValue([lon, lat]: GeographyPoint) {
+	override mapToDriverValue([lon, lat]: LngLat) {
 		return sql`"POINT(${lon} ${lat})"`;
 	}
 
-	override mapFromDriverValue(value: string): GeographyPoint {
+	override mapFromDriverValue(value: string): LngLat {
 		const numbers = value.slice(value.indexOf('(') + 1, -1);
-		return numbers.split(' ').map(Number) as GeographyPoint; // driver value will look like `POINT(lon lat)`
+		return numbers.split(' ').map(Number) as LngLat; // driver value will look like `POINT(lon lat)`
 	}
 }
 
