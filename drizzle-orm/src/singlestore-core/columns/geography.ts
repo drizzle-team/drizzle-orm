@@ -69,23 +69,18 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 	}
 
 	override mapToDriverValue(value: GeographyPoint | GeographyLineString | GeographyPolygon) {
-		const test = value[0];
-		if (typeof test === 'number') {
-			const [lng, lat] = value as GeographyPoint;
+		if (_isPoint(value)) {
+			const [lng, lat] = value;
 			return sql`"POINT(${lng} ${lat})"`;
-		} else if (Array.isArray(test)) {
-			if (typeof test[0] === 'number') {
-				const linestring = value as GeographyLineString;
-				const points = linestring.map((ls) => sql`${ls[0]} ${ls[1]}`);
-				return sql`"LINESTRING(${sql.join(points, sql.raw(', '))})"`;
-			} else {
-				const polygon = value as GeographyPolygon;
-				const rings = polygon.map((ring) => {
-					const points = ring.map((point) => sql`${point[0]} ${point[1]}`);
-					return sql`(${sql.join(points, sql.raw(', '))})`;
-				});
-				return sql`"POLYGON(${sql.join(rings, sql.raw(', '))})"`;
-			}
+		} else if (_isLineString(value)) {
+			const points = value.map((ls) => sql`${ls[0]} ${ls[1]}`);
+			return sql`"LINESTRING(${sql.join(points, sql.raw(', '))})"`;
+		} else if (_isPolygon(value)) {
+			const rings = value.map((ring) => {
+				const points = ring.map((point) => sql`${point[0]} ${point[1]}`);
+				return sql`(${sql.join(points, sql.raw(', '))})`;
+			});
+			return sql`"POLYGON(${sql.join(rings, sql.raw(', '))})"`;
 		} else {
 			throw new Error('value is not Array');
 		}
@@ -128,4 +123,26 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 
 export function geography<TName extends string>(name: TName): SingleStoreGeographyBuilderInitial<TName> {
 	return new SingleStoreGeographyBuilder(name);
+}
+
+function _isPoint(value: GeographyPoint | GeographyLineString | GeographyPolygon): value is GeographyPoint {
+	return value.length === 2 && typeof value[0] === 'number';
+}
+
+function _isLineString(value: GeographyPoint | GeographyLineString | GeographyPolygon): value is GeographyLineString {
+	try {
+		const test = value as GeographyLineString;
+		return typeof test[0]![0] === 'number';
+	} catch {
+		return false;
+	}
+}
+
+function _isPolygon(value: GeographyPoint | GeographyLineString | GeographyPolygon): value is GeographyPolygon {
+	try {
+		const test = value as GeographyPolygon;
+		return typeof test[0]![0]![0] === 'number';
+	} catch {
+		return false;
+	}
 }
