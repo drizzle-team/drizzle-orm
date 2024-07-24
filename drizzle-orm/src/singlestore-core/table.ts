@@ -23,8 +23,7 @@ export class SingleStoreTable<T extends TableConfig = TableConfig> extends Table
 	declare protected $columns: T['columns'];
 
 	/** @internal */
-	static override readonly Symbol = Object.assign({}, Table.Symbol, {
-	});
+	static override readonly Symbol = Object.assign({}, Table.Symbol, {});
 
 	/** @internal */
 	override [Table.Symbol.Columns]!: NonNullable<T['columns']>;
