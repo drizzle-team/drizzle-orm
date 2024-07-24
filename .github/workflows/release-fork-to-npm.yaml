@@ -119,7 +119,7 @@ jobs:
         working-directory: ${{ matrix.package }}
         run: |
           jq '.name="@drodrigues4/${{ matrix.package }}"' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
-          jq '.version="$PACKAGE_VERSION"' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
+          jq --arg version "$PACKAGE_VERSION" '.version=$version' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
           jq 'del(.publishConfig.provenance)' package.json --tab > tmp.$$.json && mv tmp.$$.json package.json
 
           pnpm build
