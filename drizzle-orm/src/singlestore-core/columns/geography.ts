@@ -77,14 +77,14 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 			if (typeof test[0] === 'number') {
 				const linestring = value as GeographyLineString;
 				const points = linestring.map((ls) => sql`${ls[0]} ${ls[1]}`);
-				return sql`"LINESTRING(${points.join(', ')})"`;
+				return sql`"LINESTRING(${sql.join(points, sql.raw(', '))})"`;
 			} else {
 				const polygon = value as GeographyPolygon;
 				const rings = polygon.map((ring) => {
 					const points = ring.map((point) => sql`${point[0]} ${point[1]}`);
-					return sql`(${points.join(', ')})`;
+					return sql`(${sql.join(points, sql.raw(', '))})`;
 				});
-				return sql`"POLYGON(${rings.join(', ')})`;
+				return sql`"POLYGON(${sql.join(rings, sql.raw(', '))})`;
 			}
 		} else {
 			throw new Error('value is not Array');
