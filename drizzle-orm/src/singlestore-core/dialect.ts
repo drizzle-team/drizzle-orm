@@ -37,6 +37,8 @@ import type { SingleStoreUpdateConfig } from './query-builders/update.ts';
 import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
 import { SingleStoreViewBase } from './view-base.ts';
+import type { SingleStoreCreateMilestoneConfig } from './query-builders/createMilestone.ts';
+import type { SingleStoreDropMilestoneConfig } from './query-builders/dropMilestone.ts';
 
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
@@ -148,6 +150,18 @@ export class SingleStoreDialect {
 		return sql`attach database ${
 			sql.raw(database)
 		}${fromWorkspaceGroupSql}${readOnlySql}${asSql}${milestoneSql}${timeSql}`;
+	}
+
+	buildCreateMilestoneQuery({ database, milestone }: SingleStoreCreateMilestoneConfig): SQL {
+		const forSql = database ? sql` for ${sql.identifier(database)}` : undefined;
+
+		return sql`create milestone ${milestone}${forSql}`;
+	}
+
+	buildDropMilestoneQuery({ database, milestone }: SingleStoreDropMilestoneConfig): SQL {
+		const forSql = database ? sql` for ${sql.identifier(database)}` : undefined;
+
+		return sql`drop milestone ${milestone}${forSql}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
