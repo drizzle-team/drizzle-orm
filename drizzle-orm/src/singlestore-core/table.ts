@@ -1,7 +1,6 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
-import type { CheckBuilder } from './checks.ts';
 import type { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreColumnBuilderBase } from './columns/common.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
@@ -10,7 +9,6 @@ import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 export type SingleStoreTableExtraConfig = Record<
 	string,
 	| AnyIndexBuilder
-	| CheckBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder
 >;

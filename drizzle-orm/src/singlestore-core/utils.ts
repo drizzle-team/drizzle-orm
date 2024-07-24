@@ -1,8 +1,6 @@
 import { is } from '~/entity.ts';
 import { Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import type { Check } from './checks.ts';
-import { CheckBuilder } from './checks.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
@@ -15,7 +13,6 @@ import type { SingleStoreView } from './view.ts';
 export function getTableConfig(table: SingleStoreTable) {
 	const columns = Object.values(table[SingleStoreTable.Symbol.Columns]);
 	const indexes: Index[] = [];
-	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
 	const uniqueConstraints: UniqueConstraint[] = [];
 	const name = table[Table.Symbol.Name];
@@ -29,8 +26,6 @@ export function getTableConfig(table: SingleStoreTable) {
 		for (const builder of Object.values(extraConfig)) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
-			} else if (is(builder, CheckBuilder)) {
-				checks.push(builder.build(table));
 			} else if (is(builder, UniqueConstraintBuilder)) {
 				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
@@ -42,7 +37,6 @@ export function getTableConfig(table: SingleStoreTable) {
 	return {
 		columns,
 		indexes,
-		checks,
 		primaryKeys,
 		uniqueConstraints,
 		name,
