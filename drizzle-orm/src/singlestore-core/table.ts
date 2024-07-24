@@ -17,14 +17,13 @@ export type SingleStoreTableExtraConfig = Record<
 
 export type TableConfig = TableConfigBase<SingleStoreColumn>;
 
-export class SingleStoreTable<T extends TableConfig = TableConfig> extends Table<T> {
+export abstract class SingleStoreTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static readonly [entityKind]: string = 'SingleStoreTable';
 
 	declare protected $columns: T['columns'];
 
 	/** @internal */
-	static override readonly Symbol = Object.assign({}, Table.Symbol, {
-	});
+	static override readonly Symbol = Object.assign({}, Table.Symbol, {});
 
 	/** @internal */
 	override [Table.Symbol.Columns]!: NonNullable<T['columns']>;
@@ -33,6 +32,14 @@ export class SingleStoreTable<T extends TableConfig = TableConfig> extends Table
 	override [Table.Symbol.ExtraConfigBuilder]:
 		| ((self: Record<string, SingleStoreColumn>) => SingleStoreTableExtraConfig)
 		| undefined = undefined;
+}
+
+export class SingleStoreRowstoreTable<T extends TableConfig = TableConfig> extends SingleStoreTable<T> {
+	static readonly [entityKind]: string = 'SingleStoreRowstoreTable';
+}
+
+export class SingleStoreColumnstoreTable<T extends TableConfig = TableConfig> extends SingleStoreTable<T> {
+	static readonly [entityKind]: string = 'SingleStoreColumnstoreTable';
 }
 
 export type AnySingleStoreTable<TPartial extends Partial<TableConfig> = {}> = SingleStoreTable<
@@ -45,11 +52,17 @@ export type SingleStoreTableWithColumns<T extends TableConfig> =
 		[Key in keyof T['columns']]: T['columns'][Key];
 	};
 
+export enum SinglestoreTableType {
+	rowstore,
+	columnstore,
+}
+
 export function singlestoreTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
 	TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
 >(
+	type: SinglestoreTableType,
 	name: TTableName,
 	columns: TColumnsMap,
 	extraConfig:
@@ -63,12 +76,27 @@ export function singlestoreTableWithSchema<
 	columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 	dialect: 'singlestore';
 }> {
-	const rawTable = new SingleStoreTable<{
-		name: TTableName;
-		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
-		dialect: 'singlestore';
-	}>(name, schema, baseName);
+	let rawTable;
+	switch (type) {
+		case SinglestoreTableType.columnstore: {
+			rawTable = new SingleStoreColumnstoreTable<{
+				name: TTableName;
+				schema: TSchemaName;
+				columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
+				dialect: 'singlestore';
+			}>(name, schema, baseName);
+			break;
+		}
+		case SinglestoreTableType.rowstore: {
+			rawTable = new SingleStoreRowstoreTable<{
+				name: TTableName;
+				schema: TSchemaName;
+				columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
+				dialect: 'singlestore';
+			}>(name, schema, baseName);
+			break;
+		}
+	}
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilderBase]) => {
@@ -113,11 +141,22 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 }
 
 export const singlestoreTable: SingleStoreTableFn = (name, columns, extraConfig) => {
-	return singlestoreTableWithSchema(name, columns, extraConfig, undefined, name);
+	return singlestoreTableWithSchema(SinglestoreTableType.columnstore, name, columns, extraConfig, undefined, name);
+};
+
+export const singlestoreRowstoreTable: SingleStoreTableFn = (name, columns, extraConfig) => {
+	return singlestoreTableWithSchema(SinglestoreTableType.rowstore, name, columns, extraConfig, undefined, name);
 };
 
 export function singlestoreTableCreator(customizeTableName: (name: string) => string): SingleStoreTableFn {
 	return (name, columns, extraConfig) => {
-		return singlestoreTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return singlestoreTableWithSchema(
+			SinglestoreTableType.columnstore,
+			customizeTableName(name) as typeof name,
+			columns,
+			extraConfig,
+			undefined,
+			name,
+		);
 	};
 }
