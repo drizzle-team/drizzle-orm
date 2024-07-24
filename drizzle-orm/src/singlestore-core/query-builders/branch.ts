@@ -13,13 +13,13 @@ import type {
 } from '~/singlestore-core/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 
-export type SingleStoreAttachWithout<
-	T extends AnySingleStoreAttachBase,
+export type SingleStoreBranchWithout<
+	T extends AnySingleStoreBranchBase,
 	TDynamic extends boolean,
 	K extends keyof T & string,
 > = TDynamic extends true ? T
 	: Omit<
-		SingleStoreAttachBase<
+		SingleStoreBranchBase<
 			T['_']['database'],
 			T['_']['queryResult'],
 			T['_']['preparedQueryHKT'],
@@ -29,21 +29,22 @@ export type SingleStoreAttachWithout<
 		T['_']['excludedMethods'] | K
 	>;
 
-export type SingleStoreAttach<
+export type SingleStoreBranch<
 	TDatabase extends string = string,
 	TQueryResult extends SingleStoreQueryResultHKT = AnySingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-> = SingleStoreAttachBase<TDatabase, TQueryResult, TPreparedQueryHKT, true, never>;
+> = SingleStoreBranchBase<TDatabase, TQueryResult, TPreparedQueryHKT, true, never>;
 
-export interface SingleStoreAttachConfig {
+export interface SingleStoreBranchConfig {
 	milestone?: string | undefined;
 	time?: Date | undefined;
 	database: string;
-	databaseAlias?: string | undefined;
+	databaseAlias: string;
+	fromWorkspaceGroup?: string | undefined;
 	readOnly?: boolean | undefined;
 }
 
-export type SingleStoreAttachPrepare<T extends AnySingleStoreAttachBase> = PreparedQueryKind<
+export type SingleStoreBranchPrepare<T extends AnySingleStoreBranchBase> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
 	SingleStorePreparedQueryConfig & {
 		execute: SingleStoreQueryResultKind<T['_']['queryResult'], never>;
@@ -52,15 +53,15 @@ export type SingleStoreAttachPrepare<T extends AnySingleStoreAttachBase> = Prepa
 	true
 >;
 
-type SingleStoreAttachDynamic<T extends AnySingleStoreAttachBase> = SingleStoreAttach<
+type SingleStoreBranchDynamic<T extends AnySingleStoreBranchBase> = SingleStoreBranch<
 	T['_']['database'],
 	T['_']['queryResult'],
 	T['_']['preparedQueryHKT']
 >;
 
-type AnySingleStoreAttachBase = SingleStoreAttachBase<any, any, any, any, any>;
+type AnySingleStoreBranchBase = SingleStoreBranchBase<any, any, any, any, any>;
 
-export interface SingleStoreAttachBase<
+export interface SingleStoreBranchBase<
 	TDatabase extends string,
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
@@ -76,7 +77,7 @@ export interface SingleStoreAttachBase<
 	};
 }
 
-export class SingleStoreAttachBase<
+export class SingleStoreBranchBase<
 	TDatabase extends string,
 	TQueryResult extends SingleStoreQueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -85,22 +86,18 @@ export class SingleStoreAttachBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
 > extends QueryPromise<SingleStoreQueryResultKind<TQueryResult, never>> implements SQLWrapper {
-	static readonly [entityKind]: string = 'SingleStoreAttach';
+	static readonly [entityKind]: string = 'SingleStoreBranch';
 
-	private config: SingleStoreAttachConfig;
+	private config: SingleStoreBranchConfig;
 
 	constructor(
 		private database: TDatabase,
+		private branchName: string,
 		private session: SingleStoreSession,
 		private dialect: SingleStoreDialect,
 	) {
 		super();
-		this.config = { database };
-	}
-
-	as(dabataseAlias: string): SingleStoreAttachWithout<this, true, 'as'> {
-		this.config.databaseAlias = dabataseAlias;
-		return this as any;
+		this.config = { database, databaseAlias: branchName };
 	}
 
 	/**
@@ -133,7 +130,7 @@ export class SingleStoreAttachBase<
 	 * ```
 	 */
 	// TODO(singlestore): docs
-	atMilestone(milestone: string): SingleStoreAttachWithout<this, TDynamic, 'atMilestone'> {
+	atMilestone(milestone: string): SingleStoreBranchWithout<this, TDynamic, 'atMilestone'> {
 		if (this.config.time) {
 			throw new DrizzleError({ message: 'Cannot set both time and milestone' });
 		}
@@ -142,7 +139,7 @@ export class SingleStoreAttachBase<
 	}
 
 	// TODO(singlestore): docs
-	atTime(time: Date): SingleStoreAttachWithout<this, TDynamic, 'atTime'> {
+	atTime(time: Date): SingleStoreBranchWithout<this, TDynamic, 'atTime'> {
 		if (this.config.milestone) {
 			throw new DrizzleError({ message: 'Cannot set both time and milestone' });
 		}
@@ -151,14 +148,20 @@ export class SingleStoreAttachBase<
 	}
 
 	// TODO(singlestore): docs
-	readOnly(): SingleStoreAttachWithout<this, TDynamic, 'readOnly'> {
+	fromWorkspaceGroup(groupID: string): SingleStoreBranchWithout<this, TDynamic, 'fromWorkspaceGroup'> {
+		this.config.fromWorkspaceGroup = groupID;
+		return this as any;
+	}
+
+	// TODO(singlestore): docs
+	readOnly(): SingleStoreBranchWithout<this, TDynamic, 'readOnly'> {
 		this.config.readOnly = true;
 		return this as any;
 	}
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildAttachQuery(this.config);
+		return this.dialect.buildBranchQuery(this.config);
 	}
 
 	toSQL(): Query {
@@ -166,11 +169,11 @@ export class SingleStoreAttachBase<
 		return rest;
 	}
 
-	prepare(): SingleStoreAttachPrepare<this> {
+	prepare(): SingleStoreBranchPrepare<this> {
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			undefined,
-		) as SingleStoreAttachPrepare<this>;
+		) as SingleStoreBranchPrepare<this>;
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
@@ -186,7 +189,7 @@ export class SingleStoreAttachBase<
 
 	iterator = this.createIterator();
 
-	$dynamic(): SingleStoreAttachDynamic<this> {
+	$dynamic(): SingleStoreBranchDynamic<this> {
 		return this as any;
 	}
 }
