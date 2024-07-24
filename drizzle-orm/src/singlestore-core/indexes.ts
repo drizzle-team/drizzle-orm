@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from './columns/index.ts';
-import type { SingleStoreColumnstoreTable, SingleStoreRowstoreTable, SingleStoreTable } from './table.ts';
+import type { SingleStoreTable } from './table.ts';
 
 interface IndexCommonConfig {
 	name: string;
@@ -50,38 +50,31 @@ export class IndexBuilderOn {
 	}
 }
 
-export interface AnyIndexBuilder {
-	build(table: SingleStoreTable): Index;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface IndexBuilder extends AnyIndexBuilder {}
-
-export class IndexBuilder implements AnyIndexBuilder {
+export class IndexBuilder<TConfig extends IndexConfig = IndexConfig> {
 	static readonly [entityKind]: string = 'SingleStoreIndexBuilder';
 
 	/** @internal */
-	config: IndexConfig;
+	config: TConfig;
 
 	constructor(name: string, columns: IndexColumn[], unique: boolean) {
 		this.config = {
 			name,
 			columns,
 			unique,
-		};
+		} as TConfig;
 	}
 
-	using(using: IndexConfig['using']): this {
+	using(using: TConfig['using']): this {
 		this.config.using = using;
 		return this;
 	}
 
-	algorythm(algorythm: IndexConfig['algorythm']): this {
+	algorythm(algorythm: TConfig['algorythm']): this {
 		this.config.algorythm = algorythm;
 		return this;
 	}
 
-	lock(lock: IndexConfig['lock']): this {
+	lock(lock: TConfig['lock']): this {
 		this.config.lock = lock;
 		return this;
 	}
@@ -92,12 +85,18 @@ export class IndexBuilder implements AnyIndexBuilder {
 	}
 }
 
+export class IndexColumnstoreBuilder extends IndexBuilder<IndexColumnstoreConfig> {
+	static readonly [entityKind]: string = 'SingleStoreColumnstoreIndexBuilder';
+}
+
+export class IndexRowstoreBuilder extends IndexBuilder<IndexRowstoreConfig> {
+	static readonly [entityKind]: string = 'SingleStoreRowstoreIndexBuilder';
+}
+
 export class Index {
 	static readonly [entityKind]: string = 'SingleStoreIndex';
 
-	readonly config:
-		| (IndexColumnstoreConfig & { table: SingleStoreColumnstoreTable })
-		| (IndexRowstoreConfig & { table: SingleStoreRowstoreTable });
+	readonly config: IndexConfig & { table: SingleStoreTable };
 
 	constructor(config: IndexConfig, table: SingleStoreTable) {
 		this.config = { ...config, table };
