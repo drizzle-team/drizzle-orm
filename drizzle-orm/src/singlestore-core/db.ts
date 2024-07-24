@@ -7,6 +7,8 @@ import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { SingleStoreDialect } from './dialect.ts';
+import { SingleStoreAttachBase } from './query-builders/attach.ts';
+import { SingleStoreDetachBase } from './query-builders/detach.ts';
 import {
 	QueryBuilder,
 	SingleStoreDeleteBase,
@@ -27,8 +29,6 @@ import type {
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { SingleStoreTable } from './table.ts';
-import { SingleStoreDetachBase } from './query-builders/detach.ts';
-import { SingleStoreAttachBase } from './query-builders/attach.ts';
 
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,

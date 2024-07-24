@@ -14,10 +14,12 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
 import {
 	type Mode,
+	type PreparedQueryKind,
 	SingleStorePreparedQuery,
 	type SingleStorePreparedQueryConfig,
 	type SingleStorePreparedQueryHKT,
@@ -25,9 +27,7 @@ import {
 	SingleStoreSession,
 	SingleStoreTransaction,
 	type SingleStoreTransactionConfig,
-	type PreparedQueryKind,
 } from '~/singlestore-core/session.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
@@ -303,7 +303,9 @@ export class SingleStore2Transaction<
 > extends SingleStoreTransaction<SingleStore2QueryResultHKT, SingleStore2PreparedQueryHKT, TFullSchema, TSchema> {
 	static readonly [entityKind]: string = 'SingleStore2Transaction';
 
-	override async transaction<T>(transaction: (tx: SingleStore2Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(
+		transaction: (tx: SingleStore2Transaction<TFullSchema, TSchema>) => Promise<T>,
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new SingleStore2Transaction<TFullSchema, TSchema>(
 			this.dialect,

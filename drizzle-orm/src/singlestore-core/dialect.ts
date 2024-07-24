@@ -23,7 +23,9 @@ import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
+import type { SingleStoreAttachConfig } from './query-builders/attach.ts';
 import type { SingleStoreDeleteConfig } from './query-builders/delete.ts';
+import type { SingleStoreDetachConfig } from './query-builders/detach.ts';
 import type { SingleStoreInsertConfig } from './query-builders/insert.ts';
 import type {
 	SelectedFieldsOrdered,
@@ -34,8 +36,6 @@ import type { SingleStoreUpdateConfig } from './query-builders/update.ts';
 import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
 import { SingleStoreViewBase } from './view-base.ts';
-import type { SingleStoreDetachConfig } from './query-builders/detach.ts';
-import type { SingleStoreAttachConfig } from './query-builders/attach.ts';
 
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';

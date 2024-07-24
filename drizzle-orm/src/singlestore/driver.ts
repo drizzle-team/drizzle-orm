@@ -2,15 +2,15 @@ import type { Connection as CallbackConnection, Pool as CallbackPool } from 'mys
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
-import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
-import type { Mode } from '~/singlestore-core/session.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
+import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
+import type { Mode } from '~/singlestore-core/session.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { DrizzleError } from '../index.ts';
 import type { SingleStore2Client, SingleStore2PreparedQueryHKT, SingleStore2QueryResultHKT } from './session.ts';
