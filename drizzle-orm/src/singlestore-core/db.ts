@@ -32,6 +32,8 @@ import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { SingleStoreTable } from './table.ts';
 import { SingleStoreCreateMilestoneBase } from './query-builders/createMilestone.ts';
 import { SingleStoreDropMilestoneBase } from './query-builders/dropMilestone.ts';
+import { SingleStoreOptimizeTableBase } from './query-builders/optimizeTable.ts';
+import type { OptimizeTableArgument } from './query-builders/optimizeTable.types.ts';
 
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
@@ -508,6 +510,16 @@ export class SingleStoreDatabase<
 		milestone: TMilestone,
 	): SingleStoreDropMilestoneBase<TMilestone, TQueryResult, TPreparedQueryHKT> {
 		return new SingleStoreDropMilestoneBase(milestone, this.session, this.dialect);
+	}
+
+	optimizeTable<
+		TTable extends SingleStoreTable,
+		TArg extends OptimizeTableArgument,
+	>(
+		table: TTable,
+		arg: TArg | undefined = undefined,
+	): SingleStoreOptimizeTableBase<TTable, TArg, TQueryResult, TPreparedQueryHKT> {
+		return new SingleStoreOptimizeTableBase(table, arg, this.session, this.dialect);
 	}
 }
 

@@ -39,6 +39,7 @@ import { SingleStoreTable } from './table.ts';
 import { SingleStoreViewBase } from './view-base.ts';
 import type { SingleStoreCreateMilestoneConfig } from './query-builders/createMilestone.ts';
 import type { SingleStoreDropMilestoneConfig } from './query-builders/dropMilestone.ts';
+import type { SingleStoreOptimizeTableConfig } from './query-builders/optimizeTable.ts';
 
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
@@ -155,6 +156,10 @@ export class SingleStoreDialect {
 		const forSql = database ? sql` for ${sql.identifier(database)}` : undefined;
 
 		return sql`drop milestone ${milestone}${forSql}`;
+	}
+
+	buildOptimizeTable({ table }: SingleStoreOptimizeTableConfig): SQL {
+		return sql`optimize table ${table}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
