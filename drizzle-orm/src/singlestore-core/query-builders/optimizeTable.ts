@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { ColumnBaseConfig, ColumnDataType } from '~/index.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type {
@@ -11,10 +12,9 @@ import type {
 	SingleStoreSession,
 } from '~/singlestore-core/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { SingleStoreColumn } from '../columns/common.ts';
 import type { SingleStoreTable } from '../table.ts';
 import type { OptimizeTableArgument } from './optimizeTable.types.ts';
-import type { SingleStoreColumn } from '../columns/common.ts';
-import type { ColumnBaseConfig, ColumnDataType } from '~/index.ts';
 
 export type SingleStoreOptimizeTableWithout<
 	T extends AnySingleStoreOptimizeTableBase,
@@ -107,7 +107,9 @@ export class SingleStoreOptimizeTableBase<
 	}
 
 	// TODO(singlestore): docs
-	warmBlobCacheForColumn(...selection: SingleStoreColumn<ColumnBaseConfig<ColumnDataType, string>, object>[]): SingleStoreOptimizeTableWithout<this, TDynamic, 'warmBlobCacheForColumn'> {
+	warmBlobCacheForColumn(
+		...selection: SingleStoreColumn<ColumnBaseConfig<ColumnDataType, string>, object>[]
+	): SingleStoreOptimizeTableWithout<this, TDynamic, 'warmBlobCacheForColumn'> {
 		if (this.config.arg) {
 			throw new Error('Cannot call warmBlobCacheForColumn with an argument');
 		}
