@@ -8,6 +8,7 @@ import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { SingleStoreDialect } from './dialect.ts';
 import { SingleStoreAttachBase } from './query-builders/attach.ts';
+import { SingleStoreBranchBase } from './query-builders/branch.ts';
 import { SingleStoreDetachBase } from './query-builders/detach.ts';
 import {
 	QueryBuilder,
@@ -486,6 +487,13 @@ export class SingleStoreDatabase<
 		database: TDatabase,
 	): SingleStoreAttachBase<TDatabase, TQueryResult, TPreparedQueryHKT> {
 		return new SingleStoreAttachBase(database, this.session, this.dialect);
+	}
+
+	branch<TDatabase extends string>(
+		database: TDatabase,
+		branchName: string,
+	): SingleStoreBranchBase<TDatabase, TQueryResult, TPreparedQueryHKT> {
+		return new SingleStoreBranchBase(database, branchName, this.session, this.dialect);
 	}
 }
 

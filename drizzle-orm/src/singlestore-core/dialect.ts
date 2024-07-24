@@ -24,6 +24,7 @@ import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
 import type { SingleStoreAttachConfig } from './query-builders/attach.ts';
+import type { SingleStoreBranchConfig } from './query-builders/branch.ts';
 import type { SingleStoreDeleteConfig } from './query-builders/delete.ts';
 import type { SingleStoreDetachConfig } from './query-builders/detach.ts';
 import type { SingleStoreInsertConfig } from './query-builders/insert.ts';
@@ -126,12 +127,27 @@ export class SingleStoreDialect {
 		return sql`detach database ${database}${milestoneSql}${workspaceSql}`;
 	}
 
-	buildAttachQuery({ database, milestone, time, databaseAlias }: SingleStoreAttachConfig): SQL {
+	buildAttachQuery({ database, milestone, time, databaseAlias, readOnly }: SingleStoreAttachConfig): SQL {
 		const asSql = databaseAlias ? sql` as ${sql.identifier(databaseAlias)}` : undefined;
 		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
 		const timeSql = time ? sql` at time ${time}` : undefined;
+		const readOnlySql = readOnly ? sql` READ ONLY` : undefined;
 
-		return sql`attach database ${sql.raw(database)}${asSql}${milestoneSql}${timeSql}`;
+		return sql`attach database ${sql.raw(database)}${readOnlySql}${asSql}${milestoneSql}${timeSql}`;
+	}
+
+	buildBranchQuery(
+		{ database, databaseAlias, fromWorkspaceGroup, milestone, readOnly, time }: SingleStoreBranchConfig,
+	): SQL {
+		const asSql = sql` as ${sql.identifier(databaseAlias)}`;
+		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
+		const timeSql = time ? sql` at time ${time}` : undefined;
+		const fromWorkspaceGroupSql = fromWorkspaceGroup ? sql` from workspace group ${fromWorkspaceGroup}` : undefined;
+		const readOnlySql = readOnly ? sql` READ ONLY` : undefined;
+
+		return sql`attach database ${
+			sql.raw(database)
+		}${fromWorkspaceGroupSql}${readOnlySql}${asSql}${milestoneSql}${timeSql}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
