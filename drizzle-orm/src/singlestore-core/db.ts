@@ -27,7 +27,7 @@ import type {
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { SingleStoreTable } from './table.ts';
-import { SingleStoreDetachBase } from './query-builders/detach.ts';
+// import { SingleStoreDetachBase } from './query-builders/detach.ts';
 
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
@@ -475,11 +475,11 @@ export class SingleStoreDatabase<
 		return this.session.transaction(transaction, config);
 	}
 
-	detach<TDatabase extends string>(
-		db: TDatabase,
-	): SingleStoreDetachBase<TDatabase, TQueryResult, TPreparedQueryHKT> {
-		return new SingleStoreDetachBase(db, this.session, this.dialect);
-	}
+	// detach<TDatabase extends string>(
+	// 	db: TDatabase,
+	// ): SingleStoreDetachBase<TDatabase, TQueryResult, TPreparedQueryHKT> {
+	// 	return new SingleStoreDetachBase(db, this.session, this.dialect);
+	// }
 }
 
 export type SingleStoreWithReplicas<Q> = Q & { $primary: Q };
