@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type {
@@ -36,6 +37,7 @@ export type SingleStoreAttach<
 
 export interface SingleStoreAttachConfig {
 	milestone?: string | undefined;
+	time?: Date | undefined;
 	database: string;
 }
 
@@ -123,8 +125,21 @@ export class SingleStoreAttachBase<
 	 * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	 */
-	atMilestone(milestone: string | undefined): SingleStoreAttachWithout<this, TDynamic, 'atMilestone'> {
+	// TODO(singlestore): docs
+	atMilestone(milestone: string): SingleStoreAttachWithout<this, TDynamic, 'atMilestone'> {
+		if (this.config.time) {
+			throw new DrizzleError({ message: 'Cannot set both time and milestone' });
+		}
 		this.config.milestone = milestone;
+		return this as any;
+	}
+
+	// TODO(singlestore): docs
+	atTime(time: Date): SingleStoreAttachWithout<this, TDynamic, 'atTime'> {
+		if (this.config.milestone) {
+			throw new DrizzleError({ message: 'Cannot set both time and milestone' });
+		}
+		this.config.time = time;
 		return this as any;
 	}
 
