@@ -39,6 +39,7 @@ export interface SingleStoreAttachConfig {
 	milestone?: string | undefined;
 	time?: Date | undefined;
 	database: string;
+	databaseAlias?: string | undefined;
 }
 
 export type SingleStoreAttachPrepare<T extends AnySingleStoreAttachBase> = PreparedQueryKind<
@@ -94,6 +95,11 @@ export class SingleStoreAttachBase<
 	) {
 		super();
 		this.config = { database };
+	}
+
+	as(dabataseAlias: string): SingleStoreAttachWithout<this, true, 'as'> {
+		this.config.databaseAlias = dabataseAlias;
+		return this as any;
 	}
 
 	/**
