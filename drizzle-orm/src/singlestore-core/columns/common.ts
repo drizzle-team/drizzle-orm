@@ -13,20 +13,10 @@ import type {
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { ForeignKey, UpdateDeleteAction } from '~/singlestore-core/foreign-keys.ts';
-import { ForeignKeyBuilder } from '~/singlestore-core/foreign-keys.ts';
 import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
-
-export interface ReferenceConfig {
-	ref: () => SingleStoreColumn;
-	actions: {
-		onUpdate?: UpdateDeleteAction;
-		onDelete?: UpdateDeleteAction;
-	};
-}
 
 export interface SingleStoreColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
@@ -49,13 +39,6 @@ export abstract class SingleStoreColumnBuilder<
 {
 	static readonly [entityKind]: string = 'SingleStoreColumnBuilder';
 
-	private foreignKeyConfigs: ReferenceConfig[] = [];
-
-	references(ref: ReferenceConfig['ref'], actions: ReferenceConfig['actions'] = {}): this {
-		this.foreignKeyConfigs.push({ ref, actions });
-		return this;
-	}
-
 	unique(name?: string): this {
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
@@ -69,25 +52,6 @@ export abstract class SingleStoreColumnBuilder<
 			mode: config?.mode ?? 'virtual',
 		};
 		return this as any;
-	}
-
-	/** @internal */
-	buildForeignKeys(column: SingleStoreColumn, table: SingleStoreTable): ForeignKey[] {
-		return this.foreignKeyConfigs.map(({ ref, actions }) => {
-			return ((ref, actions) => {
-				const builder = new ForeignKeyBuilder(() => {
-					const foreignColumn = ref();
-					return { columns: [column], foreignColumns: [foreignColumn] };
-				});
-				if (actions.onUpdate) {
-					builder.onUpdate(actions.onUpdate);
-				}
-				if (actions.onDelete) {
-					builder.onDelete(actions.onDelete);
-				}
-				return builder.build(table);
-			})(ref, actions);
-		});
 	}
 
 	/** @internal */
