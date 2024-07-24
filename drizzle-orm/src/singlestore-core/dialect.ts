@@ -159,11 +159,13 @@ export class SingleStoreDialect {
 	}
 
 	buildOptimizeTable({ table, arg, selection }: SingleStoreOptimizeTableConfig): SQL {
+		const argSql = arg ? sql` ${sql.raw(arg)}` : undefined;
+
 		const warmBlobCacheForColumnSql = selection ?
-			sql`warm blob cache for column ${selection}`
+			sql` warm blob cache for column ${selection}`
 			: undefined;
 
-		return sql`optimize table ${table}${arg}${warmBlobCacheForColumnSql}`;
+		return sql`optimize table ${table}${argSql}${warmBlobCacheForColumnSql}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
