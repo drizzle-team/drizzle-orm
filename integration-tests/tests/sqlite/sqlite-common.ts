@@ -15,6 +15,7 @@ import {
 	max,
 	min,
 	Name,
+	notInArray,
 	sql,
 	sum,
 	sumDistinct,
@@ -369,6 +370,34 @@ export function tests() {
 			}).from(usersTable).all();
 
 			expect(users).toEqual([{ name: 'JOHN' }]);
+		});
+
+		test('select with empty array in inArray', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			const result = await db
+				.select({
+					name: sql`upper(${usersTable.name})`,
+				})
+				.from(usersTable)
+				.where(inArray(usersTable.id, []));
+
+			expect(result).toEqual([]);
+		});
+
+		test('select with empty array in notInArray', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			const result = await db
+				.select({
+					name: sql`upper(${usersTable.name})`,
+				})
+				.from(usersTable)
+				.where(notInArray(usersTable.id, []));
+
+			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 		});
 
 		test('select distinct', async (ctx) => {
@@ -2680,5 +2709,29 @@ export function tests() {
 		const columnField = tableConfig.columns.find((it) => it.name === 'field');
 		expect(columnField?.isUnique).toBeTruthy();
 		expect(columnField?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnField!.name]));
+	});
+
+	test('limit 0', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		await db.insert(usersTable).values({ name: 'John' });
+		const users = await db
+			.select()
+			.from(usersTable)
+			.limit(0);
+
+		expect(users).toEqual([]);
+	});
+
+	test('limit -1', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		await db.insert(usersTable).values({ name: 'John' });
+		const users = await db
+			.select()
+			.from(usersTable)
+			.limit(-1);
+
+		expect(users.length).toBeGreaterThan(0);
 	});
 }
