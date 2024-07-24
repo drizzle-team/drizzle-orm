@@ -7,7 +7,7 @@ import { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query.ts';
 
 export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQLiteRelationalQuery<'sync', unknown>>(
 	query: T,
-	deps: unknown[] = []
+	deps: unknown[] = [],
 ) => {
 	const [data, setData] = useState<Awaited<T>>(
 		(is(query, SQLiteRelationalQuery) && query.mode === 'first' ? undefined : []) as Awaited<T>,
