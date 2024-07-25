@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/tables/common.ts';
 import type { Equal } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
+import { sql } from '~/sql/sql.ts';
 
 export type SingleStoreDateTimeBuilderInitial<TName extends string> = SingleStoreDateTimeBuilder<{
 	name: TName;
@@ -23,6 +24,18 @@ export class SingleStoreDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date'
 	constructor(name: T['name'], config: SingleStoreDatetimeConfig | undefined) {
 		super(name, 'date', 'SingleStoreDateTime');
 		this.config.fsp = config?.fsp;
+	}
+
+	defaultNow(fsp?: DatetimeFsp | undefined) {
+		return fsp ?
+			this.default(sql`(now(${fsp}))`) :
+			this.default(sql`(now())`);
+	}
+
+	defaultCurrentTimestamp(fsp?: DatetimeFsp | undefined) {
+		return fsp ?
+			this.default(sql`(current_timestamp(${fsp}))`) :
+			this.default(sql`(current_timestamp())`);
 	}
 
 	/** @internal */
