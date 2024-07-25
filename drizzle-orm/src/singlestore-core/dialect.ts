@@ -25,12 +25,9 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
 import type { SingleStoreAttachConfig } from './query-builders/attach.ts';
 import type { SingleStoreBranchConfig } from './query-builders/branch.ts';
-import type { SingleStoreCreateMilestoneConfig } from './query-builders/createMilestone.ts';
 import type { SingleStoreDeleteConfig } from './query-builders/delete.ts';
 import type { SingleStoreDetachConfig } from './query-builders/detach.ts';
-import type { SingleStoreDropMilestoneConfig } from './query-builders/dropMilestone.ts';
 import type { SingleStoreInsertConfig } from './query-builders/insert.ts';
-import type { SingleStoreOptimizeTableConfig } from './query-builders/optimizeTable.ts';
 import type {
 	SelectedFieldsOrdered,
 	SingleStoreSelectConfig,
@@ -40,6 +37,8 @@ import type { SingleStoreUpdateConfig } from './query-builders/update.ts';
 import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
 import { SingleStoreViewBase } from './view-base.ts';
+import type { SingleStoreCreateMilestoneConfig } from './query-builders/createMilestone.ts';
+import type { SingleStoreDropMilestoneConfig } from './query-builders/dropMilestone.ts';
 
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
@@ -156,24 +155,6 @@ export class SingleStoreDialect {
 		const forSql = database ? sql` for ${sql.identifier(database)}` : undefined;
 
 		return sql`drop milestone ${milestone}${forSql}`;
-	}
-
-	buildOptimizeTable({ table, arg, selection }: SingleStoreOptimizeTableConfig): SQL {
-		const argSql = arg ? sql` ${sql.raw(arg)}` : undefined;
-
-		let warmBlobCacheForColumnSql = undefined;
-		if (selection) {
-			const selectionField = selection.length > 0
-				? selection.map((column) => {
-					return { path: [], field: column };
-				})
-				: [{ path: [], field: sql.raw('*') }];
-			warmBlobCacheForColumnSql = sql` warm blob cache for column ${
-				this.buildSelection(selectionField, { isSingleTable: true })
-			}`;
-		}
-
-		return sql`optimize table ${table}${argSql}${warmBlobCacheForColumnSql}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
@@ -754,7 +735,7 @@ export class SingleStoreDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_agg(${
+			let field = sql`json_to_array(${
 				sql.join(
 					selection.map(({ field, tsKey, isJson }) =>
 						isJson
@@ -767,7 +748,7 @@ export class SingleStoreDialect {
 				)
 			})`;
 			if (is(nestedQueryRelation, Many)) {
-				field = sql`coalesce(json_agg(${field}), json_agg())`;
+				field = sql`coalesce(json_to_arrayagg(${field}), json_to_array())`;
 			}
 			const nestedSelection = [{
 				dbKey: 'data',
@@ -1025,7 +1006,8 @@ export class SingleStoreDialect {
 				});
 				let fieldSql = sql`(${builtRelation.sql})`;
 				if (is(relation, Many)) {
-					fieldSql = sql`coalesce(${fieldSql}, json_agg())`;				}
+					fieldSql = sql`coalesce(${fieldSql}, json_to_array())`;
+				}
 				const field = fieldSql.as(selectedRelationTsKey);
 				selection.push({
 					dbKey: selectedRelationTsKey,
@@ -1050,7 +1032,7 @@ export class SingleStoreDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_agg(${
+			let field = sql`json_to_array(${
 				sql.join(
 					selection.map(({ field }) =>
 						is(field, SingleStoreColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
@@ -1059,7 +1041,7 @@ export class SingleStoreDialect {
 				)
 			})`;
 			if (is(nestedQueryRelation, Many)) {
-				field = sql`json_agg(${field})`;
+				field = sql`json_to_arrayagg(${field})`;
 			}
 			const nestedSelection = [{
 				dbKey: 'data',
