@@ -20,7 +20,7 @@ import type {
 	SingleStoreSession,
 } from '~/singlestore-core/session.ts';
 import type { SubqueryWithSelection } from '~/singlestore-core/subquery.ts';
-import type { SingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/tables/common.ts';
 import type { ColumnsSelection, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';

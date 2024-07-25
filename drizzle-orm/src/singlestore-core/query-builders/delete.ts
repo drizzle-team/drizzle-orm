@@ -10,7 +10,7 @@ import type {
 	SingleStoreQueryResultKind,
 	SingleStoreSession,
 } from '~/singlestore-core/session.ts';
-import type { SingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/tables/common.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';

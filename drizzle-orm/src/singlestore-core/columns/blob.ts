@@ -3,7 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { Equal } from '~/utils';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
-import type { AnySingleStoreTable } from '../table';
+import type { AnySingleStoreTable } from '../tables/common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
 

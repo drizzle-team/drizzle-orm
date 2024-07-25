@@ -1,5 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
-import { type SingleStoreTableFn, singlestoreTableWithSchema } from './table.ts';
+import { type SingleStoreTableFn, singlestoreTableWithSchema } from './tables/common.ts';
 import { type singlestoreView, singlestoreViewWithSchema } from './view.ts';
 
 export class SingleStoreSchema<TName extends string = string> {

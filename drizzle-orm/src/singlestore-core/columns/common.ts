@@ -13,7 +13,7 @@ import type {
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
+import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/tables/common.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';

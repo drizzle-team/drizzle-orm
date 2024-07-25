@@ -33,7 +33,7 @@ import type {
 	SingleStoreTransactionConfig,
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
-import type { SingleStoreTable } from './table.ts';
+import type { SingleStoreTable } from './tables/common.ts';
 
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,

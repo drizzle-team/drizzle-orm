@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreColumn } from './columns/index.ts';
-import { SingleStoreTable } from './table.ts';
+import { SingleStoreTable } from './tables/common.ts';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);
