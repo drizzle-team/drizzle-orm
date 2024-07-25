@@ -2,8 +2,8 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { Equal } from '~/utils';
-import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 import type { AnySingleStoreTable } from '../tables/common.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
 
@@ -30,7 +30,10 @@ export class SingleStoreBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint'
 	override build<TTableName extends string>(
 		table: AnySingleStoreTable<{ name: TTableName }>,
 	): SingleStoreBigInt<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreBigInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any>);
+		return new SingleStoreBigInt<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any>,
+		);
 	}
 }
 
@@ -80,7 +83,9 @@ export class SingleStoreBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json'
 	}
 }
 
-export class SingleStoreBlobJson<T extends ColumnBaseConfig<'json', 'SingleStoreBlobJson'>> extends SingleStoreColumn<T> {
+export class SingleStoreBlobJson<T extends ColumnBaseConfig<'json', 'SingleStoreBlobJson'>>
+	extends SingleStoreColumn<T>
+{
 	static readonly [entityKind]: string = 'SingleStoreBlobJson';
 
 	getSQLType(): string {
@@ -119,11 +124,16 @@ export class SingleStoreBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buf
 	override build<TTableName extends string>(
 		table: AnySingleStoreTable<{ name: TTableName }>,
 	): SingleStoreBlobBuffer<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreBlobBuffer<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any>);
+		return new SingleStoreBlobBuffer<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any>,
+		);
 	}
 }
 
-export class SingleStoreBlobBuffer<T extends ColumnBaseConfig<'buffer', 'SingleStoreBlobBuffer'>> extends SingleStoreColumn<T> {
+export class SingleStoreBlobBuffer<T extends ColumnBaseConfig<'buffer', 'SingleStoreBlobBuffer'>>
+	extends SingleStoreColumn<T>
+{
 	static readonly [entityKind]: string = 'SingleStoreBlobBuffer';
 
 	getSQLType(): string {

@@ -22,15 +22,15 @@ export abstract class SingleStoreDateColumnBaseBuilder<
 	static readonly [entityKind]: string = 'SingleStoreDateColumnBuilder';
 
 	defaultNow(fsp?: DatetimeFsp | undefined) {
-		return fsp ?
-			this.default(sql`(now(${fsp}))`) :
-			this.default(sql`(now())`);
+		return fsp
+			? this.default(sql`(now(${fsp}))`)
+			: this.default(sql`(now())`);
 	}
 
 	defaultCurrentTimestamp(fsp?: DatetimeFsp | undefined) {
-		return fsp ?
-			this.default(sql`(current_timestamp(${fsp}))`) :
-			this.default(sql`(current_timestamp())`);
+		return fsp
+			? this.default(sql`(current_timestamp(${fsp}))`)
+			: this.default(sql`(current_timestamp())`);
 	}
 
 	// "on update now" also adds an implicit default value to the column - https://dev.mysql.com/doc/refman/8.0/en/timestamp-initialization.html

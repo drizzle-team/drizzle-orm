@@ -1,8 +1,13 @@
-import { entityKind } from '~/entity.ts';
-import type { SingleStoreTableExtraConfig, SingleStoreTableFn, SingleStoreTableWithColumns, TableConfig } from './common.ts';
-import { SingleStoreTable, singlestoreTableWithSchema } from './common.ts';
 import type { BuildColumns } from '~/column-builder.ts';
+import { entityKind } from '~/entity.ts';
 import type { SingleStoreColumnBuilderBase } from '../columns/common.ts';
+import type {
+	SingleStoreTableExtraConfig,
+	SingleStoreTableFn,
+	SingleStoreTableWithColumns,
+	TableConfig,
+} from './common.ts';
+import { SingleStoreTable, singlestoreTableWithSchema } from './common.ts';
 
 export class SingleStoreRowstoreTable<T extends TableConfig = TableConfig> extends SingleStoreTable<T> {
 	static readonly [entityKind]: string = 'SingleStoreRowstoreTable';
@@ -33,7 +38,7 @@ export function singlestoreRowstoreTableWithSchema<
 		dialect: 'singlestore';
 	}>(name, schema, baseName);
 
-    return singlestoreTableWithSchema(rawTable, columns, extraConfig)
+	return singlestoreTableWithSchema(rawTable, columns, extraConfig);
 }
 
 export const singlestoreRowstoreTable: SingleStoreTableFn = (name, columns, extraConfig) => {
