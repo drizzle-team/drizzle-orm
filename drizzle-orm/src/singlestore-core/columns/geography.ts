@@ -27,7 +27,7 @@ export type SingleStoreGeographyBuilderInitial<TName extends string> = SingleSto
 	name: TName;
 	dataType: 'array';
 	columnType: 'SingleStoreGeography';
-	data: GeographyPoint | GeographyLineString | GeographyPolygon;
+	data: Geography;
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
