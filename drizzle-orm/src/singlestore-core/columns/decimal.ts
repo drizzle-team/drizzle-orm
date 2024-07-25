@@ -1,7 +1,7 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/tables/common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
 export type SingleStoreDecimalBuilderInitial<TName extends string> = SingleStoreDecimalBuilder<{

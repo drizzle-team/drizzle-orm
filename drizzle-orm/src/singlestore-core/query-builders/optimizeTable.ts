@@ -13,7 +13,7 @@ import type {
 } from '~/singlestore-core/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SingleStoreColumn } from '../columns/common.ts';
-import type { SingleStoreTable } from '../tables/common.ts';
+import type { SingleStoreTable } from '../table.ts';
 import type { OptimizeTableArgument } from './optimizeTable.types.ts';
 
 export type SingleStoreOptimizeTableWithout<

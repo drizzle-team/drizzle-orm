@@ -1,7 +1,7 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/tables/common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
 import { sql } from '~/sql/sql.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 

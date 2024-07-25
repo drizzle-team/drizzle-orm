@@ -17,7 +17,7 @@ import type {
 	SetOperator,
 } from '~/query-builders/select.types.ts';
 import type { SingleStoreColumn } from '~/singlestore-core/columns/index.ts';
-import type { SingleStoreTable, SingleStoreTableWithColumns } from '~/singlestore-core/tables/common.ts';
+import type { SingleStoreTable, SingleStoreTableWithColumns } from '~/singlestore-core/table.ts';
 import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
