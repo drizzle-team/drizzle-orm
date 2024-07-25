@@ -1,6 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
-import { type SingleStoreTableFn, singlestoreTableWithSchema } from './tables/common.ts';
+import type { SingleStoreTableFn } from './tables/common.ts';
 import { type singlestoreView, singlestoreViewWithSchema } from './view.ts';
+import { singlestoreColumnstoreTableWithSchema } from './tables/columnstore.ts';
 
 export class SingleStoreSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'SingleStoreSchema';
@@ -10,7 +11,7 @@ export class SingleStoreSchema<TName extends string = string> {
 	) {}
 
 	table: SingleStoreTableFn<TName> = (name, columns, extraConfig) => {
-		return singlestoreTableWithSchema(name, columns, extraConfig, this.schemaName);
+		return singlestoreColumnstoreTableWithSchema(name, columns, extraConfig, this.schemaName);
 	};
 
 	view = ((name, columns) => {
