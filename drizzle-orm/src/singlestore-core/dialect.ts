@@ -39,6 +39,7 @@ import { SingleStoreTable } from './table.ts';
 import { SingleStoreViewBase } from './view-base.ts';
 import type { SingleStoreCreateMilestoneConfig } from './query-builders/createMilestone.ts';
 import type { SingleStoreDropMilestoneConfig } from './query-builders/dropMilestone.ts';
+import type { SingleStoreOptimizeTableConfig } from './query-builders/optimizeTable.ts';
 
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
@@ -155,6 +156,24 @@ export class SingleStoreDialect {
 		const forSql = database ? sql` for ${sql.identifier(database)}` : undefined;
 
 		return sql`drop milestone ${milestone}${forSql}`;
+	}
+
+	buildOptimizeTable({ table, arg, selection }: SingleStoreOptimizeTableConfig): SQL {
+		const argSql = arg ? sql` ${sql.raw(arg)}` : undefined;
+
+		let warmBlobCacheForColumnSql = undefined;
+		if (selection) {
+			const selectionField = selection.length > 0
+				? selection.map((column) => {
+					return { path: [], field: column };
+				})
+				: [{ path: [], field: sql.raw('*') }];
+			warmBlobCacheForColumnSql = sql` warm blob cache for column ${
+				this.buildSelection(selectionField, { isSingleTable: true })
+			}`;
+		}
+
+		return sql`optimize table ${table}${argSql}${warmBlobCacheForColumnSql}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
