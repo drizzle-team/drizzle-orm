@@ -65,7 +65,7 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 		} else if (_isLineString(value)) {
 			return sql`"LINESTRING(${_toLineStringSQL(value)})"`;
 		} else if (_isPolygon(value)) {
-			return sql`"POLYGON((${_toPolygonSQL(value)}))"`;
+			return sql`"POLYGON(${_toPolygonSQL(value)})"`;
 		} else {
 			throw new DrizzleError({ message: 'value is not Array' });
 		}
@@ -106,7 +106,7 @@ function _toLineStringSQL(linestring: GeographyLineString): SQL {
 }
 
 function _toPolygonSQL(polygon: GeographyPolygon): SQL {
-	const rings = polygon.map((linestring) => _toLineStringSQL(linestring));
+	const rings = polygon.map((linestring) => sql`(${_toLineStringSQL(linestring)})`);
 	return sql.join(rings, sql.raw(', '));
 }
 
