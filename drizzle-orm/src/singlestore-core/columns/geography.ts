@@ -3,6 +3,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import { entityKind } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/tables/common.ts';
+import type { SQL} from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
@@ -60,17 +61,11 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 
 	override mapToDriverValue(value: GeographyPoint | GeographyLineString | GeographyPolygon) {
 		if (_isPoint(value)) {
-			const [lng, lat] = value;
-			return sql`"POINT(${lng} ${lat})"`;
+			return sql`"POINT(${_toPointSQL(value)})"`;
 		} else if (_isLineString(value)) {
-			const points = value.map((ls) => sql`${ls[0]} ${ls[1]}`);
-			return sql`"LINESTRING(${sql.join(points, sql.raw(', '))})"`;
+			return sql`"LINESTRING(${_toLineStringSQL(value)})"`;
 		} else if (_isPolygon(value)) {
-			const rings = value.map((ring) => {
-				const points = ring.map((point) => sql`${point[0]} ${point[1]}`);
-				return sql`(${sql.join(points, sql.raw(', '))})`;
-			});
-			return sql`"POLYGON(${sql.join(rings, sql.raw(', '))})"`;
+			return sql`"POLYGON((${_toPolygonSQL(value)}))"`;
 		} else {
 			throw new DrizzleError({ message: 'value is not Array' });
 		}
@@ -99,6 +94,20 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 
 export function geography<TName extends string>(name: TName): SingleStoreGeographyBuilderInitial<TName> {
 	return new SingleStoreGeographyBuilder(name);
+}
+
+function _toPointSQL([lng, lat]: GeographyPoint): SQL {
+	return sql`${lng} ${lat}`;
+}
+
+function _toLineStringSQL(linestring: GeographyLineString): SQL {
+	const points = linestring.map((point) => _toPointSQL(point));
+	return sql.join(points, sql.raw(', '));
+}
+
+function _toPolygonSQL(polygon: GeographyPolygon): SQL {
+	const rings = polygon.map((linestring) => _toLineStringSQL(linestring));
+	return sql.join(rings, sql.raw(', '));
 }
 
 function _pointToGeographyPoint(value: string): GeographyPoint {
