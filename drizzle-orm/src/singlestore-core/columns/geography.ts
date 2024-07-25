@@ -82,18 +82,13 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 		const inner = value.slice(firstParenIndex + 1, -1);
 		switch (__type) {
 			case 'POINT': {
-				return inner.split(' ').map(Number) as LngLat;
+				return _pointToGeographyPoint(inner);
 			}
 			case 'LINESTRING': {
-				const pairs = inner.split(', ');
-				return pairs.map((pair) => pair.split(' ').map(Number)) as GeographyLineString;
+				return _linestringToGeographyLineString(inner);
 			}
 			case 'POLYGON': {
-				const rings = inner.slice(1, -1).split('), (');
-				return rings.map((ring) => {
-					const pairs = ring.split(', ');
-					return pairs.map((pair) => pair.split(' ').map(Number));
-				}) as GeographyPolygon;
+				return _polygonToGeographyPolygon(inner);
 			}
 			default: {
 				throw new DrizzleError({ message: 'Unexpected Geography type' });
@@ -104,6 +99,20 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 
 export function geography<TName extends string>(name: TName): SingleStoreGeographyBuilderInitial<TName> {
 	return new SingleStoreGeographyBuilder(name);
+}
+
+function _pointToGeographyPoint(value: string): GeographyPoint {
+	return value.split(' ').map(Number) as GeographyPoint;
+}
+
+function _linestringToGeographyLineString(value: string): GeographyLineString {
+	const pairs = value.split(', ');
+	return pairs.map((pair) => _pointToGeographyPoint(pair));
+}
+
+function _polygonToGeographyPolygon(value: string): GeographyPolygon {
+	const rings = value.slice(1, -1).split('), (');
+	return rings.map((ring) => _linestringToGeographyLineString(ring));
 }
 
 function _isPoint(value: GeographyPoint | GeographyLineString | GeographyPolygon): value is GeographyPoint {
