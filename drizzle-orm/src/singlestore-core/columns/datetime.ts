@@ -2,9 +2,9 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/tables/common.ts';
+import { sql } from '~/sql/sql.ts';
 import type { Equal } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
-import { sql } from '~/sql/sql.ts';
 
 export type SingleStoreDateTimeBuilderInitial<TName extends string> = SingleStoreDateTimeBuilder<{
 	name: TName;
@@ -27,15 +27,15 @@ export class SingleStoreDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date'
 	}
 
 	defaultNow(fsp?: DatetimeFsp | undefined) {
-		return fsp ?
-			this.default(sql`(now(${fsp}))`) :
-			this.default(sql`(now())`);
+		return fsp
+			? this.default(sql`(now(${fsp}))`)
+			: this.default(sql`(now())`);
 	}
 
 	defaultCurrentTimestamp(fsp?: DatetimeFsp | undefined) {
-		return fsp ?
-			this.default(sql`(current_timestamp(${fsp}))`) :
-			this.default(sql`(current_timestamp())`);
+		return fsp
+			? this.default(sql`(current_timestamp(${fsp}))`)
+			: this.default(sql`(current_timestamp())`);
 	}
 
 	/** @internal */
