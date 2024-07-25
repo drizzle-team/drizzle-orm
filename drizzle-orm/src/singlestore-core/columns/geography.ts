@@ -2,7 +2,7 @@ import type { ColumnBaseConfig } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/tables/common.ts';
+import type { AnySingleStoreTable } from '~/singlestore-core/table';
 import type { SQL} from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
