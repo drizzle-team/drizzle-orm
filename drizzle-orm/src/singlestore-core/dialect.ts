@@ -754,7 +754,7 @@ export class SingleStoreDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_to_array(${
+			let field = sql`json_agg(${
 				sql.join(
 					selection.map(({ field, tsKey, isJson }) =>
 						isJson
@@ -767,7 +767,7 @@ export class SingleStoreDialect {
 				)
 			})`;
 			if (is(nestedQueryRelation, Many)) {
-				field = sql`coalesce(json_to_arrayagg(${field}), json_to_array())`;
+				field = sql`coalesce(json_agg(${field}), json_agg())`;
 			}
 			const nestedSelection = [{
 				dbKey: 'data',
@@ -1025,8 +1025,7 @@ export class SingleStoreDialect {
 				});
 				let fieldSql = sql`(${builtRelation.sql})`;
 				if (is(relation, Many)) {
-					fieldSql = sql`coalesce(${fieldSql}, json_to_array())`;
-				}
+					fieldSql = sql`coalesce(${fieldSql}, json_agg())`;				}
 				const field = fieldSql.as(selectedRelationTsKey);
 				selection.push({
 					dbKey: selectedRelationTsKey,
@@ -1051,7 +1050,7 @@ export class SingleStoreDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_to_array(${
+			let field = sql`json_agg(${
 				sql.join(
 					selection.map(({ field }) =>
 						is(field, SingleStoreColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
@@ -1060,7 +1059,7 @@ export class SingleStoreDialect {
 				)
 			})`;
 			if (is(nestedQueryRelation, Many)) {
-				field = sql`json_to_arrayagg(${field})`;
+				field = sql`json_agg(${field})`;
 			}
 			const nestedSelection = [{
 				dbKey: 'data',
