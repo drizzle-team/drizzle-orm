@@ -12,22 +12,11 @@ type GeographyPoint = LngLat;
 type GeographyLineString = Array<LngLat>;
 type GeographyPolygon = Array<Array<LngLat>>;
 
-type Geography = {
-	__type: 'POINT';
-	data: GeographyPoint;
-} | {
-	__type: 'LINESTRING';
-	data: GeographyLineString;
-} | {
-	__type: 'POLYGON';
-	data: GeographyPolygon;
-};
-
 export type SingleStoreGeographyBuilderInitial<TName extends string> = SingleStoreGeographyBuilder<{
 	name: TName;
 	dataType: 'array';
 	columnType: 'SingleStoreGeography';
-	data: Geography;
+	data: GeographyPoint | GeographyLineString | GeographyPolygon;
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
@@ -87,33 +76,24 @@ export class SingleStoreGeography<T extends ColumnBaseConfig<'array', 'SingleSto
 		}
 	}
 
-	override mapFromDriverValue(value: string): Geography {
+	override mapFromDriverValue(value: string): GeographyPoint | GeographyLineString | GeographyPolygon {
 		const firstParenIndex = value.indexOf('(');
 		const __type = value.slice(0, firstParenIndex);
 		const inner = value.slice(firstParenIndex + 1, -1);
 		switch (__type) {
 			case 'POINT': {
-				return {
-					__type,
-					data: inner.split(' ').map(Number) as LngLat,
-				};
+				return inner.split(' ').map(Number) as LngLat;
 			}
 			case 'LINESTRING': {
 				const pairs = inner.split(', ');
-				return {
-					__type,
-					data: pairs.map((pair) => pair.split(' ').map(Number)) as GeographyLineString,
-				};
+				return pairs.map((pair) => pair.split(' ').map(Number)) as GeographyLineString;
 			}
 			case 'POLYGON': {
 				const rings = inner.slice(1, -1).split('), (');
-				return {
-					__type,
-					data: rings.map((ring) => {
-						const pairs = ring.split(', ');
-						return pairs.map((pair) => pair.split(' ').map(Number));
-					}) as GeographyPolygon,
-				};
+				return rings.map((ring) => {
+					const pairs = ring.split(', ');
+					return pairs.map((pair) => pair.split(' ').map(Number));
+				}) as GeographyPolygon;
 			}
 			default: {
 				throw new DrizzleError({ message: 'Unexpected Geography type' });
