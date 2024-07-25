@@ -66,7 +66,7 @@ export type AnySingleStoreTable<TPartial extends Partial<TableConfig> = {}> =
 	| SingleStoreColumnstoreTable<UpdateTableConfig<TableConfig, TPartial>>
 	| SingleStoreRowstoreTable<UpdateTableConfig<TableConfig, TPartial>>;
 
-export type SingleStoreTableWithColumns<TTableType extends SinglestoreTableTypes, T extends TableConfig> =
+export type SingleStoreTableWithColumns<T extends TableConfig, TTableType extends SinglestoreTableTypes = SinglestoreTableTypes> =
 	& (SingleStoreTable<TTableType, T>)
 	& {
 		[Key in keyof T['columns']]: T['columns'][Key];
@@ -88,12 +88,12 @@ export function singlestoreTableWithSchema<
 		| undefined,
 	schema: TSchemaName,
 	baseName = name,
-): SingleStoreTableWithColumns<TTableType, {
+): SingleStoreTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
 	columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 	dialect: 'singlestore';
-}> {
+}, TTableType> {
 	let rawTable;
 	switch (tableType) {
 		case 'columnstore': {
@@ -158,12 +158,12 @@ export interface SingleStoreTableFn<
 		extraConfig?: (
 			self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>,
 		) => SinglestoreTableTypeTypes[TTableType]['extraconfig'],
-	): SingleStoreTableWithColumns<TTableType, {
+	): SingleStoreTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
-	}>;
+	}, TTableType>;
 }
 
 export const singlestoreTable: SingleStoreTableFn<'columnstore'> = (name, columns, extraConfig) => {
