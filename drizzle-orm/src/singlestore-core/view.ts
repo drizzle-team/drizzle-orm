@@ -8,7 +8,7 @@ import { getTableColumns } from '~/utils.ts';
 import type { SingleStoreColumn, SingleStoreColumnBuilderBase } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
-import { singlestoreTable } from './tables/common.ts';
+import { singlestoreTable } from './table.ts';
 import { SingleStoreViewBase } from './view-base.ts';
 import { SingleStoreViewConfig } from './view-common.ts';
 

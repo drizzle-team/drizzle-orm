@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from './columns/index.ts';
-import type { SingleStoreTable } from './tables/common.ts';
+import type { SingleStoreTable } from './table.ts';
 
 interface IndexConfig {
 	name: string;

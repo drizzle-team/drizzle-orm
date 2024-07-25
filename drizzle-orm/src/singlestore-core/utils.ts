@@ -5,7 +5,7 @@ import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
-import { SingleStoreTable } from './tables/common.ts';
+import { SingleStoreTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import { SingleStoreViewConfig } from './view-common.ts';
 import type { SingleStoreView } from './view.ts';

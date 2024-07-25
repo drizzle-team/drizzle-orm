@@ -18,7 +18,7 @@ import type {
 	SingleStorePreparedQueryConfig,
 	SingleStoreSession,
 } from '../session.ts';
-import type { SingleStoreTable } from '../tables/common.ts';
+import type { SingleStoreTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
