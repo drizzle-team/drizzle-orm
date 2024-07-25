@@ -726,7 +726,7 @@ export class SingleStoreDialect {
 					joinOn,
 					nestedQueryRelation: relation,
 				});
-				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
+				const field = sql`coalesce(${sql.identifier(relationTableAlias)}.${sql.identifier('data')}, "[]")`.as(selectedRelationTsKey);
 				joins.push({
 					on: sql`true`,
 					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
@@ -754,20 +754,20 @@ export class SingleStoreDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_to_array(${
+			let field = sql`JSON_BUILD_OBJECT(${
 				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
+					selection.map(({ field, tsKey, isJson }, index) =>
 						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
+							? sql`${index}, ${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
-							? field.sql
-							: field
+							? sql`${index}, ${field.sql}`
+							: sql`${index}, ${field}`
 					),
 					sql`, `,
 				)
 			})`;
 			if (is(nestedQueryRelation, Many)) {
-				field = sql`coalesce(json_to_arrayagg(${field}), json_to_array())`;
+				field = sql`json_agg(${field})`;
 			}
 			const nestedSelection = [{
 				dbKey: 'data',
@@ -1025,7 +1025,7 @@ export class SingleStoreDialect {
 				});
 				let fieldSql = sql`(${builtRelation.sql})`;
 				if (is(relation, Many)) {
-					fieldSql = sql`coalesce(${fieldSql}, json_to_array())`;
+					fieldSql = sql`coalesce(${fieldSql}, "[]")`;
 				}
 				const field = fieldSql.as(selectedRelationTsKey);
 				selection.push({
@@ -1051,16 +1051,20 @@ export class SingleStoreDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_to_array(${
+			let field = sql`JSON_BUILD_OBJECT(${
 				sql.join(
-					selection.map(({ field }) =>
-						is(field, SingleStoreColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
+					selection.map(({ field }, index) =>
+						is(field, SingleStoreColumn)
+							? sql`${index}, ${sql.identifier(field.name)}`
+							: is(field, SQL.Aliased)
+							? sql`${index}, ${field.sql}`
+							: sql`${index}, ${field}`
 					),
 					sql`, `,
 				)
 			})`;
 			if (is(nestedQueryRelation, Many)) {
-				field = sql`json_to_arrayagg(${field})`;
+				field = sql`json_agg(${field})`;
 			}
 			const nestedSelection = [{
 				dbKey: 'data',
