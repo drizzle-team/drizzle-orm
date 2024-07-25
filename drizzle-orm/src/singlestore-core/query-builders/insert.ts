@@ -11,7 +11,7 @@ import type {
 	SingleStoreQueryResultKind,
 	SingleStoreSession,
 } from '~/singlestore-core/session.ts';
-import type { SingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/tables/common.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferModelFromColumns } from '~/table.ts';

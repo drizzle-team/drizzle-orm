@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from './columns/index.ts';
-import { SingleStoreTable } from './table.ts';
+import { SingleStoreTable } from './tables/common.ts';
 
 export function primaryKey<
 	TTableName extends string,

@@ -38,7 +38,7 @@ import type {
 } from './query-builders/select.types.ts';
 import type { SingleStoreUpdateConfig } from './query-builders/update.ts';
 import type { SingleStoreSession } from './session.ts';
-import { SingleStoreTable } from './table.ts';
+import { SingleStoreTable } from './tables/common.ts';
 import { SingleStoreViewBase } from './view-base.ts';
 
 export class SingleStoreDialect {
