@@ -1,7 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
+import { singlestoreColumnstoreTableWithSchema } from './tables/columnstore.ts';
 import type { SingleStoreTableFn } from './tables/common.ts';
 import { type singlestoreView, singlestoreViewWithSchema } from './view.ts';
-import { singlestoreColumnstoreTableWithSchema } from './tables/columnstore.ts';
 
 export class SingleStoreSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'SingleStoreSchema';
