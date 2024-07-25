@@ -1,7 +1,7 @@
 import type { ColumnBaseConfig } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table';
+import type { AnySingleStoreTable } from '~/singlestore-core/tables/common.ts';
 import { sql } from '~/sql/sql.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 import type { LngLat } from './geography';
