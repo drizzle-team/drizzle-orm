@@ -163,14 +163,10 @@ export class SingleStoreDialect {
 
 		let warmBlobCacheForColumnSql = undefined;
 		if (selection) {
-			const selectionField = selection.length > 0
-				? selection.map((column) => {
-					return { path: [], field: column };
-				})
+			const selectionField = selection.length > 0 ?
+				selection.map((column) => { return { path: [], field: column } })
 				: [{ path: [], field: sql.raw('*') }];
-			warmBlobCacheForColumnSql = sql` warm blob cache for column ${
-				this.buildSelection(selectionField, { isSingleTable: true })
-			}`;
+			warmBlobCacheForColumnSql = sql` warm blob cache for column ${this.buildSelection(selectionField, { isSingleTable: true })}`;
 		}
 
 		return sql`optimize table ${table}${argSql}${warmBlobCacheForColumnSql}`;
