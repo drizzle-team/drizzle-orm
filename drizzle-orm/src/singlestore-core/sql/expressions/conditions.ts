@@ -16,5 +16,5 @@ import type { BinaryOperator } from "~/sql/expressions";
  * @see isNull for a way to test equality to NULL.
  */
 export const match: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`MATCH ${left} AGAINST ${bindIfParam(right, left)}`;
+	return sql`MATCH (${left}) AGAINST (${bindIfParam(right, left)})`;
 };
