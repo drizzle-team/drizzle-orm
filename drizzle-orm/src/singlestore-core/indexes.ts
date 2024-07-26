@@ -45,6 +45,10 @@ export interface AnyIndexBuilder {
 	build(table: SingleStoreTable): Index;
 }
 
+export interface AnyFullTextIndexBuilder {
+	build(table: SingleStoreTable): FullTextIndex;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface IndexBuilder extends AnyIndexBuilder {}
 
@@ -108,35 +112,38 @@ export function uniqueIndex(name: string): IndexBuilderOn {
 }
 
 interface FullTextIndexConfig {
-	name: string;
+	version?: number;
+}
 
+interface FullTextIndexFullConfig extends FullTextIndexConfig {
 	columns: IndexColumn[];
 
-	version?: number;
+	name: string;
 }
 
 export class FullTextIndexBuilderOn {
 	static readonly [entityKind]: string = 'SingleStoreFullTextIndexBuilderOn';
 
-	constructor(private config: FullTextIndexConfig) {}
+	constructor(private name: string, private config: FullTextIndexConfig) {}
 
 	on(...columns: [IndexColumn, ...IndexColumn[]]): FullTextIndexBuilder {
 		return new FullTextIndexBuilder({
-			...this.config,
+			name: this.name,
 			columns: columns,
+			...this.config,
 		});
 	}
 }
 
-export interface FullTextIndexBuilder extends AnyIndexBuilder {}
+export interface FullTextIndexBuilder extends AnyFullTextIndexBuilder {}
 
-export class FullTextIndexBuilder implements AnyIndexBuilder {
+export class FullTextIndexBuilder implements AnyFullTextIndexBuilder {
 	static readonly [entityKind]: string = 'SingleStoreFullTextIndexBuilder';
 
 	/** @internal */
-	config: FullTextIndexConfig;
+	config: FullTextIndexFullConfig;
 
-	constructor(config: FullTextIndexConfig) {
+	constructor(config: FullTextIndexFullConfig) {
 		this.config = config;
 	}
 
@@ -157,8 +164,5 @@ export class FullTextIndex {
 }
 
 export function fulltext(name: string, config: FullTextIndexConfig): FullTextIndexBuilderOn {
-	return new FullTextIndexBuilderOn({
-		...config,
-		name: name,
-	});
+	return new FullTextIndexBuilderOn(name, config);
 }
