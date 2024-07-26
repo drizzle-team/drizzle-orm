@@ -106,3 +106,59 @@ export function index(name: string): IndexBuilderOn {
 export function uniqueIndex(name: string): IndexBuilderOn {
 	return new IndexBuilderOn(name, true);
 }
+
+interface FullTextIndexConfig {
+	name: string;
+
+	columns: IndexColumn[];
+
+	version?: number;
+}
+
+export class FullTextIndexBuilderOn {
+	static readonly [entityKind]: string = 'SingleStoreFullTextIndexBuilderOn';
+
+	constructor(private config: FullTextIndexConfig) {}
+
+	on(...columns: [IndexColumn, ...IndexColumn[]]): FullTextIndexBuilder {
+		return new FullTextIndexBuilder({
+			...this.config,
+			columns: columns,
+		});
+	}
+}
+
+export interface FullTextIndexBuilder extends AnyIndexBuilder {}
+
+export class FullTextIndexBuilder implements AnyIndexBuilder {
+	static readonly [entityKind]: string = 'SingleStoreFullTextIndexBuilder';
+
+	/** @internal */
+	config: FullTextIndexConfig;
+
+	constructor(config: FullTextIndexConfig) {
+		this.config = config;
+	}
+
+	/** @internal */
+	build(table: SingleStoreTable): FullTextIndex {
+		return new FullTextIndex(this.config, table);
+	}
+}
+
+export class FullTextIndex {
+	static readonly [entityKind]: string = 'SingleStoreFullTextIndex';
+
+	readonly config: FullTextIndexConfig & { table: SingleStoreTable };
+
+	constructor(config: FullTextIndexConfig, table: SingleStoreTable) {
+		this.config = { ...config, table };
+	}
+}
+
+export function fulltext(name: string, config: FullTextIndexConfig): FullTextIndexBuilderOn {
+	return new FullTextIndexBuilderOn({
+		...config,
+		name: name,
+	});
+}
