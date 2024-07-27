@@ -166,3 +166,24 @@ export class FullTextIndex {
 export function fulltext(name: string, config: FullTextIndexConfig): FullTextIndexBuilderOn {
 	return new FullTextIndexBuilderOn(name, config);
 }
+
+export class SortKeyBuilder {
+	static readonly [entityKind]: string = 'SingleStoreSortKeyBuilder';
+
+	constructor(private columns: IndexColumn[]) {}
+
+	/** @internal */
+	build(table: SingleStoreTable): SortKey {
+		return new SortKey(this.columns, table);
+	}
+}
+
+export class SortKey {
+	static readonly [entityKind]: string = 'SingleStoreSortKey';
+
+	constructor(public columns: IndexColumn[], public table: SingleStoreTable) {}
+}
+
+export function sortKey(...columns: [IndexColumn, ...IndexColumn[]]): SortKeyBuilder {
+	return new SortKeyBuilder(columns);
+}
