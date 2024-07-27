@@ -167,10 +167,12 @@ export function fulltext(name: string, config: FullTextIndexConfig): FullTextInd
 	return new FullTextIndexBuilderOn(name, config);
 }
 
+export type SortKeyColumn = SingleStoreColumn | SQL;
+
 export class SortKeyBuilder {
 	static readonly [entityKind]: string = 'SingleStoreSortKeyBuilder';
 
-	constructor(private columns: IndexColumn[]) {}
+	constructor(private columns: SortKeyColumn[]) {}
 
 	/** @internal */
 	build(table: SingleStoreTable): SortKey {
@@ -181,9 +183,9 @@ export class SortKeyBuilder {
 export class SortKey {
 	static readonly [entityKind]: string = 'SingleStoreSortKey';
 
-	constructor(public columns: IndexColumn[], public table: SingleStoreTable) {}
+	constructor(public columns: SortKeyColumn[], public table: SingleStoreTable) {}
 }
 
-export function sortKey(...columns: [IndexColumn, ...IndexColumn[]]): SortKeyBuilder {
+export function sortKey(...columns: SortKeyColumn[]): SortKeyBuilder {
 	return new SortKeyBuilder(columns);
 }
