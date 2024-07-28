@@ -363,7 +363,9 @@ export class PgDialect {
 			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -449,7 +451,9 @@ export class PgDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
 
 		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
