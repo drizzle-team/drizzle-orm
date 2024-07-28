@@ -2,8 +2,8 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { Equal } from '~/utils';
-import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 import type { AnySingleStoreTable } from '../table';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
 
