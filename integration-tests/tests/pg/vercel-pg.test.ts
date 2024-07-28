@@ -14,7 +14,13 @@ let db: VercelPgDatabase;
 let client: VercelClient;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB());
+	let connectionString;
+	if (process.env['PG_CONNECTION_STRING']) {
+		connectionString = process.env['PG_CONNECTION_STRING'];
+	} else {
+		const { connectionString: conStr } = await createDockerDB();
+		connectionString = conStr;
+	}
 
 	const sleep = 250;
 	let timeLeft = 5000;

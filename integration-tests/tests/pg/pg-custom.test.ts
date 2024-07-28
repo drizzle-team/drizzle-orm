@@ -1,4 +1,5 @@
 import retry from 'async-retry';
+import type Docker from 'dockerode';
 import { asc, eq, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -13,9 +14,17 @@ const ENABLE_LOGGING = false;
 
 let db: NodePgDatabase;
 let client: Client;
+let container: Docker.Container | undefined;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB();
+	let connectionString;
+	if (process.env['PG_CONNECTION_STRING']) {
+		connectionString = process.env['PG_CONNECTION_STRING'];
+	} else {
+		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
+		connectionString = conStr;
+		container = contrainerObj;
+	}
 	client = await retry(async () => {
 		client = new Client(connectionString);
 		await client.connect();
@@ -35,6 +44,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await client?.end();
+	await container?.stop().catch(console.error);
 });
 
 beforeEach((ctx) => {

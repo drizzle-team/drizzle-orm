@@ -231,7 +231,7 @@ export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *   .where(lt(cars.year, 2000))
  * ```
  *
- * @see lte for greater-than-or-equal
+ * @see lte for less-than-or-equal
  */
 export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
 	return sql`${left} < ${bindIfParam(right, left)}`;
@@ -292,7 +292,7 @@ export function inArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('inArray requires at least one value');
+			return sql`false`;
 		}
 		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
 	}
@@ -338,7 +338,7 @@ export function notInArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('notInArray requires at least one value');
+			return sql`true`;
 		}
 		return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
 	}
