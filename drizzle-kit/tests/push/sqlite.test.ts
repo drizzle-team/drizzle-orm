@@ -1,9 +1,10 @@
-import { expect } from "vitest";
+import { expect, test } from "vitest";
 import { DialectSuite, run } from "./common";
 import Database from "better-sqlite3";
 import { diffTestSchemasPushSqlite } from "tests/schemaDiffer";
 import {
   blob,
+  foreignKey,
   int,
   integer,
   numeric,
@@ -384,3 +385,59 @@ const sqliteSuite: DialectSuite = {
 };
 
 run(sqliteSuite);
+
+test("create table with custom name references", async (t) => {
+  const sqlite = new Database(":memory:");
+
+  const users = sqliteTable("users", {
+    id: int("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+  });
+
+  const schema1 = {
+    users,
+    posts: sqliteTable(
+      "posts",
+      {
+        id: int("id").primaryKey({ autoIncrement: true }),
+        name: text("name"),
+        userId: int("user_id"),
+      },
+      (t) => ({
+        fk: foreignKey({
+          columns: [t.id],
+          foreignColumns: [users.id],
+          name: "custom_name_fk",
+        }),
+      })
+    ),
+  };
+
+  const schema2 = {
+    users,
+    posts: sqliteTable(
+      "posts",
+      {
+        id: int("id").primaryKey({ autoIncrement: true }),
+        name: text("name"),
+        userId: int("user_id"),
+      },
+      (t) => ({
+        fk: foreignKey({
+          columns: [t.id],
+          foreignColumns: [users.id],
+          name: "custom_name_fk",
+        }),
+      })
+    ),
+  };
+
+  const { sqlStatements } = await diffTestSchemasPushSqlite(
+    sqlite,
+    schema1,
+    schema2,
+    []
+  );
+
+  expect(sqlStatements!.length).toBe(0);
+});

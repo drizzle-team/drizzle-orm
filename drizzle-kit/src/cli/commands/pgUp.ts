@@ -101,6 +101,7 @@ export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
     ...schema,
     version: "7",
     dialect: "postgresql",
+    sequences: {},
     tables: tables,
   };
 };
@@ -117,11 +118,10 @@ export const upPgHandlerV4toV5 = (obj: PgSchemaV4): PgSchemaV5 => {
       if (column.type.toLowerCase() === "date") {
         if (typeof column.default !== "undefined") {
           if (column.default.startsWith("'") && column.default.endsWith("'")) {
-            newDefault = `'${
-              column.default
+            newDefault = `'${column.default
                 .substring(1, column.default.length - 1)
                 .split("T")[0]
-            }'`;
+              }'`;
           } else {
             newDefault = column.default.split("T")[0];
           }

@@ -1685,7 +1685,8 @@ export const applySqliteSnapshotsDiff = async (
     input: ColumnsResolverInput<Column>
   ) => Promise<ColumnsResolverOutput<Column>>,
   prevFull: SQLiteSchema,
-  curFull: SQLiteSchema
+  curFull: SQLiteSchema,
+  action?: "push" | undefined
 ): Promise<{
   statements: JsonStatement[];
   sqlStatements: string[];
@@ -1809,7 +1810,7 @@ export const applySqliteSnapshotsDiff = async (
   });
 
   const jsonCreateTables = createdTables.map((it) => {
-    return prepareSQLiteCreateTable(it);
+    return prepareSQLiteCreateTable(it, action);
   });
 
   const jsonCreateIndexesForCreatedTables = createdTables

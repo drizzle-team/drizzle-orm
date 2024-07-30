@@ -70,7 +70,7 @@ export const safeRegister = async () => {
   } catch {
     // tsx fallback
     res = {
-      unregister: () => {},
+      unregister: () => { },
     };
   }
 
@@ -207,17 +207,17 @@ export const preparePushConfig = async (
 ): Promise<
   (
     | {
-        dialect: "mysql";
-        credentials: MysqlCredentials;
-      }
+      dialect: "mysql";
+      credentials: MysqlCredentials;
+    }
     | {
-        dialect: "postgresql";
-        credentials: PostgresCredentials;
-      }
+      dialect: "postgresql";
+      credentials: PostgresCredentials;
+    }
     | {
-        dialect: "sqlite";
-        credentials: SqliteCredentials;
-      }
+      dialect: "sqlite";
+      credentials: SqliteCredentials;
+    }
   ) & {
     schemaPath: string | string[];
     verbose: boolean;
@@ -343,17 +343,17 @@ export const preparePullConfig = async (
 ): Promise<
   (
     | {
-        dialect: "mysql";
-        credentials: MysqlCredentials;
-      }
+      dialect: "mysql";
+      credentials: MysqlCredentials;
+    }
     | {
-        dialect: "postgresql";
-        credentials: PostgresCredentials;
-      }
+      dialect: "postgresql";
+      credentials: PostgresCredentials;
+    }
     | {
-        dialect: "sqlite";
-        credentials: SqliteCredentials;
-      }
+      dialect: "sqlite";
+      credentials: SqliteCredentials;
+    }
   ) & {
     out: string;
     breakpoints: boolean;
@@ -603,17 +603,21 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 export const drizzleConfigFromFile = async (
   configPath?: string
 ): Promise<CliConfig> => {
-  const defaultTsConfigExists = existsSync(join(resolve("drizzle.config.ts")));
-  const defaultJsConfigExists = existsSync(join(resolve("drizzle.config.js")));
+  const prefix = process.env.TEST_CONFIG_PATH_PREFIX || "";
+
+  const defaultTsConfigExists = existsSync(resolve(join(prefix, "drizzle.config.ts")));
+  const defaultJsConfigExists = existsSync(resolve(join(prefix, "drizzle.config.js")));
   const defaultJsonConfigExists = existsSync(
     join(resolve("drizzle.config.json"))
   );
 
+  console.log('defaultTsConfigExists', join(resolve("drizzle.config.ts")))
+
   const defaultConfigPath = defaultTsConfigExists
     ? "drizzle.config.ts"
     : defaultJsConfigExists
-    ? "drizzle.config.js"
-    : "drizzle.config.json";
+      ? "drizzle.config.js"
+      : "drizzle.config.json";
 
   if (!configPath) {
     console.log(
@@ -623,7 +627,6 @@ export const drizzleConfigFromFile = async (
     );
   }
 
-  const prefix = process.env.TEST_CONFIG_PATH_PREFIX || "";
   const path: string = resolve(join(prefix, configPath ?? defaultConfigPath));
 
   if (!existsSync(path)) {

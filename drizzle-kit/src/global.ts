@@ -46,3 +46,16 @@ export const mapEntries = <T>(
   );
   return result;
 };
+
+export const customMapEntries = <TReturn, T = any>(
+  obj: Record<string, T>,
+  map: (key: string, value: T) => [string, TReturn]
+): Record<string, TReturn> => {
+  const result = Object.fromEntries(
+    Object.entries(obj).map(([key, val]) => {
+      const [newKey, newVal] = map(key, val);
+      return [newKey, newVal];
+    })
+  );
+  return result;
+};

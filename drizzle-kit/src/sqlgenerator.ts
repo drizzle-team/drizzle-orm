@@ -368,7 +368,6 @@ export class SQLiteCreateTableConvertor extends Convertor {
     });
 
     for (let i = 0; i < referenceData.length; i++) {
-      const referenceAsString = referenceData[i];
       const {
         name,
         tableFrom,
@@ -377,7 +376,7 @@ export class SQLiteCreateTableConvertor extends Convertor {
         columnsTo,
         onDelete,
         onUpdate,
-      } = SQLiteSquasher.unsquashFK(referenceAsString);
+      } = referenceData[i];
 
       const onDeleteStatement = onDelete ? ` ON DELETE ${onDelete}` : "";
       const onUpdateStatement = onUpdate ? ` ON UPDATE ${onUpdate}` : "";

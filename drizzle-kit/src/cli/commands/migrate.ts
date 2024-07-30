@@ -470,8 +470,8 @@ export const prepareSQLitePush = async (
   const validatedPrev = sqliteSchema.parse(prev);
   const validatedCur = sqliteSchema.parse(cur);
 
-  const squashedPrev = squashSqliteScheme(validatedPrev);
-  const squashedCur = squashSqliteScheme(validatedCur);
+  const squashedPrev = squashSqliteScheme(validatedPrev, "push");
+  const squashedCur = squashSqliteScheme(validatedCur, "push");
 
   const { sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
     squashedPrev,
@@ -479,7 +479,8 @@ export const prepareSQLitePush = async (
     tablesResolver,
     columnsResolver,
     validatedPrev,
-    validatedCur
+    validatedCur,
+    "push"
   );
 
   return {

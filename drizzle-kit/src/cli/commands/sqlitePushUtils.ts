@@ -41,12 +41,16 @@ export const _moveDataStatements = (
     json.tables[tableName].compositePrimaryKeys
   ).map((it) => SQLiteSquasher.unsquashPK(it));
 
+  const fks = referenceData.map((it) =>
+    SQLiteSquasher.unsquashPushFK(it)
+  );
+
   statements.push(
     new SQLiteCreateTableConvertor().convert({
       type: "sqlite_create_table",
       tableName: tableName,
       columns: tableColumns,
-      referenceData,
+      referenceData: fks,
       compositePKs,
     })
   );
@@ -157,12 +161,14 @@ export const logSuggestionsAndReturn = async (
       );
 
       const columnIsPk =
-        json2.tables[newTableName].columns[statement.columnName].primaryKey;
+        json1.tables[newTableName].columns[statement.columnName].primaryKey;
 
       const columnIsPartOfFk = Object.values(
         json1.tables[newTableName].foreignKeys
       ).find((t) =>
-        SQLiteSquasher.unsquashFK(t).columnsFrom.includes(statement.columnName)
+        SQLiteSquasher.unsquashPushFK(t).columnsFrom.includes(
+          statement.columnName
+        )
       );
 
       const res = await connection.query<{ count: string }>(
@@ -195,9 +201,9 @@ export const logSuggestionsAndReturn = async (
         for (const table of Object.values(json1.tables)) {
           const tablesRefs = Object.values(json1.tables[table.name].foreignKeys)
             .filter(
-              (t) => SQLiteSquasher.unsquashFK(t).tableTo === newTableName
+              (t) => SQLiteSquasher.unsquashPushFK(t).tableTo === newTableName
             )
-            .map((t) => SQLiteSquasher.unsquashFK(t).tableFrom);
+            .map((t) => SQLiteSquasher.unsquashPushFK(t).tableFrom);
 
           tablesReferncingCurrent.push(...tablesRefs);
         }
@@ -244,9 +250,9 @@ export const logSuggestionsAndReturn = async (
         for (const table of Object.values(json1.tables)) {
           const tablesRefs = Object.values(json1.tables[table.name].foreignKeys)
             .filter(
-              (t) => SQLiteSquasher.unsquashFK(t).tableTo === newTableName
+              (t) => SQLiteSquasher.unsquashPushFK(t).tableTo === newTableName
             )
-            .map((t) => SQLiteSquasher.unsquashFK(t).tableFrom);
+            .map((t) => SQLiteSquasher.unsquashPushFK(t).tableFrom);
 
           tablesReferncingCurrent.push(...tablesRefs);
         }
@@ -319,11 +325,11 @@ export const logSuggestionsAndReturn = async (
         for (const table of Object.values(json1.tables)) {
           const tablesRefs = Object.values(json1.tables[table.name].foreignKeys)
             .filter(
-              (t) => SQLiteSquasher.unsquashFK(t).tableTo === newTableName
+              (t) => SQLiteSquasher.unsquashPushFK(t).tableTo === newTableName
             )
             .map((t) => {
               return getNewTableName(
-                SQLiteSquasher.unsquashFK(t).tableFrom,
+                SQLiteSquasher.unsquashPushFK(t).tableFrom,
                 meta
               );
             });
@@ -344,7 +350,7 @@ export const logSuggestionsAndReturn = async (
       statement.type === "delete_reference" ||
       statement.type === "alter_reference"
     ) {
-      const fk = SQLiteSquasher.unsquashFK(statement.data);
+      const fk = SQLiteSquasher.unsquashPushFK(statement.data);
 
       if (typeof tablesContext[statement.tableName] === "undefined") {
         tablesContext[statement.tableName] = _moveDataStatements(

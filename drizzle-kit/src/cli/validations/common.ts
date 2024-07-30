@@ -98,9 +98,7 @@ export const driver = union([sqliteDriver, postgresDriver]);
 export const configMigrations = object({
   table: string().optional(),
   schema: string().optional(),
-  prefix: union([literal("index"), literal("timestamp"), literal("none")])
-    .optional()
-    .default("index"),
+  prefix: prefix.optional().default("index"),
 }).optional();
 
 export const configCommonSchema = object({

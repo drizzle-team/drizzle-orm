@@ -557,8 +557,12 @@ export const fromDatabase = async (
 
   const sequencesToReturn: Record<string, Sequence> = {};
 
+  const seqWhere = schemaFilters.map((t) => `schemaname = '${t}'`).join(" or ");
+
   const allSequences = await db.query(
-    `select schemaname, sequencename, start_value, min_value, max_value, increment_by, cycle, cache_size from pg_sequences as seq;`
+    `select schemaname, sequencename, start_value, min_value, max_value, increment_by, cycle, cache_size from pg_sequences as seq${
+      seqWhere === "" ? "" : ` WHERE ${seqWhere}`
+    };`
   );
 
   for (const dbSeq of allSequences) {

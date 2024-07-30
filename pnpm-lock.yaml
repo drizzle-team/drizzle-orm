@@ -198,11 +198,11 @@ importers:
         specifier: ^16.0.3
         version: 16.4.5
       drizzle-kit:
-        specifier: 0.22.8
-        version: 0.22.8
+        specifier: 0.21.2
+        version: 0.21.2
       drizzle-orm:
-        specifier: 0.32.0-85c8008
-        version: 0.32.0-85c8008(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20240524.0)(@electric-sql/pglite@0.1.5)(@libsql/client@0.4.3(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.9.3)(@op-engineering/op-sqlite@2.0.22(react@18.3.1))(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.10)(@types/pg@8.11.6)(@types/react@18.3.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.4(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme)))(better-sqlite3@9.6.0)(bun-types@1.0.3)(expo-sqlite@13.4.0)(knex@3.1.0(better-sqlite3@9.6.0)(mysql2@2.3.3)(pg@8.11.5)(sqlite3@5.1.7))(kysely@0.27.3)(mysql2@2.3.3)(pg@8.11.5)(postgres@3.4.4)(react@18.3.1)(sql.js@1.10.3)(sqlite3@5.1.7)
+        specifier: 0.32.1
+        version: 0.32.1(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20240524.0)(@electric-sql/pglite@0.1.5)(@libsql/client@0.4.3(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.9.3)(@op-engineering/op-sqlite@2.0.22(react@18.3.1))(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.10)(@types/pg@8.11.6)(@types/react@18.3.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.4(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme)))(better-sqlite3@9.6.0)(bun-types@1.0.3)(expo-sqlite@13.4.0)(knex@3.1.0(better-sqlite3@9.6.0)(mysql2@2.3.3)(pg@8.11.5)(sqlite3@5.1.7))(kysely@0.27.3)(mysql2@2.3.3)(pg@8.11.5)(postgres@3.4.4)(react@18.3.1)(sql.js@1.10.3)(sqlite3@5.1.7)
       env-paths:
         specifier: ^3.0.0
         version: 3.0.0
@@ -5435,8 +5435,8 @@ packages:
     resolution: {integrity: sha512-Rba5VW1O2JfJlwVBeZ8Zwt2E2us5oZ08PQBDiVSGlug53TOc8hzXjblZFuF+dnll9/RQEHrkzBmJFgqTvn5Rxg==}
     hasBin: true
 
-  drizzle-kit@0.22.8:
-    resolution: {integrity: sha512-VjI4wsJjk3hSqHSa3TwBf+uvH6M6pRHyxyoVbt935GUzP9tUR/BRZ+MhEJNgryqbzN2Za1KP0eJMTgKEPsalYQ==}
+  drizzle-kit@0.21.2:
+    resolution: {integrity: sha512-U87IhZyCt/9d0ZT/Na3KFJVY31tSxtTx/n9UMcWFpW/5c2Ede39xiCG5efNV/0iimsv97UIRtDI0ldLBW5lbcg==}
     hasBin: true
 
   drizzle-orm@0.27.2:
@@ -5501,8 +5501,8 @@ packages:
       sqlite3:
         optional: true
 
-  drizzle-orm@0.32.0-85c8008:
-    resolution: {integrity: sha512-gHLqGZz0eqAvSw4vq46sHRV8qLHxrbuCVlwaVZ1t4ntyH8csyCKEXTWO78cBJwYUpz7BCSzqVX+5ZYa/QM+/Gw==}
+  drizzle-orm@0.32.1:
+    resolution: {integrity: sha512-Wq1J+lL8PzwR5K3a1FfoWsbs8powjr3pGA4+5+2ueN1VTLDNFYEolUyUWFtqy8DVRvYbL2n7sXZkgVmK9dQkng==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=3'
@@ -5512,6 +5512,7 @@ packages:
       '@op-engineering/op-sqlite': '>=2'
       '@opentelemetry/api': ^1.4.1
       '@planetscale/database': '>=1'
+      '@prisma/client': '*'
       '@tidbcloud/serverless': '*'
       '@types/better-sqlite3': '*'
       '@types/pg': '*'
@@ -5527,6 +5528,7 @@ packages:
       mysql2: '>=2'
       pg: '>=8'
       postgres: '>=3'
+      prisma: '*'
       react: '>=18'
       sql.js: '>=1'
       sqlite3: '>=5'
@@ -5546,6 +5548,8 @@ packages:
       '@opentelemetry/api':
         optional: true
       '@planetscale/database':
+        optional: true
+      '@prisma/client':
         optional: true
       '@tidbcloud/serverless':
         optional: true
@@ -5576,6 +5580,8 @@ packages:
       pg:
         optional: true
       postgres:
+        optional: true
+      prisma:
         optional: true
       react:
         optional: true
@@ -16468,11 +16474,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-kit@0.22.8:
+  drizzle-kit@0.21.2:
     dependencies:
       '@esbuild-kit/esm-loader': 2.5.5
+      commander: 9.5.0
+      env-paths: 3.0.0
       esbuild: 0.19.12
       esbuild-register: 3.5.0(esbuild@0.19.12)
+      glob: 8.1.0
+      hanji: 0.0.5
+      json-diff: 0.9.0
+      zod: 3.23.7
     transitivePeerDependencies:
       - supports-color
 
@@ -16498,7 +16510,7 @@ snapshots:
       sql.js: 1.10.3
       sqlite3: 5.1.7
 
-  drizzle-orm@0.32.0-85c8008(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20240524.0)(@electric-sql/pglite@0.1.5)(@libsql/client@0.4.3(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.9.3)(@op-engineering/op-sqlite@2.0.22(react@18.3.1))(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.10)(@types/pg@8.11.6)(@types/react@18.3.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.4(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme)))(better-sqlite3@9.6.0)(bun-types@1.0.3)(expo-sqlite@13.4.0)(knex@3.1.0(better-sqlite3@9.6.0)(mysql2@2.3.3)(pg@8.11.5)(sqlite3@5.1.7))(kysely@0.27.3)(mysql2@2.3.3)(pg@8.11.5)(postgres@3.4.4)(react@18.3.1)(sql.js@1.10.3)(sqlite3@5.1.7):
+  drizzle-orm@0.32.1(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20240524.0)(@electric-sql/pglite@0.1.5)(@libsql/client@0.4.3(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.9.3)(@op-engineering/op-sqlite@2.0.22(react@18.3.1))(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.10)(@types/pg@8.11.6)(@types/react@18.3.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.4(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme)))(better-sqlite3@9.6.0)(bun-types@1.0.3)(expo-sqlite@13.4.0)(knex@3.1.0(better-sqlite3@9.6.0)(mysql2@2.3.3)(pg@8.11.5)(sqlite3@5.1.7))(kysely@0.27.3)(mysql2@2.3.3)(pg@8.11.5)(postgres@3.4.4)(react@18.3.1)(sql.js@1.10.3)(sqlite3@5.1.7):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.583.0
       '@cloudflare/workers-types': 4.20240524.0
@@ -16508,6 +16520,7 @@ snapshots:
       '@op-engineering/op-sqlite': 2.0.22(react-native@0.74.1(@babel/core@7.24.6)(@babel/preset-env@7.24.6(@babel/core@7.24.6))(@types/react@18.3.1)(bufferutil@4.0.8)(encoding@0.1.13)(react@18.3.1))(react@18.3.1)
       '@opentelemetry/api': 1.8.0
       '@planetscale/database': 1.18.0
+      '@prisma/client': 5.14.0(prisma@5.14.0)
       '@tidbcloud/serverless': 0.1.1
       '@types/better-sqlite3': 7.6.10
       '@types/pg': 8.11.6

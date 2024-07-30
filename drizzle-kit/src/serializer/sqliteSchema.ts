@@ -1,4 +1,4 @@
-import { originUUID, mapValues } from "../global";
+import { originUUID, mapValues, mapEntries, customMapEntries } from "../global";
 import {
   any,
   boolean,
@@ -213,6 +213,32 @@ export const SQLiteSquasher = {
     });
     return result;
   },
+  squashPushFK: (fk: ForeignKey) => {
+    return `${fk.tableFrom};${fk.columnsFrom.join(",")};${
+      fk.tableTo
+    };${fk.columnsTo.join(",")};${fk.onUpdate ?? ""};${fk.onDelete ?? ""}`;
+  },
+  unsquashPushFK: (input: string): ForeignKey => {
+    const [
+      tableFrom,
+      columnsFromStr,
+      tableTo,
+      columnsToStr,
+      onUpdate,
+      onDelete,
+    ] = input.split(";");
+
+    const result: ForeignKey = fk.parse({
+      name: "",
+      tableFrom,
+      columnsFrom: columnsFromStr.split(","),
+      tableTo,
+      columnsTo: columnsToStr.split(","),
+      onUpdate,
+      onDelete,
+    });
+    return result;
+  },
   squashPK: (pk: PrimaryKey) => {
     return pk.columns.join(",");
   },
@@ -222,7 +248,8 @@ export const SQLiteSquasher = {
 };
 
 export const squashSqliteScheme = (
-  json: SQLiteSchema | SQLiteSchemaV4
+  json: SQLiteSchema | SQLiteSchemaV4,
+  action?: "push" | undefined
 ): SQLiteSchemaSquashed => {
   const mappedTables = Object.fromEntries(
     Object.entries(json.tables).map((it) => {
@@ -230,9 +257,17 @@ export const squashSqliteScheme = (
         return SQLiteSquasher.squashIdx(index);
       });
 
-      const squashedFKs = mapValues(it[1].foreignKeys, (fk) => {
-        return SQLiteSquasher.squashFK(fk);
-      });
+      const squashedFKs = customMapEntries<string, ForeignKey>(
+        it[1].foreignKeys,
+        (key, value) => {
+          return action === "push"
+            ? [
+                SQLiteSquasher.squashPushFK(value),
+                SQLiteSquasher.squashPushFK(value),
+              ]
+            : [key, SQLiteSquasher.squashFK(value)];
+        }
+      );
 
       const squashedPKs = mapValues(it[1].compositePrimaryKeys, (pk) => {
         return SQLiteSquasher.squashPK(pk);

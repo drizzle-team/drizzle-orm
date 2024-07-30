@@ -221,7 +221,15 @@ test("add table #8", async () => {
     compositePKs: [],
     uniqueConstraints: [],
     referenceData: [
-      "users_reportee_id_users_id_fk;users;reportee_id;users;id;no action;no action",
+      {
+        columnsFrom: ["reportee_id"],
+        columnsTo: ["id"],
+        name: "users_reportee_id_users_id_fk",
+        onDelete: "no action",
+        onUpdate: "no action",
+        tableFrom: "users",
+        tableTo: "users",
+      },
     ],
   });
 });

@@ -15,7 +15,15 @@ export interface JsonSqliteCreateTableStatement {
   type: "sqlite_create_table";
   tableName: string;
   columns: Column[];
-  referenceData: string[];
+  referenceData: {
+    name: string;
+    tableFrom: string;
+    columnsFrom: string[];
+    tableTo: string;
+    columnsTo: string[];
+    onUpdate?: string | undefined;
+    onDelete?: string | undefined;
+  }[];
   compositePKs: string[][];
   uniqueConstraints?: string[];
 }
@@ -614,7 +622,8 @@ export const prepareMySqlCreateTableJson = (
 };
 
 export const prepareSQLiteCreateTable = (
-  table: Table
+  table: Table,
+  action?: "push" | undefined
 ): JsonSqliteCreateTableStatement => {
   const { name, columns, uniqueConstraints } = table;
 
@@ -624,11 +633,17 @@ export const prepareSQLiteCreateTable = (
     (it) => SQLiteSquasher.unsquashPK(it)
   );
 
+  const fks = references.map((it) =>
+    action === "push"
+      ? SQLiteSquasher.unsquashPushFK(it)
+      : SQLiteSquasher.unsquashFK(it)
+  );
+
   return {
     type: "sqlite_create_table",
     tableName: name,
     columns: Object.values(columns),
-    referenceData: references,
+    referenceData: fks,
     compositePKs: composites,
     uniqueConstraints: Object.values(uniqueConstraints),
   };

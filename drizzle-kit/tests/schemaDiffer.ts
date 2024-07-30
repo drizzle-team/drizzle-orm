@@ -49,6 +49,7 @@ import * as fs from "fs";
 import { prepareFromPgImports } from "src/serializer/pgImports";
 import { prepareFromMySqlImports } from "src/serializer/mysqlImports";
 import { prepareFromSqliteImports } from "src/serializer/sqliteImports";
+import { logSuggestionsAndReturn } from "src/cli/commands/sqlitePushUtils";
 
 export type PostgresSchema = Record<
   string,
@@ -889,7 +890,7 @@ export const diffTestSchemasPushSqlite = async (
   renamesArr: string[],
   cli: boolean = false
 ) => {
-  const { sqlStatements } = await applySqliteDiffs(left);
+  const { sqlStatements } = await applySqliteDiffs(left, "push");
   for (const st of sqlStatements) {
     client.exec(st);
   }
@@ -931,21 +932,38 @@ export const diffTestSchemasPushSqlite = async (
     ...rest2,
   } as const;
 
-  const sn1 = squashSqliteScheme(sch1);
-  const sn2 = squashSqliteScheme(sch2);
+  const sn1 = squashSqliteScheme(sch1, "push");
+  const sn2 = squashSqliteScheme(sch2, "push");
 
   const renames = new Set(renamesArr);
 
   if (!cli) {
-    const { sqlStatements, statements } = await applySqliteSnapshotsDiff(
+    const { sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
       sn1,
       sn2,
       testTablesResolver(renames),
       testColumnsResolver(renames),
       sch1,
-      sch2
+      sch2,
+      "push"
     );
-    return { sqlStatements, statements };
+
+    const { statementsToExecute } = await logSuggestionsAndReturn(
+      {
+        query: async <T>(sql: string, params: any[] = []) => {
+          return client.prepare(sql).bind(params).all() as T[];
+        },
+        run: async (query: string) => {
+          client.prepare(query).run();
+        },
+      },
+      statements,
+      sn1,
+      sn2,
+      _meta!
+    );
+
+    return { sqlStatements: statementsToExecute, statements };
   } else {
     const { sqlStatements, statements } = await applySqliteSnapshotsDiff(
       sn1,
@@ -953,13 +971,17 @@ export const diffTestSchemasPushSqlite = async (
       tablesResolver,
       columnsResolver,
       sch1,
-      sch2
+      sch2,
+      "push"
     );
     return { sqlStatements, statements };
   }
 };
 
-export const applySqliteDiffs = async (sn: SqliteSchema) => {
+export const applySqliteDiffs = async (
+  sn: SqliteSchema,
+  action?: "push" | undefined
+) => {
   const dryRun = {
     version: "6",
     dialect: "sqlite",
@@ -991,7 +1013,7 @@ export const applySqliteDiffs = async (sn: SqliteSchema) => {
     ...rest1,
   } as const;
 
-  const sn1 = squashSqliteScheme(sch1);
+  const sn1 = squashSqliteScheme(sch1, action);
 
   const { sqlStatements, statements } = await applySqliteSnapshotsDiff(
     dryRun,
@@ -999,7 +1021,8 @@ export const applySqliteDiffs = async (sn: SqliteSchema) => {
     testTablesResolver(new Set()),
     testColumnsResolver(new Set()),
     dryRun,
-    sch1
+    sch1,
+    action
   );
 
   return { sqlStatements, statements };
