@@ -1,174 +1,165 @@
-import fs from "fs";
-import { randomUUID } from "crypto";
-import { serializeMySql, serializePg, serializeSQLite } from "./serializer";
-import {
-  dryPg,
-  pgSchema,
-  PgSchema,
-  PgSchemaInternal,
-} from "./serializer/pgSchema";
-import {
-  drySQLite,
-  sqliteSchema,
-  SQLiteSchema,
-} from "./serializer/sqliteSchema";
-import { dryMySql, mysqlSchema, MySqlSchema } from "./serializer/mysqlSchema";
+import { randomUUID } from 'crypto';
+import fs from 'fs';
+import { serializeMySql, serializePg, serializeSQLite } from './serializer';
+import { dryMySql, MySqlSchema, mysqlSchema } from './serializer/mysqlSchema';
+import { dryPg, PgSchema, pgSchema, PgSchemaInternal } from './serializer/pgSchema';
+import { drySQLite, SQLiteSchema, sqliteSchema } from './serializer/sqliteSchema';
 
 export const prepareMySqlDbPushSnapshot = async (
-  prev: MySqlSchema,
-  schemaPath: string | string[]
+	prev: MySqlSchema,
+	schemaPath: string | string[],
 ): Promise<{ prev: MySqlSchema; cur: MySqlSchema }> => {
-  const serialized = await serializeMySql(schemaPath);
+	const serialized = await serializeMySql(schemaPath);
 
-  const id = randomUUID();
-  const idPrev = prev.id;
+	const id = randomUUID();
+	const idPrev = prev.id;
 
-  const { version, dialect, ...rest } = serialized;
-  const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
+	const { version, dialect, ...rest } = serialized;
+	const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
 
-  return { prev, cur: result };
+	return { prev, cur: result };
 };
 
 export const prepareSQLiteDbPushSnapshot = async (
-  prev: SQLiteSchema,
-  schemaPath: string | string[]
+	prev: SQLiteSchema,
+	schemaPath: string | string[],
 ): Promise<{ prev: SQLiteSchema; cur: SQLiteSchema }> => {
-  const serialized = await serializeSQLite(schemaPath);
+	const serialized = await serializeSQLite(schemaPath);
 
-  const id = randomUUID();
-  const idPrev = prev.id;
+	const id = randomUUID();
+	const idPrev = prev.id;
 
-  const { version, dialect, ...rest } = serialized;
-  const result: SQLiteSchema = {
-    version,
-    dialect,
-    id,
-    prevId: idPrev,
-    ...rest,
-  };
+	const { version, dialect, ...rest } = serialized;
+	const result: SQLiteSchema = {
+		version,
+		dialect,
+		id,
+		prevId: idPrev,
+		...rest,
+	};
 
-  return { prev, cur: result };
+	return { prev, cur: result };
 };
 
 export const preparePgDbPushSnapshot = async (
-  prev: PgSchema,
-  schemaPath: string | string[],
-  schemaFilter: string[] = ["public"]
+	prev: PgSchema,
+	schemaPath: string | string[],
+	schemaFilter: string[] = ['public'],
 ): Promise<{ prev: PgSchema; cur: PgSchema }> => {
-  const serialized = await serializePg(schemaPath, schemaFilter);
+	const serialized = await serializePg(schemaPath, schemaFilter);
 
-  const id = randomUUID();
-  const idPrev = prev.id;
+	const id = randomUUID();
+	const idPrev = prev.id;
 
-  const { version, dialect, ...rest } = serialized;
-  const result: PgSchema = { version, dialect, id, prevId: idPrev, ...rest };
+	const { version, dialect, ...rest } = serialized;
+	const result: PgSchema = { version, dialect, id, prevId: idPrev, ...rest };
 
-  return { prev, cur: result };
+	return { prev, cur: result };
 };
 
 export const prepareMySqlMigrationSnapshot = async (
-  migrationFolders: string[],
-  schemaPath: string | string[]
+	migrationFolders: string[],
+	schemaPath: string | string[],
 ): Promise<{ prev: MySqlSchema; cur: MySqlSchema; custom: MySqlSchema }> => {
-  const prevSnapshot = mysqlSchema.parse(
-    preparePrevSnapshot(migrationFolders, dryMySql)
-  );
-  const serialized = await serializeMySql(schemaPath);
+	const prevSnapshot = mysqlSchema.parse(
+		preparePrevSnapshot(migrationFolders, dryMySql),
+	);
+	const serialized = await serializeMySql(schemaPath);
 
-  const id = randomUUID();
-  const idPrev = prevSnapshot.id;
+	const id = randomUUID();
+	const idPrev = prevSnapshot.id;
 
-  const { version, dialect, ...rest } = serialized;
-  const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
+	const { version, dialect, ...rest } = serialized;
+	const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
 
-  const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
 
-  // that's for custom migrations, when we need new IDs, but old snapshot
-  const custom: MySqlSchema = {
-    id,
-    prevId: idPrev,
-    ...prevRest,
-  };
+	// that's for custom migrations, when we need new IDs, but old snapshot
+	const custom: MySqlSchema = {
+		id,
+		prevId: idPrev,
+		...prevRest,
+	};
 
-  return { prev: prevSnapshot, cur: result, custom };
+	return { prev: prevSnapshot, cur: result, custom };
 };
 
 export const prepareSqliteMigrationSnapshot = async (
-  snapshots: string[],
-  schemaPath: string | string[]
+	snapshots: string[],
+	schemaPath: string | string[],
 ): Promise<{ prev: SQLiteSchema; cur: SQLiteSchema; custom: SQLiteSchema }> => {
-  const prevSnapshot = sqliteSchema.parse(
-    preparePrevSnapshot(snapshots, drySQLite)
-  );
-  const serialized = await serializeSQLite(schemaPath);
+	const prevSnapshot = sqliteSchema.parse(
+		preparePrevSnapshot(snapshots, drySQLite),
+	);
+	const serialized = await serializeSQLite(schemaPath);
 
-  const id = randomUUID();
-  const idPrev = prevSnapshot.id;
+	const id = randomUUID();
+	const idPrev = prevSnapshot.id;
 
-  const { version, dialect, ...rest } = serialized;
-  const result: SQLiteSchema = {
-    version,
-    dialect,
-    id,
-    prevId: idPrev,
-    ...rest,
-  };
+	const { version, dialect, ...rest } = serialized;
+	const result: SQLiteSchema = {
+		version,
+		dialect,
+		id,
+		prevId: idPrev,
+		...rest,
+	};
 
-  const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
 
-  // that's for custom migrations, when we need new IDs, but old snapshot
-  const custom: SQLiteSchema = {
-    id,
-    prevId: idPrev,
-    ...prevRest,
-  };
+	// that's for custom migrations, when we need new IDs, but old snapshot
+	const custom: SQLiteSchema = {
+		id,
+		prevId: idPrev,
+		...prevRest,
+	};
 
-  return { prev: prevSnapshot, cur: result, custom };
+	return { prev: prevSnapshot, cur: result, custom };
 };
 
 export const fillPgSnapshot = ({
-  serialized,
-  id,
-  idPrev,
+	serialized,
+	id,
+	idPrev,
 }: {
-  serialized: PgSchemaInternal;
-  id: string;
-  idPrev: string;
+	serialized: PgSchemaInternal;
+	id: string;
+	idPrev: string;
 }): PgSchema => {
-  // const id = randomUUID();
-  return { id, prevId: idPrev, ...serialized };
+	// const id = randomUUID();
+	return { id, prevId: idPrev, ...serialized };
 };
 
 export const preparePgMigrationSnapshot = async (
-  snapshots: string[],
-  schemaPath: string | string[]
+	snapshots: string[],
+	schemaPath: string | string[],
 ): Promise<{ prev: PgSchema; cur: PgSchema; custom: PgSchema }> => {
-  const prevSnapshot = pgSchema.parse(preparePrevSnapshot(snapshots, dryPg));
-  const serialized = await serializePg(schemaPath);
+	const prevSnapshot = pgSchema.parse(preparePrevSnapshot(snapshots, dryPg));
+	const serialized = await serializePg(schemaPath);
 
-  const id = randomUUID();
-  const idPrev = prevSnapshot.id;
+	const id = randomUUID();
+	const idPrev = prevSnapshot.id;
 
-  // const { version, dialect, ...rest } = serialized;
-  
-  const result: PgSchema = { id, prevId: idPrev, ...serialized };
+	// const { version, dialect, ...rest } = serialized;
 
-  const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+	const result: PgSchema = { id, prevId: idPrev, ...serialized };
 
-  // that's for custom migrations, when we need new IDs, but old snapshot
-  const custom: PgSchema = fillPgSnapshot({serialized: prevRest, id, idPrev});
+	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
 
-  return { prev: prevSnapshot, cur: result, custom };
+	// that's for custom migrations, when we need new IDs, but old snapshot
+	const custom: PgSchema = fillPgSnapshot({ serialized: prevRest, id, idPrev });
+
+	return { prev: prevSnapshot, cur: result, custom };
 };
 
 const preparePrevSnapshot = (snapshots: string[], defaultPrev: any) => {
-  let prevSnapshot: any;
+	let prevSnapshot: any;
 
-  if (snapshots.length === 0) {
-    prevSnapshot = defaultPrev;
-  } else {
-    const lastSnapshot = snapshots[snapshots.length - 1];
-    prevSnapshot = JSON.parse(fs.readFileSync(lastSnapshot).toString());
-  }
-  return prevSnapshot;
+	if (snapshots.length === 0) {
+		prevSnapshot = defaultPrev;
+	} else {
+		const lastSnapshot = snapshots[snapshots.length - 1];
+		prevSnapshot = JSON.parse(fs.readFileSync(lastSnapshot).toString());
+	}
+	return prevSnapshot;
 };

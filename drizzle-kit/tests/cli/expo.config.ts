@@ -1,7 +1,7 @@
-import { defineConfig } from "../../src";
+import { defineConfig } from '../../src';
 
 export default defineConfig({
-  schema: "./schema.ts",
-  dialect: "sqlite",
-  driver: "expo",
+	schema: './schema.ts',
+	dialect: 'sqlite',
+	driver: 'expo',
 });

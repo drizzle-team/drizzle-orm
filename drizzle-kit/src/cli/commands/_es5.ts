@@ -1,2 +1,2 @@
-const _ = ""
+const _ = '';
 export default _;

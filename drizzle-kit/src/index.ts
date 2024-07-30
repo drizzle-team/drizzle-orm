@@ -1,17 +1,17 @@
-import type { Driver, Prefix} from "./cli/validations/common";
-import type { Dialect } from "./schemaValidator";
-import { ConnectionOptions } from "tls";
+import { ConnectionOptions } from 'tls';
+import type { Driver, Prefix } from './cli/validations/common';
+import type { Dialect } from './schemaValidator';
 
 // import {SslOptions} from 'mysql2'
 type SslOptions = {
-  pfx?: string;
-  key?: string;
-  passphrase?: string;
-  cert?: string;
-  ca?: string | string[];
-  crl?: string | string[];
-  ciphers?: string;
-  rejectUnauthorized?: boolean;
+	pfx?: string;
+	key?: string;
+	passphrase?: string;
+	cert?: string;
+	ca?: string | string[];
+	crl?: string | string[];
+	ciphers?: string;
+	rejectUnauthorized?: boolean;
 };
 
 type Verify<T, U extends T> = U;
@@ -20,7 +20,6 @@ type Verify<T, U extends T> = U;
  * **You are currently using version 0.21.0+ of drizzle-kit. If you have just upgraded to this version, please make sure to read the changelog to understand what changes have been made and what
  * adjustments may be necessary for you. See https://orm.drizzle.team/kit-docs/upgrade-21#how-to-migrate-to-0210**
  *
- *
  * **Config** usage:
  *
  * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
@@ -105,109 +104,108 @@ type Verify<T, U extends T> = U;
  * `strict` - command is used for drizzle-kit push commands and will always ask for your confirmation,
  * either to execute all statements needed to sync your schema with the database or not.
  *
- *
  * See https://orm.drizzle.team/kit-docs/config-reference#strict
- *
  */
-export type Config = {
-  dialect: Dialect;
-  out?: string;
-  breakpoints?: boolean;
-  tablesFilter?: string | string[];
-  extensionsFilters?: "postgis"[];
-  schemaFilter?: string | string[];
-  schema?: string | string[];
-  verbose?: boolean;
-  strict?: boolean;
-  migrations?: {
-    table?: string;
-    schema?: string;
-    prefix?: Prefix;
-  };
-  introspect?: {
-    casing: "camel" | "preserve";
-  };
-} & (
-  | {
-      dialect: Verify<Dialect, "sqlite">;
-      driver: Verify<Driver, "turso">;
-      dbCredentials: {
-        url: string;
-        authToken?: string;
-      };
-    }
-  | {
-      dialect: "sqlite";
-      dbCredentials: {
-        url: string;
-      };
-    }
-  | {
-      dialect: Verify<Dialect, "postgresql">;
-      dbCredentials:
-        | ({
-            host: string;
-            port?: number;
-            user?: string;
-            password?: string;
-            database: string;
-            ssl?:
-              | boolean
-              | "require"
-              | "allow"
-              | "prefer"
-              | "verify-full"
-              | ConnectionOptions;
-          } & {})
-        | {
-            url: string;
-          };
-    }
-  | {
-      dialect: Verify<Dialect, "postgresql">;
-      driver: Verify<Driver, "aws-data-api">;
-      dbCredentials: {
-        database: string;
-        secretArn: string;
-        resourceArn: string;
-      };
-    }
-  | {
-      dialect: Verify<Dialect, "mysql">;
-      dbCredentials:
-        | {
-            host: string;
-            port?: number;
-            user?: string;
-            password?: string;
-            database: string;
-            ssl?: string | SslOptions;
-          }
-        | {
-            url: string;
-          };
-    }
-  | {
-      dialect: Verify<Dialect, "sqlite">;
-      driver: Verify<Driver, "d1-http">;
-      dbCredentials: {
-        accountId: string;
-        databaseId: string;
-        token: string;
-      };
-    }
-  | {
-      dialect: Verify<Dialect, "sqlite">;
-      driver: Verify<Driver, "expo">;
-    }
-  | {}
-);
+export type Config =
+	& {
+		dialect: Dialect;
+		out?: string;
+		breakpoints?: boolean;
+		tablesFilter?: string | string[];
+		extensionsFilters?: 'postgis'[];
+		schemaFilter?: string | string[];
+		schema?: string | string[];
+		verbose?: boolean;
+		strict?: boolean;
+		migrations?: {
+			table?: string;
+			schema?: string;
+			prefix?: Prefix;
+		};
+		introspect?: {
+			casing: 'camel' | 'preserve';
+		};
+	}
+	& (
+		| {
+			dialect: Verify<Dialect, 'sqlite'>;
+			driver: Verify<Driver, 'turso'>;
+			dbCredentials: {
+				url: string;
+				authToken?: string;
+			};
+		}
+		| {
+			dialect: 'sqlite';
+			dbCredentials: {
+				url: string;
+			};
+		}
+		| {
+			dialect: Verify<Dialect, 'postgresql'>;
+			dbCredentials:
+				| ({
+					host: string;
+					port?: number;
+					user?: string;
+					password?: string;
+					database: string;
+					ssl?:
+						| boolean
+						| 'require'
+						| 'allow'
+						| 'prefer'
+						| 'verify-full'
+						| ConnectionOptions;
+				} & {})
+				| {
+					url: string;
+				};
+		}
+		| {
+			dialect: Verify<Dialect, 'postgresql'>;
+			driver: Verify<Driver, 'aws-data-api'>;
+			dbCredentials: {
+				database: string;
+				secretArn: string;
+				resourceArn: string;
+			};
+		}
+		| {
+			dialect: Verify<Dialect, 'mysql'>;
+			dbCredentials:
+				| {
+					host: string;
+					port?: number;
+					user?: string;
+					password?: string;
+					database: string;
+					ssl?: string | SslOptions;
+				}
+				| {
+					url: string;
+				};
+		}
+		| {
+			dialect: Verify<Dialect, 'sqlite'>;
+			driver: Verify<Driver, 'd1-http'>;
+			dbCredentials: {
+				accountId: string;
+				databaseId: string;
+				token: string;
+			};
+		}
+		| {
+			dialect: Verify<Dialect, 'sqlite'>;
+			driver: Verify<Driver, 'expo'>;
+		}
+		| {}
+	);
 
 /**
  * **You are currently using version 0.21.0+ of drizzle-kit. If you have just upgraded to this version, please make sure to read the changelog to understand what changes have been made and what
  * adjustments may be necessary for you. See https://orm.drizzle.team/kit-docs/upgrade-21#how-to-migrate-to-0210**
  *
- *
  * **Config** usage:
  *
  * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
@@ -292,10 +290,8 @@ export type Config = {
  * `strict` - command is used for drizzle-kit push commands and will always ask for your confirmation,
  * either to execute all statements needed to sync your schema with the database or not.
  *
- *
  * See https://orm.drizzle.team/kit-docs/config-reference#strict
- *
  */
 export function defineConfig(config: Config) {
-  return config;
+	return config;
 }
