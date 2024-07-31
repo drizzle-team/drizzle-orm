@@ -88,7 +88,7 @@ export function date<TName extends string>(
 	name: TName,
 	config?: { mode: 'string' },
 ): PgDateStringBuilderInitial<TName>;
-export function date<TName extends string>(TName: TName, config?: { mode: 'date' }): PgDateBuilderInitial<TName>;
+export function date<TName extends string>(name: TName, config?: { mode: 'date' }): PgDateBuilderInitial<TName>;
 export function date<TName extends string>(name: TName, config?: { mode: 'date' | 'string' }) {
 	if (config?.mode === 'date') {
 		return new PgDateBuilder(name);
