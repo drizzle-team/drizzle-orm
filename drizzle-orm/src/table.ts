@@ -1,6 +1,7 @@
 import type { Column, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
+import type { ExtraConfigColumn } from './pg-core/index.ts';
 import type { SQLWrapper } from './sql/sql.ts';
 import type { Simplify, Update } from './utils.ts';
 
@@ -23,6 +24,9 @@ export const Schema = Symbol.for('drizzle:Schema');
 
 /** @internal */
 export const Columns = Symbol.for('drizzle:Columns');
+
+/** @internal */
+export const ExtraConfigColumns = Symbol.for('drizzle:ExtraConfigColumns');
 
 /** @internal */
 export const OriginalName = Symbol.for('drizzle:OriginalName');
@@ -67,6 +71,7 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		Schema: Schema as typeof Schema,
 		OriginalName: OriginalName as typeof OriginalName,
 		Columns: Columns as typeof Columns,
+		ExtraConfigColumns: ExtraConfigColumns as typeof ExtraConfigColumns,
 		BaseName: BaseName as typeof BaseName,
 		IsAlias: IsAlias as typeof IsAlias,
 		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
@@ -90,6 +95,9 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	/** @internal */
 	[Columns]!: T['columns'];
 
+	/** @internal */
+	[ExtraConfigColumns]!: Record<string, ExtraConfigColumn>;
+
 	/**
 	 *  @internal
 	 * Used to store the table name before the transformation via the `tableCreator` functions.
@@ -101,8 +109,6 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 
 	/** @internal */
 	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown>) | undefined = undefined;
-
-	[IsDrizzleTable] = true;
 
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;
@@ -138,6 +144,10 @@ export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];
 }
 
+export function getTableUniqueName<T extends Table>(table: T): `${T['_']['schema']}.${T['_']['name']}` {
+	return `${table[Schema] ?? 'public'}.${table[TableName]}`;
+}
+
 export type MapColumnName<TName extends string, TColumn extends Column, TDBColumNames extends boolean> =
 	TDBColumNames extends true ? TColumn['_']['name']
 		: TName;
@@ -147,7 +157,7 @@ export type InferModelFromColumns<
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
 > = Simplify<
-	TInferMode extends 'insert' ? 
+	TInferMode extends 'insert' ?
 			& {
 				[
 					Key in keyof TColumns & string as RequiredKeyOnly<

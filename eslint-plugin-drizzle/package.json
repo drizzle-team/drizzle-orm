@@ -29,7 +29,7 @@
 		"cpy-cli": "^5.0.0",
 		"eslint": "^8.53.0",
 		"typescript": "^5.2.2",
-		"vitest": "^0.34.6"
+		"vitest": "^1.6.0"
 	},
 	"peerDependencies": {
 		"eslint": ">=8.0.0"

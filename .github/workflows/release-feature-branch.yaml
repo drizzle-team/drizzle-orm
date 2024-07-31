@@ -23,6 +23,32 @@ jobs:
       contents: read
       id-token: write
     services:
+      postgres-postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drizzle
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 54322:5432
+      postgres-vector:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drizzle
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 54321:5432
       postgres:
         image: postgres:14
         env:
@@ -35,7 +61,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 5432:5432
+          - 55433:5432
       mysql:
         image: mysql:8
         env:
@@ -47,13 +73,13 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 3306:3306
+          - 33306:3306
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: '18.18'
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v3
@@ -105,15 +131,28 @@ jobs:
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
         run: |
+          (
+            cd drizzle-orm
+            pnpm prisma generate --schema src/prisma/schema.prisma
+          )
+          (
+            cd integration-tests
+            pnpm prisma generate --schema tests/prisma/pg/schema.prisma
+            pnpm prisma generate --schema tests/prisma/mysql/schema.prisma
+            pnpm prisma generate --schema tests/prisma/sqlite/schema.prisma
+          )
           pnpm build
 
       - name: Run tests
         if: steps.checks.outputs.has_new_release == 'true'
         env:
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
-          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
+          PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
+          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
           LIBSQL_URL: file:local.db

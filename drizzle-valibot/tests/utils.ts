@@ -1,10 +1,10 @@
-import type { ExecutionContext } from 'ava';
 import type { BaseSchema } from 'valibot';
+import { expect, type TaskContext } from 'vitest';
 
-export function expectSchemaShape<T extends BaseSchema<any, any>>(t: ExecutionContext, expected: T) {
+export function expectSchemaShape<T extends BaseSchema<any, any>>(t: TaskContext, expected: T) {
 	return {
 		from(actual: T) {
-			t.deepEqual(Object.keys(actual), Object.keys(expected));
+			expect(Object.keys(actual)).toStrictEqual(Object.keys(expected));
 		},
 	};
 }

@@ -11,6 +11,7 @@ export type SQLiteNumericBuilderInitial<TName extends string> = SQLiteNumericBui
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'SQLiteNumeric'>>
