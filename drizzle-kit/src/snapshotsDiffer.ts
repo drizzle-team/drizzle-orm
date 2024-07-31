@@ -1016,7 +1016,7 @@ export const applyPgSnapshotsDiff = async (
 	// if (hasEnumValuesDeletions) {
 	//   console.log(error("Deletion of enum values is prohibited in Postgres - see here"));
 	//   for(let entry of enumValuesDeletions){
-	//     console.log(error(`You're trying to delete ${chalk.blue(`[${entry.values.join(", ")}]`)} values from ${chalk.blue(`${entry.schema}.${entry.name}`)}`))
+	//     console.log(error(`You're trying to delete ${pico.blue(`[${entry.values.join(", ")}]`)} values from ${pico.blue(`${entry.schema}.${entry.name}`)}`))
 	//   }
 	// }
 	// if (hasEnumValuesDeletions && action === "push") {

@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 
 import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../serializer/sqliteSchema';
 import {
@@ -131,7 +131,7 @@ export const logSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
-						chalk.underline(
+						pico.underline(
 							statement.tableName,
 						)
 					} table with ${count} items`,
@@ -169,7 +169,7 @@ export const logSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
-						chalk.underline(
+						pico.underline(
 							statement.columnName,
 						)
 					} column in ${newTableName} table with ${count} items`,
@@ -224,7 +224,7 @@ export const logSuggestionsAndReturn = async (
 				if (count > 0) {
 					infoToPrint.push(
 						`· You're about to add not-null ${
-							chalk.underline(
+							pico.underline(
 								statement.column.name,
 							)
 						} column without default value, which contains ${count} items`,
@@ -294,7 +294,7 @@ export const logSuggestionsAndReturn = async (
 					if (count > 0) {
 						infoToPrint.push(
 							`· You're about to add not-null constraint to ${
-								chalk.underline(
+								pico.underline(
 									statement.columnName,
 								)
 							} column without default value, which contains ${count} items`,

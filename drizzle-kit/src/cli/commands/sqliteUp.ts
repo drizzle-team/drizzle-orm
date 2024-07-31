@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { writeFileSync } from 'fs';
 import { mapEntries } from 'src/global';
 import { SQLiteSchema, sqliteSchemaV5 } from 'src/serializer/sqliteSchema';
@@ -17,7 +17,7 @@ export const upSqliteHandler = (out: string) => {
 			const path = it.path;
 			const result = updateUpToV6(it.raw);
 
-			console.log(`[${chalk.green('✓')}] ${path}`);
+			console.log(`[${pico.green('✓')}] ${path}`);
 
 			writeFileSync(path, JSON.stringify(result, null, 2));
 		});

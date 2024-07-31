@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { getTableName, is, SQL } from 'drizzle-orm';
 import {
 	AnyPgTable,
@@ -172,22 +172,22 @@ export const generatePgSnapshot = (
 					console.log(
 						`\n${
 							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									tableName,
-								)
+							))
 							} table. 
           The unique constraint ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									column.uniqueName,
-								)
+							))
 							} on the ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									column.name,
-								)
+							))
 							} column is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									existingUnique.columns.join(','),
-								)
+							))
 							} columns\n`)
 						}`,
 					);
@@ -255,22 +255,22 @@ export const generatePgSnapshot = (
 				console.log(
 					`\n${
 						withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-							chalk.underline.blue(
+							pico.blue(pico.underline(
 								tableName,
-							)
+						))
 						} table. 
         The unique constraint ${
-							chalk.underline.blue(
+							pico.blue(pico.underline(
 								name,
-							)
+						))
 						} on the ${
-							chalk.underline.blue(
+							pico.blue(pico.underline(
 								columnNames.join(','),
-							)
+						))
 						} columns is confilcting with a unique constraint name already defined for ${
-							chalk.underline.blue(
+							pico.blue(pico.underline(
 								existingUnique.columns.join(','),
-							)
+						))
 						} columns\n`)
 					}`,
 				);
@@ -348,25 +348,25 @@ export const generatePgSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`You are specifying an index on the ${
-									chalk.blueBright(
+									pico.blueBright(
 										it.name,
 									)
 								} column inside the ${
-									chalk.blueBright(
+									pico.blueBright(
 										tableName,
 									)
 								} table with the ${
-									chalk.blueBright(
+									pico.blueBright(
 										'vector',
 									)
 								} type without specifying an operator class. Vector extension doesn't have a default operator class, so you need to specify one of the available options. Here is a list of available op classes for the vector extension: [${
 									vectorOps
-										.map((it) => `${chalk.underline(`${it}`)}`)
+										.map((it) => `${pico.underline(`${it}`)}`)
 										.join(
 											', ',
 										)
 								}].\n\nYou can specify it using current syntax: ${
-									chalk.underline(
+									pico.underline(
 										`index("${value.config.name}").using("${value.config.method}", table.${it.name}.op("${
 											vectorOps[0]
 										}"))`,
@@ -417,13 +417,13 @@ export const generatePgSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`We\'ve found duplicated index name across ${
-									chalk.underline.blue(
+									pico.blue(pico.underline(
 										schema ?? 'public',
-									)
+							))
 								} schema. Please rename your index in either the ${
-									chalk.underline.blue(
+									pico.blue(pico.underline(
 										tableName,
-									)
+							))
 								} table or the table with the duplicated index name`,
 							)
 						}`,

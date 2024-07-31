@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { Prompt, SelectState } from 'hanji';
 
 export class Select extends Prompt<{ index: number; value: string }> {
@@ -21,7 +21,7 @@ export class Select extends Prompt<{ index: number; value: string }> {
 		let text = ``;
 		this.data.items.forEach((it, idx) => {
 			text += idx === this.data.selectedIdx
-				? `${chalk.green('❯ ' + it.label)}`
+				? `${pico.green('❯ ' + it.label)}`
 				: `  ${it.label}`;
 			text += idx != this.data.items.length - 1 ? '\n' : '';
 		});

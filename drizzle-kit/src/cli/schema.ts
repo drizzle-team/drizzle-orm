@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { checkHandler } from './commands/check';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import '../@types/utils';
@@ -593,7 +593,7 @@ export const studio = command({
 
 						console.log(
 							`\nDrizzle Studio is up and running on ${
-								chalk.blue(
+								pico.blue(
 									`https://local.drizzle.studio${queryString ? `?${queryString}` : ''}`,
 								)
 							}`,

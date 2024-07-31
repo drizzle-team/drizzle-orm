@@ -1,40 +1,40 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
 import type { CommonSchema } from '../schemaValidator';
 import { objectValues } from '../utils';
 import type { Named, NamedWithSchema } from './commands/migrate';
 
 export const warning = (msg: string) => {
-	render(`[${chalk.yellow('Warning')}] ${msg}`);
+	render(`[${pico.yellow('Warning')}] ${msg}`);
 };
 export const err = (msg: string) => {
-	render(`${chalk.bold.red('Error')} ${msg}`);
+	render(`${pico.red(pico.bold('Error'))} ${msg}`);
 };
 
 export const info = (msg: string, greyMsg: string = ''): string => {
-	return `${chalk.blue.bold('Info:')} ${msg} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
+	return `${pico.blue(pico.bold('Info:'))} ${msg} ${greyMsg ? pico.gray(greyMsg) : ''}`.trim();
 };
 export const grey = (msg: string): string => {
-	return chalk.grey(msg);
+	return pico.gray(msg);
 };
 
 export const error = (error: string, greyMsg: string = ''): string => {
-	return `${chalk.bgRed.bold(' Error ')} ${error} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
+	return `${pico.bgRed(pico.bold(' Error '))} ${error} ${greyMsg ? pico.gray(greyMsg) : ''}`.trim();
 };
 
 export const schema = (schema: CommonSchema): string => {
 	type TableEntry = (typeof schema)['tables'][keyof (typeof schema)['tables']];
 	const tables = Object.values(schema.tables) as unknown as TableEntry[];
 
-	let msg = chalk.bold(`${tables.length} tables\n`);
+	let msg = pico.bold(`${tables.length} tables\n`);
 
 	msg += tables
 		.map((t) => {
 			const columnsCount = Object.values(t.columns).length;
 			const indexesCount = Object.values(t.indexes).length;
 			const foreignKeys = Object.values(t.foreignKeys).length;
-			return `${chalk.bold.blue(t.name)} ${
-				chalk.gray(
+			return `${pico.blue(pico.bold(t.name))} ${
+				pico.gray(
 					`${columnsCount} columns ${indexesCount} indexes ${foreignKeys} fks`,
 				)
 			}`;
@@ -53,12 +53,12 @@ export const schema = (schema: CommonSchema): string => {
 
 	if (enums.length > 0) {
 		msg += '\n';
-		msg += chalk.bold(`${enums.length} enums\n`);
+		msg += pico.bold(`${enums.length} enums\n`);
 
 		msg += enums
 			.map((it) => {
-				return `${chalk.bold.blue(it.name)} ${
-					chalk.gray(
+				return `${pico.blue(pico.bold(it.name))} ${
+					pico.gray(
 						`[${Object.values(it.values).join(', ')}]`,
 					)
 				}`;
@@ -102,12 +102,12 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 		}
 
 		let text = `\nIs ${
-			chalk.bold.blue(
-				this.base.name,
+			pico.blue(pico.bold(
+				this.base.name)
 			)
 		} column in ${
-			chalk.bold.blue(
-				this.tableName,
+			pico.blue(pico.bold(
+				this.tableName,)
 			)
 		} table created or renamed from another column?\n`;
 
@@ -116,8 +116,8 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 		);
 
 		const selectedPrefix = isSelectedRenamed
-			? chalk.yellow('❯ ')
-			: chalk.green('❯ ');
+			? pico.yellow('❯ ')
+			: pico.green('❯ ');
 
 		const labelLength: number = this.data.items
 			.filter((it) => isRenamePromptItem(it))
@@ -138,8 +138,8 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 				? `${it.from.name} › ${it.to.name}`.padEnd(labelLength, ' ')
 				: it.name.padEnd(labelLength, ' ');
 			const label = isRenamed
-				? `${chalk.yellow('~')} ${title} ${chalk.gray('rename column')}`
-				: `${chalk.green('+')} ${title} ${chalk.gray('create column')}`;
+				? `${pico.yellow('~')} ${title} ${pico.gray('rename column')}`
+				: `${pico.green('+')} ${title} ${pico.gray('create column')}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
 			text += idx != this.data.items.length - 1 ? '\n' : '';
@@ -181,15 +181,15 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 		}
 		const key = tableKey(this.base);
 
-		let text = `\nIs ${chalk.bold.blue(key)} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
+		let text = `\nIs ${pico.blue(pico.bold(key))} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
 
 		const isSelectedRenamed = isRenamePromptItem(
 			this.state.items[this.state.selectedIdx],
 		);
 
 		const selectedPrefix = isSelectedRenamed
-			? chalk.yellow('❯ ')
-			: chalk.green('❯ ');
+			? pico.yellow('❯ ')
+			: pico.green('❯ ');
 
 		const labelLength: number = this.state.items
 			.filter((it) => isRenamePromptItem(it))
@@ -215,8 +215,8 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 				: tableKey(it).padEnd(labelLength, ' ');
 
 			const label = isRenamed
-				? `${chalk.yellow('~')} ${title} ${chalk.gray(`rename ${entityType}`)}`
-				: `${chalk.green('+')} ${title} ${chalk.gray(`create ${entityType}`)}`;
+				? `${pico.yellow('~')} ${title} ${pico.gray(`rename ${entityType}`)}`
+				: `${pico.green('+')} ${title} ${pico.gray(`create ${entityType}`)}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
 			text += idx != this.state.items.length - 1 ? '\n' : '';
@@ -248,16 +248,16 @@ export class ResolveSchemasSelect<T extends Named> extends Prompt<
 		}
 
 		let text = `\nIs ${
-			chalk.bold.blue(
-				this.base.name,
+			pico.blue(pico.bold(
+				this.base.name)
 			)
 		} schema created or renamed from another schema?\n`;
 		const isSelectedRenamed = isRenamePromptItem(
 			this.state.items[this.state.selectedIdx],
 		);
 		const selectedPrefix = isSelectedRenamed
-			? chalk.yellow('❯ ')
-			: chalk.green('❯ ');
+			? pico.yellow('❯ ')
+			: pico.green('❯ ');
 
 		const labelLength: number = this.state.items
 			.filter((it) => isRenamePromptItem(it))
@@ -278,8 +278,8 @@ export class ResolveSchemasSelect<T extends Named> extends Prompt<
 				? `${it.from.name} › ${it.to.name}`.padEnd(labelLength, ' ')
 				: it.name.padEnd(labelLength, ' ');
 			const label = isRenamed
-				? `${chalk.yellow('~')} ${title} ${chalk.gray('rename schema')}`
-				: `${chalk.green('+')} ${title} ${chalk.gray('create schema')}`;
+				? `${pico.yellow('~')} ${title} ${pico.gray('rename schema')}`
+				: `${pico.green('+')} ${title} ${pico.gray('create schema')}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
 			text += idx != this.state.items.length - 1 ? '\n' : '';
@@ -404,7 +404,7 @@ export class IntrospectProgress extends TaskView {
 		const { name, count } = stage;
 		const isDone = stage.status === 'done';
 
-		const prefix = isDone ? `[${chalk.green('✓')}]` : `[${spinner}]`;
+		const prefix = isDone ? `[${pico.green('✓')}]` : `[${spinner}]`;
 
 		const formattedCount = this.formatCount(count);
 		const suffix = isDone
@@ -445,7 +445,7 @@ export class MigrateProgress extends TaskView {
 			const spin = this.spinner.value();
 			return `[${spin}] applying migrations...`;
 		}
-		return `[${chalk.green('✓')}] migrations applied successfully!`;
+		return `[${pico.green('✓')}] migrations applied successfully!`;
 	}
 }
 
@@ -471,7 +471,7 @@ export class ProgressView extends TaskView {
 			const spin = this.spinner.value();
 			return `[${spin}] ${this.progressText}\n`;
 		}
-		return `[${chalk.green('✓')}] ${this.successText}\n`;
+		return `[${pico.green('✓')}] ${this.successText}\n`;
 	}
 }
 
@@ -491,8 +491,8 @@ export class DropMigrationView<T extends { tag: string }> extends Prompt<T> {
 			return '\n';
 		}
 
-		let text = chalk.bold('Please select migration to drop:\n');
-		const selectedPrefix = chalk.yellow('❯ ');
+		let text = pico.bold('Please select migration to drop:\n');
+		const selectedPrefix = pico.yellow('❯ ');
 
 		const data = trimmedRange(this.data.items, this.data.selectedIdx, 9);
 		const labelLength: number = data.trimmed
@@ -509,7 +509,7 @@ export class DropMigrationView<T extends { tag: string }> extends Prompt<T> {
 		data.trimmed.forEach((it, idx) => {
 			const isSelected = idx === this.data.selectedIdx - data.offset;
 			let title = it.tag.padEnd(labelLength, ' ');
-			title = isSelected ? chalk.yellow(title) : title;
+			title = isSelected ? pico.yellow(title) : title;
 
 			text += isSelected ? `${selectedPrefix}${title}` : `  ${title}`;
 			text += idx != this.data.items.length - 1 ? '\n' : '';

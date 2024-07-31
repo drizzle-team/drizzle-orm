@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { table } from 'console';
 import { warning } from './cli/views';
 import { CommonSquashedSchema, Dialect } from './schemaValidator';
@@ -1146,7 +1146,7 @@ export const prepareAlterColumnsMysql = (
 			if (columnGenerated?.type === 'virtual') {
 				warning(
 					`You are trying to add virtual generated constraint to ${
-						chalk.blue(
+						pico.blue(
 							columnName,
 						)
 					} column. As MySQL docs mention: "Nongenerated columns can be altered to stored but not virtual generated columns". We will drop an existing column and add it with a virtual generated statement. This means that the data previously stored in this column will be wiped, and new data will be generated on each read for this column\n`,
@@ -1187,7 +1187,7 @@ export const prepareAlterColumnsMysql = (
 			if (columnGenerated?.type === 'virtual') {
 				warning(
 					`You are trying to remove virtual generated constraint from ${
-						chalk.blue(
+						pico.blue(
 							columnName,
 						)
 					} column. As MySQL docs mention: "Stored but not virtual generated columns can be altered to nongenerated columns. The stored generated values become the values of the nongenerated column". We will drop an existing column and add it without a virtual generated statement. This means that this column will have no data after migration\n`,

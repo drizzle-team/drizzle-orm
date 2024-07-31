@@ -8,7 +8,7 @@ import {
 	prepareSqliteMigrationSnapshot,
 } from '../../migrationPreparator';
 
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { render } from 'hanji';
 import path, { join } from 'path';
 import { TypeOf } from 'zod';
@@ -276,15 +276,15 @@ function mysqlSchemaSuggestions(
 					`\n`
 						+ withStyle.suggestion(
 							`We are suggesting to change ${
-								chalk.blue(
+								pico.blue(
 									column.name,
 								)
 							} column in ${
-								chalk.blueBright(
+								pico.blueBright(
 									table.name,
 								)
 							} table from serial to bigint unsigned\n\n${
-								chalk.blueBright(
+								pico.blueBright(
 									`bigint("${column.name}", { mode: "number", unsigned: true }).notNull().autoincrement().unique(${
 										uniqueForSerial?.name ? `"${uniqueForSerial?.name}"` : ''
 									})`,
@@ -526,8 +526,8 @@ export const promptColumnsConflicts = async <T extends Named>(
 
 		if (isRenamePromptItem(data)) {
 			console.log(
-				`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
-					chalk.gray(
+				`${pico.yellow('~')} ${data.from.name} › ${data.to.name} ${
+					pico.gray(
 						'column will be renamed',
 					)
 				}`,
@@ -539,8 +539,8 @@ export const promptColumnsConflicts = async <T extends Named>(
 			leftMissing = leftMissing.filter(Boolean);
 		} else {
 			console.log(
-				`${chalk.green('+')} ${data.name} ${
-					chalk.gray(
+				`${pico.green('+')} ${data.name} ${
+					pico.gray(
 						'column will be created',
 					)
 				}`,
@@ -550,7 +550,7 @@ export const promptColumnsConflicts = async <T extends Named>(
 		index += 1;
 	} while (index < newColumns.length);
 	console.log(
-		chalk.gray(`--- all columns conflicts in ${tableName} table resolved ---\n`),
+		pico.gray(`--- all columns conflicts in ${tableName} table resolved ---\n`),
 	);
 
 	result.deleted.push(...leftMissing);
@@ -609,8 +609,8 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 				: `${data.to.schema}.`;
 
 			console.log(
-				`${chalk.yellow('~')} ${schemaFromPrefix}${data.from.name} › ${schemaToPrefix}${data.to.name} ${
-					chalk.gray(
+				`${pico.yellow('~')} ${schemaFromPrefix}${data.from.name} › ${schemaToPrefix}${data.to.name} ${
+					pico.gray(
 						`${entity} will be renamed/moved`,
 					)
 				}`,
@@ -632,8 +632,8 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 			leftMissing = leftMissing.filter(Boolean);
 		} else {
 			console.log(
-				`${chalk.green('+')} ${data.name} ${
-					chalk.gray(
+				`${pico.green('+')} ${data.name} ${
+					pico.gray(
 						`${entity} will be created`,
 					)
 				}`,
@@ -642,7 +642,7 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 		}
 		index += 1;
 	} while (index < newItems.length);
-	console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
+	console.log(pico.gray(`--- all ${entity} conflicts resolved ---\n`));
 	result.deleted.push(...leftMissing);
 	return result;
 };
@@ -680,8 +680,8 @@ export const promptSchemasConflict = async <T extends Named>(
 
 		if (isRenamePromptItem(data)) {
 			console.log(
-				`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
-					chalk.gray(
+				`${pico.yellow('~')} ${data.from.name} › ${data.to.name} ${
+					pico.gray(
 						'schema will be renamed',
 					)
 				}`,
@@ -691,8 +691,8 @@ export const promptSchemasConflict = async <T extends Named>(
 			leftMissing = leftMissing.filter(Boolean);
 		} else {
 			console.log(
-				`${chalk.green('+')} ${data.name} ${
-					chalk.gray(
+				`${pico.green('+')} ${data.name} ${
+					pico.gray(
 						'schema will be created',
 					)
 				}`,
@@ -701,7 +701,7 @@ export const promptSchemasConflict = async <T extends Named>(
 		}
 		index += 1;
 	} while (index < newSchemas.length);
-	console.log(chalk.gray('--- all schemas conflicts resolved ---\n'));
+	console.log(pico.gray('--- all schemas conflicts resolved ---\n'));
 	result.deleted.push(...leftMissing);
 	return result;
 };
@@ -799,12 +799,12 @@ export const writeResult = ({
 
 	render(
 		`[${
-			chalk.green(
+			pico.green(
 				'✓',
 			)
 		}] Your SQL migration file ➜ ${
-			chalk.bold.underline.blue(
-				path.join(`${outFolder}/${tag}.sql`),
+			pico.blue(pico.bold(pico.underline(
+				path.join(`${outFolder}/${tag}.sql`),))
 			)
 		} 🚀`,
 	);

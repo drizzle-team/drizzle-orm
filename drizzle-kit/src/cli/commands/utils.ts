@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
@@ -152,7 +152,7 @@ export const prepareGenerateConfig = async (
 
 	const fileNames = prepareFilenames(schema);
 	if (fileNames.length === 0) {
-		render(`[${chalk.blue('i')}] No schema file in ${schema} was found`);
+		render(`[${pico.blue('i')}] No schema file in ${schema} was found`);
 		process.exit(0);
 	}
 
@@ -242,7 +242,7 @@ export const preparePushConfig = async (
 
 	const schemaFiles = prepareFilenames(config.schema);
 	if (schemaFiles.length === 0) {
-		render(`[${chalk.blue('i')}] No schema file in ${config.schema} was found`);
+		render(`[${pico.blue('i')}] No schema file in ${config.schema} was found`);
 		process.exit(0);
 	}
 
@@ -614,7 +614,7 @@ export const drizzleConfigFromFile = async (
 
 	if (!configPath) {
 		console.log(
-			chalk.gray(
+			pico.gray(
 				`No config path provided, using default '${defaultConfigPath}'`,
 			),
 		);
@@ -627,7 +627,7 @@ export const drizzleConfigFromFile = async (
 		process.exit(1);
 	}
 
-	console.log(chalk.grey(`Reading config file '${path}'`));
+	console.log(pico.gray(`Reading config file '${path}'`));
 	const { unregister } = await safeRegister();
 	const required = require(`${path}`);
 	const content = required.default ?? required;

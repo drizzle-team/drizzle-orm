@@ -1,5 +1,5 @@
 import type { RunResult } from 'better-sqlite3';
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';
@@ -48,9 +48,9 @@ export const assertV1OutFolder = (out: string) => {
 	if (oldMigrationFolders.length > 0) {
 		console.log(
 			`Your migrations folder format is outdated, please run ${
-				chalk.green.bold(
+				pico.green(pico.bold(
 					`drizzle-kit up`,
-				)
+				))
 			}`,
 		);
 		process.exit(1);
@@ -193,7 +193,7 @@ export const prepareMigrationFolder = (
 				.map((it) => {
 					return `${it}/snapshot.json is not of the latest version`;
 				})
-				.concat(`Run ${chalk.green.bold(`drizzle-kit up`)}`)
+				.concat(`Run ${pico.green(pico.bold(`drizzle-kit up`))}`)
 				.join('\n'),
 		);
 		process.exit(0);
@@ -224,7 +224,7 @@ export const prepareMigrationFolder = (
 		.join('\n')
 		.trim();
 	if (message) {
-		console.log(chalk.red.bold('Error:'), message);
+		console.log(pico.red(pico.bold('Error:')), message);
 	}
 
 	const abort = report.malformed.length!! || collisionEntries.length > 0;

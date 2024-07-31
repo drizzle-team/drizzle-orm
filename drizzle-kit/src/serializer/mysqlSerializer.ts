@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { getTableName, is } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm';
 import { AnyMySqlTable, MySqlDialect, type PrimaryKey as PrimaryKeyORM, uniqueKeyName } from 'drizzle-orm/mysql-core';
@@ -91,22 +91,22 @@ export const generateMySqlSnapshot = (
 					console.log(
 						`\n${
 							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
-									tableName,
+								pico.blue(pico.underline(
+									tableName,)
 								)
 							} table. 
           The unique constraint ${
-								chalk.underline.blue(
-									column.uniqueName,
+								pico.blue(pico.underline(
+									column.uniqueName,)
 								)
 							} on the ${
-								chalk.underline.blue(
-									column.name,
+								pico.blue(pico.underline(
+									column.name)
 								)
 							} column is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									existingUnique.columns.join(','),
-								)
+							))
 							} columns\n`)
 						}`,
 					);
@@ -177,20 +177,20 @@ export const generateMySqlSnapshot = (
 					`\n${
 						withStyle.errorWarning(
 							`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
-									tableName,
+								pico.blue(pico.underline(
+									tableName,)
 								)
 							} table. \nThe unique constraint ${
-								chalk.underline.blue(
-									name,
+								pico.blue(pico.underline(
+									name,)
 								)
 							} on the ${
-								chalk.underline.blue(
-									columnNames.join(','),
+								pico.blue(pico.underline(
+									columnNames.join(',')),
 								)
 							} columns is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
-									existingUnique.columns.join(','),
+								pico.blue(pico.underline(
+									existingUnique.columns.join(','),)
 								)
 							} columns\n`,
 						)
@@ -269,21 +269,21 @@ export const generateMySqlSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`We\'ve found duplicated unique constraint names in ${
-									chalk.underline.blue(
-										tableName,
+									pico.blue(pico.underline(
+										tableName,)
 									)
 								} table. \nThe unique index ${
-									chalk.underline.blue(
+									pico.blue(pico.underline(
 										name,
-									)
+							))
 								} on the ${
-									chalk.underline.blue(
+									pico.blue(pico.underline(
 										indexColumns.join(','),
-									)
+							))
 								} columns is confilcting with a unique constraint name already defined for ${
-									chalk.underline.blue(
+									pico.blue(pico.underline(
 										uniqueConstraintObject[name].columns.join(','),
-									)
+							))
 								} columns\n`,
 							)
 						}`,
@@ -296,13 +296,13 @@ export const generateMySqlSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`In MySQL, when creating a foreign key, an index is automatically generated with the same name as the foreign key constraint.\n\nWe have encountered a collision between the index name on columns ${
-									chalk.underline.blue(
+									pico.blue(pico.underline(
 										indexColumns.join(','),
-									)
+							))
 								} and the foreign key on columns ${
-									chalk.underline.blue(
+									pico.blue(pico.underline(
 										foreignKeysObject[name].columnsFrom.join(','),
-									)
+							))
 								}. Please change either the index name or the foreign key name. For more information, please refer to https://dev.mysql.com/doc/refman/8.0/en/constraint-foreign-key.html\n
             `,
 							)

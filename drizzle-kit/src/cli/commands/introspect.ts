@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { writeFileSync } from 'fs';
 import { render, renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
@@ -116,7 +116,7 @@ export const introspectPostgres = async (
 	} else {
 		render(
 			`[${
-				chalk.blue(
+				pico.blue(
 					'i',
 				)
 			}] No SQL generated, you already have migrations in project`,
@@ -125,20 +125,20 @@ export const introspectPostgres = async (
 
 	render(
 		`[${
-			chalk.green(
+			pico.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] You schema file is ready ➜ ${pico.blue(pico.bold(pico.underline(schemaFile)))} 🚀`,
 	);
 	render(
 		`[${
-			chalk.green(
+			pico.green(
 				'✓',
 			)
 		}] You relations file is ready ➜ ${
-			chalk.bold.underline.blue(
+			pico.blue(pico.bold(pico.underline(
 				relationsFile,
-			)
+			)))
 		} 🚀`,
 	);
 	process.exit(0);
@@ -226,7 +226,7 @@ export const introspectMysql = async (
 	} else {
 		render(
 			`[${
-				chalk.blue(
+				pico.blue(
 					'i',
 				)
 			}] No SQL generated, you already have migrations in project`,
@@ -235,20 +235,20 @@ export const introspectMysql = async (
 
 	render(
 		`[${
-			chalk.green(
+			pico.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] You schema file is ready ➜ ${pico.blue(pico.bold(pico.underline(schemaFile)))} 🚀`,
 	);
 	render(
 		`[${
-			chalk.green(
+			pico.green(
 				'✓',
 			)
 		}] You relations file is ready ➜ ${
-			chalk.bold.underline.blue(
+			pico.blue(pico.bold(pico.underline(
 				relationsFile,
-			)
+			)))
 		} 🚀`,
 	);
 	process.exit(0);
@@ -337,7 +337,7 @@ export const introspectSqlite = async (
 	} else {
 		render(
 			`[${
-				chalk.blue(
+				pico.blue(
 					'i',
 				)
 			}] No SQL generated, you already have migrations in project`,
@@ -346,20 +346,20 @@ export const introspectSqlite = async (
 
 	render(
 		`[${
-			chalk.green(
+			pico.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] You schema file is ready ➜ ${pico.blue(pico.bold(pico.underline(schemaFile)))} 🚀`,
 	);
 	render(
 		`[${
-			chalk.green(
+			pico.green(
 				'✓',
 			)
 		}] You relations file is ready ➜ ${
-			chalk.bold.underline.blue(
+			pico.blue(pico.bold(pico.underline(
 				relationsFile,
-			)
+			)))
 		} 🚀`,
 	);
 	process.exit(0);

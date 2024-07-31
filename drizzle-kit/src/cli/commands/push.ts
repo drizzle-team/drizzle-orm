@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { render } from 'hanji';
 import { fromJson } from '../../sqlgenerator';
 import { Select } from '../selector-ui';
@@ -36,7 +36,7 @@ export const mysqlPush = async (
 
 	try {
 		if (filteredStatements.length === 0) {
-			render(`[${chalk.blue('i')}] No changes detected`);
+			render(`[${pico.blue('i')}] No changes detected`);
 		} else {
 			const {
 				shouldAskForApprove,
@@ -69,14 +69,14 @@ export const mysqlPush = async (
 
 			if (verbose) {
 				console.log();
-				// console.log(chalk.gray('Verbose logs:'));
+				// console.log(pico.gray('Verbose logs:'));
 				console.log(
 					withStyle.warning('You are about to execute current statements:'),
 				);
 				console.log();
 				console.log(
 					[...uniqueSqlStatementsToExecute, ...uniqueFilteredSqlStatements]
-						.map((s) => chalk.blue(s))
+						.map((s) => pico.blue(s))
 						.join('\n'),
 				);
 				console.log();
@@ -88,7 +88,7 @@ export const mysqlPush = async (
 						new Select(['No, abort', `Yes, I want to execute all statements`]),
 					);
 					if (data?.index === 0) {
-						render(`[${chalk.red('x')}] All changes were aborted`);
+						render(`[${pico.red('x')}] All changes were aborted`);
 						process.exit(0);
 					}
 				}
@@ -99,12 +99,12 @@ export const mysqlPush = async (
 				console.log(infoToPrint.join('\n'));
 				console.log();
 				console.log(
-					chalk.red.bold(
+					pico.red(pico.bold(
 						'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-					),
+					)),
 				);
 
-				console.log(chalk.white('Do you still want to push changes?'));
+				console.log(pico.white('Do you still want to push changes?'));
 
 				const { status, data } = await render(
 					new Select([
@@ -127,7 +127,7 @@ export const mysqlPush = async (
 					]),
 				);
 				if (data?.index === 0) {
-					render(`[${chalk.red('x')}] All changes were aborted`);
+					render(`[${pico.red('x')}] All changes were aborted`);
 					process.exit(0);
 				}
 			}
@@ -140,9 +140,9 @@ export const mysqlPush = async (
 				await db.query(statement);
 			}
 			if (filteredStatements.length > 0) {
-				render(`[${chalk.green('✓')}] Changes applied`);
+				render(`[${pico.green('✓')}] Changes applied`);
 			} else {
-				render(`[${chalk.blue('i')}] No changes detected`);
+				render(`[${pico.blue('i')}] No changes detected`);
 			}
 		}
 	} catch (e) {
@@ -171,7 +171,7 @@ export const pgPush = async (
 
 	try {
 		if (statements.sqlStatements.length === 0) {
-			render(`[${chalk.blue('i')}] No changes detected`);
+			render(`[${pico.blue('i')}] No changes detected`);
 		} else {
 			// const filteredStatements = filterStatements(statements.statements);
 			const {
@@ -186,12 +186,12 @@ export const pgPush = async (
 
 			if (verbose) {
 				console.log();
-				// console.log(chalk.gray('Verbose logs:'));
+				// console.log(pico.gray('Verbose logs:'));
 				console.log(
 					withStyle.warning('You are about to execute current statements:'),
 				);
 				console.log();
-				console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+				console.log(statementsToExecute.map((s) => pico.blue(s)).join('\n'));
 				console.log();
 			}
 
@@ -201,7 +201,7 @@ export const pgPush = async (
 						new Select(['No, abort', `Yes, I want to execute all statements`]),
 					);
 					if (data?.index === 0) {
-						render(`[${chalk.red('x')}] All changes were aborted`);
+						render(`[${pico.red('x')}] All changes were aborted`);
 						process.exit(0);
 					}
 				}
@@ -212,12 +212,12 @@ export const pgPush = async (
 				console.log(infoToPrint.join('\n'));
 				console.log();
 				console.log(
-					chalk.red.bold(
+					pico.red(pico.bold(
 						'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-					),
+					)),
 				);
 
-				console.log(chalk.white('Do you still want to push changes?'));
+				console.log(pico.white('Do you still want to push changes?'));
 
 				const { status, data } = await render(
 					new Select([
@@ -240,7 +240,7 @@ export const pgPush = async (
 					]),
 				);
 				if (data?.index === 0) {
-					render(`[${chalk.red('x')}] All changes were aborted`);
+					render(`[${pico.red('x')}] All changes were aborted`);
 					process.exit(0);
 				}
 			}
@@ -250,9 +250,9 @@ export const pgPush = async (
 			}
 
 			if (statements.statements.length > 0) {
-				render(`[${chalk.green('✓')}] Changes applied`);
+				render(`[${pico.green('✓')}] Changes applied`);
 			} else {
-				render(`[${chalk.blue('i')}] No changes detected`);
+				render(`[${pico.blue('i')}] No changes detected`);
 			}
 		}
 	} catch (e) {
@@ -278,7 +278,7 @@ export const sqlitePush = async (
 	const statements = await prepareSQLitePush(schemaPath, schema);
 
 	if (statements.sqlStatements.length === 0) {
-		render(`\n[${chalk.blue('i')}] No changes detected`);
+		render(`\n[${pico.blue('i')}] No changes detected`);
 	} else {
 		const {
 			shouldAskForApprove,
@@ -302,7 +302,7 @@ export const sqlitePush = async (
 				withStyle.warning('You are about to execute current statements:'),
 			);
 			console.log();
-			console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+			console.log(statementsToExecute.map((s) => pico.blue(s)).join('\n'));
 			console.log();
 		}
 
@@ -312,7 +312,7 @@ export const sqlitePush = async (
 					new Select(['No, abort', `Yes, I want to execute all statements`]),
 				);
 				if (data?.index === 0) {
-					render(`[${chalk.red('x')}] All changes were aborted`);
+					render(`[${pico.red('x')}] All changes were aborted`);
 					process.exit(0);
 				}
 			}
@@ -323,12 +323,12 @@ export const sqlitePush = async (
 			console.log(infoToPrint.join('\n'));
 			console.log();
 			console.log(
-				chalk.red.bold(
+				pico.red(pico.bold(
 					'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-				),
+				)),
 			);
 
-			console.log(chalk.white('Do you still want to push changes?'));
+			console.log(pico.white('Do you still want to push changes?'));
 
 			const { status, data } = await render(
 				new Select([
@@ -352,13 +352,13 @@ export const sqlitePush = async (
 				]),
 			);
 			if (data?.index === 0) {
-				render(`[${chalk.red('x')}] All changes were aborted`);
+				render(`[${pico.red('x')}] All changes were aborted`);
 				process.exit(0);
 			}
 		}
 
 		if (statementsToExecute.length === 0) {
-			render(`\n[${chalk.blue('i')}] No changes detected`);
+			render(`\n[${pico.blue('i')}] No changes detected`);
 		} else {
 			if (!('driver' in credentials)) {
 				await db.query('begin');
@@ -375,7 +375,7 @@ export const sqlitePush = async (
 			} else if (credentials.driver === 'turso') {
 				await db.batch!(statementsToExecute.map((it) => ({ query: it })));
 			}
-			render(`[${chalk.green('✓')}] Changes applied`);
+			render(`[${pico.green('✓')}] Changes applied`);
 		}
 	}
 };

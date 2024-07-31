@@ -1,5 +1,5 @@
 import { command, run } from '@drizzle-team/brocli';
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { check, drop, generate, migrate, pull, push, studio, up } from './schema';
 import { ormCoreVersions } from './utils';
 
@@ -9,7 +9,7 @@ const version = async () => {
 	const envVersion = process.env.DRIZZLE_KIT_VERSION;
 	const kitVersion = envVersion ? `v${envVersion}` : '--';
 	const versions = `drizzle-kit: ${kitVersion}\n${ormVersion}`;
-	console.log(chalk.gray(versions), '\n');
+	console.log(pico.gray(versions), '\n');
 };
 
 const legacyCommand = (name: string, newName: string) => {

@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { readFileSync, rmSync, writeFileSync } from 'fs';
 import fs from 'fs';
 import { render } from 'hanji';
@@ -19,7 +19,7 @@ export const dropMigration = async ({
 
 	if (journal.entries.length === 0) {
 		console.log(
-			`[${chalk.blue('i')}] no migration entries found in ${metaFilePath}`,
+			`[${pico.blue('i')}] no migration entries found in ${metaFilePath}`,
 		);
 		return;
 	}
@@ -51,8 +51,8 @@ export const dropMigration = async ({
 	}
 
 	console.log(
-		`[${chalk.green('✓')}] ${
-			chalk.bold(
+		`[${pico.green('✓')}] ${
+			pico.bold(
 				result.data.tag,
 			)
 		} migration successfully dropped`,
