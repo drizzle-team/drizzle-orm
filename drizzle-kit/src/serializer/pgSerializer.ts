@@ -45,34 +45,34 @@ function stringFromIdentityProperty(
 	return typeof field === 'string'
 		? (field as string)
 		: typeof field === 'undefined'
-			? undefined
-			: String(field);
+		? undefined
+		: String(field);
 }
 
 function maxRangeForIdentityBasedOn(columnType: string) {
 	return columnType === 'integer'
 		? '2147483647'
 		: columnType === 'bigint'
-			? '9223372036854775807'
-			: '32767';
+		? '9223372036854775807'
+		: '32767';
 }
 
 function minRangeForIdentityBasedOn(columnType: string) {
 	return columnType === 'integer'
 		? '-2147483648'
 		: columnType === 'bitint'
-			? '-9223372036854775808'
-			: '-32768';
+		? '-9223372036854775808'
+		: '-32768';
 }
 
 function stringFromDatabaseIdentityProperty(field: any): string | undefined {
 	return typeof field === 'string'
 		? (field as string)
 		: typeof field === 'undefined'
-			? undefined
-			: typeof field === 'bigint'
-				? field.toString()
-				: String(field);
+		? undefined
+		: typeof field === 'bigint'
+		? field.toString()
+		: String(field);
 }
 
 export const generatePgSnapshot = (
@@ -146,8 +146,8 @@ export const generatePgSnapshot = (
 						as: is(generated.as, SQL)
 							? dialect.sqlToQuery(generated.as as SQL).sql
 							: typeof generated.as === 'function'
-								? dialect.sqlToQuery(generated.as() as SQL).sql
-								: (generated.as as any),
+							? dialect.sqlToQuery(generated.as() as SQL).sql
+							: (generated.as as any),
 						type: 'stored',
 					}
 					: undefined,
@@ -170,19 +170,24 @@ export const generatePgSnapshot = (
 				const existingUnique = uniqueConstraintObject[column.uniqueName!];
 				if (typeof existingUnique !== 'undefined') {
 					console.log(
-						`\n${withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(
-							tableName,
-						)
+						`\n${
+							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
+								chalk.underline.blue(
+									tableName,
+								)
 							} table. 
-          The unique constraint ${chalk.underline.blue(
-								column.uniqueName,
-							)
-							} on the ${chalk.underline.blue(
-								column.name,
-							)
-							} column is confilcting with a unique constraint name already defined for ${chalk.underline.blue(
-								existingUnique.columns.join(','),
-							)
+          The unique constraint ${
+								chalk.underline.blue(
+									column.uniqueName,
+								)
+							} on the ${
+								chalk.underline.blue(
+									column.name,
+								)
+							} column is confilcting with a unique constraint name already defined for ${
+								chalk.underline.blue(
+									existingUnique.columns.join(','),
+								)
 							} columns\n`)
 						}`,
 					);
@@ -203,19 +208,21 @@ export const generatePgSnapshot = (
 						columnToSet.default = `'${column.default}'`;
 					} else {
 						if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
-							columnToSet.default = `'${JSON.stringify(
-								column.default,
-							)
-								}'::${sqlTypeLowered}`;
+							columnToSet.default = `'${
+								JSON.stringify(
+									column.default,
+								)
+							}'::${sqlTypeLowered}`;
 						} else if (column.default instanceof Date) {
 							if (sqlTypeLowered === 'date') {
 								columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
 							} else if (sqlTypeLowered === 'timestamp') {
-								columnToSet.default = `'${column.default
-									.toISOString()
-									.replace('T', ' ')
-									.slice(0, 23)
-									}'`;
+								columnToSet.default = `'${
+									column.default
+										.toISOString()
+										.replace('T', ' ')
+										.slice(0, 23)
+								}'`;
 							} else {
 								columnToSet.default = `'${column.default.toISOString()}'`;
 							}
@@ -246,19 +253,24 @@ export const generatePgSnapshot = (
 			const existingUnique = uniqueConstraintObject[name];
 			if (typeof existingUnique !== 'undefined') {
 				console.log(
-					`\n${withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(
-						tableName,
-					)
+					`\n${
+						withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
+							chalk.underline.blue(
+								tableName,
+							)
 						} table. 
-        The unique constraint ${chalk.underline.blue(
-							name,
-						)
-						} on the ${chalk.underline.blue(
-							columnNames.join(','),
-						)
-						} columns is confilcting with a unique constraint name already defined for ${chalk.underline.blue(
-							existingUnique.columns.join(','),
-						)
+        The unique constraint ${
+							chalk.underline.blue(
+								name,
+							)
+						} on the ${
+							chalk.underline.blue(
+								columnNames.join(','),
+							)
+						} columns is confilcting with a unique constraint name already defined for ${
+							chalk.underline.blue(
+								existingUnique.columns.join(','),
+							)
 						} columns\n`)
 					}`,
 				);
@@ -311,13 +323,16 @@ export const generatePgSnapshot = (
 				if (is(it, SQL)) {
 					if (typeof value.config.name === 'undefined') {
 						console.log(
-							`\n${withStyle.errorWarning(
-								`Please specify an index name in ${getTableName(
-									value.config.table,
+							`\n${
+								withStyle.errorWarning(
+									`Please specify an index name in ${
+										getTableName(
+											value.config.table,
+										)
+									} table that has "${
+										dialect.sqlToQuery(it).sql
+									}" expression. We can generate index names for indexes on columns only; for expressions in indexes, you need to specify the name yourself.`,
 								)
-								} table that has "${dialect.sqlToQuery(it).sql
-								}" expression. We can generate index names for indexes on columns only; for expressions in indexes, you need to specify the name yourself.`,
-							)
 							}`,
 						);
 						process.exit(1);
@@ -330,27 +345,34 @@ export const generatePgSnapshot = (
 					&& typeof it.indexConfig!.opClass === 'undefined'
 				) {
 					console.log(
-						`\n${withStyle.errorWarning(
-							`You are specifying an index on the ${chalk.blueBright(
-								it.name,
+						`\n${
+							withStyle.errorWarning(
+								`You are specifying an index on the ${
+									chalk.blueBright(
+										it.name,
+									)
+								} column inside the ${
+									chalk.blueBright(
+										tableName,
+									)
+								} table with the ${
+									chalk.blueBright(
+										'vector',
+									)
+								} type without specifying an operator class. Vector extension doesn't have a default operator class, so you need to specify one of the available options. Here is a list of available op classes for the vector extension: [${
+									vectorOps
+										.map((it) => `${chalk.underline(`${it}`)}`)
+										.join(
+											', ',
+										)
+								}].\n\nYou can specify it using current syntax: ${
+									chalk.underline(
+										`index("${value.config.name}").using("${value.config.method}", table.${it.name}.op("${
+											vectorOps[0]
+										}"))`,
+									)
+								}\n\nYou can check the "pg_vector" docs for more info: https://github.com/pgvector/pgvector?tab=readme-ov-file#indexing\n`,
 							)
-							} column inside the ${chalk.blueBright(
-								tableName,
-							)
-							} table with the ${chalk.blueBright(
-								'vector',
-							)
-							} type without specifying an operator class. Vector extension doesn't have a default operator class, so you need to specify one of the available options. Here is a list of available op classes for the vector extension: [${vectorOps
-								.map((it) => `${chalk.underline(`${it}`)}`)
-								.join(
-									', ',
-								)
-							}].\n\nYou can specify it using current syntax: ${chalk.underline(
-								`index("${value.config.name}").using("${value.config.method}", table.${it.name}.op("${vectorOps[0]
-								}"))`,
-							)
-							}\n\nYou can check the "pg_vector" docs for more info: https://github.com/pgvector/pgvector?tab=readme-ov-file#indexing\n`,
-						)
 						}`,
 					);
 					process.exit(1);
@@ -380,8 +402,8 @@ export const generatePgSnapshot = (
 							nulls: it.indexConfig?.nulls
 								? it.indexConfig?.nulls
 								: it.indexConfig?.order === 'desc'
-									? 'first'
-									: 'last',
+								? 'first'
+								: 'last',
 							opclass: it.indexConfig?.opClass,
 						};
 					}
@@ -392,15 +414,18 @@ export const generatePgSnapshot = (
 			if (typeof indexesInSchema[schema ?? 'public'] !== 'undefined') {
 				if (indexesInSchema[schema ?? 'public'].includes(name)) {
 					console.log(
-						`\n${withStyle.errorWarning(
-							`We\'ve found duplicated index name across ${chalk.underline.blue(
-								schema ?? 'public',
+						`\n${
+							withStyle.errorWarning(
+								`We\'ve found duplicated index name across ${
+									chalk.underline.blue(
+										schema ?? 'public',
+									)
+								} schema. Please rename your index in either the ${
+									chalk.underline.blue(
+										tableName,
+									)
+								} table or the table with the duplicated index name`,
 							)
-							} schema. Please rename your index in either the ${chalk.underline.blue(
-								tableName,
-							)
-							} table or the table with the duplicated index name`,
-						)
 						}`,
 					);
 					process.exit(1);
@@ -440,7 +465,7 @@ export const generatePgSnapshot = (
 		const name = sequence.seqName!;
 		if (
 			typeof sequencesToReturn[`${sequence.schema ?? 'public'}.${name}`]
-			=== 'undefined'
+				=== 'undefined'
 		) {
 			const increment = stringFromIdentityProperty(sequence?.seqOptions?.increment) ?? '1';
 			const minValue = stringFromIdentityProperty(sequence?.seqOptions?.minValue)
@@ -569,7 +594,8 @@ export const fromDatabase = async (
 	const seqWhere = schemaFilters.map((t) => `schemaname = '${t}'`).join(' or ');
 
 	const allSequences = await db.query(
-		`select schemaname, sequencename, start_value, min_value, max_value, increment_by, cycle, cache_size from pg_sequences as seq${seqWhere === '' ? '' : ` WHERE ${seqWhere}`
+		`select schemaname, sequencename, start_value, min_value, max_value, increment_by, cycle, cache_size from pg_sequences as seq${
+			seqWhere === '' ? '' : ` WHERE ${seqWhere}`
 		};`,
 	);
 
@@ -598,7 +624,7 @@ export const fromDatabase = async (
 
 	const whereEnums = schemaFilters
 		.map((t) => `n.nspname = '${t}'`)
-		.join(" or ");
+		.join(' or ');
 
 	const allEnums = await db.query(
 		`select n.nspname as enum_schema,
@@ -608,7 +634,7 @@ export const fromDatabase = async (
   from pg_type t
   join pg_enum e on t.oid = e.enumtypid
   join pg_catalog.pg_namespace n ON n.oid = t.typnamespace
-  ${whereEnums === "" ? "" : ` WHERE ${whereEnums}`}
+  ${whereEnums === '' ? '' : ` WHERE ${whereEnums}`}
   order by enum_schema, enum_name, sort_order;`,
 	);
 
@@ -860,7 +886,7 @@ export const fromDatabase = async (
 						} else {
 							if (
 								typeof internals.tables[tableName]!.columns[columnName]
-								=== 'undefined'
+									=== 'undefined'
 							) {
 								internals.tables[tableName]!.columns[columnName] = {
 									isArray: true,
@@ -916,8 +942,8 @@ export const fromDatabase = async (
 								cache: sequencesToReturn[identityName]?.cache
 									? sequencesToReturn[identityName]?.cache
 									: sequencesToReturn[`${tableSchema}.${identityName}`]?.cache
-										? sequencesToReturn[`${tableSchema}.${identityName}`]?.cache
-										: undefined,
+									? sequencesToReturn[`${tableSchema}.${identityName}`]?.cache
+									: undefined,
 								cycle: identityCycle,
 								schema: tableSchema,
 							}
@@ -1163,10 +1189,11 @@ const defaultForColumn = (column: any) => {
 			return Number(rt);
 		} else if (column.data_type === 'json' || column.data_type === 'jsonb') {
 			const jsonWithoutSpaces = JSON.stringify(JSON.parse(rt));
-			return `'${jsonWithoutSpaces}'${hasDifferentDefaultCast
-				? columnToDefault[hasDifferentDefaultCast]
-				: `::${column.data_type as string}`
-				}`;
+			return `'${jsonWithoutSpaces}'${
+				hasDifferentDefaultCast
+					? columnToDefault[hasDifferentDefaultCast]
+					: `::${column.data_type as string}`
+			}`;
 		} else if (column.data_type === 'boolean') {
 			return column.column_default === 'true';
 		} else {
