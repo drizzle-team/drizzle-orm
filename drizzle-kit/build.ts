@@ -3,6 +3,15 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import * as tsup from 'tsup';
 import pkg from './package.json';
 
+const driversPackages = [
+	// postgres drivers
+	"pg", "postgres", "@vercel/postgres", "@neondatabase/serverless",
+	//  mysql drivers
+	"mysql2", "@planetscale/database",
+	// sqlite drivers
+	"@libsql/client", "better-sqlite3"
+];
+
 esbuild.buildSync({
 	entryPoints: ['./src/utils.ts'],
 	bundle: true,
@@ -11,14 +20,12 @@ esbuild.buildSync({
 	target: 'node16',
 	platform: 'node',
 	external: [
-		'@libsql/client',
 		'commander',
 		'json-diff',
 		'glob',
 		'esbuild',
 		'drizzle-orm',
-		'pg-native',
-		'better-sqlite3',
+		...driversPackages
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,
@@ -33,14 +40,12 @@ esbuild.buildSync({
 	target: 'node16',
 	platform: 'node',
 	external: [
-		'@libsql/client',
 		'commander',
 		'json-diff',
 		'glob',
 		'esbuild',
 		'drizzle-orm',
-		'pg-native',
-		'better-sqlite3',
+		...driversPackages
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,
@@ -58,11 +63,9 @@ esbuild.buildSync({
 		'process.env.DRIZZLE_KIT_VERSION': `"${pkg.version}"`,
 	},
 	external: [
-		'@libsql/client',
 		'esbuild',
 		'drizzle-orm',
-		'pg-native',
-		'better-sqlite3',
+		...driversPackages
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,

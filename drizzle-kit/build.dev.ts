@@ -1,6 +1,15 @@
 import * as esbuild from 'esbuild';
 import { cpSync } from 'node:fs';
 
+const driversPackages = [
+	// postgres drivers
+	"pg", "postgres", "@vercel/postgres", "@neondatabase/serverless",
+	//  mysql drivers
+	"mysql2", "@planetscale/database",
+	// sqlite drivers
+	"@libsql/client", "better-sqlite3"
+];
+
 esbuild.buildSync({
 	entryPoints: ['./src/utils.ts'],
 	bundle: true,
@@ -8,7 +17,7 @@ esbuild.buildSync({
 	format: 'cjs',
 	target: 'node16',
 	platform: 'node',
-	external: ['drizzle-orm', 'pg-native', 'esbuild'],
+	external: ['drizzle-orm', 'esbuild', ...driversPackages],
 	banner: {
 		js: `#!/usr/bin/env -S node --loader @esbuild-kit/esm-loader --no-warnings`,
 	},
@@ -27,8 +36,7 @@ esbuild.buildSync({
 		'glob',
 		'esbuild',
 		'drizzle-orm',
-		'pg-native',
-		'better-sqlite3',
+		...driversPackages
 	],
 	banner: {
 		js: `#!/usr/bin/env -S node --loader ./dist/loader.mjs --no-warnings`,
