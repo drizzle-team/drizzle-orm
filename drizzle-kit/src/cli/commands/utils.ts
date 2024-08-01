@@ -604,8 +604,6 @@ export const drizzleConfigFromFile = async (
 		join(resolve('drizzle.config.json')),
 	);
 
-	console.log('defaultTsConfigExists', join(resolve('drizzle.config.ts')));
-
 	const defaultConfigPath = defaultTsConfigExists
 		? 'drizzle.config.ts'
 		: defaultJsConfigExists
