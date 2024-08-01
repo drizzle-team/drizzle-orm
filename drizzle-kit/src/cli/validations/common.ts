@@ -170,7 +170,7 @@ export const wrapParam = (
 		if (type === 'secret') {
 			return `    ${check} ${name}: '*****'`;
 		} else if (type === 'url') {
-			return `    ${check} ${name}: '${param.replace(/(?<=:\/\/[^:\n]*:)([^@]*)/, '****')}'`
+			return `    ${check} ${name}: '${param.replace(/(?<=:\/\/[^:\n]*:)([^@]*)/, '****')}'`;
 		}
 		return `    ${check} ${name}: '${param}'`;
 	}

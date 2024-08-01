@@ -5,11 +5,16 @@ import pkg from './package.json';
 
 const driversPackages = [
 	// postgres drivers
-	"pg", "postgres", "@vercel/postgres", "@neondatabase/serverless",
+	'pg',
+	'postgres',
+	'@vercel/postgres',
+	'@neondatabase/serverless',
 	//  mysql drivers
-	"mysql2", "@planetscale/database",
+	'mysql2',
+	'@planetscale/database',
 	// sqlite drivers
-	"@libsql/client", "better-sqlite3"
+	'@libsql/client',
+	'better-sqlite3',
 ];
 
 esbuild.buildSync({
@@ -25,7 +30,7 @@ esbuild.buildSync({
 		'glob',
 		'esbuild',
 		'drizzle-orm',
-		...driversPackages
+		...driversPackages,
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,
@@ -45,7 +50,7 @@ esbuild.buildSync({
 		'glob',
 		'esbuild',
 		'drizzle-orm',
-		...driversPackages
+		...driversPackages,
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,
@@ -65,7 +70,7 @@ esbuild.buildSync({
 	external: [
 		'esbuild',
 		'drizzle-orm',
-		...driversPackages
+		...driversPackages,
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,
