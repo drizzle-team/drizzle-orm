@@ -622,6 +622,10 @@ export const fromDatabase = async (
 		};
 	}
 
+	const whereEnums = schemaFilters
+		.map((t) => `n.nspname = '${t}'`)
+		.join(' or ');
+
 	const allEnums = await db.query(
 		`select n.nspname as enum_schema,
   t.typname as enum_name,
@@ -630,6 +634,7 @@ export const fromDatabase = async (
   from pg_type t
   join pg_enum e on t.oid = e.enumtypid
   join pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+  ${whereEnums === '' ? '' : ` WHERE ${whereEnums}`}
   order by enum_schema, enum_name, sort_order;`,
 	);
 

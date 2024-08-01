@@ -75,13 +75,13 @@ export const printConfigConnectionIssues = (
 		console.log(error(text));
 		console.log(wrapParam('accountId', options.accountId));
 		console.log(wrapParam('databaseId', options.databaseId));
-		console.log(wrapParam('token', options.token));
+		console.log(wrapParam('token', options.token, false, 'secret'));
 		process.exit(1);
 	} else if (driver === 'turso') {
 		let text = `Please provide required params for Turso driver:\n`;
 		console.log(error(text));
 		console.log(wrapParam('url', options.url));
-		console.log(wrapParam('authToken', options.authToken));
+		console.log(wrapParam('authToken', options.authToken, false, 'secret'));
 		return;
 	} else {
 		softAssertUnreachable(driver);

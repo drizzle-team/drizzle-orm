@@ -159,12 +159,18 @@ export const wrapParam = (
 	name: string,
 	param: any | undefined,
 	optional: boolean = false,
+	type?: 'url' | 'secret',
 ) => {
 	const check = `[${chalk.green('✓')}]`;
 	const cross = `[${chalk.red('x')}]`;
 	if (typeof param === 'string') {
 		if (param.length === 0) {
 			return `    ${cross} ${name}: ''`;
+		}
+		if (type === 'secret') {
+			return `    ${check} ${name}: '*****'`;
+		} else if (type === 'url') {
+			return `    ${check} ${name}: '${param.replace(/(?<=:\/\/[^:\n]*:)([^@]*)/, '****')}'`;
 		}
 		return `    ${check} ${name}: '${param}'`;
 	}

@@ -1,7 +1,31 @@
 {
 	"name": "drizzle-kit",
-	"version": "0.23.1",
-	"repository": "https://github.com/drizzle-team/drizzle-orm",
+	"version": "0.23.2",
+	"homepage": "https://orm.drizzle.team",
+	"keywords": [
+		"drizzle",
+		"orm",
+		"pg",
+		"mysql",
+		"postgresql",
+		"postgres",
+		"sqlite",
+		"database",
+		"sql",
+		"typescript",
+		"ts",
+		"drizzle-kit",
+		"migrations",
+		"schema"
+	],
+	"sideEffects": false,
+	"publishConfig": {
+		"provenance": true
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+	},
 	"author": "Drizzle Team",
 	"license": "MIT",
 	"bin": {
@@ -14,9 +38,9 @@
 		"test": "TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest",
 		"build": "rm -rf ./dist && tsx build.ts && cp package.json dist/ && attw --pack dist",
 		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
-		"packit": "pnpm build && cp package.json dist/ && cd dist && pnpm pack",
+		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"tsc": "tsc -p tsconfig.build.json",
-		"pub": "cp package.json readme.md dist/ && cd dist && npm publish"
+		"publish": "npm publish package.tgz"
 	},
 	"dependencies": {
 		"@drizzle-team/brocli": "^0.8.2",
