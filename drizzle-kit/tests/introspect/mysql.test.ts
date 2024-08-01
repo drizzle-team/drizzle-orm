@@ -1,6 +1,6 @@
 import Docker from 'dockerode';
 import { SQL, sql } from 'drizzle-orm';
-import { int, mysqlTable, text } from 'drizzle-orm/mysql-core';
+import { int, mysqlTable, text, char, varchar } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
@@ -115,6 +115,48 @@ test('generated always column virtual: link to another column', async () => {
 		client,
 		schema,
 		'generated-link-column-virtual',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	await client.query(`drop table users;`);
+});
+
+test('Default value of character type column: char', async () => {
+	const schema = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			sortKey: char('sortKey', { length: 255 }).default('0'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'default-value-char-column',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	await client.query(`drop table users;`);
+});
+
+test('Default value of character type column: varchar', async () => {
+	const schema = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			sortKey: varchar('sortKey', { length: 255 }).default('0'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'default-value-varchar-column',
 		'drizzle',
 	);
 
