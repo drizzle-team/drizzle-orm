@@ -32,7 +32,7 @@ test('generated always column: link to another column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test.only('generated always column virtual: link to another column', async () => {
+test('generated always column virtual: link to another column', async () => {
 	const sqlite = new Database(':memory:');
 
 	const schema = {
