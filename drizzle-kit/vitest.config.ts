@@ -1,4 +1,3 @@
-import { viteCommonjs } from '@originjs/vite-plugin-commonjs';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
@@ -22,5 +21,5 @@ export default defineConfig({
 		maxWorkers: 1,
 		fileParallelism: false,
 	},
-	plugins: [viteCommonjs(), tsconfigPaths()],
+	plugins: [tsconfigPaths()],
 });

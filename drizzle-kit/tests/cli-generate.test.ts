@@ -220,3 +220,4 @@ test('err #8', async (t) => {
 	const res = await brotest(generate, '--config=drizzle.config.ts --dialect=postgresql');
 	assert.equal(res.type, 'error');
 });
+
