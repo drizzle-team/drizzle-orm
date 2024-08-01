@@ -134,7 +134,7 @@ cd drizzle-orm
 ### <a name="project-structure-orm"></a> Project structure
 
 ```
-Project sctructure
+Project structure
 
 📂 pg-core, mysql-core, sqlite-core - core packages for each dialect with all the main logic for relation and query builder
 
