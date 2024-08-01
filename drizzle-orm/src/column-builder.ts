@@ -4,7 +4,7 @@ import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
-import type { Simplify } from './utils.ts';
+import type { Assume, Simplify } from './utils.ts';
 
 export type ColumnDataType =
 	| 'string'
@@ -322,7 +322,10 @@ export type BuildColumns<
 	TDialect extends Dialect,
 > =
 	& {
-		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key], TDialect>;
+		[Key in keyof TConfigMap]: BuildColumn<TTableName, {
+			_: Omit<TConfigMap[Key]['_'], 'name'> &
+			{ name: TConfigMap[Key]['_']['name'] extends '' ? Assume<Key, string> : TConfigMap[Key]['_']['name'] }
+		}, TDialect>;
 	}
 	& {};
 

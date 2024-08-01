@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import type { Writable } from '~/utils.ts';
+import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgVarcharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = PgVarcharBuilder<{
@@ -53,9 +53,18 @@ export interface PgVarcharConfig<TEnum extends readonly string[] | string[] | un
 	enum?: TEnum;
 }
 
+export function varchar(): PgVarcharBuilderInitial<'', [string, ...string[]]>;
+export function varchar<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: PgVarcharConfig<T | Writable<T>>,
+): PgVarcharBuilderInitial<'', Writable<T>>;
 export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: PgVarcharConfig<T | Writable<T>> = {},
+	config?: PgVarcharConfig<T | Writable<T>>,
+): PgVarcharBuilderInitial<TName, Writable<T>>;
+export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
+	a?: TName | PgVarcharConfig<T | Writable<T>>,
+	b: PgVarcharConfig<T | Writable<T>> = {},
 ): PgVarcharBuilderInitial<TName, Writable<T>> {
+	const { name, config } = getColumnNameAndConfig<TName, PgVarcharConfig<T | Writable<T>>>(a, b);
 	return new PgVarcharBuilder(name, config);
 }

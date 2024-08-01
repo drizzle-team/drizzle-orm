@@ -9,6 +9,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
 	HasDefault<
@@ -113,13 +114,20 @@ interface PgBigSerialConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'>
 	mode: T;
 }
 
+export function bigserial<TMode extends PgBigSerialConfig['mode']>(
+	config: PgBigSerialConfig<TMode>,
+): TMode extends 'number' ? PgBigSerial53BuilderInitial<''> : PgBigSerial64BuilderInitial<''>;
 export function bigserial<TName extends string, TMode extends PgBigSerialConfig['mode']>(
 	name: TName,
 	config: PgBigSerialConfig<TMode>,
 ): TMode extends 'number' ? PgBigSerial53BuilderInitial<TName> : PgBigSerial64BuilderInitial<TName>;
-export function bigserial(name: string, { mode }: PgBigSerialConfig) {
-	if (mode === 'number') {
-		return new PgBigSerial53Builder(name);
+export function bigserial<TName extends string, TMode extends PgBigSerialConfig['mode']>(
+	a: TName | PgBigSerialConfig<TMode>,
+	b?: PgBigSerialConfig<TMode>
+): TMode extends 'number' ? PgBigSerial53BuilderInitial<TName> : PgBigSerial64BuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, PgBigSerialConfig<TMode>>(a, b);
+	if (config.mode === 'number') {
+		return new PgBigSerial53Builder(name) as any;
 	}
-	return new PgBigSerial64Builder(name);
+	return new PgBigSerial64Builder(name) as any;
 }

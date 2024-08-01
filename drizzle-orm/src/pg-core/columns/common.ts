@@ -126,6 +126,12 @@ export abstract class PgColumnBuilder<
 	): ExtraConfigColumn {
 		return new ExtraConfigColumn(table, this.config);
 	}
+
+	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
+	setName(name: string) {
+		if (this.config.name !== '') return;
+		this.config.name = name;
+	}
 }
 
 // To understand how to use `PgColumn` and `PgColumn`, see `Column` and `AnyColumn` documentation.
