@@ -1,7 +1,31 @@
 {
 	"name": "drizzle-kit",
 	"version": "0.23.2",
-	"repository": "https://github.com/drizzle-team/drizzle-orm",
+	"homepage": "https://orm.drizzle.team",
+	"keywords": [
+		"drizzle",
+		"orm",
+		"pg",
+		"mysql",
+		"postgresql",
+		"postgres",
+		"sqlite",
+		"database",
+		"sql",
+		"typescript",
+		"ts",
+		"drizzle-kit",
+		"migrations",
+		"schema"
+	],
+	"sideEffects": false,
+	"publishConfig": {
+		"provenance": true
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+	},
 	"author": "Drizzle Team",
 	"license": "MIT",
 	"bin": {
