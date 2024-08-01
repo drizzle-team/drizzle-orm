@@ -153,6 +153,7 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('datetime(') ? 'datetime' : patched;
 					patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 					patched = patched.startsWith('int(') ? 'int' : patched;
+					patched = patched.startsWith("double(") ? "double" : patched;
 					return patched;
 				})
 				.filter((type) => {
