@@ -70,7 +70,6 @@
 		"json-diff": "1.0.6",
 		"minimatch": "^7.4.3",
 		"mysql2": "2.3.3",
-		"node-fetch": "^3.3.2",
 		"pg": "^8.11.5",
 		"pluralize": "^8.0.0",
 		"postgres": "^3.4.4",

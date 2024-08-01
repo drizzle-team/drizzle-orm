@@ -239,9 +239,6 @@ importers:
       mysql2:
         specifier: 2.3.3
         version: 2.3.3
-      node-fetch:
-        specifier: ^3.3.2
-        version: 3.3.2
       pg:
         specifier: ^8.11.5
         version: 8.11.5
@@ -5495,95 +5492,6 @@ packages:
       pg:
         optional: true
       postgres:
-        optional: true
-      sql.js:
-        optional: true
-      sqlite3:
-        optional: true
-
-  drizzle-orm@0.32.1:
-    resolution: {integrity: sha512-Wq1J+lL8PzwR5K3a1FfoWsbs8powjr3pGA4+5+2ueN1VTLDNFYEolUyUWFtqy8DVRvYbL2n7sXZkgVmK9dQkng==}
-    peerDependencies:
-      '@aws-sdk/client-rds-data': '>=3'
-      '@cloudflare/workers-types': '>=3'
-      '@electric-sql/pglite': '>=0.1.1'
-      '@libsql/client': '*'
-      '@neondatabase/serverless': '>=0.1'
-      '@op-engineering/op-sqlite': '>=2'
-      '@opentelemetry/api': ^1.4.1
-      '@planetscale/database': '>=1'
-      '@prisma/client': '*'
-      '@tidbcloud/serverless': '*'
-      '@types/better-sqlite3': '*'
-      '@types/pg': '*'
-      '@types/react': '>=18'
-      '@types/sql.js': '*'
-      '@vercel/postgres': '>=0.8.0'
-      '@xata.io/client': '*'
-      better-sqlite3: '>=7'
-      bun-types: '*'
-      expo-sqlite: '>=13.2.0'
-      knex: '*'
-      kysely: '*'
-      mysql2: '>=2'
-      pg: '>=8'
-      postgres: '>=3'
-      prisma: '*'
-      react: '>=18'
-      sql.js: '>=1'
-      sqlite3: '>=5'
-    peerDependenciesMeta:
-      '@aws-sdk/client-rds-data':
-        optional: true
-      '@cloudflare/workers-types':
-        optional: true
-      '@electric-sql/pglite':
-        optional: true
-      '@libsql/client':
-        optional: true
-      '@neondatabase/serverless':
-        optional: true
-      '@op-engineering/op-sqlite':
-        optional: true
-      '@opentelemetry/api':
-        optional: true
-      '@planetscale/database':
-        optional: true
-      '@prisma/client':
-        optional: true
-      '@tidbcloud/serverless':
-        optional: true
-      '@types/better-sqlite3':
-        optional: true
-      '@types/pg':
-        optional: true
-      '@types/react':
-        optional: true
-      '@types/sql.js':
-        optional: true
-      '@vercel/postgres':
-        optional: true
-      '@xata.io/client':
-        optional: true
-      better-sqlite3:
-        optional: true
-      bun-types:
-        optional: true
-      expo-sqlite:
-        optional: true
-      knex:
-        optional: true
-      kysely:
-        optional: true
-      mysql2:
-        optional: true
-      pg:
-        optional: true
-      postgres:
-        optional: true
-      prisma:
-        optional: true
-      react:
         optional: true
       sql.js:
         optional: true
@@ -16510,36 +16418,6 @@ snapshots:
       sql.js: 1.10.3
       sqlite3: 5.1.7
 
-  drizzle-orm@0.32.1(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20240524.0)(@electric-sql/pglite@0.1.5)(@libsql/client@0.4.3(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.9.3)(@op-engineering/op-sqlite@2.0.22(react@18.3.1))(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.10)(@types/pg@8.11.6)(@types/react@18.3.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.4(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme)))(better-sqlite3@9.6.0)(bun-types@1.0.3)(expo-sqlite@13.4.0)(knex@3.1.0(better-sqlite3@9.6.0)(mysql2@2.3.3)(pg@8.11.5)(sqlite3@5.1.7))(kysely@0.27.3)(mysql2@2.3.3)(pg@8.11.5)(postgres@3.4.4)(react@18.3.1)(sql.js@1.10.3)(sqlite3@5.1.7):
-    optionalDependencies:
-      '@aws-sdk/client-rds-data': 3.583.0
-      '@cloudflare/workers-types': 4.20240524.0
-      '@electric-sql/pglite': 0.1.5
-      '@libsql/client': 0.4.3(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
-      '@neondatabase/serverless': 0.9.3
-      '@op-engineering/op-sqlite': 2.0.22(react-native@0.74.1(@babel/core@7.24.6)(@babel/preset-env@7.24.6(@babel/core@7.24.6))(@types/react@18.3.1)(bufferutil@4.0.8)(encoding@0.1.13)(react@18.3.1))(react@18.3.1)
-      '@opentelemetry/api': 1.8.0
-      '@planetscale/database': 1.18.0
-      '@prisma/client': 5.14.0(prisma@5.14.0)
-      '@tidbcloud/serverless': 0.1.1
-      '@types/better-sqlite3': 7.6.10
-      '@types/pg': 8.11.6
-      '@types/react': 18.3.1
-      '@types/sql.js': 1.4.9
-      '@vercel/postgres': 0.8.0
-      '@xata.io/client': 0.29.4(typescript@5.4.5(patch_hash=q3iy4fwdhi5sis3wty7d4nbsme))
-      better-sqlite3: 9.6.0
-      bun-types: 1.0.3
-      expo-sqlite: 13.4.0(expo@51.0.8(@babel/core@7.24.6)(@babel/preset-env@7.24.6(@babel/core@7.24.6))(bufferutil@4.0.8)(encoding@0.1.13))
-      knex: 3.1.0(better-sqlite3@9.6.0)(mysql2@2.3.3)(pg@8.11.5)(sqlite3@5.1.7)
-      kysely: 0.27.3
-      mysql2: 2.3.3
-      pg: 8.11.5
-      postgres: 3.4.4
-      react: 18.3.1
-      sql.js: 1.10.3
-      sqlite3: 5.1.7
-
   drizzle-prisma-generator@0.1.4:
     dependencies:
       '@prisma/generator-helper': 5.16.1
@@ -18544,31 +18422,6 @@ snapshots:
     optionalDependencies:
       better-sqlite3: 10.0.0
       mysql2: 3.9.8
-      pg: 8.11.5
-      sqlite3: 5.1.7
-    transitivePeerDependencies:
-      - supports-color
-    optional: true
-
-  knex@3.1.0(better-sqlite3@9.6.0)(mysql2@2.3.3)(pg@8.11.5)(sqlite3@5.1.7):
-    dependencies:
-      colorette: 2.0.19
-      commander: 10.0.1
-      debug: 4.3.4
-      escalade: 3.1.2
-      esm: 3.2.25
-      get-package-type: 0.1.0
-      getopts: 2.3.0
-      interpret: 2.2.0
-      lodash: 4.17.21
-      pg-connection-string: 2.6.2
-      rechoir: 0.8.0
-      resolve-from: 5.0.0
-      tarn: 3.0.2
-      tildify: 2.0.0
-    optionalDependencies:
-      better-sqlite3: 9.6.0
-      mysql2: 2.3.3
       pg: 8.11.5
       sqlite3: 5.1.7
     transitivePeerDependencies:
