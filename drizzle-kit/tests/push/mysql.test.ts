@@ -667,7 +667,7 @@ const mysqlSuite: DialectSuite = {
 run(
 	mysqlSuite,
 	async (context: any) => {
-		const connectionString = await createDockerDB(context);
+		const connectionString = process.env.MYSQL_CONNECTION_STRING ?? await createDockerDB(context);
 
 		const sleep = 1000;
 		let timeLeft = 20000;
