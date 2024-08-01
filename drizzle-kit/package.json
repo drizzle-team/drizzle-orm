@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "0.23.1",
+	"version": "0.23.2",
 	"repository": "https://github.com/drizzle-team/drizzle-orm",
 	"author": "Drizzle Team",
 	"license": "MIT",

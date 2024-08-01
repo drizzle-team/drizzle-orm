@@ -60,7 +60,7 @@ async function createDockerDB(context: any): Promise<string> {
 }
 
 const mysqlSuite: DialectSuite = {
-	allTypes: async function(context: any): Promise<void> {
+	allTypes: async function (context: any): Promise<void> {
 		const schema1 = {
 			allBigInts: mysqlTable('all_big_ints', {
 				simple: bigint('simple', { mode: 'number' }),
@@ -289,35 +289,35 @@ const mysqlSuite: DialectSuite = {
 			await context.client.query(st);
 		}
 	},
-	addBasicIndexes: function(context?: any): Promise<void> {
+	addBasicIndexes: function (context?: any): Promise<void> {
 		return {} as any;
 	},
-	changeIndexFields: function(context?: any): Promise<void> {
+	changeIndexFields: function (context?: any): Promise<void> {
 		return {} as any;
 	},
-	dropIndex: function(context?: any): Promise<void> {
+	dropIndex: function (context?: any): Promise<void> {
 		return {} as any;
 	},
-	indexesToBeNotTriggered: function(context?: any): Promise<void> {
+	indexesToBeNotTriggered: function (context?: any): Promise<void> {
 		return {} as any;
 	},
-	indexesTestCase1: function(context?: any): Promise<void> {
+	indexesTestCase1: function (context?: any): Promise<void> {
 		return {} as any;
 	},
 	async case1() {
 		// TODO: implement if needed
 		expect(true).toBe(true);
 	},
-	addNotNull: function(context?: any): Promise<void> {
+	addNotNull: function (context?: any): Promise<void> {
 		return {} as any;
 	},
-	addNotNullWithDataNoRollback: function(context?: any): Promise<void> {
+	addNotNullWithDataNoRollback: function (context?: any): Promise<void> {
 		return {} as any;
 	},
-	addBasicSequences: function(context?: any): Promise<void> {
+	addBasicSequences: function (context?: any): Promise<void> {
 		return {} as any;
 	},
-	addGeneratedColumn: async function(context: any): Promise<void> {
+	addGeneratedColumn: async function (context: any): Promise<void> {
 		const schema1 = {
 			users: mysqlTable('users', {
 				id: int('id'),
@@ -404,7 +404,7 @@ const mysqlSuite: DialectSuite = {
 			await context.client.query(st);
 		}
 	},
-	addGeneratedToColumn: async function(context: any): Promise<void> {
+	addGeneratedToColumn: async function (context: any): Promise<void> {
 		const schema1 = {
 			users: mysqlTable('users', {
 				id: int('id'),
@@ -494,7 +494,7 @@ const mysqlSuite: DialectSuite = {
 			await context.client.query(st);
 		}
 	},
-	dropGeneratedConstraint: async function(context: any): Promise<void> {
+	dropGeneratedConstraint: async function (context: any): Promise<void> {
 		const schema1 = {
 			users: mysqlTable('users', {
 				id: int('id'),
@@ -604,7 +604,7 @@ const mysqlSuite: DialectSuite = {
 			await context.client.query(st);
 		}
 	},
-	alterGeneratedConstraint: async function(context: any): Promise<void> {
+	alterGeneratedConstraint: async function (context: any): Promise<void> {
 		const schema1 = {
 			users: mysqlTable('users', {
 				id: int('id'),
@@ -659,7 +659,7 @@ const mysqlSuite: DialectSuite = {
 			await context.client.query(st);
 		}
 	},
-	createTableWithGeneratedConstraint: function(context?: any): Promise<void> {
+	createTableWithGeneratedConstraint: function (context?: any): Promise<void> {
 		return {} as any;
 	},
 };
@@ -667,7 +667,7 @@ const mysqlSuite: DialectSuite = {
 run(
 	mysqlSuite,
 	async (context: any) => {
-		const connectionString = await createDockerDB(context);
+		const connectionString = process.env.MYSQL_CONNECTION_STRING ?? await createDockerDB(context);
 
 		const sleep = 1000;
 		let timeLeft = 20000;

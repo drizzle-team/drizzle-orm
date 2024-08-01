@@ -40,7 +40,7 @@ async function createDockerDB(): Promise<string> {
 }
 
 beforeAll(async () => {
-	const connectionString = await createDockerDB();
+	const connectionString = process.env.MYSQL_CONNECTION_STRING ?? await createDockerDB();
 
 	const sleep = 1000;
 	let timeLeft = 20000;
