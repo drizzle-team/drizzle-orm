@@ -4,7 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 
 export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
 	name: TName;
@@ -85,22 +85,23 @@ export class PgDateString<T extends ColumnBaseConfig<'string', 'PgDateString'>> 
 	}
 }
 
+export interface PgDateConfig<T extends 'date' | 'string' = 'date' | 'string'> {
+	mode: T;
+}
+
 export function date(): PgDateStringBuilderInitial<''>;
-export function date(config?: { mode: 'string' }): PgDateStringBuilderInitial<''>;
-export function date(config?: { mode: 'date' }): PgDateBuilderInitial<''>;
-export function date<TName extends string>(
+export function date<TMode extends PgDateConfig['mode'] & {}>(
+	config?: PgDateConfig<TMode>,
+): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<''> : PgDateStringBuilderInitial<''>;
+export function date<TName extends string, TMode extends PgDateConfig['mode'] & {}>(
 	name: TName,
-	config?: { mode: 'string' },
-): PgDateStringBuilderInitial<TName>;
-export function date<TName extends string>(
-	name: TName,
-	config?: { mode: 'date' }
-): PgDateBuilderInitial<TName>;
-export function date<TName extends string>(
-	a?: TName | { mode: 'date' | 'string' },
-	b?: { mode: 'date' | 'string' }
-): PgDateBuilderInitial<TName> | PgDateStringBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, { mode: 'date' | 'string' }>(a, b);
+	config?: PgDateConfig<TMode>,
+): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<TName> : PgDateStringBuilderInitial<TName>;
+export function date<TName extends string, TMode extends PgDateConfig['mode'] & {}>(
+	a?: TName | PgDateConfig<TMode>,
+	b?: PgDateConfig<TMode>,
+): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<TName> : PgDateStringBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, PgDateConfig<TMode>>(a, b);
 	if (config?.mode === 'date') {
 		return new PgDateBuilder(name) as any;
 	}

@@ -98,7 +98,7 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'json', 'PgGeometryObje
 	}
 }
 
-interface PgGeometryConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {
+export interface PgGeometryConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {
 	mode?: T;
 	type?: 'point' | (string & {});
 	srid?: number;

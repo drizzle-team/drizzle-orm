@@ -61,37 +61,24 @@ export class PgNumeric<T extends ColumnBaseConfig<'string', 'PgNumeric'>> extend
 	}
 }
 
+export type PgNumericConfig =
+	| { precision: number; scale?: number }
+	| { precision?: number; scale: number }
+	| { precision: number; scale: number };
+
 export function numeric(): PgNumericBuilderInitial<''>;
 export function numeric(
-	config?:
-		| { precision: number; scale?: number }
-		| { precision?: number; scale: number }
-		| { precision: number; scale: number },
+	config?: PgNumericConfig,
 ): PgNumericBuilderInitial<''>;
 export function numeric<TName extends string>(
 	name: TName,
-	config?:
-		| { precision: number; scale?: number }
-		| { precision?: number; scale: number }
-		| { precision: number; scale: number },
+	config?: PgNumericConfig,
 ): PgNumericBuilderInitial<TName>;
 export function numeric<TName extends string>(
-	a?:
-		| TName
-		| { precision: number; scale?: number }
-		| { precision?: number; scale: number }
-		| { precision: number; scale: number },
-	b?:
-		| { precision: number; scale?: number }
-		| { precision?: number; scale: number }
-		| { precision: number; scale: number },
+	a?: TName | PgNumericConfig,
+	b?: PgNumericConfig,
 ): PgNumericBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<
-		TName,
-		| { precision: number; scale?: number }
-		| { precision?: number; scale: number }
-		| { precision: number; scale: number }
-	>(a, b);
+	const { name, config } = getColumnNameAndConfig<TName, PgNumericConfig>(a, b);
 	return new PgNumericBuilder(name, config?.precision, config?.scale);
 }
 

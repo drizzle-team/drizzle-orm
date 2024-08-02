@@ -92,7 +92,7 @@ export class PgBigInt64<T extends ColumnBaseConfig<'bigint', 'PgBigInt64'>> exte
 	}
 }
 
-interface PgBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export interface PgBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
 	mode: T;
 }
 

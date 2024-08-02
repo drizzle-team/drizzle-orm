@@ -110,7 +110,7 @@ export class PgBigSerial64<T extends ColumnBaseConfig<'bigint', 'PgBigSerial64'>
 	}
 }
 
-interface PgBigSerialConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export interface PgBigSerialConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
 	mode: T;
 }
 
