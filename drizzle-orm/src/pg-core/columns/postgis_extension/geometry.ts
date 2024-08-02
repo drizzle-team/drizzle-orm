@@ -3,7 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
-import type { Equal } from '~/utils.ts';
+import { getColumnNameAndConfig, type Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { parseEWKB } from './utils.ts';
 
@@ -104,14 +104,21 @@ interface PgGeometryConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {
 	srid?: number;
 }
 
+export function geometry(): PgGeometryBuilderInitial<''>;
+export function geometry<TMode extends PgGeometryConfig['mode'] & {}>(
+	config?: PgGeometryConfig<TMode>,
+): Equal<TMode, 'xy'> extends true ? PgGeometryObjectBuilderInitial<''> : PgGeometryBuilderInitial<''>;
 export function geometry<TName extends string, TMode extends PgGeometryConfig['mode'] & {}>(
 	name: TName,
 	config?: PgGeometryConfig<TMode>,
-): Equal<TMode, 'xy'> extends true ? PgGeometryObjectBuilderInitial<TName>
-	: PgGeometryBuilderInitial<TName>;
-export function geometry(name: string, config?: PgGeometryConfig) {
+): Equal<TMode, 'xy'> extends true ? PgGeometryObjectBuilderInitial<TName> : PgGeometryBuilderInitial<TName>;
+export function geometry<TName extends string, TMode extends PgGeometryConfig['mode'] & {}>(
+	a?: TName | PgGeometryConfig<TMode>,
+	b?: PgGeometryConfig<TMode>,
+): Equal<TMode, 'xy'> extends true ? PgGeometryObjectBuilderInitial<TName> : PgGeometryBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, PgGeometryConfig<TMode>>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
-		return new PgGeometryBuilder(name);
+		return new PgGeometryBuilder(name) as any;
 	}
-	return new PgGeometryObjectBuilder(name);
+	return new PgGeometryObjectBuilder(name) as any;
 }

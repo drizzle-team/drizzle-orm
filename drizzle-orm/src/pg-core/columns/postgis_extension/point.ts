@@ -3,7 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
-import type { Equal } from '~/utils.ts';
+import { getColumnNameAndConfig, type Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
 export type PgPointTupleBuilderInitial<TName extends string> = PgPointTupleBuilder<{
@@ -21,7 +21,7 @@ export class PgPointTupleBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgP
 {
 	static readonly [entityKind]: string = 'PgPointTupleBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'array', 'PgPointTuple');
 	}
 
@@ -71,7 +71,7 @@ export class PgPointObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgP
 {
 	static readonly [entityKind]: string = 'PgPointObjectBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'json', 'PgPointObject');
 	}
 
@@ -110,14 +110,25 @@ export interface PgPointConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {
 	mode?: T;
 }
 
+export function point(): PgPointTupleBuilderInitial<''>;
+export function point<TMode extends PgPointConfig['mode'] & {}>(
+	config?: PgPointConfig<TMode>,
+): Equal<TMode, 'xy'> extends true ? PgPointObjectBuilderInitial<''>
+	: PgPointTupleBuilderInitial<''>;
 export function point<TName extends string, TMode extends PgPointConfig['mode'] & {}>(
 	name: TName,
 	config?: PgPointConfig<TMode>,
 ): Equal<TMode, 'xy'> extends true ? PgPointObjectBuilderInitial<TName>
 	: PgPointTupleBuilderInitial<TName>;
-export function point(name: string, config?: PgPointConfig) {
+export function point<TName extends string, TMode extends PgPointConfig['mode'] & {}>(
+	a?: TName | PgPointConfig<TMode>,
+	b?: PgPointConfig<TMode>,
+): Equal<TMode, 'xy'> extends true ? PgPointObjectBuilderInitial<TName>
+	: PgPointTupleBuilderInitial<TName>
+{
+	const { name, config } = getColumnNameAndConfig<TName, PgPointConfig<TMode>>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
-		return new PgPointTupleBuilder(name);
+		return new PgPointTupleBuilder(name) as any;
 	}
-	return new PgPointObjectBuilder(name);
+	return new PgPointObjectBuilder(name) as any;
 }
