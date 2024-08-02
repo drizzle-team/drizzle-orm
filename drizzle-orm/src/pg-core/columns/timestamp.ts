@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import type { Equal } from '~/utils.ts';
+import { getColumnNameAndConfig, type Equal } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
 
@@ -133,16 +133,21 @@ export interface PgTimestampConfig<TMode extends 'date' | 'string' = 'date' | 's
 	withTimezone?: boolean;
 }
 
+export function timestamp(): PgTimestampBuilderInitial<''>;
+export function timestamp<TMode extends PgTimestampConfig['mode'] & {}>(
+	config?: PgTimestampConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilderInitial<''> : PgTimestampBuilderInitial<''>;
 export function timestamp<TName extends string, TMode extends PgTimestampConfig['mode'] & {}>(
 	name: TName,
 	config?: PgTimestampConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilderInitial<TName> : PgTimestampBuilderInitial<TName>;
-export function timestamp(
-	name: string,
-	config: PgTimestampConfig = {},
-) {
+export function timestamp<TName extends string, TMode extends PgTimestampConfig['mode'] & {}>(
+	a?: TName | PgTimestampConfig<TMode>,
+	b: PgTimestampConfig<TMode> = {},
+): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilderInitial<TName> : PgTimestampBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, PgTimestampConfig<TMode>>(a, b);
 	if (config.mode === 'string') {
-		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision);
+		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision) as any;
 	}
-	return new PgTimestampBuilder(name, config.withTimezone ?? false, config.precision);
+	return new PgTimestampBuilder(name, config.withTimezone ?? false, config.precision) as any;
 }

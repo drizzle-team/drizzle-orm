@@ -18,7 +18,9 @@ export type PgEnumColumnBuilderInitial<TName extends string, TValues extends [st
 
 const isPgEnumSym = Symbol.for('drizzle:isPgEnum');
 export interface PgEnum<TValues extends [string, ...string[]]> {
+	(): PgEnumColumnBuilderInitial<'', TValues>;
 	<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, TValues>;
+	<TName extends string>(name?: TName): PgEnumColumnBuilderInitial<TName, TValues>;
 
 	readonly enumName: string;
 	readonly enumValues: TValues;
@@ -88,8 +90,8 @@ export function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]
 	schema?: string,
 ): PgEnum<Writable<T>> {
 	const enumInstance: PgEnum<Writable<T>> = Object.assign(
-		<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, Writable<T>> =>
-			new PgEnumColumnBuilder(name, enumInstance),
+		<TName extends string>(name?: TName): PgEnumColumnBuilderInitial<TName, Writable<T>> =>
+			new PgEnumColumnBuilder(name ?? '', enumInstance),
 		{
 			enumName,
 			enumValues: values,

@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import type { Writable } from '~/utils.ts';
+import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 type PgTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = PgTextBuilder<{
@@ -21,7 +21,7 @@ export class PgTextBuilder<
 	static readonly [entityKind]: string = 'PgTextBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		config: PgTextConfig<T['enumValues']>,
 	) {
 		super(name, 'string', 'PgText');
@@ -52,9 +52,18 @@ export interface PgTextConfig<TEnum extends readonly string[] | string[] | undef
 	enum?: TEnum;
 }
 
+export function text(): PgTextBuilderInitial<'', [string, ...string[]]>;
+export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: PgTextConfig<T | Writable<T>>,
+): PgTextBuilderInitial<'', Writable<T>>;
 export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: PgTextConfig<T | Writable<T>> = {},
+	config?: PgTextConfig<T | Writable<T>>,
+): PgTextBuilderInitial<TName, Writable<T>>;
+export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
+	a?: TName | PgTextConfig<T | Writable<T>>,
+	b: PgTextConfig<T | Writable<T>> = {},
 ): PgTextBuilderInitial<TName, Writable<T>> {
+	const { name, config } = getColumnNameAndConfig<TName, PgTextConfig<T | Writable<T>>>(a, b);
 	return new PgTextBuilder(name, config);
 }

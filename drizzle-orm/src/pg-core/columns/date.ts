@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
 	name: TName;
@@ -84,14 +85,24 @@ export class PgDateString<T extends ColumnBaseConfig<'string', 'PgDateString'>> 
 	}
 }
 
+export function date(): PgDateStringBuilderInitial<''>;
+export function date(config?: { mode: 'string' }): PgDateStringBuilderInitial<''>;
+export function date(config?: { mode: 'date' }): PgDateBuilderInitial<''>;
 export function date<TName extends string>(
 	name: TName,
 	config?: { mode: 'string' },
 ): PgDateStringBuilderInitial<TName>;
-export function date<TName extends string>(TName: TName, config?: { mode: 'date' }): PgDateBuilderInitial<TName>;
-export function date<TName extends string>(name: TName, config?: { mode: 'date' | 'string' }) {
+export function date<TName extends string>(
+	name: TName,
+	config?: { mode: 'date' }
+): PgDateBuilderInitial<TName>;
+export function date<TName extends string>(
+	a?: TName | { mode: 'date' | 'string' },
+	b?: { mode: 'date' | 'string' }
+): PgDateBuilderInitial<TName> | PgDateStringBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, { mode: 'date' | 'string' }>(a, b);
 	if (config?.mode === 'date') {
-		return new PgDateBuilder(name);
+		return new PgDateBuilder(name) as any;
 	}
-	return new PgDateStringBuilder(name);
+	return new PgDateStringBuilder(name) as any;
 }

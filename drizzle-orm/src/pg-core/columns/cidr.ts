@@ -17,7 +17,7 @@ export type PgCidrBuilderInitial<TName extends string> = PgCidrBuilder<{
 export class PgCidrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgCidr'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgCidrBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'string', 'PgCidr');
 	}
 
@@ -37,6 +37,8 @@ export class PgCidr<T extends ColumnBaseConfig<'string', 'PgCidr'>> extends PgCo
 	}
 }
 
-export function cidr<TName extends string>(name: TName): PgCidrBuilderInitial<TName> {
-	return new PgCidrBuilder(name);
+export function cidr(): PgCidrBuilderInitial<''>;
+export function cidr<TName extends string>(name: TName): PgCidrBuilderInitial<TName>;
+export function cidr<TName extends string>(name?: TName): PgCidrBuilderInitial<TName> {
+	return new PgCidrBuilder(name ?? '');
 }

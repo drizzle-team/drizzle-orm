@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
 	name: TName;
@@ -69,9 +70,18 @@ export interface IntervalConfig {
 	precision?: Precision;
 }
 
+export function interval(): PgIntervalBuilderInitial<''>;
+export function interval(
+	config?: IntervalConfig,
+): PgIntervalBuilderInitial<''>;
 export function interval<TName extends string>(
 	name: TName,
-	config: IntervalConfig = {},
+	config?: IntervalConfig,
+): PgIntervalBuilderInitial<TName>;
+export function interval<TName extends string>(
+	a?: TName | IntervalConfig,
+	b: IntervalConfig = {},
 ): PgIntervalBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, IntervalConfig>(a, b);
 	return new PgIntervalBuilder(name, config);
 }

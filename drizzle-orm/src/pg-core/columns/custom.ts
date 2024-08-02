@@ -3,7 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
-import type { Equal } from '~/utils.ts';
+import { getColumnNameAndConfig, type Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
@@ -108,7 +108,7 @@ export type CustomTypeValues = {
 	/**
 	 * What config type should be used for {@link CustomTypeParams} `dataType` generation
 	 */
-	config?: unknown;
+	config?: Record<string, any>;
 
 	/**
 	 * Whether the config argument should be required or not
@@ -203,19 +203,28 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
  */
 export function customType<T extends CustomTypeValues = CustomTypeValues>(
 	customTypeParams: CustomTypeParams<T>,
-): Equal<T['configRequired'], true> extends true ? <TName extends string>(
-		dbName: TName,
-		fieldConfig: T['config'],
-	) => PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>
-	: <TName extends string>(
-		dbName: TName,
-		fieldConfig?: T['config'],
-	) => PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>
+): Equal<T['configRequired'], true> extends true ? {
+		<TConfig extends Record<string, any> & T['config']>(
+			fieldConfig: TConfig,
+		): PgCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		<TName extends string>(
+			dbName: TName,
+			fieldConfig: T['config'],
+		): PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+	} : {
+		(): PgCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		(fieldConfig?: T['config']): PgCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		<TName extends string>(
+			dbName: TName,
+			fieldConfig?: T['config'],
+		): PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+	}
 {
 	return <TName extends string>(
-		dbName: TName,
-		fieldConfig?: T['config'],
+		a?: TName | T['config'],
+		b?: T['config'],
 	): PgCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
-		return new PgCustomColumnBuilder(dbName as ConvertCustomConfig<TName, T>['name'], fieldConfig, customTypeParams);
+		const { name, config } = getColumnNameAndConfig<TName, T['config']>(a, b);
+		return new PgCustomColumnBuilder(name as ConvertCustomConfig<TName, T>['name'], config, customTypeParams);
 	};
 }

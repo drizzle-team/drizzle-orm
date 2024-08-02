@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import type { Writable } from '~/utils.ts';
+import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgCharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = PgCharBuilder<{
@@ -53,9 +53,18 @@ export interface PgCharConfig<TEnum extends readonly string[] | string[] | undef
 	enum?: TEnum;
 }
 
+export function char(): PgCharBuilderInitial<'', [string, ...string[]]>;
+export function char<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: PgCharConfig<T | Writable<T>>,
+): PgCharBuilderInitial<'', Writable<T>>;
 export function char<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: PgCharConfig<T | Writable<T>> = {},
+	config?: PgCharConfig<T | Writable<T>>,
+): PgCharBuilderInitial<TName, Writable<T>>;
+export function char<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
+	a?: TName | PgCharConfig<T | Writable<T>>,
+	b: PgCharConfig<T | Writable<T>> = {},
 ): PgCharBuilderInitial<TName, Writable<T>> {
+	const { name, config } = getColumnNameAndConfig<TName, PgCharConfig<T | Writable<T>>>(a, b);
 	return new PgCharBuilder(name, config);
 }

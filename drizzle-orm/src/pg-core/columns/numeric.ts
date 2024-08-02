@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
 	name: TName;
@@ -60,13 +61,37 @@ export class PgNumeric<T extends ColumnBaseConfig<'string', 'PgNumeric'>> extend
 	}
 }
 
+export function numeric(): PgNumericBuilderInitial<''>;
+export function numeric(
+	config?:
+		| { precision: number; scale?: number }
+		| { precision?: number; scale: number }
+		| { precision: number; scale: number },
+): PgNumericBuilderInitial<''>;
 export function numeric<TName extends string>(
 	name: TName,
 	config?:
 		| { precision: number; scale?: number }
 		| { precision?: number; scale: number }
 		| { precision: number; scale: number },
+): PgNumericBuilderInitial<TName>;
+export function numeric<TName extends string>(
+	a?:
+		| TName
+		| { precision: number; scale?: number }
+		| { precision?: number; scale: number }
+		| { precision: number; scale: number },
+	b?:
+		| { precision: number; scale?: number }
+		| { precision?: number; scale: number }
+		| { precision: number; scale: number },
 ): PgNumericBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<
+		TName,
+		| { precision: number; scale?: number }
+		| { precision?: number; scale: number }
+		| { precision: number; scale: number }
+	>(a, b);
 	return new PgNumericBuilder(name, config?.precision, config?.scale);
 }
 
