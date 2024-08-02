@@ -6,6 +6,7 @@ import { eq, gt } from '~/expressions.ts';
 import {
 	bigint,
 	bigserial,
+	bit,
 	boolean,
 	char,
 	check,
@@ -15,11 +16,14 @@ import {
 	decimal,
 	doublePrecision,
 	foreignKey,
+	geometry,
+	halfvec,
 	index,
 	inet,
 	integer,
 	json,
 	jsonb,
+	line,
 	macaddr,
 	macaddr8,
 	numeric,
@@ -27,17 +31,20 @@ import {
 	pgEnum,
 	pgTable,
 	type PgTableWithColumns,
+	point,
 	primaryKey,
 	real,
 	serial,
 	smallint,
 	smallserial,
+	sparsevec,
 	text,
 	time,
 	timestamp,
 	uniqueIndex,
 	uuid,
 	varchar,
+	vector,
 } from '~/pg-core/index.ts';
 import { pgSchema } from '~/pg-core/schema.ts';
 import {
@@ -872,8 +879,11 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	});
 
 	customTextRequired('t', { length: 10 });
+	customTextRequired({ length: 10 });
 	// @ts-expect-error - config is required
 	customTextRequired('t');
+	// @ts-expect-error - config is required
+	customTextRequired();
 }
 
 {
@@ -900,6 +910,8 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 
 	customTextOptional('t', { length: 10 });
 	customTextOptional('t');
+	customTextOptional({ length: 10 });
+	customTextOptional();
 }
 
 {
@@ -1180,7 +1192,11 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 }
 
 {
+	const enum_ = pgEnum('enum', ['a', 'b', 'c']);
+
 	pgTable('all_columns', {
+		enum: enum_('enum'),
+		enumdef: enum_('enumdef').default('a'),
 		sm: smallint('smallint'),
 		smdef: smallint('smallint_def').default(10),
 		int: integer('integer'),
@@ -1212,13 +1228,125 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		jsonbdef: jsonb('jsonbdef').$type<{ attr: string }>().default({ attr: 'value' }),
 		time: time('time'),
 		time2: time('time2', { precision: 6, withTimezone: true }),
+		timedef: time('timedef').default('00:00:00'),
 		timedefnow: time('timedefnow').defaultNow(),
 		timestamp: timestamp('timestamp'),
 		timestamp2: timestamp('timestamp2', { precision: 6, withTimezone: true }),
 		timestamp3: timestamp('timestamp3', { withTimezone: true }),
 		timestamp4: timestamp('timestamp4', { precision: 4 }),
-		timestampdef: timestamp('timestampdef').defaultNow(),
+		timestampdef: timestamp('timestampdef').default(new Date()),
 		date: date('date', { mode: 'date' }),
-		datedef: date('datedef').defaultNow(),
+		datedef: date('datedef').default('2024-01-01'),
+		datedefnow: date('datedefnow').defaultNow(),
+	});
+
+	pgTable('all_postgis_columns', {
+		geometry: geometry('geometry'),
+		geometry2: geometry('geometry2', { srid: 2, mode: 'xy' }),
+		geometry3: geometry('geometry3', { srid: 3, mode: 'tuple' }),
+		geometry4: geometry('geometry4', { mode: 'tuple' }),
+		geometrydef: geometry('geometrydef').default([1, 2]),
+		point: point('point'),
+		point2: point('point2', { mode: 'xy' }),
+		pointdef: point('pointdef').default([1, 2]),
+		line: line('line'),
+		line2: line('line2', { mode: 'abc' }),
+		linedef: line('linedef').default([1, 2, 3]),
+	});
+
+	pgTable('all_vector_columns', {
+		bit: bit('bit', { dimensions: 1 }),
+		bitdef: bit('bitdef', { dimensions: 1 }).default('1'),
+		halfvec: halfvec('halfvec', { dimensions: 1 }),
+		halfvecdef: halfvec('halfvecdef', { dimensions: 1 }).default([1]),
+		sparsevec: sparsevec('sparsevec', { dimensions: 1 }),
+		sparsevecdef: sparsevec('sparsevecdef', { dimensions: 1 }).default('{1:1}/1'),
+		vector: vector('vector', { dimensions: 1 }),
+		vectordef: vector('vectordef', { dimensions: 1 }).default([1]),
+	});
+}
+
+{
+	const keysAsColumnNames = pgTable('a', {
+		id: serial(),
+		name: text()
+	});
+
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+}
+
+{
+	const enum_ = pgEnum('enum', ['a', 'b', 'c']);
+
+	pgTable('all_columns_without_name', {
+		enum: enum_(),
+		enumdef: enum_().default('a'),
+		sm: smallint(),
+		smdef: smallint().default(10),
+		int: integer(),
+		intdef: integer().default(10),
+		numeric: numeric(),
+		numeric2: numeric({ precision: 5 }),
+		numeric3: numeric({ scale: 2 }),
+		numeric4: numeric({ precision: 5, scale: 2 }),
+		numericdef: numeric().default('100'),
+		bigint: bigint({ mode: 'number' }),
+		bigintdef: bigint({ mode: 'number' }).default(100),
+		bool: boolean(),
+		booldef: boolean().default(true),
+		text: text(),
+		textdef: text().default('text'),
+		varchar: varchar(),
+		varchardef: varchar().default('text'),
+		serial: serial(),
+		bigserial: bigserial({ mode: 'number' }),
+		decimal: decimal({ precision: 100, scale: 2 }),
+		decimaldef: decimal({ precision: 100, scale: 2 }).default('100.0'),
+		doublePrecision: doublePrecision(),
+		doublePrecisiondef: doublePrecision().default(100),
+		real: real(),
+		realdef: real().default(100),
+		json: json().$type<{ attr: string }>(),
+		jsondef: json().$type<{ attr: string }>().default({ attr: 'value' }),
+		jsonb: jsonb().$type<{ attr: string }>(),
+		jsonbdef: jsonb().$type<{ attr: string }>().default({ attr: 'value' }),
+		time: time(),
+		time2: time({ precision: 6, withTimezone: true }),
+		timedef: time().default('00:00:00'),
+		timedefnow: time().defaultNow(),
+		timestamp: timestamp(),
+		timestamp2: timestamp({ precision: 6, withTimezone: true }),
+		timestamp3: timestamp({ withTimezone: true }),
+		timestamp4: timestamp({ precision: 4 }),
+		timestampdef: timestamp().default(new Date()),
+		date: date({ mode: 'date' }),
+		datedef: date().default('2024-01-01'),
+		datedefnow: date().defaultNow(),
+	});
+
+	pgTable('all_postgis_columns', {
+		geometry: geometry(),
+		geometry2: geometry({ srid: 2, mode: 'xy' }),
+		geometry3: geometry({ srid: 3, mode: 'tuple' }),
+		geometry4: geometry({ mode: 'tuple' }),
+		geometrydef: geometry().default([1, 2]),
+		point: point(),
+		point2: point({ mode: 'xy' }),
+		pointdef: point().default([1, 2]),
+		line: line(),
+		line2: line({ mode: 'abc' }),
+		linedef: line().default([1, 2, 3]),
+	});
+
+	pgTable('all_vector_columns', {
+		bit: bit({ dimensions: 1 }),
+		bitdef: bit({ dimensions: 1 }).default('1'),
+		halfvec: halfvec({ dimensions: 1 }),
+		halfvecdef: halfvec({ dimensions: 1 }).default([1]),
+		sparsevec: sparsevec({ dimensions: 1 }),
+		sparsevecdef: sparsevec({ dimensions: 1 }).default('{1:1}/1'),
+		vector: vector({ dimensions: 1 }),
+		vectordef: vector({ dimensions: 1 }).default([1]),
 	});
 }
