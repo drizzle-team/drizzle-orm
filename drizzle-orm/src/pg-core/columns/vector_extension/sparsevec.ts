@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type PgSparseVectorBuilderInitial<TName extends string> = PgSparseVectorBuilder<{
 	name: TName;
@@ -54,9 +55,17 @@ export interface PgSparseVectorConfig {
 	dimensions: number;
 }
 
+export function sparsevec(
+	config: PgSparseVectorConfig,
+): PgSparseVectorBuilderInitial<''>;
 export function sparsevec<TName extends string>(
 	name: TName,
 	config: PgSparseVectorConfig,
+): PgSparseVectorBuilderInitial<TName>;
+export function sparsevec<TName extends string>(
+	a: TName | PgSparseVectorConfig,
+	b?: PgSparseVectorConfig,
 ): PgSparseVectorBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, PgSparseVectorConfig>(a, b);
 	return new PgSparseVectorBuilder(name, config);
 }

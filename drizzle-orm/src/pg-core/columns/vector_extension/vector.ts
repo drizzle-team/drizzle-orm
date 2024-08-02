@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type PgVectorBuilderInitial<TName extends string> = PgVectorBuilder<{
 	name: TName;
@@ -60,9 +61,17 @@ export interface PgVectorConfig {
 	dimensions: number;
 }
 
+export function vector(
+	config: PgVectorConfig,
+): PgVectorBuilderInitial<''>;
 export function vector<TName extends string>(
 	name: TName,
 	config: PgVectorConfig,
+): PgVectorBuilderInitial<TName>;
+export function vector<TName extends string>(
+	a: TName | PgVectorConfig,
+	b?: PgVectorConfig,
 ): PgVectorBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, PgVectorConfig>(a, b);
 	return new PgVectorBuilder(name, config);
 }
