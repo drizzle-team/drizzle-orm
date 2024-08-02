@@ -52,6 +52,8 @@ export class PgReal<T extends ColumnBaseConfig<'number', 'PgReal'>> extends PgCo
 	};
 }
 
-export function real<TName extends string>(name: TName): PgRealBuilderInitial<TName> {
-	return new PgRealBuilder(name);
+export function real(): PgRealBuilderInitial<''>;
+export function real<TName extends string>(name: TName): PgRealBuilderInitial<TName>;
+export function real<TName extends string>(name?: TName): PgRealBuilderInitial<TName> {
+	return new PgRealBuilder(name ?? '');
 }

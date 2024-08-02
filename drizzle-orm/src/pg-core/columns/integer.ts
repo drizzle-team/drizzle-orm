@@ -20,7 +20,7 @@ export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInt
 {
 	static readonly [entityKind]: string = 'PgIntegerBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'PgInteger');
 	}
 
@@ -47,6 +47,8 @@ export class PgInteger<T extends ColumnBaseConfig<'number', 'PgInteger'>> extend
 	}
 }
 
-export function integer<TName extends string>(name: TName): PgIntegerBuilderInitial<TName> {
-	return new PgIntegerBuilder(name);
+export function integer(): PgIntegerBuilderInitial<''>;
+export function integer<TName extends string>(name: TName): PgIntegerBuilderInitial<TName>;
+export function integer<TName extends string>(name?: TName): PgIntegerBuilderInitial<TName> {
+	return new PgIntegerBuilder(name ?? '');
 }

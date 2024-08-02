@@ -20,7 +20,7 @@ export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSm
 {
 	static readonly [entityKind]: string = 'PgSmallIntBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'PgSmallInt');
 	}
 
@@ -47,6 +47,8 @@ export class PgSmallInt<T extends ColumnBaseConfig<'number', 'PgSmallInt'>> exte
 	};
 }
 
-export function smallint<TName extends string>(name: TName): PgSmallIntBuilderInitial<TName> {
-	return new PgSmallIntBuilder(name);
+export function smallint(): PgSmallIntBuilderInitial<''>;
+export function smallint<TName extends string>(name: TName): PgSmallIntBuilderInitial<TName>;
+export function smallint<TName extends string>(name?: TName): PgSmallIntBuilderInitial<TName> {
+	return new PgSmallIntBuilder(name ?? '');
 }
