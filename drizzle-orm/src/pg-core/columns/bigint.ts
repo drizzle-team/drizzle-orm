@@ -106,7 +106,7 @@ export function bigint<TName extends string, TMode extends PgBigIntConfig['mode'
 export function bigint(a: string | PgBigIntConfig, b?: PgBigIntConfig) {
 	const { name, config } = getColumnNameAndConfig<PgBigIntConfig>(a, b);
 	if (config.mode === 'number') {
-		return new PgBigInt53Builder(name) as any;
+		return new PgBigInt53Builder(name);
 	}
-	return new PgBigInt64Builder(name) as any;
+	return new PgBigInt64Builder(name);
 }

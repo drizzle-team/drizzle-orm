@@ -114,7 +114,7 @@ export function bigint<TName extends string, TMode extends MySqlBigIntConfig['mo
 export function bigint(a?: string | MySqlBigIntConfig, b?: MySqlBigIntConfig) {
 	const { name, config } = getColumnNameAndConfig<MySqlBigIntConfig>(a, b);
 	if (config.mode === 'number') {
-		return new MySqlBigInt53Builder(name, config.unsigned) as any;
+		return new MySqlBigInt53Builder(name, config.unsigned);
 	}
-	return new MySqlBigInt64Builder(name, config.unsigned) as any;
+	return new MySqlBigInt64Builder(name, config.unsigned);
 }
