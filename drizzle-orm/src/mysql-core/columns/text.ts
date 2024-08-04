@@ -51,7 +51,7 @@ export class MySqlText<T extends ColumnBaseConfig<'string', 'MySqlText'>>
 	}
 }
 
-export interface MySqlTextConfig<TEnum extends readonly string[] | string[] | undefined> {
+export interface MySqlTextConfig<TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined> {
 	enum?: TEnum;
 }
 
@@ -63,12 +63,9 @@ export function text<TName extends string, U extends string, T extends Readonly<
 	name: TName,
 	config?: MySqlTextConfig<T | Writable<T>>,
 ): MySqlTextBuilderInitial<TName, Writable<T>>;
-export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	a?: TName | MySqlTextConfig<T | Writable<T>>,
-	b: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlTextConfig<T | Writable<T>>>(a, b);
-	return new MySqlTextBuilder(name, 'text', config);
+export function text(a?: string | MySqlTextConfig, b: MySqlTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<MySqlTextConfig>(a, b);
+	return new MySqlTextBuilder(name, 'text', config as any);
 }
 
 export function tinytext(): MySqlTextBuilderInitial<'', [string, ...string[]]>;
@@ -79,12 +76,9 @@ export function tinytext<TName extends string, U extends string, T extends Reado
 	name: TName,
 	config?: MySqlTextConfig<T | Writable<T>>,
 ): MySqlTextBuilderInitial<TName, Writable<T>>;
-export function tinytext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	a?: TName | MySqlTextConfig<T | Writable<T>>,
-	b: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlTextConfig<T | Writable<T>>>(a, b);
-	return new MySqlTextBuilder(name, 'tinytext', config);
+export function tinytext(a?: string | MySqlTextConfig, b: MySqlTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<MySqlTextConfig>(a, b);
+	return new MySqlTextBuilder(name, 'tinytext', config as any);
 }
 
 export function mediumtext(): MySqlTextBuilderInitial<'', [string, ...string[]]>;
@@ -95,12 +89,9 @@ export function mediumtext<TName extends string, U extends string, T extends Rea
 	name: TName,
 	config?: MySqlTextConfig<T | Writable<T>>,
 ): MySqlTextBuilderInitial<TName, Writable<T>>;
-export function mediumtext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	a?: TName | MySqlTextConfig<T | Writable<T>>,
-	b: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlTextConfig<T | Writable<T>>>(a, b);
-	return new MySqlTextBuilder(name, 'mediumtext', config);
+export function mediumtext(a?: string | MySqlTextConfig, b: MySqlTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<MySqlTextConfig>(a, b);
+	return new MySqlTextBuilder(name, 'mediumtext', config as any);
 }
 
 export function longtext(): MySqlTextBuilderInitial<'', [string, ...string[]]>;
@@ -111,10 +102,7 @@ export function longtext<TName extends string, U extends string, T extends Reado
 	name: TName,
 	config?: MySqlTextConfig<T | Writable<T>>,
 ): MySqlTextBuilderInitial<TName, Writable<T>>;
-export function longtext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	a?: TName | MySqlTextConfig<T | Writable<T>>,
-	b: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlTextConfig<T | Writable<T>>>(a, b);
-	return new MySqlTextBuilder(name, 'longtext', config);
+export function longtext(a?: string | MySqlTextConfig, b: MySqlTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<MySqlTextConfig>(a, b);
+	return new MySqlTextBuilder(name, 'longtext', config as any);
 }

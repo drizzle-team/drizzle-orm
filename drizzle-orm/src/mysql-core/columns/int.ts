@@ -20,7 +20,7 @@ export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlI
 {
 	static readonly [entityKind]: string = 'MySqlIntBuilder';
 
-	constructor(name: string, config?: MySqlIntConfig) {
+	constructor(name: T['name'], config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
@@ -62,10 +62,7 @@ export function int<TName extends string>(
 	name: TName,
 	config?: MySqlIntConfig,
 ): MySqlIntBuilderInitial<TName>;
-export function int<TName extends string>(
-	a?: TName | MySqlIntConfig,
-	b?: MySqlIntConfig,
-): MySqlIntBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlIntConfig>(a, b);
+export function int(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
 	return new MySqlIntBuilder(name, config);
 }

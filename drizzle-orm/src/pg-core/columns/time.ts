@@ -24,7 +24,7 @@ export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTime'>
 	static readonly [entityKind]: string = 'PgTimeBuilder';
 
 	constructor(
-		name: string,
+		name: T['name'],
 		readonly withTimezone: boolean,
 		readonly precision: number | undefined,
 	) {
@@ -67,7 +67,7 @@ export interface TimeConfig {
 export function time(): PgTimeBuilderInitial<''>;
 export function time(config?: TimeConfig): PgTimeBuilderInitial<''>;
 export function time<TName extends string>(name: TName, config?: TimeConfig): PgTimeBuilderInitial<TName>;
-export function time<TName extends string>(a?: TName, b: TimeConfig = {}): PgTimeBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, TimeConfig>(a, b);
+export function time(a?: string | TimeConfig, b: TimeConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<TimeConfig>(a, b);
 	return new PgTimeBuilder(name, config.withTimezone ?? false, config.precision);
 }

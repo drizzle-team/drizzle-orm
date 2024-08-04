@@ -66,10 +66,7 @@ export function double<TName extends string>(
 	name: TName,
 	config?: MySqlDoubleConfig,
 ): MySqlDoubleBuilderInitial<TName>;
-export function double<TName extends string>(
-	a?: TName | MySqlDoubleConfig,
-	b?: MySqlDoubleConfig,
-): MySqlDoubleBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlDoubleConfig>(a, b);
+export function double(a?: string | MySqlDoubleConfig, b?: MySqlDoubleConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlDoubleConfig>(a, b);
 	return new MySqlDoubleBuilder(name, config);
 }

@@ -21,7 +21,7 @@ export class PgVarcharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgVar
 > {
 	static readonly [entityKind]: string = 'PgVarcharBuilder';
 
-	constructor(name: string, config: PgVarcharConfig<T['enumValues']>) {
+	constructor(name: T['name'], config: PgVarcharConfig<T['enumValues']>) {
 		super(name, 'string', 'PgVarchar');
 		this.config.length = config.length;
 		this.config.enumValues = config.enum;
@@ -48,7 +48,7 @@ export class PgVarchar<T extends ColumnBaseConfig<'string', 'PgVarchar'>>
 	}
 }
 
-export interface PgVarcharConfig<TEnum extends readonly string[] | string[] | undefined> {
+export interface PgVarcharConfig<TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined> {
 	length?: number;
 	enum?: TEnum;
 }
@@ -61,10 +61,7 @@ export function varchar<TName extends string, U extends string, T extends Readon
 	name: TName,
 	config?: PgVarcharConfig<T | Writable<T>>,
 ): PgVarcharBuilderInitial<TName, Writable<T>>;
-export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	a?: TName | PgVarcharConfig<T | Writable<T>>,
-	b: PgVarcharConfig<T | Writable<T>> = {},
-): PgVarcharBuilderInitial<TName, Writable<T>> {
-	const { name, config } = getColumnNameAndConfig<TName, PgVarcharConfig<T | Writable<T>>>(a, b);
-	return new PgVarcharBuilder(name, config);
+export function varchar(a?: string | PgVarcharConfig, b: PgVarcharConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<PgVarcharConfig>(a, b);
+	return new PgVarcharBuilder(name, config as any);
 }

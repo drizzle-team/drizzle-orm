@@ -62,10 +62,7 @@ export function tinyint<TName extends string>(
 	name: TName,
 	config?: MySqlIntConfig,
 ): MySqlTinyIntBuilderInitial<TName>;
-export function tinyint<TName extends string>(
-	a?: TName | MySqlIntConfig,
-	b?: MySqlIntConfig,
-): MySqlTinyIntBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlIntConfig>(a, b);
+export function tinyint(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
 	return new MySqlTinyIntBuilder(name, config);
 }

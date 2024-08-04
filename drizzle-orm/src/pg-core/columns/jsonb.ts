@@ -17,7 +17,7 @@ export type PgJsonbBuilderInitial<TName extends string> = PgJsonbBuilder<{
 export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJsonb'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgJsonbBuilder';
 
-	constructor(name: string) {
+	constructor(name: T['name']) {
 		super(name, 'json', 'PgJsonb');
 	}
 
@@ -58,6 +58,6 @@ export class PgJsonb<T extends ColumnBaseConfig<'json', 'PgJsonb'>> extends PgCo
 
 export function jsonb(): PgJsonbBuilderInitial<''>;
 export function jsonb<TName extends string>(name: TName): PgJsonbBuilderInitial<TName>;
-export function jsonb<TName extends string>(name?: TName): PgJsonbBuilderInitial<TName> {
+export function jsonb(name?: string) {
 	return new PgJsonbBuilder(name ?? '');
 }

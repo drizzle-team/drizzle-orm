@@ -20,7 +20,7 @@ export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgReal'>
 > {
 	static readonly [entityKind]: string = 'PgRealBuilder';
 
-	constructor(name: string, length?: number) {
+	constructor(name: T['name'], length?: number) {
 		super(name, 'number', 'PgReal');
 		this.config.length = length;
 	}
@@ -54,6 +54,6 @@ export class PgReal<T extends ColumnBaseConfig<'number', 'PgReal'>> extends PgCo
 
 export function real(): PgRealBuilderInitial<''>;
 export function real<TName extends string>(name: TName): PgRealBuilderInitial<TName>;
-export function real<TName extends string>(name?: TName): PgRealBuilderInitial<TName> {
+export function real(name?: string) {
 	return new PgRealBuilder(name ?? '');
 }

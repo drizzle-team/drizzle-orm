@@ -21,7 +21,7 @@ export class PgTextBuilder<
 	static readonly [entityKind]: string = 'PgTextBuilder';
 
 	constructor(
-		name: string,
+		name: T['name'],
 		config: PgTextConfig<T['enumValues']>,
 	) {
 		super(name, 'string', 'PgText');
@@ -48,7 +48,7 @@ export class PgText<T extends ColumnBaseConfig<'string', 'PgText'>>
 	}
 }
 
-export interface PgTextConfig<TEnum extends readonly string[] | string[] | undefined> {
+export interface PgTextConfig<TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined> {
 	enum?: TEnum;
 }
 
@@ -60,10 +60,7 @@ export function text<TName extends string, U extends string, T extends Readonly<
 	name: TName,
 	config?: PgTextConfig<T | Writable<T>>,
 ): PgTextBuilderInitial<TName, Writable<T>>;
-export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	a?: TName | PgTextConfig<T | Writable<T>>,
-	b: PgTextConfig<T | Writable<T>> = {},
-): PgTextBuilderInitial<TName, Writable<T>> {
-	const { name, config } = getColumnNameAndConfig<TName, PgTextConfig<T | Writable<T>>>(a, b);
-	return new PgTextBuilder(name, config);
+export function text(a?: string | PgTextConfig, b: PgTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<PgTextConfig>(a, b);
+	return new PgTextBuilder(name, config as any);
 }

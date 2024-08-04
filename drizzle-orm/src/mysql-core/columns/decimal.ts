@@ -69,10 +69,7 @@ export function decimal<TName extends string>(
 	name: TName,
 	config?: MySqlDecimalConfig,
 ): MySqlDecimalBuilderInitial<TName>;
-export function decimal<TName extends string>(
-	a?: TName | MySqlDecimalConfig,
-	b: MySqlDecimalConfig = {},
-): MySqlDecimalBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlDecimalConfig>(a, b);
+export function decimal(a?: string | MySqlDecimalConfig, b: MySqlDecimalConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<MySqlDecimalConfig>(a, b);
 	return new MySqlDecimalBuilder(name, config.precision, config.scale);
 }

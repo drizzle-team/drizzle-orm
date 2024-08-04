@@ -120,15 +120,10 @@ export function point<TName extends string, TMode extends PgPointConfig['mode'] 
 	config?: PgPointConfig<TMode>,
 ): Equal<TMode, 'xy'> extends true ? PgPointObjectBuilderInitial<TName>
 	: PgPointTupleBuilderInitial<TName>;
-export function point<TName extends string, TMode extends PgPointConfig['mode'] & {}>(
-	a?: TName | PgPointConfig<TMode>,
-	b?: PgPointConfig<TMode>,
-): Equal<TMode, 'xy'> extends true ? PgPointObjectBuilderInitial<TName>
-	: PgPointTupleBuilderInitial<TName>
-{
-	const { name, config } = getColumnNameAndConfig<TName, PgPointConfig<TMode>>(a, b);
+export function point(a?: string | PgPointConfig, b?: PgPointConfig) {
+	const { name, config } = getColumnNameAndConfig<PgPointConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
-		return new PgPointTupleBuilder(name) as any;
+		return new PgPointTupleBuilder(name);
 	}
-	return new PgPointObjectBuilder(name) as any;
+	return new PgPointObjectBuilder(name);
 }

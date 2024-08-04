@@ -227,7 +227,7 @@ export function integer<TName extends string, TMode extends IntegerConfig['mode'
 	: Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilderInitial<TName>
 	: SQLiteIntegerBuilderInitial<TName>;
 export function integer(a?: string | IntegerConfig, b?: IntegerConfig) {
-	const { name, config } = getColumnNameAndConfig<string, IntegerConfig | undefined>(a, b);
+	const { name, config } = getColumnNameAndConfig<IntegerConfig | undefined>(a, b);
 	if (config?.mode === 'timestamp' || config?.mode === 'timestamp_ms') {
 		return new SQLiteTimestampBuilder(name, config.mode);
 	}

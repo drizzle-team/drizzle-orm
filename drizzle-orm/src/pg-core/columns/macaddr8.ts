@@ -17,7 +17,7 @@ export type PgMacaddr8BuilderInitial<TName extends string> = PgMacaddr8Builder<{
 export class PgMacaddr8Builder<T extends ColumnBuilderBaseConfig<'string', 'PgMacaddr8'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgMacaddr8Builder';
 
-	constructor(name: string) {
+	constructor(name: T['name']) {
 		super(name, 'string', 'PgMacaddr8');
 	}
 
@@ -39,6 +39,6 @@ export class PgMacaddr8<T extends ColumnBaseConfig<'string', 'PgMacaddr8'>> exte
 
 export function macaddr8(): PgMacaddr8BuilderInitial<''>
 export function macaddr8<TName extends string>(name: TName): PgMacaddr8BuilderInitial<TName>
-export function macaddr8<TName extends string>(name?: TName): PgMacaddr8BuilderInitial<TName> {
+export function macaddr8(name?: string) {
 	return new PgMacaddr8Builder(name ?? '');
 }

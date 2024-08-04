@@ -62,10 +62,7 @@ export function sparsevec<TName extends string>(
 	name: TName,
 	config: PgSparseVectorConfig,
 ): PgSparseVectorBuilderInitial<TName>;
-export function sparsevec<TName extends string>(
-	a: TName | PgSparseVectorConfig,
-	b?: PgSparseVectorConfig,
-): PgSparseVectorBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, PgSparseVectorConfig>(a, b);
+export function sparsevec(a: string | PgSparseVectorConfig, b?: PgSparseVectorConfig) {
+	const { name, config } = getColumnNameAndConfig<PgSparseVectorConfig>(a, b);
 	return new PgSparseVectorBuilder(name, config);
 }

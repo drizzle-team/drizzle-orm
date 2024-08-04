@@ -106,13 +106,10 @@ export function date<TName extends string, TMode extends MySqlDateConfig['mode']
 	name: TName,
 	config?: MySqlDateConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<TName> : MySqlDateBuilderInitial<TName>;
-export function date<TName extends string, TMode extends MySqlDateConfig['mode'] & {}>(
-	a?: TName | MySqlDateConfig<TMode>,
-	b?: MySqlDateConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<TName> : MySqlDateBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlDateConfig<TMode> | undefined>(a, b);
+export function date(a?: string | MySqlDateConfig, b?: MySqlDateConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlDateConfig | undefined>(a, b);
 	if (config?.mode === 'string') {
-		return new MySqlDateStringBuilder(name) as any;
+		return new MySqlDateStringBuilder(name);
 	}
-	return new MySqlDateBuilder(name) as any;
+	return new MySqlDateBuilder(name);
 }

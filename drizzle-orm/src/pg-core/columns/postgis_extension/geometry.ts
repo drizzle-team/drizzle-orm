@@ -112,13 +112,10 @@ export function geometry<TName extends string, TMode extends PgGeometryConfig['m
 	name: TName,
 	config?: PgGeometryConfig<TMode>,
 ): Equal<TMode, 'xy'> extends true ? PgGeometryObjectBuilderInitial<TName> : PgGeometryBuilderInitial<TName>;
-export function geometry<TName extends string, TMode extends PgGeometryConfig['mode'] & {}>(
-	a?: TName | PgGeometryConfig<TMode>,
-	b?: PgGeometryConfig<TMode>,
-): Equal<TMode, 'xy'> extends true ? PgGeometryObjectBuilderInitial<TName> : PgGeometryBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, PgGeometryConfig<TMode>>(a, b);
+export function geometry(a?: string | PgGeometryConfig, b?: PgGeometryConfig) {
+	const { name, config } = getColumnNameAndConfig<PgGeometryConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
-		return new PgGeometryBuilder(name) as any;
+		return new PgGeometryBuilder(name);
 	}
-	return new PgGeometryObjectBuilder(name) as any;
+	return new PgGeometryObjectBuilder(name);
 }

@@ -62,10 +62,7 @@ export function mediumint<TName extends string>(
 	name: TName,
 	config?: MySqlIntConfig,
 ): MySqlMediumIntBuilderInitial<TName>;
-export function mediumint<TName extends string>(
-	a?: TName | MySqlIntConfig,
-	b?: MySqlIntConfig,
-): MySqlMediumIntBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlIntConfig>(a, b);
+export function mediumint(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
 	return new MySqlMediumIntBuilder(name, config);
 }

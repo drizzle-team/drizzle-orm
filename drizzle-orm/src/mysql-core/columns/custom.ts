@@ -226,7 +226,7 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 		a?: TName | T['config'],
 		b?: T['config'],
 	): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
-		const { name, config } = getColumnNameAndConfig<TName, T['config']>(a, b);
+		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
 		return new MySqlCustomColumnBuilder(name as ConvertCustomConfig<TName, T>['name'], config, customTypeParams);
 	};
 }

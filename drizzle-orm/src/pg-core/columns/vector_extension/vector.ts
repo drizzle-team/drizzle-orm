@@ -68,10 +68,7 @@ export function vector<TName extends string>(
 	name: TName,
 	config: PgVectorConfig,
 ): PgVectorBuilderInitial<TName>;
-export function vector<TName extends string>(
-	a: TName | PgVectorConfig,
-	b?: PgVectorConfig,
-): PgVectorBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, PgVectorConfig>(a, b);
+export function vector(a: string | PgVectorConfig, b?: PgVectorConfig) {
+	const { name, config } = getColumnNameAndConfig<PgVectorConfig>(a, b);
 	return new PgVectorBuilder(name, config);
 }

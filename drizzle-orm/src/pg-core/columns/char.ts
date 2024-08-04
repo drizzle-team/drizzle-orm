@@ -21,7 +21,7 @@ export class PgCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgChar'>
 > {
 	static readonly [entityKind]: string = 'PgCharBuilder';
 
-	constructor(name: string, config: PgCharConfig<T['enumValues']>) {
+	constructor(name: T['name'], config: PgCharConfig<T['enumValues']>) {
 		super(name, 'string', 'PgChar');
 		this.config.length = config.length;
 		this.config.enumValues = config.enum;
@@ -48,7 +48,7 @@ export class PgChar<T extends ColumnBaseConfig<'string', 'PgChar'>>
 	}
 }
 
-export interface PgCharConfig<TEnum extends readonly string[] | string[] | undefined> {
+export interface PgCharConfig<TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined> {
 	length?: number;
 	enum?: TEnum;
 }
@@ -61,10 +61,7 @@ export function char<TName extends string, U extends string, T extends Readonly<
 	name: TName,
 	config?: PgCharConfig<T | Writable<T>>,
 ): PgCharBuilderInitial<TName, Writable<T>>;
-export function char<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	a?: TName | PgCharConfig<T | Writable<T>>,
-	b: PgCharConfig<T | Writable<T>> = {},
-): PgCharBuilderInitial<TName, Writable<T>> {
-	const { name, config } = getColumnNameAndConfig<TName, PgCharConfig<T | Writable<T>>>(a, b);
-	return new PgCharBuilder(name, config);
+export function char(a?: string | PgCharConfig, b: PgCharConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<PgCharConfig>(a, b);
+	return new PgCharBuilder(name, config as any);
 }

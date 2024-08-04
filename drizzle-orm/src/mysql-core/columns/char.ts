@@ -51,7 +51,7 @@ export class MySqlChar<T extends ColumnBaseConfig<'string', 'MySqlChar'>>
 	}
 }
 
-export interface MySqlCharConfig<TEnum extends readonly string[] | string[] | undefined> {
+export interface MySqlCharConfig<TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined> {
 	length?: number;
 	enum?: TEnum;
 }
@@ -64,10 +64,7 @@ export function char<TName extends string, U extends string, T extends Readonly<
 	name: TName,
 	config?: MySqlCharConfig<T | Writable<T>>,
 ): MySqlCharBuilderInitial<TName, Writable<T>>;
-export function char<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	a?: TName | MySqlCharConfig<T | Writable<T>>,
-	b: MySqlCharConfig<T | Writable<T>> = {},
-): MySqlCharBuilderInitial<TName, Writable<T>> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlCharConfig<T | Writable<T>>>(a, b);
-	return new MySqlCharBuilder(name, config);
+export function char(a?: string | MySqlCharConfig, b: MySqlCharConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<MySqlCharConfig>(a, b);
+	return new MySqlCharBuilder(name, config as any);
 }

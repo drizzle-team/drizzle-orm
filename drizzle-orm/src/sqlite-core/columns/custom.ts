@@ -226,7 +226,7 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 		a?: TName | T['config'],
 		b?: T['config'],
 	): SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
-		const { name, config } = getColumnNameAndConfig<TName, T['config']>(a, b);
+		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
 		return new SQLiteCustomColumnBuilder(
 			name as ConvertCustomConfig<TName, T>['name'],
 			config,

@@ -121,13 +121,10 @@ export function bigserial<TName extends string, TMode extends PgBigSerialConfig[
 	name: TName,
 	config: PgBigSerialConfig<TMode>,
 ): TMode extends 'number' ? PgBigSerial53BuilderInitial<TName> : PgBigSerial64BuilderInitial<TName>;
-export function bigserial<TName extends string, TMode extends PgBigSerialConfig['mode']>(
-	a: TName | PgBigSerialConfig<TMode>,
-	b?: PgBigSerialConfig<TMode>
-): TMode extends 'number' ? PgBigSerial53BuilderInitial<TName> : PgBigSerial64BuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, PgBigSerialConfig<TMode>>(a, b);
+export function bigserial(a: string | PgBigSerialConfig, b?: PgBigSerialConfig) {
+	const { name, config } = getColumnNameAndConfig<PgBigSerialConfig>(a, b);
 	if (config.mode === 'number') {
-		return new PgBigSerial53Builder(name) as any;
+		return new PgBigSerial53Builder(name);
 	}
-	return new PgBigSerial64Builder(name) as any;
+	return new PgBigSerial64Builder(name);
 }

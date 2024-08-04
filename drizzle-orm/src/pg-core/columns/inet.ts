@@ -17,7 +17,7 @@ export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<{
 export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgInetBuilder';
 
-	constructor(name: string) {
+	constructor(name: T['name']) {
 		super(name, 'string', 'PgInet');
 	}
 
@@ -39,6 +39,6 @@ export class PgInet<T extends ColumnBaseConfig<'string', 'PgInet'>> extends PgCo
 
 export function inet(): PgInetBuilderInitial<''>;
 export function inet<TName extends string>(name: TName): PgInetBuilderInitial<TName>;
-export function inet<TName extends string>(name?: TName): PgInetBuilderInitial<TName> {
+export function inet(name?: string) {
 	return new PgInetBuilder(name ?? '');
 }

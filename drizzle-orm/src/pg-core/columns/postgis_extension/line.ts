@@ -110,15 +110,10 @@ export function line<TName extends string, TMode extends PgLineTypeConfig['mode'
 	config?: PgLineTypeConfig<TMode>,
 ): Equal<TMode, 'abc'> extends true ? PgLineABCBuilderInitial<TName>
 	: PgLineBuilderInitial<TName>;
-export function line<TName extends string, TMode extends PgLineTypeConfig['mode'] & {}>(
-	a?: TName | PgLineTypeConfig<TMode>,
-	b?: PgLineTypeConfig<TMode>,
-): Equal<TMode, 'abc'> extends true ? PgLineABCBuilderInitial<TName>
-	: PgLineBuilderInitial<TName>
-{
-	const { name, config } = getColumnNameAndConfig<TName, PgLineTypeConfig<TMode>>(a, b);
+export function line(a?: string | PgLineTypeConfig, b?: PgLineTypeConfig) {
+	const { name, config } = getColumnNameAndConfig<PgLineTypeConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
-		return new PgLineBuilder(name) as any;
+		return new PgLineBuilder(name);
 	}
-	return new PgLineABCBuilder(name) as any;
+	return new PgLineABCBuilder(name);
 }

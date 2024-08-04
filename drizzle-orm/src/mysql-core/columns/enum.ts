@@ -56,15 +56,15 @@ export function mysqlEnum<TName extends string, U extends string, T extends Read
 	name: TName,
 	values: T | Writable<T>,
 ): MySqlEnumColumnBuilderInitial<TName, Writable<T>>;
-export function mysqlEnum<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	a?: TName | T | Writable<T>,
-	b?: T | Writable<T>,
-): MySqlEnumColumnBuilderInitial<TName, Writable<T>> {
-	const { name, config: values } = getColumnNameAndConfig<TName, T | Writable<T>>(a, b);
+export function mysqlEnum(
+	a?: string | readonly [string, ...string[]] | [string, ...string[]],
+	b?: readonly [string, ...string[]] | [string, ...string[]]
+): any {
+	const { name, config: values } = getColumnNameAndConfig<readonly [string, ...string[]] | [string, ...string[]]>(a, b);
 
 	if (values.length === 0) {
 		throw new Error(`You have an empty array for "${name}" enum values`);
 	}
 
-	return new MySqlEnumColumnBuilder(name, values);
+	return new MySqlEnumColumnBuilder(name, values as any);
 }

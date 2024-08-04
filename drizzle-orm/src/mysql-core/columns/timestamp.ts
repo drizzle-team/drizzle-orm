@@ -118,15 +118,10 @@ export function timestamp<TName extends string, TMode extends MySqlTimestampConf
 	config?: MySqlTimestampConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilderInitial<TName>
 	: MySqlTimestampBuilderInitial<TName>;
-export function timestamp<TName extends string, TMode extends MySqlTimestampConfig['mode'] & {}>(
-	a?: TName | MySqlTimestampConfig<TMode>,
-	b: MySqlTimestampConfig<TMode> = {},
-): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilderInitial<TName>
-	: MySqlTimestampBuilderInitial<TName>
-{
-	const { name, config } = getColumnNameAndConfig<TName, MySqlTimestampConfig<TMode> | undefined>(a, b);
+export function timestamp(a?: string | MySqlTimestampConfig, b: MySqlTimestampConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<MySqlTimestampConfig | undefined>(a, b);
 	if (config?.mode === 'string') {
-		return new MySqlTimestampStringBuilder(name, config) as any;
+		return new MySqlTimestampStringBuilder(name, config);
 	}
-	return new MySqlTimestampBuilder(name, config) as any;
+	return new MySqlTimestampBuilder(name, config);
 }

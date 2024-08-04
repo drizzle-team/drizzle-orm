@@ -128,13 +128,10 @@ export function datetime<TName extends string, TMode extends MySqlDatetimeConfig
 	name: TName,
 	config?: MySqlDatetimeConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? MySqlDateTimeStringBuilderInitial<TName> : MySqlDateTimeBuilderInitial<TName>;
-export function datetime<TName extends string, TMode extends MySqlDatetimeConfig['mode'] & {}>(
-	a?: TName | MySqlDatetimeConfig<TMode>,
-	b?: MySqlDatetimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlDateTimeStringBuilderInitial<TName> : MySqlDateTimeBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlDatetimeConfig<TMode> | undefined>(a, b);
+export function datetime(a?: string | MySqlDatetimeConfig, b?: MySqlDatetimeConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlDatetimeConfig | undefined>(a, b);
 	if (config?.mode === 'string') {
-		return new MySqlDateTimeStringBuilder(name, config) as any;
+		return new MySqlDateTimeStringBuilder(name, config);
 	}
-	return new MySqlDateTimeBuilder(name, config) as any;
+	return new MySqlDateTimeBuilder(name, config);
 }

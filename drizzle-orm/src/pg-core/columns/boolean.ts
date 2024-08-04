@@ -17,7 +17,7 @@ export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<{
 export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'PgBoolean'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgBooleanBuilder';
 
-	constructor(name: string) {
+	constructor(name: T['name']) {
 		super(name, 'boolean', 'PgBoolean');
 	}
 
@@ -39,6 +39,6 @@ export class PgBoolean<T extends ColumnBaseConfig<'boolean', 'PgBoolean'>> exten
 
 export function boolean(): PgBooleanBuilderInitial<''>;
 export function boolean<TName extends string>(name: TName): PgBooleanBuilderInitial<TName>
-export function boolean<TName extends string>(name?: TName): PgBooleanBuilderInitial<TName> {
+export function boolean(name?: string) {
 	return new PgBooleanBuilder(name ?? '');
 }

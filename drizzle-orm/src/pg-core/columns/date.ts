@@ -97,13 +97,10 @@ export function date<TName extends string, TMode extends PgDateConfig['mode'] & 
 	name: TName,
 	config?: PgDateConfig<TMode>,
 ): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<TName> : PgDateStringBuilderInitial<TName>;
-export function date<TName extends string, TMode extends PgDateConfig['mode'] & {}>(
-	a?: TName | PgDateConfig<TMode>,
-	b?: PgDateConfig<TMode>,
-): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<TName> : PgDateStringBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, PgDateConfig<TMode>>(a, b);
+export function date(a?: string | PgDateConfig, b?: PgDateConfig) {
+	const { name, config } = getColumnNameAndConfig<PgDateConfig>(a, b);
 	if (config?.mode === 'date') {
-		return new PgDateBuilder(name) as any;
+		return new PgDateBuilder(name);
 	}
-	return new PgDateStringBuilder(name) as any;
+	return new PgDateStringBuilder(name);
 }

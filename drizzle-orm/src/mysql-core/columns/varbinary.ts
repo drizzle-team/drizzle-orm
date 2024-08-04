@@ -60,10 +60,7 @@ export function varbinary<TName extends string>(
 	name: TName,
 	config: MySqlVarbinaryOptions,
 ): MySqlVarBinaryBuilderInitial<TName>;
-export function varbinary<TName extends string>(
-	a?: TName | MySqlVarbinaryOptions,
-	b?: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlVarbinaryOptions>(a, b);
+export function varbinary(a?: string | MySqlVarbinaryOptions, b?: MySqlVarbinaryOptions) {
+	const { name, config } = getColumnNameAndConfig<MySqlVarbinaryOptions>(a, b);
 	return new MySqlVarBinaryBuilder(name, config);
 }

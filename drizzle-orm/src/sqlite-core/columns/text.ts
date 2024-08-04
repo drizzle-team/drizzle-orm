@@ -106,7 +106,7 @@ export class SQLiteTextJson<T extends ColumnBaseConfig<'json', 'SQLiteTextJson'>
 
 export type SQLiteTextConfig<
 	TMode extends 'text' | 'json' = 'text' | 'json',
-	TEnum extends readonly string[] | string[] | undefined = string[] | string[] | undefined,
+	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
 > = TMode extends 'text' ? {
 		mode?: TMode;
 		length?: number;
@@ -136,7 +136,7 @@ export function text<
 ): Equal<TMode, 'json'> extends true ? SQLiteTextJsonBuilderInitial<TName>
 	: SQLiteTextBuilderInitial<TName, Writable<T>>;
 export function text(a?: string | SQLiteTextConfig, b: SQLiteTextConfig = {}): any {
-	const { name, config } = getColumnNameAndConfig<string, SQLiteTextConfig>(a, b);
+	const { name, config } = getColumnNameAndConfig<SQLiteTextConfig>(a, b);
 	if (config.mode === 'json') {
 		return new SQLiteTextJsonBuilder(name);
 	}

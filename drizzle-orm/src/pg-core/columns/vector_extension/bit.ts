@@ -62,10 +62,7 @@ export function bit<TName extends string>(
 	name: TName,
 	config: PgBinaryVectorConfig,
 ): PgBinaryVectorBuilderInitial<TName>;
-export function bit<TName extends string>(
-	a: TName | PgBinaryVectorConfig,
-	b?: PgBinaryVectorConfig,
-): PgBinaryVectorBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, PgBinaryVectorConfig>(a, b);
+export function bit(a: string | PgBinaryVectorConfig, b?: PgBinaryVectorConfig) {
+	const { name, config } = getColumnNameAndConfig<PgBinaryVectorConfig>(a, b);
 	return new PgBinaryVectorBuilder(name, config);
 }

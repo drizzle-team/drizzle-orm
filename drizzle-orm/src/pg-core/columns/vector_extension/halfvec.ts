@@ -71,10 +71,7 @@ export function halfvec<TName extends string>(
 	name: TName,
 	config: PgHalfVectorConfig,
 ): PgHalfVectorBuilderInitial<TName>;
-export function halfvec<TName extends string>(
-	a: TName | PgHalfVectorConfig,
-	b?: PgHalfVectorConfig,
-): PgHalfVectorBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, PgHalfVectorConfig>(a, b);
+export function halfvec(a: string | PgHalfVectorConfig, b?: PgHalfVectorConfig) {
+	const { name, config } = getColumnNameAndConfig<PgHalfVectorConfig>(a, b);
 	return new PgHalfVectorBuilder(name, config);
 }

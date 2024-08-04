@@ -19,7 +19,7 @@ export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number'
 {
 	static readonly [entityKind]: string = 'PgDoublePrecisionBuilder';
 
-	constructor(name: string) {
+	constructor(name: T['name']) {
 		super(name, 'number', 'PgDoublePrecision');
 	}
 
@@ -51,6 +51,6 @@ export class PgDoublePrecision<T extends ColumnBaseConfig<'number', 'PgDoublePre
 
 export function doublePrecision(): PgDoublePrecisionBuilderInitial<''>;
 export function doublePrecision<TName extends string>(name: TName): PgDoublePrecisionBuilderInitial<TName>;
-export function doublePrecision<TName extends string>(name?: TName): PgDoublePrecisionBuilderInitial<TName> {
+export function doublePrecision(name?: string) {
 	return new PgDoublePrecisionBuilder(name ?? '');
 }

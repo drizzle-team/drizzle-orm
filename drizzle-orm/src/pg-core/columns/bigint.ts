@@ -103,11 +103,8 @@ export function bigint<TName extends string, TMode extends PgBigIntConfig['mode'
 	name: TName,
 	config: PgBigIntConfig<TMode>,
 ): TMode extends 'number' ? PgBigInt53BuilderInitial<TName> : PgBigInt64BuilderInitial<TName>;
-export function bigint<TName extends string, TMode extends PgBigIntConfig['mode']>(
-	a: TName | PgBigIntConfig<TMode>,
-	b?: PgBigIntConfig<TMode>,
-): TMode extends 'number' ? PgBigInt53BuilderInitial<TName> : PgBigInt64BuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, PgBigIntConfig<TMode>>(a, b);
+export function bigint(a: string | PgBigIntConfig, b?: PgBigIntConfig) {
+	const { name, config } = getColumnNameAndConfig<PgBigIntConfig>(a, b);
 	if (config.mode === 'number') {
 		return new PgBigInt53Builder(name) as any;
 	}

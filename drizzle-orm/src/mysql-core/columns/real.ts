@@ -70,10 +70,7 @@ export function real<TName extends string>(
 	name: TName,
 	config?: MySqlRealConfig,
 ): MySqlRealBuilderInitial<TName>;
-export function real<TName extends string>(
-	a?: TName | MySqlRealConfig,
-	b: MySqlRealConfig = {},
-): MySqlRealBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlRealConfig>(a, b);
+export function real(a?: string | MySqlRealConfig, b: MySqlRealConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<MySqlRealConfig>(a, b);
 	return new MySqlRealBuilder(name, config);
 }

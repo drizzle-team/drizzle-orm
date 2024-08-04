@@ -78,10 +78,7 @@ export function interval<TName extends string>(
 	name: TName,
 	config?: IntervalConfig,
 ): PgIntervalBuilderInitial<TName>;
-export function interval<TName extends string>(
-	a?: TName | IntervalConfig,
-	b: IntervalConfig = {},
-): PgIntervalBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, IntervalConfig>(a, b);
+export function interval(a?: string | IntervalConfig, b: IntervalConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<IntervalConfig>(a, b);
 	return new PgIntervalBuilder(name, config);
 }

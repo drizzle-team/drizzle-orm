@@ -19,7 +19,7 @@ export class PgJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJson'>> 
 > {
 	static readonly [entityKind]: string = 'PgJsonBuilder';
 
-	constructor(name: string) {
+	constructor(name: T['name']) {
 		super(name, 'json', 'PgJson');
 	}
 
@@ -60,6 +60,6 @@ export class PgJson<T extends ColumnBaseConfig<'json', 'PgJson'>> extends PgColu
 
 export function json(): PgJsonBuilderInitial<''>;
 export function json<TName extends string>(name: TName): PgJsonBuilderInitial<TName>;
-export function json<TName extends string>(name?: TName): PgJsonBuilderInitial<TName> {
+export function json(name?: string) {
 	return new PgJsonBuilder(name ?? '');
 }

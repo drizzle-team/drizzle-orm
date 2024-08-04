@@ -17,7 +17,7 @@ export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
 export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlJson'>> extends MySqlColumnBuilder<T> {
 	static readonly [entityKind]: string = 'MySqlJsonBuilder';
 
-	constructor(name: string) {
+	constructor(name: T['name']) {
 		super(name, 'json', 'MySqlJson');
 	}
 
@@ -43,6 +43,6 @@ export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends 
 
 export function json(): MySqlJsonBuilderInitial<''>;
 export function json<TName extends string>(name: TName): MySqlJsonBuilderInitial<TName>;
-export function json<TName extends string>(name?: TName): MySqlJsonBuilderInitial<TName> {
+export function json(name?: string) {
 	return new MySqlJsonBuilder(name ?? '');
 }

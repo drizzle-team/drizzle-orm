@@ -62,10 +62,7 @@ export function time<TName extends string>(
 	name: TName,
 	config?: TimeConfig,
 ): MySqlTimeBuilderInitial<TName>;
-export function time<TName extends string>(
-	a?: TName | TimeConfig,
-	b?: TimeConfig,
-): MySqlTimeBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, TimeConfig>(a, b);
+export function time(a?: string | TimeConfig, b?: TimeConfig) {
+	const { name, config } = getColumnNameAndConfig<TimeConfig>(a, b);
 	return new MySqlTimeBuilder(name, config);
 }

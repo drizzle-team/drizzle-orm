@@ -24,7 +24,7 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 > {
 	static readonly [entityKind]: string = 'PgNumericBuilder';
 
-	constructor(name: string, precision?: number, scale?: number) {
+	constructor(name: T['name'], precision?: number, scale?: number) {
 		super(name, 'string', 'PgNumeric');
 		this.config.precision = precision;
 		this.config.scale = scale;
@@ -74,11 +74,8 @@ export function numeric<TName extends string>(
 	name: TName,
 	config?: PgNumericConfig,
 ): PgNumericBuilderInitial<TName>;
-export function numeric<TName extends string>(
-	a?: TName | PgNumericConfig,
-	b?: PgNumericConfig,
-): PgNumericBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, PgNumericConfig>(a, b);
+export function numeric(a?: string | PgNumericConfig, b?: PgNumericConfig) {
+	const { name, config } = getColumnNameAndConfig<PgNumericConfig>(a, b);
 	return new PgNumericBuilder(name, config?.precision, config?.scale);
 }
 

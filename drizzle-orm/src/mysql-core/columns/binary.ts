@@ -21,7 +21,7 @@ export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MyS
 > {
 	static readonly [entityKind]: string = 'MySqlBinaryBuilder';
 
-	constructor(name: string, length: number | undefined) {
+	constructor(name: T['name'], length: number | undefined) {
 		super(name, 'string', 'MySqlBinary');
 		this.config.length = length;
 	}
@@ -59,10 +59,7 @@ export function binary<TName extends string>(
 	name: TName,
 	config?: MySqlBinaryConfig,
 ): MySqlBinaryBuilderInitial<TName>;
-export function binary<TName extends string>(
-	a?: TName | MySqlBinaryConfig,
-	b: MySqlBinaryConfig = {},
-): MySqlBinaryBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlBinaryConfig>(a, b);
+export function binary(a?: string | MySqlBinaryConfig, b: MySqlBinaryConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<MySqlBinaryConfig>(a, b);
 	return new MySqlBinaryBuilder(name, config.length);
 }
