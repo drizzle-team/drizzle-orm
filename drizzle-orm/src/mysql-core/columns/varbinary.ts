@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
 	name: TName;
@@ -52,9 +53,17 @@ export interface MySqlVarbinaryOptions {
 	length: number;
 }
 
+export function varbinary(
+	config: MySqlVarbinaryOptions,
+): MySqlVarBinaryBuilderInitial<''>;
 export function varbinary<TName extends string>(
 	name: TName,
-	options: MySqlVarbinaryOptions,
+	config: MySqlVarbinaryOptions,
+): MySqlVarBinaryBuilderInitial<TName>;
+export function varbinary<TName extends string>(
+	a?: TName | MySqlVarbinaryOptions,
+	b?: MySqlVarbinaryOptions,
 ): MySqlVarBinaryBuilderInitial<TName> {
-	return new MySqlVarBinaryBuilder(name, options);
+	const { name, config } = getColumnNameAndConfig<TName, MySqlVarbinaryOptions>(a, b);
+	return new MySqlVarBinaryBuilder(name, config);
 }

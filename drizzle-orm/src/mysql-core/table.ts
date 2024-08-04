@@ -80,6 +80,7 @@ export function mysqlTableWithSchema<
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as MySqlColumnBuilder;
+			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];

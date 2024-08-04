@@ -94,6 +94,12 @@ export abstract class MySqlColumnBuilder<
 	abstract build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlColumn<MakeColumnConfig<T, TTableName>>;
+
+	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
+	setName(name: string) {
+		if (this.config.name !== '') return;
+		this.config.name = name;
+	}
 }
 
 // To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.

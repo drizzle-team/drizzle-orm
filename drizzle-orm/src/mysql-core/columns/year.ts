@@ -17,7 +17,7 @@ export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
 export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlYear'>> extends MySqlColumnBuilder<T> {
 	static readonly [entityKind]: string = 'MySqlYearBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'MySqlYear');
 	}
 
@@ -39,6 +39,8 @@ export class MySqlYear<
 	}
 }
 
-export function year<TName extends string>(name: TName): MySqlYearBuilderInitial<TName> {
-	return new MySqlYearBuilder(name);
+export function year(): MySqlYearBuilderInitial<''>;
+export function year<TName extends string>(name: TName): MySqlYearBuilderInitial<TName>;
+export function year<TName extends string>(name?: TName): MySqlYearBuilderInitial<TName> {
+	return new MySqlYearBuilder(name ?? '');
 }

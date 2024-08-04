@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<{
 	name: TName;
@@ -61,6 +62,18 @@ export interface MySqlRealConfig {
 	scale?: number;
 }
 
-export function real<TName extends string>(name: TName, config: MySqlRealConfig = {}): MySqlRealBuilderInitial<TName> {
+export function real(): MySqlRealBuilderInitial<''>;
+export function real(
+	config?: MySqlRealConfig,
+): MySqlRealBuilderInitial<''>;
+export function real<TName extends string>(
+	name: TName,
+	config?: MySqlRealConfig,
+): MySqlRealBuilderInitial<TName>;
+export function real<TName extends string>(
+	a?: TName | MySqlRealConfig,
+	b: MySqlRealConfig = {},
+): MySqlRealBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, MySqlRealConfig>(a, b);
 	return new MySqlRealBuilder(name, config);
 }

@@ -19,7 +19,7 @@ export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySq
 {
 	static readonly [entityKind]: string = 'MySqlFloatBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'MySqlFloat');
 	}
 
@@ -39,6 +39,8 @@ export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>> exte
 	}
 }
 
-export function float<TName extends string>(name: TName): MySqlFloatBuilderInitial<TName> {
-	return new MySqlFloatBuilder(name);
+export function float(): MySqlFloatBuilderInitial<''>;
+export function float<TName extends string>(name: TName): MySqlFloatBuilderInitial<TName>;
+export function float<TName extends string>(name?: TName): MySqlFloatBuilderInitial<TName> {
+	return new MySqlFloatBuilder(name ?? '');
 }

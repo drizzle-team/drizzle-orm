@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
 	name: TName;
@@ -19,7 +20,7 @@ export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlI
 {
 	static readonly [entityKind]: string = 'MySqlIntBuilder';
 
-	constructor(name: T['name'], config?: MySqlIntConfig) {
+	constructor(name: string, config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
@@ -53,6 +54,18 @@ export interface MySqlIntConfig {
 	unsigned?: boolean;
 }
 
-export function int<TName extends string>(name: TName, config?: MySqlIntConfig): MySqlIntBuilderInitial<TName> {
+export function int(): MySqlIntBuilderInitial<''>;
+export function int(
+	config?: MySqlIntConfig,
+): MySqlIntBuilderInitial<''>;
+export function int<TName extends string>(
+	name: TName,
+	config?: MySqlIntConfig,
+): MySqlIntBuilderInitial<TName>;
+export function int<TName extends string>(
+	a?: TName | MySqlIntConfig,
+	b?: MySqlIntConfig,
+): MySqlIntBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, MySqlIntConfig>(a, b);
 	return new MySqlIntBuilder(name, config);
 }

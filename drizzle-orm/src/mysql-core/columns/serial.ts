@@ -35,7 +35,7 @@ export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 {
 	static readonly [entityKind]: string = 'MySqlSerialBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'MySqlSerial');
 		this.config.hasDefault = true;
 		this.config.autoIncrement = true;
@@ -66,6 +66,8 @@ export class MySqlSerial<
 	}
 }
 
-export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName> {
-	return new MySqlSerialBuilder(name) as MySqlSerialBuilderInitial<TName>;
+export function serial(): MySqlSerialBuilderInitial<''>;
+export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName>;
+export function serial<TName extends string>(name?: TName): MySqlSerialBuilderInitial<TName> {
+	return new MySqlSerialBuilder(name ?? '') as MySqlSerialBuilderInitial<TName>;
 }

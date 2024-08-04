@@ -19,7 +19,7 @@ export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'M
 {
 	static readonly [entityKind]: string = 'MySqlBooleanBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'boolean', 'MySqlBoolean');
 	}
 
@@ -49,6 +49,8 @@ export class MySqlBoolean<T extends ColumnBaseConfig<'boolean', 'MySqlBoolean'>>
 	}
 }
 
-export function boolean<TName extends string>(name: TName): MySqlBooleanBuilderInitial<TName> {
-	return new MySqlBooleanBuilder(name);
+export function boolean(): MySqlBooleanBuilderInitial<''>;
+export function boolean<TName extends string>(name: TName): MySqlBooleanBuilderInitial<TName>;
+export function boolean<TName extends string>(name?: TName): MySqlBooleanBuilderInitial<TName> {
+	return new MySqlBooleanBuilder(name ?? '');
 }

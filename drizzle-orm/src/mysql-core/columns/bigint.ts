@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Builder<{
 	name: TName;
@@ -67,7 +68,7 @@ export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'M
 {
 	static readonly [entityKind]: string = 'MySqlBigInt64Builder';
 
-	constructor(name: T['name'], unsigned: boolean = false) {
+	constructor(name: string, unsigned: boolean = false) {
 		super(name, 'bigint', 'MySqlBigInt64');
 		this.config.unsigned = unsigned;
 	}
@@ -98,18 +99,25 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MySqlBigInt64'>
 	}
 }
 
-interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
 	mode: T;
 	unsigned?: boolean;
 }
 
+export function bigint<TMode extends MySqlBigIntConfig['mode']>(
+	config: MySqlBigIntConfig<TMode>,
+): TMode extends 'number' ? MySqlBigInt53BuilderInitial<''> : MySqlBigInt64BuilderInitial<''>;
 export function bigint<TName extends string, TMode extends MySqlBigIntConfig['mode']>(
 	name: TName,
 	config: MySqlBigIntConfig<TMode>,
 ): TMode extends 'number' ? MySqlBigInt53BuilderInitial<TName> : MySqlBigInt64BuilderInitial<TName>;
-export function bigint(name: string, config: MySqlBigIntConfig) {
+export function bigint<TName extends string, TMode extends MySqlBigIntConfig['mode']>(
+	a?: TName | MySqlBigIntConfig<TMode>,
+	b?: MySqlBigIntConfig<TMode>,
+): TMode extends 'number' ? MySqlBigInt53BuilderInitial<TName> : MySqlBigInt64BuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, MySqlBigIntConfig<TMode>>(a, b);
 	if (config.mode === 'number') {
-		return new MySqlBigInt53Builder(name, config.unsigned);
+		return new MySqlBigInt53Builder(name, config.unsigned) as any;
 	}
-	return new MySqlBigInt64Builder(name, config.unsigned);
+	return new MySqlBigInt64Builder(name, config.unsigned) as any;
 }

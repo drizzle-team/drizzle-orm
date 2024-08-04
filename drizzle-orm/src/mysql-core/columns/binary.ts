@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type MySqlBinaryBuilderInitial<TName extends string> = MySqlBinaryBuilder<{
 	name: TName;
@@ -20,7 +21,7 @@ export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MyS
 > {
 	static readonly [entityKind]: string = 'MySqlBinaryBuilder';
 
-	constructor(name: T['name'], length: number | undefined) {
+	constructor(name: string, length: number | undefined) {
 		super(name, 'string', 'MySqlBinary');
 		this.config.length = length;
 	}
@@ -50,9 +51,18 @@ export interface MySqlBinaryConfig {
 	length?: number;
 }
 
+export function binary(): MySqlBinaryBuilderInitial<''>;
+export function binary(
+	config?: MySqlBinaryConfig,
+): MySqlBinaryBuilderInitial<''>;
 export function binary<TName extends string>(
 	name: TName,
-	config: MySqlBinaryConfig = {},
+	config?: MySqlBinaryConfig,
+): MySqlBinaryBuilderInitial<TName>;
+export function binary<TName extends string>(
+	a?: TName | MySqlBinaryConfig,
+	b: MySqlBinaryConfig = {},
 ): MySqlBinaryBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, MySqlBinaryConfig>(a, b);
 	return new MySqlBinaryBuilder(name, config.length);
 }

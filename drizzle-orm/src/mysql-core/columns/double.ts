@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder<{
 	name: TName;
@@ -57,9 +58,18 @@ export interface MySqlDoubleConfig {
 	scale?: number;
 }
 
+export function double(): MySqlDoubleBuilderInitial<''>;
+export function double(
+	config?: MySqlDoubleConfig,
+): MySqlDoubleBuilderInitial<''>;
 export function double<TName extends string>(
 	name: TName,
 	config?: MySqlDoubleConfig,
+): MySqlDoubleBuilderInitial<TName>;
+export function double<TName extends string>(
+	a?: TName | MySqlDoubleConfig,
+	b?: MySqlDoubleConfig,
 ): MySqlDoubleBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, MySqlDoubleConfig>(a, b);
 	return new MySqlDoubleBuilder(name, config);
 }

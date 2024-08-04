@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 import type { MySqlIntConfig } from './int.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntBuilder<{
 	name: TName;
@@ -53,9 +54,18 @@ export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt
 	}
 }
 
+export function mediumint(): MySqlMediumIntBuilderInitial<''>;
+export function mediumint(
+	config?: MySqlIntConfig,
+): MySqlMediumIntBuilderInitial<''>;
 export function mediumint<TName extends string>(
 	name: TName,
 	config?: MySqlIntConfig,
+): MySqlMediumIntBuilderInitial<TName>;
+export function mediumint<TName extends string>(
+	a?: TName | MySqlIntConfig,
+	b?: MySqlIntConfig,
 ): MySqlMediumIntBuilderInitial<TName> {
+	const { name, config } = getColumnNameAndConfig<TName, MySqlIntConfig>(a, b);
 	return new MySqlMediumIntBuilder(name, config);
 }
