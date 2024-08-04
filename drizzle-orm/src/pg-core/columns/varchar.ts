@@ -48,7 +48,9 @@ export class PgVarchar<T extends ColumnBaseConfig<'string', 'PgVarchar'>>
 	}
 }
 
-export interface PgVarcharConfig<TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined> {
+export interface PgVarcharConfig<
+	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
+> {
 	length?: number;
 	enum?: TEnum;
 }

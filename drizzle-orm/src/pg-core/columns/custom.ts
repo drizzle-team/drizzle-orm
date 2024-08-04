@@ -3,7 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
-import { getColumnNameAndConfig, type Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
@@ -211,7 +211,8 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 			dbName: TName,
 			fieldConfig: T['config'],
 		): PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
-	} : {
+	}
+	: {
 		(): PgCustomColumnBuilder<ConvertCustomConfig<'', T>>;
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig?: TConfig,

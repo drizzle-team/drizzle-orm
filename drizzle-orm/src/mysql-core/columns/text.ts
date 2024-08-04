@@ -51,7 +51,9 @@ export class MySqlText<T extends ColumnBaseConfig<'string', 'MySqlText'>>
 	}
 }
 
-export interface MySqlTextConfig<TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined> {
+export interface MySqlTextConfig<
+	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
+> {
 	enum?: TEnum;
 }
 

@@ -2,8 +2,8 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
+import { PgColumn, PgColumnBuilder } from '../common.ts';
 
 export type PgVectorBuilderInitial<TName extends string> = PgVectorBuilder<{
 	name: TName;

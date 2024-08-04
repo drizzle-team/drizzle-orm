@@ -50,7 +50,7 @@ export class PgSerial<T extends ColumnBaseConfig<'number', 'PgSerial'>> extends 
 }
 
 export function serial(): PgSerialBuilderInitial<''>;
-export function serial<TName extends string>(name: TName): PgSerialBuilderInitial<TName>
+export function serial<TName extends string>(name: TName): PgSerialBuilderInitial<TName>;
 export function serial(name?: string) {
 	return new PgSerialBuilder(name ?? '');
 }

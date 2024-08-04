@@ -48,7 +48,9 @@ export class PgChar<T extends ColumnBaseConfig<'string', 'PgChar'>>
 	}
 }
 
-export interface PgCharConfig<TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined> {
+export interface PgCharConfig<
+	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
+> {
 	length?: number;
 	enum?: TEnum;
 }

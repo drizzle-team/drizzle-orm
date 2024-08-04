@@ -7,9 +7,9 @@ import type {
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import type { AnyPgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
 	HasDefault<

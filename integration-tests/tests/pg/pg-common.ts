@@ -34,6 +34,7 @@ import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
 	alias,
+	bigserial,
 	boolean,
 	char,
 	cidr,
@@ -70,7 +71,6 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	bigserial,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
@@ -4495,7 +4495,7 @@ export function tests() {
 				id: bigserial({ mode: 'number' }).primaryKey(),
 				firstName: varchar(),
 				lastName: varchar({ length: 50 }),
-				admin: boolean()
+				admin: boolean(),
 			});
 
 			await db.execute(sql`drop table if exists users`);
@@ -4507,7 +4507,7 @@ export function tests() {
 						"lastName" varchar(50),
 						"admin" boolean
 					)
-				`
+				`,
 			);
 
 			await db.insert(users).values([

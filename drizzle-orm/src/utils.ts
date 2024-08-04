@@ -226,7 +226,7 @@ export type IsAny<T> = 0 extends (1 & T) ? true : false;
 
 /** @internal */
 export function getColumnNameAndConfig<
-	TConfig extends Record<string, any> | undefined
+	TConfig extends Record<string, any> | undefined,
 >(a: string | TConfig | undefined, b: TConfig | undefined) {
 	return {
 		name: typeof a === 'string' && a.length > 0 ? a : '' as string,

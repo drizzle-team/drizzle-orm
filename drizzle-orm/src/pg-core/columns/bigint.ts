@@ -3,9 +3,9 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
 
 export type PgBigInt53BuilderInitial<TName extends string> = PgBigInt53Builder<{
 	name: TName;

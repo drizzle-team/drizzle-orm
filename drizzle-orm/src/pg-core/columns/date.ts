@@ -2,9 +2,9 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
-import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 
 export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
 	name: TName;

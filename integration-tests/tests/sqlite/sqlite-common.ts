@@ -2745,7 +2745,7 @@ export function tests() {
 		const users = sqliteTable('users', {
 			id: integer().primaryKey({ autoIncrement: true }),
 			createdAt: integer({ mode: 'timestamp' }),
-			name: text()
+			name: text(),
 		});
 
 		await db.run(sql`drop table if exists users`);
@@ -2756,12 +2756,12 @@ export function tests() {
 					\`createdAt\` integer,
 					\`name\` text
 				)
-			`
+			`,
 		);
 
 		await db.insert(users).values([
 			{ createdAt: new Date(Date.now() - 2592000000), name: 'John' },
-			{ createdAt: new Date(Date.now() - 86400000), name: 'Jane' }
+			{ createdAt: new Date(Date.now() - 86400000), name: 'Jane' },
 		]);
 		const result = await db
 			.select({ id: users.id, name: users.name })

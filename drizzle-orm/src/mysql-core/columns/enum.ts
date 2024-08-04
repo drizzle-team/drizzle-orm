@@ -58,7 +58,7 @@ export function mysqlEnum<TName extends string, U extends string, T extends Read
 ): MySqlEnumColumnBuilderInitial<TName, Writable<T>>;
 export function mysqlEnum(
 	a?: string | readonly [string, ...string[]] | [string, ...string[]],
-	b?: readonly [string, ...string[]] | [string, ...string[]]
+	b?: readonly [string, ...string[]] | [string, ...string[]],
 ): any {
 	const { name, config: values } = getColumnNameAndConfig<readonly [string, ...string[]] | [string, ...string[]]>(a, b);
 

@@ -329,8 +329,9 @@ export type BuildColumns<
 > =
 	& {
 		[Key in keyof TConfigMap]: BuildColumn<TTableName, {
-			_: Omit<TConfigMap[Key]['_'], 'name'> &
-			{ name: TConfigMap[Key]['_']['name'] extends '' ? Assume<Key, string> : TConfigMap[Key]['_']['name'] }
+			_:
+				& Omit<TConfigMap[Key]['_'], 'name'>
+				& { name: TConfigMap[Key]['_']['name'] extends '' ? Assume<Key, string> : TConfigMap[Key]['_']['name'] };
 		}, TDialect>;
 	}
 	& {};

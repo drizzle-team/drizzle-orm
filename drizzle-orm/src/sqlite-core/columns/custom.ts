@@ -3,7 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
-import { getColumnNameAndConfig, type Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
@@ -211,7 +211,8 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 			dbName: TName,
 			fieldConfig: T['config'],
 		): SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
-	} : {
+	}
+	: {
 		(): SQLiteCustomColumnBuilder<ConvertCustomConfig<'', T>>;
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig?: TConfig,

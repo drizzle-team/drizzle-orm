@@ -813,7 +813,7 @@ Expect<
 			Expect<Equal<{ length: number } | undefined, typeof config>>;
 			return config ? `varchar(${config.length})` : `text`;
 		},
-		
+
 		toDriver(value) {
 			Expect<Equal<string, typeof value>>();
 			return value;
@@ -921,7 +921,7 @@ Expect<
 {
 	const keysAsColumnNames = mysqlTable('test', {
 		id: int(),
-		name: text()
+		name: text(),
 	});
 
 	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;

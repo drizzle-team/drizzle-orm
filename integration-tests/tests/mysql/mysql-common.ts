@@ -3552,7 +3552,7 @@ export function tests(driver?: string) {
 			id: bigint({ mode: 'number' }).autoincrement().primaryKey(),
 			createdAt: timestamp(),
 			updatedAt: timestamp({ fsp: 3 }),
-			admin: boolean()
+			admin: boolean(),
 		});
 
 		await db.execute(sql`drop table if exists users`);
@@ -3564,7 +3564,7 @@ export function tests(driver?: string) {
 					\`updatedAt\` timestamp(3),
 					\`admin\` boolean
 				)
-			`
+			`,
 		);
 
 		await db.insert(users).values([
@@ -3579,7 +3579,7 @@ export function tests(driver?: string) {
 				and(
 					gt(users.createdAt, sql`now() - interval 7 day`),
 					gt(users.updatedAt, sql`now() - interval 7 day`),
-				)
+				),
 			);
 
 		expect(result).toEqual([

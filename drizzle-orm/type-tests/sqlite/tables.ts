@@ -506,7 +506,7 @@ Expect<
 			Expect<Equal<{ length: number } | undefined, typeof config>>;
 			return config ? `varchar(${config.length})` : `text`;
 		},
-		
+
 		toDriver(value) {
 			Expect<Equal<string, typeof value>>();
 			return value;
@@ -541,14 +541,14 @@ Expect<
 		text3: text('text3', { length: 1 }),
 		text4: text('text4', { length: 1, enum: ['a', 'b', 'c'] }),
 		text5: text('text5', { mode: 'json' }),
-		textdef: text('textdef').default('')
+		textdef: text('textdef').default(''),
 	});
 }
 
 {
 	const keysAsColumnNames = sqliteTable('test', {
 		id: integer(),
-		name: text()
+		name: text(),
 	});
 
 	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
@@ -572,6 +572,6 @@ Expect<
 		text3: text({ length: 1 }),
 		text4: text({ length: 1, enum: ['a', 'b', 'c'] }),
 		text5: text({ mode: 'json' }),
-		textdef: text().default('')
+		textdef: text().default(''),
 	});
 }

@@ -38,7 +38,7 @@ export class PgBoolean<T extends ColumnBaseConfig<'boolean', 'PgBoolean'>> exten
 }
 
 export function boolean(): PgBooleanBuilderInitial<''>;
-export function boolean<TName extends string>(name: TName): PgBooleanBuilderInitial<TName>
+export function boolean<TName extends string>(name: TName): PgBooleanBuilderInitial<TName>;
 export function boolean(name?: string) {
 	return new PgBooleanBuilder(name ?? '');
 }

@@ -54,7 +54,7 @@ export class PgSmallSerial<T extends ColumnBaseConfig<'number', 'PgSmallSerial'>
 	}
 }
 
-export function smallserial(): PgSmallSerialBuilderInitial<''>
+export function smallserial(): PgSmallSerialBuilderInitial<''>;
 export function smallserial<TName extends string>(name: TName): PgSmallSerialBuilderInitial<TName>;
 export function smallserial(name?: string) {
 	return new PgSmallSerialBuilder(name ?? '');

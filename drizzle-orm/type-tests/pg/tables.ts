@@ -1269,7 +1269,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 {
 	const keysAsColumnNames = pgTable('test', {
 		id: serial(),
-		name: text()
+		name: text(),
 	});
 
 	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
