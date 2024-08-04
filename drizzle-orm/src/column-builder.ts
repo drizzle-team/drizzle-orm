@@ -293,6 +293,12 @@ export abstract class ColumnBuilder<
 		as: SQL | T['data'] | (() => SQL),
 		config?: Partial<GeneratedColumnConfig<unknown>>,
 	): HasGenerated<this>;
+
+	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
+	setName(name: string) {
+		if (this.config.name !== '') return;
+		this.config.name = name;
+	}
 }
 
 export type BuildColumn<
