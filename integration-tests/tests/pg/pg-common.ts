@@ -4524,6 +4524,6 @@ export function tests() {
 			]);
 
 			await db.execute(sql`drop table users`);
-		})
+		});
 	});
 }
