@@ -1267,7 +1267,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 }
 
 {
-	const keysAsColumnNames = pgTable('a', {
+	const keysAsColumnNames = pgTable('test', {
 		id: serial(),
 		name: text()
 	});

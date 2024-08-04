@@ -213,7 +213,9 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 		): PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
 	} : {
 		(): PgCustomColumnBuilder<ConvertCustomConfig<'', T>>;
-		(fieldConfig?: T['config']): PgCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		<TConfig extends Record<string, any> & T['config']>(
+			fieldConfig?: TConfig,
+		): PgCustomColumnBuilder<ConvertCustomConfig<'', T>>;
 		<TName extends string>(
 			dbName: TName,
 			fieldConfig?: T['config'],
