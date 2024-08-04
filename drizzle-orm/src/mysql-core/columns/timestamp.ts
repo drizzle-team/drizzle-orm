@@ -124,8 +124,8 @@ export function timestamp<TName extends string, TMode extends MySqlTimestampConf
 ): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilderInitial<TName>
 	: MySqlTimestampBuilderInitial<TName>
 {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlTimestampConfig<TMode>>(a, b);
-	if (config.mode === 'string') {
+	const { name, config } = getColumnNameAndConfig<TName, MySqlTimestampConfig<TMode> | undefined>(a, b);
+	if (config?.mode === 'string') {
 		return new MySqlTimestampStringBuilder(name, config) as any;
 	}
 	return new MySqlTimestampBuilder(name, config) as any;

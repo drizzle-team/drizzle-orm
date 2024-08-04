@@ -145,9 +145,9 @@ export function timestamp<TName extends string, TMode extends PgTimestampConfig[
 	a?: TName | PgTimestampConfig<TMode>,
 	b: PgTimestampConfig<TMode> = {},
 ): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilderInitial<TName> : PgTimestampBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, PgTimestampConfig<TMode>>(a, b);
-	if (config.mode === 'string') {
+	const { name, config } = getColumnNameAndConfig<TName, PgTimestampConfig<TMode> | undefined>(a, b);
+	if (config?.mode === 'string') {
 		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision) as any;
 	}
-	return new PgTimestampBuilder(name, config.withTimezone ?? false, config.precision) as any;
+	return new PgTimestampBuilder(name, config?.withTimezone ?? false, config?.precision) as any;
 }

@@ -110,8 +110,8 @@ export function date<TName extends string, TMode extends MySqlDateConfig['mode']
 	a?: TName | MySqlDateConfig<TMode>,
 	b?: MySqlDateConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<TName> : MySqlDateBuilderInitial<TName> {
-	const { name, config } = getColumnNameAndConfig<TName, MySqlDateConfig<TMode>>(a, b);
-	if (config.mode === 'string') {
+	const { name, config } = getColumnNameAndConfig<TName, MySqlDateConfig<TMode> | undefined>(a, b);
+	if (config?.mode === 'string') {
 		return new MySqlDateStringBuilder(name) as any;
 	}
 	return new MySqlDateBuilder(name) as any;
