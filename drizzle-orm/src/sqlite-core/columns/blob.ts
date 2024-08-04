@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
-import type { Equal } from '~/utils.ts';
+import { getColumnNameAndConfig, type Equal } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
@@ -141,13 +141,20 @@ export interface BlobConfig<TMode extends BlobMode = BlobMode> {
  *
  * https://www.sqlite.org/json1.html
  */
+export function blob(): SQLiteBlobJsonBuilderInitial<''>;
+export function blob<TMode extends BlobMode = BlobMode>(
+	config?: BlobConfig<TMode>,
+): Equal<TMode, 'bigint'> extends true ? SQLiteBigIntBuilderInitial<''>
+	: Equal<TMode, 'buffer'> extends true ? SQLiteBlobBufferBuilderInitial<''>
+	: SQLiteBlobJsonBuilderInitial<''>;
 export function blob<TName extends string, TMode extends BlobMode = BlobMode>(
 	name: TName,
 	config?: BlobConfig<TMode>,
 ): Equal<TMode, 'bigint'> extends true ? SQLiteBigIntBuilderInitial<TName>
 	: Equal<TMode, 'buffer'> extends true ? SQLiteBlobBufferBuilderInitial<TName>
 	: SQLiteBlobJsonBuilderInitial<TName>;
-export function blob(name: string, config?: BlobConfig) {
+export function blob(a?: string | BlobConfig,b?: BlobConfig) {
+	const { name, config } = getColumnNameAndConfig<string, BlobConfig | undefined>(a, b);
 	if (config?.mode === 'json') {
 		return new SQLiteBlobJsonBuilder(name);
 	}

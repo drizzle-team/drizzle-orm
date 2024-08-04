@@ -11,7 +11,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
 import type { OnConflict } from '~/sqlite-core/utils.ts';
-import type { Equal, Or } from '~/utils.ts';
+import { getColumnNameAndConfig, type Equal, type Or } from '~/utils.ts';
 import type { AnySQLiteTable } from '../table.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
@@ -214,13 +214,20 @@ export interface IntegerConfig<
 	mode: TMode;
 }
 
+export function integer(): SQLiteIntegerBuilderInitial<''>;
+export function integer<TMode extends IntegerConfig['mode']>(
+	config?: IntegerConfig<TMode>,
+): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilderInitial<''>
+	: Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilderInitial<''>
+	: SQLiteIntegerBuilderInitial<''>;
 export function integer<TName extends string, TMode extends IntegerConfig['mode']>(
 	name: TName,
 	config?: IntegerConfig<TMode>,
 ): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilderInitial<TName>
 	: Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilderInitial<TName>
 	: SQLiteIntegerBuilderInitial<TName>;
-export function integer(name: string, config?: IntegerConfig) {
+export function integer(a?: string | IntegerConfig, b?: IntegerConfig) {
+	const { name, config } = getColumnNameAndConfig<string, IntegerConfig | undefined>(a, b);
 	if (config?.mode === 'timestamp' || config?.mode === 'timestamp_ms') {
 		return new SQLiteTimestampBuilder(name, config.mode);
 	}

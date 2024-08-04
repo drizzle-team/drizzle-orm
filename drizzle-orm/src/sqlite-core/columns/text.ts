@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
-import type { Equal, Writable } from '~/utils.ts';
+import { getColumnNameAndConfig, type Equal, type Writable } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export type SQLiteTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = SQLiteTextBuilder<{
@@ -105,8 +105,8 @@ export class SQLiteTextJson<T extends ColumnBaseConfig<'json', 'SQLiteTextJson'>
 }
 
 export type SQLiteTextConfig<
-	TMode extends 'text' | 'json',
-	TEnum extends readonly string[] | string[] | undefined,
+	TMode extends 'text' | 'json' = 'text' | 'json',
+	TEnum extends readonly string[] | string[] | undefined = string[] | string[] | undefined,
 > = TMode extends 'text' ? {
 		mode?: TMode;
 		length?: number;
@@ -116,6 +116,15 @@ export type SQLiteTextConfig<
 		mode?: TMode;
 	};
 
+export function text(): SQLiteTextBuilderInitial<'', [string, ...string[]]>;
+export function text<
+	U extends string,
+	T extends Readonly<[U, ...U[]]>,
+	TMode extends 'text' | 'json' = 'text' | 'json',
+>(
+	config?: SQLiteTextConfig<TMode, T | Writable<T>>,
+): Equal<TMode, 'json'> extends true ? SQLiteTextJsonBuilderInitial<''>
+	: SQLiteTextBuilderInitial<'', Writable<T>>;
 export function text<
 	TName extends string,
 	U extends string,
@@ -123,13 +132,13 @@ export function text<
 	TMode extends 'text' | 'json' = 'text' | 'json',
 >(
 	name: TName,
-	config: SQLiteTextConfig<TMode, T | Writable<T>> = {} as SQLiteTextConfig<TMode, T | Writable<T>>,
+	config?: SQLiteTextConfig<TMode, T | Writable<T>>,
 ): Equal<TMode, 'json'> extends true ? SQLiteTextJsonBuilderInitial<TName>
-	: SQLiteTextBuilderInitial<TName, Writable<T>>
-{
-	return (config.mode === 'json'
-		? new SQLiteTextJsonBuilder(name)
-		: new SQLiteTextBuilder(name, config as SQLiteTextConfig<'text', Writable<T>>)) as Equal<TMode, 'json'> extends true
-			? SQLiteTextJsonBuilderInitial<TName>
-			: SQLiteTextBuilderInitial<TName, Writable<T>>;
+	: SQLiteTextBuilderInitial<TName, Writable<T>>;
+export function text(a?: string | SQLiteTextConfig, b: SQLiteTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<string, SQLiteTextConfig>(a, b);
+	if (config.mode === 'json') {
+		return new SQLiteTextJsonBuilder(name);
+	}
+	return new SQLiteTextBuilder(name, config as any);
 }
