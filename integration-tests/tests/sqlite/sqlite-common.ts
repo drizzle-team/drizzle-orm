@@ -2760,13 +2760,13 @@ export function tests() {
 		);
 
 		await db.insert(users).values([
-			{ createdAt: new Date(new Date().getTime() - 2592000000), name: 'John' },
-			{ createdAt: new Date(new Date().getTime() - 86400000), name: 'Jane' }
+			{ createdAt: new Date(Date.now() - 2592000000), name: 'John' },
+			{ createdAt: new Date(Date.now() - 86400000), name: 'Jane' }
 		]);
 		const result = await db
 			.select({ id: users.id, name: users.name })
 			.from(users)
-			.where(gt(users.createdAt, new Date(new Date().getTime() - 2592000000)));
+			.where(gt(users.createdAt, new Date(Date.now() - 2592000000)));
 
 		expect(result).toEqual([
 			{ id: 2, name: 'Jane' },
