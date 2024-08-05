@@ -9,6 +9,7 @@ jobs:
       matrix:
         package:
           - drizzle-orm
+          - drizzle-kit
           - drizzle-zod
           - drizzle-typebox
           - drizzle-valibot
