@@ -134,7 +134,7 @@ export type SQLiteUpdate<
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = SQLiteUpdateBase<TTable, TResultType, TRunResult, TReturning, true, never>;
 
-type AnySQLiteUpdate = SQLiteUpdateBase<any, any, any, any, any, any>;
+export type AnySQLiteUpdate = SQLiteUpdateBase<any, any, any, any, any, any>;
 
 export interface SQLiteUpdateBase<
 	TTable extends SQLiteTable = SQLiteTable,
