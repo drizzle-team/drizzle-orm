@@ -871,10 +871,11 @@ test('migrator : migrate with custom table and custom schema', async () => {
 
 	// test if the custom migrations table was created
 	const { rows } = await db.execute(
-		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(
-			customTable,
-		)
-			};`,
+		sql`select * from ${sql.identifier(customSchema)}.${
+			sql.identifier(
+				customTable,
+			)
+		};`,
 	);
 	expect(rows).toBeTruthy();
 	expect(rows!.length).toBeGreaterThan(0);
@@ -887,19 +888,21 @@ test('migrator : migrate with custom table and custom schema', async () => {
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(
-		sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(
-			customTable,
-		)
-			}`,
+		sql`drop table ${sql.identifier(customSchema)}.${
+			sql.identifier(
+				customTable,
+			)
+		}`,
 	);
 });
 
 test('insert via db.execute + select via db.execute', async () => {
 	await db.execute(
-		sql`insert into ${usersTable} (${sql.identifier(
-			usersTable.name.name,
-		)
-			}) values (${'John'})`,
+		sql`insert into ${usersTable} (${
+			sql.identifier(
+				usersTable.name.name,
+			)
+		}) values (${'John'})`,
 	);
 
 	const result = await db.execute<{ id: number; name: string }>(
@@ -911,10 +914,11 @@ test('insert via db.execute + select via db.execute', async () => {
 
 test('insert via db.execute + returning', async () => {
 	const inserted = await db.execute(
-		sql`insert into ${usersTable} (${sql.identifier(
-			usersTable.name.name,
-		)
-			}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		sql`insert into ${usersTable} (${
+			sql.identifier(
+				usersTable.name.name,
+			)
+		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 });
@@ -1593,19 +1597,19 @@ test('Typehints mix for RQB', async () => {
 		},
 	});
 
-	expect(res).toStrictEqual([])
+	expect(res).toStrictEqual([]);
 });
 
 test('Typehints mix for findFirst', async () => {
 	const uuid = 'd997d46d-5769-4c78-9a35-93acadbe6076';
 
-	await db.insert(user).values({ id: uuid, email: 'd' })
+	await db.insert(user).values({ id: uuid, email: 'd' });
 
 	const res = await db.query.user.findFirst({
-		where: eq(user.id, uuid)
+		where: eq(user.id, uuid),
 	});
 
-	expect(res).toStrictEqual({ id: 'd997d46d-5769-4c78-9a35-93acadbe6076', email: 'd' })
+	expect(res).toStrictEqual({ id: 'd997d46d-5769-4c78-9a35-93acadbe6076', email: 'd' });
 });
 
 afterAll(async () => {
