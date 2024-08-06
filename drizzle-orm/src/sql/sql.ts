@@ -213,7 +213,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 					return { sql: this.mapInlineParam(mappedValue, config), params: [] };
 				}
 
-				let typings: QueryTypingsValue[] | undefined;
+				let typings: QueryTypingsValue[] = ['none'];
 				if (prepareTyping) {
 					typings = [prepareTyping(chunk.encoder)];
 				}
@@ -263,7 +263,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
 
-			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
+			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
 		}));
 	}
 
