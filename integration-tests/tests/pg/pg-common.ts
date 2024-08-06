@@ -70,6 +70,7 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
+	json,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
@@ -197,6 +198,12 @@ const users2MySchemaTable = mySchema.table('users2', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	cityId: integer('city_id').references(() => citiesTable.id),
+});
+
+const jsonTestTable = pgTable('jsontest', {
+	id: serial('id').primaryKey(),
+	json: json('json').$type<{ string: string; number: number }>(),
+	jsonb: jsonb('jsonb').$type<{ string: string; number: number }>(),
 });
 
 let pgContainer: Docker.Container;
@@ -355,6 +362,16 @@ export function tests() {
 						id serial primary key,
 						name text not null,
 						city_id integer references "mySchema".cities(id)
+					)
+				`,
+			);
+
+			await db.execute(
+				sql`
+					create table jsontest (
+						id serial primary key,
+						json json,
+						jsonb jsonb
 					)
 				`,
 			);
@@ -2347,9 +2364,8 @@ export function tests() {
 			await db.execute(sql`drop type if exists ${sql.identifier(categoryEnum.enumName)}`);
 
 			await db.execute(
-				sql`create type ${
-					sql.identifier(muscleEnum.enumName)
-				} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
+				sql`create type ${sql.identifier(muscleEnum.enumName)
+					} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
 			);
 			await db.execute(
 				sql`create type ${sql.identifier(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`,
@@ -2359,9 +2375,8 @@ export function tests() {
 			);
 			await db.execute(sql`create type ${sql.identifier(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
 			await db.execute(
-				sql`create type ${
-					sql.identifier(equipmentEnum.enumName)
-				} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
+				sql`create type ${sql.identifier(equipmentEnum.enumName)
+					} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
 			);
 			await db.execute(
 				sql`create type ${sql.identifier(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`,
@@ -4480,6 +4495,146 @@ export function tests() {
 				.limit(-1);
 
 			expect(users.length).toBeGreaterThan(0);
+		});
+
+		test('proper json and jsonb handling', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const jsonTable = pgTable('json_table', {
+				json: json('json').$type<{ name: string; age: number }>(),
+				jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
+			});
+
+			await db.execute(sql`drop table if exists ${jsonTable}`);
+
+			db.execute(sql`create table ${jsonTable} (json json, jsonb jsonb)`);
+
+			await db.insert(jsonTable).values({ json: { name: 'Tom', age: 75 }, jsonb: { name: 'Pete', age: 23 } });
+
+			const result = await db.select().from(jsonTable);
+
+			const justNames = await db.select({
+				name1: sql<string>`${jsonTable.json}->>'name'`.as('name1'),
+				name2: sql<string>`${jsonTable.jsonb}->>'name'`.as('name2'),
+			}).from(jsonTable);
+
+			expect(result).toStrictEqual([
+				{
+					json: { name: 'Tom', age: 75 },
+					jsonb: { name: 'Pete', age: 23 },
+				},
+			]);
+
+			expect(justNames).toStrictEqual([
+				{
+					name1: 'Tom',
+					name2: 'Pete',
+				},
+			]);
+		});
+
+		test('set json/jsonb fields with objects and retrieve with the ->> operator', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const obj = { string: 'test', number: 123 };
+			const { string: testString, number: testNumber } = obj;
+
+			await db.insert(jsonTestTable).values({
+				json: obj,
+				jsonb: obj,
+			});
+
+			const result = await db.select({
+				jsonStringField: sql<string>`${jsonTestTable.json}->>'string'`,
+				jsonNumberField: sql<string>`${jsonTestTable.json}->>'number'`,
+				jsonbStringField: sql<string>`${jsonTestTable.jsonb}->>'string'`,
+				jsonbNumberField: sql<string>`${jsonTestTable.jsonb}->>'number'`,
+			}).from(jsonTestTable);
+
+			expect(result).toStrictEqual([{
+				jsonStringField: testString,
+				jsonNumberField: String(testNumber),
+				jsonbStringField: testString,
+				jsonbNumberField: String(testNumber),
+			}])
+		});
+
+		test('set json/jsonb fields with strings and retrieve with the ->> operator', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const obj = { string: 'test', number: 123 };
+			const { string: testString, number: testNumber } = obj;
+
+			await db.insert(jsonTestTable).values({
+				json: sql`${JSON.stringify(obj)}`,
+				jsonb: sql`${JSON.stringify(obj)}`,
+			});
+
+			const result = await db.select({
+				jsonStringField: sql<string>`${jsonTestTable.json}->>'string'`,
+				jsonNumberField: sql<string>`${jsonTestTable.json}->>'number'`,
+				jsonbStringField: sql<string>`${jsonTestTable.jsonb}->>'string'`,
+				jsonbNumberField: sql<string>`${jsonTestTable.jsonb}->>'number'`,
+			}).from(jsonTestTable);
+
+			expect(result).toStrictEqual([{
+				jsonStringField: testString,
+				jsonNumberField: String(testNumber),
+				jsonbStringField: testString,
+				jsonbNumberField: String(testNumber),
+			}])
+		});
+
+		test('set json/jsonb fields with objects and retrieve with the -> operator', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const obj = { string: 'test', number: 123 };
+			const { string: testString, number: testNumber } = obj;
+
+			await db.insert(jsonTestTable).values({
+				json: obj,
+				jsonb: obj,
+			});
+
+			const result = await db.select({
+				jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
+				jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
+				jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
+				jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
+			}).from(jsonTestTable);
+
+			expect(result).toStrictEqual([{
+				jsonStringField: testString,
+				jsonNumberField: testNumber,
+				jsonbStringField: testString,
+				jsonbNumberField: testNumber,
+			}])
+		});
+
+		test('set json/jsonb fields with strings and retrieve with the -> operator', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const obj = { string: 'test', number: 123 };
+			const { string: testString, number: testNumber } = obj;
+
+			await db.insert(jsonTestTable).values({
+				json: sql`${JSON.stringify(obj)}`,
+				jsonb: sql`${JSON.stringify(obj)}`,
+			});
+
+			const result = await db.select({
+				jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
+				jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
+				jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
+				jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
+			}).from(jsonTestTable);
+
+			expect(result).toStrictEqual([{
+				jsonStringField: testString,
+				jsonNumberField: testNumber,
+				jsonbStringField: testString,
+				jsonbNumberField: testNumber,
+			}])
 		});
 	});
 }
