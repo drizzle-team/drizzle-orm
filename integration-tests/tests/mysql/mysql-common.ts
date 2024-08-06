@@ -18,6 +18,7 @@ import {
 	max,
 	min,
 	Name,
+	notInArray,
 	placeholder,
 	sql,
 	sum,
@@ -186,7 +187,7 @@ const citiesMySchemaTable = mySchema.table('cities', {
 });
 
 let mysqlContainer: Docker.Container;
-export async function createDockerDB(): Promise<string> {
+export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
 	const docker = new Docker();
 	const port = await getPort({ port: 3306 });
 	const image = 'mysql:8';
@@ -211,7 +212,7 @@ export async function createDockerDB(): Promise<string> {
 	await mysqlContainer.start();
 	await new Promise((resolve) => setTimeout(resolve, 4000));
 
-	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
+	return { connectionString: `mysql://root:mysql@127.0.0.1:${port}/drizzle`, container: mysqlContainer };
 }
 
 // afterAll(async () => {
@@ -532,6 +533,34 @@ export function tests(driver?: string) {
 			}).from(usersTable);
 
 			expect(users).toEqual([{ name: 'JOHN' }]);
+		});
+
+		test('select with empty array in inArray', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			const result = await db
+				.select({
+					name: sql`upper(${usersTable.name})`,
+				})
+				.from(usersTable)
+				.where(inArray(usersTable.id, []));
+
+			expect(result).toEqual([]);
+		});
+
+		test('select with empty array in notInArray', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			const result = await db
+				.select({
+					name: sql`upper(${usersTable.name})`,
+				})
+				.from(usersTable)
+				.where(notInArray(usersTable.id, []));
+
+			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 		});
 
 		test('select distinct', async (ctx) => {
@@ -2030,6 +2059,45 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table ${products}`);
 		});
 
+		test('transaction with options (set isolationLevel)', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const users = mysqlTable('users_transactions', {
+				id: serial('id').primaryKey(),
+				balance: int('balance').notNull(),
+			});
+			const products = mysqlTable('products_transactions', {
+				id: serial('id').primaryKey(),
+				price: int('price').notNull(),
+				stock: int('stock').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`drop table if exists ${products}`);
+
+			await db.execute(sql`create table users_transactions (id serial not null primary key, balance int not null)`);
+			await db.execute(
+				sql`create table products_transactions (id serial not null primary key, price int not null, stock int not null)`,
+			);
+
+			const [{ insertId: userId }] = await db.insert(users).values({ balance: 100 });
+			const user = await db.select().from(users).where(eq(users.id, userId)).then((rows) => rows[0]!);
+			const [{ insertId: productId }] = await db.insert(products).values({ price: 10, stock: 10 });
+			const product = await db.select().from(products).where(eq(products.id, productId)).then((rows) => rows[0]!);
+
+			await db.transaction(async (tx) => {
+				await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id));
+				await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id));
+			}, { isolationLevel: 'serializable' });
+
+			const result = await db.select().from(users);
+
+			expect(result).toEqual([{ id: 1, balance: 90 }]);
+
+			await db.execute(sql`drop table ${users}`);
+			await db.execute(sql`drop table ${products}`);
+		});
+
 		test('transaction rollback', async (ctx) => {
 			const { db } = ctx.mysql;
 
@@ -3485,5 +3553,29 @@ export function tests(driver?: string) {
 
 			await db.execute(sql`drop view ${newYorkers1}`);
 		});
+	});
+
+	test('limit 0', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		await db.insert(usersTable).values({ name: 'John' });
+		const users = await db
+			.select()
+			.from(usersTable)
+			.limit(0);
+
+		expect(users).toEqual([]);
+	});
+
+	test('limit -1', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		await db.insert(usersTable).values({ name: 'John' });
+		const users = await db
+			.select()
+			.from(usersTable)
+			.limit(-1);
+
+		expect(users.length).toBeGreaterThan(0);
 	});
 }
