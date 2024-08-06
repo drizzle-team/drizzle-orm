@@ -8,7 +8,7 @@
 		"test": "pnpm test:vitest",
 		"test:vitest": "vitest run",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
-		"test:data-api": "sst shell vitest run tests/awsdatapi.test.ts"
+		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts"
 	},
 	"keywords": [],
 	"author": "Drizzle Team",

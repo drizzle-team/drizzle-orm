@@ -129,6 +129,7 @@ skipTests([
 	'nested transaction',
 	'transaction rollback',
 	'transaction',
+	'transaction with options (set isolationLevel)',
 	'migrator',
 ]);
 
