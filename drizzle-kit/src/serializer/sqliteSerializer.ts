@@ -65,8 +65,8 @@ export const generateSqliteSnapshot = (
 						as: is(generated.as, SQL)
 							? `(${dialect.sqlToQuery(generated.as as SQL, 'indexes').sql})`
 							: typeof generated.as === 'function'
-							? `(${dialect.sqlToQuery(generated.as() as SQL, 'indexes').sql})`
-							: `(${generated.as as any})`,
+								? `(${dialect.sqlToQuery(generated.as() as SQL, 'indexes').sql})`
+								: `(${generated.as as any})`,
 						type: generated.mode ?? 'virtual',
 					}
 					: undefined,
@@ -79,9 +79,9 @@ export const generateSqliteSnapshot = (
 					columnToSet.default = typeof column.default === 'string'
 						? `'${column.default}'`
 						: typeof column.default === 'object'
-								|| Array.isArray(column.default)
-						? `'${JSON.stringify(column.default)}'`
-						: column.default;
+							|| Array.isArray(column.default)
+							? `'${JSON.stringify(column.default)}'`
+							: column.default;
 				}
 			}
 			columnsObject[column.name] = columnToSet;
@@ -90,24 +90,19 @@ export const generateSqliteSnapshot = (
 				const existingUnique = indexesObject[column.uniqueName!];
 				if (typeof existingUnique !== 'undefined') {
 					console.log(
-						`\n${
-							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
-									tableName,
-								)
+						`\n${withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(
+							tableName,
+						)
 							} table. 
-          The unique constraint ${
-								chalk.underline.blue(
-									column.uniqueName,
-								)
-							} on the ${
-								chalk.underline.blue(
-									column.name,
-								)
-							} column is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
-									existingUnique.columns.join(','),
-								)
+          The unique constraint ${chalk.underline.blue(
+								column.uniqueName,
+							)
+							} on the ${chalk.underline.blue(
+								column.name,
+							)
+							} column is confilcting with a unique constraint name already defined for ${chalk.underline.blue(
+								existingUnique.columns.join(','),
+							)
 							} columns\n`)
 						}`,
 					);
@@ -202,26 +197,21 @@ export const generateSqliteSnapshot = (
 			const existingUnique = indexesObject[name];
 			if (typeof existingUnique !== 'undefined') {
 				console.log(
-					`\n${
-						withStyle.errorWarning(
-							`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
-									tableName,
-								)
-							} table. \nThe unique constraint ${
-								chalk.underline.blue(
-									name,
-								)
-							} on the ${
-								chalk.underline.blue(
-									columnNames.join(','),
-								)
-							} columns is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
-									existingUnique.columns.join(','),
-								)
-							} columns\n`,
+					`\n${withStyle.errorWarning(
+						`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(
+							tableName,
 						)
+						} table. \nThe unique constraint ${chalk.underline.blue(
+							name,
+						)
+						} on the ${chalk.underline.blue(
+							columnNames.join(','),
+						)
+						} columns is confilcting with a unique constraint name already defined for ${chalk.underline.blue(
+							existingUnique.columns.join(','),
+						)
+						} columns\n`,
+					)
 					}`,
 				);
 				process.exit(1);
@@ -237,7 +227,7 @@ export const generateSqliteSnapshot = (
 		primaryKeys.forEach((it) => {
 			if (it.columns.length > 1) {
 				primaryKeysObject[it.getName()] = {
-					columns: it.columns.map((it) => it.name).sort(),
+					columns: it.columns.map((it) => it.name),
 					name: it.getName(),
 				};
 			} else {
@@ -464,26 +454,26 @@ export const fromDatabase = async (
 			default: columnDefault === null
 				? undefined
 				: /^-?[\d.]+(?:e-?\d+)?$/.test(columnDefault)
-				? Number(columnDefault)
-				: ['CURRENT_TIME', 'CURRENT_DATE', 'CURRENT_TIMESTAMP'].includes(
+					? Number(columnDefault)
+					: ['CURRENT_TIME', 'CURRENT_DATE', 'CURRENT_TIMESTAMP'].includes(
 						columnDefault,
 					)
-				? `(${columnDefault})`
-				: columnDefault === 'false'
-				? false
-				: columnDefault === 'true'
-				? true
-				: columnDefault.startsWith("'") && columnDefault.endsWith("'")
-				? columnDefault
-				// ? columnDefault.substring(1, columnDefault.length - 1)
-				: `(${columnDefault})`,
+						? `(${columnDefault})`
+						: columnDefault === 'false'
+							? false
+							: columnDefault === 'true'
+								? true
+								: columnDefault.startsWith("'") && columnDefault.endsWith("'")
+									? columnDefault
+									// ? columnDefault.substring(1, columnDefault.length - 1)
+									: `(${columnDefault})`,
 			autoincrement: isAutoincrement,
 			name: columnName,
 			type: mapSqlToSqliteType(columnType),
 			primaryKey: false,
 			notNull: isNotNull,
 			generated: tableToGeneratedColumnsInfo[tableName]
-					&& tableToGeneratedColumnsInfo[tableName][columnName]
+				&& tableToGeneratedColumnsInfo[tableName][columnName]
 				? {
 					type: tableToGeneratedColumnsInfo[tableName][columnName].type,
 					as: tableToGeneratedColumnsInfo[tableName][columnName].expression,
@@ -580,11 +570,10 @@ export const fromDatabase = async (
 			const columnsTo = fkByTableName[`${tableName}_${id}`].columnsTo;
 			fkByTableName[
 				`${tableName}_${id}`
-			].name = `${tableName}_${
-				columnsFrom.join(
-					'_',
-				)
-			}_${refTableName}_${columnsTo.join('_')}_fk`;
+			].name = `${tableName}_${columnsFrom.join(
+				'_',
+			)
+				}_${refTableName}_${columnsTo.join('_')}_fk`;
 		}
 
 		for (const idx of Object.keys(fkByTableName)) {
