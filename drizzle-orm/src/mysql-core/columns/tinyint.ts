@@ -12,6 +12,7 @@ export type MySqlTinyIntBuilderInitial<TName extends string> = MySqlTinyIntBuild
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlTinyInt'>>

@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.31.3",
+	"version": "0.32.2",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -148,6 +148,12 @@
 			"optional": true
 		},
 		"@tidbcloud/serverless": {
+			"optional": true
+		},
+		"prisma": {
+			"optional": true
+		},
+		"@prisma/client": {
 			"optional": true
 		}
 	},

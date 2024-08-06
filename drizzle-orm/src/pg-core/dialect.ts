@@ -357,7 +357,9 @@ export class PgDialect {
 			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -443,7 +445,9 @@ export class PgDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
 
 		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
@@ -456,7 +460,7 @@ export class PgDialect {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, PgColumn][] = Object.entries(columns);
+		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 

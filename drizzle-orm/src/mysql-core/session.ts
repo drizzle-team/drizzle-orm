@@ -73,6 +73,8 @@ export abstract class MySqlSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {
@@ -96,7 +98,7 @@ export abstract class MySqlSession<
 			parts.push(`isolation level ${config.isolationLevel}`);
 		}
 
-		return parts.length ? sql.join(['set transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql`set transaction ${sql.raw(parts.join(' '))}` : undefined;
 	}
 
 	protected getStartTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
@@ -110,7 +112,7 @@ export abstract class MySqlSession<
 			parts.push(config.accessMode);
 		}
 
-		return parts.length ? sql.join(['start transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql`start transaction ${sql.raw(parts.join(' '))}` : undefined;
 	}
 }
 

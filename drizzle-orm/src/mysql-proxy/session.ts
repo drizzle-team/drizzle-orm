@@ -1,5 +1,6 @@
 import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
-import { entityKind } from '~/entity.ts';
+import { Column } from '~/column.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -47,6 +48,8 @@ export class MySqlRemoteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<MySqlRemotePreparedQueryHKT, T> {
 		return new PreparedQuery(
 			this.client,
@@ -55,6 +58,8 @@ export class MySqlRemoteSession<
 			this.logger,
 			fields,
 			customResultMapper,
+			generatedIds,
+			returningIds,
 		) as PreparedQueryKind<MySqlRemotePreparedQueryHKT, T>;
 	}
 
@@ -95,6 +100,10 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQ
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		// Keys that were used in $default and the value that was generated for them
+		private generatedIds?: Record<string, unknown>[],
+		// Keys that should be returned, it has the column with all properries + key from object
+		private returningIds?: SelectedFieldsOrdered,
 	) {
 		super();
 	}
@@ -102,14 +111,41 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQ
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
-		const { fields, client, queryString, logger, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, client, queryString, logger, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =
+			this;
 
 		logger.logQuery(queryString, params);
 
 		if (!fields && !customResultMapper) {
-			const { rows } = await client(queryString, params, 'execute');
+			const { rows: data } = await client(queryString, params, 'execute');
 
-			return rows;
+			const insertId = data[0].insertId as number;
+			const affectedRows = data[0].affectedRows;
+
+			if (returningIds) {
+				const returningResponse = [];
+				let j = 0;
+				for (let i = insertId; i < insertId + affectedRows; i++) {
+					for (const column of returningIds) {
+						const key = returningIds[0]!.path[0]!;
+						if (is(column.field, Column)) {
+							// @ts-ignore
+							if (column.field.primary && column.field.autoIncrement) {
+								returningResponse.push({ [key]: i });
+							}
+							if (column.field.defaultFn && generatedIds) {
+								// generatedIds[rowIdx][key]
+								returningResponse.push({ [key]: generatedIds[j]![key] });
+							}
+						}
+					}
+					j++;
+				}
+
+				return returningResponse;
+			}
+
+			return data;
 		}
 
 		const { rows } = await client(queryString, params, 'all');

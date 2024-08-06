@@ -11,6 +11,7 @@ export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<{
 	data: boolean;
 	driverParam: boolean;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'PgBoolean'>> extends PgColumnBuilder<T> {

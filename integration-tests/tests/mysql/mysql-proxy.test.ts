@@ -8,13 +8,6 @@ import { createDockerDB, tests } from './mysql-common';
 
 const ENABLE_LOGGING = false;
 
-// TODO
-// finish prexied, planetscale and cutom mysql tests
-// wait for sqlite from Oleksii
-// release to beta and check pipeline
-// finish returningId
-// release everything together with generated
-
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
 	constructor(private db: mysql.Connection) {}
@@ -81,7 +74,13 @@ let client: mysql.Connection;
 let serverSimulator: ServerSimulator;
 
 beforeAll(async () => {
-	const connectionString = process.env['MYSQL_CONNECTION_STRING'] ?? await createDockerDB();
+	let connectionString;
+	if (process.env['MYSQL_CONNECTION_STRING']) {
+		connectionString = process.env['MYSQL_CONNECTION_STRING'];
+	} else {
+		const { connectionString: conStr } = await createDockerDB();
+		connectionString = conStr;
+	}
 	client = await retry(async () => {
 		client = await mysql.createConnection(connectionString);
 		await client.connect();
@@ -130,6 +129,7 @@ skipTests([
 	'nested transaction',
 	'transaction rollback',
 	'transaction',
+	'transaction with options (set isolationLevel)',
 	'migrator',
 ]);
 

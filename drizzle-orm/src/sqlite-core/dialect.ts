@@ -295,7 +295,9 @@ export abstract class SQLiteDialect {
 
 		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : undefined;
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -362,7 +364,9 @@ export abstract class SQLiteDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)}`;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
 
 		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
@@ -376,7 +380,9 @@ export abstract class SQLiteDialect {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, SQLiteColumn][] = Object.entries(columns);
+		const colEntries: [string, SQLiteColumn][] = Object.entries(columns).filter(([_, col]) =>
+			!col.shouldDisableInsert()
+		);
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		for (const [valueIndex, value] of values.entries()) {

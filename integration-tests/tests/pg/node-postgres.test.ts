@@ -16,7 +16,13 @@ let db: NodePgDatabase;
 let client: Client;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB();
+	let connectionString;
+	if (process.env['PG_CONNECTION_STRING']) {
+		connectionString = process.env['PG_CONNECTION_STRING'];
+	} else {
+		const { connectionString: conStr } = await createDockerDB();
+		connectionString = conStr;
+	}
 	client = await retry(async () => {
 		client = new Client(connectionString);
 		await client.connect();
