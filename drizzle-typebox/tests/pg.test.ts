@@ -1,9 +1,9 @@
 import { Type } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
-import test from 'ava';
 import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { expect, test } from 'vitest';
 import { createInsertSchema, createSelectSchema, Nullable } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
@@ -39,28 +39,25 @@ const testUser = {
 	initials: 'JD',
 };
 
-test('users insert valid user', (t) => {
+test('users insert valid user', () => {
 	const schema = createInsertSchema(users);
 
-	t.is(Value.Check(schema, testUser), true);
+	expect(Value.Check(schema, testUser)).toBeTruthy();
 });
 
-test('users insert invalid varchar', (t) => {
+test('users insert invalid varchar', () => {
 	const schema = createInsertSchema(users);
 
-	t.is(
-		Value.Check(schema, {
-			...testUser,
-			profession: 'Chief Executive Officer',
-		}),
-		false,
-	);
+	expect(Value.Check(schema, {
+		...testUser,
+		profession: 'Chief Executive Officer',
+	})).toBeFalsy();
 });
 
-test('users insert invalid char', (t) => {
+test('users insert invalid char', () => {
 	const schema = createInsertSchema(users);
 
-	t.is(Value.Check(schema, { ...testUser, initials: 'JoDo' }), false);
+	expect(Value.Check(schema, { ...testUser, initials: 'JoDo' })).toBeFalsy();
 });
 
 test('users insert schema', (t) => {

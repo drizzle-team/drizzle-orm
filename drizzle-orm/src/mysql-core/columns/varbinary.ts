@@ -11,6 +11,7 @@ export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryB
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarBinary'>>

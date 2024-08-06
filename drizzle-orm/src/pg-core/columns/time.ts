@@ -13,6 +13,7 @@ export type PgTimeBuilderInitial<TName extends string> = PgTimeBuilder<{
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTime'>> extends PgDateColumnBaseBuilder<

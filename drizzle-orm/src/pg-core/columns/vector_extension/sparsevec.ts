@@ -11,6 +11,7 @@ export type PgSparseVectorBuilderInitial<TName extends string> = PgSparseVectorB
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgSparseVectorBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgSparseVector'>>
