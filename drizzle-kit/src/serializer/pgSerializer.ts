@@ -75,6 +75,43 @@ function stringFromDatabaseIdentityProperty(field: any): string | undefined {
 		: String(field);
 }
 
+function buildArrayString(array: any[], sqlType: string): string {
+	sqlType = sqlType.split('[')[0];
+	const values = array
+		.map((value) => {
+			if (typeof value === 'number' || typeof value === 'bigint') {
+				return value.toString();
+			} else if (typeof value === 'boolean') {
+				return value ? 'true' : 'false';
+			} else if (Array.isArray(value)) {
+				return buildArrayString(value, sqlType);
+			} else if (value instanceof Date) {
+				if (sqlType === 'date') {
+					return `"${value.toISOString().split('T')[0]}"`;
+				} else if (sqlType === 'timestamp') {
+					return `"${
+						value.toISOString()
+							.replace('T', ' ')
+							.slice(0, 23)
+					}"`;
+				} else {
+					return `"${value.toISOString()}"`;
+				}
+			} else if (typeof value === 'object') {
+				return `"${
+					JSON
+						.stringify(value)
+						.replaceAll('"', '\\"')
+				}"`;
+			}
+
+			return `"${value}"`;
+		})
+		.join(',');
+
+	return `{${values}}`;
+}
+
 export const generatePgSnapshot = (
 	tables: AnyPgTable[],
 	enums: PgEnum<any>[],
@@ -226,6 +263,13 @@ export const generatePgSnapshot = (
 							} else {
 								columnToSet.default = `'${column.default.toISOString()}'`;
 							}
+						} else if (sqlTypeLowered.match(/.*\[\d*\].*|.*\[\].*/g) !== null && Array.isArray(column.default)) {
+							columnToSet.default = `'${
+								buildArrayString(
+									column.default,
+									sqlTypeLowered,
+								)
+							}'::${sqlTypeLowered}`;
 						} else {
 							// Should do for all types
 							// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
