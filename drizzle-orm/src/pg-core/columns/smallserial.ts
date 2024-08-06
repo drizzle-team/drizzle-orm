@@ -1,17 +1,28 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	HasDefault,
+	MakeColumnConfig,
+	NotNull,
+} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgSmallSerialBuilderInitial<TName extends string> = PgSmallSerialBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'PgSmallSerial';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type PgSmallSerialBuilderInitial<TName extends string> = NotNull<
+	HasDefault<
+		PgSmallSerialBuilder<{
+			name: TName;
+			dataType: 'number';
+			columnType: 'PgSmallSerial';
+			data: number;
+			driverParam: number;
+			enumValues: undefined;
+			generated: undefined;
+		}>
+	>
+>;
 
 export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallSerial'>>
 	extends PgColumnBuilder<T>
@@ -44,5 +55,5 @@ export class PgSmallSerial<T extends ColumnBaseConfig<'number', 'PgSmallSerial'>
 }
 
 export function smallserial<TName extends string>(name: TName): PgSmallSerialBuilderInitial<TName> {
-	return new PgSmallSerialBuilder(name);
+	return new PgSmallSerialBuilder(name) as PgSmallSerialBuilderInitial<TName>;
 }

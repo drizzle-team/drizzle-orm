@@ -1,24 +1,34 @@
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
+	PgPreparedQuery,
+	PgQueryResultHKT,
+	PgQueryResultKind,
 	PgSession,
-	PreparedQuery,
 	PreparedQueryConfig,
-	QueryResultHKT,
-	QueryResultKind,
 } from '~/pg-core/session.ts';
 import type { PgMaterializedView } from '~/pg-core/view.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Query, SQL } from '~/sql/sql.ts';
+import type { RunnableQuery } from '~/runnable-query.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
-	extends QueryPromise<QueryResultKind<TQueryResult, never>>
-{}
+export interface PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
+	extends
+		QueryPromise<PgQueryResultKind<TQueryResult, never>>,
+		RunnableQuery<PgQueryResultKind<TQueryResult, never>, 'pg'>,
+		SQLWrapper
+{
+	readonly _: {
+		readonly dialect: 'pg';
+		readonly result: PgQueryResultKind<TQueryResult, never>;
+	};
+}
 
-export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
-	extends QueryPromise<QueryResultKind<TQueryResult, never>>
+export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
+	extends QueryPromise<PgQueryResultKind<TQueryResult, never>>
+	implements RunnableQuery<PgQueryResultKind<TQueryResult, never>, 'pg'>, SQLWrapper
 {
 	static readonly [entityKind]: string = 'PgRefreshMaterializedView';
 
@@ -63,19 +73,20 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 		return rest;
 	}
 
-	private _prepare(name?: string): PreparedQuery<
+	/** @internal */
+	_prepare(name?: string): PgPreparedQuery<
 		PreparedQueryConfig & {
-			execute: QueryResultKind<TQueryResult, never>;
+			execute: PgQueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name);
+			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name, true);
 		});
 	}
 
-	prepare(name: string): PreparedQuery<
+	prepare(name: string): PgPreparedQuery<
 		PreparedQueryConfig & {
-			execute: QueryResultKind<TQueryResult, never>;
+			execute: PgQueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return this._prepare(name);

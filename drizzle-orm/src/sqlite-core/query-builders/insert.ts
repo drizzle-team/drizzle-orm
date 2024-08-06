@@ -8,12 +8,12 @@ import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { IndexColumn } from '~/sqlite-core/indexes.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
+import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import type { SQLiteColumn } from '../columns/common.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteUpdateSetSource } from './update.ts';
-import type { SQLiteColumn } from '../columns/common.ts';
-import type { Subquery } from '~/subquery.ts';
 
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
@@ -121,7 +121,11 @@ export type SQLiteInsertReturningAll<
 
 export type SQLiteInsertOnConflictDoUpdateConfig<T extends AnySQLiteInsert> = {
 	target: IndexColumn | IndexColumn[];
+	/** @deprecated - use either `targetWhere` or `setWhere` */
 	where?: SQL;
+	// TODO: add tests for targetWhere and setWhere
+	targetWhere?: SQL;
+	setWhere?: SQL;
 	set: SQLiteUpdateSetSource<T['_']['table']>;
 };
 
@@ -213,18 +217,18 @@ export class SQLiteInsertBase<
 
 	/**
 	 * Adds a `returning` clause to the query.
-	 * 
+	 *
 	 * Calling this method will return the specified fields of the inserted rows. If no fields are specified, all fields will be returned.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#insert-returning}
-	 * 
+	 *
 	 * @example
 	 * ```ts
 	 * // Insert one row and return all fields
 	 * const insertedCar: Car[] = await db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning();
-	 * 
+	 *
 	 * // Insert one row and return only the id
 	 * const insertedCarId: { id: number }[] = await db.insert(cars)
 	 *   .values({ brand: 'BMW' })
@@ -244,20 +248,20 @@ export class SQLiteInsertBase<
 
 	/**
 	 * Adds an `on conflict do nothing` clause to the query.
-	 * 
+	 *
 	 * Calling this method simply avoids inserting a row as its alternative action.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-conflict-do-nothing}
-	 * 
+	 *
 	 * @param config The `target` and `where` clauses.
-	 * 
+	 *
 	 * @example
 	 * ```ts
 	 * // Insert one row and cancel the insert if there's a conflict
 	 * await db.insert(cars)
 	 *   .values({ id: 1, brand: 'BMW' })
 	 *   .onConflictDoNothing();
-	 * 
+	 *
 	 * // Explicitly specify conflict target
 	 * await db.insert(cars)
 	 *   .values({ id: 1, brand: 'BMW' })
@@ -277,23 +281,23 @@ export class SQLiteInsertBase<
 
 	/**
 	 * Adds an `on conflict do update` clause to the query.
-	 * 
+	 *
 	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as its alternative action.
-	 * 
-	 * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts} 
-	 * 
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts}
+	 *
 	 * @param config The `target`, `set` and `where` clauses.
-	 * 
+	 *
 	 * @example
 	 * ```ts
 	 * // Update the row if there's a conflict
 	 * await db.insert(cars)
 	 *   .values({ id: 1, brand: 'BMW' })
-	 *   .onConflictDoUpdate({ 
-	 *     target: cars.id, 
-	 *     set: { brand: 'Porsche' } 
+	 *   .onConflictDoUpdate({
+	 *     target: cars.id,
+	 *     set: { brand: 'Porsche' }
 	 *   });
-	 * 
+	 *
 	 * // Upsert with 'where' clause
 	 * await db.insert(cars)
 	 *   .values({ id: 1, brand: 'BMW' })
@@ -305,10 +309,17 @@ export class SQLiteInsertBase<
 	 * ```
 	 */
 	onConflictDoUpdate(config: SQLiteInsertOnConflictDoUpdateConfig<this>): this {
+		if (config.where && (config.targetWhere || config.setWhere)) {
+			throw new Error(
+				'You cannot use both "where" and "targetWhere"/"setWhere" at the same time - "where" is deprecated, use "targetWhere" or "setWhere" instead.',
+			);
+		}
+		const whereSql = config.where ? sql` where ${config.where}` : undefined;
+		const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
+		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
 		const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
-		const whereSql = config.where ? sql` where ${config.where}` : sql``;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`${targetSql} do update set ${setSql}${whereSql}`;
+		this.config.onConflict = sql`${targetSql}${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
 		return this;
 	}
 
@@ -322,28 +333,34 @@ export class SQLiteInsertBase<
 		return rest;
 	}
 
-	prepare(isOneTimeQuery?: boolean): SQLiteInsertPrepare<this> {
+	/** @internal */
+	_prepare(isOneTimeQuery = true): SQLiteInsertPrepare<this> {
 		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
+			true,
 		) as SQLiteInsertPrepare<this>;
 	}
 
+	prepare(): SQLiteInsertPrepare<this> {
+		return this._prepare(false);
+	}
+
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this.prepare(true).run(placeholderValues);
+		return this._prepare().run(placeholderValues);
 	};
 
 	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this.prepare(true).all(placeholderValues);
+		return this._prepare().all(placeholderValues);
 	};
 
 	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this.prepare(true).get(placeholderValues);
+		return this._prepare().get(placeholderValues);
 	};
 
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this.prepare(true).values(placeholderValues);
+		return this._prepare().values(placeholderValues);
 	};
 
 	override async execute(): Promise<SQLiteInsertExecute<this>> {

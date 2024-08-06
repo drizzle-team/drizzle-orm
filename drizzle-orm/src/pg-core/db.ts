@@ -8,11 +8,12 @@ import {
 	QueryBuilder,
 } from '~/pg-core/query-builders/index.ts';
 import type {
+	PgQueryResultHKT,
+	PgQueryResultKind,
 	PgSession,
 	PgTransaction,
 	PgTransactionConfig,
-	QueryResultHKT,
-	QueryResultKind,
+	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -23,13 +24,14 @@ import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { PgColumn } from './columns/index.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
+import { PgRaw } from './query-builders/raw.ts';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { PgMaterializedView } from './view.ts';
 
 export class PgDatabase<
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
@@ -37,7 +39,9 @@ export class PgDatabase<
 
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
+		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
+		readonly session: PgSession<TQueryResult, TFullSchema, TSchema>;
 	};
 
 	query: TFullSchema extends Record<string, never>
@@ -54,8 +58,18 @@ export class PgDatabase<
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 	) {
 		this._ = schema
-			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
-			: { schema: undefined, tableNamesMap: {} };
+			? {
+				schema: schema.schema,
+				fullSchema: schema.fullSchema as TFullSchema,
+				tableNamesMap: schema.tableNamesMap,
+				session,
+			}
+			: {
+				schema: undefined,
+				fullSchema: {} as TFullSchema,
+				tableNamesMap: {},
+				session,
+			};
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
@@ -575,8 +589,23 @@ export class PgDatabase<
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper,
-	): Promise<QueryResultKind<TQueryResult, TRow>> {
-		return this.session.execute(query.getSQL());
+	): PgRaw<PgQueryResultKind<TQueryResult, TRow>> {
+		const sql = query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sql);
+		const prepared = this.session.prepareQuery<
+			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
+		>(
+			builtQuery,
+			undefined,
+			undefined,
+			false,
+		);
+		return new PgRaw(
+			() => prepared.execute(),
+			sql,
+			builtQuery,
+			(result) => prepared.mapResult(result, true),
+		);
 	}
 
 	transaction<T>(
@@ -590,7 +619,7 @@ export class PgDatabase<
 export type PgWithReplicas<Q> = Q & { $primary: Q };
 
 export const withReplicas = <
-	HKT extends QueryResultHKT,
+	HKT extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 	Q extends PgDatabase<HKT, TFullSchema, TSchema>,
