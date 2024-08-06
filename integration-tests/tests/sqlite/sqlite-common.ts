@@ -845,12 +845,12 @@ export function tests() {
 			const { db } = ctx.sqlite;
 
 			const stmt = db.insert(usersTable).values({
-				verified: true,
+        verified: sql.placeholder("verified"),
 				name: sql.placeholder('name'),
 			}).prepare();
 
 			for (let i = 0; i < 10; i++) {
-				await stmt.run({ name: `John ${i}` });
+				await stmt.run({ name: `John ${i}`, verified: i % 2 === 0 });
 			}
 
 			const result = await db.select({
@@ -861,15 +861,15 @@ export function tests() {
 
 			expect(result).toEqual([
 				{ id: 1, name: 'John 0', verified: true },
-				{ id: 2, name: 'John 1', verified: true },
+				{ id: 2, name: 'John 1', verified: false },
 				{ id: 3, name: 'John 2', verified: true },
-				{ id: 4, name: 'John 3', verified: true },
+				{ id: 4, name: 'John 3', verified: false },
 				{ id: 5, name: 'John 4', verified: true },
-				{ id: 6, name: 'John 5', verified: true },
+				{ id: 6, name: 'John 5', verified: false },
 				{ id: 7, name: 'John 6', verified: true },
-				{ id: 8, name: 'John 7', verified: true },
+				{ id: 8, name: 'John 7', verified: false },
 				{ id: 9, name: 'John 8', verified: true },
-				{ id: 10, name: 'John 9', verified: true },
+				{ id: 10, name: 'John 9', verified: false },
 			]);
 		});
 
