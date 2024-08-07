@@ -1158,7 +1158,7 @@ export function tests(driver?: string) {
 		test('insert: placeholders on columns with encoder', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const date = new Date();
+			const date = new Date(1723041271);
 
 			const statement = db.insert(usersTable).values({
 				name: 'John',
