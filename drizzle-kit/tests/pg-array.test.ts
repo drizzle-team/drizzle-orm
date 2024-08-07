@@ -1,4 +1,16 @@
-import { bigint, boolean, date, integer, json, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+	bigint,
+	boolean,
+	date,
+	integer,
+	json,
+	pgEnum,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+	uuid,
+} from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
@@ -250,6 +262,107 @@ test('array #9: text array default', async (t) => {
 			primaryKey: false,
 			notNull: false,
 			default: '\'{"abc","def"}\'::text[]',
+		},
+	});
+});
+
+test('array #10: uuid array default', async (t) => {
+	const from = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const to = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: uuid('values').array().default([
+				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+				'b0eebc99-9c0b-4ef8-bb6d-cbb9bd380a11',
+			]),
+		}),
+	};
+
+	const { statements } = await diffTestSchemas(from, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_add_column',
+		tableName: 'test',
+		schema: '',
+		column: {
+			name: 'values',
+			type: 'uuid[]',
+			primaryKey: false,
+			notNull: false,
+			default: '\'{"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11","b0eebc99-9c0b-4ef8-bb6d-cbb9bd380a11"}\'::uuid[]',
+		},
+	});
+});
+
+test('array #11: enum array default', async (t) => {
+	const testEnum = pgEnum('test_enum', ['a', 'b', 'c']);
+
+	const from = {
+		enum: testEnum,
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const to = {
+		enum: testEnum,
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: testEnum('values').array().default(['a', 'b', 'c']),
+		}),
+	};
+
+	const { statements } = await diffTestSchemas(from, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_add_column',
+		tableName: 'test',
+		schema: '',
+		column: {
+			name: 'values',
+			type: 'test_enum[]',
+			primaryKey: false,
+			notNull: false,
+			default: '\'{"a","b","c"}\'::test_enum[]',
+		},
+	});
+});
+
+test('array #12: enum empty array default', async (t) => {
+	const testEnum = pgEnum('test_enum', ['a', 'b', 'c']);
+
+	const from = {
+		enum: testEnum,
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const to = {
+		enum: testEnum,
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: testEnum('values').array().default([]),
+		}),
+	};
+
+	const { statements } = await diffTestSchemas(from, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_add_column',
+		tableName: 'test',
+		schema: '',
+		column: {
+			name: 'values',
+			type: 'test_enum[]',
+			primaryKey: false,
+			notNull: false,
+			default: "'{}'::test_enum[]",
 		},
 	});
 });

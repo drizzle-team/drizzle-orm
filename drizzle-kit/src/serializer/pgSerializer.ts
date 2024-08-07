@@ -30,7 +30,7 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/pgSchema';
-import type { DB } from '../utils';
+import { type DB, isPgArrayType } from '../utils';
 import { sqlToStr } from '.';
 
 const dialect = new PgDialect();
@@ -263,7 +263,7 @@ export const generatePgSnapshot = (
 							} else {
 								columnToSet.default = `'${column.default.toISOString()}'`;
 							}
-						} else if (sqlTypeLowered.match(/.*\[\d*\].*|.*\[\].*/g) !== null && Array.isArray(column.default)) {
+						} else if (isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)) {
 							columnToSet.default = `'${
 								buildArrayString(
 									column.default,
