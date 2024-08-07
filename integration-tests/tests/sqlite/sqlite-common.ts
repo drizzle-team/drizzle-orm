@@ -845,7 +845,7 @@ export function tests() {
 			const { db } = ctx.sqlite;
 
 			const stmt = db.insert(usersTable).values({
-        verified: sql.placeholder("verified"),
+				verified: sql.placeholder("verified"),
 				name: sql.placeholder('name'),
 			}).prepare();
 
