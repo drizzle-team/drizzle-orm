@@ -253,7 +253,7 @@ export function tests() {
 					create table users (
 						id serial primary key,
 						name text not null,
-						verified boolean not null default false, 
+						verified boolean not null default false,
 						jsonb jsonb,
 						created_at timestamptz not null default now()
 					)
@@ -1131,6 +1131,28 @@ export function tests() {
 			const result = await statement.execute();
 
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
+		});
+
+		test('insert: placeholders on columns with encoder', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const statement = db.insert(usersTable).values({
+				name: 'John',
+				jsonb: sql.placeholder('jsonb'),
+			}).prepare('encoder_statement');
+
+			await statement.execute({ jsonb: ['foo', 'bar'] });
+
+			const result = await db
+				.select({
+					id: usersTable.id,
+					jsonb: usersTable.jsonb,
+				})
+				.from(usersTable);
+
+			expect(result).toEqual([
+				{ id: 1, jsonb: ['foo', 'bar'] },
+			]);
 		});
 
 		test('prepared statement reuse', async (ctx) => {
