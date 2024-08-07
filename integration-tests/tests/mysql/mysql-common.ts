@@ -1155,6 +1155,30 @@ export function tests(driver?: string) {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
+		test('insert: placeholders on columns with encoder', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const date = new Date();
+
+			const statement = db.insert(usersTable).values({
+				name: 'John',
+				createdAt: sql.placeholder('createdAt'),
+			}).prepare();
+
+			await statement.execute({ createdAt: date });
+
+			const result = await db
+				.select({
+					id: usersTable.id,
+					createdAt: usersTable.createdAt,
+				})
+				.from(usersTable);
+
+			expect(result).toEqual([
+				{ id: 1, createdAt: date },
+			]);
+		});
+
 		test('prepared statement reuse', async (ctx) => {
 			const { db } = ctx.mysql;
 

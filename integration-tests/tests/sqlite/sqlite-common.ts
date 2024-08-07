@@ -869,6 +869,28 @@ export function tests() {
 			]);
 		});
 
+		test('insert: placeholders on columns with encoder', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const stmt = db.insert(usersTable).values({
+				name: 'John',
+				verified: sql.placeholder('verified'),
+			}).prepare();
+
+			await stmt.run({ verified: true });
+			await stmt.run({ verified: false });
+
+			const result = await db.select({
+				id: usersTable.id,
+				verified: usersTable.verified,
+			}).from(usersTable).all();
+
+			expect(result).toEqual([
+				{ id: 1, verified: true },
+				{ id: 2, verified: false },
+			]);
+		});
+
 		test('prepared statement with placeholder in .where', async (ctx) => {
 			const { db } = ctx.sqlite;
 
