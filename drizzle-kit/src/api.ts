@@ -12,7 +12,7 @@ import {
 } from './cli/commands/migrate';
 import { pgPushIntrospect } from './cli/commands/pgIntrospect';
 import { pgSuggestions } from './cli/commands/pgPushUtils';
-import { updateUpToV6 as upPgV6 } from './cli/commands/pgUp';
+import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/pgUp';
 import { sqlitePushIntrospect } from './cli/commands/sqliteIntrospect';
 import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
 import { originUUID } from './global';
@@ -194,7 +194,7 @@ export const pushSQLiteSchema = async (
 		},
 		run: async (query: string) => {
 			return Promise.resolve(drizzleInstance.run(sql.raw(query))).then(
-				() => {},
+				() => { },
 			);
 		},
 	};
@@ -341,5 +341,11 @@ export const pushMySQLSchema = async (
 };
 
 export const upPgSnapshot = (snapshot: Record<string, unknown>) => {
-	return upPgV6(snapshot);
+	if (snapshot.version === '5') {
+		return upPgV7(upPgV6(snapshot))
+	}
+	if (snapshot.version === '6') {
+		return upPgV7(snapshot);
+	}
+	return snapshot;
 };
