@@ -194,7 +194,7 @@ export const pushSQLiteSchema = async (
 		},
 		run: async (query: string) => {
 			return Promise.resolve(drizzleInstance.run(sql.raw(query))).then(
-				() => { },
+				() => {},
 			);
 		},
 	};
@@ -342,7 +342,7 @@ export const pushMySQLSchema = async (
 
 export const upPgSnapshot = (snapshot: Record<string, unknown>) => {
 	if (snapshot.version === '5') {
-		return upPgV7(upPgV6(snapshot))
+		return upPgV7(upPgV6(snapshot));
 	}
 	if (snapshot.version === '6') {
 		return upPgV7(snapshot);
