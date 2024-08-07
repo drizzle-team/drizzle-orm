@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
@@ -53,6 +54,15 @@ export type TimeConfig = {
 	fsp?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
 };
 
-export function time<TName extends string>(name: TName, config?: TimeConfig): MySqlTimeBuilderInitial<TName> {
+export function time(): MySqlTimeBuilderInitial<''>;
+export function time(
+	config?: TimeConfig,
+): MySqlTimeBuilderInitial<''>;
+export function time<TName extends string>(
+	name: TName,
+	config?: TimeConfig,
+): MySqlTimeBuilderInitial<TName>;
+export function time(a?: string | TimeConfig, b?: TimeConfig) {
+	const { name, config } = getColumnNameAndConfig<TimeConfig>(a, b);
 	return new MySqlTimeBuilder(name, config);
 }

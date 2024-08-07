@@ -37,6 +37,8 @@ export class PgInet<T extends ColumnBaseConfig<'string', 'PgInet'>> extends PgCo
 	}
 }
 
-export function inet<TName extends string>(name: TName): PgInetBuilderInitial<TName> {
-	return new PgInetBuilder(name);
+export function inet(): PgInetBuilderInitial<''>;
+export function inet<TName extends string>(name: TName): PgInetBuilderInitial<TName>;
+export function inet(name?: string) {
+	return new PgInetBuilder(name ?? '');
 }

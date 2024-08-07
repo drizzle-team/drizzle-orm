@@ -3,7 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
-import type { Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgLineBuilderInitial<TName extends string> = PgLineBuilder<{
@@ -100,15 +100,20 @@ export interface PgLineTypeConfig<T extends 'tuple' | 'abc' = 'tuple' | 'abc'> {
 	mode?: T;
 }
 
+export function line(): PgLineBuilderInitial<''>;
+export function line<TMode extends PgLineTypeConfig['mode'] & {}>(
+	config?: PgLineTypeConfig<TMode>,
+): Equal<TMode, 'abc'> extends true ? PgLineABCBuilderInitial<''>
+	: PgLineBuilderInitial<''>;
 export function line<TName extends string, TMode extends PgLineTypeConfig['mode'] & {}>(
 	name: TName,
 	config?: PgLineTypeConfig<TMode>,
 ): Equal<TMode, 'abc'> extends true ? PgLineABCBuilderInitial<TName>
 	: PgLineBuilderInitial<TName>;
-export function line(name: string, config?: PgLineTypeConfig) {
+export function line(a?: string | PgLineTypeConfig, b?: PgLineTypeConfig) {
+	const { name, config } = getColumnNameAndConfig<PgLineTypeConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
 		return new PgLineBuilder(name);
 	}
-
 	return new PgLineABCBuilder(name);
 }

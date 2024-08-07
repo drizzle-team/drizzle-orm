@@ -39,6 +39,8 @@ export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>> exte
 	}
 }
 
-export function float<TName extends string>(name: TName): MySqlFloatBuilderInitial<TName> {
-	return new MySqlFloatBuilder(name);
+export function float(): MySqlFloatBuilderInitial<''>;
+export function float<TName extends string>(name: TName): MySqlFloatBuilderInitial<TName>;
+export function float(name?: string) {
+	return new MySqlFloatBuilder(name ?? '');
 }

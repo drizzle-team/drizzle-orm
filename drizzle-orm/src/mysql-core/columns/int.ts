@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
@@ -53,6 +54,15 @@ export interface MySqlIntConfig {
 	unsigned?: boolean;
 }
 
-export function int<TName extends string>(name: TName, config?: MySqlIntConfig): MySqlIntBuilderInitial<TName> {
+export function int(): MySqlIntBuilderInitial<''>;
+export function int(
+	config?: MySqlIntConfig,
+): MySqlIntBuilderInitial<''>;
+export function int<TName extends string>(
+	name: TName,
+	config?: MySqlIntConfig,
+): MySqlIntBuilderInitial<TName>;
+export function int(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
 	return new MySqlIntBuilder(name, config);
 }

@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<{
@@ -60,9 +61,15 @@ export interface MySqlDecimalConfig {
 	scale?: number;
 }
 
+export function decimal(): MySqlDecimalBuilderInitial<''>;
+export function decimal(
+	config: MySqlDecimalConfig,
+): MySqlDecimalBuilderInitial<''>;
 export function decimal<TName extends string>(
 	name: TName,
-	config: MySqlDecimalConfig = {},
-): MySqlDecimalBuilderInitial<TName> {
+	config?: MySqlDecimalConfig,
+): MySqlDecimalBuilderInitial<TName>;
+export function decimal(a?: string | MySqlDecimalConfig, b: MySqlDecimalConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<MySqlDecimalConfig>(a, b);
 	return new MySqlDecimalBuilder(name, config.precision, config.scale);
 }

@@ -56,6 +56,8 @@ export class PgJsonb<T extends ColumnBaseConfig<'json', 'PgJsonb'>> extends PgCo
 	}
 }
 
-export function jsonb<TName extends string>(name: TName): PgJsonbBuilderInitial<TName> {
-	return new PgJsonbBuilder(name);
+export function jsonb(): PgJsonbBuilderInitial<''>;
+export function jsonb<TName extends string>(name: TName): PgJsonbBuilderInitial<TName>;
+export function jsonb(name?: string) {
+	return new PgJsonbBuilder(name ?? '');
 }

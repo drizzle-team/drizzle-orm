@@ -66,6 +66,8 @@ export class MySqlSerial<
 	}
 }
 
-export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName> {
-	return new MySqlSerialBuilder(name) as MySqlSerialBuilderInitial<TName>;
+export function serial(): MySqlSerialBuilderInitial<''>;
+export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName>;
+export function serial(name?: string) {
+	return new MySqlSerialBuilder(name ?? '');
 }

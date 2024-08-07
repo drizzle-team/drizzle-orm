@@ -37,6 +37,8 @@ export class PgMacaddr8<T extends ColumnBaseConfig<'string', 'PgMacaddr8'>> exte
 	}
 }
 
-export function macaddr8<TName extends string>(name: TName): PgMacaddr8BuilderInitial<TName> {
-	return new PgMacaddr8Builder(name);
+export function macaddr8(): PgMacaddr8BuilderInitial<''>;
+export function macaddr8<TName extends string>(name: TName): PgMacaddr8BuilderInitial<TName>;
+export function macaddr8(name?: string) {
+	return new PgMacaddr8Builder(name ?? '');
 }

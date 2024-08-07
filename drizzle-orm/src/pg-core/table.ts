@@ -73,6 +73,7 @@ export function pgTableWithSchema<
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as PgColumnBuilder;
+			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
@@ -82,6 +83,7 @@ export function pgTableWithSchema<
 	const builtColumnsForExtraConfig = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as PgColumnBuilder;
+			colBuilder.setName(name);
 			const column = colBuilder.buildExtraConfigColumn(rawTable);
 			return [name, column];
 		}),

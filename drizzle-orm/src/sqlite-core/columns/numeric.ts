@@ -42,6 +42,8 @@ export class SQLiteNumeric<T extends ColumnBaseConfig<'string', 'SQLiteNumeric'>
 	}
 }
 
-export function numeric<TName extends string>(name: TName): SQLiteNumericBuilderInitial<TName> {
-	return new SQLiteNumericBuilder(name);
+export function numeric(): SQLiteNumericBuilderInitial<''>;
+export function numeric<TName extends string>(name: TName): SQLiteNumericBuilderInitial<TName>;
+export function numeric(name?: string) {
+	return new SQLiteNumericBuilder(name ?? '');
 }

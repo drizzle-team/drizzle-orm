@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import type { Writable } from '~/utils.ts';
+import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlVarCharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MySqlVarCharBuilder<
@@ -54,14 +54,21 @@ export class MySqlVarChar<T extends ColumnBaseConfig<'string', 'MySqlVarChar'>>
 	}
 }
 
-export interface MySqlVarCharConfig<TEnum extends string[] | readonly string[] | undefined> {
+export interface MySqlVarCharConfig<
+	TEnum extends string[] | readonly string[] | undefined = string[] | readonly string[] | undefined,
+> {
 	length: number;
 	enum?: TEnum;
 }
 
+export function varchar<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config: MySqlVarCharConfig<T | Writable<T>>,
+): MySqlVarCharBuilderInitial<'', Writable<T>>;
 export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
 	config: MySqlVarCharConfig<T | Writable<T>>,
-): MySqlVarCharBuilderInitial<TName, Writable<T>> {
-	return new MySqlVarCharBuilder(name, config);
+): MySqlVarCharBuilderInitial<TName, Writable<T>>;
+export function varchar(a?: string | MySqlVarCharConfig, b?: MySqlVarCharConfig): any {
+	const { name, config } = getColumnNameAndConfig<MySqlVarCharConfig>(a, b);
+	return new MySqlVarCharBuilder(name, config as any);
 }

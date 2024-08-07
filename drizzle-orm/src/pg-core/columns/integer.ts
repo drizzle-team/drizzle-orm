@@ -47,6 +47,8 @@ export class PgInteger<T extends ColumnBaseConfig<'number', 'PgInteger'>> extend
 	}
 }
 
-export function integer<TName extends string>(name: TName): PgIntegerBuilderInitial<TName> {
-	return new PgIntegerBuilder(name);
+export function integer(): PgIntegerBuilderInitial<''>;
+export function integer<TName extends string>(name: TName): PgIntegerBuilderInitial<TName>;
+export function integer(name?: string) {
+	return new PgIntegerBuilder(name ?? '');
 }

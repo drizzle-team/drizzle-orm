@@ -45,6 +45,8 @@ export class PgUUID<T extends ColumnBaseConfig<'string', 'PgUUID'>> extends PgCo
 	}
 }
 
-export function uuid<TName extends string>(name: TName): PgUUIDBuilderInitial<TName> {
-	return new PgUUIDBuilder(name);
+export function uuid(): PgUUIDBuilderInitial<''>;
+export function uuid<TName extends string>(name: TName): PgUUIDBuilderInitial<TName>;
+export function uuid(name?: string) {
+	return new PgUUIDBuilder(name ?? '');
 }

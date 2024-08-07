@@ -49,6 +49,8 @@ export class PgDoublePrecision<T extends ColumnBaseConfig<'number', 'PgDoublePre
 	}
 }
 
-export function doublePrecision<TName extends string>(name: TName): PgDoublePrecisionBuilderInitial<TName> {
-	return new PgDoublePrecisionBuilder(name);
+export function doublePrecision(): PgDoublePrecisionBuilderInitial<''>;
+export function doublePrecision<TName extends string>(name: TName): PgDoublePrecisionBuilderInitial<TName>;
+export function doublePrecision(name?: string) {
+	return new PgDoublePrecisionBuilder(name ?? '');
 }

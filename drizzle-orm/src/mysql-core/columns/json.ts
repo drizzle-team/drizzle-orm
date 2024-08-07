@@ -41,6 +41,8 @@ export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends 
 	}
 }
 
-export function json<TName extends string>(name: TName): MySqlJsonBuilderInitial<TName> {
-	return new MySqlJsonBuilder(name);
+export function json(): MySqlJsonBuilderInitial<''>;
+export function json<TName extends string>(name: TName): MySqlJsonBuilderInitial<TName>;
+export function json(name?: string) {
+	return new MySqlJsonBuilder(name ?? '');
 }

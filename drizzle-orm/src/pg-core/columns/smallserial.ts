@@ -29,7 +29,7 @@ export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'P
 {
 	static readonly [entityKind]: string = 'PgSmallSerialBuilder';
 
-	constructor(name: string) {
+	constructor(name: T['name']) {
 		super(name, 'number', 'PgSmallSerial');
 		this.config.hasDefault = true;
 		this.config.notNull = true;
@@ -54,6 +54,8 @@ export class PgSmallSerial<T extends ColumnBaseConfig<'number', 'PgSmallSerial'>
 	}
 }
 
-export function smallserial<TName extends string>(name: TName): PgSmallSerialBuilderInitial<TName> {
-	return new PgSmallSerialBuilder(name) as PgSmallSerialBuilderInitial<TName>;
+export function smallserial(): PgSmallSerialBuilderInitial<''>;
+export function smallserial<TName extends string>(name: TName): PgSmallSerialBuilderInitial<TName>;
+export function smallserial(name?: string) {
+	return new PgSmallSerialBuilder(name ?? '');
 }
