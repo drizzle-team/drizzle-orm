@@ -327,3 +327,7 @@ export const normaliseSQLiteUrl = (
 
 	assertUnreachable(type);
 };
+
+export function isPgArrayType(sqlType: string) {
+	return sqlType.match(/.*\[\d*\].*|.*\[\].*/g) !== null;
+}
