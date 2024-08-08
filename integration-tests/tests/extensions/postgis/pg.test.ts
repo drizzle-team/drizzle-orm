@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { bigserial, geometry, line, pgTable, point } from 'drizzle-orm/pg-core';
+import { bigserial, geometry, geometryMultiLineString, line, pgTable, point } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -88,6 +88,8 @@ const items = pgTable('items', {
 	geo: geometry('geo', { type: 'point' }),
 	geoObj: geometry('geo_obj', { type: 'point', mode: 'xy' }),
 	geoSrid: geometry('geo_options', { type: 'point', mode: 'xy', srid: 4000 }),
+	geoMultiLineString: geometryMultiLineString('geo_multilinestring'),
+	geoMultiLineStringSrid: geometryMultiLineString('geo_multilinestring_srid', { srid: 4000 }),
 });
 
 beforeEach(async () => {
@@ -101,7 +103,9 @@ beforeEach(async () => {
 		          "line_abc" line,
 				  "geo" geometry(point),
 				  "geo_obj" geometry(point),
-				  "geo_options" geometry(point,4000)
+				  "geo_options" geometry(point,4000),
+				  "geo_multilinestring" geometry(multilinestring),
+				  "geo_multilinestring_srid" geometry(multilinestring,4000)
 		      );
 	`);
 });
@@ -115,6 +119,8 @@ test('insert + select', async () => {
 		geo: [1, 2],
 		geoObj: { x: 1, y: 2 },
 		geoSrid: { x: 1, y: 2 },
+		geoMultiLineString: [[[1, 2], [3, 4]], [[5, 6], [7, 8]]],
+		geoMultiLineStringSrid: [[[1, 2], [3, 4]], [[5, 6], [7, 8]]],
 	}]).returning();
 
 	const response = await db.select().from(items);
@@ -128,6 +134,8 @@ test('insert + select', async () => {
 		geo: [1, 2],
 		geoObj: { x: 1, y: 2 },
 		geoSrid: { x: 1, y: 2 },
+		geoMultiLineString: [[[1, 2], [3, 4]], [[5, 6], [7, 8]]],
+		geoMultiLineStringSrid: [[[1, 2], [3, 4]], [[5, 6], [7, 8]]],
 	}]);
 
 	expect(response).toStrictEqual([{
@@ -139,5 +147,7 @@ test('insert + select', async () => {
 		geo: [1, 2],
 		geoObj: { x: 1, y: 2 },
 		geoSrid: { x: 1, y: 2 },
+		geoMultiLineString: [[[1, 2], [3, 4]], [[5, 6], [7, 8]]],
+		geoMultiLineStringSrid: [[[1, 2], [3, 4]], [[5, 6], [7, 8]]],
 	}]);
 });
