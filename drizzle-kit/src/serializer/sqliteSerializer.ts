@@ -237,7 +237,7 @@ export const generateSqliteSnapshot = (
 		primaryKeys.forEach((it) => {
 			if (it.columns.length > 1) {
 				primaryKeysObject[it.getName()] = {
-					columns: it.columns.map((it) => it.name).sort(),
+					columns: it.columns.map((it) => it.name),
 					name: it.getName(),
 				};
 			} else {
@@ -509,7 +509,6 @@ export const fromDatabase = async (
 
 	for (const [key, value] of Object.entries(tableToPk)) {
 		if (value.length > 1) {
-			value.sort();
 			result[key].compositePrimaryKeys = {
 				[`${key}_${value.join('_')}_pk`]: {
 					columns: value,
