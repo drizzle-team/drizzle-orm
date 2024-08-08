@@ -237,7 +237,7 @@ export const generateSqliteSnapshot = (
 		primaryKeys.forEach((it) => {
 			if (it.columns.length > 1) {
 				primaryKeysObject[it.getName()] = {
-					columns: it.columns.map((it) => it.name).sort(),
+					columns: it.columns.map((it) => it.name),
 					name: it.getName(),
 				};
 			} else {
