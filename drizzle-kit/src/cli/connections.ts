@@ -11,6 +11,7 @@ import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
 import type { SqliteCredentials } from './validations/sqlite';
+import { SingleStoreCredentials } from './validations/singlestore';
 
 export const preparePostgresDB = async (
 	credentials: PostgresCredentials,
@@ -652,6 +653,85 @@ export const connectToSQLite = async (
 	}
 	console.log(
 		"Please install either 'better-sqlite3' or '@libsql/client' for Drizzle Kit to connect to SQLite databases",
+	);
+	process.exit(1);
+};
+
+const parseSingleStoreCredentials = (credentials: SingleStoreCredentials) => {
+	if ('url' in credentials) {
+		const url = credentials.url;
+
+		const connectionUrl = new URL(url);
+		const pathname = connectionUrl.pathname;
+
+		const database = pathname.split('/')[pathname.split('/').length - 1];
+		if (!database) {
+			console.error(
+				'You should specify a database name in connection string (singlestore://USER:PASSWORD@HOST:PORT/DATABASE)',
+			);
+			process.exit(1);
+		}
+		return { database, url };
+	} else {
+		return {
+			database: credentials.database,
+			credentials,
+		};
+	}
+};
+
+export const connectToSingleStore = async (
+	it: SingleStoreCredentials,
+): Promise<{
+	db: DB;
+	proxy: Proxy;
+	database: string;
+	migrate: (config: MigrationConfig) => Promise<void>;
+}> => {
+	const result = parseSingleStoreCredentials(it);
+
+	if (await checkPackage('singlestore')) {
+		const { createConnection } = await import('mysql2/promise');
+		const { drizzle } = await import('drizzle-orm/singlestore');
+		const { migrate } = await import('drizzle-orm/singlestore/migrator');
+
+		const connection = result.url
+			? await createConnection(result.url)
+			: await createConnection(result.credentials!); // needed for some reason!
+
+		const db = drizzle(connection);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		await connection.connect();
+		const query: DB['query'] = async <T>(
+			sql: string,
+			params?: any[],
+		): Promise<T[]> => {
+			const res = await connection.execute(sql, params);
+			return res[0] as any;
+		};
+
+		const proxy: Proxy = async (params: ProxyParams) => {
+			const result = await connection.query({
+				sql: params.sql,
+				values: params.params,
+				rowsAsArray: params.mode === 'array',
+			});
+			return result[0] as any[];
+		};
+
+		return {
+			db: { query },
+			proxy,
+			database: result.database,
+			migrate: migrateFn,
+		};
+	}
+
+	console.error(
+		"To connect to SingleStore database - please install 'mysql2' drivers",
 	);
 	process.exit(1);
 };
