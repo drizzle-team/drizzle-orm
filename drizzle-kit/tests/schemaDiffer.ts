@@ -3,7 +3,9 @@ import { Client } from '@libsql/client/.';
 import { Database } from 'better-sqlite3';
 import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
+import { SingleStoreSchema } from 'drizzle-orm/singlestore-core';
 import { isPgEnum, isPgSequence, PgEnum, PgSchema, PgSequence, PgTable } from 'drizzle-orm/pg-core';
+import { SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { Connection } from 'mysql2/promise';
@@ -19,22 +21,25 @@ import {
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
+import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
 import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/introspect-sqlite';
 import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
 import { mysqlSchema, squashMysqlScheme } from 'src/serializer/mysqlSchema';
-import { generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
-import { fromDatabase as fromMySqlDatabase } from 'src/serializer/mysqlSerializer';
+import { fromDatabase as fromMySqlDatabase, generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
 import { prepareFromPgImports } from 'src/serializer/pgImports';
 import { pgSchema, squashPgScheme } from 'src/serializer/pgSchema';
 import { fromDatabase, generatePgSnapshot } from 'src/serializer/pgSerializer';
+import { prepareFromSingleStoreImports } from 'src/serializer/singlestoreImports';
+import { singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
+import { fromDatabase as fromSingleStoreDatabase, generateSingleStoreSnapshot } from 'src/serializer/singlestoreSerializer';
 import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
 import { sqliteSchema, squashSqliteScheme } from 'src/serializer/sqliteSchema';
-import { fromDatabase as fromSqliteDatabase } from 'src/serializer/sqliteSerializer';
-import { generateSqliteSnapshot } from 'src/serializer/sqliteSerializer';
+import { fromDatabase as fromSqliteDatabase, generateSqliteSnapshot } from 'src/serializer/sqliteSerializer';
 import {
 	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
+	applySingleStoreSnapshotsDiff,
 	applySqliteSnapshotsDiff,
 	Column,
 	ColumnsResolverInput,
@@ -52,6 +57,7 @@ export type PostgresSchema = Record<
 	PgTable<any> | PgEnum<any> | PgSchema | PgSequence
 >;
 export type MysqlSchema = Record<string, MySqlTable<any> | MySqlSchema>;
+export type SinglestoreSchema = Record<string, SingleStoreTable<any> | SingleStoreSchema>;
 export type SqliteSchema = Record<string, SQLiteTable<any>>;
 
 export const testSchemasResolver =
@@ -838,6 +844,116 @@ export const diffTestSchemasMysql = async (
 	return { sqlStatements, statements };
 };
 
+export const diffTestSchemasSingleStore = async (
+	left: SinglestoreSchema,
+	right: SinglestoreSchema,
+	renamesArr: string[],
+	cli: boolean = false,
+) => {
+	const leftTables = Object.values(left).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
+
+	const rightTables = Object.values(right).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
+
+	const serialized1 = generateSingleStoreSnapshot(leftTables);
+	const serialized2 = generateSingleStoreSnapshot(rightTables);
+
+	const { version: v1, dialect: d1, ...rest1 } = serialized1;
+	const { version: v2, dialect: d2, ...rest2 } = serialized2;
+
+	const sch1 = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...rest1,
+	} as const;
+
+	const sch2 = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...rest2,
+	} as const;
+
+	const sn1 = squashSingleStoreScheme(sch1);
+	const sn2 = squashSingleStoreScheme(sch2);
+
+	const validatedPrev = singlestoreSchema.parse(sch1);
+	const validatedCur = singlestoreSchema.parse(sch2);
+
+	const renames = new Set(renamesArr);
+
+	if (!cli) {
+		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+			sn1,
+			sn2,
+			testTablesResolver(renames),
+			testColumnsResolver(renames),
+			validatedPrev,
+			validatedCur,
+		);
+		return { sqlStatements, statements };
+	}
+
+	const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+		sn1,
+		sn2,
+		tablesResolver,
+		columnsResolver,
+		validatedPrev,
+		validatedCur,
+	);
+	return { sqlStatements, statements };
+};
+
+
+export const applySingleStoreDiffs = async (sn: SingleStoreSchema) => {
+	const dryRun = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		tables: {},
+		enums: {},
+		schemas: {},
+		_meta: {
+			schemas: {},
+			tables: {},
+			columns: {},
+		},
+	} as const;
+
+	const tables = Object.values(sn).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
+
+	const serialized1 = generateSingleStoreSnapshot(tables);
+
+	const { version: v1, dialect: d1, ...rest1 } = serialized1;
+
+	const sch1 = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...rest1,
+	} as const;
+
+	const sn1 = squashSingleStoreScheme(sch1);
+
+	const validatedPrev = singlestoreSchema.parse(dryRun);
+	const validatedCur = singlestoreSchema.parse(sch1);
+
+	const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+		dryRun,
+		sn1,
+		testTablesResolver(new Set()),
+		testColumnsResolver(new Set()),
+		validatedPrev,
+		validatedCur,
+	);
+	return { sqlStatements, statements };
+};
+
 export const diffTestSchemasPushSqlite = async (
 	client: Database,
 	left: SqliteSchema,
@@ -1482,6 +1598,89 @@ export const introspectMySQLToFile = async (
 	);
 
 	fs.rmSync(`tests/introspect/mysql/${testName}.ts`);
+
+	return {
+		sqlStatements: afterFileSqlStatements,
+		statements: afterFileStatements,
+	};
+};
+
+export const introspectSingleStoreToFile = async (
+	client: Connection,
+	initSchema: SingleStoreSchema,
+	testName: string,
+	schema: string,
+) => {
+	// put in db
+	const { sqlStatements } = await applySingleStoreDiffs(initSchema);
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+
+	// introspect to schema
+	const introspectedSchema = await fromSingleStoreDatabase(
+		{
+			query: async (sql: string, params?: any[] | undefined) => {
+				const res = await client.execute(sql, params);
+				return res[0] as any;
+			},
+		},
+		schema,
+	);
+
+	const file = schemaToTypeScriptSingleStore(introspectedSchema, 'camel');
+
+	fs.writeFileSync(`tests/introspect/singlestore/${testName}.ts`, file.file);
+
+	const response = await prepareFromSingleStoreImports([
+		`tests/introspect/singlestore/${testName}.ts`,
+	]);
+
+	const afterFileImports = generateSingleStoreSnapshot(response.tables);
+
+	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
+
+	const sch2 = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...rest2,
+	} as const;
+
+	const sn2AfterIm = squashSingleStoreScheme(sch2);
+	const validatedCurAfterImport = singlestoreSchema.parse(sch2);
+
+	const leftTables = Object.values(initSchema).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
+
+	const initSnapshot = generateSingleStoreSnapshot(leftTables);
+
+	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
+
+	const initSch = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...initRest,
+	} as const;
+
+	const initSn = squashSingleStoreScheme(initSch);
+	const validatedCur = singlestoreSchema.parse(initSch);
+
+	const {
+		sqlStatements: afterFileSqlStatements,
+		statements: afterFileStatements,
+	} = await applySingleStoreSnapshotsDiff(
+		sn2AfterIm,
+		initSn,
+		testTablesResolver(new Set()),
+		testColumnsResolver(new Set()),
+		validatedCurAfterImport,
+		validatedCur,
+	);
+
+	fs.rmSync(`tests/introspect/singlestore/${testName}.ts`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,

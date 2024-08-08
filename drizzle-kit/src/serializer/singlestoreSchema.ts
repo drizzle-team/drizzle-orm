@@ -11,16 +11,6 @@ const index = object({
 	lock: enumType(['default', 'none', 'shared', 'exclusive']).optional(),
 }).strict();
 
-const fk = object({
-	name: string(),
-	tableFrom: string(),
-	columnsFrom: string().array(),
-	tableTo: string(),
-	columnsTo: string().array(),
-	onUpdate: string().optional(),
-	onDelete: string().optional(),
-}).strict();
-
 const column = object({
 	name: string(),
 	type: string(),
