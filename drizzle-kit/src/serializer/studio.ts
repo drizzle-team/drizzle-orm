@@ -13,9 +13,10 @@ import {
 	Relations,
 	TablesRelationalConfig,
 } from 'drizzle-orm';
-import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
-import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
-import { AnySQLiteTable, getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
+import { AnyMySqlTable, MySqlTable, getTableConfig as mysqlTableConfig } from 'drizzle-orm/mysql-core';
+import { AnyPgTable, PgTable, getTableConfig as pgTableConfig } from 'drizzle-orm/pg-core';
+import { AnySingleStoreTable, SingleStoreTable, getTableConfig as singlestoreTableConfig} from 'drizzle-orm/singlestore-core';
+import { AnySQLiteTable, SQLiteTable, getTableConfig as sqliteTableConfig } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -24,11 +25,12 @@ import { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { assertUnreachable } from 'src/global';
 import superjson from 'superjson';
 import { z } from 'zod';
+import { prepareFilenames } from '.';
 import { safeRegister } from '../cli/commands/utils';
 import type { MysqlCredentials } from '../cli/validations/mysql';
 import type { PostgresCredentials } from '../cli/validations/postgres';
+import type { SingleStoreCredentials } from '../cli/validations/singlestore';
 import type { SqliteCredentials } from '../cli/validations/sqlite';
-import { prepareFilenames } from '.';
 
 type CustomDefault = {
 	schema: string;
@@ -44,7 +46,7 @@ type SchemaFile = {
 
 export type Setup = {
 	dbHash: string;
-	dialect: 'postgresql' | 'mysql' | 'sqlite';
+	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore';
 	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
 	proxy: (params: ProxyParams) => Promise<any[] | any>;
 	customDefaults: CustomDefault[];
@@ -171,6 +173,43 @@ export const prepareSQLiteSchema = async (path: string | string[]) => {
 	return { schema: sqliteSchema, relations, files };
 };
 
+export const prepareSingleStoreSchema = async (path: string | string[]) => {
+	const imports = prepareFilenames(path);
+	const singlestoreSchema: Record<string, Record<string, AnySingleStoreTable>> = {
+		public: {},
+	};
+	const relations: Record<string, Relations> = {};
+
+	// files content as string
+	const files = imports.map((it, index) => ({
+		// get the file name from the path
+		name: it.split('/').pop() || `schema${index}.ts`,
+		content: fs.readFileSync(it, 'utf-8'),
+	}));
+
+	const { unregister } = await safeRegister();
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
+
+		const i0: Record<string, unknown> = require(`${it}`);
+		const i0values = Object.entries(i0);
+
+		i0values.forEach(([k, t]) => {
+			if (is(t, SingleStoreTable)) {
+				const schema = singlestoreTableConfig(t).schema || 'public';
+				singlestoreSchema[schema][k] = t;
+			}
+
+			if (is(t, Relations)) {
+				relations[k] = t;
+			}
+		});
+	}
+	unregister();
+
+	return { schema: singlestoreSchema, relations, files };
+};
+
 const getCustomDefaults = <T extends AnyTable<{}>>(
 	schema: Record<string, Record<string, T>>,
 ): CustomDefault[] => {
@@ -186,8 +225,10 @@ const getCustomDefaults = <T extends AnyTable<{}>>(
 				tableConfig = pgTableConfig(table);
 			} else if (is(table, MySqlTable)) {
 				tableConfig = mysqlTableConfig(table);
-			} else {
+			} else if (is(table, SQLiteTable)) {
 				tableConfig = sqliteTableConfig(table);
+			} else {
+				tableConfig = singlestoreTableConfig(table);
 			}
 
 			tableConfig.columns.map((column) => {
@@ -345,6 +386,39 @@ export const drizzleForLibSQL = async (
 	};
 };
 
+export const drizzleForSingleStore = async (
+	credentials: SingleStoreCredentials,
+	singlestoreSchema: Record<string, Record<string, AnySingleStoreTable>>,
+	relations: Record<string, Relations>,
+	schemaFiles?: SchemaFile[],
+): Promise<Setup> => {
+	const { connectToSingleStore } = await import('../cli/connections');
+	const { proxy } = await connectToSingleStore(credentials);
+
+	const customDefaults = getCustomDefaults(singlestoreSchema);
+
+	let dbUrl: string;
+
+	if ('url' in credentials) {
+		dbUrl = credentials.url;
+	} else {
+		dbUrl =
+			`singlestore://${credentials.user}:${credentials.password}@${credentials.host}:${credentials.port}/${credentials.database}`;
+	}
+
+	const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+
+	return {
+		dbHash,
+		dialect: 'singlestore',
+		proxy,
+		customDefaults,
+		schema: singlestoreSchema,
+		relations,
+		schemaFiles,
+	};
+};
+
 export const extractRelations = (tablesConfig: {
 	tables: TablesRelationalConfig;
 	tableNamesMap: Record<string, string>;
@@ -370,7 +444,10 @@ export const extractRelations = (tablesConfig: {
 					refSchema = mysqlTableConfig(refTable).schema;
 				} else if (is(refTable, SQLiteTable)) {
 					refSchema = undefined;
-				} else {
+				} else if (is(refTable, SingleStoreTable)) {
+					refSchema = singlestoreTableConfig(refTable).schema;
+				} 
+				else {
 					throw new Error('unsupported dialect');
 				}
 

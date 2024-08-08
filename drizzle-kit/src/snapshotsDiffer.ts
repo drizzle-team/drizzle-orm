@@ -5,13 +5,12 @@ import {
 	enum as enumType,
 	literal,
 	never,
-	number,
 	object,
 	record,
 	string,
 	TypeOf,
 	union,
-	ZodTypeAny,
+	ZodTypeAny
 } from 'zod';
 import { applyJsonDiff, diffColumns, diffSchemasOrTables } from './jsonDiffer';
 import { fromJson } from './sqlgenerator';
@@ -36,12 +35,15 @@ import {
 	JsonStatement,
 	prepareAddCompositePrimaryKeyMySql,
 	prepareAddCompositePrimaryKeyPg,
+	prepareAddCompositePrimaryKeySingleStore,
 	prepareAddCompositePrimaryKeySqlite,
 	prepareAddUniqueConstraintPg as prepareAddUniqueConstraint,
 	prepareAddValuesToEnumJson,
 	prepareAlterColumnsMysql,
+	prepareAlterColumnsSingleStore,
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
+	prepareAlterCompositePrimaryKeySingleStore,
 	prepareAlterCompositePrimaryKeySqlite,
 	prepareAlterReferencesJson,
 	prepareAlterSequenceJson,
@@ -52,12 +54,13 @@ import {
 	prepareCreateSequenceJson,
 	prepareDeleteCompositePrimaryKeyMySql,
 	prepareDeleteCompositePrimaryKeyPg,
+	prepareDeleteCompositePrimaryKeySingleStore,
 	prepareDeleteCompositePrimaryKeySqlite,
-	prepareDeleteSchemasJson as prepareDropSchemasJson,
 	prepareDeleteUniqueConstraintPg as prepareDeleteUniqueConstraint,
 	prepareDropEnumJson,
 	prepareDropIndexesJson,
 	prepareDropReferencesJson,
+	prepareDeleteSchemasJson as prepareDropSchemasJson,
 	prepareDropSequenceJson,
 	prepareDropTableJson,
 	prepareLibSQLCreateReferencesJson,
@@ -73,6 +76,7 @@ import {
 	prepareRenameSchemasJson,
 	prepareRenameSequenceJson,
 	prepareRenameTableJson,
+	prepareSingleStoreCreateTableJson,
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
 } from './jsonStatements';
@@ -81,6 +85,7 @@ import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher } from './serializer/mysqlSchema';
 import { PgSchema, PgSchemaSquashed, sequenceSquashed } from './serializer/pgSchema';
+import { SingleStoreSchema, SingleStoreSchemaSquashed, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';
@@ -262,6 +267,11 @@ export const diffResultSchemeMysql = object({
 	alteredEnums: never().array(),
 });
 
+export const diffResultSchemeSingleStore = object({
+	alteredTablesWithColumns: alteredTableScheme.array(),
+	alteredEnums: never().array(),
+});
+
 export const diffResultSchemeSQLite = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
 	alteredEnums: never().array(),
@@ -275,6 +285,7 @@ export type Table = TypeOf<typeof tableScheme>;
 export type AlteredTable = TypeOf<typeof alteredTableScheme>;
 export type DiffResult = TypeOf<typeof diffResultScheme>;
 export type DiffResultMysql = TypeOf<typeof diffResultSchemeMysql>;
+export type DiffResultSingleStore = TypeOf<typeof diffResultSchemeSingleStore>;
 export type DiffResultSQLite = TypeOf<typeof diffResultSchemeSQLite>;
 
 export interface ResolverInput<T extends { name: string }> {
@@ -1633,6 +1644,419 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
 	const sqlStatements = fromJson(jsonStatements, 'mysql');
+
+	const uniqueSqlStatements: string[] = [];
+	sqlStatements.forEach((ss) => {
+		if (!uniqueSqlStatements.includes(ss)) {
+			uniqueSqlStatements.push(ss);
+		}
+	});
+
+	const rTables = renamedTables.map((it) => {
+		return { from: it.from, to: it.to };
+	});
+
+	const _meta = prepareMigrationMeta([], rTables, rColumns);
+
+	return {
+		statements: jsonStatements,
+		sqlStatements: uniqueSqlStatements,
+		_meta,
+	};
+};
+
+export const applySingleStoreSnapshotsDiff = async (
+	json1: SingleStoreSchemaSquashed,
+	json2: SingleStoreSchemaSquashed,
+	tablesResolver: (
+		input: ResolverInput<Table>,
+	) => Promise<ResolverOutputWithMoved<Table>>,
+	columnsResolver: (
+		input: ColumnsResolverInput<Column>,
+	) => Promise<ColumnsResolverOutput<Column>>,
+	prevFull: SingleStoreSchema,
+	curFull: SingleStoreSchema,
+	action?: 'push' | undefined,
+): Promise<{
+	statements: JsonStatement[];
+	sqlStatements: string[];
+	_meta:
+		| {
+			schemas: {};
+			tables: {};
+			columns: {};
+		}
+		| undefined;
+}> => {
+	// squash indexes and fks
+
+	// squash uniqueIndexes and uniqueConstraint into constraints object
+	// it should be done for singlestore only because it has no diffs for it
+	for (const tableName in json1.tables) {
+		const table = json1.tables[tableName];
+		for (const indexName in table.indexes) {
+			const index = SingleStoreSquasher.unsquashIdx(table.indexes[indexName]);
+			if (index.isUnique) {
+				table.uniqueConstraints[indexName] = SingleStoreSquasher.squashUnique({
+					name: index.name,
+					columns: index.columns,
+				});
+				delete json1.tables[tableName].indexes[index.name];
+			}
+		}
+	}
+
+	for (const tableName in json2.tables) {
+		const table = json2.tables[tableName];
+		for (const indexName in table.indexes) {
+			const index = SingleStoreSquasher.unsquashIdx(table.indexes[indexName]);
+			if (index.isUnique) {
+				table.uniqueConstraints[indexName] = SingleStoreSquasher.squashUnique({
+					name: index.name,
+					columns: index.columns,
+				});
+				delete json2.tables[tableName].indexes[index.name];
+			}
+		}
+	}
+
+	const tablesDiff = diffSchemasOrTables(json1.tables, json2.tables);
+
+	const {
+		created: createdTables,
+		deleted: deletedTables,
+		renamed: renamedTables, // renamed or moved
+	} = await tablesResolver({
+		created: tablesDiff.added,
+		deleted: tablesDiff.deleted,
+	});
+
+	const tablesPatchedSnap1 = copy(json1);
+	tablesPatchedSnap1.tables = mapEntries(tablesPatchedSnap1.tables, (_, it) => {
+		const { name } = nameChangeFor(it, renamedTables);
+		it.name = name;
+		return [name, it];
+	});
+
+	const res = diffColumns(tablesPatchedSnap1.tables, json2.tables);
+	const columnRenames = [] as {
+		table: string;
+		renames: { from: Column; to: Column }[];
+	}[];
+
+	const columnCreates = [] as {
+		table: string;
+		columns: Column[];
+	}[];
+
+	const columnDeletes = [] as {
+		table: string;
+		columns: Column[];
+	}[];
+
+	for (let entry of Object.values(res)) {
+		const { renamed, created, deleted } = await columnsResolver({
+			tableName: entry.name,
+			schema: entry.schema,
+			deleted: entry.columns.deleted,
+			created: entry.columns.added,
+		});
+
+		if (created.length > 0) {
+			columnCreates.push({
+				table: entry.name,
+				columns: created,
+			});
+		}
+
+		if (deleted.length > 0) {
+			columnDeletes.push({
+				table: entry.name,
+				columns: deleted,
+			});
+		}
+
+		if (renamed.length > 0) {
+			columnRenames.push({
+				table: entry.name,
+				renames: renamed,
+			});
+		}
+	}
+
+	const columnRenamesDict = columnRenames.reduce(
+		(acc, it) => {
+			acc[it.table] = it.renames;
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				from: Named;
+				to: Named;
+			}[]
+		>,
+	);
+
+	const columnsPatchedSnap1 = copy(tablesPatchedSnap1);
+	columnsPatchedSnap1.tables = mapEntries(
+		columnsPatchedSnap1.tables,
+		(tableKey, tableValue) => {
+			const patchedColumns = mapKeys(
+				tableValue.columns,
+				(columnKey, column) => {
+					const rens = columnRenamesDict[tableValue.name] || [];
+					const newName = columnChangeFor(columnKey, rens);
+					column.name = newName;
+					return newName;
+				},
+			);
+
+			tableValue.columns = patchedColumns;
+			return [tableKey, tableValue];
+		},
+	);
+
+	const diffResult = applyJsonDiff(columnsPatchedSnap1, json2);
+
+	const typedResult: DiffResultSingleStore = diffResultSchemeSingleStore.parse(diffResult);
+
+	const jsonStatements: JsonStatement[] = [];
+
+	const jsonCreateIndexesForCreatedTables = createdTables
+		.map((it) => {
+			return prepareCreateIndexesJson(
+				it.name,
+				it.schema,
+				it.indexes,
+				curFull.internal,
+			);
+		})
+		.flat();
+
+	const jsonDropTables = deletedTables.map((it) => {
+		return prepareDropTableJson(it);
+	});
+
+	const jsonRenameTables = renamedTables.map((it) => {
+		return prepareRenameTableJson(it.from, it.to);
+	});
+
+	const alteredTables = typedResult.alteredTablesWithColumns;
+
+	const jsonAddedCompositePKs: JsonCreateCompositePK[] = [];
+	const jsonDeletedCompositePKs: JsonDeleteCompositePK[] = [];
+	const jsonAlteredCompositePKs: JsonAlterCompositePK[] = [];
+
+	const jsonAddedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
+	const jsonDeletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
+	const jsonAlteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
+
+	const jsonRenameColumnsStatements: JsonRenameColumnStatement[] = columnRenames
+		.map((it) => prepareRenameColumns(it.table, '', it.renames))
+		.flat();
+
+	const jsonAddColumnsStatemets: JsonAddColumnStatement[] = columnCreates
+		.map((it) => _prepareAddColumns(it.table, '', it.columns))
+		.flat();
+
+	const jsonDropColumnsStatemets: JsonDropColumnStatement[] = columnDeletes
+		.map((it) => _prepareDropColumns(it.table, '', it.columns))
+		.flat();
+
+	alteredTables.forEach((it) => {
+		// This part is needed to make sure that same columns in a table are not triggered for change
+		// there is a case where orm and kit are responsible for pk name generation and one of them is not sorting name
+		// We double-check that pk with same set of columns are both in added and deleted diffs
+		let addedColumns: string[] = [];
+		for (const addedPkName of Object.keys(it.addedCompositePKs)) {
+			const addedPkColumns = it.addedCompositePKs[addedPkName];
+			addedColumns = SingleStoreSquasher.unsquashPK(addedPkColumns).columns;
+		}
+
+		let deletedColumns: string[] = [];
+		for (const deletedPkName of Object.keys(it.deletedCompositePKs)) {
+			const deletedPkColumns = it.deletedCompositePKs[deletedPkName];
+			deletedColumns = SingleStoreSquasher.unsquashPK(deletedPkColumns).columns;
+		}
+
+		// Don't need to sort, but need to add tests for it
+		// addedColumns.sort();
+		// deletedColumns.sort();
+		const doPerformDeleteAndCreate = JSON.stringify(addedColumns) !== JSON.stringify(deletedColumns);
+
+		let addedCompositePKs: JsonCreateCompositePK[] = [];
+		let deletedCompositePKs: JsonDeleteCompositePK[] = [];
+		let alteredCompositePKs: JsonAlterCompositePK[] = [];
+
+		addedCompositePKs = prepareAddCompositePrimaryKeySingleStore(
+			it.name,
+			it.addedCompositePKs,
+			prevFull,
+			curFull,
+		);
+		deletedCompositePKs = prepareDeleteCompositePrimaryKeySingleStore(
+			it.name,
+			it.deletedCompositePKs,
+			prevFull,
+		);
+		// }
+		alteredCompositePKs = prepareAlterCompositePrimaryKeySingleStore(
+			it.name,
+			it.alteredCompositePKs,
+			prevFull,
+			curFull,
+		);
+
+		// add logic for unique constraints
+		let addedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
+		let deletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
+		let alteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
+
+		addedUniqueConstraints = prepareAddUniqueConstraint(
+			it.name,
+			it.schema,
+			it.addedUniqueConstraints,
+		);
+		deletedUniqueConstraints = prepareDeleteUniqueConstraint(
+			it.name,
+			it.schema,
+			it.deletedUniqueConstraints,
+		);
+		if (it.alteredUniqueConstraints) {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+			for (const k of Object.keys(it.alteredUniqueConstraints)) {
+				added[k] = it.alteredUniqueConstraints[k].__new;
+				deleted[k] = it.alteredUniqueConstraints[k].__old;
+			}
+			addedUniqueConstraints.push(
+				...prepareAddUniqueConstraint(it.name, it.schema, added),
+			);
+			deletedUniqueConstraints.push(
+				...prepareDeleteUniqueConstraint(it.name, it.schema, deleted),
+			);
+		}
+
+		jsonAddedCompositePKs.push(...addedCompositePKs);
+		jsonDeletedCompositePKs.push(...deletedCompositePKs);
+		jsonAlteredCompositePKs.push(...alteredCompositePKs);
+
+		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
+		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
+		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+	});
+
+	const rColumns = jsonRenameColumnsStatements.map((it) => {
+		const tableName = it.tableName;
+		const schema = it.schema;
+		return {
+			from: { schema, table: tableName, column: it.oldColumnName },
+			to: { schema, table: tableName, column: it.newColumnName },
+		};
+	});
+
+	const jsonTableAlternations = alteredTables
+		.map((it) => {
+			return prepareAlterColumnsSingleStore(
+				it.name,
+				it.schema,
+				it.altered,
+				json1,
+				json2,
+				action,
+			);
+		})
+		.flat();
+
+	const jsonCreateIndexesForAllAlteredTables = alteredTables
+		.map((it) => {
+			return prepareCreateIndexesJson(
+				it.name,
+				it.schema,
+				it.addedIndexes || {},
+				curFull.internal,
+			);
+		})
+		.flat();
+
+	const jsonDropIndexesForAllAlteredTables = alteredTables
+		.map((it) => {
+			return prepareDropIndexesJson(
+				it.name,
+				it.schema,
+				it.deletedIndexes || {},
+			);
+		})
+		.flat();
+
+	alteredTables.forEach((it) => {
+		const droppedIndexes = Object.keys(it.alteredIndexes).reduce(
+			(current, item: string) => {
+				current[item] = it.alteredIndexes[item].__old;
+				return current;
+			},
+			{} as Record<string, string>,
+		);
+		const createdIndexes = Object.keys(it.alteredIndexes).reduce(
+			(current, item: string) => {
+				current[item] = it.alteredIndexes[item].__new;
+				return current;
+			},
+			{} as Record<string, string>,
+		);
+
+		jsonCreateIndexesForAllAlteredTables.push(
+			...prepareCreateIndexesJson(it.name, it.schema, createdIndexes || {}),
+		);
+		jsonDropIndexesForAllAlteredTables.push(
+			...prepareDropIndexesJson(it.name, it.schema, droppedIndexes || {}),
+		);
+	});
+
+	const jsonSingleStoreCreateTables = createdTables.map((it) => {
+		return prepareSingleStoreCreateTableJson(
+			it,
+			curFull as SingleStoreSchema,
+			curFull.internal,
+		);
+	});
+	jsonStatements.push(...jsonSingleStoreCreateTables);
+
+	jsonStatements.push(...jsonDropTables);
+	jsonStatements.push(...jsonRenameTables);
+	jsonStatements.push(...jsonRenameColumnsStatements);
+
+	jsonStatements.push(...jsonDeletedUniqueConstraints);
+
+	// Will need to drop indexes before changing any columns in table
+	// Then should go column alternations and then index creation
+	jsonStatements.push(...jsonDropIndexesForAllAlteredTables);
+
+	jsonStatements.push(...jsonDeletedCompositePKs);
+	jsonStatements.push(...jsonTableAlternations);
+	jsonStatements.push(...jsonAddedCompositePKs);
+
+	jsonStatements.push(...jsonAddedUniqueConstraints);
+	jsonStatements.push(...jsonDeletedUniqueConstraints);
+
+	jsonStatements.push(...jsonAddColumnsStatemets);
+
+	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
+
+	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
+
+	jsonStatements.push(...jsonDropColumnsStatemets);
+
+	// jsonStatements.push(...jsonDeletedCompositePKs);
+	// jsonStatements.push(...jsonAddedCompositePKs);
+	jsonStatements.push(...jsonAlteredCompositePKs);
+
+	jsonStatements.push(...jsonAddedUniqueConstraints);
+
+	jsonStatements.push(...jsonAlteredUniqueConstraints);
+
+	const sqlStatements = fromJson(jsonStatements, 'singlestore');
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {

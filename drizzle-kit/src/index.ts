@@ -23,7 +23,7 @@ type Verify<T, U extends T> = U;
  * **Config** usage:
  *
  * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
- * *Possible values*: `postgresql`, `mysql`, `sqlite`
+ * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
  *
@@ -64,7 +64,7 @@ type Verify<T, U extends T> = U;
  *
  * `breakpoints` - param lets you enable/disable SQL statement breakpoints in generated migrations.
  * It’s optional and true by default, it’s necessary to properly apply migrations on databases,
- * that do not support multiple DDL alternation statements in one transaction(MySQL, SQLite) and
+ * that do not support multiple DDL alternation statements in one transaction(MySQL, SQLite, SingleStore) and
  * Drizzle ORM has to apply them sequentially one by one.
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#breakpoints
@@ -206,6 +206,21 @@ export type Config =
 			driver: Verify<Driver, 'expo'>;
 		}
 		| {}
+		| {
+			dialect: Verify<Dialect, 'singlestore'>;
+			dbCredentials:
+				| {
+					host: string;
+					port?: number;
+					user?: string;
+					password?: string;
+					database: string;
+					ssl?: string | SslOptions;
+				}
+				| {
+					url: string;
+				};
+		}
 	);
 
 /**

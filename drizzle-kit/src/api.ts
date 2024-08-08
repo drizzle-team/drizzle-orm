@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto';
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { PgDatabase } from 'drizzle-orm/pg-core';
+import { SingleStore2Database } from 'drizzle-orm/singlestore';
 import {
 	columnsResolver,
 	enumsResolver,
@@ -22,12 +22,15 @@ import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
 import { prepareFromExports } from './serializer/pgImports';
 import { PgSchema as PgSchemaKit, pgSchema, squashPgScheme } from './serializer/pgSchema';
 import { generatePgSnapshot } from './serializer/pgSerializer';
+import { SingleStoreSchema as SingleStoreSchemaKit, singlestoreSchema, squashSingleStoreScheme } from './serializer/singlestoreSchema';
+import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer';
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './serializer/sqliteSchema';
 import { generateSqliteSnapshot } from './serializer/sqliteSerializer';
 import type { DB, SQLiteDB } from './utils';
 export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
+export type DrizzleSingleStoreSnapshotJSON = SingleStoreSchemaKit;
 
 export const generateDrizzleJson = (
 	imports: Record<string, unknown>,
@@ -313,6 +316,108 @@ export const pushMySQLSchema = async (
 	const squashedCur = squashMysqlScheme(validatedCur);
 
 	const { statements } = await applyMysqlSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
+
+	const { shouldAskForApprove, statementsToExecute, infoToPrint } = await logSuggestionsAndReturn(
+		db,
+		statements,
+		validatedCur,
+	);
+
+	return {
+		hasDataLoss: shouldAskForApprove,
+		warnings: infoToPrint,
+		statementsToExecute,
+		apply: async () => {
+			for (const dStmnt of statementsToExecute) {
+				await db.query(dStmnt);
+			}
+		},
+	};
+};
+
+// SingleStore
+
+export const generateSingleStoreDrizzleJson = async (
+	imports: Record<string, unknown>,
+	prevId?: string,
+): Promise<SingleStoreSchemaKit> => {
+	const { prepareFromExports } = await import('./serializer/singlestoreImports');
+
+	const prepared = prepareFromExports(imports);
+
+	const id = randomUUID();
+
+	const snapshot = generateSingleStoreSnapshot(prepared.tables);
+
+	return {
+		...snapshot,
+		id,
+		prevId: prevId ?? originUUID,
+	};
+};
+
+export const generateSingleStoreMigration = async (
+	prev: DrizzleSingleStoreSnapshotJSON,
+	cur: DrizzleSingleStoreSnapshotJSON,
+) => {
+	const { applySingleStoreSnapshotsDiff } = await import('./snapshotsDiffer');
+
+	const validatedPrev = singlestoreSchema.parse(prev);
+	const validatedCur = singlestoreSchema.parse(cur);
+
+	const squashedPrev = squashSingleStoreScheme(validatedPrev);
+	const squashedCur = squashSingleStoreScheme(validatedCur);
+
+	const { sqlStatements } = await applySingleStoreSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		validatedPrev,
+		validatedCur,
+	);
+
+	return sqlStatements;
+};
+
+export const pushSingleStoreSchema = async (
+	imports: Record<string, unknown>,
+	drizzleInstance: SingleStore2Database<any>,
+	databaseName: string,
+) => {
+	const { applySingleStoreSnapshotsDiff } = await import('./snapshotsDiffer');
+	const { logSuggestionsAndReturn } = await import(
+		'./cli/commands/singlestorePushUtils'
+	);
+	const { singlestorePushIntrospect } = await import(
+		'./cli/commands/singlestoreIntrospect'
+	);
+	const { sql } = await import('drizzle-orm');
+
+	const db: DB = {
+		query: async (query: string, params?: any[]) => {
+			const res = await drizzleInstance.execute(sql.raw(query));
+			return res[0] as unknown as any[];
+		},
+	};
+	const cur = await generateSingleStoreDrizzleJson(imports);
+	const { schema: prev } = await singlestorePushIntrospect(db, databaseName, []);
+
+	const validatedPrev = singlestoreSchema.parse(prev);
+	const validatedCur = singlestoreSchema.parse(cur);
+
+	const squashedPrev = squashSingleStoreScheme(validatedPrev);
+	const squashedCur = squashSingleStoreScheme(validatedCur);
+
+	const { statements } = await applySingleStoreSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
 		tablesResolver,
