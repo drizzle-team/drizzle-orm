@@ -16,8 +16,7 @@ import {
 	Prefix,
 	wrapParam,
 } from '../validations/common';
-import { LibSQLCredentials, libSQLCredentials } from '../validations/libsql';
-import { printConfigConnectionIssues as printIssuesLibSql } from '../validations/libsql';
+import { LibSQLCredentials, libSQLCredentials, printConfigConnectionIssues as printIssuesLibSql } from '../validations/libsql';
 import {
 	MysqlCredentials,
 	mysqlCredentials,
@@ -30,11 +29,6 @@ import {
 	printConfigConnectionIssues as printIssuesPg,
 } from '../validations/postgres';
 import { printConfigConnectionIssues as printIssuesSingleStore, singlestoreCredentials, SingleStoreCredentials } from '../validations/singlestore';
-import {
-	printConfigConnectionIssues as printIssuesSingleStore,
-	SingleStoreCredentials,
-	singlestoreCredentials,
-} from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSqlite,
 	SqliteCredentials,

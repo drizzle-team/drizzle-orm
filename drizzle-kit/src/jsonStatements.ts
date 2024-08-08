@@ -3,7 +3,6 @@ import { getNewTableName } from './cli/commands/sqlitePushUtils';
 import { warning } from './cli/views';
 import { CommonSquashedSchema } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher } from './serializer/mysqlSchema';
-import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { Index, PgSchema, PgSquasher } from './serializer/pgSchema';
 import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import {
