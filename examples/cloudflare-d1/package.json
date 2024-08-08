@@ -4,8 +4,8 @@
 	"description": "",
 	"scripts": {
 		"test:types": "tsc --noEmit",
-		"generate": "drizzle-kit generate:sqlite",
-		"up": "drizzle-kit up:sqlite"
+		"generate": "drizzle-kit generate --config=drizzle.config.ts",
+		"up": "drizzle-kit up --config=drizzle.config.ts"
 	},
 	"keywords": [],
 	"author": "",
@@ -15,7 +15,7 @@
 		"@cloudflare/workers-types": "^3.18.0",
 		"@types/itty-router-extras": "^0.4.0",
 		"better-sqlite3": "^8.0.0",
-		"drizzle-kit": "^0.17.0",
+		"drizzle-kit": "^0.23.1",
 		"typescript": "^4.9.3",
 		"wrangler": "^2.4.2"
 	},
