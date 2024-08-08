@@ -5,6 +5,7 @@ import { dryMySql, MySqlSchema, mysqlSchema } from './serializer/mysqlSchema';
 import { dryPg, PgSchema, pgSchema, PgSchemaInternal } from './serializer/pgSchema';
 import { drySingleStore, SingleStoreSchema, singlestoreSchema } from './serializer/singlestoreSchema';
 import { drySQLite, SQLiteSchema, sqliteSchema } from './serializer/sqliteSchema';
+import { drySingleStore, singlestoreSchema, SingleStoreSchema } from './serializer/singlestoreSchema';
 
 export const prepareMySqlDbPushSnapshot = async (
 	prev: MySqlSchema,

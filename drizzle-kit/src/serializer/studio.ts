@@ -13,14 +13,14 @@ import {
 	Relations,
 	TablesRelationalConfig,
 } from 'drizzle-orm';
-import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
-import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
+import { AnyMySqlTable, MySqlTable, getTableConfig as mysqlTableConfig } from 'drizzle-orm/mysql-core';
+import { AnyPgTable, PgTable, getTableConfig as pgTableConfig } from 'drizzle-orm/pg-core';
 import {
 	AnySingleStoreTable,
-	getTableConfig as singlestoreTableConfig,
 	SingleStoreTable,
+	getTableConfig as singlestoreTableConfig,
 } from 'drizzle-orm/singlestore-core';
-import { AnySQLiteTable, getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
+import { AnySQLiteTable, SQLiteTable, getTableConfig as sqliteTableConfig } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -29,12 +29,12 @@ import { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { assertUnreachable } from 'src/global';
 import superjson from 'superjson';
 import { z } from 'zod';
+import { prepareFilenames } from '.';
 import { safeRegister } from '../cli/commands/utils';
 import type { MysqlCredentials } from '../cli/validations/mysql';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type { SingleStoreCredentials } from '../cli/validations/singlestore';
 import type { SqliteCredentials } from '../cli/validations/sqlite';
-import { prepareFilenames } from '.';
 
 type CustomDefault = {
 	schema: string;

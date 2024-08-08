@@ -7311,10 +7311,6 @@ packages:
     resolution: {integrity: sha512-MhWWlVnuab1RG5/zMRRcVGXZLCXrZTgfwMikgzCegsPnG62yDQo5JnqKkrK4jO5iKqDAZGItAqN5CtKBCBWRUA==}
     engines: {node: '>=16.14'}
 
-  lru-cache@9.1.2:
-    resolution: {integrity: sha512-ERJq3FOzJTxBbFjZ7iDs+NiK4VI9Wz+RdrrAB8dio1oV+YvdPzUEE4QNiT2VD51DkIbCYRUUzCRkssXCHqSnKQ==}
-    engines: {node: 14 || >=16.14}
-
   lru-queue@0.1.0:
     resolution: {integrity: sha512-BpdYkt9EvGl8OfWHDQPISVpcl5xZthb+XPsbELj5AQXxIC8IriDZIQYjBJPEm5rS420sjZ0TLEzRcq5KdBhYrQ==}
 
@@ -7627,10 +7623,6 @@ packages:
   mv@2.1.1:
     resolution: {integrity: sha512-at/ZndSy3xEGJ8i0ygALh8ru9qy7gWW1cmkaqBN29JmMlIvM//MEO9y1sk/avxuwnPcfhkejkLsuPxH81BrkSg==}
     engines: {node: '>=0.8.0'}
-
-  mysql2@3.11.0:
-    resolution: {integrity: sha512-J9phbsXGvTOcRVPR95YedzVSxJecpW5A5+cQ57rhHIFXteTP10HCs+VBjS7DHIKfEaI1zQ5tlVrquCd64A6YvA==}
-    engines: {node: '>= 8.0'}
 
   mysql2@3.3.3:
     resolution: {integrity: sha512-MxDQJztArk4JFX1PKVjDhIXRzAmVJfuqZrVU+my6NeYBAA/XZRaDw5q7vga8TNvgyy3Lv3rivBFBBuJFbsdjaw==}
@@ -18600,8 +18592,6 @@ snapshots:
 
   lru-cache@8.0.5: {}
 
-  lru-cache@9.1.2: {}
-
   lru-queue@0.1.0:
     dependencies:
       es5-ext: 0.10.62
@@ -19040,19 +19030,6 @@ snapshots:
       rimraf: 2.4.5
     optional: true
 
-  mysql2@3.11.0:
-    dependencies:
-      aws-ssl-profiles: 1.1.1
-      denque: 2.1.0
-      generate-function: 2.3.1
-      iconv-lite: 0.6.3
-      long: 5.2.3
-      lru-cache: 8.0.5
-      named-placeholders: 1.1.3
-      seq-queue: 0.0.5
-      sqlstring: 2.3.3
-    optional: true
-
   mysql2@3.3.3:
     dependencies:
       denque: 2.1.0
@@ -19465,7 +19442,7 @@ snapshots:
 
   path-scurry@1.10.1:
     dependencies:
-      lru-cache: 9.1.2
+      lru-cache: 10.2.2
       minipass: 5.0.0
 
   path-scurry@1.11.1:

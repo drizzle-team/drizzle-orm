@@ -1,19 +1,18 @@
 import chalk from 'chalk';
-import { getTableName, is } from 'drizzle-orm';
-import { SQL } from 'drizzle-orm';
+import { is, SQL } from 'drizzle-orm';
 import {
 	AnySingleStoreTable,
+	getTableConfig,
 	type PrimaryKey as PrimaryKeyORM,
 	SingleStoreDialect,
 	uniqueKeyName,
 } from 'drizzle-orm/singlestore-core';
-import { getTableConfig } from 'drizzle-orm/singlestore-core';
 import { RowDataPacket } from 'mysql2/promise';
 import { withStyle } from '../cli/validations/outputs';
 import { IntrospectStage, IntrospectStatus } from '../cli/views';
 
-import type { DB } from '../utils';
 import { sqlToStr } from '.';
+import type { DB } from '../utils';
 import {
 	Column,
 	Index,
@@ -574,15 +573,15 @@ export const fromDatabase = async (
 				};
 			}
 		} else {
-			if (typeof tableInResult.indexes[constraintName] !== 'undefined') {
-				tableInResult.indexes[constraintName]!.columns.push(columnName);
-			} else {
-				tableInResult.indexes[constraintName] = {
-					name: constraintName,
-					columns: [columnName],
-					isUnique: isUnique,
-				};
-			}
+				if (typeof tableInResult.indexes[constraintName] !== 'undefined') {
+					tableInResult.indexes[constraintName]!.columns.push(columnName);
+				} else {
+					tableInResult.indexes[constraintName] = {
+						name: constraintName,
+						columns: [columnName],
+						isUnique: isUnique,
+					};
+				}
 		}
 	}
 

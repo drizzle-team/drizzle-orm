@@ -29,6 +29,7 @@ import {
 	postgresCredentials,
 	printConfigConnectionIssues as printIssuesPg,
 } from '../validations/postgres';
+import { printConfigConnectionIssues as printIssuesSingleStore, singlestoreCredentials, SingleStoreCredentials } from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSingleStore,
 	SingleStoreCredentials,
@@ -221,6 +222,9 @@ export const preparePushConfig = async (
 		| {
 			dialect: 'turso';
 			credentials: LibSQLCredentials;
+		} | {
+			dialect: 'singlestore';
+			credentials: SingleStoreCredentials;
 		}
 		| {
 			dialect: 'singlestore';
@@ -406,6 +410,9 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'turso';
 			credentials: LibSQLCredentials;
+		} | {
+			dialect: 'singlestore';
+			credentials: SingleStoreCredentials;
 		}
 	) & {
 		out: string;
