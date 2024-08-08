@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { bigserial, geometry, geometryMultiLineString, line, pgTable, point } from 'drizzle-orm/pg-core';
+import { bigserial, geometry, line, pgTable, point } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -88,8 +88,8 @@ const items = pgTable('items', {
 	geo: geometry('geo', { type: 'point' }),
 	geoObj: geometry('geo_obj', { type: 'point', mode: 'xy' }),
 	geoSrid: geometry('geo_options', { type: 'point', mode: 'xy', srid: 4000 }),
-	geoMultiLineString: geometryMultiLineString('geo_multilinestring'),
-	geoMultiLineStringSrid: geometryMultiLineString('geo_multilinestring_srid', { srid: 4000 }),
+	geoMultiLineString: geometry('geo_multilinestring', { type: 'multilinestring' }),
+	geoMultiLineStringSrid: geometry('geo_multilinestring_srid', { type: 'multilinestring', srid: 4000 }),
 });
 
 beforeEach(async () => {

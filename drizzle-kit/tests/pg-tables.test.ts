@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm';
 import {
 	AnyPgColumn,
 	geometry,
-	geometryMultiLineString,
 	index,
 	integer,
 	pgEnum,
@@ -243,8 +242,8 @@ test('add table #9: geometry multilinestring types', async () => {
 
 	const to = {
 		users: pgTable('users', {
-			multiLineStringWithoutSRID: geometryMultiLineString('multilinestring_without_srid').notNull(),
-			multiLineStringWithSRID: geometryMultiLineString('multilinestring_with_srid', { srid: 4326 }).notNull(),
+			multiLineStringWithoutSRID: geometry('multilinestring_without_srid', { type: 'multilinestring' }).notNull(),
+			multiLineStringWithSRID: geometry('multilinestring_with_srid', { type: 'multilinestring', srid: 4326 }).notNull(),
 		}),
 	};
 

@@ -6,6 +6,11 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 import type { Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { parseEWKB } from './utils.ts';
+import type {
+	PgGeometryMultiLineStringBuilderInitial,
+	PgGeometryMultiLineStringConfig,
+} from './geometryMultiLineString.ts';
+import { PgGeometryMultiLineStringBuilder } from './geometryMultiLineString.ts';
 
 export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
 	name: TName;
@@ -104,12 +109,19 @@ interface PgGeometryConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {
 	srid?: number;
 }
 
+export function geometry<TName extends string>(
+	name: TName,
+	config: { type: 'multilinestring' } & PgGeometryMultiLineStringConfig,
+): PgGeometryMultiLineStringBuilderInitial<TName>;
 export function geometry<TName extends string, TMode extends PgGeometryConfig['mode'] & {}>(
 	name: TName,
 	config?: PgGeometryConfig<TMode>,
 ): Equal<TMode, 'xy'> extends true ? PgGeometryObjectBuilderInitial<TName>
 	: PgGeometryBuilderInitial<TName>;
 export function geometry(name: string, config?: PgGeometryConfig) {
+	if (config?.type === 'multilinestring') {
+		return new PgGeometryMultiLineStringBuilder(name, config);
+	}
 	if (!config?.mode || config.mode === 'tuple') {
 		return new PgGeometryBuilder(name);
 	}

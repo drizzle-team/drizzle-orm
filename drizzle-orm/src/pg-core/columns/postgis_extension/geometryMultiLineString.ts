@@ -5,6 +5,7 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { parseMultiLineStringEWKB } from './utils.ts';
+import type { geometry } from './geometry.ts';
 
 export type PgGeometryMultiLineStringBuilderInitial<TName extends string> = PgGeometryMultiLineStringBuilder<{
 	name: TName;
@@ -72,6 +73,7 @@ export interface PgGeometryMultiLineStringConfig {
 	srid?: number;
 }
 
+/** @deprecated Use {@link geometry} with `type: 'multilinestring'` instead. */
 export function geometryMultiLineString<TName extends string>(
 	name: TName,
 	config: PgGeometryMultiLineStringConfig = {},
