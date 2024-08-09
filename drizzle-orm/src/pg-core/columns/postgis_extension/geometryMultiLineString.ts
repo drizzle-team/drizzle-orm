@@ -51,7 +51,7 @@ export class PgGeometryMultiLineString<
 	}
 
 	getSQLType(): string {
-		if (this.srid) return `geometry(multilinestring,${this.srid})`;
+		if (this.srid) return `geometry(multilinestring, ${this.srid})`;
 		return 'geometry(multilinestring)';
 	}
 

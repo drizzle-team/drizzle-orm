@@ -252,7 +252,7 @@ test('add table #9: geometry multilinestring types', async () => {
 	expect(statements.length).toBe(1);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"multilinestring_without_srid" geometry(multilinestring) NOT NULL,\n\t"multilinestring_with_srid" geometry(multilinestring,4326) NOT NULL\n);\n`,
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"multilinestring_without_srid" geometry(multilinestring) NOT NULL,\n\t"multilinestring_with_srid" geometry(multilinestring, 4326) NOT NULL\n);\n`,
 	]);
 });
 

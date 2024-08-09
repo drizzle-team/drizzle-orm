@@ -105,7 +105,7 @@ beforeEach(async () => {
 				  "geo_obj" geometry(point),
 				  "geo_options" geometry(point,4000),
 				  "geo_multilinestring" geometry(multilinestring),
-				  "geo_multilinestring_srid" geometry(multilinestring,4000)
+				  "geo_multilinestring_srid" geometry(multilinestring, 4000)
 		      );
 	`);
 });
