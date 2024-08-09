@@ -17,11 +17,14 @@ export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
 	generated: undefined;
 }>;
 
-export class PgGeometryBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGeometry'>> extends PgColumnBuilder<T> {
+export class PgGeometryBuilder<
+	T extends ColumnBuilderBaseConfig<'array', 'PgGeometry'>
+> extends PgColumnBuilder<T, { srid?: number }> {
 	static readonly [entityKind]: string = 'PgGeometryBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: T['name'], config: { srid?: number } = {}) {
 		super(name, 'array', 'PgGeometry');
+		this.config.srid = config.srid;
 	}
 
 	/** @internal */
@@ -38,7 +41,15 @@ export class PgGeometryBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGeo
 export class PgGeometry<T extends ColumnBaseConfig<'array', 'PgGeometry'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgGeometry';
 
+	readonly srid: number | undefined;
+
+	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgGeometryBuilder<T>['config']) {
+		super(table, config);
+		this.srid = config.srid;
+	}
+
 	getSQLType(): string {
+		if (this.srid) return `geometry(point,${this.srid})`;
 		return 'geometry(point)';
 	}
 
@@ -47,7 +58,12 @@ export class PgGeometry<T extends ColumnBaseConfig<'array', 'PgGeometry'>> exten
 	}
 
 	override mapToDriverValue(value: [number, number]): string {
-		return `point(${value[0]} ${value[1]})`;
+		const point = `point(${value[0]} ${value[1]})`;
+
+		if (this.srid) {
+			return `ST_GeomFromText('${point}', ${this.srid})`;
+		}
+		return point;
 	}
 }
 
@@ -61,13 +77,14 @@ export type PgGeometryObjectBuilderInitial<TName extends string> = PgGeometryObj
 	generated: undefined;
 }>;
 
-export class PgGeometryObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgGeometryObject'>>
-	extends PgColumnBuilder<T>
-{
+export class PgGeometryObjectBuilder<
+	T extends ColumnBuilderBaseConfig<'json', 'PgGeometryObject'>,
+> extends PgColumnBuilder<T, { srid?: number }> {
 	static readonly [entityKind]: string = 'PgGeometryObjectBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: T['name'], config: { srid?: number } = {}) {
 		super(name, 'json', 'PgGeometryObject');
+		this.config.srid = config.srid;
 	}
 
 	/** @internal */
@@ -84,7 +101,15 @@ export class PgGeometryObjectBuilder<T extends ColumnBuilderBaseConfig<'json', '
 export class PgGeometryObject<T extends ColumnBaseConfig<'json', 'PgGeometryObject'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgGeometryObject';
 
+	readonly srid: number | undefined;
+
+	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgGeometryObjectBuilder<T>['config']) {
+		super(table, config);
+		this.srid = config.srid;
+	}
+
 	getSQLType(): string {
+		if (this.srid) return `geometry(point,${this.srid})`;
 		return 'geometry(point)';
 	}
 
@@ -94,7 +119,12 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'json', 'PgGeometryObje
 	}
 
 	override mapToDriverValue(value: { x: number; y: number }): string {
-		return `point(${value.x} ${value.y})`;
+		const point = `point(${value.x} ${value.y})`;
+
+		if (this.srid) {
+			return `ST_GeomFromText('${point}', ${this.srid})`;
+		}
+		return point;
 	}
 }
 
