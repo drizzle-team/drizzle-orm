@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
-import type { TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, Relations, TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
@@ -47,7 +47,7 @@ export interface PgTransactionConfig {
 
 export abstract class PgSession<
 	TQueryResult extends QueryResultHKT = QueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends Relations = AnyRelations,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > {
 	static readonly [entityKind]: string = 'PgSession';
@@ -87,16 +87,16 @@ export abstract class PgSession<
 	}
 
 	abstract transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: PgTransaction<TQueryResult, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T>;
 }
 
 export abstract class PgTransaction<
 	TQueryResult extends QueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends Relations = AnyRelations,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
-> extends PgDatabase<TQueryResult, TFullSchema, TSchema> {
+> extends PgDatabase<TQueryResult, TRelations, TSchema> {
 	static readonly [entityKind]: string = 'PgTransaction';
 
 	constructor(
@@ -136,7 +136,7 @@ export abstract class PgTransaction<
 	}
 
 	abstract override transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: PgTransaction<TQueryResult, TRelations, TSchema>) => Promise<T>,
 	): Promise<T>;
 }
 

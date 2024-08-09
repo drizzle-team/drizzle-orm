@@ -115,7 +115,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 
 	private _getQuery() {
 		return this.dialect.buildRelationalQueryWithoutPK({
-			fullSchema: this.fullSchema,
+			tables: this.fullSchema,
 			schema: this.schema,
 			tableNamesMap: this.tableNamesMap,
 			table: this.table,

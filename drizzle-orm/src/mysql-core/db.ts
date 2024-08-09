@@ -58,8 +58,8 @@ export class MySqlDatabase<
 	) {
 		this._ = schema
 			? {
-				schema: schema.schema,
-				fullSchema: schema.fullSchema as TFullSchema,
+				schema: schema.tablesConfig,
+				fullSchema: schema.tables as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
 			}
 			: {
@@ -72,10 +72,10 @@ export class MySqlDatabase<
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
 				(this.query as MySqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
 					new RelationalQueryBuilder(
-						schema!.fullSchema,
+						schema!.tables,
 						this._.schema,
 						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as MySqlTable,
+						schema!.tables[tableName] as MySqlTable,
 						columns,
 						dialect,
 						session,

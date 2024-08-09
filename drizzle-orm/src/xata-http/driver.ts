@@ -62,8 +62,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	if (config.schema) {
 		const tablesConfig = extractTablesRelationalConfig(config.schema, createTableRelationsHelpers);
 		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
+			tables: config.schema,
+			tablesConfig: tablesConfig.tables,
 			tableNamesMap: tablesConfig.tableNamesMap,
 		};
 	}

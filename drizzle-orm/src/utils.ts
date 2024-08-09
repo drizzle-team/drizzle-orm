@@ -4,6 +4,7 @@ import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
+import type { EmptyRelations, Relations } from './relations.ts';
 import { Param, SQL, View } from './sql/sql.ts';
 import type { DriverValueDecoder } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
@@ -203,15 +204,16 @@ export function getTableLikeName(table: TableLike): string | undefined {
 }
 
 export type ColumnsWithTable<
-	TTableName extends string,
-	TForeignTableName extends string,
-	TColumns extends AnyColumn<{ tableName: TTableName }>[],
-> = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
+	TSourceTableName extends string,
+	TTargetTableName extends string,
+	TColumns extends AnyColumn<{ tableName: TSourceTableName }>[],
+> = { [Key in keyof TColumns]: AnyColumn<{ tableName: TTargetTableName; data: TColumns[Key]['_']['data'] }> };
 
-export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
+export interface DrizzleConfig<TRelations extends Relations = EmptyRelations> {
 	logger?: boolean | Logger;
-	schema?: TSchema;
+	relations?: TRelations;
 }
+
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
 	: DrizzleTypeError<
@@ -224,3 +226,10 @@ export type KnownKeysOnly<T, U> = {
 };
 
 export type IsAny<T> = 0 extends (1 & T) ? true : false;
+
+export function getTableUniqueName(table: Table) {
+	if (table[Table.Symbol.Schema]) {
+		return `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+	}
+	return table[Table.Symbol.Name];
+}

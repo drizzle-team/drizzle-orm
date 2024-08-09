@@ -2,24 +2,19 @@ import type { Sql } from 'postgres';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import type { EmptyRelations, RelationalSchemaConfig, Relations, TablesRelationalConfig } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import type { PostgresJsQueryResultHKT } from './session.ts';
 import { PostgresJsSession } from './session.ts';
 
 export type PostgresJsDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<PostgresJsQueryResultHKT, TSchema>;
+	TRelations extends Relations = EmptyRelations,
+> = PgDatabase<PostgresJsQueryResultHKT, TRelations>;
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<TRelations extends Relations = EmptyRelations>(
 	client: Sql,
-	config: DrizzleConfig<TSchema> = {},
-): PostgresJsDatabase<TSchema> {
+	config: DrizzleConfig<TRelations> = {},
+): PostgresJsDatabase<TRelations> {
 	const transparentParser = (val: any) => val;
 
 	// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
@@ -37,18 +32,14 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
+	if (config.relations) {
 		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
+			tables: config.relations.tables,
+			tablesConfig: config.relations.tablesConfig,
+			tableNamesMap: config.relations.tableNamesMap,
 		};
 	}
 
 	const session = new PostgresJsSession(client, dialect, schema, { logger });
-	return new PgDatabase(dialect, session, schema) as PostgresJsDatabase<TSchema>;
+	return new PgDatabase(dialect, session, schema) as PostgresJsDatabase<TRelations>;
 }

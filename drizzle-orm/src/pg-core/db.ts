@@ -17,7 +17,13 @@ import type {
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type {
+	EmptyRelations,
+	ExtractTablesWithRelations,
+	RelationalSchemaConfig,
+	Relations,
+	TablesRelationalConfig,
+} from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
@@ -32,22 +38,22 @@ import type { PgMaterializedView } from './view.ts';
 
 export class PgDatabase<
 	TQueryResult extends QueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	TRelations extends Relations,
+	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
 > {
 	static readonly [entityKind]: string = 'PgDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly fullSchema: TFullSchema;
+		readonly tablesConfig: TTablesConfig | undefined;
+		readonly schema: TRelations['schema'];
 		readonly tableNamesMap: Record<string, string>;
-		readonly session: PgSession<TQueryResult, TFullSchema, TSchema>;
+		readonly session: PgSession<TQueryResult, TRelations, TTablesConfig>;
 	};
 
-	query: TFullSchema extends Record<string, never>
-		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
+	query: TRelations extends EmptyRelations
+		? DrizzleTypeError<'Seems like the relations generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
+			[K in keyof TTablesConfig]: RelationalQueryBuilder<TTablesConfig, TTablesConfig[K]>;
 		};
 
 	constructor(
@@ -55,29 +61,30 @@ export class PgDatabase<
 		readonly dialect: PgDialect,
 		/** @internal */
 		readonly session: PgSession<any, any, any>,
-		schema: RelationalSchemaConfig<TSchema> | undefined,
+		schema: RelationalSchemaConfig<TTablesConfig> | undefined,
 	) {
+		// TODO: use new schema from relations object
 		this._ = schema
 			? {
-				schema: schema.schema,
-				fullSchema: schema.fullSchema as TFullSchema,
+				tablesConfig: schema.tablesConfig,
+				schema: schema.tables as TTablesConfig,
 				tableNamesMap: schema.tableNamesMap,
 				session,
 			}
 			: {
-				schema: undefined,
-				fullSchema: {} as TFullSchema,
+				tablesConfig: undefined,
+				schema: {} as TTablesConfig,
 				tableNamesMap: {},
 				session,
 			};
 		this.query = {} as typeof this['query'];
-		if (this._.schema) {
-			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this.query as PgDatabase<TQueryResult, Record<string, any>>['query'])[tableName] = new RelationalQueryBuilder(
-					schema!.fullSchema,
-					this._.schema,
+		if (this._.tablesConfig) {
+			for (const [tableName, columns] of Object.entries(this._.tablesConfig)) {
+				(this.query as Record<string, RelationalQueryBuilder<any, any>>)[tableName] = new RelationalQueryBuilder(
+					schema!.tables,
+					this._.tablesConfig,
 					this._.tableNamesMap,
-					schema!.fullSchema[tableName] as PgTable,
+					schema!.tables[tableName] as PgTable,
 					columns,
 					dialect,
 					session,
@@ -607,7 +614,7 @@ export class PgDatabase<
 	}
 
 	transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: PgTransaction<TQueryResult, TRelations, TTablesConfig>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.session.transaction(transaction, config);
@@ -618,9 +625,9 @@ export type PgWithReplicas<Q> = Q & { $primary: Q };
 
 export const withReplicas = <
 	HKT extends QueryResultHKT,
-	TFullSchema extends Record<string, unknown>,
+	TRelations extends Relations,
 	TSchema extends TablesRelationalConfig,
-	Q extends PgDatabase<HKT, TFullSchema, TSchema>,
+	Q extends PgDatabase<HKT, TRelations, TSchema>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],

@@ -26,10 +26,8 @@ import { PgTable } from '~/pg-core/table.ts';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
-	getOperators,
 	getOrderByOperators,
 	Many,
-	normalizeRelation,
 	One,
 	type Relation,
 	type TableRelationalConfig,
@@ -1070,7 +1068,7 @@ export class PgDialect {
 	// }
 
 	buildRelationalQueryWithoutPK({
-		fullSchema,
+		tables,
 		schema,
 		tableNamesMap,
 		table,
@@ -1080,7 +1078,7 @@ export class PgDialect {
 		nestedQueryRelation,
 		joinOn,
 	}: {
-		fullSchema: Record<string, unknown>;
+		tables: Record<string, PgTable>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
 		table: PgTable;
@@ -1112,6 +1110,7 @@ export class PgDialect {
 			);
 
 			if (config.where) {
+				// getOperators() doesn't exist anymore, uses JSON filters instead
 				const whereSql = typeof config.where === 'function'
 					? config.where(aliasedColumns, getOperators())
 					: config.where;
@@ -1218,6 +1217,7 @@ export class PgDialect {
 					relation,
 				} of selectedRelations
 			) {
+				// TODO: normalizeRelation doesn't exist anymore, done automatically in defineRelations()
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
 				const relationTableName = relation.referencedTable[Table.Symbol.Name];
 				const relationTableTsName = tableNamesMap[relationTableName]!;
@@ -1231,10 +1231,10 @@ export class PgDialect {
 					),
 				);
 				const builtRelation = this.buildRelationalQueryWithoutPK({
-					fullSchema,
+					tables: tables,
 					schema,
 					tableNamesMap,
-					table: fullSchema[relationTableTsName] as PgTable,
+					table: tables[relationTableTsName] as PgTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
 						? (selectedRelationConfigValue === true

@@ -56,8 +56,8 @@ export class BaseSQLiteDatabase<
 	) {
 		this._ = schema
 			? {
-				schema: schema.schema,
-				fullSchema: schema.fullSchema as TFullSchema,
+				schema: schema.tablesConfig,
+				fullSchema: schema.tables as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
 			}
 			: {
@@ -73,10 +73,10 @@ export class BaseSQLiteDatabase<
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
 				query[tableName as keyof TSchema] = new RelationalQueryBuilder(
 					resultKind,
-					schema!.fullSchema,
+					schema!.tables,
 					this._.schema,
 					this._.tableNamesMap,
-					schema!.fullSchema[tableName] as SQLiteTable,
+					schema!.tables[tableName] as SQLiteTable,
 					columns,
 					dialect,
 					session as SQLiteSession<any, any, any, any> as any,

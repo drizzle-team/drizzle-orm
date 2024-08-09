@@ -65,8 +65,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 			createTableRelationsHelpers,
 		);
 		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
+			tables: config.schema,
+			tablesConfig: tablesConfig.tables,
 			tableNamesMap: tablesConfig.tableNamesMap,
 		};
 	}

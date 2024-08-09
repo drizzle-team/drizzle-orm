@@ -75,8 +75,8 @@ Starting from version 0.30.0, you will encounter an error if you attempt to use 
 			createTableRelationsHelpers,
 		);
 		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
+			tables: config.schema,
+			tablesConfig: tablesConfig.tables,
 			tableNamesMap: tablesConfig.tableNamesMap,
 		};
 	}

@@ -10,3 +10,4 @@ dist.new
 .rollup.cache
 dist-dts
 rollup.config-*.mjs
+**/.DS_Store
