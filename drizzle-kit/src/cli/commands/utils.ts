@@ -57,6 +57,13 @@ const assertES5 = async (unregister: () => void) => {
 };
 
 export const safeRegister = async () => {
+	// Deno supports loading .ts/.tsx files natively
+	if (process.versions.deno) {
+		return {
+			unregister: () => {},
+		};
+	}
+
 	const { register } = await import('esbuild-register/dist/node');
 	let res: { unregister: () => void };
 	try {
@@ -627,7 +634,7 @@ export const drizzleConfigFromFile = async (
 
 	console.log(chalk.grey(`Reading config file '${path}'`));
 	const { unregister } = await safeRegister();
-	const required = require(`${path}`);
+	const required = await import(`${path}`);
 	const content = required.default ?? required;
 	unregister();
 
