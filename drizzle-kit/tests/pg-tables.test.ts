@@ -235,7 +235,7 @@ test('add table #8: geometry types', async () => {
 	expect(statements.length).toBe(1);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL,\n\t"geom2" geometry(point,4326) NOT NULL,\n\t"geom3" geometry(point,4326) NOT NULL\n);\n`,
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL,\n\t"geom2" geometry(point, 4326) NOT NULL,\n\t"geom3" geometry(point, 4326) NOT NULL\n);\n`,
 	]);
 });
 

@@ -49,7 +49,7 @@ export class PgGeometry<T extends ColumnBaseConfig<'array', 'PgGeometry'>> exten
 	}
 
 	getSQLType(): string {
-		if (this.srid) return `geometry(point,${this.srid})`;
+		if (this.srid) return `geometry(point, ${this.srid})`;
 		return 'geometry(point)';
 	}
 
@@ -109,7 +109,7 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'json', 'PgGeometryObje
 	}
 
 	getSQLType(): string {
-		if (this.srid) return `geometry(point,${this.srid})`;
+		if (this.srid) return `geometry(point, ${this.srid})`;
 		return 'geometry(point)';
 	}
 
