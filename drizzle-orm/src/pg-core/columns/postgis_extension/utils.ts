@@ -45,3 +45,28 @@ export function parseEWKB(hex: string): [number, number] {
 
 	throw new Error('Unsupported geometry type');
 }
+
+export type GeometryPointObject = {
+	type: 'Point';
+	crs?: {
+		type: 'name';
+		properties?: {
+			name: string;
+		};
+	};
+	coordinates: [number, number];
+};
+
+export function parsePointObject(obj: GeometryPointObject): [number, number] {
+	if (
+		!obj ||
+		obj.type !== 'Point' ||
+		!Array.isArray(obj.coordinates) ||
+		obj.coordinates.length !== 2 ||
+		!obj.coordinates.every((n): n is number => Number.isFinite(n))
+	) {
+		throw new Error('Invalid geometry point object');
+	}
+
+	return obj.coordinates;
+}
