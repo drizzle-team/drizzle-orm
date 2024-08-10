@@ -740,18 +740,14 @@ const column = (
 		const split = lowered.split(' ');
 
 		let out: string;
-		if (lowered.length !== 7) {
+		const length = lowered.substring(lowered.indexOf('(') + 1, lowered.indexOf(')'))
+		if (length) {
 			out = `${
 				withCasing(
 					name,
 					casing,
 				)
-			}: varchar("${name}", { length: ${
-				lowered.substring(
-					8,
-					lowered.length - 1,
-				)
-			} })`;
+			}: varchar("${name}", { length: ${length} })`;
 		} else {
 			out = `${withCasing(name, casing)}: varchar("${name}")`;
 		}
