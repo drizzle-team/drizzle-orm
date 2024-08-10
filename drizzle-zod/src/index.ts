@@ -211,6 +211,9 @@ function mapColumnToSchema(column: Column): z.ZodTypeAny {
 		} else if (is(column, PgPointTuple)) {
 			type = z.tuple([z.number(), z.number()]);
 		} else if (column.dataType === 'array') {
+			if (!("baseColumn" in column) || !column["baseColumn"]) {
+				throw new Error(`Expected name: ${column.name}, type: ${column.columnType} to be an array column with a base column but there is no base colum.`);
+			}
 			type = z.array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
 		} else if (column.dataType === 'number') {
 			type = z.number();
