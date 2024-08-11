@@ -1229,6 +1229,7 @@ const defaultForColumn = (column: any) => {
 		if (
 			/^-?[\d.]+(?:e-?\d+)?$/.test(rt)
 			&& !column.data_type.startsWith('numeric')
+			&& !column.data_type.startsWith('inet')
 		) {
 			return Number(rt);
 		} else if (column.data_type === 'json' || column.data_type === 'jsonb') {

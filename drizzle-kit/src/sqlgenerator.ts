@@ -99,6 +99,7 @@ export const pgNativeTypes = new Set([
 ]);
 
 const isPgNativeType = (it: string) => {
+	it = it.replace('[]', '');
 	if (pgNativeTypes.has(it)) return true;
 	const toCheck = it.replace(/ /g, '');
 	return (
@@ -159,7 +160,7 @@ class PgCreateTableConvertor extends Convertor {
 
 			const type = isPgNativeType(column.type)
 				? column.type
-				: `${schemaPrefix}"${column.type}"`;
+				: `${schemaPrefix}"${column.type.replace('[]', '')}"${column.type.match(/\[\]/g)?.[0] ?? ''}`;
 			const generated = column.generated;
 
 			const generatedStatement = ` GENERATED ALWAYS AS (${generated?.as}) STORED`;

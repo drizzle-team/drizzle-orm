@@ -23,6 +23,7 @@ import {
 	UniqueConstraint,
 } from './serializer/pgSchema';
 import { indexName } from './serializer/pgSerializer';
+import { isPgArrayType } from './utils';
 
 const pgImportsList = new Set([
 	'pgTable',
@@ -322,8 +323,9 @@ export const schemaToTypeScript = (
 			}
 
 			const columnImports = Object.values(it.columns)
-				.map((col) => {
-					let patched: string = importsPatch[col.type] || col.type;
+			.map((col) => {
+					let patched: string = (importsPatch[col.type] || col.type).replace('[]', '');
+					patched = patched === 'double precision' ? 'doublePrecision' : patched;
 					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
 					patched = patched.startsWith('char(') ? 'char' : patched;
 					patched = patched.startsWith('numeric(') ? 'numeric' : patched;
@@ -459,71 +461,64 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.tableFrom === fk.tableTo;
 };
 
-const column = (
-	tableName: string,
-	type: string,
-	name: string,
-	enumTypes: Set<string>,
-	casing: Casing,
-	defaultValue?: any,
-	internals?: PgKitInternals,
-) => {
-	const lowered = type.toLowerCase();
-	if (lowered.startsWith('serial')) {
+type ColumnMapperConfig = {
+	sqlType: string;
+	name: string;
+	casing: Casing;
+	defaultValue: any;
+}
+
+const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
+	serial: ({ name, casing }: ColumnMapperConfig) => {
 		return `${withCasing(name, casing)}: serial("${name}")`;
-	}
+	},
 
-	if (lowered.startsWith('smallserial')) {
+	smallserial: ({ name, casing }: ColumnMapperConfig) => {
 		return `${withCasing(name, casing)}: smallserial("${name}")`;
-	}
+	},
 
-	if (lowered.startsWith('bigserial')) {
-		return `${
-			withCasing(
-				name,
-				casing,
-			)
-		}: bigserial("${name}", { mode: "bigint" })`;
-	}
+	bigserial: ({ name, casing }: ColumnMapperConfig) => {
+		return `${withCasing(name, casing)}: bigserial("${name}", { mode: "bigint" })`;
+	},
 
-	if (lowered.startsWith('integer')) {
+	integer: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: integer("${name}")`;
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('smallint')) {
+	smallint: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: smallint("${name}")`;
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('bigint')) {
+	bigint: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
 		out += `${withCasing(name, casing)}: bigint("${name}", { mode: "number" })`;
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('boolean')) {
+	boolean: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: boolean("${name}")`;
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('double precision')) {
+	'double precision': ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: doublePrecision("${name}")`;
 		out += defaultValue ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('real')) {
+	real: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: real("${name}")`;
 		out += defaultValue ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('uuid')) {
+	uuid: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: uuid("${name}")`;
 
 		out += defaultValue === 'gen_random_uuid()'
@@ -532,16 +527,16 @@ const column = (
 			? `.default(sql\`${defaultValue}\`)`
 			: '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('numeric')) {
+	numeric: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
 		let params:
 			| { precision: string | undefined; scale: string | undefined }
 			| undefined;
 
-		if (lowered.length > 7) {
-			const [precision, scale] = lowered
-				.slice(8, lowered.length - 1)
+		if (sqlType.length > 7) {
+			const [precision, scale] = sqlType
+				.slice(8, sqlType.length - 1)
 				.split(',');
 			params = { precision, scale };
 		}
@@ -558,16 +553,15 @@ const column = (
 		out += defaultValue ? `.default('${defaultValue}')` : '';
 
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('timestamp')) {
-		const withTimezone = lowered.includes('with time zone');
-		// const split = lowered.split(" ");
-		let precision = lowered.startsWith('timestamp(')
+	timestamp: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+		const withTimezone = sqlType.includes('with time zone');
+		let precision = sqlType.startsWith('timestamp(')
 			? Number(
-				lowered
+				sqlType
 					.split(' ')[0]
-					.substring('timestamp('.length, lowered.split(' ')[0].length - 1),
+					.substring('timestamp('.length, sqlType.split(' ')[0].length - 1),
 			)
 			: null;
 		precision = precision ? precision : null;
@@ -582,32 +576,30 @@ const column = (
 			? `${withCasing(name, casing)}: timestamp("${name}", ${params})`
 			: `${withCasing(name, casing)}: timestamp("${name}")`;
 
-		// defaultValue = defaultValue?.endsWith("::timestamp without time zone")
-		//   ? defaultValue.substring(0, defaultValue.length - 29)
-		//   : defaultValue;
-
-		// defaultValue = defaultValue?.endsWith("::timestamp with time zone")
-		//   ? defaultValue.substring(0, defaultValue.length - 26)
-		//   : defaultValue;
-
 		defaultValue = defaultValue === 'now()' || defaultValue === 'CURRENT_TIMESTAMP'
 			? '.defaultNow()'
 			: defaultValue
-			? `.default(${defaultValue})`
+			? `.default(${
+				defaultValue?.endsWith("::timestamp with time zone")
+					? defaultValue.substring(0, defaultValue.length - 26)
+					: defaultValue?.endsWith("::timestamp without time zone")
+						? defaultValue.substring(0, defaultValue.length - 29)
+						: defaultValue
+			})`
 			: '';
 
 		out += defaultValue;
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('time')) {
-		const withTimezone = lowered.includes('with time zone');
+	time: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+		const withTimezone = sqlType.includes('with time zone');
 
-		let precision = lowered.startsWith('time(')
+		let precision = sqlType.startsWith('time(')
 			? Number(
-				lowered
+				sqlType
 					.split(' ')[0]
-					.substring('time('.length, lowered.split(' ')[0].length - 1),
+					.substring('time('.length, sqlType.split(' ')[0].length - 1),
 			)
 			: null;
 		precision = precision ? precision : null;
@@ -626,15 +618,10 @@ const column = (
 
 		out += defaultValue;
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('interval')) {
-		// const withTimezone = lowered.includes("with time zone");
-		// const split = lowered.split(" ");
-		// let precision = split.length >= 2 ? Number(split[1].substring(1, 2)) : null;
-		// precision = precision ? precision : null;
-
-		const params = intervalConfig(lowered);
+	interval: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+		const params = intervalConfig(sqlType);
 
 		let out = params
 			? `${withCasing(name, casing)}: interval("${name}", ${params})`
@@ -642,9 +629,9 @@ const column = (
 
 		out += defaultValue ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered === 'date') {
+	date: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: date("${name}")`;
 
 		defaultValue = defaultValue === 'now()'
@@ -657,134 +644,107 @@ const column = (
 
 		out += defaultValue;
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('text')) {
+	text: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: text("${name}")`;
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered === 'json') {
+	json: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: json("${name}")`;
-		// defaultValue = defaultValue?.replace("::json", "");
 
 		defaultValue = defaultValue?.endsWith('::json')
 			? defaultValue.substring(1, defaultValue.length - 7)
 			: defaultValue;
-		// const def = defaultValue ? objToStatement(JSON.parse(defaultValue)) : null;
 		const def = defaultValue ? defaultValue : null;
 
 		out += typeof defaultValue !== 'undefined' ? `.default(${def})` : '';
 		return out;
-	}
+	},
 
-	if (lowered === 'jsonb') {
+	jsonb: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: jsonb("${name}")`;
 
 		defaultValue = defaultValue?.endsWith('::jsonb')
 			? defaultValue.substring(1, defaultValue.length - 8)
 			: defaultValue;
-		// const def = defaultValue ? objToStatement(JSON.parse(defaultValue)) : null;
 		const def = typeof defaultValue !== 'undefined' ? defaultValue : null;
 
 		out += defaultValue ? `.default(${def})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('inet')) {
+	inet: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: inet("${name}")`;
-
-		// defaultValue = defaultValue?.endsWith("::inet")
-		//   ? defaultValue.substring(0, defaultValue.length - 6)
-		//   : defaultValue;
-
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('cidr')) {
+	cidr: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: cidr("${name}")`;
-
-		// defaultValue = defaultValue?.endsWith("::cidr")
-		//   ? defaultValue.substring(0, defaultValue.length - 6)
-		//   : defaultValue;
-
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('macaddr')) {
+	macaddr: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: macaddr("${name}")`;
-
-		// defaultValue = defaultValue?.endsWith("::macaddr")
-		//   ? defaultValue.substring(0, defaultValue.length - 9)
-		//   : defaultValue;
-
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('macaddr8')) {
+	macaddr8: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out = `${withCasing(name, casing)}: macaddr8("${name}")`;
-
-		// defaultValue = defaultValue?.endsWith("::macaddr8")
-		//   ? defaultValue.substring(0, defaultValue.length - 10)
-		//   : defaultValue;
-
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('varchar')) {
-		const split = lowered.split(' ');
-
+	varchar: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
 		let out: string;
-		if (lowered.length !== 7) {
+		if (sqlType.length !== 7) {
 			out = `${
 				withCasing(
 					name,
 					casing,
 				)
 			}: varchar("${name}", { length: ${
-				lowered.substring(
+				sqlType.substring(
 					8,
-					lowered.length - 1,
+					sqlType.length - 1,
 				)
 			} })`;
 		} else {
 			out = `${withCasing(name, casing)}: varchar("${name}")`;
 		}
 
-		// defaultValue = defaultValue?.endsWith("::character varying")
-		//   ? defaultValue.substring(0, defaultValue.length - 19)
-		//   : defaultValue;
-
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${
+			defaultValue?.endsWith('::character varying')
+				? defaultValue.substring(0, defaultValue.length - 19)
+				: defaultValue
+		})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('point')) {
+	point: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out: string = `${withCasing(name, casing)}: point("${name}")`;
-
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('line')) {
+	line: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
 		let out: string = `${withCasing(name, casing)}: point("${name}")`;
-
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('geometry')) {
+	geometry: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
 		let out: string = '';
 
 		let isGeoUnknown = false;
 
-		if (lowered.length !== 8) {
-			const geometryOptions = lowered.slice(9, -1).split(',');
+		if (sqlType.length !== 8) {
+			const geometryOptions = sqlType.slice(9, -1).split(',');
 			if (geometryOptions.length === 1 && geometryOptions[0] !== '') {
 				out = `${withCasing(name, casing)}: geometry("${name}", { type: "${geometryOptions[0]}" })`;
 			} else if (geometryOptions.length === 2) {
@@ -802,27 +762,25 @@ const column = (
 
 		if (isGeoUnknown) {
 			let unknown =
-				`// TODO: failed to parse geometry type because found more than 2 options inside geometry function '${type}'\n// Introspect is currently supporting only type and srid options\n`;
+				`// TODO: failed to parse geometry type because found more than 2 options inside geometry function '${sqlType}'\n// Introspect is currently supporting only type and srid options\n`;
 			unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
 			return unknown;
 		}
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('vector')) {
-		const split = lowered.split(' ');
-
+	vector: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
 		let out: string;
-		if (lowered.length !== 6) {
+		if (sqlType.length !== 6) {
 			out = `${
 				withCasing(
 					name,
 					casing,
 				)
 			}: vector("${name}", { dimensions: ${
-				lowered.substring(
+				sqlType.substring(
 					7,
-					lowered.length - 1,
+					sqlType.length - 1,
 				)
 			} })`;
 		} else {
@@ -831,57 +789,113 @@ const column = (
 
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
-	}
+	},
 
-	if (lowered.startsWith('char')) {
-		// const split = lowered.split(" ");
-
+	char: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
 		let out: string;
-		if (lowered.length !== 4) {
+		if (sqlType.length !== 4) {
 			out = `${
 				withCasing(
 					name,
 					casing,
 				)
 			}: char("${name}", { length: ${
-				lowered.substring(
+				sqlType.substring(
 					5,
-					lowered.length - 1,
+					sqlType.length - 1,
 				)
 			} })`;
 		} else {
 			out = `${withCasing(name, casing)}: char("${name}")`;
 		}
 
-		// defaultValue = defaultValue?.endsWith("::bpchar")
-		//   ? defaultValue.substring(0, defaultValue.length - 8)
-		//   : defaultValue;
-
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
+};
 
-	// if internal has this column - use it
-	const columnInternals = internals?.tables[tableName]?.columns[name];
-	if (typeof columnInternals !== 'undefined') {
-		// it means there is enum as array case
-		if (
-			columnInternals.isArray
-			&& columnInternals.rawType
-			&& enumTypes.has(columnInternals.rawType)
-		) {
-			let out = `${withCasing(columnInternals.rawType, casing)}: ${
+const buildArrayDefault = (defaultValue: string, mapCallback: (value: string) => string): string => {
+	defaultValue = defaultValue.substring(2, defaultValue.length - 2);
+	return `[${
+		defaultValue.startsWith('\'{')
+			? buildArrayDefault(defaultValue, mapCallback)
+			: defaultValue
+				.split(/\s*,\s*/g)
+				.map(mapCallback)
+				.join(', ')
+	}]`;
+}
+
+const column = (
+	tableName: string,
+	type: string,
+	name: string,
+	enumTypes: Set<string>,
+	casing: Casing,
+	defaultValue?: any,
+	internals?: PgKitInternals,
+) => {
+	const lowered = type.toLowerCase();
+	const typeName = lowered.split(/[\(\[]/)[0];
+
+	if (isPgArrayType(lowered)) {
+		let out = '';
+
+		if (Object.keys(columnMappers).includes(typeName)) {
+			const mapper = columnMappers[typeName];
+			out = `${
+				mapper({ name, casing, defaultValue: undefined, sqlType: lowered.replace('[]', '') })
+			}.array()`;
+		} else {
+			out = `${withCasing(name, casing)}: ${
 				withCasing(
-					columnInternals.rawType,
+					typeName,
 					casing,
 				)
-			}("${name}")`;
-			out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
-			return out;
+			}("${name}").array()`
 		}
-	}
 
-	if (enumTypes.has(type)) {
+		if (typeof defaultValue !== 'undefined') {
+			defaultValue = defaultValue.split('::')[0];
+			let defaultValueStr = '';
+
+			if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(typeName)) {
+				defaultValueStr = buildArrayDefault(
+					defaultValue,
+					(value) => value
+				);
+			} else if (typeName === 'interval') {
+				defaultValueStr = buildArrayDefault(
+					defaultValue,
+					(value) => value.replaceAll('"', '\'')
+				);
+			} else if (typeName === 'boolean') {
+				defaultValueStr = buildArrayDefault(
+					defaultValue,
+					(value) => value === 't' ? 'true' : 'false'
+				);
+			} else if (['json', 'jsonb'].includes(typeName)) {
+				defaultValueStr = buildArrayDefault(
+					defaultValue,
+					(value) => value
+						.substring(1, value.length - 1)
+						.replaceAll('\\', '')
+				);
+			} else {
+				defaultValueStr = buildArrayDefault(
+					defaultValue,
+					(value) => `'${value}'`
+				);
+			}
+
+			out += `.default(${defaultValueStr})`;
+		}
+
+		return out;
+	} else if (Object.keys(columnMappers).includes(typeName)) {
+		const mapper = columnMappers[typeName];
+		return mapper({ name, casing, defaultValue, sqlType: lowered });
+	} else if (enumTypes.has(typeName)) {
 		let out = `${withCasing(name, casing)}: ${
 			withCasing(
 				type,
@@ -895,15 +909,6 @@ const column = (
 	let unknown = `// TODO: failed to parse database type '${type}'\n`;
 	unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
 	return unknown;
-};
-
-const dimensionsInArray = (size?: number): string => {
-	let res = '';
-	if (typeof size === 'undefined') return res;
-	for (let i = 0; i < size; i++) {
-		res += '.array()';
-	}
-	return res;
 };
 
 const createTableColumns = (
@@ -943,12 +948,6 @@ const createTableColumns = (
 		);
 		statement += '\t';
 		statement += columnStatement;
-		// Provide just this in column function
-		if (internals?.tables[tableName]?.columns[it.name]?.isArray) {
-			statement += dimensionsInArray(
-				internals?.tables[tableName]?.columns[it.name]?.dimensions,
-			);
-		}
 		statement += it.primaryKey ? '.primaryKey()' : '';
 		statement += it.notNull && !it.identity ? '.notNull()' : '';
 
