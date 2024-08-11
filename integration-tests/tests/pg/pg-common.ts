@@ -4660,5 +4660,82 @@ export function tests() {
 				jsonbNumberField: testNumber,
 			}]);
 		});
+
+		test('insert into ... select', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const notifications = pgTable('notifications', {
+				id: serial('id').primaryKey(),
+				sentAt: timestamp('sent_at').notNull().defaultNow(),
+				message: text('message').notNull(),
+			});
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const userNotications = pgTable('user_notifications', {
+				userId: integer('user_id').notNull().references(() => users.id),
+				notificationId: integer('notification_id').notNull().references(() => notifications.id),
+			}, (t) => ({
+				pk: primaryKey({ columns: [t.userId, t.notificationId] }),
+			}));
+
+			await db.execute(sql`drop table if exists notifications`);
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(sql`drop table if exists user_notifications`);
+			await db.execute(sql`
+				create table notifications (
+					id serial primary key,
+					sent_at timestamp not null default now(),
+					message text not null
+				)
+			`);
+			await db.execute(sql`
+				create table users (
+					id serial primary key,
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table user_notifications (
+					user_id int references users(id),
+					notification_id int references notifications(id),
+					primary key (user_id, notification_id)
+				)
+			`);
+
+			const newNotification = await db
+				.insert(notifications)
+				.values({ message: 'You are one of the 3 lucky winners!' })
+				.returning({ id: notifications.id })
+				.then((result) => result[0]);
+			await db.insert(users).values([
+				{ name: 'Alice' },
+				{ name: 'Bob' },
+				{ name: 'Charlie' },
+				{ name: 'David' },
+				{ name: 'Eve' },
+			]);
+
+			const sentNotifications = await db
+				.insert(userNotications)
+				.select(
+					db
+						.select({
+							userId: users.id,
+							notificationId: sql`${newNotification!.id}`.as('notification_id'),
+						})
+						.from(users)
+						.where(inArray(users.name, ['Alice', 'Charlie', 'Eve']))
+						.orderBy(asc(users.id))
+				)
+				.returning();
+
+			expect(sentNotifications).toStrictEqual([
+				{ userId: 1, notificationId: newNotification!.id },
+				{ userId: 3, notificationId: newNotification!.id },
+				{ userId: 5, notificationId: newNotification!.id },
+			]);
+		});
 	});
 }
