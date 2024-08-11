@@ -21,8 +21,8 @@ import { haveSameKeys, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryBuilder } from './query-builder.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;

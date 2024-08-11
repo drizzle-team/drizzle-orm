@@ -4737,5 +4737,46 @@ export function tests() {
 				{ userId: 5, notificationId: newNotification!.id },
 			]);
 		});
+
+		test('insert into ... select with keys in different order', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users1 = pgTable('users1', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const users2 = pgTable('users2', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists users1`);
+			await db.execute(sql`drop table if exists users2`);
+			await db.execute(sql`
+				create table users1 (
+					id serial primary key,
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table users2 (
+					id serial primary key,
+					name text not null
+				)
+			`);
+
+			expect(
+				() => db
+					.insert(users1)
+					.select(
+						db
+							.select({
+								name: users2.name,
+								id: users2.id,
+							})
+							.from(users2)
+					)
+			).toThrowError();
+		});
 	});
 }
