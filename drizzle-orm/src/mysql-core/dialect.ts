@@ -25,7 +25,12 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
-import type { AnyMySqlSelectQueryBuilder, MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type {
+	AnyMySqlSelectQueryBuilder,
+	MySqlSelectConfig,
+	MySqlSelectJoinConfig,
+	SelectedFieldsOrdered,
+} from './query-builders/select.types.ts';
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
@@ -431,7 +436,7 @@ export class MySqlDialect {
 
 		if (select) {
 			const select = valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL;
-			
+
 			if (is(select, SQL)) {
 				valuesSqlList.push(select);
 			} else {
@@ -439,11 +444,11 @@ export class MySqlDialect {
 			}
 		} else {
 			const values = valuesOrSelect as Record<string, Param | SQL>[];
-			valuesSqlList.push(sql.raw('values '))
+			valuesSqlList.push(sql.raw('values '));
 
 			for (const [valueIndex, value] of values.entries()) {
 				const generatedIds: Record<string, unknown> = {};
-	
+
 				const valueList: (SQLChunk | SQL)[] = [];
 				for (const [fieldName, col] of colEntries) {
 					const colValue = value[fieldName];
@@ -469,7 +474,7 @@ export class MySqlDialect {
 						valueList.push(colValue);
 					}
 				}
-	
+
 				generatedIdsResponse.push(generatedIds);
 				valuesSqlList.push(valueList);
 				if (valueIndex < values.length - 1) {

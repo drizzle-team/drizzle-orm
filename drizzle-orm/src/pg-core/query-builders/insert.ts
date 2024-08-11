@@ -9,6 +9,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
@@ -19,10 +20,9 @@ import { Columns, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { haveSameKeys, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
+import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { QueryBuilder } from './query-builder.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
@@ -78,7 +78,10 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 	select(selectQuery: SQL): PgInsertBase<TTable, TQueryResult>;
 	select(selectQuery: PgInsertSelectQueryBuilder<TTable>): PgInsertBase<TTable, TQueryResult>;
 	select(
-		selectQuery: SQL | PgInsertSelectQueryBuilder<TTable> | ((qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable> | SQL)
+		selectQuery:
+			| SQL
+			| PgInsertSelectQueryBuilder<TTable>
+			| ((qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable> | SQL),
 	): PgInsertBase<TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
 

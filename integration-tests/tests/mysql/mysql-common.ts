@@ -3672,7 +3672,7 @@ export function tests(driver?: string) {
 					})
 					.from(users)
 					.where(inArray(users.name, ['Alice', 'Charlie', 'Eve']))
-					.orderBy(asc(users.id))
+					.orderBy(asc(users.id)),
 			);
 		const sentNotifications = await db.select().from(userNotications);
 
@@ -3711,16 +3711,17 @@ export function tests(driver?: string) {
 		`);
 
 		expect(
-			() => db
-				.insert(users1)
-				.select(
-					db
-						.select({
-							name: users2.name,
-							id: users2.id,
-						})
-						.from(users2)
-				)
+			() =>
+				db
+					.insert(users1)
+					.select(
+						db
+							.select({
+								name: users2.name,
+								id: users2.id,
+							})
+							.from(users2),
+					),
 		).toThrowError();
 	});
 }

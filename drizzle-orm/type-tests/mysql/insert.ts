@@ -151,7 +151,7 @@ Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 	const qb = new QueryBuilder();
 
 	db.insert(users1).select(sql`select * from users1`);
-	db.insert(users1).select(() =>sql`select * from users1`);
+	db.insert(users1).select(() => sql`select * from users1`);
 
 	db
 		.insert(users1)
@@ -159,7 +159,7 @@ Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 			qb.select({
 				name: users2.firstName,
 				admin: users2.admin,
-			}).from(users2)
+			}).from(users2),
 		);
 
 	db
@@ -168,7 +168,7 @@ Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 			qb.select({
 				name: users2.firstName,
 				admin: users2.admin,
-			}).from(users2).where(sql``)
+			}).from(users2).where(sql``),
 		);
 
 	db
@@ -178,7 +178,7 @@ Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 				firstName: users2.firstName,
 				lastName: users2.lastName,
 				admin: users2.admin,
-			}).from(users2)
+			}).from(users2),
 		);
 
 	db
@@ -187,14 +187,14 @@ Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 			qb.select({
 				name: sql`${users2.firstName} || ' ' || ${users2.lastName}`.as('name'),
 				admin: users2.admin,
-			}).from(users2)
+			}).from(users2),
 		);
 
 	db
 		.insert(users1)
 		.select(
 			// @ts-expect-error name is undefined
-			qb.select({ admin: users1.admin }).from(users1)
+			qb.select({ admin: users1.admin }).from(users1),
 		);
 
 	db.insert(users1).select(db.select().from(users1));

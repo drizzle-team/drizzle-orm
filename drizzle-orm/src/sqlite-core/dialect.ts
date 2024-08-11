@@ -20,7 +20,12 @@ import type { Name } from '~/sql/index.ts';
 import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
-import type { AnySQLiteSelectQueryBuilder, SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
+import type {
+	AnySQLiteSelectQueryBuilder,
+	SQLiteDeleteConfig,
+	SQLiteInsertConfig,
+	SQLiteUpdateConfig,
+} from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
@@ -375,7 +380,9 @@ export abstract class SQLiteDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values: valuesOrSelect, onConflict, returning, withList, select }: SQLiteInsertConfig): SQL {
+	buildInsertQuery(
+		{ table, values: valuesOrSelect, onConflict, returning, withList, select }: SQLiteInsertConfig,
+	): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
@@ -387,7 +394,7 @@ export abstract class SQLiteDialect {
 
 		if (select) {
 			const select = valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL;
-			
+
 			if (is(select, SQL)) {
 				valuesSqlList.push(select);
 			} else {
@@ -427,7 +434,6 @@ export abstract class SQLiteDialect {
 				}
 			}
 		}
-
 
 		const withSql = this.buildWithCTE(withList);
 

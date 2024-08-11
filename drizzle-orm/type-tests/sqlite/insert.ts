@@ -3,12 +3,12 @@ import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { and, eq } from '~/expressions.ts';
 import { sql } from '~/sql/sql.ts';
+import { integer, QueryBuilder, sqliteTable, text } from '~/sqlite-core/index.ts';
 import type { SQLiteInsert } from '~/sqlite-core/query-builders/insert.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import { bunDb, db } from './db.ts';
 import type { NewUser } from './tables.ts';
 import { users } from './tables.ts';
-import { integer, QueryBuilder, sqliteTable, text } from '~/sqlite-core/index.ts';
 
 const newUser: NewUser = {
 	homeCity: 1,
@@ -224,7 +224,7 @@ stmt.run({ id: 1, limit: 10, offset: 20 });
 	const qb = new QueryBuilder();
 
 	db.insert(users1).select(sql`select * from users1`);
-	db.insert(users1).select(() =>sql`select * from users1`);
+	db.insert(users1).select(() => sql`select * from users1`);
 
 	db
 		.insert(users1)
@@ -232,7 +232,7 @@ stmt.run({ id: 1, limit: 10, offset: 20 });
 			qb.select({
 				name: users2.firstName,
 				admin: users2.admin,
-			}).from(users2)
+			}).from(users2),
 		);
 
 	db
@@ -241,7 +241,7 @@ stmt.run({ id: 1, limit: 10, offset: 20 });
 			qb.select({
 				name: users2.firstName,
 				admin: users2.admin,
-			}).from(users2).where(sql``)
+			}).from(users2).where(sql``),
 		);
 
 	db
@@ -251,7 +251,7 @@ stmt.run({ id: 1, limit: 10, offset: 20 });
 				firstName: users2.firstName,
 				lastName: users2.lastName,
 				admin: users2.admin,
-			}).from(users2)
+			}).from(users2),
 		);
 
 	db
@@ -260,14 +260,14 @@ stmt.run({ id: 1, limit: 10, offset: 20 });
 			qb.select({
 				name: sql`${users2.firstName} || ' ' || ${users2.lastName}`.as('name'),
 				admin: users2.admin,
-			}).from(users2)
+			}).from(users2),
 		);
 
 	db
 		.insert(users1)
 		.select(
 			// @ts-expect-error name is undefined
-			qb.select({ admin: users1.admin }).from(users1)
+			qb.select({ admin: users1.admin }).from(users1),
 		);
 
 	db.insert(users1).select(db.select().from(users1));

@@ -467,7 +467,7 @@ export class PgDialect {
 
 		if (select) {
 			const select = valuesOrSelect as AnyPgSelectQueryBuilder | SQL;
-			
+
 			if (is(select, SQL)) {
 				valuesSqlList.push(select);
 			} else {
@@ -475,7 +475,7 @@ export class PgDialect {
 			}
 		} else {
 			const values = valuesOrSelect as Record<string, Param | SQL>[];
-			valuesSqlList.push(sql.raw('values '))
+			valuesSqlList.push(sql.raw('values '));
 
 			for (const [valueIndex, value] of values.entries()) {
 				const valueList: (SQLChunk | SQL)[] = [];
@@ -499,7 +499,7 @@ export class PgDialect {
 						valueList.push(colValue);
 					}
 				}
-	
+
 				valuesSqlList.push(valueList);
 				if (valueIndex < values.length - 1) {
 					valuesSqlList.push(sql`, `);

@@ -1,11 +1,11 @@
 import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import { boolean, pgTable, QueryBuilder, serial, text } from '~/pg-core/index.ts';
 import type { PgInsert } from '~/pg-core/query-builders/insert.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
-import { boolean, pgTable, QueryBuilder, serial, text } from '~/pg-core/index.ts';
 
 const insert = await db
 	.insert(users)
@@ -223,7 +223,7 @@ Expect<
 	const qb = new QueryBuilder();
 
 	db.insert(users1).select(sql`select * from users1`);
-	db.insert(users1).select(() =>sql`select * from users1`);
+	db.insert(users1).select(() => sql`select * from users1`);
 
 	db
 		.insert(users1)
@@ -231,7 +231,7 @@ Expect<
 			qb.select({
 				name: users2.firstName,
 				admin: users2.admin,
-			}).from(users2)
+			}).from(users2),
 		);
 
 	db
@@ -240,7 +240,7 @@ Expect<
 			qb.select({
 				name: users2.firstName,
 				admin: users2.admin,
-			}).from(users2).where(sql``)
+			}).from(users2).where(sql``),
 		);
 
 	db
@@ -250,7 +250,7 @@ Expect<
 				firstName: users2.firstName,
 				lastName: users2.lastName,
 				admin: users2.admin,
-			}).from(users2)
+			}).from(users2),
 		);
 
 	db
@@ -259,14 +259,14 @@ Expect<
 			qb.select({
 				name: sql`${users2.firstName} || ' ' || ${users2.lastName}`.as('name'),
 				admin: users2.admin,
-			}).from(users2)
+			}).from(users2),
 		);
 
 	db
 		.insert(users1)
 		.select(
 			// @ts-expect-error name is undefined
-			qb.select({ admin: users1.admin }).from(users1)
+			qb.select({ admin: users1.admin }).from(users1),
 		);
 
 	db.insert(users1).select(db.select().from(users1));

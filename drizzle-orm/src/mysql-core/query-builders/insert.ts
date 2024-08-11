@@ -10,6 +10,7 @@ import type {
 	PreparedQueryKind,
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
@@ -18,10 +19,9 @@ import type { InferModelFromColumns } from '~/table.ts';
 import { Columns, Table } from '~/table.ts';
 import { haveSameKeys, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnyMySqlColumn, MySqlColumn } from '../columns/common.ts';
+import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 import type { MySqlUpdateSetSource } from './update.ts';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { QueryBuilder } from './query-builder.ts';
 
 export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	table: TTable;
@@ -86,12 +86,17 @@ export class MySqlInsertBuilder<
 		return new MySqlInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
 	}
 
-	select(selectQuery: (qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable>): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	select(
+		selectQuery: (qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable>,
+	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	select(selectQuery: SQL): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	select(selectQuery: MySqlInsertSelectQueryBuilder<TTable>): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	select(
-		selectQuery: SQL | MySqlInsertSelectQueryBuilder<TTable> | ((qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable> | SQL)
+		selectQuery:
+			| SQL
+			| MySqlInsertSelectQueryBuilder<TTable>
+			| ((qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable> | SQL),
 	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
 

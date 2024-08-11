@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
@@ -12,10 +13,9 @@ import type { Subquery } from '~/subquery.ts';
 import { Columns, Table } from '~/table.ts';
 import { type DrizzleTypeError, haveSameKeys, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
+import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteUpdateSetSource } from './update.ts';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { QueryBuilder } from './query-builder.ts';
 
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
@@ -78,12 +78,17 @@ export class SQLiteInsertBuilder<
 		return new SQLiteInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
 	}
 
-	select(selectQuery: (qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable>): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	select(
+		selectQuery: (qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable>,
+	): SQLiteInsertBase<TTable, TResultType, TRunResult>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): SQLiteInsertBase<TTable, TResultType, TRunResult>;
 	select(selectQuery: SQL): SQLiteInsertBase<TTable, TResultType, TRunResult>;
 	select(selectQuery: SQLiteInsertSelectQueryBuilder<TTable>): SQLiteInsertBase<TTable, TResultType, TRunResult>;
 	select(
-		selectQuery: SQL | SQLiteInsertSelectQueryBuilder<TTable> | ((qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable> | SQL)
+		selectQuery:
+			| SQL
+			| SQLiteInsertSelectQueryBuilder<TTable>
+			| ((qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable> | SQL),
 	): SQLiteInsertBase<TTable, TResultType, TRunResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
 
