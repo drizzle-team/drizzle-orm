@@ -2752,4 +2752,122 @@ export function tests() {
 
 		expect(users.length).toBeGreaterThan(0);
 	});
+
+	test('insert into ... select', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		const notifications = sqliteTable('notifications', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			sentAt: integer('sent_at', { mode: 'timestamp' }).notNull().default(sql`current_timestamp`),
+			message: text('message').notNull(),
+		});
+		const users = sqliteTable('users', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+		const userNotications = sqliteTable('user_notifications', {
+			userId: integer('user_id').notNull().references(() => users.id),
+			notificationId: integer('notification_id').notNull().references(() => notifications.id),
+		}, (t) => ({
+			pk: primaryKey({ columns: [t.userId, t.notificationId] }),
+		}));
+
+		await db.run(sql`drop table if exists notifications`);
+		await db.run(sql`drop table if exists users`);
+		await db.run(sql`drop table if exists user_notifications`);
+		await db.run(sql`
+			create table notifications (
+				id integer primary key autoincrement,
+				sent_at integer not null default (current_timestamp),
+				message text not null
+			)
+		`);
+		await db.run(sql`
+			create table users (
+				id integer primary key autoincrement,
+				name text not null
+			)
+		`);
+		await db.run(sql`
+			create table user_notifications (
+				user_id integer references users(id),
+				notification_id integer references notifications(id),
+				primary key (user_id, notification_id)
+			)
+		`);
+
+		const newNotification = await db
+			.insert(notifications)
+			.values({ message: 'You are one of the 3 lucky winners!' })
+			.returning({ id: notifications.id })
+			.then((result) => result[0]);
+		await db.insert(users).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+			{ name: 'David' },
+			{ name: 'Eve' },
+		]);
+
+		const sentNotifications = await db
+			.insert(userNotications)
+			.select(
+				db
+					.select({
+						userId: users.id,
+						notificationId: sql`${newNotification!.id}`.as('notification_id'),
+					})
+					.from(users)
+					.where(inArray(users.name, ['Alice', 'Charlie', 'Eve']))
+					.orderBy(asc(users.id))
+			)
+			.returning();
+
+		expect(sentNotifications).toStrictEqual([
+			{ userId: 1, notificationId: newNotification!.id },
+			{ userId: 3, notificationId: newNotification!.id },
+			{ userId: 5, notificationId: newNotification!.id },
+		]);
+	});
+
+	test('insert into ... select with keys in different order', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		const users1 = sqliteTable('users1', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+		const users2 = sqliteTable('users2', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+
+		await db.run(sql`drop table if exists users1`);
+		await db.run(sql`drop table if exists users2`);
+		await db.run(sql`
+			create table users1 (
+				id integer primary key autoincrement,
+				name text not null
+			)
+		`);
+		await db.run(sql`
+			create table users2 (
+				id integer primary key autoincrement,
+				name text not null
+			)
+		`);
+
+		expect(
+			() => db
+				.insert(users1)
+				.select(
+					db
+						.select({
+							name: users2.name,
+							id: users2.id,
+						})
+						.from(users2)
+				)
+		).toThrowError();
+	});
 }

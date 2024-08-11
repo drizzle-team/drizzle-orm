@@ -9,24 +9,31 @@ import type { IndexColumn } from '~/sqlite-core/indexes.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
-import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
-import type { SQLiteColumn } from '../columns/common.ts';
+import { Columns, Table } from '~/table.ts';
+import { type DrizzleTypeError, haveSameKeys, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteUpdateSetSource } from './update.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { QueryBuilder } from './query-builder.ts';
 
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[];
+	values: Record<string, Param | SQL>[] | SQLiteInsertSelectQueryBuilder<TTable> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
+	select?: boolean;
 }
 
 export type SQLiteInsertValue<TTable extends SQLiteTable> = Simplify<
 	{
 		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
 	}
+>;
+
+export type SQLiteInsertSelectQueryBuilder<TTable extends SQLiteTable> = TypedQueryBuilder<
+	{ [K in keyof TTable['$inferInsert']]: AnySQLiteColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
 >;
 
 export class SQLiteInsertBuilder<
@@ -69,6 +76,27 @@ export class SQLiteInsertBuilder<
 		// }
 
 		return new SQLiteInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
+	}
+
+	select(selectQuery: (qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable>): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	select(selectQuery: (qb: QueryBuilder) => SQL): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	select(selectQuery: SQL): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	select(selectQuery: SQLiteInsertSelectQueryBuilder<TTable>): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	select(
+		selectQuery: SQL | SQLiteInsertSelectQueryBuilder<TTable> | ((qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable> | SQL)
+	): SQLiteInsertBase<TTable, TResultType, TRunResult> {
+		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+
+		if (
+			!is(select, SQL)
+			&& !haveSameKeys(this.table[Columns], select._.selectedFields)
+		) {
+			throw new Error(
+				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
+			);
+		}
+
+		return new SQLiteInsertBase(this.table, select, this.session, this.dialect, this.withList, true);
 	}
 }
 
@@ -210,9 +238,10 @@ export class SQLiteInsertBase<
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 		withList?: Subquery[],
+		select?: boolean,
 	) {
 		super();
-		this.config = { table, values, withList };
+		this.config = { table, values: values as any, withList, select };
 	}
 
 	/**

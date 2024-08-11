@@ -20,7 +20,7 @@ import type { Name } from '~/sql/index.ts';
 import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
-import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
+import type { AnySQLiteSelectQueryBuilder, SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
@@ -375,7 +375,7 @@ export abstract class SQLiteDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning, withList }: SQLiteInsertConfig): SQL {
+	buildInsertQuery({ table, values: valuesOrSelect, onConflict, returning, withList, select }: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
@@ -385,35 +385,49 @@ export abstract class SQLiteDialect {
 		);
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
-		for (const [valueIndex, value] of values.entries()) {
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
-				const colValue = value[fieldName];
-				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
-					let defaultValue;
-					if (col.default !== null && col.default !== undefined) {
-						defaultValue = is(col.default, SQL) ? col.default : sql.param(col.default, col);
-						// eslint-disable-next-line unicorn/no-negated-condition
-					} else if (col.defaultFn !== undefined) {
-						const defaultFnResult = col.defaultFn();
-						defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
-						// eslint-disable-next-line unicorn/no-negated-condition
-					} else if (!col.default && col.onUpdateFn !== undefined) {
-						const onUpdateFnResult = col.onUpdateFn();
-						defaultValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+		if (select) {
+			const select = valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL;
+			
+			if (is(select, SQL)) {
+				valuesSqlList.push(select);
+			} else {
+				valuesSqlList.push(select.getSQL());
+			}
+		} else {
+			const values = valuesOrSelect as Record<string, Param | SQL>[];
+			valuesSqlList.push(sql.raw('values '));
+
+			for (const [valueIndex, value] of values.entries()) {
+				const valueList: (SQLChunk | SQL)[] = [];
+				for (const [fieldName, col] of colEntries) {
+					const colValue = value[fieldName];
+					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+						let defaultValue;
+						if (col.default !== null && col.default !== undefined) {
+							defaultValue = is(col.default, SQL) ? col.default : sql.param(col.default, col);
+							// eslint-disable-next-line unicorn/no-negated-condition
+						} else if (col.defaultFn !== undefined) {
+							const defaultFnResult = col.defaultFn();
+							defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							// eslint-disable-next-line unicorn/no-negated-condition
+						} else if (!col.default && col.onUpdateFn !== undefined) {
+							const onUpdateFnResult = col.onUpdateFn();
+							defaultValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+						} else {
+							defaultValue = sql`null`;
+						}
+						valueList.push(defaultValue);
 					} else {
-						defaultValue = sql`null`;
+						valueList.push(colValue);
 					}
-					valueList.push(defaultValue);
-				} else {
-					valueList.push(colValue);
+				}
+				valuesSqlList.push(valueList);
+				if (valueIndex < values.length - 1) {
+					valuesSqlList.push(sql`, `);
 				}
 			}
-			valuesSqlList.push(valueList);
-			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
-			}
 		}
+
 
 		const withSql = this.buildWithCTE(withList);
 
@@ -429,7 +443,7 @@ export abstract class SQLiteDialect {
 		// 	return sql`insert into ${table} default values ${onConflictSql}${returningSql}`;
 		// }
 
-		return sql`${withSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		return sql`${withSql}insert into ${table} ${insertOrder} ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
