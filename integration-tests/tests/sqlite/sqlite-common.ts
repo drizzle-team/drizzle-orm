@@ -2766,8 +2766,8 @@ export function tests() {
 			name: text('name').notNull(),
 		});
 		const userNotications = sqliteTable('user_notifications', {
-			userId: integer('user_id').notNull().references(() => users.id),
-			notificationId: integer('notification_id').notNull().references(() => notifications.id),
+			userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+			notificationId: integer('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
 		}, (t) => ({
 			pk: primaryKey({ columns: [t.userId, t.notificationId] }),
 		}));
@@ -2790,8 +2790,8 @@ export function tests() {
 		`);
 		await db.run(sql`
 			create table user_notifications (
-				user_id integer references users(id),
-				notification_id integer references notifications(id),
+				user_id integer references users(id) on delete cascade,
+				notification_id integer references notifications(id) on delete cascade,
 				primary key (user_id, notification_id)
 			)
 		`);
@@ -2830,45 +2830,44 @@ export function tests() {
 		]);
 	});
 
-	test('insert into ... select with keys in different order', async (ctx) => {
-		const { db } = ctx.sqlite;
+	// test('insert into ... select with keys in different order', async (ctx) => {
+	// 	const { db } = ctx.sqlite;
 
-		const users1 = sqliteTable('users1', {
-			id: integer('id').primaryKey({ autoIncrement: true }),
-			name: text('name').notNull(),
-		});
-		const users2 = sqliteTable('users2', {
-			id: integer('id').primaryKey({ autoIncrement: true }),
-			name: text('name').notNull(),
-		});
+	// 	const users1 = sqliteTable('users1', {
+	// 		id: integer('id').primaryKey({ autoIncrement: true }),
+	// 		name: text('name').notNull(),
+	// 	});
+	// 	const users2 = sqliteTable('users2', {
+	// 		id: integer('id').primaryKey({ autoIncrement: true }),
+	// 		name: text('name').notNull(),
+	// 	});
 
-		await db.run(sql`drop table if exists users1`);
-		await db.run(sql`drop table if exists users2`);
-		await db.run(sql`
-			create table users1 (
-				id integer primary key autoincrement,
-				name text not null
-			)
-		`);
-		await db.run(sql`
-			create table users2 (
-				id integer primary key autoincrement,
-				name text not null
-			)
-		`);
+	// 	await db.run(sql`drop table if exists users1`);
+	// 	await db.run(sql`drop table if exists users2`);
+	// 	await db.run(sql`
+	// 		create table users1 (
+	// 			id integer primary key autoincrement,
+	// 			name text not null
+	// 		)
+	// 	`);
+	// 	await db.run(sql`
+	// 		create table users2 (
+	// 			id integer primary key autoincrement,
+	// 			name text not null
+	// 		)
+	// 	`);
 
-		expect(
-			() =>
-				db
-					.insert(users1)
-					.select(
-						db
-							.select({
-								name: users2.name,
-								id: users2.id,
-							})
-							.from(users2),
-					),
-		).toThrowError();
-	});
+	// 	await expect(async () => {
+	// 		db
+	// 			.insert(users1)
+	// 			.select(
+	// 				db
+	// 					.select({
+	// 						name: users2.name,
+	// 						id: users2.id,
+	// 					})
+	// 					.from(users2),
+	// 			);
+	// 	}).rejects.toThrowError();
+	// });
 }

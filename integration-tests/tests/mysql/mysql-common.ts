@@ -3616,8 +3616,8 @@ export function tests(driver?: string) {
 			name: text('name').notNull(),
 		});
 		const userNotications = mysqlTable('user_notifications', {
-			userId: int('user_id').notNull().references(() => users.id),
-			notificationId: int('notification_id').notNull().references(() => notifications.id),
+			userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+			notificationId: int('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
 		}, (t) => ({
 			pk: primaryKey({ columns: [t.userId, t.notificationId] }),
 		}));
@@ -3640,8 +3640,8 @@ export function tests(driver?: string) {
 		`);
 		await db.execute(sql`
 			create table ${userNotications} (
-				\`user_id\` int references users(id),
-				\`notification_id\` int references notifications(id),
+				\`user_id\` int references users(id) on delete cascade,
+				\`notification_id\` int references notifications(id) on delete cascade,
 				primary key (user_id, notification_id)
 			)
 		`);

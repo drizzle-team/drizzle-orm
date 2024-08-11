@@ -4674,8 +4674,10 @@ export function tests() {
 				name: text('name').notNull(),
 			});
 			const userNotications = pgTable('user_notifications', {
-				userId: integer('user_id').notNull().references(() => users.id),
-				notificationId: integer('notification_id').notNull().references(() => notifications.id),
+				userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+				notificationId: integer('notification_id').notNull().references(() => notifications.id, {
+					onDelete: 'cascade',
+				}),
 			}, (t) => ({
 				pk: primaryKey({ columns: [t.userId, t.notificationId] }),
 			}));
@@ -4698,8 +4700,8 @@ export function tests() {
 			`);
 			await db.execute(sql`
 				create table user_notifications (
-					user_id int references users(id),
-					notification_id int references notifications(id),
+					user_id int references users(id) on delete cascade,
+					notification_id int references notifications(id) on delete cascade,
 					primary key (user_id, notification_id)
 				)
 			`);
