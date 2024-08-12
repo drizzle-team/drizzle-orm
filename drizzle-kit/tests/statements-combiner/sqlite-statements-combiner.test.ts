@@ -776,3 +776,395 @@ test(`create reference on exising column (table includes unique index). expect t
 		newJsonStatements,
 	);
 });
+
+test(`add columns. set fk`, async (t) => {
+	const statements: JsonStatement[] = [
+		{
+			type: 'sqlite_alter_table_add_column',
+			tableName: 'ref',
+			column: {
+				name: 'test',
+				type: 'integer',
+				primaryKey: false,
+				notNull: false,
+				autoincrement: false,
+			},
+			referenceData: undefined,
+		},
+		{
+			type: 'sqlite_alter_table_add_column',
+			tableName: 'ref',
+			column: {
+				name: 'test1',
+				type: 'integer',
+				primaryKey: false,
+				notNull: false,
+				autoincrement: false,
+			},
+			referenceData: undefined,
+		},
+		{
+			type: 'create_reference',
+			tableName: 'ref',
+			data: 'ref_new_age_user_new_age_fk;ref;new_age;user;new_age;no action;no action',
+			schema: '',
+			columnNotNull: false,
+			columnDefault: undefined,
+			columnType: 'integer',
+		},
+	];
+	const json1: SQLiteSchemaSquashed = {
+		version: '6',
+		dialect: 'sqlite',
+		tables: {
+			ref: {
+				name: 'ref',
+				columns: {
+					id1: {
+						name: 'id1',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					new_age: {
+						name: 'new_age',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				foreignKeys: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+			user: {
+				name: 'user',
+				columns: {
+					id1: {
+						name: 'id1',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					new_age: {
+						name: 'new_age',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				foreignKeys: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+		},
+		enums: {},
+	};
+	const json2: SQLiteSchemaSquashed = {
+		version: '6',
+		dialect: 'sqlite',
+		tables: {
+			ref: {
+				name: 'ref',
+				columns: {
+					id1: {
+						name: 'id1',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					new_age: {
+						name: 'new_age',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+					test: {
+						name: 'test',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+					test1: {
+						name: 'test1',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				foreignKeys: {
+					ref_new_age_user_new_age_fk: 'ref_new_age_user_new_age_fk;ref;new_age;user;new_age;no action;no action',
+				},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+			user: {
+				name: 'user',
+				columns: {
+					id1: {
+						name: 'id1',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					new_age: {
+						name: 'new_age',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				foreignKeys: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+		},
+		enums: {},
+	};
+
+	const newJsonStatements = [
+		{
+			columns: [
+				{
+					autoincrement: false,
+					name: 'id1',
+					notNull: true,
+					primaryKey: false,
+					type: 'text',
+				},
+				{
+					autoincrement: false,
+					name: 'new_age',
+					notNull: false,
+					primaryKey: false,
+					type: 'integer',
+				},
+				{
+					autoincrement: false,
+					name: 'test',
+					notNull: false,
+					primaryKey: false,
+					type: 'integer',
+				},
+				{
+					autoincrement: false,
+					name: 'test1',
+					notNull: false,
+					primaryKey: false,
+					type: 'integer',
+				},
+			],
+			compositePKs: [],
+			referenceData: [
+				{
+					columnsFrom: [
+						'new_age',
+					],
+					columnsTo: [
+						'new_age',
+					],
+					name: 'ref_new_age_user_new_age_fk',
+					onDelete: 'no action',
+					onUpdate: 'no action',
+					tableFrom: 'ref',
+					tableTo: 'user',
+				},
+			],
+			tableName: 'ref',
+			type: 'recreate_table',
+			uniqueConstraints: [],
+		},
+	];
+	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
+		newJsonStatements,
+	);
+});
+
+test(`add column and fk`, async (t) => {
+	const statements: JsonStatement[] = [
+		{
+			type: 'sqlite_alter_table_add_column',
+			tableName: 'ref',
+			column: {
+				name: 'test1',
+				type: 'integer',
+				primaryKey: false,
+				notNull: false,
+				autoincrement: false,
+			},
+			referenceData: 'ref_test1_user_new_age_fk;ref;test1;user;new_age;no action;no action',
+		},
+		{
+			type: 'create_reference',
+			tableName: 'ref',
+			data: 'ref_test1_user_new_age_fk;ref;test1;user;new_age;no action;no action',
+			schema: '',
+			columnNotNull: false,
+			columnDefault: undefined,
+			columnType: 'integer',
+		},
+	];
+	const json1: SQLiteSchemaSquashed = {
+		version: '6',
+		dialect: 'sqlite',
+		tables: {
+			ref: {
+				name: 'ref',
+				columns: {
+					id1: {
+						name: 'id1',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					new_age: {
+						name: 'new_age',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+					test1: {
+						name: 'test1',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				foreignKeys: {
+					ref_test1_user_new_age_fk: 'ref_test1_user_new_age_fk;ref;test1;user;new_age;no action;no action',
+				},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+			user: {
+				name: 'user',
+				columns: {
+					id1: {
+						name: 'id1',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					new_age: {
+						name: 'new_age',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				foreignKeys: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+		},
+		enums: {},
+	};
+	const json2: SQLiteSchemaSquashed = {
+		version: '6',
+		dialect: 'sqlite',
+		tables: {
+			ref: {
+				name: 'ref',
+				columns: {
+					id1: {
+						name: 'id1',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					new_age: {
+						name: 'new_age',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+					test: {
+						name: 'test',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+					test1: {
+						name: 'test1',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				foreignKeys: {
+					ref_new_age_user_new_age_fk: 'ref_new_age_user_new_age_fk;ref;new_age;user;new_age;no action;no action',
+				},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+			user: {
+				name: 'user',
+				columns: {
+					id1: {
+						name: 'id1',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					new_age: {
+						name: 'new_age',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				foreignKeys: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+		},
+		enums: {},
+	};
+
+	const newJsonStatements = [
+		{
+			type: 'sqlite_alter_table_add_column',
+			tableName: 'ref',
+			column: {
+				name: 'test1',
+				type: 'integer',
+				primaryKey: false,
+				notNull: false,
+				autoincrement: false,
+			},
+			referenceData: 'ref_test1_user_new_age_fk;ref;test1;user;new_age;no action;no action',
+		},
+	];
+	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
+		newJsonStatements,
+	);
+});

@@ -1518,9 +1518,7 @@ type LibSQLModifyColumnStatement =
 	| JsonAlterColumnDropNotNullStatement
 	| JsonAlterColumnSetNotNullStatement
 	| JsonAlterColumnSetDefaultStatement
-	| JsonAlterColumnDropDefaultStatement
-	| JsonAlterColumnSetGeneratedStatement
-	| JsonAlterColumnDropGeneratedStatement;
+	| JsonAlterColumnDropDefaultStatement;
 
 export class LibSQLModifyColumn extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
@@ -1585,36 +1583,6 @@ export class LibSQLModifyColumn extends Convertor {
 
 				columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 				break;
-			case 'alter_table_alter_column_drop_generated':
-				columnType = ` ${statement.newDataType}`;
-
-				columnDefault = '';
-
-				columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
-				break;
-			case 'alter_table_alter_column_set_generated':
-				return [
-					new SQLiteAlterTableDropColumnConvertor().convert({
-						type: 'alter_table_drop_column',
-						tableName: statement.tableName,
-						columnName: statement.columnName,
-						schema: '',
-					}),
-					new SQLiteAlterTableAddColumnConvertor().convert({
-						tableName,
-						column: {
-							name: columnName,
-							type: statement.newDataType,
-							notNull: statement.columnNotNull,
-							default: statement.columnDefault,
-							onUpdate: statement.columnOnUpdate,
-							autoincrement: statement.columnAutoIncrement,
-							primaryKey: statement.columnPk,
-							generated: statement.columnGenerated,
-						},
-						type: 'sqlite_alter_table_add_column',
-					}),
-				];
 		}
 
 		// Seems like getting value from simple json2 shanpshot makes dates be dates
