@@ -2021,7 +2021,6 @@ export const prepareSqliteAlterColumns = (
 	columns: AlteredColumn[],
 	// TODO: remove?
 	json2: CommonSquashedSchema,
-	driver?: 'turso',
 ): JsonAlterColumnStatement[] => {
 	let statements: JsonAlterColumnStatement[] = [];
 	let dropPkStatements: JsonAlterColumnDropPrimaryKeyStatement[] = [];

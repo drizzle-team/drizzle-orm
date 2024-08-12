@@ -25,7 +25,7 @@ export const pushParams = object({
 	extensionsFilters: literal('postgis').array().optional(),
 	verbose: boolean().optional(),
 	strict: boolean().optional(),
-	driver: driver,
+	driver: driver.optional(),
 }).passthrough();
 
 export type PushParams = TypeOf<typeof pushParams>;

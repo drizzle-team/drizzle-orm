@@ -46,6 +46,7 @@ test('push #2', async (t) => {
 		tablesFilter: [],
 		strict: false,
 		verbose: false,
+		driver: 'turso',
 	});
 });
 
@@ -66,6 +67,7 @@ test('push #3', async (t) => {
 		tablesFilter: [],
 		strict: false,
 		verbose: false,
+		driver: 'd1-http',
 	});
 });
 

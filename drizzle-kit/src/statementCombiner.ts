@@ -180,27 +180,52 @@ export const libSQLCombineStatements = (
 			continue;
 		}
 
-		if (statement.type === 'create_reference' && statement.isMulticolumn) {
+		if (statement.type === 'create_reference') {
 			const tableName = statement.tableName;
+
+			const data = action === 'push'
+				? SQLiteSquasher.unsquashPushFK(statement.data)
+				: SQLiteSquasher.unsquashFK(statement.data);
 
 			const statementsForTable = newStatements[tableName];
 
 			if (!statementsForTable) {
-				newStatements[tableName] = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+				newStatements[tableName] = statement.isMulticolumn
+					? prepareLibSQLRecreateTable(json2.tables[tableName], action)
+					: newStatements[tableName] = [statement];
+
+				continue;
+			}
+
+			// if add column with reference -> skip create_reference statement
+			if (
+				!statement.isMulticolumn
+				&& statementsForTable.some((st) =>
+					st.type === 'sqlite_alter_table_add_column' && st.column.name === data.columnsFrom[0]
+				)
+			) {
+				continue;
+			}
+
+			if (statement.isMulticolumn) {
+				if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
+					const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
+					const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+
+					if (wasRename) {
+						newStatements[tableName].push(...preparedStatements);
+					} else {
+						newStatements[tableName] = preparedStatements;
+					}
+
+					continue;
+				}
+
 				continue;
 			}
 
 			if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
-				const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
-				const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
-
-				if (wasRename) {
-					newStatements[tableName].push(...preparedStatements);
-				} else {
-					newStatements[tableName] = preparedStatements;
-				}
-
-				continue;
+				newStatements[tableName].push(statement);
 			}
 
 			continue;
@@ -300,7 +325,6 @@ export const sqliteCombineStatements = (
 			|| statement.type === 'alter_table_alter_column_set_autoincrement'
 			|| statement.type === 'alter_table_alter_column_drop_pk'
 			|| statement.type === 'alter_table_alter_column_set_pk'
-			|| statement.type === 'create_reference'
 			|| statement.type === 'delete_reference'
 			|| statement.type === 'alter_reference'
 			|| statement.type === 'create_composite_pk'
@@ -341,6 +365,45 @@ export const sqliteCombineStatements = (
 
 			if (!statementsForTable) {
 				newStatements[tableName] = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+				continue;
+			}
+
+			if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
+				const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
+				const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+
+				if (wasRename) {
+					newStatements[tableName].push(...preparedStatements);
+				} else {
+					newStatements[tableName] = preparedStatements;
+				}
+
+				continue;
+			}
+
+			continue;
+		}
+
+		if (statement.type === 'create_reference') {
+			const tableName = statement.tableName;
+
+			const data = action === 'push'
+				? SQLiteSquasher.unsquashPushFK(statement.data)
+				: SQLiteSquasher.unsquashFK(statement.data);
+			const statementsForTable = newStatements[tableName];
+
+			if (!statementsForTable) {
+				newStatements[tableName] = prepareSQLiteRecreateTable(json2.tables[tableName], action);
+				continue;
+			}
+
+			// if add column with reference -> skip create_reference statement
+			if (
+				data.columnsFrom.length === 1
+				&& statementsForTable.some((st) =>
+					st.type === 'sqlite_alter_table_add_column' && st.column.name === data.columnsFrom[0]
+				)
+			) {
 				continue;
 			}
 

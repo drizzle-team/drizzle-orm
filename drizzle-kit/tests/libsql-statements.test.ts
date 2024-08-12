@@ -833,3 +833,44 @@ test('drop foriegn key for multiple columns', async (t) => {
 		`DROP TABLE \`__old__generate_users\`;`,
 	);
 });
+
+test('alter column drop generated', async (t) => {
+	const from = {
+		users: sqliteTable('table', {
+			id: int('id').primaryKey().notNull(),
+			name: text('name').generatedAlwaysAs('drizzle is the best').notNull(),
+		}),
+	};
+
+	const to = {
+		users: sqliteTable('table', {
+			id: int('id').primaryKey().notNull(),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasLibSQL(
+		from,
+		to,
+		[],
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: false,
+		columnDefault: undefined,
+		columnGenerated: undefined,
+		columnName: 'name',
+		columnNotNull: true,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: 'text',
+		schema: '',
+		tableName: 'table',
+		type: 'alter_table_alter_column_drop_generated',
+	});
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE \`table\` DROP COLUMN \`name\`;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE \`table\` ADD \`name\` text NOT NULL;`);
+});
