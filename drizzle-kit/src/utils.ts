@@ -328,6 +328,10 @@ export const normaliseSQLiteUrl = (
 	assertUnreachable(type);
 };
 
+export function isPgArrayType(sqlType: string) {
+	return sqlType.match(/.*\[\d*\].*|.*\[\].*/g) !== null;
+}
+
 export function findAddedAndRemoved(columnNames1: string[], columnNames2: string[]) {
 	const set1 = new Set(columnNames1);
 	const set2 = new Set(columnNames2);
