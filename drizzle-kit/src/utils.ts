@@ -327,3 +327,13 @@ export const normaliseSQLiteUrl = (
 
 	assertUnreachable(type);
 };
+
+export function findAddedAndRemoved(columnNames1: string[], columnNames2: string[]) {
+	const set1 = new Set(columnNames1);
+	const set2 = new Set(columnNames2);
+
+	const addedColumns = columnNames2.filter((it) => !set1.has(it));
+	const removedColumns = columnNames1.filter((it) => !set2.has(it));
+
+	return { addedColumns, removedColumns };
+}

@@ -1,16 +1,29 @@
 import chalk from 'chalk';
 
+import { JsonStatement } from 'src/jsonStatements';
+import { findAddedAndRemoved, SQLiteDB } from 'src/utils';
 import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../serializer/sqliteSchema';
 import {
 	CreateSqliteIndexConvertor,
 	fromJson,
+	LibSQLModifyColumn,
 	SQLiteCreateTableConvertor,
 	SQLiteDropTableConvertor,
 	SqliteRenameTableConvertor,
 } from '../../sqlgenerator';
 
-import type { JsonStatement } from '../../jsonStatements';
-import { findAddedAndRemoved, type SQLiteDB } from '../../utils';
+export const getOldTableName = (
+	tableName: string,
+	meta: SQLiteSchemaInternal['_meta'],
+) => {
+	for (const key of Object.keys(meta.tables)) {
+		const value = meta.tables[key];
+		if (`"${tableName}"` === value) {
+			return key.substring(1, key.length - 1);
+		}
+	}
+	return tableName;
+};
 
 export const _moveDataStatements = (
 	tableName: string,
@@ -19,7 +32,6 @@ export const _moveDataStatements = (
 ) => {
 	const statements: string[] = [];
 
-	// rename table to __old_${tablename}
 	statements.push(
 		new SqliteRenameTableConvertor().convert({
 			type: 'rename_table',
@@ -30,26 +42,22 @@ export const _moveDataStatements = (
 		}),
 	);
 
-	// create table statement from a new json2 with proper name
 	const tableColumns = Object.values(json.tables[tableName].columns);
 	const referenceData = Object.values(json.tables[tableName].foreignKeys);
 	const compositePKs = Object.values(
 		json.tables[tableName].compositePrimaryKeys,
 	).map((it) => SQLiteSquasher.unsquashPK(it));
 
-	const fks = referenceData.map((it) => SQLiteSquasher.unsquashPushFK(it));
-
 	statements.push(
 		new SQLiteCreateTableConvertor().convert({
 			type: 'sqlite_create_table',
 			tableName: tableName,
 			columns: tableColumns,
-			referenceData: fks,
+			referenceData: referenceData.map((it) => SQLiteSquasher.unsquashPushFK(it)),
 			compositePKs,
 		}),
 	);
 
-	// move data
 	if (!dataLoss) {
 		const columns = Object.keys(json.tables[tableName].columns).map(
 			(c) => `"${c}"`,
@@ -63,7 +71,7 @@ export const _moveDataStatements = (
 			}) SELECT (${columns.join(', ')}) FROM \`__old_push_${tableName}\`;`,
 		);
 	}
-	// drop table with name __old_${tablename}
+
 	statements.push(
 		new SQLiteDropTableConvertor().convert({
 			type: 'drop_table',
@@ -86,33 +94,7 @@ export const _moveDataStatements = (
 	return statements;
 };
 
-export const getOldTableName = (
-	tableName: string,
-	meta: SQLiteSchemaInternal['_meta'],
-) => {
-	for (const key of Object.keys(meta.tables)) {
-		const value = meta.tables[key];
-		if (`"${tableName}"` === value) {
-			return key.substring(1, key.length - 1);
-		}
-	}
-	return tableName;
-};
-
-export const getNewTableName = (
-	tableName: string,
-	meta: SQLiteSchemaInternal['_meta'],
-) => {
-	if (typeof meta.tables[`"${tableName}"`] !== 'undefined') {
-		return meta.tables[`"${tableName}"`].substring(
-			1,
-			meta.tables[`"${tableName}"`].length - 1,
-		);
-	}
-	return tableName;
-};
-
-export const logSuggestionsAndReturn = async (
+export const libSqlLogSuggestionsAndReturn = async (
 	connection: SQLiteDB,
 	statements: JsonStatement[],
 	json1: SQLiteSchemaSquashed,
@@ -125,7 +107,6 @@ export const logSuggestionsAndReturn = async (
 
 	const tablesToRemove: string[] = [];
 	const columnsToRemove: string[] = [];
-	const schemasToRemove: string[] = [];
 	const tablesToTruncate: string[] = [];
 
 	for (const statement of statements) {
@@ -145,24 +126,22 @@ export const logSuggestionsAndReturn = async (
 				tablesToRemove.push(statement.tableName);
 				shouldAskForApprove = true;
 			}
-
-			const fromJsonStatement = fromJson([statement], 'sqlite', 'push');
+			const fromJsonStatement = fromJson([statement], 'sqlite', 'push', 'turso', json2);
 			statementsToExecute.push(
 				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
 			);
 		} else if (statement.type === 'alter_table_drop_column') {
 			const tableName = statement.tableName;
-			const columnName = statement.columnName;
 
 			const res = await connection.query<{ count: string }>(
-				`select count(\`${tableName}\`.\`${columnName}\`) as count from \`${tableName}\``,
+				`select count(*) as count from \`${tableName}\``,
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
 						chalk.underline(
-							columnName,
+							statement.columnName,
 						)
 					} column in ${tableName} table with ${count} items`,
 				);
@@ -170,41 +149,73 @@ export const logSuggestionsAndReturn = async (
 				shouldAskForApprove = true;
 			}
 
-			const fromJsonStatement = fromJson([statement], 'sqlite', 'push');
+			const fromJsonStatement = fromJson([statement], 'sqlite', 'push', 'turso', json2);
 			statementsToExecute.push(
 				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
 			);
 		} else if (
 			statement.type === 'sqlite_alter_table_add_column'
-			&& (statement.column.notNull && !statement.column.default)
+			&& statement.column.notNull
+			&& !statement.column.default
 		) {
-			const tableName = statement.tableName;
-			const columnName = statement.column.name;
+			const newTableName = statement.tableName;
 			const res = await connection.query<{ count: string }>(
-				`select count(*) as count from \`${tableName}\``,
+				`select count(*) as count from \`${newTableName}\``,
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to add not-null ${
 						chalk.underline(
-							columnName,
+							statement.column.name,
 						)
 					} column without default value, which contains ${count} items`,
 				);
 
-				tablesToTruncate.push(tableName);
-				statementsToExecute.push(`delete from ${tableName};`);
+				tablesToTruncate.push(newTableName);
+				statementsToExecute.push(`delete from ${newTableName};`);
 
 				shouldAskForApprove = true;
 			}
 
-			const fromJsonStatement = fromJson([statement], 'sqlite', 'push');
+			const fromJsonStatement = fromJson([statement], 'sqlite', 'push', 'turso', json2);
 			statementsToExecute.push(
 				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
 			);
+		} else if (statement.type === 'alter_table_alter_column_set_notnull') {
+			const tableName = statement.tableName;
+
+			if (
+				statement.type === 'alter_table_alter_column_set_notnull'
+				&& typeof statement.columnDefault === 'undefined'
+			) {
+				const res = await connection.query<{ count: string }>(
+					`select count(*) as count from \`${tableName}\``,
+				);
+				const count = Number(res[0].count);
+				if (count > 0) {
+					infoToPrint.push(
+						`· You're about to add not-null constraint to ${
+							chalk.underline(
+								statement.columnName,
+							)
+						} column without default value, which contains ${count} items`,
+					);
+
+					tablesToTruncate.push(tableName);
+					statementsToExecute.push(`delete from \`${tableName}\``);
+					shouldAskForApprove = true;
+				}
+			}
+
+			const modifyStatements = new LibSQLModifyColumn().convert(statement, json2);
+
+			statementsToExecute.push(
+				...(Array.isArray(modifyStatements) ? modifyStatements : [modifyStatements]),
+			);
 		} else if (statement.type === 'recreate_table') {
 			const tableName = statement.tableName;
+
 			const oldTableName = getOldTableName(tableName, meta);
 
 			const prevColumnNames = Object.keys(json1.tables[oldTableName].columns);
@@ -238,7 +249,7 @@ export const logSuggestionsAndReturn = async (
 			if (addedColumns.length) {
 				for (const addedColumn of addedColumns) {
 					const [res] = await connection.query<{ count: string }>(
-						`select count(*) as count from \`${tableName}\``,
+						`select count(\`${tableName}\`.\`${addedColumn}\`) as count from \`${tableName}\``,
 					);
 
 					const columnConf = json2.tables[tableName].columns[addedColumn];
@@ -250,7 +261,7 @@ export const logSuggestionsAndReturn = async (
 								chalk.underline(
 									addedColumn,
 								)
-							} column without default value to table, which contains ${count} items`,
+							} column without default value, which contains ${count} items`,
 						);
 						shouldAskForApprove = true;
 						tablesToTruncate.push(tableName);
@@ -275,8 +286,30 @@ export const logSuggestionsAndReturn = async (
 			for (const table of uniqueTableRefs) {
 				statementsToExecute.push(..._moveDataStatements(table, json2));
 			}
+		} else if (statement.type === 'alter_table_alter_column_set_generated') {
+			const tableName = statement.tableName;
+
+			const res = await connection.query<{ count: string }>(
+				`select count("${statement.columnName}") as count from \`${tableName}\``,
+			);
+			const count = Number(res[0].count);
+			if (count > 0) {
+				infoToPrint.push(
+					`· You're about to delete ${
+						chalk.underline(
+							statement.columnName,
+						)
+					} column in ${tableName} table with ${count} items`,
+				);
+				columnsToRemove.push(`${tableName}_${statement.columnName}`);
+				shouldAskForApprove = true;
+			}
+			const fromJsonStatement = fromJson([statement], 'sqlite', 'push', 'turso', json2);
+			statementsToExecute.push(
+				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
+			);
 		} else {
-			const fromJsonStatement = fromJson([statement], 'sqlite', 'push');
+			const fromJsonStatement = fromJson([statement], 'sqlite', 'push', 'turso', json2);
 			statementsToExecute.push(
 				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
 			);
@@ -284,11 +317,10 @@ export const logSuggestionsAndReturn = async (
 	}
 
 	return {
-		statementsToExecute,
+		statementsToExecute: [...new Set(statementsToExecute)],
 		shouldAskForApprove,
 		infoToPrint,
 		columnsToRemove: [...new Set(columnsToRemove)],
-		schemasToRemove: [...new Set(schemasToRemove)],
 		tablesToTruncate: [...new Set(tablesToTruncate)],
 		tablesToRemove: [...new Set(tablesToRemove)],
 	};

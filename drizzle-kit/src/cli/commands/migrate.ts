@@ -11,12 +11,14 @@ import {
 import chalk from 'chalk';
 import { render } from 'hanji';
 import path, { join } from 'path';
+import { JsonStatement } from 'src/jsonStatements';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme } from '../../serializer/mysqlSchema';
 import { PgSchema, pgSchema, squashPgScheme } from '../../serializer/pgSchema';
 import { SQLiteSchema, sqliteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
 import {
+	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
 	applySqliteSnapshotsDiff,
@@ -32,7 +34,7 @@ import {
 } from '../../snapshotsDiffer';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
-import { Prefix } from '../validations/common';
+import { Driver, Prefix } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import {
 	isRenamePromptItem,
@@ -394,6 +396,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
+	const driver = config.driver;
 
 	try {
 		assertV1OutFolder(outFolder);
@@ -425,14 +428,34 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 		const squashedPrev = squashSqliteScheme(validatedPrev);
 		const squashedCur = squashSqliteScheme(validatedCur);
 
-		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			validatedPrev,
-			validatedCur,
-		);
+		let sqlStatements: string[];
+		let _meta:
+			| {
+				schemas: {};
+				tables: {};
+				columns: {};
+			}
+			| undefined;
+
+		if (driver === 'turso') {
+			({ sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
+				squashedPrev,
+				squashedCur,
+				tablesResolver,
+				columnsResolver,
+				validatedPrev,
+				validatedCur,
+			));
+		} else {
+			({ sqlStatements, _meta } = await applySqliteSnapshotsDiff(
+				squashedPrev,
+				squashedCur,
+				tablesResolver,
+				columnsResolver,
+				validatedPrev,
+				validatedCur,
+			));
+		}
 
 		writeResult({
 			cur,
@@ -453,6 +476,7 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 export const prepareSQLitePush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
+	driver?: Driver,
 ) => {
 	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath);
 
@@ -462,7 +486,57 @@ export const prepareSQLitePush = async (
 	const squashedPrev = squashSqliteScheme(validatedPrev, 'push');
 	const squashedCur = squashSqliteScheme(validatedCur, 'push');
 
-	const { sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
+	let sqlStatements: string[];
+	let statements: JsonStatement[];
+	let _meta: {
+		schemas: {};
+		tables: {};
+		columns: {};
+	} | undefined;
+	if (driver === 'turso') {
+		({ sqlStatements, statements, _meta } = await applyLibSQLSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			validatedPrev,
+			validatedCur,
+			'push',
+		));
+	} else {
+		({ sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			validatedPrev,
+			validatedCur,
+			'push',
+		));
+	}
+
+	return {
+		sqlStatements,
+		statements,
+		squashedPrev,
+		squashedCur,
+		meta: _meta,
+	};
+};
+
+export const prepareLibSQLPush = async (
+	schemaPath: string | string[],
+	snapshot: SQLiteSchema,
+) => {
+	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath);
+
+	const validatedPrev = sqliteSchema.parse(prev);
+	const validatedCur = sqliteSchema.parse(cur);
+
+	const squashedPrev = squashSqliteScheme(validatedPrev, 'push');
+	const squashedCur = squashSqliteScheme(validatedCur, 'push');
+
+	const { sqlStatements, statements, _meta } = await applyLibSQLSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
 		tablesResolver,

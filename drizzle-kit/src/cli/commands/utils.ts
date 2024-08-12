@@ -122,6 +122,7 @@ export type GenerateConfig = {
 	prefix: Prefix;
 	custom: boolean;
 	bundle: boolean;
+	driver?: Driver;
 };
 
 export const prepareGenerateConfig = async (
@@ -168,6 +169,7 @@ export const prepareGenerateConfig = async (
 		schema: schema,
 		out: out || 'drizzle',
 		bundle: driver === 'expo',
+		driver,
 	};
 };
 
@@ -210,6 +212,7 @@ export const preparePushConfig = async (
 		| {
 			dialect: 'sqlite';
 			credentials: SqliteCredentials;
+			driver?: Driver;
 		}
 	) & {
 		schemaPath: string | string[];
@@ -226,6 +229,7 @@ export const preparePushConfig = async (
 			: options,
 	);
 
+	raw.driver ||= options.driver;
 	raw.verbose ||= options.verbose; // if provided in cli to debug
 	raw.strict ||= options.strict; // if provided in cli only
 
@@ -324,6 +328,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
+			driver: config.driver,
 		};
 	}
 
