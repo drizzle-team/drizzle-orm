@@ -294,9 +294,19 @@ export const push = command({
 					schemasFilter,
 					force,
 				);
-			} else if (dialect === 'sqlite') {
+			} else if (dialect === 'sqlite' && !('driver' in credentials)) {
 				const { sqlitePush } = await import('./commands/push');
 				await sqlitePush(
+					schemaPath,
+					verbose,
+					strict,
+					credentials,
+					tablesFilter,
+					force,
+				);
+			} else if (dialect === 'sqlite' && ('driver' in credentials && credentials.driver === 'turso')) {
+				const { libSQLPush } = await import('./commands/push');
+				await libSQLPush(
 					schemaPath,
 					verbose,
 					strict,

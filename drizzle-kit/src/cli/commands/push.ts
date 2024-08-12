@@ -7,6 +7,7 @@ import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
 import { SingleStoreCredentials } from '../validations/singlestore';
 import type { SqliteCredentials } from '../validations/sqlite';
+import { libSqlLogSuggestionsAndReturn } from './libSqlPushUtils';
 import {
 	filterStatements as mySqlFilterStatements,
 	logSuggestionsAndReturn as mySqlLogSuggestionsAndReturn,
@@ -76,8 +77,6 @@ export const mysqlPush = async (
 			});
 
 			if (verbose) {
-				console.log();
-				// console.log(chalk.gray('Verbose logs:'));
 				console.log(
 					withStyle.warning('You are about to execute current statements:'),
 				);
@@ -439,8 +438,128 @@ export const sqlitePush = async (
 		} = await sqliteSuggestions(
 			db,
 			statements.statements,
-			statements.squashedCur,
 			statements.squashedPrev,
+			statements.squashedCur,
+			statements.meta!,
+		);
+
+		if (verbose && statementsToExecute.length > 0) {
+			console.log();
+			console.log(
+				withStyle.warning('You are about to execute current statements:'),
+			);
+			console.log();
+			console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+			console.log();
+		}
+
+		if (!force && strict) {
+			if (!shouldAskForApprove) {
+				const { status, data } = await render(
+					new Select(['No, abort', `Yes, I want to execute all statements`]),
+				);
+				if (data?.index === 0) {
+					render(`[${chalk.red('x')}] All changes were aborted`);
+					process.exit(0);
+				}
+			}
+		}
+
+		if (!force && shouldAskForApprove) {
+			console.log(withStyle.warning('Found data-loss statements:'));
+			console.log(infoToPrint.join('\n'));
+			console.log();
+			console.log(
+				chalk.red.bold(
+					'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
+				),
+			);
+
+			console.log(chalk.white('Do you still want to push changes?'));
+
+			const { status, data } = await render(
+				new Select([
+					'No, abort',
+					`Yes, I want to${
+						tablesToRemove.length > 0
+							? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'},`
+							: ' '
+					}${
+						columnsToRemove.length > 0
+							? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'},`
+							: ' '
+					}${
+						tablesToTruncate.length > 0
+							? ` truncate ${tablesToTruncate.length} ${tablesToTruncate.length > 1 ? 'tables' : 'table'}`
+							: ''
+					}`
+						.trimEnd()
+						.replace(/(^,)|(,$)/g, '')
+						.replace(/ +(?= )/g, ''),
+				]),
+			);
+			if (data?.index === 0) {
+				render(`[${chalk.red('x')}] All changes were aborted`);
+				process.exit(0);
+			}
+		}
+
+		if (statementsToExecute.length === 0) {
+			render(`\n[${chalk.blue('i')}] No changes detected`);
+		} else {
+			if (!('driver' in credentials)) {
+				await db.query('begin');
+				try {
+					for (const dStmnt of statementsToExecute) {
+						await db.query(dStmnt);
+					}
+					await db.query('commit');
+				} catch (e) {
+					console.error(e);
+					await db.query('rollback');
+					process.exit(1);
+				}
+			} else if (credentials.driver === 'turso') {
+				await db.batch!(statementsToExecute.map((it) => ({ query: it })));
+			}
+			render(`[${chalk.green('✓')}] Changes applied`);
+		}
+	}
+};
+
+export const libSQLPush = async (
+	schemaPath: string | string[],
+	verbose: boolean,
+	strict: boolean,
+	credentials: SqliteCredentials,
+	tablesFilter: string[],
+	force: boolean,
+) => {
+	const { connectToSQLite } = await import('../connections');
+	const { sqlitePushIntrospect } = await import('./sqliteIntrospect');
+
+	const db = await connectToSQLite(credentials);
+	const { schema } = await sqlitePushIntrospect(db, tablesFilter);
+
+	const { prepareLibSQLPush } = await import('./migrate');
+
+	const statements = await prepareLibSQLPush(schemaPath, schema);
+
+	if (statements.sqlStatements.length === 0) {
+		render(`\n[${chalk.blue('i')}] No changes detected`);
+	} else {
+		const {
+			shouldAskForApprove,
+			statementsToExecute,
+			columnsToRemove,
+			tablesToRemove,
+			tablesToTruncate,
+			infoToPrint,
+		} = await libSqlLogSuggestionsAndReturn(
+			db,
+			statements.statements,
+			statements.squashedPrev,
+			statements.squashedCur,
 			statements.meta!,
 		);
 

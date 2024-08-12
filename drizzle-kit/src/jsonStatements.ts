@@ -1,11 +1,14 @@
 import chalk from 'chalk';
-import { table } from 'console';
+import { getNewTableName } from './cli/commands/sqlitePushUtils';
 import { warning } from './cli/views';
-import { CommonSquashedSchema, Dialect } from './schemaValidator';
+import { CommonSquashedSchema } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher } from './serializer/mysqlSchema';
 import { Index, PgSchema, PgSquasher } from './serializer/pgSchema';
 import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher } from './serializer/singlestoreSchema';
-import { SQLiteKitInternals, SQLiteSquasher } from './serializer/sqliteSchema';
+import {
+	SQLiteKitInternals, SQLiteSchemaInternal,
+	SQLiteSchemaSquashed, SQLiteSquasher
+} from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
 
 export interface JsonSqliteCreateTableStatement {
@@ -34,6 +37,23 @@ export interface JsonCreateTableStatement {
 	compositePkName?: string;
 	uniqueConstraints?: string[];
 	internals?: MySqlKitInternals | SingleStoreKitInternals;
+}
+
+export interface JsonRecreateTableStatement {
+	type: 'recreate_table';
+	tableName: string;
+	columns: Column[];
+	referenceData: {
+		name: string;
+		tableFrom: string;
+		columnsFrom: string[];
+		tableTo: string;
+		columnsTo: string[];
+		onUpdate?: string | undefined;
+		onDelete?: string | undefined;
+	}[];
+	compositePKs: string[][];
+	uniqueConstraints?: string[];
 }
 
 export interface JsonDropTableStatement {
@@ -174,6 +194,10 @@ export interface JsonReferenceStatement {
 	data: string;
 	schema: string;
 	tableName: string;
+	isMulticolumn?: boolean;
+	columnNotNull?: boolean;
+	columnDefault?: string;
+	columnType?: string;
 	//   fromTable: string;
 	//   fromColumns: string[];
 	//   toTable: string;
@@ -520,6 +544,7 @@ export type JsonAlterColumnStatement =
 	| JsonAlterColumnDropIdentityStatement;
 
 export type JsonStatement =
+	| JsonRecreateTableStatement
 	| JsonAlterColumnStatement
 	| JsonCreateTableStatement
 	| JsonDropTableStatement
@@ -1996,6 +2021,7 @@ export const prepareSqliteAlterColumns = (
 	columns: AlteredColumn[],
 	// TODO: remove?
 	json2: CommonSquashedSchema,
+	driver?: 'turso',
 ): JsonAlterColumnStatement[] => {
 	let statements: JsonAlterColumnStatement[] = [];
 	let dropPkStatements: JsonAlterColumnDropPrimaryKeyStatement[] = [];
@@ -2022,6 +2048,55 @@ export const prepareSqliteAlterColumns = (
 		const compositePk = json2.tables[tableName].compositePrimaryKeys[
 			`${tableName}_${columnName}`
 		];
+
+		if (column.autoincrement?.type === 'added') {
+			statements.push({
+				type: 'alter_table_alter_column_set_autoincrement',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.autoincrement?.type === 'changed') {
+			const type = column.autoincrement.new
+				? 'alter_table_alter_column_set_autoincrement'
+				: 'alter_table_alter_column_drop_autoincrement';
+
+			statements.push({
+				type,
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.autoincrement?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_autoincrement',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
 
 		if (typeof column.name !== 'string') {
 			statements.push({
@@ -2330,6 +2405,54 @@ export const prepareCreateReferencesJson = (
 		};
 	});
 };
+export const prepareLibSQLCreateReferencesJson = (
+	tableName: string,
+	schema: string,
+	foreignKeys: Record<string, string>,
+	json2: SQLiteSchemaSquashed,
+	action?: 'push',
+): JsonCreateReferenceStatement[] => {
+	return Object.values(foreignKeys).map((fkData) => {
+		const { columnsFrom, tableFrom, columnsTo } = action === 'push'
+			? SQLiteSquasher.unsquashPushFK(fkData)
+			: SQLiteSquasher.unsquashFK(fkData);
+
+		// When trying to alter table in lib sql it is necessary to pass all config for column like "NOT NULL", "DEFAULT", etc.
+		// If it is multicolumn reference it is not possible to pass this data for all columns
+		// Pass multicolumn flag for sql statements to not generate migration
+		let isMulticolumn = false;
+
+		if (columnsFrom.length > 1 || columnsTo.length > 1) {
+			isMulticolumn = true;
+
+			return {
+				type: 'create_reference',
+				tableName,
+				data: fkData,
+				schema,
+				isMulticolumn,
+			};
+		}
+
+		const columnFrom = columnsFrom[0];
+
+		const {
+			notNull: columnNotNull,
+			default: columnDefault,
+			type: columnType,
+		} = json2.tables[tableFrom].columns[columnFrom];
+
+		return {
+			type: 'create_reference',
+			tableName,
+			data: fkData,
+			schema,
+			columnNotNull,
+			columnDefault,
+			columnType,
+		};
+	});
+};
 
 export const prepareDropReferencesJson = (
 	tableName: string,
@@ -2344,6 +2467,77 @@ export const prepareDropReferencesJson = (
 			schema,
 		};
 	});
+};
+export const prepareLibSQLDropReferencesJson = (
+	tableName: string,
+	schema: string,
+	foreignKeys: Record<string, string>,
+	json2: SQLiteSchemaSquashed,
+	meta: SQLiteSchemaInternal['_meta'],
+	action?: 'push',
+): JsonDeleteReferenceStatement[] => {
+	const statements = Object.values(foreignKeys).map((fkData) => {
+		const { columnsFrom, tableFrom, columnsTo, name, tableTo, onDelete, onUpdate } = action === 'push'
+			? SQLiteSquasher.unsquashPushFK(fkData)
+			: SQLiteSquasher.unsquashFK(fkData);
+
+		// If all columns from where were references were deleted -> skip this logic
+		// Drop colums will cover this scenario
+		const keys = Object.keys(json2.tables[tableName].columns);
+		const filtered = columnsFrom.filter((it) => keys.includes(it));
+		const fullDrop = filtered.length === 0;
+		if (fullDrop) return;
+
+		// When trying to alter table in lib sql it is necessary to pass all config for column like "NOT NULL", "DEFAULT", etc.
+		// If it is multicolumn reference it is not possible to pass this data for all columns
+		// Pass multicolumn flag for sql statements to not generate migration
+		let isMulticolumn = false;
+
+		if (columnsFrom.length > 1 || columnsTo.length > 1) {
+			isMulticolumn = true;
+
+			return {
+				type: 'delete_reference',
+				tableName,
+				data: fkData,
+				schema,
+				isMulticolumn,
+			};
+		}
+
+		const columnFrom = columnsFrom[0];
+		const newTableName = getNewTableName(tableFrom, meta);
+
+		const {
+			notNull: columnNotNull,
+			default: columnDefault,
+			type: columnType,
+		} = json2.tables[newTableName].columns[columnFrom];
+
+		const fkToSquash = {
+			columnsFrom,
+			columnsTo,
+			name,
+			tableFrom: newTableName,
+			tableTo,
+			onDelete,
+			onUpdate,
+		};
+		const foreignKey = action === 'push'
+			? SQLiteSquasher.squashPushFK(fkToSquash)
+			: SQLiteSquasher.squashFK(fkToSquash);
+		return {
+			type: 'delete_reference',
+			tableName,
+			data: foreignKey,
+			schema,
+			columnNotNull,
+			columnDefault,
+			columnType,
+		};
+	});
+
+	return statements.filter((it) => it) as JsonDeleteReferenceStatement[];
 };
 
 // alter should create 2 statements. It's important to make only 1 sql per statement(for breakpoints)
