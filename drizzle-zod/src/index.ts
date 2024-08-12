@@ -38,7 +38,15 @@ type MaybeOptional<
 	TMode extends 'insert' | 'select',
 	TNoOptional extends boolean,
 > = TNoOptional extends true ? TType
-	: MapColumnToZod<TColumn, TType, TMode>;
+  : TColumn['_']['dataType'] extends 'array'
+    ? MapColumnToZod<TColumn,
+      TColumn extends { baseColumn: Column }
+        ? z.ZodArray<GetZodType<TColumn['baseColumn']>>
+        : TColumn['_']['baseColumn'] extends Column
+          ? z.ZodArray<GetZodType<TColumn['_']['baseColumn']>>
+          : z.ZodArray<z.ZodAny>,
+      TMode>
+    : MapColumnToZod<TColumn, TType, TMode>;
 
 type GetZodType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? z.ZodAny
