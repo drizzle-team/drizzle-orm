@@ -10,12 +10,23 @@ plugins:
   - import
   - unused-imports
   - no-instanceof
-  - drizzle
+  - drizzle-internal
+overrides:
+  - files:
+      - '**/tests/**/*.ts'
+      - '**/type-tests/**/*.ts'
+    rules:
+      import/extensions: 'off'
+      no-instanceof: 'off'
+  - files: 'eslint-plugin-drizzle/**/*'
+    rules:
+      import/extensions: 'off'
 rules:
   '@typescript-eslint/consistent-type-imports':
     - error
     - disallowTypeAnnotations: false
       fixStyle: separate-type-imports
+  '@typescript-eslint/no-import-type-side-effects': 'error'
   import/no-cycle: error
   import/no-self-import: error
   import/no-empty-named-blocks: error
@@ -23,6 +34,10 @@ rules:
   import/no-useless-path-segments: error
   import/newline-after-import: error
   import/no-duplicates: error
+  import/extensions:
+    - error
+    - always
+    - ignorePackages: true
   '@typescript-eslint/no-explicit-any': 'off'
   '@typescript-eslint/no-non-null-assertion': 'off'
   '@typescript-eslint/no-namespace': 'off'
@@ -60,9 +75,10 @@ rules:
   'unicorn/relative-url-style': 'off'
   'eqeqeq': 'error'
   'no-instanceof/no-instanceof': 'error'
-  'drizzle/require-entity-kind': 'error'
+  'drizzle-internal/require-entity-kind': 'error'
   'unicorn/prefer-string-replace-all': 'off'
   'unicorn/no-process-exit': 'off'
   '@typescript-eslint/ban-ts-comment': 'off'
   '@typescript-eslint/no-empty-interface': 'off'
   '@typescript-eslint/no-unsafe-declaration-merging': 'off'
+  'no-inner-declarations': 'off'

@@ -1,7 +1,7 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { gt, inArray } from '~/expressions.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import { integer, sqliteTable, text } from '~/sqlite-core/index.ts';
 import { db } from './db.ts';
 
@@ -11,6 +11,7 @@ const orders = sqliteTable('orders', {
 	product: text('product').notNull(),
 	amount: integer('amount').notNull(),
 	quantity: integer('quantity').notNull(),
+	generated: text('generatedText').generatedAlwaysAs(sql``),
 });
 
 {
@@ -62,5 +63,19 @@ const orders = sqliteTable('orders', {
 			productUnits: number;
 			productSales: number;
 		}[], typeof result>
+	>;
+
+	const allOrdersWith = db.$with('all_orders_with').as(db.select().from(orders));
+	const allFromWith = await db.with(allOrdersWith).select().from(allOrdersWith);
+
+	Expect<
+		Equal<{
+			id: number;
+			region: string;
+			product: string;
+			amount: number;
+			quantity: number;
+			generated: string | null;
+		}[], typeof allFromWith>
 	>;
 }

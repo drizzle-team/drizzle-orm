@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { type Writable } from '~/utils.ts';
+import type { Writable } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlCharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MySqlCharBuilder<{
@@ -12,6 +12,7 @@ export type MySqlCharBuilderInitial<TName extends string, TEnum extends [string,
 	data: TEnum[number];
 	driverParam: number | string;
 	enumValues: TEnum;
+	generated: undefined;
 }>;
 
 export class MySqlCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlChar'>> extends MySqlColumnBuilder<

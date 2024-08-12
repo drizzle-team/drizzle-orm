@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import { type SQLiteColumn } from './columns/index.ts';
+import type { SQLiteColumn } from './columns/common.ts';
 import { SQLiteTable } from './table.ts';
 
 export function uniqueKeyName(table: SQLiteTable, columns: string[]) {

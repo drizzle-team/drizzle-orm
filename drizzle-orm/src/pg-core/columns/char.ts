@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import { type Writable } from '~/utils.ts';
+import type { Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgCharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = PgCharBuilder<{
@@ -12,6 +12,7 @@ export type PgCharBuilderInitial<TName extends string, TEnum extends [string, ..
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;
+	generated: undefined;
 }>;
 
 export class PgCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgChar'>> extends PgColumnBuilder<

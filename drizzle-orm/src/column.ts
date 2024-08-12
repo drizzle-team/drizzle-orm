@@ -1,6 +1,12 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, ColumnDataType } from './column-builder.ts';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	ColumnDataType,
+	GeneratedColumnConfig,
+	GeneratedIdentityConfig,
+} from './column-builder.ts';
 import { entityKind } from './entity.ts';
-import type { DriverValueMapper, SQL, SQLWrapper } from './sql/index.ts';
+import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
@@ -11,6 +17,9 @@ export interface ColumnBaseConfig<
 	tableName: string;
 	notNull: boolean;
 	hasDefault: boolean;
+	isPrimaryKey: boolean;
+	isAutoincrement: boolean;
+	hasRuntimeDefault: boolean;
 }
 
 export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>, TTypeConfig extends object> = T & {
@@ -23,8 +32,12 @@ export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>,
 	driverParam: T['driverParam'];
 	notNull: T['notNull'];
 	hasDefault: T['hasDefault'];
+	isPrimaryKey: T['isPrimaryKey'];
+	isAutoincrement: T['isAutoincrement'];
+	hasRuntimeDefault: T['hasRuntimeDefault'];
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseColumn: infer U } ? U : unknown;
+	generated: GeneratedColumnConfig<T['data']> | undefined;
 } & TTypeConfig;
 
 export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBuilderRuntimeConfig<
@@ -38,7 +51,9 @@ export interface Column<
 	TRuntimeConfig extends object = object,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TTypeConfig extends object = object,
-> extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {}
+> extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
+	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
+}
 /*
 	`Column` only accepts a full `ColumnConfig` as its generic.
 	To infer parts of the config, use `AnyColumn` that accepts a partial config.
@@ -58,6 +73,7 @@ export abstract class Column<
 	readonly notNull: boolean;
 	readonly default: T['data'] | SQL | undefined;
 	readonly defaultFn: (() => T['data'] | SQL) | undefined;
+	readonly onUpdateFn: (() => T['data'] | SQL) | undefined;
 	readonly hasDefault: boolean;
 	readonly isUnique: boolean;
 	readonly uniqueName: string | undefined;
@@ -65,6 +81,8 @@ export abstract class Column<
 	readonly dataType: T['dataType'];
 	readonly columnType: T['columnType'];
 	readonly enumValues: T['enumValues'] = undefined;
+	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
+	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
 
 	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
 
@@ -77,6 +95,7 @@ export abstract class Column<
 		this.notNull = config.notNull;
 		this.default = config.default;
 		this.defaultFn = config.defaultFn;
+		this.onUpdateFn = config.onUpdateFn;
 		this.hasDefault = config.hasDefault;
 		this.primary = config.primaryKey;
 		this.isUnique = config.isUnique;
@@ -84,6 +103,8 @@ export abstract class Column<
 		this.uniqueType = config.uniqueType;
 		this.dataType = config.dataType as T['dataType'];
 		this.columnType = config.columnType;
+		this.generated = config.generated;
+		this.generatedIdentity = config.generatedIdentity;
 	}
 
 	abstract getSQLType(): string;
@@ -94,6 +115,11 @@ export abstract class Column<
 
 	mapToDriverValue(value: unknown): unknown {
 		return value;
+	}
+
+	// ** @internal */
+	shouldDisableInsert(): boolean {
+		return this.config.generated !== undefined && this.config.generated.type !== 'byDefault';
 	}
 }
 

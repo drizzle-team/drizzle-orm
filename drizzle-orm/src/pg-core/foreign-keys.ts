@@ -5,6 +5,7 @@ import { PgTable } from './table.ts';
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
+	readonly name?: string;
 	readonly columns: PgColumn[];
 	readonly foreignTable: PgTable;
 	readonly foreignColumns: PgColumn[];
@@ -24,6 +25,7 @@ export class ForeignKeyBuilder {
 
 	constructor(
 		config: () => {
+			name?: string;
 			columns: PgColumn[];
 			foreignColumns: PgColumn[];
 		},
@@ -33,8 +35,8 @@ export class ForeignKeyBuilder {
 		} | undefined,
 	) {
 		this.reference = () => {
-			const { columns, foreignColumns } = config();
-			return { columns, foreignTable: foreignColumns[0]!.table as PgTable, foreignColumns };
+			const { name, columns, foreignColumns } = config();
+			return { name, columns, foreignTable: foreignColumns[0]!.table as PgTable, foreignColumns };
 		};
 		if (actions) {
 			this._onUpdate = actions.onUpdate;
@@ -74,7 +76,7 @@ export class ForeignKey {
 	}
 
 	getName(): string {
-		const { columns, foreignColumns } = this.reference();
+		const { name, columns, foreignColumns } = this.reference();
 		const columnNames = columns.map((column) => column.name);
 		const foreignColumnNames = foreignColumns.map((column) => column.name);
 		const chunks = [
@@ -83,7 +85,7 @@ export class ForeignKey {
 			foreignColumns[0]!.table[PgTable.Symbol.Name],
 			...foreignColumnNames,
 		];
-		return `${chunks.join('_')}_fk`;
+		return name ?? `${chunks.join('_')}_fk`;
 	}
 }
 
@@ -98,13 +100,15 @@ export function foreignKey<
 	TColumns extends [AnyPgColumn<{ tableName: TTableName }>, ...AnyPgColumn<{ tableName: TTableName }>[]],
 >(
 	config: {
+		name?: string;
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},
 ): ForeignKeyBuilder {
 	function mappedConfig() {
-		const { columns, foreignColumns } = config;
+		const { name, columns, foreignColumns } = config;
 		return {
+			name,
 			columns,
 			foreignColumns,
 		};

@@ -1,3 +1,4 @@
+import { types } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -9,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
 
 export interface VercelPgDriverOptions {
@@ -34,9 +35,10 @@ export class VercelPgDriver {
 	}
 
 	initMappers() {
-		// types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		// types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		// types.setTypeParser(types.builtins.DATE, (val) => val);
+		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
+		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
+		types.setTypeParser(types.builtins.DATE, (val) => val);
+		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
 	}
 }
 

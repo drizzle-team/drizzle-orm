@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import { type Writable } from '~/utils.ts';
+import type { Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgEnumColumnBuilderInitial<TName extends string, TValues extends [string, ...string[]]> =
@@ -13,6 +13,7 @@ export type PgEnumColumnBuilderInitial<TName extends string, TValues extends [st
 		data: TValues[number];
 		enumValues: TValues;
 		driverParam: string;
+		generated: undefined;
 	}>;
 
 const isPgEnumSym = Symbol.for('drizzle:isPgEnum');
@@ -21,6 +22,7 @@ export interface PgEnum<TValues extends [string, ...string[]]> {
 
 	readonly enumName: string;
 	readonly enumValues: TValues;
+	readonly schema: string | undefined;
 	/** @internal */
 	[isPgEnumSym]: true;
 }
@@ -76,12 +78,22 @@ export function pgEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
 	enumName: string,
 	values: T | Writable<T>,
 ): PgEnum<Writable<T>> {
-	const enumInstance = Object.assign(
+	return pgEnumWithSchema(enumName, values, undefined);
+}
+
+/** @internal */
+export function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(
+	enumName: string,
+	values: T | Writable<T>,
+	schema?: string,
+): PgEnum<Writable<T>> {
+	const enumInstance: PgEnum<Writable<T>> = Object.assign(
 		<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, Writable<T>> =>
 			new PgEnumColumnBuilder(name, enumInstance),
 		{
 			enumName,
 			enumValues: values,
+			schema,
 			[isPgEnumSym]: true,
 		} as const,
 	);

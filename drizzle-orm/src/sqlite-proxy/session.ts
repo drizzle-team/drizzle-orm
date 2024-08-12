@@ -1,8 +1,10 @@
+import type { BatchItem } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/index.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { PreparedQuery } from '~/session.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
@@ -11,15 +13,15 @@ import type {
 	SQLiteExecuteMethod,
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
-import { type RemoteCallback, type SqliteRemoteResult } from './driver.ts';
+import type { AsyncBatchRemoteCallback, AsyncRemoteCallback, RemoteCallback, SqliteRemoteResult } from './driver.ts';
 
 export interface SQLiteRemoteSessionOptions {
 	logger?: Logger;
 }
 
-type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
+export type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class SQLiteRemoteSession<
 	TFullSchema extends Record<string, unknown>,
@@ -33,6 +35,7 @@ export class SQLiteRemoteSession<
 		private client: RemoteCallback,
 		dialect: SQLiteAsyncDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private batchCLient?: AsyncBatchRemoteCallback,
 		options: SQLiteRemoteSessionOptions = {},
 	) {
 		super(dialect);
@@ -43,8 +46,33 @@ export class SQLiteRemoteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, executeMethod);
+		isResponseInArrayMode: boolean,
+		customResultMapper?: (rows: unknown[][]) => unknown,
+	): RemotePreparedQuery<T> {
+		return new RemotePreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
+	}
+
+	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
+		const preparedQueries: PreparedQuery[] = [];
+		const builtQueries: { sql: string; params: any[]; method: 'run' | 'all' | 'values' | 'get' }[] = [];
+
+		for (const query of queries) {
+			const preparedQuery = query._prepare();
+			const builtQuery = (preparedQuery as RemotePreparedQuery).getQuery();
+			preparedQueries.push(preparedQuery);
+			builtQueries.push({ sql: builtQuery.sql, params: builtQuery.params, method: builtQuery.method });
+		}
+
+		const batchResults = await (this.batchCLient as AsyncBatchRemoteCallback)(builtQueries);
+		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
 	override async transaction<T>(
@@ -61,6 +89,18 @@ export class SQLiteRemoteSession<
 			await this.run(sql`rollback`);
 			throw err;
 		}
+	}
+
+	override extractRawAllValueFromBatchResult(result: unknown): unknown {
+		return (result as SqliteRemoteResult).rows;
+	}
+
+	override extractRawGetValueFromBatchResult(result: unknown): unknown {
+		return (result as SqliteRemoteResult).rows![0];
+	}
+
+	override extractRawValuesValueFromBatchResult(result: unknown): unknown {
+		return (result as SqliteRemoteResult).rows;
 	}
 }
 
@@ -87,65 +127,120 @@ export class SQLiteProxyTransaction<
 	}
 }
 
-export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
+export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
 	{ type: 'async'; run: SqliteRemoteResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
 
+	private method: SQLiteExecuteMethod;
+
 	constructor(
 		private client: RemoteCallback,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		private _isResponseInArrayMode: boolean,
+		/** @internal */ public customResultMapper?: (
+			rows: unknown[][],
+			mapColumnValue?: (value: unknown) => unknown,
+		) => unknown,
 	) {
-		super('async', executeMethod);
+		super('async', executeMethod, query);
+		this.customResultMapper = customResultMapper;
+		this.method = executeMethod;
+	}
+
+	override getQuery(): Query & { method: SQLiteExecuteMethod } {
+		return { ...this.query, method: this.method };
 	}
 
 	run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
-		return this.client(this.queryString, params, 'run');
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
+		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run') as Promise<
+			SqliteRemoteResult
+		>;
+	}
+
+	override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
+		if (isFromBatch) {
+			rows = (rows as SqliteRemoteResult).rows;
+		}
+
+		if (!this.fields && !this.customResultMapper) {
+			return rows;
+		}
+
+		if (this.customResultMapper) {
+			return this.customResultMapper(rows as unknown[][]) as T['all'];
+		}
+
+		return (rows as unknown[][]).map((row) => {
+			return mapResultRow(
+				this.fields!,
+				row,
+				this.joinsNotNullableMap,
+			);
+		});
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields, queryString, logger, joinsNotNullableMap } = this;
+		const { query, logger, client } = this;
 
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		logger.logQuery(queryString, params);
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
 
-		const { rows } = await this.client(queryString, params, 'all');
-
-		if (fields) {
-			return rows.map((row) => mapResultRow(fields, row, joinsNotNullableMap));
-		}
-
-		return rows;
+		const { rows } = await (client as AsyncRemoteCallback)(query.sql, params, 'all');
+		return this.mapAllResult(rows);
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		const { fields, queryString, logger, joinsNotNullableMap } = this;
+		const { query, logger, client } = this;
 
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		logger.logQuery(queryString, params);
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
 
-		const clientResult = await this.client(queryString, params, 'get');
+		const clientResult = await (client as AsyncRemoteCallback)(query.sql, params, 'get');
 
-		if (fields) {
-			if (clientResult.rows === undefined) {
-				return undefined;
-			}
-			return mapResultRow(fields, clientResult.rows, joinsNotNullableMap);
+		return this.mapGetResult(clientResult.rows);
+	}
+
+	override mapGetResult(rows: unknown, isFromBatch?: boolean): unknown {
+		if (isFromBatch) {
+			rows = (rows as SqliteRemoteResult).rows;
 		}
 
-		return clientResult.rows;
+		const row = rows as unknown[];
+
+		if (!this.fields && !this.customResultMapper) {
+			return row;
+		}
+
+		if (!row) {
+			return undefined;
+		}
+
+		if (this.customResultMapper) {
+			return this.customResultMapper([rows] as unknown[][]) as T['get'];
+		}
+
+		return mapResultRow(
+			this.fields!,
+			row,
+			this.joinsNotNullableMap,
+		);
 	}
 
 	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
-		const clientResult = await this.client(this.queryString, params, 'values');
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
+		const clientResult = await (this.client as AsyncRemoteCallback)(this.query.sql, params, 'values');
 		return clientResult.rows as T[];
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }

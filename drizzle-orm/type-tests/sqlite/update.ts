@@ -2,7 +2,9 @@ import type { RunResult } from 'better-sqlite3';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { eq } from '~/expressions.ts';
-import { type DrizzleTypeError } from '~/utils.ts';
+import { sql } from '~/sql/sql.ts';
+import type { SQLiteUpdate } from '~/sqlite-core/query-builders/update.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 import { bunDb, db } from './db.ts';
 import { users } from './tables.ts';
 
@@ -93,3 +95,41 @@ const updateGetReturningAllBun = bunDb.update(users)
 	.returning()
 	.get();
 Expect<Equal<typeof users.$inferSelect, typeof updateGetReturningAllBun>>;
+
+{
+	function dynamic<T extends SQLiteUpdate>(qb: T) {
+		return qb.where(sql``).returning();
+	}
+
+	const qbBase = db.update(users).set({}).$dynamic();
+	const qb = dynamic(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	function withReturning<T extends SQLiteUpdate>(qb: T) {
+		return qb.returning();
+	}
+
+	const qbBase = db.update(users).set({}).$dynamic();
+	const qb = withReturning(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	db
+		.update(users)
+		.set({})
+		.returning()
+		// @ts-expect-error method was already called
+		.returning();
+
+	db
+		.update(users)
+		.set({})
+		.where(sql``)
+		// @ts-expect-error method was already called
+		.where(sql``);
+}

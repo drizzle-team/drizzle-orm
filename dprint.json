@@ -6,13 +6,28 @@
 		"arrowFunction.useParentheses": "force",
 		"jsx.quoteStyle": "preferSingle"
 	},
-	"json": {},
+	"json": {
+		"useTabs": true
+	},
 	"markdown": {},
-	"includes": ["**/*.{ts,tsx,js,jsx,cjs,mjs,json,md}"],
-	"excludes": ["**/node_modules", "**/*-lock.json"],
+	"includes": ["**/*.{ts,tsx,js,jsx,cjs,mjs,json}"],
+	"excludes": [
+		"**/node_modules",
+		"dist",
+		"dist-dts",
+		"dist.new",
+		"**/drizzle/**/meta",
+		"**/drizzle2/**/meta",
+		"**/*snapshot.json",
+		"**/_journal.json",
+		"**/tsup.config*.mjs",
+		"**/.sst",
+		"integration-tests/tests/prisma/*/client",
+		"integration-tests/tests/prisma/*/drizzle"
+	],
 	"plugins": [
-		"https://plugins.dprint.dev/typescript-0.83.0.wasm",
-		"https://plugins.dprint.dev/json-0.17.0.wasm",
-		"https://plugins.dprint.dev/markdown-0.15.2.wasm"
+		"https://plugins.dprint.dev/typescript-0.91.1.wasm",
+		"https://plugins.dprint.dev/json-0.19.3.wasm",
+		"https://plugins.dprint.dev/markdown-0.17.1.wasm"
 	]
 }

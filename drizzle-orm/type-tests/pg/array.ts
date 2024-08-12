@@ -1,5 +1,5 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import { type Column } from '~/column.ts';
+import type { Column } from '~/column.ts';
 import { integer, pgTable } from '~/pg-core/index.ts';
 
 {
@@ -20,6 +20,10 @@ import { integer, pgTable } from '~/pg-core/index.ts';
 					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}
 			>,
 			typeof table['a']['_']['baseColumn']

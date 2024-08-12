@@ -8,7 +8,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { PostgresJsQueryResultHKT } from './session.ts';
 import { PostgresJsSession } from './session.ts';
 
@@ -20,6 +20,16 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: Sql,
 	config: DrizzleConfig<TSchema> = {},
 ): PostgresJsDatabase<TSchema> {
+	const transparentParser = (val: any) => val;
+
+	// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
+	for (const type of ['1184', '1082', '1083', '1114']) {
+		client.options.parsers[type as any] = transparentParser;
+		client.options.serializers[type as any] = transparentParser;
+	}
+	client.options.serializers['114'] = transparentParser;
+	client.options.serializers['3802'] = transparentParser;
+
 	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {

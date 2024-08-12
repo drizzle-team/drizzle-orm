@@ -1,7 +1,6 @@
 import { type AnyColumn, Column, type GetColumnData } from '~/column.ts';
 import { is } from '~/entity.ts';
 import { Table } from '~/table.ts';
-import { View } from '~/view.ts';
 import {
 	isDriverValueEncoder,
 	isSQLWrapper,
@@ -12,7 +11,8 @@ import {
 	type SQLChunk,
 	type SQLWrapper,
 	StringChunk,
-} from '../index.ts';
+	View,
+} from '../sql.ts';
 
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
 	if (
@@ -228,7 +228,7 @@ export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *   .where(lt(cars.year, 2000))
  * ```
  *
- * @see lte for greater-than-or-equal
+ * @see lte for less-than-or-equal
  */
 export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
 	return sql`${left} < ${bindIfParam(right, left)}`;
@@ -255,11 +255,6 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
 /**
  * Test whether the first parameter, a column or expression,
  * has a value from a list passed as the second argument.
- *
- * ## Throws
- *
- * The argument passed in the second array can’t be empty:
- * if an empty is provided, this method will throw.
  *
  * ## Examples
  *
@@ -289,7 +284,7 @@ export function inArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('inArray requires at least one value');
+			return sql`false`;
 		}
 		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
 	}
@@ -301,11 +296,6 @@ export function inArray(
  * Test whether the first parameter, a column or expression,
  * has a value that is not present in a list passed as the
  * second argument.
- *
- * ## Throws
- *
- * The argument passed in the second array can’t be empty:
- * if an empty is provided, this method will throw.
  *
  * ## Examples
  *
@@ -335,7 +325,7 @@ export function notInArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('notInArray requires at least one value');
+			return sql`true`;
 		}
 		return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
 	}
@@ -404,7 +394,7 @@ export function isNotNull(value: SQLWrapper): SQL {
  * @see notExists for the inverse of this test
  */
 export function exists(subquery: SQLWrapper): SQL {
-	return sql`exists (${subquery})`;
+	return sql`exists ${subquery}`;
 }
 
 /**
@@ -429,7 +419,7 @@ export function exists(subquery: SQLWrapper): SQL {
  * @see exists for the inverse of this test
  */
 export function notExists(subquery: SQLWrapper): SQL {
-	return sql`not exists (${subquery})`;
+	return sql`not exists ${subquery}`;
 }
 
 /**
@@ -613,7 +603,7 @@ export function notIlike(column: Column, value: string | SQLWrapper): SQL {
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
+ * The argument passed in the second array can't be empty:
  * if an empty is provided, this method will throw.
  *
  * ## Examples
@@ -660,7 +650,7 @@ export function arrayContains(
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
+ * The argument passed in the second array can't be empty:
  * if an empty is provided, this method will throw.
  *
  * ## Examples
@@ -708,7 +698,7 @@ export function arrayContained(
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
+ * The argument passed in the second array can't be empty:
  * if an empty is provided, this method will throw.
  *
  * ## Examples

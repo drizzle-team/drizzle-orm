@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
-import { type Equal } from '~/utils.ts';
+import type { Equal } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
@@ -14,6 +14,7 @@ export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuild
 	data: bigint;
 	driverParam: Buffer;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQLiteBigInt'>>
@@ -56,6 +57,7 @@ export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonB
 	data: unknown;
 	driverParam: Buffer;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteBlobJson'>>
@@ -101,6 +103,7 @@ export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBuf
 	data: Buffer;
 	driverParam: Buffer;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'SQLiteBlobBuffer'>>

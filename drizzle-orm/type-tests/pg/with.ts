@@ -2,7 +2,7 @@ import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { gt, inArray } from '~/expressions.ts';
 import { integer, pgTable, serial, text } from '~/pg-core/index.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 
 const orders = pgTable('orders', {
@@ -11,6 +11,7 @@ const orders = pgTable('orders', {
 	product: text('product').notNull(),
 	amount: integer('amount').notNull(),
 	quantity: integer('quantity').notNull(),
+	generated: text('generatedText').generatedAlwaysAs(sql``),
 });
 
 {
@@ -61,5 +62,19 @@ const orders = pgTable('orders', {
 			productUnits: number;
 			productSales: number;
 		}[], typeof result>
+	>;
+
+	const allOrdersWith = db.$with('all_orders_with').as(db.select().from(orders));
+	const allFromWith = await db.with(allOrdersWith).select().from(allOrdersWith);
+
+	Expect<
+		Equal<{
+			id: number;
+			region: string;
+			product: string;
+			amount: number;
+			quantity: number;
+			generated: string | null;
+		}[], typeof allFromWith>
 	>;
 }

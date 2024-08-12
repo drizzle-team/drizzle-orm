@@ -1,51 +1,52 @@
 {
-  "$schema": "https://turbo.build/schema.json",
-  "pipeline": {
-    "//#lint": {
-      "inputs": ["**/*.ts", "!**/node_modules", "!**/dist"],
-      "outputMode": "new-only"
-    },
-    "test:types": {
-      "dependsOn": ["^test:types", "^build"],
-      "inputs": [
-        "src/**/*.ts",
-        "tests/**/*.ts",
-        "tsconfig.json",
-        "tests/tsconfig.json",
-        "../tsconfig.json"
-      ],
-      "outputMode": "new-only"
-    },
-    "build": {
-      "dependsOn": ["^build"],
-      "inputs": [
-        "src/**/*.ts",
-        "package.json",
-        "README.md",
-        "../README.md",
-        "tsconfig.json",
-        "tsconfig.build.json",
-        "../tsconfig.json",
-        "rollup.config.ts",
-        "rollup.dts.config.ts"
-      ],
-      "outputs": ["dist/**", "dist-dts/**"],
-      "outputMode": "new-only"
-    },
-    "pack": {
-      "dependsOn": ["build", "test:types"],
-      "inputs": ["dist/**"],
-      "outputs": ["package.tgz"],
-      "outputMode": "new-only"
-    },
-    "test": {
-      "dependsOn": ["build", "test:types"],
-      "inputs": [
-        "tests/**/*.test.ts",
-        "tests/**/*.test.cjs",
-        "tests/**/*.test.mjs"
-      ],
-      "outputMode": "new-only"
-    }
-  }
+	"$schema": "https://turbo.build/schema.json",
+	"pipeline": {
+		"//#lint": {
+			"inputs": ["**/*.ts", "!**/node_modules", "!**/dist", "!**/dist-dts"],
+			"outputMode": "new-only"
+		},
+		"test:types": {
+			"dependsOn": ["^test:types", "^build"],
+			"inputs": [
+				"src/**/*.ts",
+				"tests/**/*.ts",
+				"tsconfig.json",
+				"tests/tsconfig.json",
+				"../tsconfig.json"
+			],
+			"outputMode": "new-only"
+		},
+		"build": {
+			"dependsOn": ["^build"],
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"README.md",
+				"../README.md",
+				"tsconfig.json",
+				"tsconfig.*.json",
+				"tsup.config.ts",
+				"scripts/build.ts",
+				"scripts/fix-imports.ts",
+				"../tsconfig.json"
+			],
+			"outputs": ["dist/**", "dist-dts/**"],
+			"outputMode": "new-only"
+		},
+		"pack": {
+			"dependsOn": ["build", "test:types"],
+			"inputs": ["dist/**"],
+			"outputs": ["package.tgz"],
+			"outputMode": "new-only"
+		},
+		"test": {
+			"dependsOn": ["build", "test:types"],
+			"inputs": [
+				"tests/**/*.test.ts",
+				"tests/**/*.test.cjs",
+				"tests/**/*.test.mjs"
+			],
+			"outputMode": "new-only"
+		}
+	}
 }

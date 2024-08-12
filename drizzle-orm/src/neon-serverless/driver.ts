@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { NeonClient, NeonQueryResultHKT } from './session.ts';
 import { NeonSession } from './session.ts';
 
@@ -39,6 +39,7 @@ export class NeonDriver {
 		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
 		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
 		types.setTypeParser(types.builtins.DATE, (val) => val);
+		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
 	}
 }
 

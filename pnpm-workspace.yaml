@@ -1,6 +1,8 @@
 packages:
   - drizzle-orm
+  - drizzle-kit
   - drizzle-zod
   - drizzle-typebox
   - drizzle-valibot
   - integration-tests
+  - eslint-plugin-drizzle

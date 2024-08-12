@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import { type Equal } from '~/utils.ts';
+import type { Equal } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
 
@@ -13,6 +13,7 @@ export type PgTimestampBuilderInitial<TName extends string> = PgTimestampBuilder
 	data: Date;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgTimestamp'>>
@@ -58,12 +59,12 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date', 'PgTimestamp'>> exte
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue = (value: string): Date => {
+	override mapFromDriverValue = (value: string): Date | null => {
 		return new Date(this.withTimezone ? value : value + '+0000');
 	};
 
 	override mapToDriverValue = (value: Date): string => {
-		return this.withTimezone ? value.toUTCString() : value.toISOString();
+		return value.toISOString();
 	};
 }
 
@@ -74,6 +75,7 @@ export type PgTimestampStringBuilderInitial<TName extends string> = PgTimestampS
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTimestampString'>>

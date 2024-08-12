@@ -1,7 +1,7 @@
-import { type AnyTable, type InferModelFromColumns, isTable, Table } from '~/table.ts';
+import { type AnyTable, getTableUniqueName, type InferModelFromColumns, Table } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import { PrimaryKeyBuilder } from './pg-core/index.ts';
+import { PrimaryKeyBuilder } from './pg-core/primary-keys.ts';
 import {
 	and,
 	asc,
@@ -26,11 +26,9 @@ import {
 	notInArray,
 	notLike,
 	or,
-	type Placeholder,
-	SQL,
-	sql,
-} from './sql/index.ts';
-import { type Assume, type ColumnsWithTable, type Equal, type Simplify, type ValueOrArray } from './utils.ts';
+} from './sql/expressions/index.ts';
+import { type Placeholder, SQL, sql } from './sql/sql.ts';
+import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';
@@ -242,7 +240,7 @@ export type DBQueryConfig<
 				operators: { sql: Operators['sql'] },
 			) => Record<string, SQL.Aliased>);
 	}
-	& (TRelationType extends 'many' ? 
+	& (TRelationType extends 'many' ?
 			& {
 				where?:
 					| SQL
@@ -277,6 +275,7 @@ export interface TableRelationalConfig {
 	columns: Record<string, Column>;
 	relations: Record<string, Relation>;
 	primaryKey: AnyColumn[];
+	schema?: string;
 }
 
 export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
@@ -324,7 +323,7 @@ export type BuildRelationResult<
 			TSchema,
 			FindTableByDBName<TSchema, TRel['referencedTableName']>,
 			Assume<TInclude[K], true | Record<string, unknown>>
-		> extends infer TResult ? TRel extends One ? 
+		> extends infer TResult ? TRel extends One ?
 					| TResult
 					| (Equal<TRel['isNullable'], false> extends true ? null : never)
 			: TResult[]
@@ -362,7 +361,7 @@ export type BuildQueryResult<
 									keyof TTableConfig['columns'],
 									NonUndefinedKeysOnly<TFullSelection['columns']>
 								>
-								: 
+								:
 									& {
 										[K in keyof TFullSelection['columns']]: Equal<
 											TFullSelection['columns'][K],
@@ -430,13 +429,14 @@ export function extractTablesRelationalConfig<
 	> = {};
 	const tablesConfig: TablesRelationalConfig = {};
 	for (const [key, value] of Object.entries(schema)) {
-		if (isTable(value)) {
-			const dbName = value[Table.Symbol.Name];
+		if (is(value, Table)) {
+			const dbName = getTableUniqueName(value);
 			const bufferedRelations = relationsBuffer[dbName];
 			tableNamesMap[dbName] = key;
 			tablesConfig[key] = {
 				tsName: key,
 				dbName: value[Table.Symbol.Name],
+				schema: value[Table.Symbol.Schema],
 				columns: value[Table.Symbol.Columns],
 				relations: bufferedRelations?.relations ?? {},
 				primaryKey: bufferedRelations?.primaryKey ?? [],
@@ -453,7 +453,7 @@ export function extractTablesRelationalConfig<
 				}
 			}
 
-			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.(value);
+			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.((value as Table)[Table.Symbol.ExtraConfigColumns]);
 			if (extraConfig) {
 				for (const configEntry of Object.values(extraConfig)) {
 					if (is(configEntry, PrimaryKeyBuilder)) {
@@ -462,7 +462,7 @@ export function extractTablesRelationalConfig<
 				}
 			}
 		} else if (is(value, Relations)) {
-			const dbName: string = value.table[Table.Symbol.Name];
+			const dbName = getTableUniqueName(value.table);
 			const tableName = tableNamesMap[dbName];
 			const relations: Record<string, Relation> = value.config(
 				configHelpers(value.table),
@@ -561,7 +561,7 @@ export function normalizeRelation(
 		};
 	}
 
-	const referencedTableTsName = tableNamesMap[relation.referencedTable[Table.Symbol.Name]];
+	const referencedTableTsName = tableNamesMap[getTableUniqueName(relation.referencedTable)];
 	if (!referencedTableTsName) {
 		throw new Error(
 			`Table "${relation.referencedTable[Table.Symbol.Name]}" not found in schema`,
@@ -574,7 +574,7 @@ export function normalizeRelation(
 	}
 
 	const sourceTable = relation.sourceTable;
-	const sourceTableTsName = tableNamesMap[sourceTable[Table.Symbol.Name]];
+	const sourceTableTsName = tableNamesMap[getTableUniqueName(sourceTable)];
 	if (!sourceTableTsName) {
 		throw new Error(
 			`Table "${sourceTable[Table.Symbol.Name]}" not found in schema`,

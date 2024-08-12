@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { type Equal } from '~/utils.ts';
+import type { Equal } from '~/utils.ts';
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
 
 export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampBuilder<{
@@ -12,6 +12,7 @@ export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampB
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlTimestamp'>>
@@ -63,6 +64,7 @@ export type MySqlTimestampStringBuilderInitial<TName extends string> = MySqlTime
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTimestampString'>>

@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
-import { type Equal, type Writable } from '~/utils.ts';
+import type { Equal, Writable } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export type SQLiteTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = SQLiteTextBuilder<{
@@ -12,6 +12,7 @@ export type SQLiteTextBuilderInitial<TName extends string, TEnum extends [string
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;
+	generated: undefined;
 }>;
 
 export class SQLiteTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'SQLiteText'>> extends SQLiteColumnBuilder<
@@ -62,6 +63,7 @@ export type SQLiteTextJsonBuilderInitial<TName extends string> = SQLiteTextJsonB
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class SQLiteTextJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteTextJson'>>

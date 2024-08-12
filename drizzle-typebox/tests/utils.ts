@@ -1,18 +1,17 @@
 import type { TSchema } from '@sinclair/typebox';
-import { type ExecutionContext } from 'ava';
+import { expect, type TaskContext } from 'vitest';
 
-export function expectSchemaShape<T extends TSchema>(t: ExecutionContext, expected: T) {
+export function expectSchemaShape<T extends TSchema>(t: TaskContext, expected: T) {
 	return {
 		from(actual: T) {
-			t.deepEqual(Object.keys(actual), Object.keys(expected));
+			expect(Object.keys(actual)).toStrictEqual(Object.keys(expected));
 
 			for (const key of Object.keys(actual)) {
-				t.deepEqual(actual[key].type, expected[key]?.type, `key: ${key}`);
+				expect(actual[key].type).toStrictEqual(expected[key]?.type);
 				if (actual[key].optional) {
-					t.deepEqual(actual[key].optional, expected[key]?.optional, `key (optional): ${key}`);
+					expect(actual[key].optional).toStrictEqual(expected[key]?.optional);
 				}
 			}
 		},
 	};
 }
-
