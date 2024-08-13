@@ -16,7 +16,11 @@ import {
 	Prefix,
 	wrapParam,
 } from '../validations/common';
-import { LibSQLCredentials, libSQLCredentials, printConfigConnectionIssues as printIssuesLibSql } from '../validations/libsql';
+import {
+	LibSQLCredentials,
+	libSQLCredentials,
+	printConfigConnectionIssues as printIssuesLibSql,
+} from '../validations/libsql';
 import {
 	MysqlCredentials,
 	mysqlCredentials,
@@ -28,7 +32,11 @@ import {
 	postgresCredentials,
 	printConfigConnectionIssues as printIssuesPg,
 } from '../validations/postgres';
-import { printConfigConnectionIssues as printIssuesSingleStore, singlestoreCredentials, SingleStoreCredentials } from '../validations/singlestore';
+import {
+	printConfigConnectionIssues as printIssuesSingleStore,
+	SingleStoreCredentials,
+	singlestoreCredentials,
+} from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSqlite,
 	SqliteCredentials,
@@ -216,7 +224,8 @@ export const preparePushConfig = async (
 		| {
 			dialect: 'turso';
 			credentials: LibSQLCredentials;
-		} | {
+		}
+		| {
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
 		}
@@ -404,7 +413,8 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'turso';
 			credentials: LibSQLCredentials;
-		} | {
+		}
+		| {
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
 		}

@@ -731,7 +731,7 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 		"Please install '@libsql/client' for Drizzle Kit to connect to LibSQL databases",
 	);
 	process.exit(1);
-}
+};
 
 const parseSingleStoreCredentials = (credentials: SingleStoreCredentials) => {
 	if ('url' in credentials) {

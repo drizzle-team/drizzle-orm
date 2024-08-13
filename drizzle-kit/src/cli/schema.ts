@@ -24,8 +24,9 @@ import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { dialects } from 'src/schemaValidator';
 import { assertUnreachable } from '../global';
-import { drizzleForLibSQL, type Setup } from '../serializer/studio';
+import { drizzleForLibSQL, drizzleForSingleStore, prepareSingleStoreSchema, type Setup } from '../serializer/studio';
 import { certs } from '../utils/certs';
+import { prepareAndMigrateSingleStore } from './commands/migrate';
 import { grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
@@ -89,6 +90,8 @@ export const generate = command({
 			await prepareAndMigrateSqlite(opts);
 		} else if (dialect === 'turso') {
 			await prepareAndMigrateLibSQL(opts);
+		} else if (dialect === 'singlestore') {
+			await prepareAndMigrateSingleStore(opts);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -169,6 +172,17 @@ export const migrate = command({
 					new MigrateProgress(),
 					migrate({
 						migrationsFolder: opts.out,
+						migrationsTable: table,
+						migrationsSchema: schema,
+					}),
+				);
+			} else if (dialect === 'singlestore') {
+				const { connectToSingleStore } = await import('./connections');
+				const { migrate } = await connectToSingleStore(credentials);
+				await renderWithTask(
+					new MigrateProgress(),
+					migrate({
+						migrationsFolder: out,
 						migrationsTable: table,
 						migrationsSchema: schema,
 					}),
@@ -326,6 +340,16 @@ export const push = command({
 					strict,
 					credentials,
 					tablesFilter,
+					force,
+				);
+			} else if (dialect === 'singlestore') {
+				const { singlestorePush } = await import('./commands/push');
+				await singlestorePush(
+					schemaPath,
+					credentials,
+					tablesFilter,
+					strict,
+					verbose,
 					force,
 				);
 			} else {
@@ -517,6 +541,16 @@ export const pull = command({
 					tablesFilter,
 					prefix,
 				);
+			} else if (dialect === 'singlestore') {
+				const { introspectSingleStore } = await import('./commands/introspect');
+				await introspectSingleStore(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					prefix,
+				);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -622,6 +656,11 @@ export const studio = command({
 					? await prepareSQLiteSchema(schemaPath)
 					: { schema: {}, relations: {}, files: [] };
 				setup = await drizzleForLibSQL(credentials, schema, relations, files);
+			} else if (dialect === 'singlestore') {
+				const { schema, relations, files } = schemaPath
+					? await prepareSingleStoreSchema(schemaPath)
+					: { schema: {}, relations: {}, files: [] };
+				setup = await drizzleForSingleStore(credentials, schema, relations, files);
 			} else {
 				assertUnreachable(dialect);
 			}

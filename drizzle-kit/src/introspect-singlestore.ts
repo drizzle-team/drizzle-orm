@@ -386,16 +386,15 @@ const column = (
 			? `${casing(name)}: timestamp("${name}", ${params})`
 			: `${casing(name)}: timestamp("${name}")`;
 
-
-			// TODO: check if SingleStore has defaultNow() or now()
-			defaultValue = defaultValue === 'now()' || defaultValue === '(CURRENT_TIMESTAMP)'
+		// TODO: check if SingleStore has defaultNow() or now()
+		defaultValue = defaultValue === 'now()' || defaultValue === '(CURRENT_TIMESTAMP)'
 			? '.defaultNow()'
 			: defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
-			
-			out += defaultValue;
-			
+
+		out += defaultValue;
+
 		// TODO: check if SingleStore has onUpdateNow()
 		let onUpdateNow = onUpdate ? '.onUpdateNow()' : '';
 		out += onUpdateNow;

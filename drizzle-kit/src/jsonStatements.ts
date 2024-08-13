@@ -6,8 +6,10 @@ import { MySqlKitInternals, MySqlSchema, MySqlSquasher } from './serializer/mysq
 import { Index, PgSchema, PgSquasher } from './serializer/pgSchema';
 import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import {
-	SQLiteKitInternals, SQLiteSchemaInternal,
-	SQLiteSchemaSquashed, SQLiteSquasher
+	SQLiteKitInternals,
+	SQLiteSchemaInternal,
+	SQLiteSchemaSquashed,
+	SQLiteSquasher,
 } from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
 

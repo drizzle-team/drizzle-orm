@@ -11,8 +11,8 @@ import { RowDataPacket } from 'mysql2/promise';
 import { withStyle } from '../cli/validations/outputs';
 import { IntrospectStage, IntrospectStatus } from '../cli/views';
 
-import { sqlToStr } from '.';
 import type { DB } from '../utils';
+import { sqlToStr } from '.';
 import {
 	Column,
 	Index,
@@ -573,15 +573,15 @@ export const fromDatabase = async (
 				};
 			}
 		} else {
-				if (typeof tableInResult.indexes[constraintName] !== 'undefined') {
-					tableInResult.indexes[constraintName]!.columns.push(columnName);
-				} else {
-					tableInResult.indexes[constraintName] = {
-						name: constraintName,
-						columns: [columnName],
-						isUnique: isUnique,
-					};
-				}
+			if (typeof tableInResult.indexes[constraintName] !== 'undefined') {
+				tableInResult.indexes[constraintName]!.columns.push(columnName);
+			} else {
+				tableInResult.indexes[constraintName] = {
+					name: constraintName,
+					columns: [columnName],
+					isUnique: isUnique,
+				};
+			}
 		}
 	}
 

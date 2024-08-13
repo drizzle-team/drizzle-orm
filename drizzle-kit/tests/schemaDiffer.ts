@@ -1099,13 +1099,6 @@ export async function diffTestSchemasPushLibSQL(
 			run: async (query: string) => {
 				await client.execute(query);
 			},
-			batch: async (
-				queries: { query: string; values?: any[] | undefined }[],
-			) => {
-				await client.batch(
-					queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
-				);
-			},
 		},
 		undefined,
 	);
@@ -1164,13 +1157,6 @@ export async function diffTestSchemasPushLibSQL(
 				},
 				run: async (query: string) => {
 					await client.execute(query);
-				},
-				batch: async (
-					queries: { query: string; values?: any[] | undefined }[],
-				) => {
-					await client.batch(
-						queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
-					);
 				},
 			},
 			statements,
