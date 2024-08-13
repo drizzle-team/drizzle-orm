@@ -19,7 +19,7 @@ const users = pgTable('users', {
 	roleText2: text('role2', { enum: ['admin', 'user'] }).notNull().default('user'),
 	profession: varchar('profession', { length: 20 }).notNull(),
 	initials: char('initials', { length: 2 }).notNull(),
-  tags: text('tags').array().notNull().default([]),
+  	tags: text('tags').array().notNull().default([]),
 });
 
 const testUser = {
@@ -35,7 +35,7 @@ const testUser = {
 	roleText2: 'admin',
 	profession: 'Software Engineer',
 	initials: 'JD',
-  tags: ["1", "2"]
+  	tags: ["1", "2"]
 };
 
 test('users insert valid user', () => {
@@ -92,7 +92,7 @@ test('users insert schema', (t) => {
 		roleText2: z.enum(['admin', 'user']).optional(),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
-    tags: z.array(z.string()).optional()
+    		tags: z.array(z.string()).optional()
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -114,7 +114,7 @@ test('users insert schema w/ defaults', (t) => {
 		roleText2: z.enum(['admin', 'user']).optional(),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
-    tags: z.array(z.string()).optional()
+    		tags: z.array(z.string()).optional()
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -140,7 +140,7 @@ test('users select schema', (t) => {
 		roleText2: z.enum(['admin', 'user']),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
-    tags: z.array(z.string())
+    		tags: z.array(z.string())
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -162,7 +162,7 @@ test('users select schema w/ defaults', (t) => {
 		roleText2: z.enum(['admin', 'user']),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
-    tags: z.array(z.string())
+    		tags: z.array(z.string())
 	});
 
 	expectSchemaShape(t, expected).from(actual);
