@@ -259,11 +259,6 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  * Test whether the first parameter, a column or expression,
  * has a value from a list passed as the second argument.
  *
- * ## Throws
- *
- * The argument passed in the second array can't be empty:
- * if an empty is provided, this method will throw.
- *
  * ## Examples
  *
  * ```ts
@@ -304,11 +299,6 @@ export function inArray(
  * Test whether the first parameter, a column or expression,
  * has a value that is not present in a list passed as the
  * second argument.
- *
- * ## Throws
- *
- * The argument passed in the second array can't be empty:
- * if an empty is provided, this method will throw.
  *
  * ## Examples
  *
