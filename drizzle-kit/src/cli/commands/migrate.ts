@@ -4,6 +4,8 @@ import {
 	prepareMySqlMigrationSnapshot,
 	preparePgDbPushSnapshot,
 	preparePgMigrationSnapshot,
+	prepareSingleStoreDbPushSnapshot,
+	prepareSingleStoreMigrationSnapshot,
 	prepareSQLiteDbPushSnapshot,
 	prepareSqliteMigrationSnapshot,
 } from '../../migrationPreparator';
@@ -19,6 +21,7 @@ import { SQLiteSchema, sqliteSchema, squashSqliteScheme } from '../../serializer
 import {
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
+	applySingleStoreSnapshotsDiff,
 	applySqliteSnapshotsDiff,
 	Column,
 	ColumnsResolverInput,
@@ -43,6 +46,7 @@ import {
 	schema,
 } from '../views';
 import { GenerateConfig } from './utils';
+import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 
 export type Named = {
 	name: string;
@@ -368,6 +372,98 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 		const squashedCur = squashMysqlScheme(validatedCur);
 
 		const { sqlStatements, statements, _meta } = await applyMysqlSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		writeResult({
+			cur,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			prefixMode: config.prefix,
+		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+// Intersect with prepareAnMigrate
+export const prepareSingleStorePush = async (
+	schemaPath: string | string[],
+	snapshot: SingleStoreSchema,
+) => {
+	try {
+		const { prev, cur } = await prepareSingleStoreDbPushSnapshot(
+			snapshot,
+			schemaPath,
+		);
+
+		const validatedPrev = singlestoreSchema.parse(prev);
+		const validatedCur = singlestoreSchema.parse(cur);
+
+		const squashedPrev = squashSingleStoreScheme(validatedPrev);
+		const squashedCur = squashSingleStoreScheme(validatedCur);
+
+		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			validatedPrev,
+			validatedCur,
+			'push',
+		);
+
+		return { sqlStatements, statements, validatedCur, validatedPrev };
+	} catch (e) {
+		console.error(e);
+		process.exit(1);
+	}
+};
+
+export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
+	const outFolder = config.out;
+	const schemaPath = config.schema;
+
+	try {
+		// TODO: remove
+		assertV1OutFolder(outFolder);
+
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'singlestore');
+		const { prev, cur, custom } = await prepareSingleStoreMigrationSnapshot(
+			snapshots,
+			schemaPath,
+		);
+
+		const validatedPrev = singlestoreSchema.parse(prev);
+		const validatedCur = singlestoreSchema.parse(cur);
+
+		if (config.custom) {
+			writeResult({
+				cur: custom,
+				sqlStatements: [],
+				journal,
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				type: 'custom',
+				prefixMode: config.prefix,
+			});
+			return;
+		}
+
+		const squashedPrev = squashSingleStoreScheme(validatedPrev);
+		const squashedCur = squashSingleStoreScheme(validatedCur);
+
+		const { sqlStatements, statements, _meta } = await applySingleStoreSnapshotsDiff(
 			squashedPrev,
 			squashedCur,
 			tablesResolver,

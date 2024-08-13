@@ -27,13 +27,14 @@ import {
 	postgresCredentials,
 	printConfigConnectionIssues as printIssuesPg,
 } from '../validations/postgres';
+import { printConfigConnectionIssues as printIssuesSingleStore, singlestoreCredentials, SingleStoreCredentials } from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSqlite,
 	SqliteCredentials,
 	sqliteCredentials,
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
-import { error, grey } from '../views';
+import { error } from '../views';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {
@@ -211,6 +212,10 @@ export const preparePushConfig = async (
 			dialect: 'sqlite';
 			credentials: SqliteCredentials;
 		}
+		| {
+			dialect: 'singlestore';
+			credentials: SingleStoreCredentials;
+		}
 	) & {
 		schemaPath: string | string[];
 		verbose: boolean;
@@ -309,6 +314,25 @@ export const preparePushConfig = async (
 		};
 	}
 
+	if (config.dialect === 'singlestore') {
+		const parsed = singlestoreCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesPg(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect: 'singlestore',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+		};
+	}
+
 	if (config.dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(config);
 		if (!parsed.success) {
@@ -346,6 +370,10 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'sqlite';
 			credentials: SqliteCredentials;
+		}
+		| {
+			dialect: 'singlestore';
+			credentials: SingleStoreCredentials;
 		}
 	) & {
 		out: string;
@@ -434,6 +462,25 @@ export const preparePullConfig = async (
 		};
 	}
 
+	if (dialect === 'singlestore') {
+		const parsed = singlestoreCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesPg(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect: 'singlestore',
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.introspectCasing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.database?.prefix || 'index',
+		};
+	}
+
 	if (dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(config);
 		if (!parsed.success) {
@@ -505,6 +552,23 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			credentials,
 		};
 	}
+
+	if (dialect === 'singlestore') {
+		const parsed = singlestoreCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesPg(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+		};
+	}
+
 	if (dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(flattened);
 		if (!parsed.success) {
@@ -574,6 +638,23 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			table,
 		};
 	}
+
+	if (dialect === 'singlestore') {
+		const parsed = singlestoreCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesSingleStore(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
+
 	if (dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(flattened);
 		if (!parsed.success) {

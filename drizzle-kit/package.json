@@ -92,7 +92,7 @@
 		"hono": "^4.1.5",
 		"json-diff": "1.0.6",
 		"minimatch": "^7.4.3",
-		"mysql2": "2.3.3",
+		"mysql2": "^3.3.3",
 		"node-fetch": "^3.3.2",
 		"pg": "^8.11.5",
 		"pluralize": "^8.0.0",

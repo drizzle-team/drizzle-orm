@@ -1,4 +1,5 @@
 import { mysqlCredentials } from 'src/cli/validations/mysql';
+import { singlestoreCredentials } from 'src/cli/validations/singlestore';
 import { postgresCredentials } from 'src/cli/validations/postgres';
 import { sqliteCredentials } from 'src/cli/validations/sqlite';
 import { expect, test } from 'vitest';
@@ -660,6 +661,174 @@ test('mysql #17', () => {
 	expect(() => {
 		mysqlCredentials.parse({
 			dialect: 'mysql',
+			database: ' ',
+			host: ' ',
+			port: '',
+		});
+	}).toThrowError();
+});
+
+test('singlestore #1', () => {
+	expect(
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			database: 'database',
+			host: 'host',
+		}),
+	).toStrictEqual({
+		database: 'database',
+		host: 'host',
+	});
+});
+
+test('singlestore #2', () => {
+	expect(
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			database: 'database',
+			host: 'host',
+		}),
+	).toStrictEqual({
+		database: 'database',
+		host: 'host',
+	});
+});
+
+test('singlestore #3', () => {
+	expect(
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			host: 'host',
+			port: 1234,
+			user: 'user',
+			password: 'password',
+			database: 'database',
+			ssl: 'require',
+		}),
+	).toStrictEqual({
+		host: 'host',
+		port: 1234,
+		user: 'user',
+		password: 'password',
+		database: 'database',
+		ssl: 'require',
+	});
+});
+
+test('singlestore #4', () => {
+	expect(
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			host: 'host',
+			database: 'database',
+			ssl: 'allow',
+		}),
+	).toStrictEqual({
+		host: 'host',
+		database: 'database',
+		ssl: 'allow',
+	});
+});
+
+test('singlestore #5', () => {
+	expect(
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			host: 'host',
+			database: 'database',
+			ssl: {
+				ca: 'ca',
+				cert: 'cert',
+			},
+		}),
+	).toStrictEqual({
+		host: 'host',
+		database: 'database',
+		ssl: {
+			ca: 'ca',
+			cert: 'cert',
+		},
+	});
+});
+
+test('singlestore #6', () => {
+	expect(() => {
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+		});
+	}).toThrowError();
+});
+
+test('singlestore #7', () => {
+	expect(() => {
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			url: undefined,
+		});
+	}).toThrowError();
+});
+
+test('singlestore #8', () => {
+	expect(() => {
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			url: '',
+		});
+	}).toThrowError();
+});
+
+test('singlestore #9', () => {
+	expect(() => {
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			host: '',
+			database: '',
+		});
+	}).toThrowError();
+});
+
+test('singlestore #10', () => {
+	expect(() => {
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			database: '',
+		});
+	}).toThrowError();
+});
+
+test('singlestore #11', () => {
+	expect(() => {
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			host: '',
+		});
+	}).toThrowError();
+});
+
+test('singlestore #12', () => {
+	expect(() => {
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			database: ' ',
+			host: '',
+		});
+	}).toThrowError();
+});
+
+test('singlestore #13', () => {
+	expect(() => {
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
+			database: '',
+			host: ' ',
+		});
+	}).toThrowError();
+});
+
+test('singlestore #14', () => {
+	expect(() => {
+		singlestoreCredentials.parse({
+			dialect: 'singlestore',
 			database: ' ',
 			host: ' ',
 			port: '',

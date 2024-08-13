@@ -26,7 +26,7 @@ export const outputs = {
 			),
 		noDialect: () =>
 			withStyle.error(
-				`Please specify 'dialect' param in config, either of 'pg', 'mysql' or 'sqlite'`,
+				`Please specify 'dialect' param in config, either of 'pg', 'mysql', 'sqlite' of 'singlestore'. It will help drizzle to know how to query you database. You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
 			),
 	},
 	common: {
@@ -78,5 +78,14 @@ export const outputs = {
 		},
 		introspect: {},
 		push: {},
+	},
+	singlestore: {
+		connection: {
+			driver: () => withStyle.error(`Only "mysql2" is available options for "--driver"`),
+			required: () =>
+				withStyle.error(
+					`Either "url" or "host", "database" are required for database connection`,
+				),
+		},
 	},
 };
