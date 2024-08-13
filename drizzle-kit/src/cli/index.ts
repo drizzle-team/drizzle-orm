@@ -43,5 +43,6 @@ const legacy = [
 ];
 
 run([generate, migrate, pull, push, studio, up, check, drop, ...legacy], {
+	name: "drizzle-kit",
 	version: version,
 });
