@@ -1,8 +1,8 @@
 import { enum as enumType, TypeOf, union } from 'zod';
 import { mysqlSchema, mysqlSchemaSquashed } from './serializer/mysqlSchema';
 import { pgSchema, pgSchemaSquashed } from './serializer/pgSchema';
-import { sqliteSchema, SQLiteSchemaSquashed } from './serializer/sqliteSchema';
 import { singlestoreSchema, singlestoreSchemaSquashed } from './serializer/singlestoreSchema';
+import { sqliteSchema, SQLiteSchemaSquashed } from './serializer/sqliteSchema';
 
 export const dialects = ['postgresql', 'mysql', 'sqlite', 'singlestore'] as const;
 export const dialect = enumType(dialects);

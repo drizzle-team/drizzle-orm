@@ -5,12 +5,18 @@ import { Select } from '../selector-ui';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
-import type { SqliteCredentials } from '../validations/sqlite';
-import { filterStatements as mySqlFilterStatements, logSuggestionsAndReturn as mySqlLogSuggestionsAndReturn } from './mysqlPushUtils';
-import { filterStatements as singleStoreFilterStatements, logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn } from './singlestorePushUtils';
-import { pgSuggestions } from './pgPushUtils';
-import { logSuggestionsAndReturn as sqliteSuggestions } from './sqlitePushUtils';
 import { SingleStoreCredentials } from '../validations/singlestore';
+import type { SqliteCredentials } from '../validations/sqlite';
+import {
+	filterStatements as mySqlFilterStatements,
+	logSuggestionsAndReturn as mySqlLogSuggestionsAndReturn,
+} from './mysqlPushUtils';
+import { pgSuggestions } from './pgPushUtils';
+import {
+	filterStatements as singleStoreFilterStatements,
+	logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn,
+} from './singlestorePushUtils';
+import { logSuggestionsAndReturn as sqliteSuggestions } from './sqlitePushUtils';
 
 export const mysqlPush = async (
 	schemaPath: string | string[],

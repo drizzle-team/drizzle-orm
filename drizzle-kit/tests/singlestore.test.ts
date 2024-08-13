@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { index, json, singlestoreSchema, singlestoreTable, primaryKey, serial, text, uniqueIndex } from 'drizzle-orm/singlestore-core';
+import {
+	index,
+	json,
+	primaryKey,
+	serial,
+	singlestoreSchema,
+	singlestoreTable,
+	text,
+	uniqueIndex,
+} from 'drizzle-orm/singlestore-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasSingleStore } from './schemaDiffer';
 

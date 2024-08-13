@@ -1,6 +1,6 @@
 import { mysqlCredentials } from 'src/cli/validations/mysql';
-import { singlestoreCredentials } from 'src/cli/validations/singlestore';
 import { postgresCredentials } from 'src/cli/validations/postgres';
+import { singlestoreCredentials } from 'src/cli/validations/singlestore';
 import { sqliteCredentials } from 'src/cli/validations/sqlite';
 import { expect, test } from 'vitest';
 

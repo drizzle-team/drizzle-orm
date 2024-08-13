@@ -36,12 +36,15 @@ import {
 	JsonStatement,
 	prepareAddCompositePrimaryKeyMySql,
 	prepareAddCompositePrimaryKeyPg,
+	prepareAddCompositePrimaryKeySingleStore,
 	prepareAddCompositePrimaryKeySqlite,
 	prepareAddUniqueConstraintPg as prepareAddUniqueConstraint,
 	prepareAddValuesToEnumJson,
 	prepareAlterColumnsMysql,
+	prepareAlterColumnsSingleStore,
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
+	prepareAlterCompositePrimaryKeySingleStore,
 	prepareAlterCompositePrimaryKeySqlite,
 	prepareAlterReferencesJson,
 	prepareAlterSequenceJson,
@@ -52,6 +55,7 @@ import {
 	prepareCreateSequenceJson,
 	prepareDeleteCompositePrimaryKeyMySql,
 	prepareDeleteCompositePrimaryKeyPg,
+	prepareDeleteCompositePrimaryKeySingleStore,
 	prepareDeleteCompositePrimaryKeySqlite,
 	prepareDeleteSchemasJson as prepareDropSchemasJson,
 	prepareDeleteUniqueConstraintPg as prepareDeleteUniqueConstraint,
@@ -71,20 +75,16 @@ import {
 	prepareRenameSchemasJson,
 	prepareRenameSequenceJson,
 	prepareRenameTableJson,
+	prepareSingleStoreCreateTableJson,
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
-	prepareSingleStoreCreateTableJson,
-	prepareAddCompositePrimaryKeySingleStore,
-	prepareDeleteCompositePrimaryKeySingleStore,
-	prepareAlterCompositePrimaryKeySingleStore,
-	prepareAlterColumnsSingleStore,
 } from './jsonStatements';
 
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher } from './serializer/mysqlSchema';
-import { SingleStoreSchema, SingleStoreSchemaSquashed, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { PgSchema, PgSchemaSquashed, PgSquasher, sequenceSchema, sequenceSquashed } from './serializer/pgSchema';
+import { SingleStoreSchema, SingleStoreSchemaSquashed, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 import { copy, prepareMigrationMeta } from './utils';
 

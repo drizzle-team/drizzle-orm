@@ -4,23 +4,30 @@ import { render, renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { join } from 'path';
 import { plural, singular } from 'pluralize';
+import { drySingleStore, SingleStoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { assertUnreachable, originUUID } from '../../global';
 import { schemaToTypeScript as mysqlSchemaToTypeScript } from '../../introspect-mysql';
-import { schemaToTypeScript as singlestoreSchemaToTypeScript } from '../../introspect-singlestore';
 import { paramNameFor, schemaToTypeScript as postgresSchemaToTypeScript } from '../../introspect-pg';
+import { schemaToTypeScript as singlestoreSchemaToTypeScript } from '../../introspect-singlestore';
 import { schemaToTypeScript as sqliteSchemaToTypeScript } from '../../introspect-sqlite';
 import { dryMySql, MySqlSchema, squashMysqlScheme } from '../../serializer/mysqlSchema';
 import { fromDatabase as fromMysqlDatabase } from '../../serializer/mysqlSerializer';
-import { fromDatabase as fromSingleStoreDatabase } from '../../serializer/singlestoreSerializer';
 import { dryPg, type PgSchema, squashPgScheme } from '../../serializer/pgSchema';
 import { fromDatabase as fromPostgresDatabase } from '../../serializer/pgSerializer';
+import { fromDatabase as fromSingleStoreDatabase } from '../../serializer/singlestoreSerializer';
 import { drySQLite, type SQLiteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
 import { fromDatabase as fromSqliteDatabase } from '../../serializer/sqliteSerializer';
-import { applyMysqlSnapshotsDiff, applyPgSnapshotsDiff, applySingleStoreSnapshotsDiff, applySqliteSnapshotsDiff } from '../../snapshotsDiffer';
+import {
+	applyMysqlSnapshotsDiff,
+	applyPgSnapshotsDiff,
+	applySingleStoreSnapshotsDiff,
+	applySqliteSnapshotsDiff,
+} from '../../snapshotsDiffer';
 import { prepareOutFolder } from '../../utils';
 import type { Casing, Prefix } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import type { PostgresCredentials } from '../validations/postgres';
+import { SingleStoreCredentials } from '../validations/singlestore';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress } from '../views';
 import {
@@ -31,8 +38,6 @@ import {
 	tablesResolver,
 	writeResult,
 } from './migrate';
-import { SingleStoreCredentials } from '../validations/singlestore';
-import { drySingleStore, SingleStoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 
 export const introspectPostgres = async (
 	casing: Casing,

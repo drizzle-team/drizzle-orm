@@ -1,14 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import './@types/utils';
 import type { Casing } from './cli/validations/common';
+import { Column, Index, PrimaryKey, SingleStoreSchemaInternal, UniqueConstraint } from './serializer/singlestoreSchema';
 import { indexName } from './serializer/singlestoreSerializer';
-import {
-	Column,
-	Index,
-	PrimaryKey,
-	SingleStoreSchemaInternal,
-	UniqueConstraint
-} from './serializer/singlestoreSchema';
 
 // time precision to fsp
 // {mode: "string"} for timestamp by default
@@ -392,16 +386,15 @@ const column = (
 			? `${casing(name)}: timestamp("${name}", ${params})`
 			: `${casing(name)}: timestamp("${name}")`;
 
-
-			// TODO: check if SingleStore has defaultNow() or now()
-			defaultValue = defaultValue === 'now()' || defaultValue === '(CURRENT_TIMESTAMP)'
+		// TODO: check if SingleStore has defaultNow() or now()
+		defaultValue = defaultValue === 'now()' || defaultValue === '(CURRENT_TIMESTAMP)'
 			? '.defaultNow()'
 			: defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
-			
-			out += defaultValue;
-			
+
+		out += defaultValue;
+
 		// TODO: check if SingleStore has onUpdateNow()
 		let onUpdateNow = onUpdate ? '.onUpdateNow()' : '';
 		out += onUpdateNow;

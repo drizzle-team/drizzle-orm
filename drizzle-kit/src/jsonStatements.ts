@@ -3,8 +3,8 @@ import { table } from 'console';
 import { warning } from './cli/views';
 import { CommonSquashedSchema, Dialect } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher } from './serializer/mysqlSchema';
-import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { Index, PgSchema, PgSquasher } from './serializer/pgSchema';
+import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteKitInternals, SQLiteSquasher } from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
 

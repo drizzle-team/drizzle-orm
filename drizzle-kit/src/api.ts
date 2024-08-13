@@ -22,7 +22,11 @@ import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
 import { prepareFromExports } from './serializer/pgImports';
 import { PgSchema as PgSchemaKit, pgSchema, squashPgScheme } from './serializer/pgSchema';
 import { generatePgSnapshot } from './serializer/pgSerializer';
-import { SingleStoreSchema as SingleStoreSchemaKit, singlestoreSchema, squashSingleStoreScheme } from './serializer/singlestoreSchema';
+import {
+	SingleStoreSchema as SingleStoreSchemaKit,
+	singlestoreSchema,
+	squashSingleStoreScheme,
+} from './serializer/singlestoreSchema';
 import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer';
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './serializer/sqliteSchema';
 import { generateSqliteSnapshot } from './serializer/sqliteSerializer';
