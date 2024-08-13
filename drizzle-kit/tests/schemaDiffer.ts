@@ -3,8 +3,8 @@ import { Client } from '@libsql/client/.';
 import { Database } from 'better-sqlite3';
 import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
-import { SingleStoreSchema } from 'drizzle-orm/singlestore-core';
 import { isPgEnum, isPgSequence, PgEnum, PgSchema, PgSequence, PgTable } from 'drizzle-orm/pg-core';
+import { SingleStoreSchema } from 'drizzle-orm/singlestore-core';
 import { SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
@@ -31,7 +31,10 @@ import { pgSchema, squashPgScheme } from 'src/serializer/pgSchema';
 import { fromDatabase, generatePgSnapshot } from 'src/serializer/pgSerializer';
 import { prepareFromSingleStoreImports } from 'src/serializer/singlestoreImports';
 import { singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
-import { fromDatabase as fromSingleStoreDatabase, generateSingleStoreSnapshot } from 'src/serializer/singlestoreSerializer';
+import {
+	fromDatabase as fromSingleStoreDatabase,
+	generateSingleStoreSnapshot,
+} from 'src/serializer/singlestoreSerializer';
 import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
 import { sqliteSchema, squashSqliteScheme } from 'src/serializer/sqliteSchema';
 import { fromDatabase as fromSqliteDatabase, generateSqliteSnapshot } from 'src/serializer/sqliteSerializer';
@@ -906,7 +909,6 @@ export const diffTestSchemasSingleStore = async (
 	);
 	return { sqlStatements, statements };
 };
-
 
 export const applySingleStoreDiffs = async (sn: SingleStoreSchema) => {
 	const dryRun = {

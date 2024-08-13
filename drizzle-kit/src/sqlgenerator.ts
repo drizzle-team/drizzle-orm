@@ -49,7 +49,7 @@ import {
 	JsonRenameTableStatement,
 	JsonSqliteAddColumnStatement,
 	JsonSqliteCreateTableStatement,
-	JsonStatement
+	JsonStatement,
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
@@ -667,7 +667,7 @@ class MySQLAlterTableDropUniqueConstraintConvertor extends Convertor {
 	}
 	convert(statement: JsonDeleteUniqueConstraint): string {
 		const unsquashed = MySqlSquasher.unsquashUnique(statement.data);
-		
+
 		return `ALTER TABLE \`${statement.tableName}\` DROP INDEX \`${unsquashed.name}\`;`;
 	}
 }
@@ -1959,7 +1959,6 @@ class MySqlModifyColumn extends Convertor {
 	}
 }
 
-
 class SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
@@ -2007,7 +2006,6 @@ class SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor
 		];
 	}
 }
-
 
 class SingleStoreAlterTableAlterColumnSetDefaultConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {

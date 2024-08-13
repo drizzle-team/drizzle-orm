@@ -29,7 +29,11 @@ import {
 	postgresCredentials,
 	printConfigConnectionIssues as printIssuesPg,
 } from '../validations/postgres';
-import { printConfigConnectionIssues as printIssuesSingleStore, singlestoreCredentials, SingleStoreCredentials } from '../validations/singlestore';
+import {
+	printConfigConnectionIssues as printIssuesSingleStore,
+	SingleStoreCredentials,
+	singlestoreCredentials,
+} from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSqlite,
 	SqliteCredentials,

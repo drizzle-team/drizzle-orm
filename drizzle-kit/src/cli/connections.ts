@@ -19,8 +19,8 @@ import { LibSQLCredentials } from './validations/libsql';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
-import type { SqliteCredentials } from './validations/sqlite';
 import { SingleStoreCredentials } from './validations/singlestore';
+import type { SqliteCredentials } from './validations/sqlite';
 
 export const preparePostgresDB = async (
 	credentials: PostgresCredentials,
