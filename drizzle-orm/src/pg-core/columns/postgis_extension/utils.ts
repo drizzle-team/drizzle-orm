@@ -59,11 +59,11 @@ export type GeometryPointObject = {
 
 export function parsePointObject(obj: GeometryPointObject): [number, number] {
 	if (
-		!obj ||
-		obj.type !== 'Point' ||
-		!Array.isArray(obj.coordinates) ||
-		obj.coordinates.length !== 2 ||
-		!obj.coordinates.every((n): n is number => Number.isFinite(n))
+		!obj
+		|| obj.type !== 'Point'
+		|| !Array.isArray(obj.coordinates)
+		|| obj.coordinates.length !== 2
+		|| !obj.coordinates.every((n): n is number => Number.isFinite(n))
 	) {
 		throw new Error('Invalid geometry point object');
 	}
