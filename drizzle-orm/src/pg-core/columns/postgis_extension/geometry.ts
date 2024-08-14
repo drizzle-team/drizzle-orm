@@ -18,7 +18,7 @@ export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
 }>;
 
 export class PgGeometryBuilder<
-	T extends ColumnBuilderBaseConfig<'array', 'PgGeometry'>
+	T extends ColumnBuilderBaseConfig<'array', 'PgGeometry'>,
 > extends PgColumnBuilder<T, { srid?: number }> {
 	static readonly [entityKind]: string = 'PgGeometryBuilder';
 
