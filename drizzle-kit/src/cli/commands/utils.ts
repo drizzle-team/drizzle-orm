@@ -412,7 +412,7 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.database?.prefix || 'index',
+			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 
@@ -430,7 +430,7 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.database?.prefix || 'index',
+			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 
@@ -448,7 +448,7 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.database?.prefix || 'index',
+			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 

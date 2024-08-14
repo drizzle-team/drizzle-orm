@@ -40,7 +40,7 @@ export const pullParams = object({
 	extensionsFilters: literal('postgis').array().optional(),
 	introspectCasing: casing,
 	breakpoints: boolean().optional().default(true),
-	database: object({
+	migrations: object({
 		prefix: prefix.optional().default('index'),
 	}).optional(),
 }).passthrough();
