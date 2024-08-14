@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
 import { PgColumn, PgColumnBuilder } from '../common.ts';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { geometry } from './geometry.ts';
 import { parseMultiLineStringEWKB } from './utils.ts';
 
@@ -61,7 +62,9 @@ export class PgGeometryMultiLineString<
 
 	override mapToDriverValue(value: [number, number][][]): string {
 		const multilinestring = `MultiLineString(${
-			value.map((line) => `(${line.map(([x, y]) => `${x} ${y}`).join(',')})`).join(',')
+			value
+				.map((line) => `(${line.map(([x, y]) => `${x} ${y}`).join(',')})`)
+				.join(',')
 		})`;
 
 		if (this.srid) {
