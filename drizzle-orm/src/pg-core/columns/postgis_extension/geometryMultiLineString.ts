@@ -4,7 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
 import { PgColumn, PgColumnBuilder } from '../common.ts';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// eslint-disable-next-line @typescript-eslint/no-unused-vars, unused-imports/no-unused-imports
 import type { geometry } from './geometry.ts';
 import { parseMultiLineStringEWKB } from './utils.ts';
 
