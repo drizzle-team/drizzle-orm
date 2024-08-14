@@ -5,12 +5,12 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 
 import type { Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
-import { parseEWKB } from './utils.ts';
 import type {
 	PgGeometryMultiLineStringBuilderInitial,
 	PgGeometryMultiLineStringConfig,
 } from './geometryMultiLineString.ts';
 import { PgGeometryMultiLineStringBuilder } from './geometryMultiLineString.ts';
+import { parseEWKB } from './utils.ts';
 
 export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
 	name: TName;

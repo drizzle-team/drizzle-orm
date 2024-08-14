@@ -4,8 +4,8 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
 import { PgColumn, PgColumnBuilder } from '../common.ts';
-import { parseMultiLineStringEWKB } from './utils.ts';
 import type { geometry } from './geometry.ts';
+import { parseMultiLineStringEWKB } from './utils.ts';
 
 export type PgGeometryMultiLineStringBuilderInitial<TName extends string> = PgGeometryMultiLineStringBuilder<{
 	name: TName;
@@ -60,7 +60,9 @@ export class PgGeometryMultiLineString<
 	}
 
 	override mapToDriverValue(value: [number, number][][]): string {
-		const multilinestring = `MultiLineString(${value.map((line) => `(${line.map(([x, y]) => `${x} ${y}`).join(',')})`).join(',')})`;
+		const multilinestring = `MultiLineString(${
+			value.map((line) => `(${line.map(([x, y]) => `${x} ${y}`).join(',')})`).join(',')
+		})`;
 
 		if (this.srid) {
 			return `ST_GeomFromText('${multilinestring}', ${this.srid})`;
