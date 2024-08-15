@@ -1181,27 +1181,17 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 			columnPk: false,
 		},
 		{
-			type: 'recreate_table',
+			type: 'alter_table_alter_column_set_type',
 			tableName: 'unique',
-			columns: [
-				{
-					name: 'unique',
-					type: 'text',
-					primaryKey: false,
-					notNull: false,
-					autoincrement: false,
-				},
-			],
-			compositePKs: [],
-			referenceData: [],
-			uniqueConstraints: [],
-		},
-		{
-			data: 'unique_unique_unique;unique;true;',
-			internal: undefined,
+			columnName: 'unique',
+			newDataType: 'text',
+			oldDataType: 'int',
 			schema: '',
-			tableName: 'unique',
-			type: 'create_index',
+			columnDefault: undefined,
+			columnOnUpdate: undefined,
+			columnNotNull: false,
+			columnAutoIncrement: false,
+			columnPk: false,
 		},
 	];
 	expect(libSQLCombineStatements(statements, json2)).toStrictEqual(

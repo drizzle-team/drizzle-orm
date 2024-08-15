@@ -32,51 +32,59 @@ export const _moveDataStatements = (
 ) => {
 	const statements: string[] = [];
 
-	statements.push(
-		new SqliteRenameTableConvertor().convert({
-			type: 'rename_table',
-			tableNameFrom: tableName,
-			tableNameTo: `__old_push_${tableName}`,
-			fromSchema: '',
-			toSchema: '',
-		}),
-	);
+	const newTableName = `__new_${tableName}`;
 
+	// create table statement from a new json2 with proper name
 	const tableColumns = Object.values(json.tables[tableName].columns);
 	const referenceData = Object.values(json.tables[tableName].foreignKeys);
 	const compositePKs = Object.values(
 		json.tables[tableName].compositePrimaryKeys,
 	).map((it) => SQLiteSquasher.unsquashPK(it));
 
+	const fks = referenceData.map((it) => SQLiteSquasher.unsquashPushFK(it));
+
+	// create new table
 	statements.push(
 		new SQLiteCreateTableConvertor().convert({
 			type: 'sqlite_create_table',
-			tableName: tableName,
+			tableName: newTableName,
 			columns: tableColumns,
-			referenceData: referenceData.map((it) => SQLiteSquasher.unsquashPushFK(it)),
+			referenceData: fks,
 			compositePKs,
 		}),
 	);
 
+	// move data
 	if (!dataLoss) {
 		const columns = Object.keys(json.tables[tableName].columns).map(
 			(c) => `"${c}"`,
 		);
 
 		statements.push(
-			`INSERT INTO \`${tableName}\`(${
+			`INSERT INTO \`${newTableName}\`(${
 				columns.join(
 					', ',
 				)
-			}) SELECT (${columns.join(', ')}) FROM \`__old_push_${tableName}\`;`,
+			}) SELECT ${columns.join(', ')} FROM \`${tableName}\`;`,
 		);
 	}
 
 	statements.push(
 		new SQLiteDropTableConvertor().convert({
 			type: 'drop_table',
-			tableName: `__old_push_${tableName}`,
+			tableName: tableName,
 			schema: '',
+		}),
+	);
+
+	// rename table
+	statements.push(
+		new SqliteRenameTableConvertor().convert({
+			fromSchema: '',
+			tableNameFrom: newTableName,
+			tableNameTo: tableName,
+			toSchema: '',
+			type: 'rename_table',
 		}),
 	);
 
@@ -90,7 +98,6 @@ export const _moveDataStatements = (
 			}),
 		);
 	}
-
 	return statements;
 };
 
@@ -216,6 +223,8 @@ export const libSqlLogSuggestionsAndReturn = async (
 		} else if (statement.type === 'recreate_table') {
 			const tableName = statement.tableName;
 
+			let dataLoss = false;
+
 			const oldTableName = getOldTableName(tableName, meta);
 
 			const prevColumnNames = Object.keys(json1.tables[oldTableName].columns);
@@ -249,28 +258,31 @@ export const libSqlLogSuggestionsAndReturn = async (
 			if (addedColumns.length) {
 				for (const addedColumn of addedColumns) {
 					const [res] = await connection.query<{ count: string }>(
-						`select count(\`${tableName}\`.\`${addedColumn}\`) as count from \`${tableName}\``,
+						`select count(*) as count from \`${tableName}\``,
 					);
 
 					const columnConf = json2.tables[tableName].columns[addedColumn];
 
 					const count = Number(res.count);
 					if (count > 0 && columnConf.notNull && !columnConf.default) {
+						dataLoss = true;
+
 						infoToPrint.push(
 							`· You're about to add not-null ${
 								chalk.underline(
 									addedColumn,
 								)
-							} column without default value, which contains ${count} items`,
+							} column without default value to table, which contains ${count} items`,
 						);
 						shouldAskForApprove = true;
 						tablesToTruncate.push(tableName);
+
+						statementsToExecute.push(`DELETE FROM \`${tableName}\`;`);
 					}
 				}
 			}
 
-			statementsToExecute.push(..._moveDataStatements(tableName, json2));
-
+			// check if some tables referencing current for pragma
 			const tablesReferencingCurrent: string[] = [];
 
 			for (const table of Object.values(json2.tables)) {
@@ -281,12 +293,26 @@ export const libSqlLogSuggestionsAndReturn = async (
 				tablesReferencingCurrent.push(...tablesRefs);
 			}
 
-			const uniqueTableRefs = [...new Set(tablesReferencingCurrent)];
-
-			for (const table of uniqueTableRefs) {
-				statementsToExecute.push(..._moveDataStatements(table, json2));
+			if (!tablesReferencingCurrent.length) {
+				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+				continue;
 			}
-		} else if (statement.type === 'alter_table_alter_column_set_generated') {
+
+			// ! for libsql it will break
+			const [{ foreign_keys: pragmaState }] = await connection.query<{
+				foreign_keys: number;
+			}>(`PRAGMA foreign_keys;`);
+
+			if (pragmaState) statementsToExecute.push(`PRAGMA foreign_keys=OFF;`);
+			// recreate table
+			statementsToExecute.push(
+				..._moveDataStatements(tableName, json2, dataLoss),
+			);
+			if (pragmaState) statementsToExecute.push(`PRAGMA foreign_keys=ON;`);
+		} else if (
+			statement.type === 'alter_table_alter_column_set_generated'
+			|| statement.type === 'alter_table_alter_column_drop_generated'
+		) {
 			const tableName = statement.tableName;
 
 			const res = await connection.query<{ count: string }>(

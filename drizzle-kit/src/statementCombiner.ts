@@ -122,15 +122,15 @@ export const libSQLCombineStatements = (
 		) {
 			const { tableName, columnName, columnPk } = statement;
 
-			const columnIsPartOfUniqueIndex = Object.values(
-				json2.tables[tableName].indexes,
-			).some((it) => {
-				const unsquashIndex = SQLiteSquasher.unsquashIdx(it);
+			// const columnIsPartOfUniqueIndex = Object.values(
+			// 	json2.tables[tableName].indexes,
+			// ).some((it) => {
+			// 	const unsquashIndex = SQLiteSquasher.unsquashIdx(it);
 
-				return (
-					unsquashIndex.columns.includes(columnName) && unsquashIndex.isUnique
-				);
-			});
+			// 	return (
+			// 		unsquashIndex.columns.includes(columnName) && unsquashIndex.isUnique
+			// 	);
+			// });
 
 			const columnIsPartOfForeignKey = Object.values(
 				json2.tables[tableName].foreignKeys,
@@ -145,14 +145,14 @@ export const libSQLCombineStatements = (
 			const statementsForTable = newStatements[tableName];
 
 			if (
-				!statementsForTable && (columnIsPartOfUniqueIndex || columnIsPartOfForeignKey || columnPk)
+				!statementsForTable && (columnIsPartOfForeignKey || columnPk)
 			) {
 				newStatements[tableName] = prepareLibSQLRecreateTable(json2.tables[tableName], action);
 				continue;
 			}
 
 			if (
-				statementsForTable && (columnIsPartOfUniqueIndex || columnIsPartOfForeignKey || columnPk)
+				statementsForTable && (columnIsPartOfForeignKey || columnPk)
 			) {
 				if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 					const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
@@ -167,7 +167,7 @@ export const libSQLCombineStatements = (
 				continue;
 			}
 			if (
-				statementsForTable && !(columnIsPartOfUniqueIndex || columnIsPartOfForeignKey || columnPk)
+				statementsForTable && !(columnIsPartOfForeignKey || columnPk)
 			) {
 				if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 					newStatements[tableName].push(statement);
@@ -192,7 +192,7 @@ export const libSQLCombineStatements = (
 			if (!statementsForTable) {
 				newStatements[tableName] = statement.isMulticolumn
 					? prepareLibSQLRecreateTable(json2.tables[tableName], action)
-					: newStatements[tableName] = [statement];
+					: [statement];
 
 				continue;
 			}

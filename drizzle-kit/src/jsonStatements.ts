@@ -2097,7 +2097,7 @@ export const prepareLibSQLDropReferencesJson = (
 			: SQLiteSquasher.unsquashFK(fkData);
 
 		// If all columns from where were references were deleted -> skip this logic
-		// Drop colums will cover this scenario
+		// Drop columns will cover this scenario
 		const keys = Object.keys(json2.tables[tableName].columns);
 		const filtered = columnsFrom.filter((it) => keys.includes(it));
 		const fullDrop = filtered.length === 0;

@@ -599,38 +599,6 @@ class MySQLAlterTableDropUniqueConstraintConvertor extends Convertor {
 	}
 }
 
-class SQLiteAlterTableAddUniqueConstraintConvertor extends Convertor {
-	can(statement: JsonCreateUniqueConstraint, dialect: Dialect): boolean {
-		return (
-			statement.type === 'create_unique_constraint' && dialect === 'sqlite'
-		);
-	}
-	convert(statement: JsonCreateUniqueConstraint): string {
-		return (
-			'/*\n SQLite does not support "Adding unique constraint to an existing table" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/unique.php'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
-
-class SQLiteAlterTableDropUniqueConstraintConvertor extends Convertor {
-	can(statement: JsonDeleteUniqueConstraint, dialect: Dialect): boolean {
-		return (
-			statement.type === 'delete_unique_constraint' && dialect === 'sqlite'
-		);
-	}
-	convert(statement: JsonDeleteUniqueConstraint): string {
-		return (
-			'/*\n SQLite does not support "Dropping unique constraint from an existing table" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/unique.php'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
-
 class CreatePgSequenceConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_sequence' && dialect === 'postgresql';
@@ -1069,27 +1037,6 @@ class PgAlterTableAlterColumnSetTypeConvertor extends Convertor {
 	}
 }
 
-class SQLiteAlterTableAlterColumnSetTypeConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_set_type'
-			&& dialect === 'sqlite'
-			&& !driver
-		);
-	}
-
-	convert(statement: JsonAlterColumnTypeStatement) {
-		return (
-			'/*\n SQLite does not support "Changing existing column type" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
-
 class PgAlterTableAlterColumnSetDefaultConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
@@ -1106,26 +1053,6 @@ class PgAlterTableAlterColumnSetDefaultConvertor extends Convertor {
 			: `"${tableName}"`;
 
 		return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DEFAULT ${statement.newDefaultValue};`;
-	}
-}
-
-class SqliteAlterTableAlterColumnSetDefaultConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_set_default'
-			&& dialect === 'sqlite'
-		);
-	}
-
-	convert(statement: JsonAlterColumnSetDefaultStatement) {
-		return (
-			'/*\n SQLite does not support "Set default to column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
 	}
 }
 
@@ -1533,12 +1460,30 @@ export class LibSQLModifyColumn extends Convertor {
 		);
 	}
 
-	convert(statement: LibSQLModifyColumnStatement, json2: SQLiteSchemaSquashed) {
+	convert(statement: LibSQLModifyColumnStatement, json2: SQLiteSchemaSquashed, action?: 'push') {
 		const { tableName, columnName } = statement;
 
 		let columnType = ``;
 		let columnDefault: any = '';
 		let columnNotNull = '';
+
+		const sqlStatements: string[] = [];
+
+		// collect index info
+		const indexes: {
+			name: string;
+			tableName: string;
+			columns: string[];
+			isUnique: boolean;
+			where?: string | undefined;
+		}[] = [];
+		for (const table of Object.values(json2.tables)) {
+			for (const index of Object.values(table.indexes)) {
+				const unsquashed = SQLiteSquasher.unsquashIdx(index);
+				sqlStatements.push(`DROP INDEX IF EXISTS "${unsquashed.name}";`);
+				indexes.push({ ...unsquashed, tableName: table.name });
+			}
+		}
 
 		switch (statement.type) {
 			case 'alter_table_alter_column_set_type':
@@ -1590,7 +1535,22 @@ export class LibSQLModifyColumn extends Convertor {
 			? columnDefault.toISOString()
 			: columnDefault;
 
-		return `ALTER TABLE \`${tableName}\` ALTER COLUMN "${columnName}" TO "${columnName}"${columnType}${columnNotNull}${columnDefault};`;
+		sqlStatements.push(
+			`ALTER TABLE \`${tableName}\` ALTER COLUMN "${columnName}" TO "${columnName}"${columnType}${columnNotNull}${columnDefault};`,
+		);
+
+		for (const index of indexes) {
+			const indexPart = index.isUnique ? 'UNIQUE INDEX' : 'INDEX';
+			const whereStatement = index.where ? ` WHERE ${index.where}` : '';
+			const uniqueString = index.columns.map((it) => `\`${it}\``).join(',');
+			const tableName = index.tableName;
+
+			sqlStatements.push(
+				`CREATE ${indexPart} \`${index.name}\` ON \`${tableName}\` (${uniqueString})${whereStatement};`,
+			);
+		}
+
+		return sqlStatements;
 	}
 }
 
@@ -1829,26 +1789,6 @@ class MySqlModifyColumn extends Convertor {
 	}
 }
 
-class SqliteAlterTableAlterColumnDropDefaultConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_drop_default'
-			&& dialect === 'sqlite'
-		);
-	}
-
-	convert(statement: JsonAlterColumnDropDefaultStatement) {
-		return (
-			'/*\n SQLite does not support "Drop default from column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
-
 class PgAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_composite_pk' && dialect === 'postgresql';
@@ -1939,89 +1879,6 @@ class MySqlAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 	}
 }
 
-class SqliteAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'create_composite_pk' && dialect === 'sqlite';
-	}
-
-	convert(statement: JsonCreateCompositePK) {
-		let msg = '/*\n';
-		msg += `You're trying to add PRIMARY KEY(${statement.data}) to '${statement.tableName}' table\n`;
-		msg += 'SQLite does not support adding primary key to an already created table\n';
-		msg += 'You can do it in 3 steps with drizzle orm:\n';
-		msg += ' - create new mirror table with needed pk, rename current table to old_table, generate SQL\n';
-		msg += ' - migrate old data from one table to another\n';
-		msg += ' - delete old_table in schema, generate sql\n\n';
-		msg += 'or create manual migration like below:\n\n';
-		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
-		msg += 'CREATE TABLE table_name (\n';
-		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
-		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
-		msg += '\t...\n';
-		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
-		msg += ' );\n';
-		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
-		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
-		msg += '*/\n';
-		return msg;
-	}
-}
-class SqliteAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'delete_composite_pk' && dialect === 'sqlite';
-	}
-
-	convert(statement: JsonDeleteCompositePK) {
-		let msg = '/*\n';
-		msg += `You're trying to delete PRIMARY KEY(${statement.data}) from '${statement.tableName}' table\n`;
-		msg += 'SQLite does not supportprimary key deletion from existing table\n';
-		msg += 'You can do it in 3 steps with drizzle orm:\n';
-		msg += ' - create new mirror table table without pk, rename current table to old_table, generate SQL\n';
-		msg += ' - migrate old data from one table to another\n';
-		msg += ' - delete old_table in schema, generate sql\n\n';
-		msg += 'or create manual migration like below:\n\n';
-		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
-		msg += 'CREATE TABLE table_name (\n';
-		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
-		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
-		msg += '\t...\n';
-		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
-		msg += ' );\n';
-		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
-		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
-		msg += '*/\n';
-		return msg;
-	}
-}
-
-class SqliteAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'alter_composite_pk' && dialect === 'sqlite';
-	}
-
-	convert(statement: JsonAlterCompositePK) {
-		let msg = '/*\n';
-		msg += 'SQLite does not support altering primary key\n';
-		msg += 'You can do it in 3 steps with drizzle orm:\n';
-		msg += ' - create new mirror table with needed pk, rename current table to old_table, generate SQL\n';
-		msg += ' - migrate old data from one table to another\n';
-		msg += ' - delete old_table in schema, generate sql\n\n';
-		msg += 'or create manual migration like below:\n\n';
-		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
-		msg += 'CREATE TABLE table_name (\n';
-		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
-		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
-		msg += '\t...\n';
-		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
-		msg += ' );\n';
-		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
-		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
-		msg += '*/\n';
-
-		return msg;
-	}
-}
-
 class PgAlterTableAlterColumnSetPrimaryKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
@@ -2089,69 +1946,6 @@ class PgAlterTableAlterColumnSetNotNullConvertor extends Convertor {
 	}
 }
 
-class SqliteAlterTableAlterColumnSetNotNullConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_set_notnull'
-			&& dialect === 'sqlite'
-			&& !driver
-		);
-	}
-
-	convert(statement: JsonAlterColumnSetNotNullStatement) {
-		return (
-			'/*\n SQLite does not support "Set not null to column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
-
-class SqliteAlterTableAlterColumnSetAutoincrementConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_set_autoincrement'
-			&& dialect === 'sqlite'
-			&& !driver
-		);
-	}
-
-	convert(statement: JsonAlterColumnSetAutoincrementStatement) {
-		return (
-			'/*\n SQLite does not support "Set autoincrement to a column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
-
-class SqliteAlterTableAlterColumnDropAutoincrementConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_drop_autoincrement'
-			&& dialect === 'sqlite'
-			&& !driver
-		);
-	}
-
-	convert(statement: JsonAlterColumnDropAutoincrementStatement) {
-		return (
-			'/*\n SQLite does not support "Drop autoincrement from a column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
-
 class PgAlterTableAlterColumnDropNotNullConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
@@ -2168,27 +1962,6 @@ class PgAlterTableAlterColumnDropNotNullConvertor extends Convertor {
 			: `"${statement.tableName}"`;
 
 		return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" DROP NOT NULL;`;
-	}
-}
-
-class SqliteAlterTableAlterColumnDropNotNullConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_drop_notnull'
-			&& dialect === 'sqlite'
-			&& !driver
-		);
-	}
-
-	convert(statement: JsonAlterColumnDropNotNullStatement) {
-		return (
-			'/*\n SQLite does not support "Drop not null from column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
 	}
 }
 
@@ -2234,24 +2007,6 @@ class PgCreateForeignKeyConvertor extends Convertor {
 	}
 }
 
-class SqliteCreateForeignKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
-		return (
-			statement.type === 'create_reference' && dialect === 'sqlite' && !driver
-		);
-	}
-
-	convert(statement: JsonCreateReferenceStatement): string {
-		return (
-			'/*\n SQLite does not support "Creating foreign key on existing column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
-
 class LibSQLCreateForeignKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
 		return (
@@ -2269,17 +2024,7 @@ class LibSQLCreateForeignKeyConvertor extends Convertor {
 		const { columnsFrom, columnsTo, tableFrom, onDelete, onUpdate, tableTo } = action === 'push'
 			? SQLiteSquasher.unsquashPushFK(statement.data)
 			: SQLiteSquasher.unsquashFK(statement.data);
-		const { columnDefault, columnNotNull, columnType, isMulticolumn } = statement;
-
-		if (isMulticolumn) {
-			return (
-				'/*\n LibSQL does not support "Creating foreign key on multiple columns" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-				+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-				+ '\n                  https://www.sqlite.org/lang_altertable.html'
-				+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-				+ '\n*/'
-			);
-		}
+		const { columnDefault, columnNotNull, columnType } = statement;
 
 		const onDeleteStatement = onDelete ? ` ON DELETE ${onDelete}` : '';
 		const onUpdateStatement = onUpdate ? ` ON UPDATE ${onUpdate}` : '';
@@ -2367,22 +2112,6 @@ class PgAlterForeignKeyConvertor extends Convertor {
 	}
 }
 
-class SqliteAlterForeignKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'alter_reference' && dialect === 'sqlite';
-	}
-
-	convert(statement: JsonAlterReferenceStatement): string {
-		return (
-			'/*\n SQLite does not support "Changing existing foreign key" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
-
 class PgDeleteForeignKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'delete_reference' && dialect === 'postgresql';
@@ -2397,66 +2126,6 @@ class PgDeleteForeignKeyConvertor extends Convertor {
 			: `"${tableFrom}"`;
 
 		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${name}";\n`;
-	}
-}
-
-class SqliteDeleteForeignKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
-		return (
-			statement.type === 'delete_reference' && dialect === 'sqlite' && !driver
-		);
-	}
-
-	convert(statement: JsonDeleteReferenceStatement): string {
-		return (
-			'/*\n SQLite does not support "Dropping foreign key" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
-
-class LibSQLDeleteForeignKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
-		return (
-			statement.type === 'delete_reference'
-			&& dialect === 'sqlite'
-			&& driver === 'turso'
-		);
-	}
-
-	convert(
-		statement: JsonDeleteReferenceStatement,
-		json2?: SQLiteSchemaSquashed,
-		action?: 'push',
-	): string {
-		const { columnsFrom, tableFrom } = action === 'push'
-			? SQLiteSquasher.unsquashPushFK(statement.data)
-			: SQLiteSquasher.unsquashFK(statement.data);
-
-		const { columnDefault, columnNotNull, columnType, isMulticolumn } = statement;
-
-		if (isMulticolumn) {
-			return (
-				'/*\n LibSQL does not support "Creating foreign key on multiple columns" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-				+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-				+ '\n                  https://www.sqlite.org/lang_altertable.html'
-				+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-				+ '\n*/'
-			);
-		}
-
-		const columnsDefaultValue = columnDefault
-			? ` DEFAULT ${columnDefault}`
-			: '';
-		const columnNotNullValue = columnNotNull ? ` NOT NULL` : '';
-		const columnTypeValue = columnType ? ` ${columnType}` : '';
-
-		const columnFrom = columnsFrom[0];
-
-		return `ALTER TABLE \`${tableFrom}\` ALTER COLUMN "${columnFrom}" TO "${columnFrom}"${columnTypeValue}${columnNotNullValue}${columnsDefaultValue};`;
 	}
 }
 
@@ -2708,25 +2377,17 @@ class SQLiteRecreateTableConvertor extends Convertor {
 		const { tableName, columns, compositePKs, referenceData } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
+		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
 
-		// rename table
-		sqlStatements.push(
-			new SqliteRenameTableConvertor().convert({
-				fromSchema: '',
-				tableNameFrom: tableName,
-				tableNameTo: `__old__generate_${tableName}`,
-				toSchema: '',
-				type: 'rename_table',
-			}),
-		);
+		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
 
 		// create new table
 		sqlStatements.push(
 			new SQLiteCreateTableConvertor().convert({
 				type: 'sqlite_create_table',
-				tableName,
+				tableName: newTableName,
 				columns,
 				referenceData,
 				compositePKs,
@@ -2735,17 +2396,30 @@ class SQLiteRecreateTableConvertor extends Convertor {
 
 		// migrate data
 		sqlStatements.push(
-			`INSERT INTO \`${tableName}\`(${columnNames}) SELECT ${columnNames} FROM \`__old__generate_${tableName}\`;`,
+			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
 		);
 
 		// migrate data
 		sqlStatements.push(
 			new SQLiteDropTableConvertor().convert({
 				type: 'drop_table',
-				tableName: `__old__generate_${tableName}`,
+				tableName: tableName,
 				schema: '',
 			}),
 		);
+
+		// rename table
+		sqlStatements.push(
+			new SqliteRenameTableConvertor().convert({
+				fromSchema: '',
+				tableNameFrom: newTableName,
+				tableNameTo: tableName,
+				toSchema: '',
+				type: 'rename_table',
+			}),
+		);
+
+		sqlStatements.push(`PRAGMA foreign_keys=ON;`);
 
 		return sqlStatements;
 	}
@@ -2764,25 +2438,17 @@ class LibSQLRecreateTableConvertor extends Convertor {
 		const { tableName, columns, compositePKs, referenceData } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
+		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
 
-		// rename table
-		sqlStatements.push(
-			new SqliteRenameTableConvertor().convert({
-				fromSchema: '',
-				tableNameFrom: tableName,
-				tableNameTo: `__old__generate_${tableName}`,
-				toSchema: '',
-				type: 'rename_table',
-			}),
-		);
+		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
 
 		// create new table
 		sqlStatements.push(
 			new SQLiteCreateTableConvertor().convert({
 				type: 'sqlite_create_table',
-				tableName,
+				tableName: newTableName,
 				columns,
 				referenceData,
 				compositePKs,
@@ -2791,17 +2457,30 @@ class LibSQLRecreateTableConvertor extends Convertor {
 
 		// migrate data
 		sqlStatements.push(
-			`INSERT INTO \`${tableName}\`(${columnNames}) SELECT ${columnNames} FROM \`__old__generate_${tableName}\`;`,
+			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
 		);
 
 		// migrate data
 		sqlStatements.push(
 			new SQLiteDropTableConvertor().convert({
 				type: 'drop_table',
-				tableName: `__old__generate_${tableName}`,
+				tableName: tableName,
 				schema: '',
 			}),
 		);
+
+		// rename table
+		sqlStatements.push(
+			new SqliteRenameTableConvertor().convert({
+				fromSchema: '',
+				tableNameFrom: newTableName,
+				tableNameTo: tableName,
+				toSchema: '',
+				type: 'rename_table',
+			}),
+		);
+
+		sqlStatements.push(`PRAGMA foreign_keys=ON;`);
 
 		return sqlStatements;
 	}
@@ -2898,32 +2577,11 @@ convertors.push(new PgAlterTableSetSchemaConvertor());
 convertors.push(new PgAlterTableSetNewSchemaConvertor());
 convertors.push(new PgAlterTableRemoveFromSchemaConvertor());
 
-// Unhandled sqlite queries, so they will appear last
-convertors.push(new SQLiteAlterTableAlterColumnSetTypeConvertor());
-convertors.push(new SqliteAlterForeignKeyConvertor());
-convertors.push(new SqliteDeleteForeignKeyConvertor());
-convertors.push(new LibSQLDeleteForeignKeyConvertor());
-convertors.push(new SqliteCreateForeignKeyConvertor());
 convertors.push(new LibSQLCreateForeignKeyConvertor());
-
-convertors.push(new SQLiteAlterTableAddUniqueConstraintConvertor());
-convertors.push(new SQLiteAlterTableDropUniqueConstraintConvertor());
 
 convertors.push(new PgAlterTableAlterColumnDropGenerated());
 convertors.push(new PgAlterTableAlterColumnSetGenerated());
 convertors.push(new PgAlterTableAlterColumnAlterGenerated());
-
-convertors.push(new SqliteAlterTableAlterColumnSetNotNullConvertor());
-convertors.push(new SqliteAlterTableAlterColumnDropNotNullConvertor());
-convertors.push(new SqliteAlterTableAlterColumnSetDefaultConvertor());
-convertors.push(new SqliteAlterTableAlterColumnDropDefaultConvertor());
-
-convertors.push(new SqliteAlterTableAlterColumnSetAutoincrementConvertor());
-convertors.push(new SqliteAlterTableAlterColumnDropAutoincrementConvertor());
-
-convertors.push(new SqliteAlterTableCreateCompositePrimaryKeyConvertor());
-convertors.push(new SqliteAlterTableDeleteCompositePrimaryKeyConvertor());
-convertors.push(new SqliteAlterTableAlterCompositePrimaryKeyConvertor());
 
 convertors.push(new PgAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new PgAlterTableDeleteCompositePrimaryKeyConvertor());

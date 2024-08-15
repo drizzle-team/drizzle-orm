@@ -1,4 +1,5 @@
-import { foreignKey, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
+import { foreignKey, index, int, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { JsonRecreateTableStatement } from 'src/jsonStatements';
 import { expect, test } from 'vitest';
 import { diffTestSchemasLibSQL } from './schemaDiffer';
@@ -429,20 +430,20 @@ test('drop foriegn key', async (t) => {
 		uniqueConstraints: [],
 	});
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
-		`ALTER TABLE \`users\` RENAME TO \`__old__generate_users\`;`,
-	);
-	expect(sqlStatements[1]).toBe(`CREATE TABLE \`users\` (
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
+	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_users\` (
 \t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 \t\`table_id\` integer
 );\n`);
 	expect(sqlStatements[2]).toBe(
-		`INSERT INTO \`users\`("id", "table_id") SELECT "id", "table_id" FROM \`__old__generate_users\`;`,
+		`INSERT INTO \`__new_users\`("id", "table_id") SELECT "id", "table_id" FROM \`users\`;`,
 	);
-	expect(sqlStatements[3]).toBe(
-		`DROP TABLE \`__old__generate_users\`;`,
+	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
 	);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });
 
 test('alter foriegn key', async (t) => {
@@ -500,12 +501,8 @@ test('alter foriegn key', async (t) => {
 		compositePKs: [],
 		referenceData: [
 			{
-				columnsFrom: [
-					'table_id',
-				],
-				columnsTo: [
-					'id',
-				],
+				columnsFrom: ['table_id'],
+				columnsTo: ['id'],
 				name: 'users_table_id_table2_id_fk',
 				onDelete: 'no action',
 				onUpdate: 'no action',
@@ -518,21 +515,23 @@ test('alter foriegn key', async (t) => {
 		uniqueConstraints: [],
 	});
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
-		'ALTER TABLE `users` RENAME TO `__old__generate_users`;',
-	);
-	expect(sqlStatements[1]).toBe(`CREATE TABLE \`users\` (
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
+	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_users\` (
 \t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 \t\`table_id\` integer,
 \tFOREIGN KEY (\`table_id\`) REFERENCES \`table2\`(\`id\`) ON UPDATE no action ON DELETE no action
 );\n`);
 	expect(sqlStatements[2]).toBe(
-		`INSERT INTO \`users\`("id", "table_id") SELECT "id", "table_id" FROM \`__old__generate_users\`;`,
+		`INSERT INTO \`__new_users\`("id", "table_id") SELECT "id", "table_id" FROM \`users\`;`,
 	);
 	expect(sqlStatements[3]).toBe(
-		`DROP TABLE \`__old__generate_users\`;`,
+		'DROP TABLE `users`;',
 	);
+	expect(sqlStatements[4]).toBe(
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+	);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });
 
 test('add foriegn key for multiple columns', async (t) => {
@@ -605,14 +604,8 @@ test('add foriegn key for multiple columns', async (t) => {
 		compositePKs: [],
 		referenceData: [
 			{
-				columnsFrom: [
-					'column',
-					'column_1',
-				],
-				columnsTo: [
-					'age',
-					'age_1',
-				],
+				columnsFrom: ['column', 'column_1'],
+				columnsTo: ['age', 'age_1'],
 				name: 'users_column_column_1_table_age_age_1_fk',
 				onDelete: 'no action',
 				onUpdate: 'no action',
@@ -625,25 +618,24 @@ test('add foriegn key for multiple columns', async (t) => {
 		uniqueConstraints: [],
 	} as JsonRecreateTableStatement);
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
-		`ALTER TABLE \`users\` RENAME TO \`__old__generate_users\`;`,
-	);
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
 	expect(sqlStatements[1]).toBe(
-		`CREATE TABLE \`users\` (
+		`CREATE TABLE \`__new_users\` (
 \t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 \t\`column\` integer,
 \t\`column_1\` integer,
 \tFOREIGN KEY (\`column\`,\`column_1\`) REFERENCES \`table\`(\`age\`,\`age_1\`) ON UPDATE no action ON DELETE no action
-);
-`,
+);\n`,
 	);
 	expect(sqlStatements[2]).toBe(
-		`INSERT INTO \`users\`("id", "column", "column_1") SELECT "id", "column", "column_1" FROM \`__old__generate_users\`;`,
+		`INSERT INTO \`__new_users\`("id", "column", "column_1") SELECT "id", "column", "column_1" FROM \`users\`;`,
 	);
-	expect(sqlStatements[3]).toBe(
-		`DROP TABLE \`__old__generate_users\`;`,
+	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
 	);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });
 
 test('drop foriegn key for multiple columns', async (t) => {
@@ -720,118 +712,23 @@ test('drop foriegn key for multiple columns', async (t) => {
 		uniqueConstraints: [],
 	});
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
-		`ALTER TABLE \`users\` RENAME TO \`__old__generate_users\`;`,
-	);
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
 	expect(sqlStatements[1]).toBe(
-		`CREATE TABLE \`users\` (
+		`CREATE TABLE \`__new_users\` (
 \t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 \t\`column\` integer,
 \t\`column_1\` integer
-);
-`,
+);\n`,
 	);
 	expect(sqlStatements[2]).toBe(
-		`INSERT INTO \`users\`("id", "column", "column_1") SELECT "id", "column", "column_1" FROM \`__old__generate_users\`;`,
+		`INSERT INTO \`__new_users\`("id", "column", "column_1") SELECT "id", "column", "column_1" FROM \`users\`;`,
 	);
-	expect(sqlStatements[3]).toBe(
-		`DROP TABLE \`__old__generate_users\`;`,
+	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
 	);
-});
-
-test('drop foriegn key for multiple columns', async (t) => {
-	const tableRef = sqliteTable('table', {
-		id: int('id').primaryKey({ autoIncrement: true }),
-		age: int('age'),
-		age1: int('age_1'),
-	});
-
-	const schema1 = {
-		users: sqliteTable(
-			'users',
-			{
-				id: int('id').primaryKey({ autoIncrement: true }),
-				column: int('column'),
-				column1: int('column_1'),
-			},
-			(table) => ({
-				foreignKey: foreignKey({
-					columns: [table.column, table.column1],
-					foreignColumns: [tableRef.age, tableRef.age1],
-				}),
-			}),
-		),
-		tableRef,
-	};
-
-	const schema2 = {
-		users: sqliteTable('users', {
-			id: int('id').primaryKey({ autoIncrement: true }),
-			column: int('column'),
-			column1: int('column_1'),
-		}),
-		tableRef,
-	};
-	const { statements, sqlStatements } = await diffTestSchemasLibSQL(
-		schema1,
-		schema2,
-		[],
-	);
-
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		columns: [
-			{
-				autoincrement: true,
-				generated: undefined,
-				name: 'id',
-				notNull: true,
-				primaryKey: true,
-				type: 'integer',
-			},
-			{
-				autoincrement: false,
-				generated: undefined,
-				name: 'column',
-				notNull: false,
-				primaryKey: false,
-				type: 'integer',
-			},
-			{
-				autoincrement: false,
-				generated: undefined,
-				name: 'column_1',
-				notNull: false,
-				primaryKey: false,
-				type: 'integer',
-			},
-		],
-		compositePKs: [],
-		referenceData: [],
-		tableName: 'users',
-		type: 'recreate_table',
-		uniqueConstraints: [],
-	});
-
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
-		`ALTER TABLE \`users\` RENAME TO \`__old__generate_users\`;`,
-	);
-	expect(sqlStatements[1]).toBe(
-		`CREATE TABLE \`users\` (
-\t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-\t\`column\` integer,
-\t\`column_1\` integer
-);
-`,
-	);
-	expect(sqlStatements[2]).toBe(
-		`INSERT INTO \`users\`("id", "column", "column_1") SELECT "id", "column", "column_1" FROM \`__old__generate_users\`;`,
-	);
-	expect(sqlStatements[3]).toBe(
-		`DROP TABLE \`__old__generate_users\`;`,
-	);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });
 
 test('alter column drop generated', async (t) => {
@@ -872,5 +769,215 @@ test('alter column drop generated', async (t) => {
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toBe(`ALTER TABLE \`table\` DROP COLUMN \`name\`;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE \`table\` ADD \`name\` text NOT NULL;`);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE \`table\` ADD \`name\` text NOT NULL;`,
+	);
+});
+
+test('recreate table with nested references', async (t) => {
+	let users = sqliteTable('users', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		name: text('name'),
+		age: integer('age'),
+	});
+	let subscriptions = sqliteTable('subscriptions', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		userId: integer('user_id').references(() => users.id),
+		customerId: text('customer_id'),
+	});
+	const schema1 = {
+		users: users,
+		subscriptions: subscriptions,
+		subscriptionMetadata: sqliteTable('subscriptions_metadata', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			subscriptionId: text('subscription_id').references(
+				() => subscriptions.id,
+			),
+		}),
+	};
+
+	users = sqliteTable('users', {
+		id: int('id').primaryKey({ autoIncrement: false }),
+		name: text('name'),
+		age: integer('age'),
+	});
+	const schema2 = {
+		users: users,
+		subscriptions: subscriptions,
+		subscriptionMetadata: sqliteTable('subscriptions_metadata', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			subscriptionId: text('subscription_id').references(
+				() => subscriptions.id,
+			),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasLibSQL(
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columns: [
+			{
+				autoincrement: false,
+				generated: undefined,
+				name: 'id',
+				notNull: true,
+				primaryKey: true,
+				type: 'integer',
+			},
+			{
+				autoincrement: false,
+				generated: undefined,
+				name: 'name',
+				notNull: false,
+				primaryKey: false,
+				type: 'text',
+			},
+			{
+				autoincrement: false,
+				generated: undefined,
+				name: 'age',
+				notNull: false,
+				primaryKey: false,
+				type: 'integer',
+			},
+		],
+		compositePKs: [],
+		referenceData: [],
+		tableName: 'users',
+		type: 'recreate_table',
+		uniqueConstraints: [],
+	});
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
+	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_users\` (
+\t\`id\` integer PRIMARY KEY NOT NULL,
+\t\`name\` text,
+\t\`age\` integer
+);\n`);
+	expect(sqlStatements[2]).toBe(
+		`INSERT INTO \`__new_users\`("id", "name", "age") SELECT "id", "name", "age" FROM \`users\`;`,
+	);
+	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
+	);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
+});
+
+test('set not null with index', async (t) => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+		}, (table) => ({
+			someIndex: index('users_name_index').on(table.name),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		}, (table) => ({
+			someIndex: index('users_name_index').on(table.name),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasLibSQL(
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_alter_column_set_notnull',
+		tableName: 'users',
+		columnName: 'name',
+		schema: '',
+		newDataType: 'text',
+		columnDefault: undefined,
+		columnOnUpdate: undefined,
+		columnNotNull: true,
+		columnAutoIncrement: false,
+		columnPk: false,
+	});
+
+	expect(sqlStatements.length).toBe(3);
+	expect(sqlStatements[0]).toBe(
+		`DROP INDEX IF EXISTS "users_name_index";`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text NOT NULL;`,
+	);
+	expect(sqlStatements[2]).toBe(
+		`CREATE INDEX \`users_name_index\` ON \`users\` (\`name\`);`,
+	);
+});
+
+test('drop not null with two indexes', async (t) => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+			age: int('age').notNull(),
+		}, (table) => ({
+			someUniqeIndex: uniqueIndex('users_name_unique').on(table.name),
+			someIndex: index('users_age_index').on(table.age),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+			age: int('age').notNull(),
+		}, (table) => ({
+			someUniqeIndex: uniqueIndex('users_name_unique').on(table.name),
+			someIndex: index('users_age_index').on(table.age),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasLibSQL(
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_alter_column_drop_notnull',
+		tableName: 'users',
+		columnName: 'name',
+		schema: '',
+		newDataType: 'text',
+		columnDefault: undefined,
+		columnOnUpdate: undefined,
+		columnNotNull: false,
+		columnAutoIncrement: false,
+		columnPk: false,
+	});
+
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(
+		`DROP INDEX IF EXISTS "users_name_unique";`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`DROP INDEX IF EXISTS "users_age_index";`,
+	);
+	expect(sqlStatements[2]).toBe(
+		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text;`,
+	);
+	expect(sqlStatements[3]).toBe(
+		`CREATE UNIQUE INDEX \`users_name_unique\` ON \`users\` (\`name\`);`,
+	);
+	expect(sqlStatements[4]).toBe(
+		`CREATE INDEX \`users_age_index\` ON \`users\` (\`age\`);`,
+	);
 });

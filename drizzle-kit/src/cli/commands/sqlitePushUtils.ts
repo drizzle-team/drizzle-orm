@@ -19,16 +19,7 @@ export const _moveDataStatements = (
 ) => {
 	const statements: string[] = [];
 
-	// rename table to __old_${tablename}
-	statements.push(
-		new SqliteRenameTableConvertor().convert({
-			type: 'rename_table',
-			tableNameFrom: tableName,
-			tableNameTo: `__old_push_${tableName}`,
-			fromSchema: '',
-			toSchema: '',
-		}),
-	);
+	const newTableName = `__new_${tableName}`;
 
 	// create table statement from a new json2 with proper name
 	const tableColumns = Object.values(json.tables[tableName].columns);
@@ -39,10 +30,11 @@ export const _moveDataStatements = (
 
 	const fks = referenceData.map((it) => SQLiteSquasher.unsquashPushFK(it));
 
+	// create new table
 	statements.push(
 		new SQLiteCreateTableConvertor().convert({
 			type: 'sqlite_create_table',
-			tableName: tableName,
+			tableName: newTableName,
 			columns: tableColumns,
 			referenceData: fks,
 			compositePKs,
@@ -56,19 +48,30 @@ export const _moveDataStatements = (
 		);
 
 		statements.push(
-			`INSERT INTO \`${tableName}\`(${
+			`INSERT INTO \`${newTableName}\`(${
 				columns.join(
 					', ',
 				)
-			}) SELECT (${columns.join(', ')}) FROM \`__old_push_${tableName}\`;`,
+			}) SELECT ${columns.join(', ')} FROM \`${tableName}\`;`,
 		);
 	}
-	// drop table with name __old_${tablename}
+
 	statements.push(
 		new SQLiteDropTableConvertor().convert({
 			type: 'drop_table',
-			tableName: `__old_push_${tableName}`,
+			tableName: tableName,
 			schema: '',
+		}),
+	);
+
+	// rename table
+	statements.push(
+		new SqliteRenameTableConvertor().convert({
+			fromSchema: '',
+			tableNameFrom: newTableName,
+			tableNameTo: tableName,
+			toSchema: '',
+			type: 'rename_table',
 		}),
 	);
 
@@ -207,6 +210,8 @@ export const logSuggestionsAndReturn = async (
 			const tableName = statement.tableName;
 			const oldTableName = getOldTableName(tableName, meta);
 
+			let dataLoss = false;
+
 			const prevColumnNames = Object.keys(json1.tables[oldTableName].columns);
 			const currentColumnNames = Object.keys(json2.tables[tableName].columns);
 			const { removedColumns, addedColumns } = findAddedAndRemoved(
@@ -245,6 +250,7 @@ export const logSuggestionsAndReturn = async (
 
 					const count = Number(res.count);
 					if (count > 0 && columnConf.notNull && !columnConf.default) {
+						dataLoss = true;
 						infoToPrint.push(
 							`· You're about to add not-null ${
 								chalk.underline(
@@ -254,12 +260,13 @@ export const logSuggestionsAndReturn = async (
 						);
 						shouldAskForApprove = true;
 						tablesToTruncate.push(tableName);
+
+						statementsToExecute.push(`DELETE FROM \`${tableName}\`;`);
 					}
 				}
 			}
 
-			statementsToExecute.push(..._moveDataStatements(tableName, json2));
-
+			// check if some tables referencing current for pragma
 			const tablesReferencingCurrent: string[] = [];
 
 			for (const table of Object.values(json2.tables)) {
@@ -270,10 +277,21 @@ export const logSuggestionsAndReturn = async (
 				tablesReferencingCurrent.push(...tablesRefs);
 			}
 
-			const uniqueTableRefs = [...new Set(tablesReferencingCurrent)];
+			if (!tablesReferencingCurrent.length) {
+				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+				continue;
+			}
 
-			for (const table of uniqueTableRefs) {
-				statementsToExecute.push(..._moveDataStatements(table, json2));
+			const [{ foreign_keys: pragmaState }] = await connection.query<{
+				foreign_keys: number;
+			}>(`PRAGMA foreign_keys;`);
+
+			if (pragmaState) {
+				statementsToExecute.push(`PRAGMA foreign_keys=OFF;`);
+			}
+			statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+			if (pragmaState) {
+				statementsToExecute.push(`PRAGMA foreign_keys=ON;`);
 			}
 		} else {
 			const fromJsonStatement = fromJson([statement], 'sqlite', 'push');
