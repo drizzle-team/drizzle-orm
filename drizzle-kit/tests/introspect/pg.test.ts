@@ -357,3 +357,24 @@ test('instrospect all column types with sql defaults', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('introspect column with name with non-alphanumeric characters', async () => {
+	const client = new PGlite();
+	const schema = {
+		users: pgTable('users', {
+			'not:allowed': integer('not:allowed'),
+			'nuh--uh': integer('nuh-uh'),
+			'1_nope': integer('1_nope'),
+			valid: integer('valid'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-column-with-name-with-non-alphanumeric-characters',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});

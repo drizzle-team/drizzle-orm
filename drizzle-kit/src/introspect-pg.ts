@@ -464,7 +464,7 @@ const isSelf = (fk: ForeignKey) => {
 type ColumnMapperConfig = {
 	sqlType: string;
 	name: string;
-	casing: Casing;
+	columnKey: string;
 	defaultValue: any;
 }
 
@@ -528,20 +528,20 @@ const isJsonStr = (defaultValue: any) => {
 }
 
 const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
-	serial: ({ name, casing }: ColumnMapperConfig) => {
-		return `${withCasing(name, casing)}: serial("${name}")`;
+	serial: ({ name, columnKey }: ColumnMapperConfig) => {
+		return `${columnKey}: serial("${name}")`;
 	},
 
-	smallserial: ({ name, casing }: ColumnMapperConfig) => {
-		return `${withCasing(name, casing)}: smallserial("${name}")`;
+	smallserial: ({ name, columnKey }: ColumnMapperConfig) => {
+		return `${columnKey}: smallserial("${name}")`;
 	},
 
-	bigserial: ({ name, casing }: ColumnMapperConfig) => {
-		return `${withCasing(name, casing)}: bigserial("${name}", { mode: "bigint" })`;
+	bigserial: ({ name, columnKey }: ColumnMapperConfig) => {
+		return `${columnKey}: bigserial("${name}", { mode: "bigint" })`;
 	},
 
-	integer: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: integer("${name}")`;
+	integer: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: integer("${name}")`;
 		const tsDefault = typeof defaultValue === 'number' || isIntStr(defaultValue);
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::integer', '::int', '::int4']);
@@ -550,8 +550,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	smallint: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: smallint("${name}")`;
+	smallint: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: smallint("${name}")`;
 		const tsDefault = typeof defaultValue === 'number' || isIntStr(defaultValue);
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::smallint', '::int2']);
@@ -560,9 +560,9 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	bigint: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
+	bigint: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
 		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
-		out += `${withCasing(name, casing)}: bigint("${name}", { mode: "number" })`;
+		out += `${columnKey}: bigint("${name}", { mode: "number" })`;
 		const tsDefault = typeof defaultValue === 'number' || typeof defaultValue === 'bigint' || isBigIntStr(defaultValue);
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::bigint', '::int8']);
@@ -574,8 +574,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	boolean: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: boolean("${name}")`;
+	boolean: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: boolean("${name}")`;
 		const tsDefault = typeof defaultValue === 'boolean' || isBoolStr(defaultValue);
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::boolean']);
@@ -587,8 +587,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	'double precision': ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: doublePrecision("${name}")`;
+	'double precision': ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: doublePrecision("${name}")`;
 		const tsDefault = typeof defaultValue === 'number' || isNumberStr(defaultValue);
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::double precision', '::float8', '::float']);
@@ -600,8 +600,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	real: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: real("${name}")`;
+	real: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: real("${name}")`;
 		const tsDefault = typeof defaultValue === 'number' || isNumberStr(defaultValue);
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::real', '::float4']);
@@ -613,8 +613,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	uuid: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: uuid("${name}")`;
+	uuid: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: uuid("${name}")`;
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::uuid']);
@@ -628,7 +628,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	numeric: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+	numeric: ({ name, columnKey, defaultValue, sqlType }: ColumnMapperConfig) => {
 		let params:
 			| { precision: string | undefined; scale: string | undefined }
 			| undefined;
@@ -641,8 +641,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		}
 
 		let out = params
-			? `${withCasing(name, casing)}: numeric("${name}", ${timeConfig(params)})`
-			: `${withCasing(name, casing)}: numeric("${name}")`;
+			? `${columnKey}: numeric("${name}", ${timeConfig(params)})`
+			: `${columnKey}: numeric("${name}")`;
 
 		const isNumber = typeof defaultValue === 'number' || isNumberStr(defaultValue);
 		const tsDefault = isNumber || (typeof defaultValue === 'string' && defaultValue.startsWith('\''));
@@ -657,7 +657,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	timestamp: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+	timestamp: ({ name, columnKey, defaultValue, sqlType }: ColumnMapperConfig) => {
 		const withTimezone = sqlType.includes('with time zone');
 		let precision = sqlType.startsWith('timestamp(')
 			? Number(
@@ -675,8 +675,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		});
 
 		let out = params
-			? `${withCasing(name, casing)}: timestamp("${name}", ${params})`
-			: `${withCasing(name, casing)}: timestamp("${name}")`;
+			? `${columnKey}: timestamp("${name}", ${params})`
+			: `${columnKey}: timestamp("${name}")`;
 
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
 		if (tsDefault) {
@@ -693,7 +693,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	time: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+	time: ({ name, columnKey, defaultValue, sqlType }: ColumnMapperConfig) => {
 		const withTimezone = sqlType.includes('with time zone');
 
 		let precision = sqlType.startsWith('time(')
@@ -708,8 +708,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		const params = timeConfig({ precision, withTimezone });
 
 		let out = params
-			? `${withCasing(name, casing)}: time("${name}", ${params})`
-			: `${withCasing(name, casing)}: time("${name}")`;
+			? `${columnKey}: time("${name}", ${params})`
+			: `${columnKey}: time("${name}")`;
 
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
 		if (tsDefault) {
@@ -726,12 +726,12 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	interval: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+	interval: ({ name, columnKey, defaultValue, sqlType }: ColumnMapperConfig) => {
 		const params = intervalConfig(sqlType);
 
 		let out = params
-			? `${withCasing(name, casing)}: interval("${name}", ${params})`
-			: `${withCasing(name, casing)}: interval("${name}")`;
+			? `${columnKey}: interval("${name}", ${params})`
+			: `${columnKey}: interval("${name}")`;
 
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
 		if (tsDefault) {
@@ -744,8 +744,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	date: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: date("${name}")`;
+	date: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: date("${name}")`;
 
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
 		if (tsDefault) {
@@ -762,8 +762,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	text: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: text("${name}")`;
+	text: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: text("${name}")`;
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::text']);
@@ -775,8 +775,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	json: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: json("${name}")`;
+	json: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: json("${name}")`;
 		const stripped = stripCasting(defaultValue, ['::json']);
 		const jsonDefault = typeof stripped === 'string' ? stripped.substring(1, stripped.length - 1) : undefined;
 		const tsDefault = isJsonStr(jsonDefault);
@@ -787,8 +787,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	jsonb: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: jsonb("${name}")`;
+	jsonb: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: jsonb("${name}")`;
 		const stripped = stripCasting(defaultValue, ['::jsonb']);
 		const jsonDefault = typeof stripped === 'string' ? stripped.substring(1, stripped.length - 1) : undefined;
 		const tsDefault = isJsonStr(jsonDefault);
@@ -799,8 +799,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	inet: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: inet("${name}")`;
+	inet: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: inet("${name}")`;
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::inet']);
@@ -812,8 +812,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	cidr: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: cidr("${name}")`;
+	cidr: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: cidr("${name}")`;
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::cidr']);
@@ -825,8 +825,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	macaddr: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: macaddr("${name}")`;
+	macaddr: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: macaddr("${name}")`;
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::macaddr']);
@@ -838,8 +838,8 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	macaddr8: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out = `${withCasing(name, casing)}: macaddr8("${name}")`;
+	macaddr8: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out = `${columnKey}: macaddr8("${name}")`;
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::macaddr8']);
@@ -851,22 +851,17 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	varchar: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+	varchar: ({ name, columnKey, defaultValue, sqlType }: ColumnMapperConfig) => {
 		let out: string;
 		if (sqlType.length !== 7) {
-			out = `${
-				withCasing(
-					name,
-					casing,
-				)
-			}: varchar("${name}", { length: ${
+			out = `${columnKey}: varchar("${name}", { length: ${
 				sqlType.substring(
 					8,
 					sqlType.length - 1,
 				)
 			} })`;
 		} else {
-			out = `${withCasing(name, casing)}: varchar("${name}")`;
+			out = `${columnKey}: varchar("${name}")`;
 		}
 
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
@@ -880,22 +875,22 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	point: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out: string = `${withCasing(name, casing)}: point("${name}")`;
+	point: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out: string = `${columnKey}: point("${name}")`;
 		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		defaultValue = stripCasting(defaultValue, ['::point']);
 		out += buildDefaultValue(defaultValue, false);
 		return out;
 	},
 
-	line: ({ name, casing, defaultValue }: ColumnMapperConfig) => {
-		let out: string = `${withCasing(name, casing)}: point("${name}")`;
+	line: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
+		let out: string = `${columnKey}: point("${name}")`;
 		defaultValue = stripCasting(defaultValue, ['::line']);
 		out += buildDefaultValue(defaultValue, false);
 		return out;
 	},
 
-	geometry: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+	geometry: ({ name, columnKey, defaultValue, sqlType }: ColumnMapperConfig) => {
 		let out: string = '';
 
 		let isGeoUnknown = false;
@@ -903,16 +898,16 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		if (sqlType.length !== 8) {
 			const geometryOptions = sqlType.slice(9, -1).split(',');
 			if (geometryOptions.length === 1 && geometryOptions[0] !== '') {
-				out = `${withCasing(name, casing)}: geometry("${name}", { type: "${geometryOptions[0]}" })`;
+				out = `${columnKey}: geometry("${name}", { type: "${geometryOptions[0]}" })`;
 			} else if (geometryOptions.length === 2) {
-				out = `${withCasing(name, casing)}: geometry("${name}", { type: "${geometryOptions[0]}", srid: ${
+				out = `${columnKey}: geometry("${name}", { type: "${geometryOptions[0]}", srid: ${
 					geometryOptions[1]
 				} })`;
 			} else {
 				isGeoUnknown = true;
 			}
 		} else {
-			out = `${withCasing(name, casing)}: geometry("${name}")`;
+			out = `${columnKey}: geometry("${name}")`;
 		}
 
 		defaultValue = stripCasting(defaultValue, ['::geometry']);
@@ -921,28 +916,23 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		if (isGeoUnknown) {
 			let unknown =
 				`// TODO: failed to parse geometry type because found more than 2 options inside geometry function '${sqlType}'\n// Introspect is currently supporting only type and srid options\n`;
-			unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
+			unknown += `\t${columnKey}: unknown("${name}")`;
 			return unknown;
 		}
 		return out;
 	},
 
-	vector: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+	vector: ({ name, columnKey, defaultValue, sqlType }: ColumnMapperConfig) => {
 		let out: string;
 		if (sqlType.length !== 6) {
-			out = `${
-				withCasing(
-					name,
-					casing,
-				)
-			}: vector("${name}", { dimensions: ${
+			out = `${columnKey}: vector("${name}", { dimensions: ${
 				sqlType.substring(
 					7,
 					sqlType.length - 1,
 				)
 			} })`;
 		} else {
-			out = `${withCasing(name, casing)}: vector("${name}")`;
+			out = `${columnKey}: vector("${name}")`;
 		}
 
 		defaultValue = stripCasting(defaultValue, ['::vector']);
@@ -950,22 +940,17 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		return out;
 	},
 
-	char: ({ name, casing, defaultValue, sqlType }: ColumnMapperConfig) => {
+	char: ({ name, columnKey, defaultValue, sqlType }: ColumnMapperConfig) => {
 		let out: string;
 		if (sqlType.length !== 4) {
-			out = `${
-				withCasing(
-					name,
-					casing,
-				)
-			}: char("${name}", { length: ${
+			out = `${columnKey}: char("${name}", { length: ${
 				sqlType.substring(
 					5,
 					sqlType.length - 1,
 				)
 			} })`;
 		} else {
-			out = `${withCasing(name, casing)}: char("${name}")`;
+			out = `${columnKey}: char("${name}")`;
 		}
 
 		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
@@ -1003,6 +988,11 @@ const column = (
 ) => {
 	const lowered = type.toLowerCase();
 	const typeName = lowered.split(/[\(\[]/)[0];
+	let columnKey = withCasing(name, casing);
+
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(columnKey)) {
+		columnKey = `"${columnKey}"`;
+	}
 
 	if (isPgArrayType(lowered)) {
 		let out = '';
@@ -1010,10 +1000,10 @@ const column = (
 		if (Object.keys(columnMappers).includes(typeName)) {
 			const mapper = columnMappers[typeName];
 			out = `${
-				mapper({ name, casing, defaultValue: undefined, sqlType: lowered.replace('[]', '') })
+				mapper({ name, columnKey, defaultValue: undefined, sqlType: lowered.replace('[]', '') })
 			}.array()`;
 		} else {
-			out = `${withCasing(name, casing)}: ${
+			out = `${columnKey}: ${
 				withCasing(
 					typeName,
 					casing,
@@ -1062,9 +1052,9 @@ const column = (
 		return out;
 	} else if (Object.keys(columnMappers).includes(typeName)) {
 		const mapper = columnMappers[typeName];
-		return mapper({ name, casing, defaultValue, sqlType: lowered });
+		return mapper({ name, defaultValue, columnKey, sqlType: lowered });
 	} else if (enumTypes.has(typeName)) {
-		let out = `${withCasing(name, casing)}: ${
+		let out = `${columnKey}: ${
 			withCasing(
 				type,
 				casing,
@@ -1079,7 +1069,7 @@ const column = (
 	}
 
 	let unknown = `// TODO: failed to parse database type '${type}'\n`;
-	unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
+	unknown += `\t${columnKey}: unknown("${name}")`;
 	return unknown;
 };
 
