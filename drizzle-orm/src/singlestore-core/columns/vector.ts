@@ -63,7 +63,7 @@ type ElementType = 'I8' | 'I16' | 'I32' | 'I64' | 'F32' | 'F64';
 
 export interface SingleStoreVectorConfig {
 	dimensions: number;
-	elementType: ElementType;
+	elementType?: ElementType;
 }
 
 export function vector<TName extends string>(
