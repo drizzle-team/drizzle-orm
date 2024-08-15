@@ -876,6 +876,7 @@ export const fromDatabase = async (
 					const identityMinimum = columnResponse.identity_minimum;
 					const identityCycle = columnResponse.identity_cycle === 'YES';
 					const identityName = columnResponse.seq_name;
+					const defaultValue = columnResponse.column_default;
 
 					const primaryKey = tableConstraints.filter(
 						(mapRow) =>
@@ -901,8 +902,6 @@ export const fromDatabase = async (
 							columns: cprimaryKey.map((c: any) => c.column_name),
 						};
 					}
-
-					const defaultValue = defaultForColumn(columnResponse);
 
 					const isSerial = columnType === 'serial';
 
@@ -1168,92 +1167,4 @@ export const fromDatabase = async (
 		},
 		internal: internals,
 	};
-};
-
-const columnToDefault: Record<string, string> = {
-	'numeric(': '::numeric',
-	// text: "::text",
-	// "character varying": "::character varying",
-	// "double precision": "::double precision",
-	// "time with time zone": "::time with time zone",
-	'time without time zone': '::time without time zone',
-	// "timestamp with time zone": "::timestamp with time zone",
-	'timestamp without time zone': '::timestamp without time zone',
-	'timestamp(': '::timestamp without time zone',
-	// date: "::date",
-	// interval: "::interval",
-	// character: "::bpchar",
-	// macaddr8: "::macaddr8",
-	// macaddr: "::macaddr",
-	// inet: "::inet",
-	// cidr: "::cidr",
-	// jsonb: "::jsonb",
-	// json: "::json",
-	'character(': '::bpchar',
-};
-
-const defaultForColumn = (column: any) => {
-	if (column.column_default === null) {
-		return undefined;
-	}
-
-	if (
-		column.data_type === 'serial'
-		|| column.data_type === 'smallserial'
-		|| column.data_type === 'bigserial'
-	) {
-		return undefined;
-	}
-
-	const hasDifferentDefaultCast = Object.keys(columnToDefault).find((it) => column.data_type.startsWith(it));
-
-	const columnDefaultAsString: string = column.column_default.toString();
-
-	if (
-		columnDefaultAsString.endsWith(
-			hasDifferentDefaultCast
-				? columnToDefault[hasDifferentDefaultCast]
-				: (column.data_type as string),
-		)
-	) {
-		const nonPrefixPart = column.column_default.length
-			- (hasDifferentDefaultCast
-				? columnToDefault[hasDifferentDefaultCast]
-				: `::${column.data_type as string}`).length
-			- 1;
-
-		const rt = column.column_default
-			.toString()
-			.substring(1, nonPrefixPart) as string;
-
-		if (
-			/^-?[\d.]+(?:e-?\d+)?$/.test(rt)
-			&& !column.data_type.startsWith('numeric')
-			&& !column.data_type.startsWith('inet')
-		) {
-			return Number(rt);
-		} else if (column.data_type === 'json' || column.data_type === 'jsonb') {
-			const jsonWithoutSpaces = JSON.stringify(JSON.parse(rt));
-			return `'${jsonWithoutSpaces}'${
-				hasDifferentDefaultCast
-					? columnToDefault[hasDifferentDefaultCast]
-					: `::${column.data_type as string}`
-			}`;
-		} else if (column.data_type === 'boolean') {
-			return column.column_default === 'true';
-		} else {
-			return `'${rt}'`;
-		}
-	} else {
-		if (
-			/^-?[\d.]+(?:e-?\d+)?$/.test(columnDefaultAsString)
-			&& !column.data_type.startsWith('numeric')
-		) {
-			return Number(columnDefaultAsString);
-		} else if (column.data_type === 'boolean') {
-			return column.column_default === 'true';
-		} else {
-			return `${columnDefaultAsString}`;
-		}
-	}
 };

@@ -281,3 +281,79 @@ test('instrospect all column array types', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('instrospect all column types with sql defaults', async () => {
+	const client = new PGlite();
+	await client.query(`
+		CREATE OR REPLACE FUNCTION return_string()
+		RETURNS text AS $$
+		BEGIN
+				RETURN 'abc';
+		END;
+		$$ LANGUAGE plpgsql;		
+	`);
+	await client.query(`
+		CREATE OR REPLACE FUNCTION return_int()
+		RETURNS integer AS $$
+		BEGIN
+				RETURN 1;
+		END;
+		$$ LANGUAGE plpgsql;		
+	`);
+	await client.query(`
+		CREATE OR REPLACE FUNCTION return_json()
+		RETURNS json AS $$
+		BEGIN
+				RETURN '{"attr":"value"}'::json;
+		END;
+		$$ LANGUAGE plpgsql;		
+	`);
+	await client.query(`
+		CREATE OR REPLACE FUNCTION return_int_array()
+		RETURNS integer[] AS $$
+		BEGIN
+				RETURN '{1,2,3}'::integer[];
+		END;
+		$$ LANGUAGE plpgsql;		
+	`);
+
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		enum_: myEnum,
+		// NOTE: Types from extensions aren't tested due to PGLite not supporting at the moment
+		columns: pgTable('columns', {
+			enum: myEnum('my_enum').default(sql`return_string()::my_enum`),
+			smallint: smallint('smallint').default(sql`return_int()::smallint`),
+			integer: integer('integer').default(sql`return_int()`),
+			numeric: numeric('numeric', { precision: 3, scale: 1 }).default(sql`return_int()::numeric`),
+			bigint: bigint('bigint', { mode: 'number' }).default(sql`return_int()::bigint`),
+			boolean: boolean('boolean').default(sql`return_int()::boolean`),
+			text: text('text').default(sql`return_string()`),
+			varchar: varchar('varchar', { length: 25 }).default(sql`return_string()::varchar(25)`),
+			char: char('char', { length: 3 }).default(sql`return_string()::char(3)`),
+			doublePrecision: doublePrecision('doublePrecision').default(sql`return_int()::double precision`),
+			real: real('real').default(sql`return_int()::real`),
+			json: json('json').$type<{ attr: string }>().default(sql`return_json()`),
+			jsonb: jsonb('jsonb').$type<{ attr: string }>().default(sql`return_json()::jsonb`),
+			time: time('time').default(sql`return_string()::time`),
+			timestamp: timestamp('timestamp', { withTimezone: true, precision: 6 }).default(sql`return_string()::timestamp`),
+			date: date('date').default(sql`return_string()::date`),
+			uuid: uuid('uuid').default(sql`return_string()::uuid`),
+			inet: inet('inet').default(sql`return_string()::inet`),
+			cidr: cidr('cidr').default(sql`return_string()::cidr`),
+			macaddr: macaddr('macaddr').default(sql`return_string()::macaddr`),
+			macaddr8: macaddr8('macaddr8').default(sql`return_string()::macaddr8`),
+			interval: interval('interval').default(sql`return_string()::interval`),
+			array: integer('array').array().default(sql`return_int_array()`)
+		})
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-all-columns-types-with-sql-defaults',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});

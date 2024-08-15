@@ -367,6 +367,70 @@ const findAlternationsInTable = (table) => {
 	};
 };
 
+const typeCastings = [
+	// Postgres
+  'integer', 
+  'int', 
+  'int4',
+  'smallint', 
+  'int2',
+  'bigint', 
+  'int8',
+  'boolean',
+  'double precision', 
+  'float8', 
+  'float',
+  'real', 
+  'float4',
+  'uuid',
+  'numeric',
+  'timestamp', 
+  'timestamptz', 
+  'timestamp with time zone', 
+  'timestampt without time zone',
+  'time', 
+  'timetz', 
+  'time with time zone', 
+  'time without time zone',
+  'interval',
+  'date',
+  'text',
+  'json',
+  'jsonb',
+  'inet',
+  'cidr',
+  'macaddr',
+  'macaddr8',
+  'varchar', 
+  'character varying',
+  'point',
+  'line',
+  'geometry',
+  'vector',
+  'char', 
+  'character', 
+  'bpchar'
+].map((it) => it.replaceAll(' ', ''));
+
+const typeCastSynonyms = Object.fromEntries(
+	Object.entries({
+		'int': 'integer',
+		'int4': 'integer',
+		'int2': 'smallint',
+		'int8': 'bigint',
+		'float': 'double precision',
+		'float8': 'double precision',
+		'float4': 'real',
+		'timestamp': 'timestamp without time zone',
+		'timestamptz': 'timestamp with time zone',
+		'time': 'time without time zone',
+		'timetz': 'time with time zone',
+		'character varying': 'varchar',
+		'character': 'char',
+		'bpchar': 'char'
+	}).map((it) => [it[0].replaceAll(' ', ''), it[1].replaceAll(' ', '')]),
+);
+
 const alternationsInColumn = (column) => {
 	const altered = [column];
 	const result = altered
@@ -395,6 +459,51 @@ const alternationsInColumn = (column) => {
 				};
 			}
 			return it;
+		})
+		// Default values created with `sql` can be stored differently in the DB,
+		// meaning that this leads to changes being identified where there aren't
+		// Example: sql`return_int()::smallint` is stored as (return_int())::smallint
+		// In the above example, they both are the same expressions
+		// This filter removes any "similar" expressions like the example provided
+		.filter((it) => {
+			const whitespaceRegex = /(\s+)(?=(?:[^']*'[^']*')*[^']*$)/g;
+			const castRegex = /::[\w\s\(\),]+$/;
+			const castConfigRegex = /\([\w\s,]*\)$/;
+
+			if (!('default' in it) || typeof it.default.__old !== 'string' || typeof it.default.__new !== 'string') {
+				return true;
+			}
+
+			const [{
+				expression: expression1,
+				expressionCast: expressionCast1,
+			}, {
+				expression: expression2,
+				expressionCast: expressionCast2,
+			}] = [
+				it.default.__old,
+				it.default.__new,
+			].map((expression) => {
+				expression =	it.default.__old.replace(whitespaceRegex, '');
+				let expressionCast = '';
+				const possibleCast = expression.match(castRegex);
+
+				if (possibleCast && typeCastings.some((it) => possibleCast[0].includes(it))) {
+					expressionCast = possibleCast[0];
+					expression = expression.replace(castRegex, '');
+				}
+
+				expression = expression.startsWith('(') ? expression.substring(1, expression.length - 1) : expression;
+				expressionCast = expressionCast.replace(castConfigRegex, '');
+				expressionCast = typeCastSynonyms[expressionCast.slice(2, expressionCast.length - 1)] || expressionCast;
+				
+				return {
+					expression,
+					expressionCast,
+				};
+			});
+
+			return expression1 !== expression2 || expressionCast1 !== expressionCast2;
 		})
 		.map((it) => {
 			if ('default' in it) {
