@@ -239,7 +239,12 @@ export const generatePgSnapshot = (
 
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
-					columnToSet.default = sqlToStr(column.default);
+					const str = sqlToStr(column.default);
+					if (str.trim().toLowerCase().startsWith('null')) {
+						columnToSet.default = undefined;
+					} else {
+						columnToSet.default = str;
+					}
 				} else {
 					if (typeof column.default === 'string') {
 						columnToSet.default = `'${column.default}'`;

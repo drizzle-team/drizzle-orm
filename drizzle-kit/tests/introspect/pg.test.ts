@@ -344,7 +344,8 @@ test('instrospect all column types with sql defaults', async () => {
 			macaddr: macaddr('macaddr').default(sql`return_string()::macaddr`),
 			macaddr8: macaddr8('macaddr8').default(sql`return_string()::macaddr8`),
 			interval: interval('interval').default(sql`return_string()::interval`),
-			array: integer('array').array().default(sql`return_int_array()`)
+			array: integer('array').array().default(sql`return_int_array()`),
+			nullAsDefault: integer('nullAsDefault').default(sql`null::integer`),
 		})
 	};
 
@@ -358,7 +359,7 @@ test('instrospect all column types with sql defaults', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect column with name with non-alphanumeric characters', async () => {
+test('introspect columns with name with non-alphanumeric characters', async () => {
 	const client = new PGlite();
 	const schema = {
 		users: pgTable('users', {
