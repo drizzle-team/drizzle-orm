@@ -885,7 +885,7 @@ export const fromDatabase = async (
 					const identityMinimum = columnResponse.identity_minimum;
 					const identityCycle = columnResponse.identity_cycle === 'YES';
 					const identityName = columnResponse.seq_name;
-					const defaultValue = columnResponse.column_default;
+					const defaultValue = defaultForColumn(columnResponse);
 
 					const primaryKey = tableConstraints.filter(
 						(mapRow) =>
@@ -912,7 +912,7 @@ export const fromDatabase = async (
 						};
 					}
 
-					const isSerial = columnType === 'serial';
+					const isSerial = columnType.includes('serial');
 
 					let columnTypeMapped = columnType;
 
@@ -1174,4 +1174,23 @@ export const fromDatabase = async (
 		},
 		internal: internals,
 	};
+};
+
+const defaultForColumn = (column: any) => {
+	if (column.column_default === null) {
+		return undefined;
+	}
+
+	const columnDefaultAsString: string = column.column_default.toString();
+
+	if (
+		/^-?[\d.]+(?:e-?\d+)?$/.test(columnDefaultAsString)
+		&& !column.data_type.startsWith('numeric')
+	) {
+		return Number(columnDefaultAsString);
+	} else if (column.data_type === 'boolean') {
+		return column.column_default === 'true';
+	} else {
+		return `${columnDefaultAsString}`;
+	}
 };
