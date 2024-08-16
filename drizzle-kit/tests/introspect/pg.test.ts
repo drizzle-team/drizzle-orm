@@ -430,3 +430,24 @@ test('introspect enum with same names across different schema', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('introspect enum with similar name to native type', async () => {
+	const client = new PGlite();
+
+	const timeLeft = pgEnum("time_left", ['short', 'medium', 'long'])
+	const schema = {
+		timeLeft,
+		auction: pgTable('auction', {
+			col: timeLeft('col1'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-enum-with-similar-name-to-native-type'
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
