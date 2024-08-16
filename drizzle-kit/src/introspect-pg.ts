@@ -1006,7 +1006,6 @@ const column = (
 	const typeName = lowered.split(/[\(\[]/)[0];
 	const enumType = enumTypes.find((it) => it.name.includes(typeName) && it.schema === typeSchema);
 	let columnKey = withCasing(name, casing);
-	console.log(typeSchema);
 
 	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(columnKey)) {
 		columnKey = `"${columnKey}"`;

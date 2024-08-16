@@ -1188,7 +1188,7 @@ const defaultForColumn = (column: any) => {
 		&& !column.data_type.startsWith('numeric')
 	) {
 		return Number(columnDefaultAsString);
-	} else if (column.data_type === 'boolean') {
+	} else if (column.data_type === 'boolean' && ['true', 'false'].includes(columnDefaultAsString.toLowerCase())) {
 		return column.column_default === 'true';
 	} else {
 		return `${columnDefaultAsString}`;
