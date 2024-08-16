@@ -313,18 +313,18 @@ export const schemaToTypeScript = (
 					const uniqueImports = Object.values(it.uniqueConstraints).map(
 						(it) => 'unique',
 					);
-		
+
 					if (it.schema && it.schema !== 'public' && it.schema !== '') {
 						res.push('pgSchema');
 					}
-		
+
 					res.push(...idxImports);
 					res.push(...fkImpots);
 					res.push(...pkImports);
 					res.push(...uniqueImports);
-		
+
 					const columnImports = Object.values(it.columns)
-					.map((col) => {
+						.map((col) => {
 							let patched: string = (importsPatch[col.type] || col.type).replace('[]', '');
 							patched = patched === 'double precision' ? 'doublePrecision' : patched;
 							patched = patched.startsWith('varchar(') ? 'varchar' : patched;
@@ -339,14 +339,14 @@ export const schemaToTypeScript = (
 						.filter((type) => {
 							return pgImportsList.has(type);
 						});
-		
+
 					res.push(...columnImports);
 					return res;
 				},
 				[] as string[],
 			),
 			...enumTypes.find((it) => it.schema !== undefined && it.schema !== 'public') ? ['pgSchema'] : [],
-			...enumTypes.find((it) => it.schema === 'public') ? ['pgEnum'] : []
+			...enumTypes.find((it) => it.schema === 'public') ? ['pgEnum'] : [],
 		],
 	};
 
@@ -469,7 +469,7 @@ type ColumnMapperConfig = {
 	name: string;
 	columnKey: string;
 	defaultValue: any;
-}
+};
 
 const stripCasting = (defaultValue: any, possibleCastings: string[]): any => {
 	if (typeof defaultValue === 'undefined') {
@@ -483,28 +483,31 @@ const stripCasting = (defaultValue: any, possibleCastings: string[]): any => {
 	if (casting) {
 		defaultValue = defaultValue.substring(
 			0,
-			defaultValue.indexOf(casting)
+			defaultValue.indexOf(casting),
 		);
-		return defaultValue.startsWith('(') && defaultValue.endsWith(')') ? defaultValue.substring(1, defaultValue.length - 1) : defaultValue;
+		return defaultValue.startsWith('(') && defaultValue.endsWith(')')
+			? defaultValue.substring(1, defaultValue.length - 1)
+			: defaultValue;
 	}
 	return defaultValue;
-}
+};
 
 const buildDefaultValue = (defaultValue: any, isTSDefault: boolean) => {
-	return typeof defaultValue === 'undefined' || defaultValue === null || (typeof defaultValue === 'string' && defaultValue.toLowerCase() === 'null')
+	return typeof defaultValue === 'undefined' || defaultValue === null
+			|| (typeof defaultValue === 'string' && defaultValue.toLowerCase() === 'null')
 		? ''
 		: isTSDefault
-			? `.default(${defaultValue})`
-			: `.default(sql\`${defaultValue}\`)`;
-}
+		? `.default(${defaultValue})`
+		: `.default(sql\`${defaultValue}\`)`;
+};
 
 const isIntStr = (defaultValue: any) => {
 	return Number.isInteger(Number(defaultValue));
-}
+};
 
 const isNumberStr = (defaultValue: any) => {
 	return !Number.isNaN(Number(defaultValue));
-}
+};
 
 const isBigIntStr = (defaultValue: any) => {
 	try {
@@ -513,13 +516,13 @@ const isBigIntStr = (defaultValue: any) => {
 	} catch {
 		return false;
 	}
-}
+};
 
 const isBoolStr = (defaultValue: any) => {
 	if (typeof defaultValue !== 'string') return false;
 	defaultValue = defaultValue.toLowerCase();
 	return defaultValue === 'true' || defaultValue === 'false';
-}
+};
 
 const isJsonStr = (defaultValue: any) => {
 	try {
@@ -528,7 +531,7 @@ const isJsonStr = (defaultValue: any) => {
 	} catch {
 		return false;
 	}
-}
+};
 
 const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 	serial: ({ name, columnKey }: ColumnMapperConfig) => {
@@ -572,7 +575,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
@@ -585,7 +588,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
@@ -598,7 +601,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
@@ -611,14 +614,14 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
 
 	uuid: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
 		let out = `${columnKey}: uuid("${name}")`;
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::uuid']);
 		}
@@ -626,7 +629,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 			? '.defaultRandom()'
 			: buildDefaultValue(
 				defaultValue,
-				tsDefault
+				tsDefault,
 			);
 		return out;
 	},
@@ -648,13 +651,13 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 			: `${columnKey}: numeric("${name}")`;
 
 		const isNumber = typeof defaultValue === 'number' || isNumberStr(defaultValue);
-		const tsDefault = isNumber || (typeof defaultValue === 'string' && defaultValue.startsWith('\''));
+		const tsDefault = isNumber || (typeof defaultValue === 'string' && defaultValue.startsWith("'"));
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::numeric']);
 		}
 		out += buildDefaultValue(
 			isNumber ? `'${defaultValue}'` : defaultValue,
-			tsDefault
+			tsDefault,
 		);
 
 		return out;
@@ -681,15 +684,20 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 			? `${columnKey}: timestamp("${name}", ${params})`
 			: `${columnKey}: timestamp("${name}")`;
 
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
-			defaultValue = stripCasting(defaultValue, ['::timestamp', '::timestamptz', '::timestamp with time zone', '::timestampt without time zone']);
+			defaultValue = stripCasting(defaultValue, [
+				'::timestamp',
+				'::timestamptz',
+				'::timestamp with time zone',
+				'::timestampt without time zone',
+			]);
 		}
 		defaultValue = defaultValue === 'now()' || defaultValue === 'CURRENT_TIMESTAMP'
 			? '.defaultNow()'
 			: buildDefaultValue(
 				defaultValue,
-				tsDefault
+				tsDefault,
 			);
 
 		out += defaultValue;
@@ -714,15 +722,20 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 			? `${columnKey}: time("${name}", ${params})`
 			: `${columnKey}: time("${name}")`;
 
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
-			defaultValue = stripCasting(defaultValue, ['::time', '::timetz', '::time with time zone', '::time without time zone']);
+			defaultValue = stripCasting(defaultValue, [
+				'::time',
+				'::timetz',
+				'::time with time zone',
+				'::time without time zone',
+			]);
 		}
 		defaultValue = defaultValue === 'now()'
 			? '.defaultNow()'
 			: buildDefaultValue(
 				defaultValue,
-				tsDefault
+				tsDefault,
 			);
 
 		out += defaultValue;
@@ -736,13 +749,13 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 			? `${columnKey}: interval("${name}", ${params})`
 			: `${columnKey}: interval("${name}")`;
 
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::interval']);
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
@@ -750,7 +763,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 	date: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
 		let out = `${columnKey}: date("${name}")`;
 
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::date']);
 		}
@@ -758,7 +771,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 			? '.defaultNow()'
 			: buildDefaultValue(
 				defaultValue,
-				tsDefault
+				tsDefault,
 			);
 
 		out += defaultValue;
@@ -767,13 +780,13 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 
 	text: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
 		let out = `${columnKey}: text("${name}")`;
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::text']);
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
@@ -785,7 +798,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		const tsDefault = isJsonStr(jsonDefault);
 		out += buildDefaultValue(
 			tsDefault ? jsonDefault : stripped,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
@@ -797,59 +810,59 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 		const tsDefault = isJsonStr(jsonDefault);
 		out += buildDefaultValue(
 			tsDefault ? jsonDefault : stripped,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
 
 	inet: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
 		let out = `${columnKey}: inet("${name}")`;
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::inet']);
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
 
 	cidr: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
 		let out = `${columnKey}: cidr("${name}")`;
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::cidr']);
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
 
 	macaddr: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
 		let out = `${columnKey}: macaddr("${name}")`;
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::macaddr']);
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
 
 	macaddr8: ({ name, columnKey, defaultValue }: ColumnMapperConfig) => {
 		let out = `${columnKey}: macaddr8("${name}")`;
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::macaddr8']);
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
@@ -867,13 +880,13 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 			out = `${columnKey}: varchar("${name}")`;
 		}
 
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::varchar', '::character varying']);
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
@@ -903,9 +916,7 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 			if (geometryOptions.length === 1 && geometryOptions[0] !== '') {
 				out = `${columnKey}: geometry("${name}", { type: "${geometryOptions[0]}" })`;
 			} else if (geometryOptions.length === 2) {
-				out = `${columnKey}: geometry("${name}", { type: "${geometryOptions[0]}", srid: ${
-					geometryOptions[1]
-				} })`;
+				out = `${columnKey}: geometry("${name}", { type: "${geometryOptions[0]}", srid: ${geometryOptions[1]} })`;
 			} else {
 				isGeoUnknown = true;
 			}
@@ -956,13 +967,13 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 			out = `${columnKey}: char("${name}")`;
 		}
 
-		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith('\'');
+		const tsDefault = typeof defaultValue === 'string' && defaultValue.startsWith("'");
 		if (tsDefault) {
 			defaultValue = stripCasting(defaultValue, ['::char', '::character', '::bpchar']);
 		}
 		out += buildDefaultValue(
 			defaultValue,
-			tsDefault
+			tsDefault,
 		);
 		return out;
 	},
@@ -971,14 +982,14 @@ const columnMappers: Record<string, (config: ColumnMapperConfig) => string> = {
 const buildArrayDefault = (defaultValue: string, mapCallback: (value: string) => string): string => {
 	defaultValue = defaultValue.substring(2, defaultValue.length - 2);
 	return `[${
-		defaultValue.startsWith('\'{')
+		defaultValue.startsWith("'{")
 			? buildArrayDefault(defaultValue, mapCallback)
 			: defaultValue
 				.split(/\s*,\s*/g)
 				.map(mapCallback)
 				.join(', ')
 	}]`;
-}
+};
 
 const column = (
 	type: string,
@@ -995,7 +1006,7 @@ const column = (
 	const typeName = lowered.split(/[\(\[]/)[0];
 	const enumType = enumTypes.find((it) => it.name.includes(typeName) && it.schema === typeSchema);
 	let columnKey = withCasing(name, casing);
-	console.log(typeSchema)
+	console.log(typeSchema);
 
 	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(columnKey)) {
 		columnKey = `"${columnKey}"`;
@@ -1006,50 +1017,49 @@ const column = (
 
 		if (Object.keys(columnMappers).includes(typeName)) {
 			const mapper = columnMappers[typeName];
-			out = `${
-				mapper({ name, columnKey, defaultValue: undefined, sqlType: lowered.replace('[]', '') })
-			}.array()`;
+			out = `${mapper({ name, columnKey, defaultValue: undefined, sqlType: lowered.replace('[]', '') })}.array()`;
 		} else {
 			out = `${columnKey}: ${
 				withCasing(
 					typeName,
 					casing,
 				)
-			}("${name}").array()`
+			}("${name}").array()`;
 		}
 
 		if (typeof defaultValue !== 'undefined') {
 			defaultValue = defaultValue.split('::')[0];
 			let defaultValueStr = '';
 
-			if (typeof defaultValue === 'string' && !(defaultValue.startsWith('{') || defaultValue.startsWith('\'{'))) {
+			if (typeof defaultValue === 'string' && !(defaultValue.startsWith('{') || defaultValue.startsWith("'{"))) {
 				defaultValueStr = `sql\`${defaultValue}\``;
 			} else if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(typeName)) {
 				defaultValueStr = buildArrayDefault(
 					defaultValue,
-					(value) => value
+					(value) => value,
 				);
 			} else if (typeName === 'interval') {
 				defaultValueStr = buildArrayDefault(
 					defaultValue,
-					(value) => value.replaceAll('"', '\'')
+					(value) => value.replaceAll('"', "'"),
 				);
 			} else if (typeName === 'boolean') {
 				defaultValueStr = buildArrayDefault(
 					defaultValue,
-					(value) => value === 't' ? 'true' : 'false'
+					(value) => value === 't' ? 'true' : 'false',
 				);
 			} else if (['json', 'jsonb'].includes(typeName)) {
 				defaultValueStr = buildArrayDefault(
 					defaultValue,
-					(value) => value
-						.substring(1, value.length - 1)
-						.replaceAll('\\', '')
+					(value) =>
+						value
+							.substring(1, value.length - 1)
+							.replaceAll('\\', ''),
 				);
 			} else {
 				defaultValueStr = buildArrayDefault(
 					defaultValue,
-					(value) => `'${value}'`
+					(value) => `'${value}'`,
 				);
 			}
 
@@ -1070,7 +1080,7 @@ const column = (
 		defaultValue = stripCasting(defaultValue, [`::${typeName}`]);
 		out += buildDefaultValue(
 			defaultValue,
-			typeof defaultValue === 'string' && defaultValue.startsWith('\'')
+			typeof defaultValue === 'string' && defaultValue.startsWith("'"),
 		);
 		return out;
 	}

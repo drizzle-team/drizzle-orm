@@ -1,6 +1,35 @@
 import { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
-import { bigint, bigserial, boolean, char, cidr, date, decimal, doublePrecision, inet, integer, interval, json, jsonb, macaddr, macaddr8, numeric, pgEnum, pgSchema, pgTable, real, serial, smallint, smallserial, text, time, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import {
+	bigint,
+	bigserial,
+	boolean,
+	char,
+	cidr,
+	date,
+	decimal,
+	doublePrecision,
+	inet,
+	integer,
+	interval,
+	json,
+	jsonb,
+	macaddr,
+	macaddr8,
+	numeric,
+	pgEnum,
+	pgSchema,
+	pgTable,
+	real,
+	serial,
+	smallint,
+	smallserial,
+	text,
+	time,
+	timestamp,
+	uuid,
+	varchar,
+} from 'drizzle-orm/pg-core';
 import { introspectPgToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
@@ -224,7 +253,7 @@ test('instrospect all column types', async () => {
 			macaddr: macaddr('macaddr').default('00:00:00:00:00:00'),
 			macaddr8: macaddr8('macaddr8').default('00:00:00:ff:fe:00:00:00'),
 			interval: interval('interval').default('1 day 01:00:00'),
-		})
+		}),
 	};
 
 	const { statements, sqlStatements } = await introspectPgToFile(
@@ -263,13 +292,16 @@ test('instrospect all column array types', async () => {
 				.array()
 				.default([new Date(), new Date()]),
 			date: date('date').array().default(['2024-01-01', '2024-01-02']),
-			uuid: uuid('uuid').array().default(['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12']),
+			uuid: uuid('uuid').array().default([
+				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+			]),
 			inet: inet('inet').array().default(['127.0.0.1', '127.0.0.2']),
 			cidr: cidr('cidr').array().default(['127.0.0.1/32', '127.0.0.2/32']),
 			macaddr: macaddr('macaddr').array().default(['00:00:00:00:00:00', '00:00:00:00:00:01']),
 			macaddr8: macaddr8('macaddr8').array().default(['00:00:00:ff:fe:00:00:00', '00:00:00:ff:fe:00:00:01']),
 			interval: interval('interval').array().default(['1 day 01:00:00', '1 day 02:00:00']),
-		})
+		}),
 	};
 
 	const { statements, sqlStatements } = await introspectPgToFile(
@@ -346,7 +378,7 @@ test('instrospect all column types with sql defaults', async () => {
 			interval: interval('interval').default(sql`return_string()::interval`),
 			array: integer('array').array().default(sql`return_int_array()`),
 			nullAsDefault: integer('nullAsDefault').default(sql`null::integer`),
-		})
+		}),
 	};
 
 	const { statements, sqlStatements } = await introspectPgToFile(
@@ -434,7 +466,7 @@ test('introspect enum with same names across different schema', async () => {
 test('introspect enum with similar name to native type', async () => {
 	const client = new PGlite();
 
-	const timeLeft = pgEnum("time_left", ['short', 'medium', 'long'])
+	const timeLeft = pgEnum('time_left', ['short', 'medium', 'long']);
 	const schema = {
 		timeLeft,
 		auction: pgTable('auction', {
@@ -445,7 +477,7 @@ test('introspect enum with similar name to native type', async () => {
 	const { statements, sqlStatements } = await introspectPgToFile(
 		client,
 		schema,
-		'introspect-enum-with-similar-name-to-native-type'
+		'introspect-enum-with-similar-name-to-native-type',
 	);
 
 	expect(statements.length).toBe(0);
