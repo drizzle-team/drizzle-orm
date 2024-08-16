@@ -772,30 +772,42 @@ export const fromDatabase = async (
 
 				const tableForeignKeys = await db.query(
 					`SELECT
-          tc.table_schema,
-          tc.constraint_name,
-          tc.table_name,
-          kcu.column_name,
-          (
-              SELECT ccu.table_schema
-              FROM information_schema.constraint_column_usage ccu
-              WHERE ccu.constraint_name = tc.constraint_name
-              LIMIT 1
-          ) AS foreign_table_schema,
-          ccu.table_name AS foreign_table_name,
-          ccu.column_name AS foreign_column_name,
-          rc.delete_rule, 
-          rc.update_rule
-      FROM
-          information_schema.table_constraints AS tc
-          JOIN information_schema.key_column_usage AS kcu
-            ON tc.constraint_name = kcu.constraint_name
-            AND tc.table_schema = kcu.table_schema
-          JOIN information_schema.constraint_column_usage AS ccu
-            ON ccu.constraint_name = tc.constraint_name
-          JOIN information_schema.referential_constraints AS rc
-            ON ccu.constraint_name = rc.constraint_name
-    WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name='${tableName}' and tc.table_schema='${tableSchema}';`,
+            con.contype AS constraint_type,
+            nsp.nspname AS constraint_schema,
+            con.conname AS constraint_name,
+            rel.relname AS table_name,
+            att.attname AS column_name,
+            fnsp.nspname AS foreign_table_schema,
+            frel.relname AS foreign_table_name,
+            fatt.attname AS foreign_column_name,
+            CASE con.confupdtype
+              WHEN 'a' THEN 'NO ACTION'
+              WHEN 'r' THEN 'RESTRICT'
+              WHEN 'n' THEN 'SET NULL'
+              WHEN 'c' THEN 'CASCADE'
+              WHEN 'd' THEN 'SET DEFAULT'
+            END AS update_rule,
+            CASE con.confdeltype
+              WHEN 'a' THEN 'NO ACTION'
+              WHEN 'r' THEN 'RESTRICT'
+              WHEN 'n' THEN 'SET NULL'
+              WHEN 'c' THEN 'CASCADE'
+              WHEN 'd' THEN 'SET DEFAULT'
+            END AS delete_rule
+          FROM
+            pg_catalog.pg_constraint con
+            JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
+            JOIN pg_catalog.pg_namespace nsp ON nsp.oid = con.connamespace
+            LEFT JOIN pg_catalog.pg_attribute att ON att.attnum = ANY (con.conkey)
+              AND att.attrelid = con.conrelid
+            LEFT JOIN pg_catalog.pg_class frel ON frel.oid = con.confrelid
+            LEFT JOIN pg_catalog.pg_namespace fnsp ON fnsp.oid = frel.relnamespace
+            LEFT JOIN pg_catalog.pg_attribute fatt ON fatt.attnum = ANY (con.confkey)
+              AND fatt.attrelid = con.confrelid
+          WHERE
+            nsp.nspname = '${tableSchema}'
+            AND rel.relname = '${tableName}'
+            AND con.contype IN ('f');`,
 				);
 
 				foreignKeysCount += tableForeignKeys.length;
@@ -903,6 +915,30 @@ export const fromDatabase = async (
 					}
 
 					const defaultValue = defaultForColumn(columnResponse);
+					if (defaultValue === 'NULL') {
+						if (typeof internals!.tables![tableName] === 'undefined') {
+							internals!.tables![tableName] = {
+								columns: {
+									[columnName]: {
+										isDefaultAnExpression: true,
+									},
+								},
+							};
+						} else {
+							if (
+								typeof internals!.tables![tableName]!.columns[columnName]
+									=== 'undefined'
+							) {
+								internals!.tables![tableName]!.columns[columnName] = {
+									isDefaultAnExpression: true,
+								};
+							} else {
+								internals!.tables![tableName]!.columns[
+									columnName
+								]!.isDefaultAnExpression = true;
+							}
+						}
+					}
 
 					const isSerial = columnType === 'serial';
 
@@ -1173,11 +1209,11 @@ export const fromDatabase = async (
 const columnToDefault: Record<string, string> = {
 	'numeric(': '::numeric',
 	// text: "::text",
-	// "character varying": "::character varying",
+	'character varying': '::character varying',
 	// "double precision": "::double precision",
 	// "time with time zone": "::time with time zone",
 	'time without time zone': '::time without time zone',
-	// "timestamp with time zone": "::timestamp with time zone",
+	// 'timestamp with time zone': '::timestamp with time zone',
 	'timestamp without time zone': '::timestamp without time zone',
 	'timestamp(': '::timestamp without time zone',
 	// date: "::date",
@@ -1190,6 +1226,13 @@ const columnToDefault: Record<string, string> = {
 	// jsonb: "::jsonb",
 	// json: "::json",
 	'character(': '::bpchar',
+};
+
+const columnEnumNameToDefault: Record<string, string> = {
+	timestamptz: '::timestamp with time zone',
+	timestmap: '::time without time zone',
+	time: '::time without time zone',
+	timetz: '::time with time zone',
 };
 
 const defaultForColumn = (column: any) => {
@@ -1206,15 +1249,24 @@ const defaultForColumn = (column: any) => {
 	}
 
 	const hasDifferentDefaultCast = Object.keys(columnToDefault).find((it) => column.data_type.startsWith(it));
+	const hasDifferentDefaultCastForEnum = Object.keys(columnEnumNameToDefault).find((it) =>
+		column.enum_name.startsWith(it)
+	);
 
 	const columnDefaultAsString: string = column.column_default.toString();
 
+	const endsWithEnumName = columnDefaultAsString.endsWith(
+		hasDifferentDefaultCastForEnum
+			? columnEnumNameToDefault[hasDifferentDefaultCastForEnum]
+			: (column.data_type as string),
+	);
+
+	const endsWithTypeName = columnDefaultAsString.endsWith(
+		hasDifferentDefaultCast ? columnToDefault[hasDifferentDefaultCast] : (column.data_type as string),
+	);
+
 	if (
-		columnDefaultAsString.endsWith(
-			hasDifferentDefaultCast
-				? columnToDefault[hasDifferentDefaultCast]
-				: (column.data_type as string),
-		)
+		endsWithTypeName || endsWithEnumName
 	) {
 		const nonPrefixPart = column.column_default.length
 			- (hasDifferentDefaultCast
@@ -1222,9 +1274,7 @@ const defaultForColumn = (column: any) => {
 				: `::${column.data_type as string}`).length
 			- 1;
 
-		const rt = column.column_default
-			.toString()
-			.substring(1, nonPrefixPart) as string;
+		const rt = column.column_default.toString().substring(0, nonPrefixPart + 1) as string;
 
 		if (
 			/^-?[\d.]+(?:e-?\d+)?$/.test(rt)
@@ -1240,8 +1290,12 @@ const defaultForColumn = (column: any) => {
 			}`;
 		} else if (column.data_type === 'boolean') {
 			return column.column_default === 'true';
+		} else if (rt === 'NULL') {
+			return `NULL`;
+		} else if (rt.startsWith("'") && rt.endsWith("'")) {
+			return rt;
 		} else {
-			return `'${rt}'`;
+			return `\'${rt}\'`;
 		}
 	} else {
 		if (
@@ -1251,8 +1305,10 @@ const defaultForColumn = (column: any) => {
 			return Number(columnDefaultAsString);
 		} else if (column.data_type === 'boolean') {
 			return column.column_default === 'true';
+		} else if (columnDefaultAsString === 'NULL') {
+			return `NULL`;
 		} else {
-			return `${columnDefaultAsString}`;
+			return `${columnDefaultAsString.replace(/\\/g, '\`\\')}`;
 		}
 	}
 };

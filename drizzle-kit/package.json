@@ -98,6 +98,7 @@
 		"pluralize": "^8.0.0",
 		"postgres": "^3.4.4",
 		"prettier": "^2.8.1",
+		"pure-rand": "^6.1.0",
 		"semver": "^7.5.4",
 		"superjson": "^2.2.1",
 		"tsup": "^8.0.2",

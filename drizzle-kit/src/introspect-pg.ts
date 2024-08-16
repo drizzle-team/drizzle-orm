@@ -140,6 +140,14 @@ const intervalConfig = (str: string) => {
 	return statement;
 };
 
+const mapColumnDefault = (defaultValue: any, isExpression?: boolean) => {
+	if (isExpression) {
+		return `sql\`${defaultValue}\``;
+	}
+
+	return defaultValue;
+};
+
 const importsPatch = {
 	'double precision': 'doublePrecision',
 	'timestamp without time zone': 'timestamp',
@@ -384,13 +392,14 @@ export const schemaToTypeScript = (
 		statement += '}';
 
 		// more than 2 fields or self reference or cyclic
-		const filteredFKs = Object.values(table.foreignKeys).filter((it) => {
-			return it.columnsFrom.length > 1 || isSelf(it);
-		});
+		// Andrii: I switched this one off until we will get custom names in .references()
+		// const filteredFKs = Object.values(table.foreignKeys).filter((it) => {
+		// 	return it.columnsFrom.length > 1 || isSelf(it);
+		// });
 
 		if (
 			Object.keys(table.indexes).length > 0
-			|| filteredFKs.length > 0
+			|| Object.values(table.foreignKeys).length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
 		) {
@@ -402,7 +411,7 @@ export const schemaToTypeScript = (
 				Object.values(table.indexes),
 				casing,
 			);
-			statement += createTableFKs(Object.values(filteredFKs), schemas, casing);
+			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing);
 			statement += createTablePKs(
 				Object.values(table.compositePrimaryKeys),
 				casing,
@@ -468,7 +477,20 @@ const column = (
 	defaultValue?: any,
 	internals?: PgKitInternals,
 ) => {
+	const isExpression = internals?.tables[tableName]?.columns[name]?.isDefaultAnExpression ?? false;
 	const lowered = type.toLowerCase();
+
+	if (enumTypes.has(type)) {
+		let out = `${withCasing(name, casing)}: ${
+			withCasing(
+				type,
+				casing,
+			)
+		}("${name}")`;
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return out;
+	}
+
 	if (lowered.startsWith('serial')) {
 		return `${withCasing(name, casing)}: serial("${name}")`;
 	}
@@ -488,38 +510,38 @@ const column = (
 
 	if (lowered.startsWith('integer')) {
 		let out = `${withCasing(name, casing)}: integer("${name}")`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('smallint')) {
 		let out = `${withCasing(name, casing)}: smallint("${name}")`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('bigint')) {
 		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
 		out += `${withCasing(name, casing)}: bigint("${name}", { mode: "number" })`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('boolean')) {
 		let out = `${withCasing(name, casing)}: boolean("${name}")`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('double precision')) {
 		let out = `${withCasing(name, casing)}: doublePrecision("${name}")`;
-		out += defaultValue ? `.default(${defaultValue})` : '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('real')) {
 		let out = `${withCasing(name, casing)}: real("${name}")`;
-		out += defaultValue ? `.default(${defaultValue})` : '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -555,7 +577,7 @@ const column = (
 				? defaultValue.substring(1, defaultValue.length - 1)
 				: defaultValue
 			: undefined;
-		out += defaultValue ? `.default('${defaultValue}')` : '';
+		out += defaultValue ? `.default('${mapColumnDefault(defaultValue, isExpression)}')` : '';
 
 		return out;
 	}
@@ -590,10 +612,12 @@ const column = (
 		//   ? defaultValue.substring(0, defaultValue.length - 26)
 		//   : defaultValue;
 
-		defaultValue = defaultValue === 'now()' || defaultValue === 'CURRENT_TIMESTAMP'
+		defaultValue = defaultValue === 'now()'
 			? '.defaultNow()'
+			: defaultValue === 'CURRENT_TIMESTAMP'
+			? '.default(sql\`CURRENT_TIMESTAMP\`)'
 			: defaultValue
-			? `.default(${defaultValue})`
+			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
 
 		out += defaultValue;
@@ -621,7 +645,7 @@ const column = (
 		defaultValue = defaultValue === 'now()'
 			? '.defaultNow()'
 			: defaultValue
-			? `.default(${defaultValue})`
+			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
 
 		out += defaultValue;
@@ -640,7 +664,7 @@ const column = (
 			? `${withCasing(name, casing)}: interval("${name}", ${params})`
 			: `${withCasing(name, casing)}: interval("${name}")`;
 
-		out += defaultValue ? `.default(${defaultValue})` : '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -699,7 +723,7 @@ const column = (
 		//   ? defaultValue.substring(0, defaultValue.length - 6)
 		//   : defaultValue;
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -710,7 +734,7 @@ const column = (
 		//   ? defaultValue.substring(0, defaultValue.length - 6)
 		//   : defaultValue;
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -721,7 +745,7 @@ const column = (
 		//   ? defaultValue.substring(0, defaultValue.length - 9)
 		//   : defaultValue;
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -732,7 +756,7 @@ const column = (
 		//   ? defaultValue.substring(0, defaultValue.length - 10)
 		//   : defaultValue;
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -760,21 +784,21 @@ const column = (
 		//   ? defaultValue.substring(0, defaultValue.length - 19)
 		//   : defaultValue;
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('point')) {
 		let out: string = `${withCasing(name, casing)}: point("${name}")`;
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('line')) {
 		let out: string = `${withCasing(name, casing)}: point("${name}")`;
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -798,7 +822,7 @@ const column = (
 			out = `${withCasing(name, casing)}: geometry("${name}")`;
 		}
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 
 		if (isGeoUnknown) {
 			let unknown =
@@ -829,7 +853,7 @@ const column = (
 			out = `${withCasing(name, casing)}: vector("${name}")`;
 		}
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -857,7 +881,7 @@ const column = (
 		//   ? defaultValue.substring(0, defaultValue.length - 8)
 		//   : defaultValue;
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -876,20 +900,9 @@ const column = (
 					casing,
 				)
 			}("${name}")`;
-			out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+			out += typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 			return out;
 		}
-	}
-
-	if (enumTypes.has(type)) {
-		let out = `${withCasing(name, casing)}: ${
-			withCasing(
-				type,
-				casing,
-			)
-		}("${name}")`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
-		return out;
 	}
 
 	let unknown = `// TODO: failed to parse database type '${type}'\n`;
@@ -985,37 +998,38 @@ const createTableColumns = (
 			? `.generatedAlwaysAs(sql\`${it.generated.as}\`)`
 			: '';
 
-		const fks = fkByColumnName[it.name];
-		if (fks) {
-			const fksStatement = fks
-				.map((it) => {
-					const onDelete = it.onDelete && it.onDelete !== 'no action' ? it.onDelete : null;
-					const onUpdate = it.onUpdate && it.onUpdate !== 'no action' ? it.onUpdate : null;
-					const params = { onDelete, onUpdate };
+		// const fks = fkByColumnName[it.name];
+		// Andrii: I switched it off until we will get a custom naem setting in references
+		// if (fks) {
+		// 	const fksStatement = fks
+		// 		.map((it) => {
+		// 			const onDelete = it.onDelete && it.onDelete !== 'no action' ? it.onDelete : null;
+		// 			const onUpdate = it.onUpdate && it.onUpdate !== 'no action' ? it.onUpdate : null;
+		// 			const params = { onDelete, onUpdate };
 
-					const typeSuffix = isCyclic(it) ? ': AnyPgColumn' : '';
+		// 			const typeSuffix = isCyclic(it) ? ': AnyPgColumn' : '';
 
-					const paramsStr = objToStatement2(params);
-					const tableSchema = schemas[it.schemaTo || ''];
-					const paramName = paramNameFor(it.tableTo, tableSchema);
-					if (paramsStr) {
-						return `.references(()${typeSuffix} => ${
-							withCasing(
-								paramName,
-								casing,
-							)
-						}.${withCasing(it.columnsTo[0], casing)}, ${paramsStr} )`;
-					}
-					return `.references(()${typeSuffix} => ${
-						withCasing(
-							paramName,
-							casing,
-						)
-					}.${withCasing(it.columnsTo[0], casing)})`;
-				})
-				.join('');
-			statement += fksStatement;
-		}
+		// 			const paramsStr = objToStatement2(params);
+		// 			const tableSchema = schemas[it.schemaTo || ''];
+		// 			const paramName = paramNameFor(it.tableTo, tableSchema);
+		// 			if (paramsStr) {
+		// 				return `.references(()${typeSuffix} => ${
+		// 					withCasing(
+		// 						paramName,
+		// 						casing,
+		// 					)
+		// 				}.${withCasing(it.columnsTo[0], casing)}, ${paramsStr} )`;
+		// 			}
+		// 			return `.references(()${typeSuffix} => ${
+		// 				withCasing(
+		// 					paramName,
+		// 					casing,
+		// 				)
+		// 			}.${withCasing(it.columnsTo[0], casing)})`;
+		// 		})
+		// 		.join('');
+		// 	statement += fksStatement;
+		// }
 
 		statement += ',\n';
 	});
@@ -1058,7 +1072,9 @@ const createTableIndexes = (
 					if (it.isExpression) {
 						return `sql\`${it.expression}\``;
 					} else {
-						return `table.${withCasing(it.expression, casing)}${
+						return `table.${withCasing(it.expression, casing)}${it.asc ? '.asc()' : '.desc()'}${
+							it.nulls === 'first' ? '.nullsFirst()' : '.nullsLast()'
+						}${
 							it.opclass && vectorOps.includes(it.opclass)
 								? `.op("${it.opclass}")`
 								: ''
