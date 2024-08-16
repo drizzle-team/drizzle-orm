@@ -821,6 +821,18 @@ test('alter column add default not null with indexes', async (t) => {
 		type: 'create_index',
 		internal: undefined,
 	});
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
+	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_table\` (
+\t\`name\` text DEFAULT 'dan' NOT NULL
+);\n`);
+	expect(sqlStatements[2]).toBe(
+		`INSERT INTO \`__new_table\`("name") SELECT "name" FROM \`table\`;`,
+	);
+	expect(sqlStatements[3]).toBe(`DROP TABLE \`table\`;`);
+	expect(sqlStatements[4]).toBe(`ALTER TABLE \`__new_table\` RENAME TO \`table\`;`);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
+	expect(sqlStatements[6]).toBe(`CREATE INDEX \`index_name\` ON \`table\` (\`name\`);`);
 });
 
 test('alter column drop default not null', async (t) => {
@@ -858,6 +870,17 @@ test('alter column drop default not null', async (t) => {
 		tableName: 'table',
 		uniqueConstraints: [],
 	});
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
+	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_table\` (
+\t\`name\` text
+);\n`);
+	expect(sqlStatements[2]).toBe(
+		`INSERT INTO \`__new_table\`("name") SELECT "name" FROM \`table\`;`,
+	);
+	expect(sqlStatements[3]).toBe(`DROP TABLE \`table\`;`);
+	expect(sqlStatements[4]).toBe(`ALTER TABLE \`__new_table\` RENAME TO \`table\`;`);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });
 
 test('alter column drop generated', async (t) => {

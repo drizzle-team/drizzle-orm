@@ -395,6 +395,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 	);
 
 	expect(columnsToRemove!.length).toBe(1);
+	expect(columnsToRemove![0]).toBe('name');
 	expect(infoToPrint!.length).toBe(1);
 	expect(infoToPrint![0]).toBe(
 		`· You're about to delete ${
