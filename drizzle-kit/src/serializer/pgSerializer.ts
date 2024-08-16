@@ -744,7 +744,8 @@ export const fromDatabase = async (
                    WHEN 'int2'::regtype THEN 'smallserial'
                 END
            ELSE format_type(a.atttypid, a.atttypmod)
-           END AS data_type, INFORMATION_SCHEMA.COLUMNS.table_name, 
+           END AS data_type, INFORMATION_SCHEMA.COLUMNS.table_name,
+					 ns.nspname as type_schema,
            pg_get_serial_sequence('"${tableSchema}"."${tableName}"', a.attname)::regclass as seq_name, INFORMATION_SCHEMA.COLUMNS.column_name, 
            INFORMATION_SCHEMA.COLUMNS.column_default, INFORMATION_SCHEMA.COLUMNS.data_type as additional_dt, 
            INFORMATION_SCHEMA.COLUMNS.udt_name as enum_name,
@@ -755,6 +756,8 @@ export const fromDatabase = async (
            INFORMATION_SCHEMA.COLUMNS.identity_cycle
    FROM  pg_attribute  a
    JOIN INFORMATION_SCHEMA.COLUMNS ON INFORMATION_SCHEMA.COLUMNS.column_name = a.attname
+	 JOIN pg_type t ON t.oid = a.atttypid
+	 LEFT JOIN pg_namespace ns ON ns.oid = t.typnamespace
    WHERE  a.attrelid = '"${tableSchema}"."${tableName}"'::regclass and INFORMATION_SCHEMA.COLUMNS.table_name = '${tableName}' and INFORMATION_SCHEMA.COLUMNS.table_schema = '${tableSchema}'
    AND    a.attnum > 0
    AND    NOT a.attisdropped
@@ -867,6 +870,7 @@ export const fromDatabase = async (
 					const columnAdditionalDT = columnResponse.additional_dt;
 					const columnDimensions = columnResponse.array_dimensions;
 					const enumType: string = columnResponse.enum_name;
+					const typeSchema = columnResponse.type_schema;
 					let columnType: string = columnResponse.data_type;
 
 					const isGenerated = columnResponse.is_generated === 'ALWAYS';
@@ -970,9 +974,7 @@ export const fromDatabase = async (
 								&& !['vector', 'geometry'].includes(enumType)
 								? enumType
 								: columnTypeMapped,
-						typeSchema: enumsToReturn[`${tableSchema}.${enumType}`] !== undefined
-							? enumsToReturn[`${tableSchema}.${enumType}`].schema
-							: undefined,
+						typeSchema: typeSchema,
 						primaryKey: primaryKey.length === 1 && cprimaryKey.length < 2,
 						// default: isSerial ? undefined : defaultValue,
 						notNull: columnResponse.is_nullable === 'NO',

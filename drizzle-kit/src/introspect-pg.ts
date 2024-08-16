@@ -291,59 +291,64 @@ export const schemaToTypeScript = (
 		}),
 	);
 
-	const enumTypes = new Set(Object.values(schema.enums).map((it) => it.name));
+	const enumTypes = Object.values(schema.enums).map((it) => ({
+		name: it.name,
+		schema: it.schema,
+	}));
 
-	const imports = Object.values(schema.tables).reduce(
-		(res, it) => {
-			const idxImports = Object.values(it.indexes).map((idx) => idx.isUnique ? 'uniqueIndex' : 'index');
-			const fkImpots = Object.values(it.foreignKeys).map((it) => 'foreignKey');
-			if (
-				Object.values(it.foreignKeys).some((it) => isCyclic(it) && !isSelf(it))
-			) {
-				res.pg.push('type AnyPgColumn');
-			}
-			const pkImports = Object.values(it.compositePrimaryKeys).map(
-				(it) => 'primaryKey',
-			);
-			const uniqueImports = Object.values(it.uniqueConstraints).map(
-				(it) => 'unique',
-			);
-
-			if (it.schema && it.schema !== 'public' && it.schema !== '') {
-				res.pg.push('pgSchema');
-			}
-
-			res.pg.push(...idxImports);
-			res.pg.push(...fkImpots);
-			res.pg.push(...pkImports);
-			res.pg.push(...uniqueImports);
-
-			if (enumTypes.size > 0) {
-				res.pg.push('pgEnum');
-			}
-
-			const columnImports = Object.values(it.columns)
-			.map((col) => {
-					let patched: string = (importsPatch[col.type] || col.type).replace('[]', '');
-					patched = patched === 'double precision' ? 'doublePrecision' : patched;
-					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-					patched = patched.startsWith('char(') ? 'char' : patched;
-					patched = patched.startsWith('numeric(') ? 'numeric' : patched;
-					patched = patched.startsWith('time(') ? 'time' : patched;
-					patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
-					patched = patched.startsWith('vector(') ? 'vector' : patched;
-					patched = patched.startsWith('geometry(') ? 'geometry' : patched;
-					return patched;
-				})
-				.filter((type) => {
-					return pgImportsList.has(type);
-				});
-
-			res.pg.push(...columnImports);
-			return res;
-		},
-		{ pg: [] as string[] },
-	);
+	let imports = {
+		pg: [
+			...Object.values(schema.tables).reduce(
+				(res, it) => {
+					const idxImports = Object.values(it.indexes).map((idx) => idx.isUnique ? 'uniqueIndex' : 'index');
+					const fkImpots = Object.values(it.foreignKeys).map((it) => 'foreignKey');
+					if (
+						Object.values(it.foreignKeys).some((it) => isCyclic(it) && !isSelf(it))
+					) {
+						res.push('type AnyPgColumn');
+					}
+					const pkImports = Object.values(it.compositePrimaryKeys).map(
+						(it) => 'primaryKey',
+					);
+					const uniqueImports = Object.values(it.uniqueConstraints).map(
+						(it) => 'unique',
+					);
+		
+					if (it.schema && it.schema !== 'public' && it.schema !== '') {
+						res.push('pgSchema');
+					}
+		
+					res.push(...idxImports);
+					res.push(...fkImpots);
+					res.push(...pkImports);
+					res.push(...uniqueImports);
+		
+					const columnImports = Object.values(it.columns)
+					.map((col) => {
+							let patched: string = (importsPatch[col.type] || col.type).replace('[]', '');
+							patched = patched === 'double precision' ? 'doublePrecision' : patched;
+							patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+							patched = patched.startsWith('char(') ? 'char' : patched;
+							patched = patched.startsWith('numeric(') ? 'numeric' : patched;
+							patched = patched.startsWith('time(') ? 'time' : patched;
+							patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
+							patched = patched.startsWith('vector(') ? 'vector' : patched;
+							patched = patched.startsWith('geometry(') ? 'geometry' : patched;
+							return patched;
+						})
+						.filter((type) => {
+							return pgImportsList.has(type);
+						});
+		
+					res.push(...columnImports);
+					return res;
+				},
+				[] as string[],
+			),
+			...enumTypes.find((it) => it.schema !== undefined && it.schema !== 'public') ? ['pgSchema'] : [],
+			...enumTypes.find((it) => it.schema === 'public') ? ['pgEnum'] : []
+		],
+	};
 
 	const enumStatements = Object.values(schema.enums)
 		.map((it) => {
@@ -375,13 +380,11 @@ export const schemaToTypeScript = (
 		const func = tableSchema ? `${tableSchema}.table` : 'pgTable';
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
-			table.name,
 			Object.values(table.columns),
 			Object.values(table.foreignKeys),
 			enumTypes,
 			schemas,
 			casing,
-			schema.internal,
 		);
 		statement += '}';
 
@@ -978,17 +981,21 @@ const buildArrayDefault = (defaultValue: string, mapCallback: (value: string) =>
 }
 
 const column = (
-	tableName: string,
 	type: string,
+	typeSchema: string | undefined,
 	name: string,
-	enumTypes: Set<string>,
+	enumTypes: {
+		name: string;
+		schema: string;
+	}[],
 	casing: Casing,
 	defaultValue?: any,
-	internals?: PgKitInternals,
 ) => {
 	const lowered = type.toLowerCase();
 	const typeName = lowered.split(/[\(\[]/)[0];
+	const enumType = enumTypes.find((it) => it.name.includes(typeName) && it.schema === typeSchema);
 	let columnKey = withCasing(name, casing);
+	console.log(typeSchema)
 
 	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(columnKey)) {
 		columnKey = `"${columnKey}"`;
@@ -1053,10 +1060,10 @@ const column = (
 	} else if (Object.keys(columnMappers).includes(typeName)) {
 		const mapper = columnMappers[typeName];
 		return mapper({ name, defaultValue, columnKey, sqlType: lowered });
-	} else if (enumTypes.has(typeName)) {
+	} else if (enumType) {
 		let out = `${columnKey}: ${
 			withCasing(
-				type,
+				paramNameFor(enumType.name, enumType.schema),
 				casing,
 			)
 		}("${name}")`;
@@ -1074,13 +1081,14 @@ const column = (
 };
 
 const createTableColumns = (
-	tableName: string,
 	columns: Column[],
 	fks: ForeignKey[],
-	enumTypes: Set<string>,
+	enumTypes: {
+		name: string;
+		schema: string;
+	}[],
 	schemas: Record<string, string>,
 	casing: Casing,
-	internals: PgKitInternals,
 ): string => {
 	let statement = '';
 
@@ -1100,13 +1108,12 @@ const createTableColumns = (
 
 	columns.forEach((it) => {
 		const columnStatement = column(
-			tableName,
 			it.type,
+			it.typeSchema,
 			it.name,
 			enumTypes,
 			casing,
 			it.default,
-			internals,
 		);
 		statement += '\t';
 		statement += columnStatement;

@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
-import { bigint, bigserial, boolean, char, cidr, date, decimal, doublePrecision, inet, integer, interval, json, jsonb, macaddr, macaddr8, numeric, pgEnum, pgTable, real, serial, smallint, smallserial, text, time, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { bigint, bigserial, boolean, char, cidr, date, decimal, doublePrecision, inet, integer, interval, json, jsonb, macaddr, macaddr8, numeric, pgEnum, pgSchema, pgTable, real, serial, smallint, smallserial, text, time, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { introspectPgToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
@@ -374,6 +374,57 @@ test('introspect columns with name with non-alphanumeric characters', async () =
 		client,
 		schema,
 		'introspect-column-with-name-with-non-alphanumeric-characters',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect enum from different schema', async () => {
+	const client = new PGlite();
+
+	const schema2 = pgSchema('schema2');
+	const myEnumInSchema2 = schema2.enum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		schema2,
+		myEnumInSchema2,
+		users: pgTable('users', {
+			col: myEnumInSchema2('col'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-enum-from-different-schema',
+		['public', 'schema2'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect enum with same names across different schema', async () => {
+	const client = new PGlite();
+
+	const schema2 = pgSchema('schema2');
+	const myEnumInSchema2 = schema2.enum('my_enum', ['a', 'b', 'c']);
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		schema2,
+		myEnumInSchema2,
+		myEnum,
+		users: pgTable('users', {
+			col1: myEnumInSchema2('col1'),
+			col2: myEnum('col2'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-enum-with-same-names-across-different-schema',
+		['public', 'schema2'],
 	);
 
 	expect(statements.length).toBe(0);
