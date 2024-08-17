@@ -82,7 +82,7 @@ type MaybeOptional<
 type GetTypeboxType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? TAny
 	: TDataType extends 'json' ? Json
-	: TColumn extends { enumValues: [string, ...string[]] }
+	: Equal<TColumn['enumValues'], undefined> extends false
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? TString
 		: TUnion<TUnionLiterals<TColumn['enumValues']>>
 	: TDataType extends 'array' ? TArray<

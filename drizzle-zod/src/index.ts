@@ -43,7 +43,7 @@ type MaybeOptional<
 type GetZodType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? z.ZodAny
 	: TDataType extends 'json' ? z.ZodType<Json>
-	: TColumn extends { enumValues: [string, ...string[]] }
+	: Equal<TColumn['enumValues'], undefined> extends false
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? z.ZodString : z.ZodEnum<TColumn['enumValues']>
 	: TDataType extends 'array' ? z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>>
 	: TDataType extends 'bigint' ? z.ZodBigInt
