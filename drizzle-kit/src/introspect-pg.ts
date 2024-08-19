@@ -158,12 +158,19 @@ const importsPatch = {
 
 const relations = new Set<string>();
 
+const escapeColumnKey = (value: string) => {
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
+		return `"${value}"`;
+	}
+	return value;
+};
+
 const withCasing = (value: string, casing: Casing) => {
 	if (casing === 'preserve') {
-		return value;
+		return escapeColumnKey(value);
 	}
 	if (casing === 'camel') {
-		return value.camelCase();
+		return escapeColumnKey(value.camelCase());
 	}
 
 	assertUnreachable(casing);
@@ -298,7 +305,13 @@ export const schemaToTypeScript = (
 		}),
 	);
 
-	const enumTypes = new Set(Object.values(schema.enums).map((it) => it.name));
+	const enumTypes = Object.values(schema.enums).reduce(
+		(acc, cur) => {
+			acc.add(`${cur.schema}.${cur.name}`);
+			return acc;
+		},
+		new Set<string>(),
+	);
 
 	const imports = Object.values(schema.tables).reduce(
 		(res, it) => {
@@ -325,10 +338,6 @@ export const schemaToTypeScript = (
 			res.pg.push(...pkImports);
 			res.pg.push(...uniqueImports);
 
-			if (enumTypes.size > 0) {
-				res.pg.push('pgEnum');
-			}
-
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
 					let patched: string = importsPatch[col.type] || col.type;
@@ -350,6 +359,14 @@ export const schemaToTypeScript = (
 		},
 		{ pg: [] as string[] },
 	);
+
+	Object.values(schema.enums).forEach((it) => {
+		if (it.schema && it.schema !== 'public' && it.schema !== '') {
+			imports.pg.push('pgSchema');
+		} else if (it.schema === 'public') {
+			imports.pg.push('pgEnum');
+		}
+	});
 
 	const enumStatements = Object.values(schema.enums)
 		.map((it) => {
@@ -473,6 +490,7 @@ const column = (
 	type: string,
 	name: string,
 	enumTypes: Set<string>,
+	typeSchema: string,
 	casing: Casing,
 	defaultValue?: any,
 	internals?: PgKitInternals,
@@ -480,10 +498,10 @@ const column = (
 	const isExpression = internals?.tables[tableName]?.columns[name]?.isDefaultAnExpression ?? false;
 	const lowered = type.toLowerCase();
 
-	if (enumTypes.has(type)) {
+	if (enumTypes.has(`${typeSchema}.${type}`)) {
 		let out = `${withCasing(name, casing)}: ${
 			withCasing(
-				type,
+				paramNameFor(type, typeSchema),
 				casing,
 			)
 		}("${name}")`;
@@ -950,6 +968,7 @@ const createTableColumns = (
 			it.type,
 			it.name,
 			enumTypes,
+			it.typeSchema ?? 'public',
 			casing,
 			it.default,
 			internals,

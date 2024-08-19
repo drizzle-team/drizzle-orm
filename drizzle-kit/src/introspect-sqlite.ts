@@ -38,12 +38,19 @@ const objToStatement2 = (json: any) => {
 
 const relations = new Set<string>();
 
+const escapeColumnKey = (value: string) => {
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
+		return `"${value}"`;
+	}
+	return value;
+};
+
 const withCasing = (value: string, casing?: Casing) => {
-	if (typeof casing === 'undefined') {
-		return value;
+	if (casing === 'preserve') {
+		return escapeColumnKey(value);
 	}
 	if (casing === 'camel') {
-		return value.camelCase();
+		return escapeColumnKey(value.camelCase());
 	}
 
 	return value;
