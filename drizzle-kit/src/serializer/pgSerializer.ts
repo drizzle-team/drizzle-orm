@@ -1276,7 +1276,7 @@ const defaultForColumn = (column: any) => {
 				: `::${column.data_type as string}`).length
 			- 1;
 
-		const rt = column.column_default.toString().substring(0, nonPrefixPart + 1) as string;
+		let rt = column.column_default.toString().substring(0, nonPrefixPart + 1) as string;
 
 		if (
 			/^-?[\d.]+(?:e-?\d+)?$/.test(rt)
@@ -1284,6 +1284,9 @@ const defaultForColumn = (column: any) => {
 		) {
 			return Number(rt);
 		} else if (column.data_type === 'json' || column.data_type === 'jsonb') {
+			if (rt.startsWith("'")) {
+				rt = rt.slice(1, -1);
+			}
 			const jsonWithoutSpaces = JSON.stringify(JSON.parse(rt));
 			return `'${jsonWithoutSpaces}'${
 				hasDifferentDefaultCast
