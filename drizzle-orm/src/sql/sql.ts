@@ -203,7 +203,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Param)) {
-				const mappedValue = (chunk.value === null) ? null : chunk.encoder.mapToDriverValue(chunk.value);
+				if (is(chunk.value, Placeholder)) {
+					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+				}
+
+				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
 
 				if (is(mappedValue, SQL)) {
 					return this.buildQueryFromSourceParams([mappedValue], config);
@@ -213,7 +217,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 					return { sql: this.mapInlineParam(mappedValue, config), params: [] };
 				}
 
-				let typings: QueryTypingsValue[] | undefined;
+				let typings: QueryTypingsValue[] = ['none'];
 				if (prepareTyping) {
 					typings = [prepareTyping(chunk.encoder)];
 				}
@@ -263,7 +267,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
 
-			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
+			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
 		}));
 	}
 
@@ -583,7 +587,16 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 			if (!(p.name in values)) {
 				throw new Error(`No value for placeholder "${p.name}" was provided`);
 			}
+
 			return values[p.name];
+		}
+
+		if (is(p, Param) && is(p.value, Placeholder)) {
+			if (!(p.value.name in values)) {
+				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
+			}
+
+			return p.encoder.mapToDriverValue(values[p.value.name]);
 		}
 
 		return p;
