@@ -2192,11 +2192,11 @@ test('add array column - empty array default', async () => {
 			type: 'alter_table_add_column',
 			tableName: 'test',
 			schema: '',
-			column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{}'::integer[]" },
+			column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{}'" },
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{}\'::integer[];',
+		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{}\';',
 	]);
 });
 
@@ -2229,10 +2229,10 @@ test('add array column - default', async () => {
 			type: 'alter_table_add_column',
 			tableName: 'test',
 			schema: '',
-			column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{1,2,3}'::integer[]" },
+			column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{1,2,3}'" },
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\'::integer[];',
+		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
 	]);
 });

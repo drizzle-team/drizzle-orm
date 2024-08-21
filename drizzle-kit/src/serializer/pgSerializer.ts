@@ -269,7 +269,7 @@ export const generatePgSnapshot = (
 									column.default,
 									sqlTypeLowered,
 								)
-							}'::${sqlTypeLowered}`;
+							}'`;
 						} else {
 							// Should do for all types
 							// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
@@ -916,39 +916,7 @@ export const fromDatabase = async (
 						};
 					}
 
-					const defaultValue = defaultForColumn(columnResponse);
-					if (defaultValue === 'NULL') {
-						if (typeof internals!.tables![tableName] === 'undefined') {
-							internals!.tables![tableName] = {
-								columns: {
-									[columnName]: {
-										isDefaultAnExpression: true,
-									},
-								},
-							};
-						} else {
-							if (
-								typeof internals!.tables![tableName]!.columns[columnName]
-									=== 'undefined'
-							) {
-								internals!.tables![tableName]!.columns[columnName] = {
-									isDefaultAnExpression: true,
-								};
-							} else {
-								internals!.tables![tableName]!.columns[
-									columnName
-								]!.isDefaultAnExpression = true;
-							}
-						}
-					}
-
-					const isSerial = columnType === 'serial';
-
 					let columnTypeMapped = columnType;
-
-					if (columnTypeMapped.startsWith('numeric(')) {
-						columnTypeMapped = columnTypeMapped.replace(',', ', ');
-					}
 
 					// Set default to internal object
 					if (columnAdditionalDT === 'ARRAY') {
@@ -980,6 +948,42 @@ export const fromDatabase = async (
 								};
 							}
 						}
+					}
+
+					const defaultValue = defaultForColumn(
+						columnResponse,
+						internals,
+						tableName,
+					);
+					if (defaultValue === 'NULL') {
+						if (typeof internals!.tables![tableName] === 'undefined') {
+							internals!.tables![tableName] = {
+								columns: {
+									[columnName]: {
+										isDefaultAnExpression: true,
+									},
+								},
+							};
+						} else {
+							if (
+								typeof internals!.tables![tableName]!.columns[columnName]
+									=== 'undefined'
+							) {
+								internals!.tables![tableName]!.columns[columnName] = {
+									isDefaultAnExpression: true,
+								};
+							} else {
+								internals!.tables![tableName]!.columns[
+									columnName
+								]!.isDefaultAnExpression = true;
+							}
+						}
+					}
+
+					const isSerial = columnType === 'serial';
+
+					if (columnTypeMapped.startsWith('numeric(')) {
+						columnTypeMapped = columnTypeMapped.replace(',', ', ');
 					}
 
 					if (columnAdditionalDT === 'ARRAY') {
@@ -1208,36 +1212,10 @@ export const fromDatabase = async (
 	};
 };
 
-const columnToDefault: Record<string, string> = {
-	'numeric(': '::numeric',
-	// text: "::text",
-	'character varying': '::character varying',
-	// "double precision": "::double precision",
-	// "time with time zone": "::time with time zone",
-	'time without time zone': '::time without time zone',
-	// 'timestamp with time zone': '::timestamp with time zone',
-	'timestamp without time zone': '::timestamp without time zone',
-	'timestamp(': '::timestamp without time zone',
-	// date: "::date",
-	// interval: "::interval",
-	// character: "::bpchar",
-	// macaddr8: "::macaddr8",
-	// macaddr: "::macaddr",
-	// inet: "::inet",
-	// cidr: "::cidr",
-	// jsonb: "::jsonb",
-	// json: "::json",
-	'character(': '::bpchar',
-};
+const defaultForColumn = (column: any, internals: PgKitInternals, tableName: string) => {
+	const columnName = column.attname;
+	const isArray = internals?.tables[tableName]?.columns[columnName]?.isArray ?? false;
 
-const columnEnumNameToDefault: Record<string, string> = {
-	timestamptz: '::timestamp with time zone',
-	timestmap: '::time without time zone',
-	time: '::time without time zone',
-	timetz: '::time with time zone',
-};
-
-const defaultForColumn = (column: any) => {
 	if (column.column_default === null) {
 		return undefined;
 	}
@@ -1250,70 +1228,81 @@ const defaultForColumn = (column: any) => {
 		return undefined;
 	}
 
-	const hasDifferentDefaultCast = Object.keys(columnToDefault).find((it) => column.data_type.startsWith(it));
-	const hasDifferentDefaultCastForEnum = Object.keys(columnEnumNameToDefault).find((it) =>
-		column.enum_name.startsWith(it)
-	);
+	if (column.column_default.endsWith('[]')) {
+		column.column_default = column.column_default.slice(0, -2);
+	}
+
+	// if (
+	// 	!['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type)
+	// ) {
+	column.column_default = column.column_default.replace(/::(.*?)(?<![^\w"])(?=$)/, '');
+	// }
 
 	const columnDefaultAsString: string = column.column_default.toString();
 
-	const endsWithEnumName = columnDefaultAsString.endsWith(
-		hasDifferentDefaultCastForEnum
-			? columnEnumNameToDefault[hasDifferentDefaultCastForEnum]
-			: (column.data_type as string),
-	);
-
-	const endsWithTypeName = columnDefaultAsString.endsWith(
-		hasDifferentDefaultCast ? columnToDefault[hasDifferentDefaultCast] : (column.data_type as string),
-	);
+	if (isArray) {
+		return `'{${
+			columnDefaultAsString.slice(2, -2)
+				.split(/\s*,\s*/g)
+				.map((value) => {
+					if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
+						return value;
+					} else if (column.data_type.startsWith('timestamp')) {
+						return `${value}`;
+					} else if (column.data_type.slice(0, -2) === 'interval') {
+						return value.replaceAll('"', `\"`);
+					} else if (column.data_type.slice(0, -2) === 'boolean') {
+						return value === 't' ? 'true' : 'false';
+					} else if (['json', 'jsonb'].includes(column.data_type.slice(0, -2))) {
+						return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
+					} else {
+						return `\"${value}\"`;
+					}
+				})
+				.join(',')
+		}}'`;
+	}
 
 	if (
-		endsWithTypeName || endsWithEnumName
+		['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type)
 	) {
-		const nonPrefixPart = column.column_default.length
-			- (hasDifferentDefaultCast
-				? columnToDefault[hasDifferentDefaultCast]
-				: `::${column.data_type as string}`).length
-			- 1;
-
-		let rt = column.column_default.toString().substring(0, nonPrefixPart + 1) as string;
-
-		if (
-			/^-?[\d.]+(?:e-?\d+)?$/.test(rt)
-			&& !column.data_type.startsWith('numeric')
-		) {
-			return Number(rt);
-		} else if (column.data_type === 'json' || column.data_type === 'jsonb') {
-			if (rt.startsWith("'")) {
-				rt = rt.slice(1, -1);
-			}
-			const jsonWithoutSpaces = JSON.stringify(JSON.parse(rt));
-			return `'${jsonWithoutSpaces}'${
-				hasDifferentDefaultCast
-					? columnToDefault[hasDifferentDefaultCast]
-					: `::${column.data_type as string}`
-			}`;
-		} else if (column.data_type === 'boolean') {
-			return column.column_default === 'true';
-		} else if (rt === 'NULL') {
-			return `NULL`;
-		} else if (rt.startsWith("'") && rt.endsWith("'")) {
-			return rt;
-		} else {
-			return `\'${rt}\'`;
-		}
-	} else {
-		if (
-			/^-?[\d.]+(?:e-?\d+)?$/.test(columnDefaultAsString)
-			&& !column.data_type.startsWith('numeric')
-		) {
+		if (/^-?[\d.]+(?:e-?\d+)?$/.test(columnDefaultAsString)) {
 			return Number(columnDefaultAsString);
-		} else if (column.data_type === 'boolean') {
-			return column.column_default === 'true';
-		} else if (columnDefaultAsString === 'NULL') {
-			return `NULL`;
 		} else {
-			return `${columnDefaultAsString.replace(/\\/g, '\`\\')}`;
+			if (typeof internals!.tables![tableName] === 'undefined') {
+				internals!.tables![tableName] = {
+					columns: {
+						[columnName]: {
+							isDefaultAnExpression: true,
+						},
+					},
+				};
+			} else {
+				if (
+					typeof internals!.tables![tableName]!.columns[columnName]
+						=== 'undefined'
+				) {
+					internals!.tables![tableName]!.columns[columnName] = {
+						isDefaultAnExpression: true,
+					};
+				} else {
+					internals!.tables![tableName]!.columns[
+						columnName
+					]!.isDefaultAnExpression = true;
+				}
+			}
+			return columnDefaultAsString;
 		}
+	} else if (column.data_type === 'json' || column.data_type === 'jsonb') {
+		const jsonWithoutSpaces = JSON.stringify(JSON.parse(columnDefaultAsString.slice(1, -1)));
+		return `'${jsonWithoutSpaces}'::${column.data_type}`;
+	} else if (column.data_type === 'boolean') {
+		return column.column_default === 'true';
+	} else if (columnDefaultAsString === 'NULL') {
+		return `NULL`;
+	} else if (columnDefaultAsString.startsWith("'") && columnDefaultAsString.endsWith("'")) {
+		return columnDefaultAsString;
+	} else {
+		return `${columnDefaultAsString.replace(/\\/g, '\`\\')}`;
 	}
 };
