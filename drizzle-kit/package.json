@@ -42,7 +42,7 @@
 		"publish": "npm publish package.tgz"
 	},
 	"dependencies": {
-		"@drizzle-team/brocli": "^0.8.2",
+		"@drizzle-team/brocli": "^0.10.1",
 		"@esbuild-kit/esm-loader": "^2.5.5",
 		"esbuild": "^0.19.7",
 		"esbuild-register": "^3.5.0"
@@ -92,7 +92,7 @@
 		"hono": "^4.1.5",
 		"json-diff": "1.0.6",
 		"minimatch": "^7.4.3",
-		"mysql2": "2.3.3",
+		"mysql2": "3.3.3",
 		"node-fetch": "^3.3.2",
 		"pg": "^8.11.5",
 		"pluralize": "^8.0.0",
