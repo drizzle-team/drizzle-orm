@@ -681,7 +681,7 @@ const mapDefault = (
 	}
 
 	if (lowered.startsWith('text')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 	}
 
 	if (lowered.startsWith('jsonb')) {

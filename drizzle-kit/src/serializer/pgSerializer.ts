@@ -877,6 +877,7 @@ export const fromDatabase = async (
 					const enumType: string = columnResponse.enum_name;
 					let columnType: string = columnResponse.data_type;
 					const typeSchema = columnResponse.type_schema;
+					const defaultValueRes: string = columnResponse.column_default;
 
 					const isGenerated = columnResponse.is_generated === 'ALWAYS';
 					const generationExpression = columnResponse.generation_expression;
@@ -955,7 +956,10 @@ export const fromDatabase = async (
 						internals,
 						tableName,
 					);
-					if (defaultValue === 'NULL') {
+					if (
+						defaultValue === 'NULL'
+						|| (defaultValueRes && defaultValueRes.startsWith('(') && defaultValueRes.endsWith(')'))
+					) {
 						if (typeof internals!.tables![tableName] === 'undefined') {
 							internals!.tables![tableName] = {
 								columns: {
