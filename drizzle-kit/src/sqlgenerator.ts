@@ -106,6 +106,7 @@ const isPgNativeType = (it: string) => {
 		|| toCheck.startsWith('char(')
 		|| toCheck.startsWith('numeric(')
 		|| toCheck.startsWith('timestamp(')
+		|| toCheck.startsWith('doubleprecision[')
 		|| toCheck.startsWith('intervalyear(')
 		|| toCheck.startsWith('intervalmonth(')
 		|| toCheck.startsWith('intervalday(')
