@@ -38,7 +38,7 @@ export const pullParams = object({
 		.optional()
 		.default(['public']),
 	extensionsFilters: literal('postgis').array().optional(),
-	introspectCasing: casing,
+	casing,
 	breakpoints: boolean().optional().default(true),
 	migrations: object({
 		prefix: prefix.optional().default('index'),

@@ -822,8 +822,8 @@ export const fromDatabase = async (
 					const columnTo: string = fk.foreign_column_name;
 					const schemaTo: string = fk.foreign_table_schema;
 					const foreignKeyName = fk.constraint_name;
-					const onUpdate = fk.update_rule.toLowerCase();
-					const onDelete = fk.delete_rule.toLowerCase();
+					const onUpdate = fk.update_rule?.toLowerCase();
+					const onDelete = fk.delete_rule?.toLowerCase();
 
 					if (typeof foreignKeysToReturn[foreignKeyName] !== 'undefined') {
 						foreignKeysToReturn[foreignKeyName].columnsFrom.push(columnFrom);
@@ -1041,7 +1041,12 @@ export const fromDatabase = async (
 					};
 
 					if (identityName) {
-						delete sequencesToReturn[`${tableSchema}.${identityName}`];
+						// remove "" from sequence name
+						delete sequencesToReturn[
+							`${tableSchema}.${
+								identityName.startsWith('"') && identityName.endsWith('"') ? identityName.slice(1, -1) : identityName
+							}`
+						];
 						delete sequencesToReturn[identityName];
 					}
 
