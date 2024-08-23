@@ -140,6 +140,14 @@ const intervalConfig = (str: string) => {
 	return statement;
 };
 
+const mapColumnDefault = (defaultValue: any, isExpression?: boolean) => {
+	if (isExpression) {
+		return `sql\`${defaultValue}\``;
+	}
+
+	return defaultValue;
+};
+
 const importsPatch = {
 	'double precision': 'doublePrecision',
 	'timestamp without time zone': 'timestamp',
@@ -150,12 +158,19 @@ const importsPatch = {
 
 const relations = new Set<string>();
 
+const escapeColumnKey = (value: string) => {
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
+		return `"${value}"`;
+	}
+	return value;
+};
+
 const withCasing = (value: string, casing: Casing) => {
 	if (casing === 'preserve') {
-		return value;
+		return escapeColumnKey(value);
 	}
 	if (casing === 'camel') {
-		return value.camelCase();
+		return escapeColumnKey(value.camelCase());
 	}
 
 	assertUnreachable(casing);
@@ -267,6 +282,33 @@ export const relationsToTypeScriptForStudio = (
 	return result;
 };
 
+function generateIdentityParams(identity: Column['identity']) {
+	let paramsObj = `{ name: "${identity!.name}"`;
+	if (identity?.startWith) {
+		paramsObj += `, startWith: ${identity.startWith}`;
+	}
+	if (identity?.increment) {
+		paramsObj += `, increment: ${identity.increment}`;
+	}
+	if (identity?.minValue) {
+		paramsObj += `, minValue: ${identity.minValue}`;
+	}
+	if (identity?.maxValue) {
+		paramsObj += `, maxValue: ${identity.maxValue}`;
+	}
+	if (identity?.cache) {
+		paramsObj += `, cache: ${identity.cache}`;
+	}
+	if (identity?.cycle) {
+		paramsObj += `, cycle: true`;
+	}
+	paramsObj += ' }';
+	if (identity?.type === 'always') {
+		return `.generatedAlwaysAsIdentity(${paramsObj})`;
+	}
+	return `.generatedByDefaultAsIdentity(${paramsObj})`;
+}
+
 export const paramNameFor = (name: string, schema?: string) => {
 	const schemaSuffix = schema && schema !== 'public' ? `In${schema.capitalise()}` : '';
 	return `${name}${schemaSuffix}`;
@@ -290,7 +332,13 @@ export const schemaToTypeScript = (
 		}),
 	);
 
-	const enumTypes = new Set(Object.values(schema.enums).map((it) => it.name));
+	const enumTypes = Object.values(schema.enums).reduce(
+		(acc, cur) => {
+			acc.add(`${cur.schema}.${cur.name}`);
+			return acc;
+		},
+		new Set<string>(),
+	);
 
 	const imports = Object.values(schema.tables).reduce(
 		(res, it) => {
@@ -317,13 +365,10 @@ export const schemaToTypeScript = (
 			res.pg.push(...pkImports);
 			res.pg.push(...uniqueImports);
 
-			if (enumTypes.size > 0) {
-				res.pg.push('pgEnum');
-			}
-
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
-					let patched: string = importsPatch[col.type] || col.type;
+					let patched: string = (importsPatch[col.type] || col.type).replace('[]', '');
+					patched = patched === 'double precision' ? 'doublePrecision' : patched;
 					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
 					patched = patched.startsWith('char(') ? 'char' : patched;
 					patched = patched.startsWith('numeric(') ? 'numeric' : patched;
@@ -343,6 +388,22 @@ export const schemaToTypeScript = (
 		{ pg: [] as string[] },
 	);
 
+	Object.values(schema.sequences).forEach((it) => {
+		if (it.schema && it.schema !== 'public' && it.schema !== '') {
+			imports.pg.push('pgSchema');
+		} else if (it.schema === 'public') {
+			imports.pg.push('pgSequence');
+		}
+	});
+
+	Object.values(schema.enums).forEach((it) => {
+		if (it.schema && it.schema !== 'public' && it.schema !== '') {
+			imports.pg.push('pgSchema');
+		} else if (it.schema === 'public') {
+			imports.pg.push('pgEnum');
+		}
+	});
+
 	const enumStatements = Object.values(schema.enums)
 		.map((it) => {
 			const enumSchema = schemas[it.schema];
@@ -355,6 +416,43 @@ export const schemaToTypeScript = (
 				.map((it) => `'${it}'`)
 				.join(', ');
 			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
+		})
+		.join('')
+		.concat('\n');
+
+	const sequencesStatements = Object.values(schema.sequences)
+		.map((it) => {
+			const seqSchema = schemas[it.schema];
+			const paramName = paramNameFor(it.name, seqSchema);
+
+			const func = seqSchema ? `${seqSchema}.sequence` : 'pgSequence';
+
+			let params = '';
+
+			if (it.startWith) {
+				params += `, startWith: "${it.startWith}"`;
+			}
+			if (it.increment) {
+				params += `, increment: "${it.increment}"`;
+			}
+			if (it.minValue) {
+				params += `, minValue: "${it.minValue}"`;
+			}
+			if (it.maxValue) {
+				params += `, maxValue: "${it.maxValue}"`;
+			}
+			if (it.cache) {
+				params += `, cache: "${it.cache}"`;
+			}
+			if (it.cycle) {
+				params += `, cycle: true`;
+			} else {
+				params += `, cycle: false`;
+			}
+
+			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}"${
+				params ? `, { ${params.trimChar(',')} }` : ''
+			})\n`;
 		})
 		.join('')
 		.concat('\n');
@@ -384,13 +482,14 @@ export const schemaToTypeScript = (
 		statement += '}';
 
 		// more than 2 fields or self reference or cyclic
-		const filteredFKs = Object.values(table.foreignKeys).filter((it) => {
-			return it.columnsFrom.length > 1 || isSelf(it);
-		});
+		// Andrii: I switched this one off until we will get custom names in .references()
+		// const filteredFKs = Object.values(table.foreignKeys).filter((it) => {
+		// 	return it.columnsFrom.length > 1 || isSelf(it);
+		// });
 
 		if (
 			Object.keys(table.indexes).length > 0
-			|| filteredFKs.length > 0
+			|| Object.values(table.foreignKeys).length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
 		) {
@@ -402,7 +501,7 @@ export const schemaToTypeScript = (
 				Object.values(table.indexes),
 				casing,
 			);
-			statement += createTableFKs(Object.values(filteredFKs), schemas, casing);
+			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing);
 			statement += createTablePKs(
 				Object.values(table.compositePrimaryKeys),
 				casing,
@@ -430,6 +529,7 @@ export const schemaToTypeScript = (
 
 	let decalrations = schemaStatements;
 	decalrations += enumStatements;
+	decalrations += sequencesStatements;
 	decalrations += '\n';
 	decalrations += tableStatements.join('\n\n');
 
@@ -459,16 +559,211 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.tableFrom === fk.tableTo;
 };
 
+const buildArrayDefault = (defaultValue: string, typeName: string): string => {
+	if (typeof defaultValue === 'string' && !(defaultValue.startsWith('{') || defaultValue.startsWith("'{"))) {
+		return `sql\`${defaultValue}\``;
+	}
+	defaultValue = defaultValue.substring(2, defaultValue.length - 2);
+	return `[${
+		defaultValue
+			.split(/\s*,\s*/g)
+			.map((value) => {
+				// 	if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(typeName)) {
+				// 		return value;
+				// 	} else if (typeName === 'interval') {
+				// 		return value.replaceAll('"', "'");
+				// 	} else if (typeName === 'boolean') {
+				// 		return value === 't' ? 'true' : 'false';
+				if (typeName === 'json' || typeName === 'jsonb') {
+					return value
+						.substring(1, value.length - 1)
+						.replaceAll('\\', '');
+				}
+				return value;
+				// 	}
+			})
+			.join(', ')
+	}]`;
+};
+
+const mapDefault = (
+	tableName: string,
+	type: string,
+	name: string,
+	enumTypes: Set<string>,
+	typeSchema: string,
+	defaultValue?: any,
+	internals?: PgKitInternals,
+) => {
+	const isExpression = internals?.tables[tableName]?.columns[name]?.isDefaultAnExpression ?? false;
+	const isArray = internals?.tables[tableName]?.columns[name]?.isArray ?? false;
+	const lowered = type.toLowerCase().replace('[]', '');
+
+	if (isArray) {
+		return typeof defaultValue !== 'undefined' ? `.default(${buildArrayDefault(defaultValue, lowered)})` : '';
+	}
+
+	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('integer')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('smallint')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('bigint')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('boolean')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('double precision')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('real')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('uuid')) {
+		return defaultValue === 'gen_random_uuid()'
+			? '.defaultRandom()'
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
+			: '';
+	}
+
+	if (lowered.startsWith('numeric')) {
+		defaultValue = defaultValue
+			? defaultValue.startsWith(`'`) && defaultValue.endsWith(`'`)
+				? defaultValue.substring(1, defaultValue.length - 1)
+				: defaultValue
+			: undefined;
+		return defaultValue ? `.default('${mapColumnDefault(defaultValue, isExpression)}')` : '';
+	}
+
+	if (lowered.startsWith('timestamp')) {
+		return defaultValue === 'now()'
+			? '.defaultNow()'
+			: defaultValue === 'CURRENT_TIMESTAMP'
+			? '.default(sql\`CURRENT_TIMESTAMP\`)'
+			: defaultValue
+			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: '';
+	}
+
+	if (lowered.startsWith('time')) {
+		return defaultValue === 'now()'
+			? '.defaultNow()'
+			: defaultValue
+			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: '';
+	}
+
+	if (lowered.startsWith('interval')) {
+		return defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered === 'date') {
+		return defaultValue === 'now()'
+			? '.defaultNow()'
+			: defaultValue === 'CURRENT_DATE'
+			? `.default(sql\`${defaultValue}\`)`
+			: defaultValue
+			? `.default(${defaultValue})`
+			: '';
+	}
+
+	if (lowered.startsWith('text')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('jsonb')) {
+		const def = typeof defaultValue !== 'undefined'
+			? defaultValue.replace(/::(.*?)(?<![^\w"])(?=$)/, '').slice(1, -1)
+			: null;
+
+		return defaultValue ? `.default(${def})` : '';
+	}
+
+	if (lowered.startsWith('json')) {
+		const def = defaultValue ? defaultValue.replace(/::(.*?)(?<![^\w"])(?=$)/, '').slice(1, -1) : null;
+
+		return typeof defaultValue !== 'undefined' ? `.default(${def})` : '';
+	}
+
+	if (lowered.startsWith('inet')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('cidr')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('macaddr8')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('macaddr')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('varchar')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('point')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('line')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('geometry')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('vector')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	if (lowered.startsWith('char')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
+	return '';
+};
+
 const column = (
 	tableName: string,
 	type: string,
 	name: string,
 	enumTypes: Set<string>,
+	typeSchema: string,
 	casing: Casing,
 	defaultValue?: any,
 	internals?: PgKitInternals,
 ) => {
-	const lowered = type.toLowerCase();
+	const isExpression = internals?.tables[tableName]?.columns[name]?.isDefaultAnExpression ?? false;
+	const lowered = type.toLowerCase().replace('[]', '');
+
+	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
+		let out = `${withCasing(name, casing)}: ${
+			withCasing(
+				paramNameFor(type.replace('[]', ''), typeSchema),
+				casing,
+			)
+		}("${name}")`;
+		return out;
+	}
+
 	if (lowered.startsWith('serial')) {
 		return `${withCasing(name, casing)}: serial("${name}")`;
 	}
@@ -488,49 +783,38 @@ const column = (
 
 	if (lowered.startsWith('integer')) {
 		let out = `${withCasing(name, casing)}: integer("${name}")`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('smallint')) {
 		let out = `${withCasing(name, casing)}: smallint("${name}")`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('bigint')) {
 		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
 		out += `${withCasing(name, casing)}: bigint("${name}", { mode: "number" })`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('boolean')) {
 		let out = `${withCasing(name, casing)}: boolean("${name}")`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('double precision')) {
 		let out = `${withCasing(name, casing)}: doublePrecision("${name}")`;
-		out += defaultValue ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('real')) {
 		let out = `${withCasing(name, casing)}: real("${name}")`;
-		out += defaultValue ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('uuid')) {
 		let out = `${withCasing(name, casing)}: uuid("${name}")`;
 
-		out += defaultValue === 'gen_random_uuid()'
-			? '.defaultRandom()'
-			: defaultValue
-			? `.default(sql\`${defaultValue}\`)`
-			: '';
 		return out;
 	}
 
@@ -549,13 +833,6 @@ const column = (
 		let out = params
 			? `${withCasing(name, casing)}: numeric("${name}", ${timeConfig(params)})`
 			: `${withCasing(name, casing)}: numeric("${name}")`;
-
-		defaultValue = defaultValue
-			? defaultValue.startsWith(`'`) && defaultValue.endsWith(`'`)
-				? defaultValue.substring(1, defaultValue.length - 1)
-				: defaultValue
-			: undefined;
-		out += defaultValue ? `.default('${defaultValue}')` : '';
 
 		return out;
 	}
@@ -582,21 +859,6 @@ const column = (
 			? `${withCasing(name, casing)}: timestamp("${name}", ${params})`
 			: `${withCasing(name, casing)}: timestamp("${name}")`;
 
-		// defaultValue = defaultValue?.endsWith("::timestamp without time zone")
-		//   ? defaultValue.substring(0, defaultValue.length - 29)
-		//   : defaultValue;
-
-		// defaultValue = defaultValue?.endsWith("::timestamp with time zone")
-		//   ? defaultValue.substring(0, defaultValue.length - 26)
-		//   : defaultValue;
-
-		defaultValue = defaultValue === 'now()' || defaultValue === 'CURRENT_TIMESTAMP'
-			? '.defaultNow()'
-			: defaultValue
-			? `.default(${defaultValue})`
-			: '';
-
-		out += defaultValue;
 		return out;
 	}
 
@@ -618,13 +880,6 @@ const column = (
 			? `${withCasing(name, casing)}: time("${name}", ${params})`
 			: `${withCasing(name, casing)}: time("${name}")`;
 
-		defaultValue = defaultValue === 'now()'
-			? '.defaultNow()'
-			: defaultValue
-			? `.default(${defaultValue})`
-			: '';
-
-		out += defaultValue;
 		return out;
 	}
 
@@ -640,105 +895,51 @@ const column = (
 			? `${withCasing(name, casing)}: interval("${name}", ${params})`
 			: `${withCasing(name, casing)}: interval("${name}")`;
 
-		out += defaultValue ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered === 'date') {
 		let out = `${withCasing(name, casing)}: date("${name}")`;
 
-		defaultValue = defaultValue === 'now()'
-			? '.defaultNow()'
-			: defaultValue === 'CURRENT_DATE'
-			? `.default(sql\`${defaultValue}\`)`
-			: defaultValue
-			? `.default(${defaultValue})`
-			: '';
-
-		out += defaultValue;
 		return out;
 	}
 
 	if (lowered.startsWith('text')) {
 		let out = `${withCasing(name, casing)}: text("${name}")`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
-	if (lowered === 'json') {
-		let out = `${withCasing(name, casing)}: json("${name}")`;
-		// defaultValue = defaultValue?.replace("::json", "");
-
-		defaultValue = defaultValue?.endsWith('::json')
-			? defaultValue.substring(1, defaultValue.length - 7)
-			: defaultValue;
-		// const def = defaultValue ? objToStatement(JSON.parse(defaultValue)) : null;
-		const def = defaultValue ? defaultValue : null;
-
-		out += typeof defaultValue !== 'undefined' ? `.default(${def})` : '';
-		return out;
-	}
-
-	if (lowered === 'jsonb') {
+	if (lowered.startsWith('jsonb')) {
 		let out = `${withCasing(name, casing)}: jsonb("${name}")`;
+		return out;
+	}
 
-		defaultValue = defaultValue?.endsWith('::jsonb')
-			? defaultValue.substring(1, defaultValue.length - 8)
-			: defaultValue;
-		// const def = defaultValue ? objToStatement(JSON.parse(defaultValue)) : null;
-		const def = typeof defaultValue !== 'undefined' ? defaultValue : null;
-
-		out += defaultValue ? `.default(${def})` : '';
+	if (lowered.startsWith('json')) {
+		let out = `${withCasing(name, casing)}: json("${name}")`;
 		return out;
 	}
 
 	if (lowered.startsWith('inet')) {
 		let out = `${withCasing(name, casing)}: inet("${name}")`;
-
-		// defaultValue = defaultValue?.endsWith("::inet")
-		//   ? defaultValue.substring(0, defaultValue.length - 6)
-		//   : defaultValue;
-
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('cidr')) {
 		let out = `${withCasing(name, casing)}: cidr("${name}")`;
-
-		// defaultValue = defaultValue?.endsWith("::cidr")
-		//   ? defaultValue.substring(0, defaultValue.length - 6)
-		//   : defaultValue;
-
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
-		return out;
-	}
-
-	if (lowered.startsWith('macaddr')) {
-		let out = `${withCasing(name, casing)}: macaddr("${name}")`;
-
-		// defaultValue = defaultValue?.endsWith("::macaddr")
-		//   ? defaultValue.substring(0, defaultValue.length - 9)
-		//   : defaultValue;
-
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('macaddr8')) {
 		let out = `${withCasing(name, casing)}: macaddr8("${name}")`;
+		return out;
+	}
 
-		// defaultValue = defaultValue?.endsWith("::macaddr8")
-		//   ? defaultValue.substring(0, defaultValue.length - 10)
-		//   : defaultValue;
-
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
+	if (lowered.startsWith('macaddr')) {
+		let out = `${withCasing(name, casing)}: macaddr("${name}")`;
 		return out;
 	}
 
 	if (lowered.startsWith('varchar')) {
-		const split = lowered.split(' ');
-
 		let out: string;
 		if (lowered.length !== 7) {
 			out = `${
@@ -756,25 +957,16 @@ const column = (
 			out = `${withCasing(name, casing)}: varchar("${name}")`;
 		}
 
-		// defaultValue = defaultValue?.endsWith("::character varying")
-		//   ? defaultValue.substring(0, defaultValue.length - 19)
-		//   : defaultValue;
-
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('point')) {
 		let out: string = `${withCasing(name, casing)}: point("${name}")`;
-
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('line')) {
 		let out: string = `${withCasing(name, casing)}: point("${name}")`;
-
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
@@ -798,8 +990,6 @@ const column = (
 			out = `${withCasing(name, casing)}: geometry("${name}")`;
 		}
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
-
 		if (isGeoUnknown) {
 			let unknown =
 				`// TODO: failed to parse geometry type because found more than 2 options inside geometry function '${type}'\n// Introspect is currently supporting only type and srid options\n`;
@@ -810,8 +1000,6 @@ const column = (
 	}
 
 	if (lowered.startsWith('vector')) {
-		const split = lowered.split(' ');
-
 		let out: string;
 		if (lowered.length !== 6) {
 			out = `${
@@ -829,13 +1017,10 @@ const column = (
 			out = `${withCasing(name, casing)}: vector("${name}")`;
 		}
 
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('char')) {
-		// const split = lowered.split(" ");
-
 		let out: string;
 		if (lowered.length !== 4) {
 			out = `${
@@ -853,42 +1038,6 @@ const column = (
 			out = `${withCasing(name, casing)}: char("${name}")`;
 		}
 
-		// defaultValue = defaultValue?.endsWith("::bpchar")
-		//   ? defaultValue.substring(0, defaultValue.length - 8)
-		//   : defaultValue;
-
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
-		return out;
-	}
-
-	// if internal has this column - use it
-	const columnInternals = internals?.tables[tableName]?.columns[name];
-	if (typeof columnInternals !== 'undefined') {
-		// it means there is enum as array case
-		if (
-			columnInternals.isArray
-			&& columnInternals.rawType
-			&& enumTypes.has(columnInternals.rawType)
-		) {
-			let out = `${withCasing(columnInternals.rawType, casing)}: ${
-				withCasing(
-					columnInternals.rawType,
-					casing,
-				)
-			}("${name}")`;
-			out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
-			return out;
-		}
-	}
-
-	if (enumTypes.has(type)) {
-		let out = `${withCasing(name, casing)}: ${
-			withCasing(
-				type,
-				casing,
-			)
-		}("${name}")`;
-		out += typeof defaultValue !== 'undefined' ? `.default(${defaultValue})` : '';
 		return out;
 	}
 
@@ -937,6 +1086,7 @@ const createTableColumns = (
 			it.type,
 			it.name,
 			enumTypes,
+			it.typeSchema ?? 'public',
 			casing,
 			it.default,
 			internals,
@@ -949,35 +1099,17 @@ const createTableColumns = (
 				internals?.tables[tableName]?.columns[it.name]?.dimensions,
 			);
 		}
+		statement += mapDefault(
+			tableName,
+			it.type,
+			it.name,
+			enumTypes,
+			it.typeSchema ?? 'public',
+			it.default,
+			internals,
+		);
 		statement += it.primaryKey ? '.primaryKey()' : '';
 		statement += it.notNull && !it.identity ? '.notNull()' : '';
-
-		function generateIdentityParams(identity: Column['identity']) {
-			let paramsObj = `{ name: "${identity!.name}"`;
-			if (identity?.startWith) {
-				paramsObj += `, startWith: ${identity.startWith}`;
-			}
-			if (identity?.increment) {
-				paramsObj += `, increment: ${identity.increment}`;
-			}
-			if (identity?.minValue) {
-				paramsObj += `, minValue: ${identity.minValue}`;
-			}
-			if (identity?.maxValue) {
-				paramsObj += `, maxValue: ${identity.maxValue}`;
-			}
-			if (identity?.cache) {
-				paramsObj += `, cache: ${identity.cache}`;
-			}
-			if (identity?.cycle) {
-				paramsObj += `, cycle: true`;
-			}
-			paramsObj += ' }';
-			if (identity?.type === 'always') {
-				return `.generatedAlwaysAsIdentity(${paramsObj})`;
-			}
-			return `.generatedByDefaultAsIdentity(${paramsObj})`;
-		}
 
 		statement += it.identity ? generateIdentityParams(it.identity) : '';
 
@@ -985,37 +1117,38 @@ const createTableColumns = (
 			? `.generatedAlwaysAs(sql\`${it.generated.as}\`)`
 			: '';
 
-		const fks = fkByColumnName[it.name];
-		if (fks) {
-			const fksStatement = fks
-				.map((it) => {
-					const onDelete = it.onDelete && it.onDelete !== 'no action' ? it.onDelete : null;
-					const onUpdate = it.onUpdate && it.onUpdate !== 'no action' ? it.onUpdate : null;
-					const params = { onDelete, onUpdate };
+		// const fks = fkByColumnName[it.name];
+		// Andrii: I switched it off until we will get a custom naem setting in references
+		// if (fks) {
+		// 	const fksStatement = fks
+		// 		.map((it) => {
+		// 			const onDelete = it.onDelete && it.onDelete !== 'no action' ? it.onDelete : null;
+		// 			const onUpdate = it.onUpdate && it.onUpdate !== 'no action' ? it.onUpdate : null;
+		// 			const params = { onDelete, onUpdate };
 
-					const typeSuffix = isCyclic(it) ? ': AnyPgColumn' : '';
+		// 			const typeSuffix = isCyclic(it) ? ': AnyPgColumn' : '';
 
-					const paramsStr = objToStatement2(params);
-					const tableSchema = schemas[it.schemaTo || ''];
-					const paramName = paramNameFor(it.tableTo, tableSchema);
-					if (paramsStr) {
-						return `.references(()${typeSuffix} => ${
-							withCasing(
-								paramName,
-								casing,
-							)
-						}.${withCasing(it.columnsTo[0], casing)}, ${paramsStr} )`;
-					}
-					return `.references(()${typeSuffix} => ${
-						withCasing(
-							paramName,
-							casing,
-						)
-					}.${withCasing(it.columnsTo[0], casing)})`;
-				})
-				.join('');
-			statement += fksStatement;
-		}
+		// 			const paramsStr = objToStatement2(params);
+		// 			const tableSchema = schemas[it.schemaTo || ''];
+		// 			const paramName = paramNameFor(it.tableTo, tableSchema);
+		// 			if (paramsStr) {
+		// 				return `.references(()${typeSuffix} => ${
+		// 					withCasing(
+		// 						paramName,
+		// 						casing,
+		// 					)
+		// 				}.${withCasing(it.columnsTo[0], casing)}, ${paramsStr} )`;
+		// 			}
+		// 			return `.references(()${typeSuffix} => ${
+		// 				withCasing(
+		// 					paramName,
+		// 					casing,
+		// 				)
+		// 			}.${withCasing(it.columnsTo[0], casing)})`;
+		// 		})
+		// 		.join('');
+		// 	statement += fksStatement;
+		// }
 
 		statement += ',\n';
 	});
@@ -1058,7 +1191,9 @@ const createTableIndexes = (
 					if (it.isExpression) {
 						return `sql\`${it.expression}\``;
 					} else {
-						return `table.${withCasing(it.expression, casing)}${
+						return `table.${withCasing(it.expression, casing)}${it.asc ? '.asc()' : '.desc()'}${
+							it.nulls === 'first' ? '.nullsFirst()' : '.nullsLast()'
+						}${
 							it.opclass && vectorOps.includes(it.opclass)
 								? `.op("${it.opclass}")`
 								: ''
