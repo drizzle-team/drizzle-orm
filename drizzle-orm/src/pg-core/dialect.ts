@@ -157,18 +157,30 @@ export class PgDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList }: PgUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, from, joins }: PgUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
+
+		const tableName = table[PgTable.Symbol.Name];
+		const tableSchema = table[PgTable.Symbol.Schema];
+		const origTableName = table[PgTable.Symbol.OriginalName];
+		const alias = tableName === origTableName ? undefined : tableName;
+		const tableSql = sql`${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
+			sql.identifier(origTableName)
+		}${alias && sql` ${sql.identifier(alias)}`}`;
 
 		const setSql = this.buildUpdateSet(table, set);
 
+		const fromSql = from && sql.join([sql.raw(' from '), this.buildFromTable(from)]);
+
+		const joinsSql = this.buildJoins(joins);
+
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${withSql}update ${tableSql} set ${setSql}${fromSql}${joinsSql}${whereSql}${returningSql}`;
 	}
 
 	/**
@@ -233,6 +245,67 @@ export class PgDialect {
 		return sql.join(chunks);
 	}
 
+	private buildJoins(joins: PgSelectJoinConfig[] | undefined): SQL | undefined {
+		if (!joins || joins.length === 0) {
+			return undefined;
+		}
+
+		const joinsArray: SQL[] = [];
+
+		for (const [index, joinMeta] of joins.entries()) {
+			if (index === 0) {
+				joinsArray.push(sql` `);
+			}
+			const table = joinMeta.table;
+			const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
+
+			if (is(table, PgTable)) {
+				const tableName = table[PgTable.Symbol.Name];
+				const tableSchema = table[PgTable.Symbol.Schema];
+				const origTableName = table[PgTable.Symbol.OriginalName];
+				const alias = tableName === origTableName ? undefined : joinMeta.alias;
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
+					}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+				);
+			} else if (is(table, View)) {
+				const viewName = table[ViewBaseConfig].name;
+				const viewSchema = table[ViewBaseConfig].schema;
+				const origViewName = table[ViewBaseConfig].originalName;
+				const alias = viewName === origViewName ? undefined : joinMeta.alias;
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
+					}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+				);
+			} else {
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+				);
+			}
+			if (index < joins.length - 1) {
+				joinsArray.push(sql` `);
+			}
+		}
+
+		return sql.join(joinsArray);
+	}
+
+	private buildFromTable(
+		table: SQL | Subquery | PgViewBase | PgTable | undefined,
+	): SQL | Subquery | PgViewBase | PgTable | undefined {
+		if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+			let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
+			if (table[Table.Symbol.Schema]) {
+				fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
+			}
+			return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
+		}
+
+		return table;
+	}
+
 	buildSelectQuery(
 		{
 			withList,
@@ -288,60 +361,9 @@ export class PgDialect {
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
-		const tableSql = (() => {
-			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
-				if (table[Table.Symbol.Schema]) {
-					fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
-				}
-				return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
-			}
+		const tableSql = this.buildFromTable(table);
 
-			return table;
-		})();
-
-		const joinsArray: SQL[] = [];
-
-		if (joins) {
-			for (const [index, joinMeta] of joins.entries()) {
-				if (index === 0) {
-					joinsArray.push(sql` `);
-				}
-				const table = joinMeta.table;
-				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
-
-				if (is(table, PgTable)) {
-					const tableName = table[PgTable.Symbol.Name];
-					const tableSchema = table[PgTable.Symbol.Schema];
-					const origTableName = table[PgTable.Symbol.OriginalName];
-					const alias = tableName === origTableName ? undefined : joinMeta.alias;
-					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
-							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
-					);
-				} else if (is(table, View)) {
-					const viewName = table[ViewBaseConfig].name;
-					const viewSchema = table[ViewBaseConfig].schema;
-					const origViewName = table[ViewBaseConfig].originalName;
-					const alias = viewName === origViewName ? undefined : joinMeta.alias;
-					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
-							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
-						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
-					);
-				} else {
-					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
-					);
-				}
-				if (index < joins.length - 1) {
-					joinsArray.push(sql` `);
-				}
-			}
-		}
-
-		const joinsSql = sql.join(joinsArray);
+		const joinsSql = this.buildJoins(joins);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
