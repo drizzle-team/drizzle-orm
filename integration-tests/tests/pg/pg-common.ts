@@ -18,6 +18,7 @@ import {
 	gte,
 	ilike,
 	inArray,
+	is,
 	lt,
 	max,
 	min,
@@ -54,8 +55,11 @@ import {
 	macaddr,
 	macaddr8,
 	numeric,
+	PgDialect,
 	pgEnum,
 	pgMaterializedView,
+	PgPolicy,
+	pgPolicy,
 	pgSchema,
 	pgTable,
 	pgTableCreator,
@@ -4659,6 +4663,66 @@ export function tests() {
 				jsonbStringField: testString,
 				jsonbNumberField: testNumber,
 			}]);
+		});
+
+		test('policy', () => {
+			{
+				const policy = pgPolicy('test policy');
+
+				expect(is(policy, PgPolicy)).toBe(true);
+				expect(policy.name).toBe('test policy');
+			}
+
+			{
+				const policy = pgPolicy('test policy', {
+					as: 'permissive',
+					for: 'all',
+					to: 'PUBLIC',
+					using: sql`1=1`,
+					withCheck: sql`1=1`,
+				});
+
+				expect(is(policy, PgPolicy)).toBe(true);
+				expect(policy.name).toBe('test policy');
+				expect(policy.as).toBe('permissive');
+				expect(policy.for).toBe('all');
+				expect(policy.to).toBe('PUBLIC');
+				const dialect = new PgDialect();
+				expect(is(policy.using, SQL)).toBe(true);
+				expect(dialect.sqlToQuery(policy.using!).sql).toBe('1=1');
+				expect(is(policy.withCheck, SQL)).toBe(true);
+				expect(dialect.sqlToQuery(policy.withCheck!).sql).toBe('1=1');
+			}
+
+			{
+				const policy = pgPolicy('test policy', {
+					to: 'custom value',
+				});
+
+				expect(policy.to).toBe('custom value');
+			}
+
+			{
+				const p1 = pgPolicy('test policy');
+				const p2 = pgPolicy('test policy 2', {
+					as: 'permissive',
+					for: 'all',
+					to: 'PUBLIC',
+					using: sql`1=1`,
+					withCheck: sql`1=1`,
+				});
+				const table = pgTable('table_with_policy', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				}, () => ({
+					p1,
+					p2,
+				}));
+				const config = getTableConfig(table);
+				expect(config.policies).toHaveLength(2);
+				expect(config.policies[0]).toBe(p1);
+				expect(config.policies[1]).toBe(p2);
+			}
 		});
 	});
 }
