@@ -221,7 +221,7 @@ test('instrospect all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
-		// NOTE: Types from extensions aren't tested due to PGLite not supporting at the moment
+		// NOTE: Types from extensions aren't tested due to PGlite not supporting at the moment
 		columns: pgTable('columns', {
 			enum: myEnum('my_enum').default('a'),
 			smallint: smallint('smallint').default(10),
@@ -271,7 +271,7 @@ test('instrospect all column array types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
-		// NOTE: Types from extensions aren't tested due to PGLite not supporting at the moment
+		// NOTE: Types from extensions aren't tested due to PGlite not supporting at the moment
 		columns: pgTable('columns', {
 			enum: myEnum('my_enum').array().default(['a', 'b']),
 			smallint: smallint('smallint').array().default([10, 20]),
