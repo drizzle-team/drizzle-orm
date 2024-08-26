@@ -244,8 +244,8 @@ export class PgInsertBase<
 		} else {
 			let targetColumn = '';
 			targetColumn = Array.isArray(config.target)
-				? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
-				: this.dialect.escapeName(config.target.name);
+				? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
+				: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
 
 			const whereSql = config.where ? sql` where ${config.where}` : undefined;
 			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
@@ -296,8 +296,8 @@ export class PgInsertBase<
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		let targetColumn = '';
 		targetColumn = Array.isArray(config.target)
-			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
-			: this.dialect.escapeName(config.target.name);
+			? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
+			: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
 		this.config.onConflict = sql`(${
 			sql.raw(targetColumn)
 		})${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;

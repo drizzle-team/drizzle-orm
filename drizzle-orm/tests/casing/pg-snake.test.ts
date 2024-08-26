@@ -91,15 +91,30 @@ describe('postgres snake case to camel case ', () => {
     expect(db.dialect.casing.cache).toEqual(cache);
   });
 
-  it('insert', ({ expect }) => {
+  it('insert (on conflict do nothing)', ({ expect }) => {
     const query = db
       .insert(users)
       .values({ first_name: 'John', last_name: 'Doe', age: 30 })
+      .onConflictDoNothing({ target: users.first_name })
       .returning({ first_name: users.first_name, age: users.age });
 
     expect(query.toSQL()).toEqual({
-      sql: 'insert into "users" ("id", "firstName", "lastName", "AGE") values (default, $1, $2, $3) returning "firstName", "AGE"',
+      sql: 'insert into "users" ("id", "firstName", "lastName", "AGE") values (default, $1, $2, $3) on conflict ("firstName") do nothing returning "firstName", "AGE"',
       params: ['John', 'Doe', 30],
+    });
+    expect(db.dialect.casing.cache).toEqual(usersCache);
+  });
+
+  it('insert (on conflict do update)', ({ expect }) => {
+    const query = db
+      .insert(users)
+      .values({ first_name: 'John', last_name: 'Doe', age: 30 })
+      .onConflictDoUpdate({ target: users.first_name, set: { age: 31 } })
+      .returning({ first_name: users.first_name, age: users.age });
+
+    expect(query.toSQL()).toEqual({
+      sql: 'insert into "users" ("id", "firstName", "lastName", "AGE") values (default, $1, $2, $3) on conflict ("firstName") do update set "AGE" = $4 returning "firstName", "AGE"',
+      params: ['John', 'Doe', 30, 31],
     });
     expect(db.dialect.casing.cache).toEqual(usersCache);
   });
