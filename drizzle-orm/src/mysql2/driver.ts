@@ -52,7 +52,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: MySql2Client | CallbackConnection | CallbackPool,
 	config: MySql2DrizzleConfig<TSchema> = {},
 ): MySql2Database<TSchema> {
-	const dialect = new MySqlDialect();
+	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
