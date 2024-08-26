@@ -207,9 +207,12 @@ export type ColumnsWithTable<
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
 > = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
 
+export type Casing = 'snake_case' | 'camelCase';
+
 export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
 	logger?: boolean | Logger;
 	schema?: TSchema;
+	casing?: Casing;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult

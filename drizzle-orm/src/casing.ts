@@ -1,0 +1,84 @@
+import { Table } from './table.ts';
+import { Casing, entityKind, type Column } from './index.ts';
+
+/** @internal */
+export function toSnakeCase(input: string) {
+  const words = input
+    .replace(/['\u2019]/g, '')
+    .match(/[a-z0-9]+|[A-Z]+(?![a-z])|[A-Z][a-z0-9]+/g) ?? [];
+
+  return words.map((word) => word.toLowerCase()).join('_');
+}
+
+/** @internal */
+export function toCamelCase(input: string) {
+  const words = input
+    .replace(/['\u2019]/g, '')
+    .match(/[a-z0-9]+|[A-Z]+(?![a-z])|[A-Z][a-z0-9]+/g) ?? [];
+
+  return words.reduce((acc, word, i) => {
+    const formattedWord = i === 0 ? word.toLowerCase() : `${word[0]!.toUpperCase()}${word.slice(1)}`;
+    return acc + formattedWord;
+  }, '');
+}
+
+function noopCase(input: string) {
+  return input;
+}
+
+export class CasingCache {
+  static readonly [entityKind]: string = 'CasingCache';
+
+  /** @internal */
+  cache: Record<string, string> = {};
+  /** @internal */
+  cachedTables: Record<string, true> = {};
+  private convert: (input: string) => string
+
+  constructor(casing?: Casing) {
+    this.convert = casing === 'snake_case'
+      ? toSnakeCase
+      : casing === 'camelCase'
+      ? toCamelCase
+      : noopCase
+  }
+
+  getColumnCasing(column: Column): string {
+    if (!column.keyAsName) return column.name;
+
+    const schema = column.table[Table.Symbol.Schema] ?? 'public';
+    const tableName = column.table[Table.Symbol.OriginalName];
+    const key = `${schema}.${tableName}.${column.name}`;
+
+    if (!this.cache[key]) {
+      this.cacheTable(column.table);
+    }
+    return this.cache[key]!;
+  }
+
+  cacheTable(table: Table) {
+    const schema = table[Table.Symbol.Schema] ?? 'public';
+    const tableName = table[Table.Symbol.OriginalName];
+    const tableKey = `${schema}.${tableName}`;
+
+    if (!this.cachedTables[tableKey]) {
+      for (const column of Object.values(table[Table.Symbol.Columns])) {
+        const columnKey = `${tableKey}.${column.name}`;
+        this.cache[columnKey] = this.convert(column.name);
+      }
+      this.cachedTables[tableKey] = true;
+    }
+  }
+
+  /** @internal */
+  isTableCached(table: Table) {
+    const schema = table[Table.Symbol.Schema] ?? 'public';
+    const tableName = table[Table.Symbol.OriginalName];
+    return this.cachedTables[`${schema}.${tableName}`];
+  }
+
+  clearCache() {
+    this.cache = {};
+    this.cachedTables = {};
+  }
+}

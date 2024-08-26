@@ -89,6 +89,7 @@ export type ColumnBuilderTypeConfig<
 
 export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = object> = {
 	name: string;
+	keyAsName: boolean;
 	notNull: boolean;
 	default: TData | SQL | undefined;
 	defaultFn: (() => TData | SQL) | undefined;
@@ -185,6 +186,7 @@ export abstract class ColumnBuilder<
 	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
 		this.config = {
 			name,
+			keyAsName: name === '',
 			notNull: false,
 			default: undefined,
 			hasDefault: false,
