@@ -1,3 +1,4 @@
+import { vectorOps } from 'src/extensions/vector';
 import { mapValues, originUUID, snapshotVersion } from '../global';
 
 import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
@@ -282,6 +283,7 @@ export const kitInternals = object({
 					isArray: boolean().optional(),
 					dimensions: number().optional(),
 					rawType: string().optional(),
+					isDefaultAnExpression: boolean().optional(),
 				}).optional(),
 			),
 		}).optional(),
@@ -464,7 +466,10 @@ export const PgSquasher = {
 		return `${idx.name};${
 			idx.columns
 				.map(
-					(c) => `${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${c.opclass}`,
+					(c) =>
+						`${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${
+							c.opclass && vectorOps.includes(c.opclass) ? c.opclass : ''
+						}`,
 				)
 				.join(',,')
 		};${idx.isUnique};${idx.concurrently};${idx.method};${idx.where};${JSON.stringify(idx.with)}`;

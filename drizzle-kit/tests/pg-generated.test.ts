@@ -87,7 +87,7 @@ test('generated as callback: add generated constraint to an exisiting column', a
 	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" drop column "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text NOT NULL GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL;',
 	]);
 });
 
@@ -262,7 +262,7 @@ test('generated as sql: add generated constraint to an exisiting column', async 
 	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" drop column "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text NOT NULL GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL;',
 	]);
 });
 
@@ -437,7 +437,7 @@ test('generated as string: add generated constraint to an exisiting column', asy
 	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" drop column "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text NOT NULL GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL;',
 	]);
 });
 
