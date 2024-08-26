@@ -1,6 +1,6 @@
 import { beforeEach, describe, it } from 'vitest';
 import { drizzle } from '~/postgres-js';
-import { alias, boolean, integer, pgSchema, pgTable, serial, text } from '~/pg-core';
+import { alias, boolean, integer, pgSchema, pgTable, serial, text, union } from '~/pg-core';
 import { asc, eq, sql } from '~/sql';
 import postgres from 'postgres';
 
@@ -59,6 +59,32 @@ describe('postgres camel case to snake case ', () => {
 
     expect(query.toSQL()).toEqual({
       sql: 'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
+      params: [],
+    });
+    expect(db.dialect.casing.cache).toEqual(usersCache);
+  });
+
+  it('set operator', ({ expect }) => {
+    const query = db
+      .select({ firstName: users.firstName })
+      .from(users)
+      .union(db.select({ firstName: users.firstName }).from(users));
+
+    expect(query.toSQL()).toEqual({
+      sql: '(select "first_name" from "users") union (select "first_name" from "users")',
+      params: [],
+    });
+    expect(db.dialect.casing.cache).toEqual(usersCache);
+  });
+
+  it('set operator (function)', ({ expect }) => {
+    const query = union(
+      db.select({ firstName: users.firstName }).from(users),
+      db.select({ firstName: users.firstName }).from(users)
+    );
+
+    expect(query.toSQL()).toEqual({
+      sql: '(select "first_name" from "users") union (select "first_name" from "users")',
       params: [],
     });
     expect(db.dialect.casing.cache).toEqual(usersCache);
