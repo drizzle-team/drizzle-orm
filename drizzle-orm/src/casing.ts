@@ -31,8 +31,7 @@ export class CasingCache {
 
   /** @internal */
   cache: Record<string, string> = {};
-  /** @internal */
-  cachedTables: Record<string, true> = {};
+  private cachedTables: Record<string, true> = {};
   private convert: (input: string) => string
 
   constructor(casing?: Casing) {
@@ -68,13 +67,6 @@ export class CasingCache {
       }
       this.cachedTables[tableKey] = true;
     }
-  }
-
-  /** @internal */
-  isTableCached(table: Table) {
-    const schema = table[Table.Symbol.Schema] ?? 'public';
-    const tableName = table[Table.Symbol.OriginalName];
-    return this.cachedTables[`${schema}.${tableName}`];
   }
 
   clearCache() {

@@ -1,5 +1,5 @@
-import { entityKind } from '~/entity.ts';
-import { PgDialect } from '~/pg-core/dialect.ts';
+import { entityKind, is } from '~/entity.ts';
+import { PgDialect, PgDialectConfig } from '~/pg-core/dialect.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
@@ -13,6 +13,12 @@ export class QueryBuilder {
 	static readonly [entityKind]: string = 'PgQueryBuilder';
 
 	private dialect: PgDialect | undefined;
+	private dialectConfig: PgDialectConfig | undefined;
+
+	constructor(dialect?: PgDialect | PgDialectConfig) {
+		this.dialect = is(dialect, PgDialect) ? dialect : undefined;
+		this.dialectConfig = !is(dialect, PgDialect) ? dialect : undefined;
+	}
 
 	$with<TAlias extends string>(alias: TAlias) {
 		const queryBuilder = this;
@@ -121,7 +127,7 @@ export class QueryBuilder {
 	// Lazy load dialect to avoid circular dependency
 	private getDialect() {
 		if (!this.dialect) {
-			this.dialect = new PgDialect();
+			this.dialect = new PgDialect(this.dialectConfig);
 		}
 
 		return this.dialect;
