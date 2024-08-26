@@ -74,6 +74,7 @@
 		"@vercel/postgres": "^0.8.0",
 		"ava": "^5.1.0",
 		"better-sqlite3": "^9.4.3",
+		"bun-types": "^0.6.6",
 		"camelcase": "^7.0.1",
 		"chalk": "^5.2.0",
 		"commander": "^12.1.0",
