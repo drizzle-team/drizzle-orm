@@ -91,7 +91,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: AwsDataApiClient,
 	config: DrizzleAwsDataApiPgConfig<TSchema>,
 ): AwsDataApiPgDatabase<TSchema> {
-	const dialect = new AwsPgDialect();
+	const dialect = new AwsPgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
