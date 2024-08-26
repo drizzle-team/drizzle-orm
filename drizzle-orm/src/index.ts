@@ -5,6 +5,7 @@ export * from './entity.ts';
 export * from './errors.ts';
 export * from './expressions.ts';
 export * from './logger.ts';
+export * from './monodriver.ts';
 export * from './operations.ts';
 export * from './query-promise.ts';
 export * from './relations.ts';
