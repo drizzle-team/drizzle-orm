@@ -20,7 +20,7 @@ import { Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
@@ -30,9 +30,21 @@ import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
+import { CasingCache } from '~/casing.ts';
+
+export interface MySqlDialectConfig {
+	casing?: Casing;
+}
 
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
+
+	/** @internal */
+	readonly casing: CasingCache;
+
+	constructor(config?: MySqlDialectConfig) {
+		this.casing = new CasingCache(config?.casing);
+	}
 
 	async migrate(
 		migrations: MigrationMeta[],
@@ -124,7 +136,7 @@ export class MySqlDialect {
 			const col = tableColumns[colName]!;
 
 			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
-			const res = sql`${sql.identifier(col.name)} = ${value}`;
+			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
 				return [res, sql.raw(', ')];
@@ -178,7 +190,7 @@ export class MySqlDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, MySqlColumn)) {
-										return sql.identifier(c.name);
+										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
 								}),
@@ -193,7 +205,7 @@ export class MySqlDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(field.name));
+						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					} else {
 						chunk.push(field);
 					}
@@ -386,13 +398,13 @@ export class MySqlDialect {
 			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const orderByUnit of orderBy) {
 				if (is(orderByUnit, MySqlColumn)) {
-					orderByValues.push(sql.identifier(orderByUnit.name));
+					orderByValues.push(sql.identifier(this.casing.getColumnCasing(orderByUnit)));
 				} else if (is(orderByUnit, SQL)) {
 					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
 						const chunk = orderByUnit.queryChunks[i];
 
 						if (is(chunk, MySqlColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
+							orderByUnit.queryChunks[i] = sql.identifier(this.casing.getColumnCasing(chunk));
 						}
 					}
 
@@ -426,7 +438,7 @@ export class MySqlDialect {
 			!col.shouldDisableInsert()
 		);
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
 		for (const [valueIndex, value] of values.entries()) {
@@ -479,6 +491,7 @@ export class MySqlDialect {
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
+			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,

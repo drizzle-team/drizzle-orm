@@ -49,7 +49,9 @@ export class MySqlUpdateBuilder<
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
 		private withList?: Subquery[],
-	) {}
+	) {
+		this.dialect.casing.cacheTable(table);
+	}
 
 	set(values: MySqlUpdateSetSource<TTable>): MySqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect, this.withList);
