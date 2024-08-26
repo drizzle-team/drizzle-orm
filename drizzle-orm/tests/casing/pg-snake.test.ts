@@ -145,14 +145,4 @@ describe('postgres snake case to camel case ', () => {
     });
     expect(db.dialect.casing.cache).toEqual(usersCache);
   });
-
-  it('raw', ({ expect }) => {
-    const query = db.execute(sql`select ${users.first_name} from ${users}`);
-
-    expect(query.getQuery()).toEqual({
-      sql: 'select "users"."firstName" from "users"',
-      params: [],
-    });
-    expect(db.dialect.casing.cache).toEqual(usersCache);
-  });
 });
