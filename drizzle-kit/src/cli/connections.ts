@@ -378,6 +378,12 @@ export const connectToMySQL = async (
 				sql: params.sql,
 				values: params.params,
 				rowsAsArray: params.mode === 'array',
+				typeCast: function(field: any, next: any) {
+					if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+						return field.string();
+					}
+					return next();
+				},
 			});
 			return result[0] as any[];
 		};
