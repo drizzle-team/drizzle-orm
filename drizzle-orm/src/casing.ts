@@ -1,7 +1,6 @@
 import { Table } from './table.ts';
 import { Casing, entityKind, type Column } from './index.ts';
 
-/** @internal */
 export function toSnakeCase(input: string) {
   const words = input
     .replace(/['\u2019]/g, '')
@@ -10,7 +9,7 @@ export function toSnakeCase(input: string) {
   return words.map((word) => word.toLowerCase()).join('_');
 }
 
-/** @internal */
+
 export function toCamelCase(input: string) {
   const words = input
     .replace(/['\u2019]/g, '')
