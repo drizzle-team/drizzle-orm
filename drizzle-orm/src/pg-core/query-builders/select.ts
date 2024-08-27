@@ -112,7 +112,6 @@ export class PgSelectBuilder<
 		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
-			this.dialect.casing.cacheTable(source);
 			fields = getTableColumns<PgTable>(source);
 		}
 
@@ -215,9 +214,6 @@ export abstract class PgSelectQueryBuilderBase<
 					};
 				}
 				if (typeof tableName === 'string' && !is(table, SQL)) {
-					if (is(table, Table)) {
-						this.dialect.casing.cacheTable(table);
-					}
 					const selection = is(table, Subquery)
 						? table._.selectedFields
 						: is(table, View)

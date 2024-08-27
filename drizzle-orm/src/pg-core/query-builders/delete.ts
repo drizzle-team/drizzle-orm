@@ -139,7 +139,6 @@ export class PgDeleteBase<
 		withList?: Subquery[],
 	) {
 		super();
-		this.dialect.casing.cacheTable(table);
 		this.config = { table, withList };
 	}
 

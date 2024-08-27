@@ -97,7 +97,6 @@ export class MySqlDeleteBase<
 		withList?: Subquery[],
 	) {
 		super();
-		this.dialect.casing.cacheTable(table);
 		this.config = { table, withList };
 	}
 

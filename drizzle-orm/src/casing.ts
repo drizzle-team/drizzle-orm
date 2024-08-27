@@ -53,7 +53,7 @@ export class CasingCache {
     return this.cache[key]!;
   }
 
-  cacheTable(table: Table) {
+  private cacheTable(table: Table) {
     const schema = table[Table.Symbol.Schema] ?? 'public';
     const tableName = table[Table.Symbol.OriginalName];
     const tableKey = `${schema}.${tableName}`;

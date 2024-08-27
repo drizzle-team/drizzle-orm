@@ -50,9 +50,7 @@ export class MySqlInsertBuilder<
 		private table: TTable,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
-	) {
-		this.dialect.casing.cacheTable(table);
-	}
+	) {}
 
 	ignore(): this {
 		this.shouldIgnore = true;

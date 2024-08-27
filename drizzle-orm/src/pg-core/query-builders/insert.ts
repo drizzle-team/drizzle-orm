@@ -44,9 +44,7 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 		private session: PgSession,
 		private dialect: PgDialect,
 		private withList?: Subquery[],
-	) {
-		this.dialect.casing.cacheTable(this.table);
-	}
+	) {}
 
 	values(value: PgInsertValue<TTable>): PgInsertBase<TTable, TQueryResult>;
 	values(values: PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult>;

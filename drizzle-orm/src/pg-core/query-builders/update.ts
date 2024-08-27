@@ -47,9 +47,7 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 		private session: PgSession,
 		private dialect: PgDialect,
 		private withList?: Subquery[],
-	) {
-		this.dialect.casing.cacheTable(this.table);
-	}
+	) {}
 
 	set(values: PgUpdateSetSource<TTable>): PgUpdateBase<TTable, TQueryResult> {
 		return new PgUpdateBase<TTable, TQueryResult>(
