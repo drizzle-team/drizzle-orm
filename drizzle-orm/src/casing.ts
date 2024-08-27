@@ -9,7 +9,6 @@ export function toSnakeCase(input: string) {
   return words.map((word) => word.toLowerCase()).join('_');
 }
 
-
 export function toCamelCase(input: string) {
   const words = input
     .replace(/['\u2019]/g, '')

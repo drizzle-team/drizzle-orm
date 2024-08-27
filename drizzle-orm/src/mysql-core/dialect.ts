@@ -1003,7 +1003,7 @@ export class MySqlDialect {
 			let field = sql`json_array(${
 				sql.join(
 					selection.map(({ field }) =>
-						is(field, MySqlColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
+						is(field, MySqlColumn) ? sql.identifier(this.casing.getColumnCasing(field)) : is(field, SQL.Aliased) ? field.sql : field
 					),
 					sql`, `,
 				)
