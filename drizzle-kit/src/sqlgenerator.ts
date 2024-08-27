@@ -163,7 +163,7 @@ class PgCreateTableConvertor extends Convertor {
 				: `${schemaPrefix}"${column.type}"`;
 			const generated = column.generated;
 
-			const generatedStatement = ` GENERATED ALWAYS AS (${generated?.as}) STORED`;
+			const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
 
 			const unsquashedIdentity = column.identity
 				? PgSquasher.unsquashIdentity(column.identity)
@@ -198,9 +198,7 @@ class PgCreateTableConvertor extends Convertor {
 				: '';
 
 			statement += '\t'
-				+ `"${column.name}" ${type}${primaryKeyStatement}${defaultStatement}${notNullStatement}${uniqueConstraint}${
-					generated ? generatedStatement : ''
-				}${identity}`;
+				+ `"${column.name}" ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${uniqueConstraint}${identity}`;
 			statement += i === columns.length - 1 ? '' : ',\n';
 		}
 
@@ -268,7 +266,7 @@ class MySqlCreateTableConvertor extends Convertor {
 				: '';
 
 			statement += '\t'
-				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${generatedStatement}`;
+				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}`;
 			statement += i === columns.length - 1 ? '' : ',\n';
 		}
 
@@ -340,7 +338,7 @@ export class SQLiteCreateTableConvertor extends Convertor {
 
 			statement += '\t';
 			statement +=
-				`\`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${notNullStatement}${generatedStatement}`;
+				`\`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}`;
 
 			statement += i === columns.length - 1 ? '' : ',\n';
 		}
@@ -972,11 +970,9 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 			})`
 			: '';
 
-		const generatedStatement = ` GENERATED ALWAYS AS (${generated?.as}) STORED`;
+		const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
 
-		return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${notNullStatement}${
-			generated ? generatedStatement : ''
-		}${identityStatement};`;
+		return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
 	}
 }
 
@@ -1007,7 +1003,7 @@ class MySqlAlterTableAddColumnConvertor extends Convertor {
 			? ` GENERATED ALWAYS AS (${generated?.as}) ${generated?.type.toUpperCase()}`
 			: '';
 
-		return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${notNullStatement}${onUpdateStatement}${generatedStatement};`;
+		return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
 	}
 }
 
@@ -1038,7 +1034,7 @@ export class SQLiteAlterTableAddColumnConvertor extends Convertor {
 			? ` GENERATED ALWAYS AS ${generated.as} ${generated.type.toUpperCase()}`
 			: '';
 
-		return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${defaultStatement}${notNullStatement}${generatedStatement}${referenceStatement};`;
+		return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${referenceStatement};`;
 	}
 }
 
@@ -1735,7 +1731,7 @@ class MySqlModifyColumn extends Convertor {
 			? columnDefault.toISOString()
 			: columnDefault;
 
-		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnNotNull}${columnDefault}${columnOnUpdate}${columnGenerated};`;
+		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnGenerated}${columnNotNull}${columnDefault}${columnOnUpdate};`;
 	}
 }
 

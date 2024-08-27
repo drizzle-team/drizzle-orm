@@ -5,7 +5,7 @@ import fetch from 'node-fetch';
 import ws from 'ws';
 import { assertUnreachable } from '../global';
 import type { ProxyParams } from '../serializer/studio';
-import { type DB, normaliseSQLiteUrl, type Proxy, type SQLiteDB, type SqliteProxy } from '../utils';
+import { type DB, normalisePGliteUrl, normaliseSQLiteUrl, type Proxy, type SQLiteDB, type SqliteProxy } from '../utils';
 import { assertPackages, checkPackage } from './utils';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
@@ -21,7 +21,8 @@ export const preparePostgresDB = async (
 	}
 > => {
 	if ('driver' in credentials) {
-		if (credentials.driver === 'aws-data-api') {
+		const { driver } = credentials;
+		if (driver === 'aws-data-api') {
 			assertPackages('@aws-sdk/client-rds-data');
 			const { RDSDataClient, ExecuteStatementCommand, TypeHint } = await import(
 				'@aws-sdk/client-rds-data'
@@ -92,7 +93,45 @@ export const preparePostgresDB = async (
 			};
 		}
 
-		assertUnreachable(credentials.driver);
+		if (driver === 'pglite') {
+			assertPackages('@electric-sql/pglite');
+			const { PGlite } = await import('@electric-sql/pglite');
+			const { drizzle } = await import('drizzle-orm/pglite');
+			const { migrate } = await import('drizzle-orm/pglite/migrator');
+
+			const pglite = new PGlite(normalisePGliteUrl(credentials.url));
+			await pglite.waitReady;
+			const drzl = drizzle(pglite);
+			const migrateFn = async (config: MigrationConfig) => {
+				return migrate(drzl, config);
+			};
+
+			const query = async <T>(sql: string, params: any[] = []) => {
+				const result = await pglite.query(sql, params);
+				return result.rows as T[];
+			};
+
+			const proxy = async (params: ProxyParams) => {
+				const preparedParams = preparePGliteParams(params.params);
+				if (
+					params.method === 'values'
+					|| params.method === 'get'
+					|| params.method === 'all'
+				) {
+					const result = await pglite.query(params.sql, preparedParams, {
+						rowMode: params.mode,
+					});
+					return result.rows;
+				}
+
+				const result = await pglite.query(params.sql, preparedParams);
+				return result.rows;
+			};
+
+			return { query, proxy, migrate: migrateFn };
+		}
+
+		assertUnreachable(driver);
 	}
 
 	if (await checkPackage('pg')) {
@@ -410,6 +449,25 @@ const prepareSqliteParams = (params: any[], driver?: string) => {
 			}
 
 			return Buffer.from(value);
+		}
+		return param;
+	});
+};
+
+const preparePGliteParams = (params: any[]) => {
+	return params.map((param) => {
+		if (
+			param
+			&& typeof param === 'object'
+			&& 'type' in param
+			&& 'value' in param
+			&& param.type === 'binary'
+		) {
+			const value = typeof param.value === 'object'
+				? JSON.stringify(param.value)
+				: (param.value as string);
+
+			return value;
 		}
 		return param;
 	});

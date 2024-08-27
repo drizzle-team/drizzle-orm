@@ -10,6 +10,7 @@ const driversPackages = [
 	'postgres',
 	'@vercel/postgres',
 	'@neondatabase/serverless',
+	'@electric-sql/pglite',
 	//  mysql drivers
 	'mysql2',
 	'@planetscale/database',
