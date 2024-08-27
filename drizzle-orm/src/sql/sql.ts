@@ -1,3 +1,4 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { SelectedFields } from '~/operations.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
@@ -7,7 +8,6 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { Table } from '../table.ts';
-import type { CasingCache } from '~/casing.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.

@@ -24,32 +24,32 @@ import { varchar } from './varchar';
 import { year } from './year';
 
 export function getMySqlColumnBuilders() {
-  return {
-    bigint,
-    binary,
-    boolean,
-    char,
-    customType,
-    date,
-    datetime,
-    decimal,
-    double,
-    mysqlEnum,
-    float,
-    int,
-    json,
-    mediumint,
-    real,
-    serial,
-    smallint,
-    text,
-    time,
-    timestamp,
-    tinyint,
-    varbinary,
-    varchar,
-    year
-  };
+	return {
+		bigint,
+		binary,
+		boolean,
+		char,
+		customType,
+		date,
+		datetime,
+		decimal,
+		double,
+		mysqlEnum,
+		float,
+		int,
+		json,
+		mediumint,
+		real,
+		serial,
+		smallint,
+		text,
+		time,
+		timestamp,
+		tinyint,
+		varbinary,
+		varchar,
+		year,
+	};
 }
 
 export type MySqlColumnBuilders = ReturnType<typeof getMySqlColumnBuilders>;

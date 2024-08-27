@@ -1,4 +1,5 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import { CasingCache } from '~/casing.ts';
 import type { AnyColumn } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -33,7 +34,6 @@ import type {
 } from './query-builders/select.types.ts';
 import type { SQLiteSession } from './session.ts';
 import { SQLiteViewBase } from './view-base.ts';
-import { CasingCache } from '~/casing.ts';
 
 export interface SQLiteDialectConfig {
 	casing?: Casing;
@@ -657,7 +657,11 @@ export abstract class SQLiteDialect {
 			let field = sql`json_array(${
 				sql.join(
 					selection.map(({ field }) =>
-						is(field, SQLiteColumn) ? sql.identifier(this.casing.getColumnCasing(field)) : is(field, SQL.Aliased) ? field.sql : field
+						is(field, SQLiteColumn)
+							? sql.identifier(this.casing.getColumnCasing(field))
+							: is(field, SQL.Aliased)
+							? field.sql
+							: field
 					),
 					sql`, `,
 				)

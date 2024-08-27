@@ -1,4 +1,5 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -53,7 +54,6 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView } from './view.ts';
-import { CasingCache } from '~/casing.ts';
 
 export interface PgDialectConfig {
 	casing?: Casing;
@@ -475,7 +475,7 @@ export class PgDialect {
 		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
 
 		const insertOrder = colEntries.map(
-			([, column]) => sql.identifier(this.casing.getColumnCasing(column))
+			([, column]) => sql.identifier(this.casing.getColumnCasing(column)),
 		);
 
 		for (const [valueIndex, value] of values.entries()) {

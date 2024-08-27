@@ -6,14 +6,14 @@ import { real } from './real';
 import { text } from './text';
 
 export function getSQLiteColumnBuilders() {
-  return {
-    blob,
-    customType,
-    integer,
-    numeric,
-    real,
-    text,
-  };
+	return {
+		blob,
+		customType,
+		integer,
+		numeric,
+		real,
+		text,
+	};
 }
 
 export type SQLiteColumnBuilders = ReturnType<typeof getSQLiteColumnBuilders>;

@@ -1,4 +1,5 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -30,7 +31,6 @@ import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
-import { CasingCache } from '~/casing.ts';
 
 export interface MySqlDialectConfig {
 	casing?: Casing;
@@ -1003,7 +1003,11 @@ export class MySqlDialect {
 			let field = sql`json_array(${
 				sql.join(
 					selection.map(({ field }) =>
-						is(field, MySqlColumn) ? sql.identifier(this.casing.getColumnCasing(field)) : is(field, SQL.Aliased) ? field.sql : field
+						is(field, MySqlColumn)
+							? sql.identifier(this.casing.getColumnCasing(field))
+							: is(field, SQL.Aliased)
+							? field.sql
+							: field
 					),
 					sql`, `,
 				)
