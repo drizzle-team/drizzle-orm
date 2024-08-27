@@ -32,7 +32,7 @@ export class LibSQLDatabase<
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 >(client: Client, config: DrizzleConfig<TSchema> = {}): LibSQLDatabase<TSchema> {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

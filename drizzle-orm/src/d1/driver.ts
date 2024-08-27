@@ -33,7 +33,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: D1Database,
 	config: DrizzleConfig<TSchema> = {},
 ): DrizzleD1Database<TSchema> {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

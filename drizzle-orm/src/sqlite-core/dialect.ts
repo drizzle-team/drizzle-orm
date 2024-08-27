@@ -24,7 +24,7 @@ import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from 
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
 	SelectedFieldsOrdered,
@@ -33,9 +33,21 @@ import type {
 } from './query-builders/select.types.ts';
 import type { SQLiteSession } from './session.ts';
 import { SQLiteViewBase } from './view-base.ts';
+import { CasingCache } from '~/casing.ts';
+
+export interface SQLiteDialectConfig {
+	casing?: Casing;
+}
 
 export abstract class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
+
+	/** @internal */
+	readonly casing: CasingCache;
+
+	constructor(config?: SQLiteDialectConfig) {
+		this.casing = new CasingCache(config?.casing);
+	}
 
 	escapeName(name: string): string {
 		return `"${name}"`;
@@ -434,6 +446,7 @@ export abstract class SQLiteDialect {
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
+			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
