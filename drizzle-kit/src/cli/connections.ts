@@ -148,7 +148,7 @@ export const preparePostgresDB = async (
 
 	if (await checkPackage('pg')) {
 		console.log(withStyle.info(`Using 'pg' driver for database querying`));
-		const pg = await import('pg');
+		const { default: pg } = await import('pg');
 		const { drizzle } = await import('drizzle-orm/node-postgres');
 		const { migrate } = await import('drizzle-orm/node-postgres/migrator');
 
@@ -169,8 +169,8 @@ export const preparePostgresDB = async (
 		pg.types.setTypeParser(pg.types.builtins.INTERVAL, (val) => val);
 
 		const client = 'url' in credentials
-			? new pg.default.Pool({ connectionString: credentials.url, max: 1 })
-			: new pg.default.Pool({ ...credentials, ssl, max: 1 });
+			? new pg.Pool({ connectionString: credentials.url, max: 1 })
+			: new pg.Pool({ ...credentials, ssl, max: 1 });
 
 		const db = drizzle(client);
 		const migrateFn = async (config: string | MigrationConfig) => {
