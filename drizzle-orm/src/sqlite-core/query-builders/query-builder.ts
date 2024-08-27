@@ -1,8 +1,8 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
+import { SQLiteDialect, SQLiteDialectConfig, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { WithSubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import { WithSubquery } from '~/subquery.ts';
 import { SQLiteSelectBuilder } from './select.ts';
@@ -11,7 +11,13 @@ import type { SelectedFields } from './select.types.ts';
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'SQLiteQueryBuilder';
 
-	private dialect: SQLiteSyncDialect | undefined;
+	private dialect: SQLiteDialect | undefined;
+	private dialectConfig: SQLiteDialectConfig | undefined;
+
+	constructor(dialect?: SQLiteDialect | SQLiteDialectConfig) {
+		this.dialect = is(dialect, SQLiteDialect) ? dialect : undefined;
+		this.dialectConfig = !is(dialect, SQLiteDialect) ? dialect : undefined;
+	}
 
 	$with<TAlias extends string>(alias: TAlias) {
 		const queryBuilder = this;
@@ -97,7 +103,7 @@ export class QueryBuilder {
 	// Lazy load dialect to avoid circular dependency
 	private getDialect() {
 		if (!this.dialect) {
-			this.dialect = new SQLiteSyncDialect();
+			this.dialect = new SQLiteSyncDialect(this.dialectConfig);
 		}
 
 		return this.dialect;
