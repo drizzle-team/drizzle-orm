@@ -48,7 +48,7 @@ const cache = {
 
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
-describe('postgres camel case to snake case ', () => {
+describe('postgres to snake case', () => {
   beforeEach(() => {
     db.dialect.casing.clearCache();
   });

@@ -51,7 +51,7 @@ const cache = {
 
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
-describe('mysql camel case to snake case ', () => {
+describe('mysql to snake case', () => {
   beforeEach(() => {
     db.dialect.casing.clearCache();
     ps.dialect.casing.clearCache();
