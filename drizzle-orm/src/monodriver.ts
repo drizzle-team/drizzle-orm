@@ -1,3 +1,4 @@
+/* eslint-disable import/extensions */
 import type { RDSDataClientConfig as RDSConfig } from '@aws-sdk/client-rds-data';
 import type { Config as LibsqlConfig } from '@libsql/client';
 import type {
@@ -66,7 +67,7 @@ type MonodriverNeonHttpConfig = {
 
 type ClientDrizzleInstanceMap<TSchema extends Record<string, any>> = {
 	'node-postgres': NodePgDatabase<TSchema>;
-	'postgres.js': PostgresJsDatabase<TSchema>;
+	'postgres-js': PostgresJsDatabase<TSchema>;
 	'neon-serverless': NeonDatabase<TSchema>;
 	'neon-http': NeonHttpDatabase<TSchema>;
 	'vercel-postgres': VercelPgDatabase<TSchema>;
@@ -88,7 +89,7 @@ type InitializerParams<
 		connection: NodePGPoolConfig;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'postgres.js';
+		client: 'postgres-js';
 		connection: PostgresJSOptions<Record<string, PostgresJSPostgresType>>;
 	} & DrizzleConfig<TSchema>)
 	| ({
@@ -140,24 +141,10 @@ type DetermineClient<
 	TParams extends InitializerParams<any>,
 > = ClientDrizzleInstanceMap<TParams['schema']>[TParams['client']];
 
-import { drizzle as rdsPgDrizzle } from './aws-data-api/pg/index.ts';
-import { drizzle as betterSqliteDrizzle } from './better-sqlite3/index.ts';
-import { drizzle as bunSqliteDrizzle } from './bun-sqlite/index.ts';
-import { drizzle as d1Drizzle } from './d1/index.ts';
-import { drizzle as libsqlDrizzle } from './libsql/index.ts';
-import { drizzle as mysql2Drizzle } from './mysql2/index.ts';
-import { drizzle as neonHttpDrizzle } from './neon-http/index.ts';
-import { drizzle as neonDrizzle } from './neon-serverless/index.ts';
-import { drizzle as pgDrizzle } from './node-postgres/index.ts';
-import { drizzle as planetscaleDrizzle } from './planetscale-serverless/index.ts';
-import { drizzle as postgresJSDrizzle } from './postgres-js/index.ts';
-import { drizzle as tidbDrizzle } from './tidb-serverless/index.ts';
-import { drizzle as vercelDrizzle } from './vercel-postgres/index.ts';
-
 export const drizzle = <
 	TSchema extends Record<string, any>,
 	TParams extends InitializerParams<TSchema>,
->(params: TParams): Promise<DetermineClient<TParams>> => {
+>(params: TParams): DetermineClient<TParams> => {
 	const { client, connection } = params;
 	const drizzleConfig = params as DrizzleConfig;
 	delete (<any> drizzleConfig).client;
@@ -166,45 +153,51 @@ export const drizzle = <
 	switch (client) {
 		case 'node-postgres': {
 			const { Pool } = require('pg') as typeof import('pg');
+			const { drizzle } = require('./node-postgres') as typeof import('./node-postgres');
 			const instance = new Pool(connection as NodePGPoolConfig);
 
-			return pgDrizzle(instance, drizzleConfig) as any;
+			return drizzle(instance, drizzleConfig) as any;
 		}
 		case 'aws-data-api-pg': {
 			const { RDSDataClient } = require('@aws-sdk/client-rds-data') as typeof import('@aws-sdk/client-rds-data');
+			const { drizzle } = require('./aws-data-api/pg') as typeof import('./aws-data-api/pg');
 			const instance = new RDSDataClient(connection);
 
-			return rdsPgDrizzle(instance, drizzleConfig as any as DrizzleAwsDataApiPgConfig) as any;
+			return drizzle(instance, drizzleConfig as any as DrizzleAwsDataApiPgConfig) as any;
 		}
 		case 'better-sqlite3': {
 			const Client = require('better-sqlite3') as typeof import('better-sqlite3');
 			const { filename, options } = connection as BetterSQLite3DatabaseConfig;
+			const { drizzle } = require('./better-sqlite3') as typeof import('./better-sqlite3');
 			const instance = new Client(filename, options);
 
-			return betterSqliteDrizzle(instance, drizzleConfig) as any;
+			return drizzle(instance, drizzleConfig) as any;
 		}
 		case 'bun-sqlite': {
 			return new Promise((res, rej) => {
 				import('bun:sqlite').then(({ Database: Client }) => {
 					try {
 						const { filename, options } = connection as BunSqliteDatabaseConfig;
+						const { drizzle } = require('./bun-sqlite') as typeof import('./bun-sqlite');
 						const instance = new Client(filename, options);
 
-						res(bunSqliteDrizzle(instance, drizzleConfig) as any);
+						res(drizzle(instance, drizzleConfig) as any);
 					} catch (e) {
 						rej(e);
 					}
 				}).catch((e) => rej(e));
-			});
+			}) as any;
 		}
 		case 'd1': {
-			return d1Drizzle(connection as D1Database, drizzleConfig) as any;
+			const { drizzle } = require('./d1') as typeof import('./d1');
+			return drizzle(connection as D1Database, drizzleConfig) as any;
 		}
 		case 'libsql': {
 			const { createClient } = require('@libsql/client') as typeof import('@libsql/client');
+			const { drizzle } = require('./libsql') as typeof import('./libsql');
 			const instance = createClient(connection as LibsqlConfig);
 
-			return libsqlDrizzle(instance, drizzleConfig) as any;
+			return drizzle(instance, drizzleConfig) as any;
 		}
 		case 'mysql2': {
 			const { createConnection } = require('mysql2/promise') as typeof import('mysql2/promise');
@@ -212,50 +205,57 @@ export const drizzle = <
 			return new Promise((res, rej) => {
 				createConnection(connection as Mysql2Config).then((instance) => {
 					try {
-						res(mysql2Drizzle(instance, drizzleConfig as MySql2DrizzleConfig) as any);
+						const { drizzle } = require('./mysql2') as typeof import('./mysql2');
+						res(drizzle(instance, drizzleConfig as MySql2DrizzleConfig) as any);
 					} catch (e) {
 						rej(e);
 					}
 				}).catch((e) => rej(e));
-			});
+			}) as any;
 		}
 		case 'neon-http': {
 			const { neon } = require('@neondatabase/serverless') as typeof import('@neondatabase/serverless');
 			const { connectionString, options } = connection as MonodriverNeonHttpConfig;
+			const { drizzle } = require('./neon-http') as typeof import('./neon-http');
 			const instance = neon(connectionString, options);
 
-			return neonHttpDrizzle(instance, drizzleConfig) as any;
+			return drizzle(instance, drizzleConfig) as any;
 		}
 		case 'neon-serverless': {
 			const { Pool } = require('@neondatabase/serverless') as typeof import('@neondatabase/serverless');
+			const { drizzle } = require('./neon-serverless') as typeof import('./neon-serverless');
 			const instance = new Pool(connection as NeonServerlessConfig);
 
-			return neonDrizzle(instance, drizzleConfig) as any;
+			return drizzle(instance, drizzleConfig) as any;
 		}
 		case 'planetscale': {
 			const { Client } = require('@planetscale/database') as typeof import('@planetscale/database');
+			const { drizzle } = require('./planetscale-serverless') as typeof import('./planetscale-serverless');
 			const instance = new Client(
 				connection as PlanetscaleConfig,
 			);
 
-			return planetscaleDrizzle(instance, drizzleConfig) as any;
+			return drizzle(instance, drizzleConfig) as any;
 		}
-		case 'postgres.js': {
+		case 'postgres-js': {
 			const client = require('postgres') as typeof import('postgres');
+			const { drizzle } = require('./postgres-js') as typeof import('./postgres-js');
 			const instance = client(connection as PostgresJSOptions<Record<string, PostgresJSPostgresType>>);
 
-			return postgresJSDrizzle(instance, drizzleConfig) as any;
+			return drizzle(instance, drizzleConfig) as any;
 		}
 		case 'tidb-serverless': {
 			const { connect } = require('@tidbcloud/serverless') as typeof import('@tidbcloud/serverless');
+			const { drizzle } = require('./tidb-serverless') as typeof import('./tidb-serverless');
 			const instance = connect(connection as TiDBServerlessConfig);
 
-			return tidbDrizzle(instance, drizzleConfig) as any;
+			return drizzle(instance, drizzleConfig) as any;
 		}
 		case 'vercel-postgres': {
 			const { sql } = require('@vercel/postgres') as typeof import('@vercel/postgres');
+			const { drizzle } = require('./vercel-postgres') as typeof import('./vercel-postgres');
 
-			return vercelDrizzle(sql, drizzleConfig) as any;
+			return drizzle(sql, drizzleConfig) as any;
 		}
 	}
 };
