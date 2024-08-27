@@ -22,16 +22,20 @@ import {
 	_prepareSqliteAddColumns,
 	JsonAddColumnStatement,
 	JsonAlterCompositePK,
+	JsonAlterPolicyStatement,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
 	JsonCreateCompositePK,
+	JsonCreatePolicyStatement,
 	JsonCreateReferenceStatement,
 	JsonCreateUniqueConstraint,
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
 	JsonDropColumnStatement,
+	JsonDropPolicyStatement,
 	JsonReferenceStatement,
 	JsonRenameColumnStatement,
+	JsonRenamePolicyStatement,
 	JsonSqliteAddColumnStatement,
 	JsonStatement,
 	prepareAddCompositePrimaryKeyMySql,
@@ -43,10 +47,12 @@ import {
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
 	prepareAlterCompositePrimaryKeySqlite,
+	prepareAlterPolicyJson,
 	prepareAlterReferencesJson,
 	prepareAlterSequenceJson,
 	prepareCreateEnumJson,
 	prepareCreateIndexesJson,
+	prepareCreatePolicyJsons,
 	prepareCreateReferencesJson,
 	prepareCreateSchemasJson,
 	prepareCreateSequenceJson,
@@ -57,6 +63,7 @@ import {
 	prepareDeleteUniqueConstraintPg as prepareDeleteUniqueConstraint,
 	prepareDropEnumJson,
 	prepareDropIndexesJson,
+	prepareDropPolicyJsons,
 	prepareDropReferencesJson,
 	prepareDropSequenceJson,
 	prepareDropTableJson,
@@ -68,6 +75,7 @@ import {
 	preparePgCreateTableJson,
 	prepareRenameColumns,
 	prepareRenameEnumJson,
+	prepareRenamePolicyJsons,
 	prepareRenameSchemasJson,
 	prepareRenameSequenceJson,
 	prepareRenameTableJson,
@@ -78,7 +86,14 @@ import {
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSchema, PgSchemaSquashed, PgSquasher, sequenceSchema, sequenceSquashed } from './serializer/pgSchema';
+import {
+	PgSchema,
+	PgSchemaSquashed,
+	PgSquasher,
+	Policy,
+	sequenceSchema,
+	sequenceSquashed,
+} from './serializer/pgSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 import { copy, prepareMigrationMeta } from './utils';
 
@@ -246,6 +261,15 @@ export const alteredTableScheme = object({
 			__old: string(),
 		}),
 	),
+	addedPolicies: record(string(), string()),
+	deletedPolicies: record(string(), string()),
+	alteredPolicies: record(
+		string(),
+		object({
+			__new: string(),
+			__old: string(),
+		}),
+	),
 }).strict();
 
 export const diffResultScheme = object({
@@ -381,6 +405,9 @@ export const applyPgSnapshotsDiff = async (
 	sequencesResolver: (
 		input: ResolverInput<Sequence>,
 	) => Promise<ResolverOutputWithMoved<Sequence>>,
+	policyResolver: (
+		input: ColumnsResolverInput<Policy>,
+	) => Promise<ColumnsResolverOutput<Policy>>,
 	tablesResolver: (
 		input: ResolverInput<Table>,
 	) => Promise<ResolverOutputWithMoved<Table>>,
@@ -717,6 +744,101 @@ export const applyPgSnapshotsDiff = async (
 		},
 	);
 
+	//// Policies
+
+	const policyRes = diffColumns(tablesPatchedSnap1.tables, json2.tables);
+
+	const policyRenames = [] as {
+		table: string;
+		schema: string;
+		renames: { from: Policy; to: Policy }[];
+	}[];
+
+	const policyCreates = [] as {
+		table: string;
+		schema: string;
+		columns: Policy[];
+	}[];
+
+	const policyDeletes = [] as {
+		table: string;
+		schema: string;
+		columns: Policy[];
+	}[];
+
+	for (let entry of Object.values(policyRes)) {
+		const { renamed, created, deleted } = await policyResolver({
+			tableName: entry.name,
+			schema: entry.schema,
+			deleted: entry.columns.deleted,
+			created: entry.columns.added,
+		});
+
+		if (created.length > 0) {
+			policyCreates.push({
+				table: entry.name,
+				schema: entry.schema,
+				columns: created,
+			});
+		}
+
+		if (deleted.length > 0) {
+			policyDeletes.push({
+				table: entry.name,
+				schema: entry.schema,
+				columns: deleted,
+			});
+		}
+
+		if (renamed.length > 0) {
+			policyRenames.push({
+				table: entry.name,
+				schema: entry.schema,
+				renames: renamed,
+			});
+		}
+	}
+
+	const policyRenamesDict = columnRenames.reduce(
+		(acc, it) => {
+			acc[`${it.schema || 'public'}.${it.table}`] = it.renames;
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				from: Named;
+				to: Named;
+			}[]
+		>,
+	);
+
+	const policyPatchedSnap1 = copy(tablesPatchedSnap1);
+	policyPatchedSnap1.tables = mapEntries(
+		policyPatchedSnap1.tables,
+		(tableKey, tableValue) => {
+			const patchedPolicies = mapKeys(
+				tableValue.policies,
+				(policyKey, policy) => {
+					const rens = policyRenamesDict[
+						`${tableValue.schema || 'public'}.${tableValue.name}`
+					] || [];
+
+					const newName = columnChangeFor(policyKey, rens);
+					const unsquashedPolicy = PgSquasher.unsquashPolicy(policy);
+					unsquashedPolicy.name = newName;
+					policy = PgSquasher.squashPolicy(unsquashedPolicy);
+					return newName;
+				},
+			);
+
+			tableValue.policies = patchedPolicies;
+			return [tableKey, tableValue];
+		},
+	);
+
+	////
+
 	const diffResult = applyJsonDiff(columnsPatchedSnap1, json2);
 
 	// no diffs
@@ -916,7 +1038,98 @@ export const applyPgSnapshotsDiff = async (
 		})
 		.flat();
 
+	const jsonCreatePoliciesStatements: JsonCreatePolicyStatement[] = [];
+	const jsonDropPoliciesStatements: JsonDropPolicyStatement[] = [];
+	const jsonAlterPoliciesStatements: JsonAlterPolicyStatement[] = [];
+	const jsonRenamePoliciesStatements: JsonRenamePolicyStatement[] = [];
+
+	for (let it of policyRenames) {
+		jsonRenamePoliciesStatements.push(
+			...prepareRenamePolicyJsons(it.table, it.schema, it.renames),
+		);
+	}
+
 	alteredTables.forEach((it) => {
+		// handle policies
+
+		jsonCreatePoliciesStatements.push(
+			...prepareCreatePolicyJsons(
+				it.name,
+				it.schema,
+				it.addedPolicies || {},
+			),
+		);
+
+		jsonDropPoliciesStatements.push(
+			...prepareDropPolicyJsons(
+				it.name,
+				it.schema,
+				it.deletedPolicies || {},
+			),
+		);
+
+		Object.keys(it.alteredPolicies).forEach((policyName: string) => {
+			const newPolicy = PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__new);
+			const oldPolicy = PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__old);
+
+			if (newPolicy.as !== oldPolicy.as) {
+				jsonDropPoliciesStatements.push(
+					...prepareDropPolicyJsons(
+						it.name,
+						it.schema,
+						{ [oldPolicy.name]: it.alteredPolicies[policyName].__old },
+					),
+				);
+
+				jsonCreatePoliciesStatements.push(
+					...prepareCreatePolicyJsons(
+						it.name,
+						it.schema,
+						{ [newPolicy.name]: it.alteredPolicies[policyName].__new },
+					),
+				);
+			}
+
+			if (newPolicy.for !== oldPolicy.for) {
+				jsonDropPoliciesStatements.push(
+					...prepareDropPolicyJsons(
+						it.name,
+						it.schema,
+						{ [oldPolicy.name]: it.alteredPolicies[policyName].__old },
+					),
+				);
+
+				jsonCreatePoliciesStatements.push(
+					...prepareCreatePolicyJsons(
+						it.name,
+						it.schema,
+						{ [newPolicy.name]: it.alteredPolicies[policyName].__new },
+					),
+				);
+			}
+
+			// alter
+			jsonAlterPoliciesStatements.push(
+				prepareAlterPolicyJson(
+					it.name,
+					it.schema,
+					it.alteredPolicies[policyName].__old,
+					it.alteredPolicies[policyName].__new,
+				),
+			);
+		});
+
+		// TODO
+		// Add to sql generators
+		// Test generate logic manually
+		// Add tests
+		// Add introspect
+		// add introspect-pg.ts - think about introspecting from supabase and neon
+		// add push logic - think about using with neon and supabase
+		// add push and introspect tests
+		// beta release
+
+		// handle indexes
 		const droppedIndexes = Object.keys(it.alteredIndexes).reduce(
 			(current, item: string) => {
 				current[item] = it.alteredIndexes[item].__old;
@@ -1132,6 +1345,11 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+
+	jsonStatements.push(...jsonCreatePoliciesStatements);
+	jsonStatements.push(...jsonRenamePoliciesStatements);
+	jsonStatements.push(...jsonAlterPoliciesStatements);
+	jsonStatements.push(...jsonDropPoliciesStatements);
 
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);

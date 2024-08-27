@@ -220,6 +220,15 @@ const uniqueConstraint = object({
 	nullsNotDistinct: boolean(),
 }).strict();
 
+const policy = object({
+	name: string(),
+	as: enumType(['permissive', 'restrictive']).optional(),
+	for: enumType(['all', 'select', 'insert', 'update', 'delete']).optional(),
+	to: string().optional(),
+	using: string().optional(),
+	withCheck: string().optional(),
+}).strict();
+
 const tableV4 = object({
 	name: string(),
 	schema: string(),
@@ -266,6 +275,7 @@ const table = object({
 	foreignKeys: record(string(), fk),
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
+	policies: record(string(), policy).default({}),
 }).strict();
 
 const schemaHash = object({
@@ -385,6 +395,7 @@ const tableSquashed = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()),
+	policies: record(string(), string()),
 }).strict();
 
 const tableSquashedV4 = object({
@@ -445,6 +456,7 @@ export type Index = TypeOf<typeof index>;
 export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
+export type Policy = TypeOf<typeof policy>;
 export type PgKitInternals = TypeOf<typeof kitInternals>;
 
 export type PgSchemaV1 = TypeOf<typeof pgSchemaV1>;
@@ -548,6 +560,20 @@ export const PgSquasher = {
 		return `${fk.name};${fk.tableFrom};${fk.columnsFrom.join(',')};${fk.tableTo};${fk.columnsTo.join(',')};${
 			fk.onUpdate ?? ''
 		};${fk.onDelete ?? ''};${fk.schemaTo || 'public'}`;
+	},
+	squashPolicy: (policy: Policy) => {
+		return `${policy.name}--${policy.as}--${policy.for}--${policy.to}--${policy.using}--${policy.withCheck}`;
+	},
+	unsquashPolicy: (policy: string): Policy => {
+		const splitted = policy.split('--');
+		return {
+			name: splitted[0],
+			as: splitted[1] as Policy['as'],
+			for: splitted[2] as Policy['for'],
+			to: splitted[3],
+			using: splitted[4] !== 'undefined' ? splitted[4] : undefined,
+			withCheck: splitted[5] !== 'undefined' ? splitted[5] : undefined,
+		};
 	},
 	squashPK: (pk: PrimaryKey) => {
 		return `${pk.columns.join(',')};${pk.name}`;
@@ -671,6 +697,10 @@ export const squashPgScheme = (
 				},
 			);
 
+			const squashedPolicies = mapValues(it[1].policies, (policy) => {
+				return PgSquasher.squashPolicy(policy);
+			});
+
 			return [
 				it[0],
 				{
@@ -681,6 +711,7 @@ export const squashPgScheme = (
 					foreignKeys: squashedFKs,
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
+					policies: squashedPolicies,
 				},
 			];
 		}),

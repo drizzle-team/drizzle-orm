@@ -25,6 +25,7 @@ import type {
 	IndexColumnType,
 	PgKitInternals,
 	PgSchemaInternal,
+	Policy,
 	PrimaryKey,
 	Sequence,
 	Table,
@@ -136,6 +137,7 @@ export const generatePgSnapshot = (
 			schema,
 			primaryKeys,
 			uniqueConstraints,
+			policies,
 		} = getTableConfig(table);
 
 		if (schemaFilter && !schemaFilter.includes(schema ?? 'public')) {
@@ -147,6 +149,7 @@ export const generatePgSnapshot = (
 		const foreignKeysObject: Record<string, ForeignKey> = {};
 		const primaryKeysObject: Record<string, PrimaryKey> = {};
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
+		const policiesObject: Record<string, Policy> = {};
 
 		columns.forEach((column) => {
 			const notNull: boolean = column.notNull;
@@ -492,6 +495,17 @@ export const generatePgSnapshot = (
 			};
 		});
 
+		policies.forEach((policy) => {
+			policiesObject[policy.name] = {
+				name: policy.name,
+				as: policy.as ?? 'permissive',
+				for: policy.for ?? 'all',
+				to: policy.to ?? 'PUBLIC',
+				using: is(policy.using, SQL) ? sqlToStr(policy.using) : undefined,
+				withCheck: is(policy.withCheck, SQL) ? sqlToStr(policy.withCheck) : undefined,
+			};
+		});
+
 		const tableKey = `${schema ?? 'public'}.${tableName}`;
 
 		result[tableKey] = {
@@ -502,6 +516,7 @@ export const generatePgSnapshot = (
 			foreignKeys: foreignKeysObject,
 			compositePrimaryKeys: primaryKeysObject,
 			uniqueConstraints: uniqueConstraintObject,
+			policies: policiesObject,
 		};
 	}
 
@@ -1181,6 +1196,7 @@ export const fromDatabase = async (
 					foreignKeys: foreignKeysToReturn,
 					compositePrimaryKeys: primaryKeys,
 					uniqueConstraints: uniqueConstrains,
+					policies: {},
 				};
 			} catch (e) {
 				rej(e);

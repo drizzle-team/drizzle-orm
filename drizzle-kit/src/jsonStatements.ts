@@ -3,7 +3,7 @@ import { table } from 'console';
 import { warning } from './cli/views';
 import { CommonSquashedSchema, Dialect } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher } from './serializer/mysqlSchema';
-import { Index, PgSchema, PgSquasher } from './serializer/pgSchema';
+import { Index, PgSchema, PgSquasher, Policy } from './serializer/pgSchema';
 import { SQLiteKitInternals, SQLiteSquasher } from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
 
@@ -151,6 +151,36 @@ export interface JsonSqliteAddColumnStatement {
 	tableName: string;
 	column: Column;
 	referenceData?: string;
+}
+
+export interface JsonCreatePolicyStatement {
+	type: 'create_policy';
+	tableName: string;
+	data: string;
+	schema: string;
+}
+
+export interface JsonDropPolicyStatement {
+	type: 'drop_policy';
+	tableName: string;
+	data: string;
+	schema: string;
+}
+
+export interface JsonRenamePolicyStatement {
+	type: 'rename_policy';
+	tableName: string;
+	oldName: string;
+	newName: string;
+	schema: string;
+}
+
+export interface JsonAlterPolicyStatement {
+	type: 'alter_policy';
+	tableName: string;
+	oldData: string;
+	newData: string;
+	schema: string;
 }
 
 export interface JsonCreateIndexStatement {
@@ -555,7 +585,11 @@ export type JsonStatement =
 	| JsonDropSequenceStatement
 	| JsonCreateSequenceStatement
 	| JsonMoveSequenceStatement
-	| JsonRenameSequenceStatement;
+	| JsonRenameSequenceStatement
+	| JsonDropPolicyStatement
+	| JsonCreatePolicyStatement
+	| JsonAlterPolicyStatement
+	| JsonRenamePolicyStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -1881,6 +1915,70 @@ export const prepareSqliteAlterColumns = (
 	}
 
 	return [...dropPkStatements, ...setPkStatements, ...statements];
+};
+
+export const prepareRenamePolicyJsons = (
+	tableName: string,
+	schema: string,
+	renames: {
+		from: Policy;
+		to: Policy;
+	}[],
+): JsonRenamePolicyStatement[] => {
+	return renames.map((it) => {
+		return {
+			type: 'rename_policy',
+			tableName: tableName,
+			oldName: it.from.name,
+			newName: it.to.name,
+			schema,
+		};
+	});
+};
+
+export const prepareCreatePolicyJsons = (
+	tableName: string,
+	schema: string,
+	policies: Record<string, string>,
+): JsonCreatePolicyStatement[] => {
+	return Object.values(policies).map((policyData) => {
+		return {
+			type: 'create_policy',
+			tableName,
+			data: policyData,
+			schema,
+		};
+	});
+};
+
+export const prepareDropPolicyJsons = (
+	tableName: string,
+	schema: string,
+	policies: Record<string, string>,
+): JsonDropPolicyStatement[] => {
+	return Object.values(policies).map((policyData) => {
+		return {
+			type: 'drop_policy',
+			tableName,
+			data: policyData,
+			schema,
+		};
+	});
+};
+
+export const prepareAlterPolicyJson = (
+	tableName: string,
+	schema: string,
+	oldPolicy: string,
+	newPolicy: string,
+): JsonAlterPolicyStatement => {
+	return {
+		type: 'alter_policy',
+		tableName,
+		oldData: oldPolicy,
+		newData: newPolicy,
+		schema,
+	};
 };
 
 export const preparePgCreateIndexesJson = (

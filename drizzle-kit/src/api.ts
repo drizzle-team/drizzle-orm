@@ -6,6 +6,7 @@ import { PgDatabase } from 'drizzle-orm/pg-core';
 import {
 	columnsResolver,
 	enumsResolver,
+	policyResolver,
 	schemasResolver,
 	sequencesResolver,
 	tablesResolver,
@@ -71,6 +72,7 @@ export const generateMigration = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
 		tablesResolver,
 		columnsResolver,
 		validatedPrev,
@@ -114,6 +116,7 @@ export const pushSchema = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
 		tablesResolver,
 		columnsResolver,
 		validatedPrev,

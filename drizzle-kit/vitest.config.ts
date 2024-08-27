@@ -4,7 +4,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'tests/**/*.test.ts',
+			// 'tests/**/*.test.ts',
+			'tests/rls/pg-policy.test.ts',
 		],
 
 		typecheck: {

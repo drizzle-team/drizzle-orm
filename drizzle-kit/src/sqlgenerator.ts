@@ -20,6 +20,7 @@ import {
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
+	JsonAlterPolicyStatement,
 	JsonAlterReferenceStatement,
 	JsonAlterSequenceStatement,
 	JsonAlterTableRemoveFromSchema,
@@ -29,6 +30,7 @@ import {
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
+	JsonCreatePolicyStatement,
 	JsonCreateReferenceStatement,
 	JsonCreateSchema,
 	JsonCreateSequenceStatement,
@@ -39,11 +41,13 @@ import {
 	JsonDeleteUniqueConstraint,
 	JsonDropColumnStatement,
 	JsonDropIndexStatement,
+	JsonDropPolicyStatement,
 	JsonDropSequenceStatement,
 	JsonDropTableStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
 	JsonRenameColumnStatement,
+	JsonRenamePolicyStatement,
 	JsonRenameSchema,
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
@@ -129,6 +133,81 @@ const isPgNativeType = (it: string) => {
 abstract class Convertor {
 	abstract can(statement: JsonStatement, dialect: Dialect): boolean;
 	abstract convert(statement: JsonStatement): string | string[];
+}
+
+class PgCreatePolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreatePolicyStatement): string | string[] {
+		const policy = PgSquasher.unsquashPolicy(statement.data);
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		const usingPart = policy.using ? ` USING (${policy.using})` : '';
+
+		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
+
+		return `CREATE POLICY ${policy.name} ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policy.to?.toUpperCase()}${usingPart}${withCheckPart}`;
+	}
+}
+
+class PgDropPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropPolicyStatement): string | string[] {
+		const policy = PgSquasher.unsquashPolicy(statement.data);
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `DROP POLICY ${policy.name} ON ${tableNameWithSchema} CASCADE`;
+	}
+}
+
+class PgRenamePolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonRenamePolicyStatement): string | string[] {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER POLICY ${statement.oldName} ON ${tableNameWithSchema} RENAME TO ${statement.newName}`;
+	}
+}
+
+class PgAlterPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterPolicyStatement): string | string[] {
+		const newPolicy = PgSquasher.unsquashPolicy(statement.newData);
+		const oldPolicy = PgSquasher.unsquashPolicy(statement.oldData);
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		const usingPart = newPolicy.using
+			? ` USING (${newPolicy.using})`
+			: oldPolicy.using
+			? ` USING (${oldPolicy.using})`
+			: '';
+
+		const withCheckPart = newPolicy.withCheck
+			? ` WITH CHECK (${newPolicy.withCheck})`
+			: oldPolicy.withCheck
+			? ` WITH CHECK  (${oldPolicy.withCheck})`
+			: '';
+
+		return `ALTER POLICY ${oldPolicy.name} ON ${tableNameWithSchema} TO ${newPolicy.to}${usingPart}${withCheckPart}`;
+	}
 }
 
 class PgCreateTableConvertor extends Convertor {
@@ -2567,6 +2646,11 @@ convertors.push(new PgAlterTableAlterColumnSetNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnDropNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnSetDefaultConvertor());
 convertors.push(new PgAlterTableAlterColumnDropDefaultConvertor());
+
+convertors.push(new PgAlterPolicyConvertor());
+convertors.push(new PgCreatePolicyConvertor());
+convertors.push(new PgDropPolicyConvertor());
+convertors.push(new PgRenamePolicyConvertor());
 
 /// generated
 convertors.push(new PgAlterTableAlterColumnSetExpressionConvertor());

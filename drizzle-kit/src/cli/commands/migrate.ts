@@ -14,7 +14,7 @@ import path, { join } from 'path';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme } from '../../serializer/mysqlSchema';
-import { PgSchema, pgSchema, squashPgScheme } from '../../serializer/pgSchema';
+import { PgSchema, pgSchema, Policy, squashPgScheme } from '../../serializer/pgSchema';
 import { SQLiteSchema, sqliteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
 import {
 	applyMysqlSnapshotsDiff,
@@ -113,6 +113,23 @@ export const sequencesResolver = async (
 	}
 };
 
+export const policyResolver = async (
+	input: ColumnsResolverInput<Policy>,
+): Promise<ColumnsResolverOutput<Policy>> => {
+	const result = await promptColumnsConflicts(
+		input.tableName,
+		input.created,
+		input.deleted,
+	);
+	return {
+		tableName: input.tableName,
+		schema: input.schema,
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
+};
+
 export const enumsResolver = async (
 	input: ResolverInput<Enum>,
 ): Promise<ResolverOutputWithMoved<Enum>> => {
@@ -195,6 +212,7 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			schemasResolver,
 			enumsResolver,
 			sequencesResolver,
+			policyResolver,
 			tablesResolver,
 			columnsResolver,
 			validatedPrev,
@@ -238,6 +256,7 @@ export const preparePgPush = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
 		tablesResolver,
 		columnsResolver,
 		validatedPrev,

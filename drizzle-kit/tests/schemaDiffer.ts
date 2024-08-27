@@ -10,6 +10,7 @@ import {
 	columnsResolver,
 	enumsResolver,
 	Named,
+	policyResolver,
 	schemasResolver,
 	sequencesResolver,
 	tablesResolver,
@@ -23,7 +24,7 @@ import { mysqlSchema, squashMysqlScheme } from 'src/serializer/mysqlSchema';
 import { generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
 import { fromDatabase as fromMySqlDatabase } from 'src/serializer/mysqlSerializer';
 import { prepareFromPgImports } from 'src/serializer/pgImports';
-import { pgSchema, squashPgScheme } from 'src/serializer/pgSchema';
+import { pgSchema, Policy, squashPgScheme } from 'src/serializer/pgSchema';
 import { fromDatabase, generatePgSnapshot } from 'src/serializer/pgSerializer';
 import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
 import { sqliteSchema, squashSqliteScheme } from 'src/serializer/sqliteSchema';
@@ -338,6 +339,70 @@ async (
 	}
 };
 
+export const testPolicyResolver = (renames: Set<string>) =>
+async (
+	input: ColumnsResolverInput<Policy>,
+): Promise<ColumnsResolverOutput<Policy>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				tableName: input.tableName,
+				schema: input.schema,
+				created: input.created,
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdPolicies = [...input.created];
+		let deletedPolicies = [...input.deleted];
+
+		const renamed: { from: Policy; to: Policy }[] = [];
+
+		const schema = input.schema || 'public';
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedPolicies.findIndex((it) => {
+				return `${schema}.${input.tableName}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdPolicies.findIndex((it) => {
+					return `${schema}.${input.tableName}.${it.name}` === to;
+				});
+
+				renamed.push({
+					from: deletedPolicies[idxFrom],
+					to: createdPolicies[idxTo],
+				});
+
+				delete createdPolicies[idxTo];
+				delete deletedPolicies[idxFrom];
+
+				createdPolicies = createdPolicies.filter(Boolean);
+				deletedPolicies = deletedPolicies.filter(Boolean);
+			}
+		}
+
+		return {
+			tableName: input.tableName,
+			schema: input.schema,
+			created: createdPolicies,
+			deleted: deletedPolicies,
+			renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
 export const testColumnsResolver = (renames: Set<string>) =>
 async (
 	input: ColumnsResolverInput<Column>,
@@ -476,6 +541,7 @@ export const diffTestSchemasPush = async (
 			testSchemasResolver(renames),
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
+			testPolicyResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
 			validatedPrev,
@@ -490,6 +556,7 @@ export const diffTestSchemasPush = async (
 			schemasResolver,
 			enumsResolver,
 			sequencesResolver,
+			policyResolver,
 			tablesResolver,
 			columnsResolver,
 			validatedPrev,
@@ -548,6 +615,7 @@ export const applyPgDiffs = async (sn: PostgresSchema) => {
 		testSchemasResolver(new Set()),
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
+		testPolicyResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
 		validatedPrev,
@@ -625,6 +693,7 @@ export const diffTestSchemas = async (
 			testSchemasResolver(renames),
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
+			testPolicyResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
 			validatedPrev,
@@ -638,6 +707,7 @@ export const diffTestSchemas = async (
 			schemasResolver,
 			enumsResolver,
 			sequencesResolver,
+			policyResolver,
 			tablesResolver,
 			columnsResolver,
 			validatedPrev,
@@ -1127,6 +1197,7 @@ export const introspectPgToFile = async (
 		testSchemasResolver(new Set()),
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
+		testPolicyResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
 		validatedCurAfterImport,
