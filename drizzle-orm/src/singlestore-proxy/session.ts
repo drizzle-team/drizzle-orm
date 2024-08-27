@@ -80,16 +80,12 @@ export class SingleStoreRemoteSession<
 export class SingleStoreProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-<<<<<<< HEAD
 > extends SingleStoreTransaction<
 	SingleStoreRemoteQueryResultHKT,
 	SingleStoreRemotePreparedQueryHKT,
 	TFullSchema,
 	TSchema
 > {
-=======
-> extends SingleStoreTransaction<SingleStoreRemoteQueryResultHKT, SingleStoreRemotePreparedQueryHKT, TFullSchema, TSchema> {
->>>>>>> d48c7ec2 (created singlestore-proxy from mysql-proxy)
 	static readonly [entityKind]: string = 'SingleStoreProxyTransaction';
 
 	override async transaction<T>(

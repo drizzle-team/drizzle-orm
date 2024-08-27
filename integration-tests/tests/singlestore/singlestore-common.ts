@@ -70,6 +70,12 @@ import { afterAll, beforeEach, describe, expect, expectTypeOf, test } from 'vite
 import { Expect, toLocalDate } from '~/utils.ts';
 import type { Equal } from '~/utils.ts';
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url); 
+const __dirname = path.dirname(__filename);
+const initSqlPath = path.resolve(__dirname, 'test/init.sql');
+
 type TestSingleStoreDB = SingleStoreDatabase<any, any>;
 
 declare module 'vitest' {
@@ -189,7 +195,7 @@ let singlestoreContainer: Docker.Container;
 export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
 	const docker = new Docker();
 	const port = await getPort({ port: 3306 });
-	const image = 'singlestore:8';
+	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
@@ -198,28 +204,29 @@ export async function createDockerDB(): Promise<{ connectionString: string; cont
 
 	singlestoreContainer = await docker.createContainer({
 		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=singlestore', 'MYSQL_DATABASE=drizzle'],
+		Env: ['ROOT_PASSWORD=singlestore'],
 		name: `drizzle-integration-tests-${uuid()}`,
 		HostConfig: {
 			AutoRemove: true,
 			PortBindings: {
 				'3306/tcp': [{ HostPort: `${port}` }],
 			},
+			Binds: [`${initSqlPath}:/init.sql`],
 		},
 	});
 
 	await singlestoreContainer.start();
-	await new Promise((resolve) => setTimeout(resolve, 4000));
+	await new Promise((resolve) => setTimeout(resolve, 5000));
 
 	return {
-		connectionString: `singlestore://root:singlestore@127.0.0.1:${port}/drizzle`,
+		connectionString: `mysql://root:singlestore@127.0.0.1:${port}/drizzle`,
 		container: singlestoreContainer,
 	};
 }
 
-// afterAll(async () => {
-// 	await singlestoreContainer?.stop().catch(console.error);
-// });
+afterAll(async () => {
+	await singlestoreContainer?.stop().catch(console.error);
+});
 
 export function tests(driver?: string) {
 	describe('common', () => {
@@ -233,75 +240,73 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table if exists users2`);
 			await db.execute(sql`drop table if exists cities`);
 
-			if (driver !== 'planetscale') {
-				await db.execute(sql`drop schema if exists \`mySchema\``);
-				await db.execute(sql`create schema if not exists \`mySchema\``);
-			}
+		await db.execute(sql`drop schema if exists \`mySchema\``);
+		await db.execute(sql`create schema if not exists \`mySchema\``);
 
+		await db.execute(
+			sql`
+				create table userstest (
+					id serial primary key,
+					name text not null,
+					verified boolean not null default false,
+					jsonb json,
+					created_at timestamp not null default now()
+				)
+			`,
+		);
+
+		await db.execute(
+			sql`
+				create table users2 (
+					id serial primary key,
+					name text not null,
+					city_id int references cities(id)
+				)
+			`,
+		);
+
+		await db.execute(
+			sql`
+				create table cities (
+					id serial primary key,
+					name text not null
+				)
+			`,
+		);
+
+		
+			// mySchema
 			await db.execute(
 				sql`
-					create table userstest (
-						id serial primary key,
-						name text not null,
-						verified boolean not null default false,
-						jsonb json,
-						created_at timestamp not null default now()
+					create table \`mySchema\`.\`userstest\` (
+						\`id\` serial primary key,
+						\`name\` text not null,
+						\`verified\` boolean not null default false,
+						\`jsonb\` json,
+						\`created_at\` timestamp not null default now()
 					)
 				`,
 			);
 
 			await db.execute(
 				sql`
-					create table users2 (
-						id serial primary key,
-						name text not null,
-						city_id int references cities(id)
+					create table \`mySchema\`.\`cities\` (
+						\`id\` serial primary key,
+						\`name\` text not null
 					)
 				`,
 			);
 
 			await db.execute(
 				sql`
-					create table cities (
-						id serial primary key,
-						name text not null
+					create table \`mySchema\`.\`users2\` (
+						\`id\` serial primary key,
+						\`name\` text not null,
+						\`city_id\` int references \`mySchema\`.\`cities\`(\`id\`)
 					)
 				`,
 			);
-
-			if (driver !== 'planetscale') {
-				// mySchema
-				await db.execute(
-					sql`
-						create table \`mySchema\`.\`userstest\` (
-							\`id\` serial primary key,
-							\`name\` text not null,
-							\`verified\` boolean not null default false,
-							\`jsonb\` json,
-							\`created_at\` timestamp not null default now()
-						)
-					`,
-				);
-
-				await db.execute(
-					sql`
-						create table \`mySchema\`.\`cities\` (
-							\`id\` serial primary key,
-							\`name\` text not null
-						)
-					`,
-				);
-
-				await db.execute(
-					sql`
-						create table \`mySchema\`.\`users2\` (
-							\`id\` serial primary key,
-							\`name\` text not null,
-							\`city_id\` int references \`mySchema\`.\`cities\`(\`id\`)
-						)
-					`,
-				);
-			}
+			
 		});
 
 		async function setupReturningFunctionsTest(db: SingleStoreDatabase<any, any>) {
