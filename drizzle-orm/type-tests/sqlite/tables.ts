@@ -95,11 +95,11 @@ Expect<
 	}>
 >;
 
-export const cities = sqliteTable('cities_table', {
+export const cities = sqliteTable('cities_table', ({ integer, text }) => ({
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-});
+}));
 
 export type City = typeof cities.$inferSelect;
 Expect<

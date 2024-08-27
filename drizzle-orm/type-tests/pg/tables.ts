@@ -915,89 +915,93 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 }
 
 {
-	const cities = pgTable('cities_table', {
+	const cities1 = pgTable('cities_table', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull().primaryKey(),
 		role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
 		population: integer('population').default(0),
 	});
+	const cities2 = pgTable('cities_table', ({ serial, text, integer }) => ({
+		id: serial('id').primaryKey(),
+		name: text('name').notNull().primaryKey(),
+		role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
+		population: integer('population').default(0),
+	}));
 
-	Expect<
-		Equal<
-			PgTableWithColumns<{
-				name: 'cities_table';
-				schema: undefined;
-				dialect: 'pg';
-				columns: {
-					id: PgColumn<{
-						tableName: 'cities_table';
-						name: 'id';
-						dataType: 'number';
-						columnType: 'PgSerial';
-						data: number;
-						driverParam: number;
-						hasDefault: true;
-						notNull: true;
-						enumValues: undefined;
-						baseColumn: never;
-						generated: undefined;
-						isPrimaryKey: true;
-						isAutoincrement: false;
-						hasRuntimeDefault: false;
-					}>;
-					name: PgColumn<{
-						tableName: 'cities_table';
-						name: 'name';
-						dataType: 'string';
-						columnType: 'PgText';
-						data: string;
-						driverParam: string;
-						hasDefault: false;
-						enumValues: [string, ...string[]];
-						notNull: true;
-						baseColumn: never;
-						generated: undefined;
-						isPrimaryKey: true;
-						isAutoincrement: false;
-						hasRuntimeDefault: false;
-					}>;
-					role: PgColumn<{
-						tableName: 'cities_table';
-						name: 'role';
-						dataType: 'string';
-						columnType: 'PgText';
-						data: 'admin' | 'user';
-						driverParam: string;
-						hasDefault: true;
-						enumValues: ['admin', 'user'];
-						notNull: true;
-						baseColumn: never;
-						generated: undefined;
-						isPrimaryKey: false;
-						isAutoincrement: false;
-						hasRuntimeDefault: false;
-					}>;
-					population: PgColumn<{
-						tableName: 'cities_table';
-						name: 'population';
-						dataType: 'number';
-						columnType: 'PgInteger';
-						data: number;
-						driverParam: string | number;
-						notNull: false;
-						hasDefault: true;
-						enumValues: undefined;
-						baseColumn: never;
-						generated: undefined;
-						isPrimaryKey: false;
-						isAutoincrement: false;
-						hasRuntimeDefault: false;
-					}>;
-				};
-			}>,
-			typeof cities
-		>
-	>;
+	type Expected = PgTableWithColumns<{
+		name: 'cities_table';
+		schema: undefined;
+		dialect: 'pg';
+		columns: {
+			id: PgColumn<{
+				tableName: 'cities_table';
+				name: 'id';
+				dataType: 'number';
+				columnType: 'PgSerial';
+				data: number;
+				driverParam: number;
+				hasDefault: true;
+				notNull: true;
+				enumValues: undefined;
+				baseColumn: never;
+				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}>;
+			name: PgColumn<{
+				tableName: 'cities_table';
+				name: 'name';
+				dataType: 'string';
+				columnType: 'PgText';
+				data: string;
+				driverParam: string;
+				hasDefault: false;
+				enumValues: [string, ...string[]];
+				notNull: true;
+				baseColumn: never;
+				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}>;
+			role: PgColumn<{
+				tableName: 'cities_table';
+				name: 'role';
+				dataType: 'string';
+				columnType: 'PgText';
+				data: 'admin' | 'user';
+				driverParam: string;
+				hasDefault: true;
+				enumValues: ['admin', 'user'];
+				notNull: true;
+				baseColumn: never;
+				generated: undefined;
+				isPrimaryKey: false;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}>;
+			population: PgColumn<{
+				tableName: 'cities_table';
+				name: 'population';
+				dataType: 'number';
+				columnType: 'PgInteger';
+				data: number;
+				driverParam: string | number;
+				notNull: false;
+				hasDefault: true;
+				enumValues: undefined;
+				baseColumn: never;
+				generated: undefined;
+				isPrimaryKey: false;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}>;
+		};
+	}>;
+
+	Expect<Equal<Expected, typeof cities1>>;
+	Expect<Equal<Expected, typeof cities2>>;
 }
 
 {

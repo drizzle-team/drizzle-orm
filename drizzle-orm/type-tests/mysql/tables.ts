@@ -170,11 +170,11 @@ export const citiesCustom = customSchema.table('cities_table', {
 
 Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
 
-export const classes = mysqlTable('classes_table', {
+export const classes = mysqlTable('classes_table', ({ serial, text }) => ({
 	id: serial('id').primaryKey(),
 	class: text('class', { enum: ['A', 'C'] }),
 	subClass: text('sub_class', { enum: ['B', 'D'] }).notNull(),
-});
+}));
 
 /* export const classes2 = mysqlTable('classes_table', {
 	id: serial().primaryKey(),

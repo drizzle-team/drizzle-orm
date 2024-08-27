@@ -7,6 +7,7 @@ import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
+import { getMySqlColumnBuilders, type MySqlColumnBuilders } from './columns/all.ts';
 
 export type MySqlTableExtraConfig = Record<
 	string,
@@ -60,7 +61,7 @@ export function mysqlTableWithSchema<
 	TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
 >(
 	name: TTableName,
-	columns: TColumnsMap,
+	columns: TColumnsMap | ((columnTypes: MySqlColumnBuilders) => TColumnsMap),
 	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig) | undefined,
 	schema: TSchemaName,
 	baseName = name,
@@ -77,8 +78,10 @@ export function mysqlTableWithSchema<
 		dialect: 'mysql';
 	}>(name, schema, baseName);
 
+	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getMySqlColumnBuilders()) : columns;
+
 	const builtColumns = Object.fromEntries(
-		Object.entries(columns).map(([name, colBuilderBase]) => {
+		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as MySqlColumnBuilder;
 			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
@@ -112,6 +115,20 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
 		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
 	): MySqlTableWithColumns<{
 		name: TTableName;
