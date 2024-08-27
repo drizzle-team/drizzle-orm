@@ -12,6 +12,7 @@ import {
 	optional,
 	parse,
 	picklist,
+	pipe,
 	string,
 } from 'valibot';
 import { expect, test } from 'vitest';
@@ -72,13 +73,15 @@ test('users insert invalid varchar', () => {
 test('users insert invalid char', () => {
 	const schema = createInsertSchema(users);
 
-	expect(() => parse(schema, { ...testUser, initials: 'JoDo' })).toThrow(undefined);
+	expect(() => parse(schema, { ...testUser, initials: 'JoDo' })).toThrow(
+		undefined,
+	);
 });
 
-test('users insert schema', (t) => {
+test('users insert schema', () => {
 	const actual = createInsertSchema(users, {
-		id: () => number([minValue(0)]),
-		email: () => string([email()]),
+		id: () => pipe(number(), minValue(0)),
+		email: () => pipe(string(), email()),
 		roleText: picklist(['user', 'manager', 'admin']),
 	});
 
@@ -100,7 +103,7 @@ test('users insert schema', (t) => {
 
 	const expected = object({
 		a: optional(nullable(array(number()))),
-		id: optional(number([minValue(0)])),
+		id: optional(pipe(number(), minValue(0))),
 		name: optional(nullable(string())),
 		email: string(),
 		birthdayString: string(),
@@ -109,11 +112,11 @@ test('users insert schema', (t) => {
 		role: picklist(['admin', 'user']),
 		roleText: picklist(['user', 'manager', 'admin']),
 		roleText2: optional(picklist(['admin', 'user'])),
-		profession: string([maxLength(20), minLength(1)]),
-		initials: string([maxLength(2), minLength(1)]),
+		profession: pipe(string(), maxLength(20), minLength(1)),
+		initials: pipe(string(), maxLength(2), minLength(1)),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });
 
 test('users insert schema w/ defaults', (t) => {
@@ -130,23 +133,23 @@ test('users insert schema w/ defaults', (t) => {
 		role: picklist(['admin', 'user']),
 		roleText: picklist(['admin', 'user']),
 		roleText2: optional(picklist(['admin', 'user'])),
-		profession: string([maxLength(20), minLength(1)]),
-		initials: string([maxLength(2), minLength(1)]),
+		profession: pipe(string(), maxLength(20), minLength(1)),
+		initials: pipe(string(), maxLength(2), minLength(1)),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });
 
-test('users select schema', (t) => {
+test('users select schema', () => {
 	const actual = createSelectSchema(users, {
-		id: () => number([minValue(0)]),
+		id: () => pipe(number(), minValue(0)),
 		email: () => string(),
 		roleText: picklist(['user', 'manager', 'admin']),
 	});
 
 	const expected = object({
 		a: nullable(array(number())),
-		id: number([minValue(0)]),
+		id: pipe(number(), minValue(0)),
 		name: nullable(string()),
 		email: string(),
 		birthdayString: string(),
@@ -155,14 +158,14 @@ test('users select schema', (t) => {
 		role: picklist(['admin', 'user']),
 		roleText: picklist(['user', 'manager', 'admin']),
 		roleText2: picklist(['admin', 'user']),
-		profession: string([maxLength(20), minLength(1)]),
-		initials: string([maxLength(2), minLength(1)]),
+		profession: pipe(string(), maxLength(20), minLength(1)),
+		initials: pipe(string(), maxLength(2), minLength(1)),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });
 
-test('users select schema w/ defaults', (t) => {
+test('users select schema w/ defaults', () => {
 	const actual = createSelectSchema(users);
 
 	const expected = object({
@@ -176,9 +179,9 @@ test('users select schema w/ defaults', (t) => {
 		role: picklist(['admin', 'user']),
 		roleText: picklist(['admin', 'user']),
 		roleText2: picklist(['admin', 'user']),
-		profession: string([maxLength(20), minLength(1)]),
-		initials: string([maxLength(2), minLength(1)]),
+		profession: pipe(string(), maxLength(20), minLength(1)),
+		initials: pipe(string(), maxLength(2), minLength(1)),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });
