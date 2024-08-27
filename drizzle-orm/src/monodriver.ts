@@ -76,7 +76,7 @@ type ClientDrizzleInstanceMap<TSchema extends Record<string, any>> = {
 	'tidb-serverless': TiDBServerlessDatabase<TSchema>;
 	libsql: LibSQLDatabase<TSchema>;
 	d1: DrizzleD1Database<TSchema>;
-	'bun-sqlite': BunSQLiteDatabase<TSchema>;
+	'bun-sqlite': Promise<BunSQLiteDatabase<TSchema>>;
 	'better-sqlite3': BetterSQLite3Database<TSchema>;
 };
 
@@ -184,11 +184,18 @@ export const drizzle = <
 			return betterSqliteDrizzle(instance, drizzleConfig) as any;
 		}
 		case 'bun-sqlite': {
-			const { Database: Client } = require('bun:sqlite') as typeof import('bun:sqlite');
-			const { filename, options } = connection as BunSqliteDatabaseConfig;
-			const instance = new Client(filename, options);
+			return new Promise((res, rej) => {
+				import('bun:sqlite').then(({ Database: Client }) => {
+					try {
+						const { filename, options } = connection as BunSqliteDatabaseConfig;
+						const instance = new Client(filename, options);
 
-			return bunSqliteDrizzle(instance, drizzleConfig) as any;
+						res(bunSqliteDrizzle(instance, drizzleConfig) as any);
+					} catch (e) {
+						rej(e);
+					}
+				}).catch((e) => rej(e));
+			});
 		}
 		case 'd1': {
 			return d1Drizzle(connection as D1Database, drizzleConfig) as any;
