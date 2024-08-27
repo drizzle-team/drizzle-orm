@@ -41,6 +41,7 @@ import {
 	optional,
 	parse,
 	picklist,
+	pipe,
 	string,
 } from 'valibot';
 import { expect, test } from 'vitest';
@@ -168,10 +169,12 @@ test('insert smaller char length should work', () => {
 test('insert larger char length should fail', () => {
 	const schema = createInsertSchema(testTable);
 
-	expect(() => parse(schema, { ...testTableRow, char: 'abcde' })).toThrow(undefined);
+	expect(() => parse(schema, { ...testTableRow, char: 'abcde' })).toThrow(
+		undefined,
+	);
 });
 
-test('insert schema', (t) => {
+test('insert schema', () => {
 	const actual = createInsertSchema(testTable);
 
 	const expected = object({
@@ -179,12 +182,8 @@ test('insert schema', (t) => {
 		bigintNumber: number(),
 		binary: string(),
 		boolean: valiboolean(),
-		char: string([minLength(4), maxLength(4)]),
-		charEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		char: pipe(string(), minLength(4), maxLength(4)),
+		charEnum: picklist(['a', 'b', 'c']),
 		customInt: any(),
 		date: valiDate(),
 		dateString: string(),
@@ -192,11 +191,7 @@ test('insert schema', (t) => {
 		datetimeString: string(),
 		decimal: string(),
 		double: number(),
-		enum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		enum: picklist(['a', 'b', 'c']),
 		float: number(),
 		int: number(),
 		json: jsonSchema,
@@ -205,48 +200,28 @@ test('insert schema', (t) => {
 		serial: optional(number()),
 		smallint: number(),
 		text: string(),
-		textEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		textEnum: picklist(['a', 'b', 'c']),
 		tinytext: string(),
-		tinytextEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		tinytextEnum: picklist(['a', 'b', 'c']),
 		mediumtext: string(),
-		mediumtextEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		mediumtextEnum: picklist(['a', 'b', 'c']),
 		longtext: string(),
-		longtextEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		longtextEnum: picklist(['a', 'b', 'c']),
 		time: string(),
 		timestamp: valiDate(),
 		timestampString: string(),
 		tinyint: number(),
-		varbinary: string([maxLength(200)]),
-		varchar: string([maxLength(200)]),
-		varcharEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		varbinary: pipe(string(), maxLength(200)),
+		varchar: pipe(string(), maxLength(200)),
+		varcharEnum: picklist(['a', 'b', 'c']),
 		year: number(),
 		autoIncrement: optional(number()),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });
 
-test('select schema', (t) => {
+test('select schema', () => {
 	const actual = createSelectSchema(testTable);
 
 	const expected = object({
@@ -254,12 +229,8 @@ test('select schema', (t) => {
 		bigintNumber: number(),
 		binary: string(),
 		boolean: valiboolean(),
-		char: string([minLength(4), maxLength(4)]),
-		charEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		char: pipe(string(), minLength(4), maxLength(4)),
+		charEnum: picklist(['a', 'b', 'c']),
 		customInt: any(),
 		date: valiDate(),
 		dateString: string(),
@@ -267,11 +238,7 @@ test('select schema', (t) => {
 		datetimeString: string(),
 		decimal: string(),
 		double: number(),
-		enum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		enum: picklist(['a', 'b', 'c']),
 		float: number(),
 		int: number(),
 		//
@@ -281,63 +248,39 @@ test('select schema', (t) => {
 		serial: number(),
 		smallint: number(),
 		text: string(),
-		textEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		textEnum: picklist(['a', 'b', 'c']),
 		tinytext: string(),
-		tinytextEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		tinytextEnum: picklist(['a', 'b', 'c']),
 		mediumtext: string(),
-		mediumtextEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		mediumtextEnum: picklist(['a', 'b', 'c']),
 		longtext: string(),
-		longtextEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		longtextEnum: picklist(['a', 'b', 'c']),
 		time: string(),
 		timestamp: valiDate(),
 		timestampString: string(),
 		tinyint: number(),
-		varbinary: string([maxLength(200)]),
-		varchar: string([maxLength(200)]),
-		varcharEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		varbinary: pipe(string(), maxLength(200)),
+		varchar: pipe(string(), maxLength(200)),
+		varcharEnum: picklist(['a', 'b', 'c']),
 		year: number(),
 		autoIncrement: number(),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });
 
-test('select schema w/ refine', (t) => {
+test('select schema w/ refine', () => {
 	const actual = createSelectSchema(testTable, {
-		bigint: (_) => valibigint([minValue(0n)]),
+		bigint: (_) => pipe(valibigint(), minValue(0n)),
 	});
 
 	const expected = object({
-		bigint: valibigint([minValue(0n)]),
+		bigint: pipe(valibigint(), minValue(0n)),
 		bigintNumber: number(),
 		binary: string(),
 		boolean: valiboolean(),
-		char: string([minLength(5), maxLength(5)]),
-		charEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		char: pipe(string(), minLength(5), maxLength(5)),
+		charEnum: picklist(['a', 'b', 'c']),
 		customInt: any(),
 		date: valiDate(),
 		dateString: string(),
@@ -345,11 +288,7 @@ test('select schema w/ refine', (t) => {
 		datetimeString: string(),
 		decimal: string(),
 		double: number(),
-		enum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		enum: picklist(['a', 'b', 'c']),
 		float: number(),
 		int: number(),
 		json: jsonSchema,
@@ -358,43 +297,23 @@ test('select schema w/ refine', (t) => {
 		serial: number(),
 		smallint: number(),
 		text: string(),
-		textEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		textEnum: picklist(['a', 'b', 'c']),
 		tinytext: string(),
-		tinytextEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		tinytextEnum: picklist(['a', 'b', 'c']),
 		mediumtext: string(),
-		mediumtextEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		mediumtextEnum: picklist(['a', 'b', 'c']),
 		longtext: string(),
-		longtextEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		longtextEnum: picklist(['a', 'b', 'c']),
 		time: string(),
 		timestamp: valiDate(),
 		timestampString: string(),
 		tinyint: number(),
-		varbinary: string([maxLength(200)]),
-		varchar: string([maxLength(200)]),
-		varcharEnum: picklist([
-			'a',
-			'b',
-			'c',
-		]),
+		varbinary: pipe(string(), maxLength(200)),
+		varchar: pipe(string(), maxLength(200)),
+		varcharEnum: picklist(['a', 'b', 'c']),
 		year: number(),
 		autoIncrement: number(),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });

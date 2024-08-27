@@ -3,14 +3,15 @@ import {
 	bigint as valibigint,
 	boolean,
 	date as valiDate,
+	type InferOutput,
 	minValue,
 	nullable,
 	number,
 	object,
 	optional,
-	type Output,
 	parse,
 	picklist,
+	pipe,
 	string,
 } from 'valibot';
 import { expect, test } from 'vitest';
@@ -24,7 +25,7 @@ const blobJsonSchema = object({
 const users = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	blobJson: blob('blob', { mode: 'json' })
-		.$type<Output<typeof blobJsonSchema>>()
+		.$type<InferOutput<typeof blobJsonSchema>>()
 		.notNull(),
 	blobBigInt: blob('blob', { mode: 'bigint' }).notNull(),
 	numeric: numeric('numeric').notNull(),
@@ -59,12 +60,14 @@ test('users insert valid user', () => {
 
 test('users insert invalid text length', () => {
 	const schema = createInsertSchema(users);
-	expect(() => parse(schema, { ...testUser, text: 'a'.repeat(256) })).toThrow(undefined);
+	expect(() => parse(schema, { ...testUser, text: 'a'.repeat(256) })).toThrow(
+		undefined,
+	);
 });
 
-test('users insert schema', (t) => {
+test('users insert schema', () => {
 	const actual = createInsertSchema(users, {
-		id: () => number([minValue(0)]),
+		id: () => pipe(number(), minValue(0)),
 		blobJson: blobJsonSchema,
 		role: picklist(['admin', 'user', 'manager']),
 	});
@@ -86,7 +89,7 @@ test('users insert schema', (t) => {
 	});
 
 	const expected = object({
-		id: optional(number([minValue(0)])),
+		id: optional(pipe(number(), minValue(0))),
 		blobJson: blobJsonSchema,
 		blobBigInt: valibigint(),
 		numeric: string(),
@@ -98,10 +101,10 @@ test('users insert schema', (t) => {
 		role: optional(picklist(['admin', 'user', 'manager'])),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });
 
-test('users insert schema w/ defaults', (t) => {
+test('users insert schema w/ defaults', () => {
 	const actual = createInsertSchema(users);
 
 	const expected = object({
@@ -117,10 +120,10 @@ test('users insert schema w/ defaults', (t) => {
 		role: optional(picklist(['admin', 'user'])),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });
 
-test('users select schema', (t) => {
+test('users select schema', () => {
 	const actual = createSelectSchema(users, {
 		blobJson: jsonSchema,
 		role: picklist(['admin', 'user', 'manager']),
@@ -155,10 +158,10 @@ test('users select schema', (t) => {
 		role: picklist(['admin', 'user', 'manager']),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });
 
-test('users select schema w/ defaults', (t) => {
+test('users select schema w/ defaults', () => {
 	const actual = createSelectSchema(users);
 
 	const expected = object({
@@ -174,5 +177,5 @@ test('users select schema w/ defaults', (t) => {
 		role: picklist(['admin', 'user']),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(expected).from(actual);
 });
