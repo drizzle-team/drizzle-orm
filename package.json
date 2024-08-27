@@ -3,7 +3,7 @@
 	"private": true,
 	"scripts": {
 		"build:orm": "turbo run build --filter drizzle-orm --color",
-		"build": "turbo run build test:types //#lint --color",
+		"build": "turbo run build test:types #lint --color",
 		"b": "pnpm build",
 		"pack": "turbo run pack --color",
 		"test": "turbo run test --color",
