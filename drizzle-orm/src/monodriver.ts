@@ -143,7 +143,7 @@ type DetermineClient<
 
 const importError = (libName: string) => {
 	throw new Error(
-		`Drizzle init error: unable to import selected database driver library '${libName}' - make sure it is installed.`,
+		`Please install '${libName}' for Drizzle ORM to connect to database`,
 	);
 };
 
