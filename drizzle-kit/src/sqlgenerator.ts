@@ -1067,11 +1067,13 @@ class SQLiteAlterTableAlterColumnSetTypeConvertor extends Convertor {
 
 	convert(statement: JsonAlterColumnTypeStatement) {
 		return (
-			'/*\n SQLite does not support "Changing existing column type" out of the box, we do not generate automatic migration for that, so it has to be done manually'
+			'/*\n SQLite does not support "Changing existing column type" out of the box.'
 			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
 			+ '\n                  https://www.sqlite.org/lang_altertable.html'
 			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
+			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually."
+			+ "\n Remember to include statement breakpoints in your migration file if it has more than one statement!"
+			+ "\n See: https://github.com/drizzle-team/drizzle-orm/issues/1986"
 			+ '\n*/'
 		);
 	}
