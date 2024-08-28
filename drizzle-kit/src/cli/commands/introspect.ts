@@ -201,7 +201,7 @@ export const introspectMysql = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
+	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
 
 	if (snapshots.length === 0) {
 		const { sqlStatements, _meta } = await applyMysqlSnapshotsDiff(
@@ -312,7 +312,7 @@ export const introspectSqlite = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
+	const { snapshots, journal } = prepareOutFolder(out, 'sqlite');
 
 	if (snapshots.length === 0) {
 		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
