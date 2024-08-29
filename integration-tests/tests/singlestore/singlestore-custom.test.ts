@@ -1,23 +1,23 @@
 import retry from 'async-retry';
 import type Docker from 'dockerode';
 import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
+import type { SingleStore2Database } from 'drizzle-orm/singlestore';
+import { drizzle } from 'drizzle-orm/singlestore';
 import {
 	alias,
 	binary,
 	customType,
 	date,
 	datetime,
+	serial,
 	singlestoreEnum,
 	singlestoreTable,
 	singlestoreTableCreator,
-	serial,
 	text,
 	time,
 	varchar,
 	year,
 } from 'drizzle-orm/singlestore-core';
-import type { SingleStore2Database } from 'drizzle-orm/singlestore';
-import { drizzle } from 'drizzle-orm/singlestore';
 import { migrate } from 'drizzle-orm/singlestore/migrator';
 import * as mysql2 from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
@@ -654,7 +654,7 @@ test('prepared statement reuse', async (ctx) => {
 	}).prepare();
 
 	for (let i = 0; i < 10; i++) {
-		await stmt.execute({ id: i+1, name: `John ${i}` });
+		await stmt.execute({ id: i + 1, name: `John ${i}` });
 	}
 
 	const result = await db.select({
@@ -717,7 +717,11 @@ test('migrator', async (ctx) => {
 test('insert via db.execute + select via db.execute', async (ctx) => {
 	const { db } = ctx.singlestore;
 
-	await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.id.name)}, ${new Name(usersTable.name.name)}) values (1,${'John'})`);
+	await db.execute(
+		sql`insert into ${usersTable} (${new Name(usersTable.id.name)}, ${new Name(
+			usersTable.name.name,
+		)}) values (1,${'John'})`,
+	);
 
 	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${usersTable}`);
 	expect(result[0]).toEqual([{ id: 1, name: 'John' }]);

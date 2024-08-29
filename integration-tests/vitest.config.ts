@@ -14,7 +14,7 @@ export default defineConfig({
 			'tests/imports/**/*',
 			'tests/extensions/vectors/**/*',
 			'tests/version.test.ts',
-			'tests/singlestore/**/singlestore-custom.test.ts',
+			'tests/singlestore/**/*.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
