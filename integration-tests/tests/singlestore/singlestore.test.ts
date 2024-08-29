@@ -1,14 +1,14 @@
 import retry from 'async-retry';
-import type { MySql2Database } from 'drizzle-orm/mysql2';
-import { drizzle } from 'drizzle-orm/mysql2';
-import * as mysql from 'mysql2/promise';
+import { drizzle } from 'drizzle-orm/singlestore';
+import type { SingleStore2Database } from 'drizzle-orm/singlestore';
+import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { createDockerDB, tests } from './singlestore-common';
 
 const ENABLE_LOGGING = false;
 
-let db: MySql2Database;
-let client: mysql.Connection;
+let db: SingleStore2Database;
+let client: mysql2.Connection;
 
 beforeAll(async () => {
 	let connectionString;
@@ -19,7 +19,7 @@ beforeAll(async () => {
 		connectionString = conStr;
 	}
 	client = await retry(async () => {
-		client = await mysql.createConnection(connectionString);
+		client = await mysql2.createConnection(connectionString);
 		await client.connect();
 		return client;
 	}, {
@@ -40,7 +40,7 @@ afterAll(async () => {
 });
 
 beforeEach((ctx) => {
-	ctx.mysql = {
+	ctx.singlestore = {
 		db,
 	};
 });

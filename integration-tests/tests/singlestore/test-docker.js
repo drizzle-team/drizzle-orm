@@ -1,14 +1,13 @@
 import Docker from 'dockerode';
 import getPort from 'get-port';
-import { v4 as uuid } from 'uuid';
-import mysql from 'mysql2/promise'; 
+import * as mysql2 from 'mysql2/promise';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { v4 as uuid } from 'uuid';
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
 const __dirname = path.dirname(__filename); // get the name of the directory
 
 const initSqlPath = path.resolve(__dirname, 'test/init.sql');
-
 
 let singlestoreContainer;
 const docker = new Docker();
@@ -22,23 +21,23 @@ const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
 console.log('Pulling the SingleStoreDB Dev image...');
 const pullStream = await docker.pull(image);
 await new Promise((resolve, reject) =>
-    docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+	docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 );
 console.log('Image pulled successfully.');
 
 console.log('Creating the SingleStoreDB container...');
 singlestoreContainer = await docker.createContainer({
-    Image: image,
-    Env: ['ROOT_PASSWORD=singlestore'],
-    name: `drizzle-integration-tests-${uuid()}`,
-    HostConfig: {
-        AutoRemove: true,
-        PortBindings: {
-            '3306/tcp': [{ HostPort: `${port}` }],
-            '8080/tcp': [{ HostPort: '8080' }],
-        },
-        Binds: [`${initSqlPath}:/init.sql`],
-    },
+	Image: image,
+	Env: ['ROOT_PASSWORD=singlestore'],
+	name: `drizzle-integration-tests-${uuid()}`,
+	HostConfig: {
+		AutoRemove: true,
+		PortBindings: {
+			'3306/tcp': [{ HostPort: `${port}` }],
+			'8080/tcp': [{ HostPort: '8080' }],
+		},
+		Binds: [`${initSqlPath}:/init.sql`],
+	},
 });
 console.log('Container created successfully.');
 
@@ -48,11 +47,11 @@ await new Promise((resolve) => setTimeout(resolve, 4000));
 console.log('Container started.');
 
 console.log('Connecting to the database...');
-const connection = await mysql.createConnection({
-    host: 'localhost',
-    port: port,
-    user: 'root',
-    password: 'singlestore',
+const connection = await mysql2.createConnection({
+	host: 'localhost',
+	port: port,
+	user: 'root',
+	password: 'singlestore',
 });
 console.log('Database connection established.');
 
