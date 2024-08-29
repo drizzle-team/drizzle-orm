@@ -136,8 +136,8 @@ export const prepareCheckParams = async (
 	if (!config.out || !config.dialect) {
 		let text = `Please provide required params for AWS Data API driver:\n`;
 		console.log(error(text));
-		console.log(wrapParam('database', config.out));
-		console.log(wrapParam('secretArn', config.dialect));
+		console.log(wrapParam('out', config.out));
+		console.log(wrapParam('dialect', config.dialect));
 		process.exit(1);
 	}
 	return { out: config.out, dialect: config.dialect };
