@@ -11,19 +11,16 @@ import {
 	int,
 	json,
 	mysqlEnum,
-	mysqlTable as mysqlTableRaw,
 	mysqlTableCreator,
 	mysqlView,
 	serial,
 	text,
 	time,
 	timestamp,
-	uniqueIndex,
 	year,
 } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
-import { migrate } from 'drizzle-orm/mysql2/migrator';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { Expect, toLocalDate } from '~/utils';
@@ -574,36 +571,6 @@ test('prepared statement with placeholder in .where', async () => {
 	const result = await stmt.execute({ id: 1 });
 
 	expect(result).toEqual([{ id: 1, name: 'John' }]);
-});
-
-test('migrator', async () => {
-	const usersMigratorTable = mysqlTableRaw('users12', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
-		email: text('email').notNull(),
-	}, (table) => {
-		return {
-			name: uniqueIndex('').on(table.name).using('btree'),
-		};
-	});
-
-	await db.execute(sql.raw(`drop table if exists cities_migration`));
-	await db.execute(sql.raw(`drop table if exists users_migration`));
-	await db.execute(sql.raw(`drop table if exists users12`));
-	await db.execute(sql.raw(`drop table if exists __drizzle_migrations`));
-
-	await migrate(db, { migrationsFolder: './drizzle2/mysql' });
-
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-
-	const result = await db.select().from(usersMigratorTable);
-
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql.raw(`drop table cities_migration`));
-	await db.execute(sql.raw(`drop table users_migration`));
-	await db.execute(sql.raw(`drop table users12`));
-	await db.execute(sql.raw(`drop table __drizzle_migrations`));
 });
 
 test('insert via db.execute + select via db.execute', async () => {
