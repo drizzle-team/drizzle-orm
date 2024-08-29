@@ -151,10 +151,7 @@ export const drizzle = async <
 	TSchema extends Record<string, any>,
 	TParams extends InitializerParams<TSchema>,
 >(params: TParams): Promise<DetermineClient<TParams>> => {
-	const { client, connection } = params;
-	const drizzleConfig = params as DrizzleConfig;
-	delete (<any> drizzleConfig).client;
-	delete (<any> drizzleConfig).connection;
+	const { client, connection, ...drizzleConfig } = params;
 
 	switch (client) {
 		case 'node-postgres': {
