@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { existsSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
@@ -7,15 +7,7 @@ import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
 import { pullParams, pushParams } from '../validations/cli';
-import {
-	Casing,
-	CliConfig,
-	configCommonSchema,
-	configMigrations,
-	Driver,
-	Prefix,
-	wrapParam,
-} from '../validations/common';
+import { Casing, CliConfig, configCommonSchema, configMigrations, Driver, wrapParam } from '../validations/common';
 import {
 	MysqlCredentials,
 	mysqlCredentials,
@@ -76,6 +68,59 @@ export const safeRegister = async () => {
 	return res;
 };
 
+type Journal = {
+	version: string;
+	dialect: Dialect;
+	entries: {
+		idx: number;
+		version: string;
+		when: number;
+		tag: string;
+		breakpoints: boolean;
+	}[];
+};
+
+export const upgradeFolderStructure = (out: string) => {
+	if (!existsSync(join(out, 'meta'))) return;
+
+	const journal: Journal = JSON.parse(
+		readFileSync(join(out, 'meta/_journal.json'), 'utf-8'),
+	);
+
+	journal.entries.forEach((it) => {
+		const { idx, tag, when } = it;
+		const index = idx.toString().padStart(4, '0');
+		const unix = Math.floor(when / 1000);
+
+		const timestamp = new Date(when)
+			.toISOString()
+			.replace('T', '')
+			.replaceAll('-', '')
+			.replaceAll(':', '')
+			.slice(0, 14);
+
+		const prefix = tag.startsWith(`${index}_`)
+			? index
+			: tag.startsWith(`${timestamp}_`)
+			? timestamp
+			: tag.startsWith(`${unix}_`)
+			? unix
+			: tag;
+
+		const suffix = tag.replace(`${prefix}_`, '');
+		const migrationFolderName = `${timestamp}_${suffix}`;
+
+		mkdirSync(join(out, migrationFolderName), { recursive: true });
+		renameSync(
+			join(out, 'meta', `${prefix}_snapshot.json`),
+			join(out, migrationFolderName, 'snapshot.json'),
+		);
+		renameSync(join(out, `${tag}.sql`), join(out, migrationFolderName, 'migration.sql'));
+	});
+
+	rmSync(join(out, 'meta'), { recursive: true });
+};
+
 export const prepareCheckParams = async (
 	options: {
 		config?: string;
@@ -98,28 +143,12 @@ export const prepareCheckParams = async (
 	return { out: config.out, dialect: config.dialect };
 };
 
-export const prepareDropParams = async (
-	options: {
-		config?: string;
-		out?: string;
-		driver?: Driver;
-	},
-	from: 'cli' | 'config',
-): Promise<{ out: string; bundle: boolean }> => {
-	const config = from === 'config'
-		? await drizzleConfigFromFile(options.config as string | undefined)
-		: options;
-
-	return { out: config.out || 'drizzle', bundle: config.driver === 'expo' };
-};
-
 export type GenerateConfig = {
 	dialect: Dialect;
 	schema: string | string[];
 	out: string;
 	breakpoints: boolean;
 	name?: string;
-	prefix: Prefix;
 	custom: boolean;
 	bundle: boolean;
 };
@@ -134,7 +163,6 @@ export const prepareGenerateConfig = async (
 		name?: string;
 		dialect?: Dialect;
 		driver?: Driver;
-		prefix?: Prefix;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
@@ -156,14 +184,10 @@ export const prepareGenerateConfig = async (
 		process.exit(0);
 	}
 
-	const prefix = ('migrations' in config ? config.migrations?.prefix : options.prefix)
-		|| 'index';
-
 	return {
 		dialect: dialect,
 		name: options.name,
 		custom: options.custom || false,
-		prefix,
 		breakpoints: breakpoints || true,
 		schema: schema,
 		out: out || 'drizzle',
@@ -353,7 +377,6 @@ export const preparePullConfig = async (
 		casing: Casing;
 		tablesFilter: string[];
 		schemasFilter: string[];
-		prefix: Prefix;
 	}
 > => {
 	const raw = flattenPull(
@@ -412,7 +435,6 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 
@@ -430,7 +452,6 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 
@@ -448,7 +469,6 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 

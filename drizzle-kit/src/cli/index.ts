@@ -1,6 +1,6 @@
 import { command, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';
-import { check, drop, generate, migrate, pull, push, studio, up } from './schema';
+import { check, generate, migrate, pull, push, studio, up } from './schema';
 import { ormCoreVersions } from './utils';
 
 const version = async () => {
@@ -40,9 +40,18 @@ const legacy = [
 	legacyCommand('check:pg', 'check'),
 	legacyCommand('check:mysql', 'check'),
 	legacyCommand('check:sqlite', 'check'),
+	command({
+		name: 'drop',
+		hidden: true,
+		handler: () => {
+			console.log(
+				`This command has been removed due to new migrations folder structure update - https://github.com/drizzle-team/drizzle-orm/discussions/2832 `,
+			);
+		},
+	}),
 ];
 
-run([generate, migrate, pull, push, studio, up, check, drop, ...legacy], {
+run([generate, migrate, pull, push, studio, up, check, ...legacy], {
 	name: 'drizzle-kit',
 	version: version,
 });

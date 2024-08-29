@@ -2,22 +2,18 @@ import chalk from 'chalk';
 import { checkHandler } from './commands/check';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import '../@types/utils';
-import { assertV1OutFolder } from '../utils';
-import { dropMigration } from './commands/drop';
 import { upMysqlHandler } from './commands/mysqlUp';
 import { upPgHandler } from './commands/pgUp';
 import { upSqliteHandler } from './commands/sqliteUp';
 import {
 	prepareCheckParams,
-	prepareDropParams,
 	prepareGenerateConfig,
 	prepareMigrateConfig,
 	preparePullConfig,
 	preparePushConfig,
 	prepareStudioConfig,
 } from './commands/utils';
-import { assertCollisions, drivers, prefixes } from './validations/common';
-import { withStyle } from './validations/outputs';
+import { assertCollisions, drivers } from './validations/common';
 import 'dotenv/config';
 import { boolean, command, number, string } from '@drizzle-team/brocli';
 import { mkdirSync } from 'fs';
@@ -54,15 +50,12 @@ export const generate = command({
 		custom: boolean()
 			.desc('Prepare empty migration file for custom SQL')
 			.default(false),
-		prefix: string()
-			.enum(...prefixes)
-			.default('index'),
 	},
 	transform: async (opts) => {
 		const from = assertCollisions(
 			'generate',
 			opts,
-			['prefix', 'name', 'custom'],
+			['name', 'custom'],
 			['driver', 'breakpoints', 'schema', 'out', 'dialect'],
 		);
 		return prepareGenerateConfig(opts, from);
@@ -415,7 +408,6 @@ export const pull = command({
 			breakpoints,
 			tablesFilter,
 			schemasFilter,
-			prefix,
 		} = config;
 		mkdirSync(out, { recursive: true });
 
@@ -461,7 +453,6 @@ export const pull = command({
 					credentials,
 					tablesFilter,
 					schemasFilter,
-					prefix,
 				);
 			} else if (dialect === 'mysql') {
 				const { introspectMysql } = await import('./commands/introspect');
@@ -471,7 +462,6 @@ export const pull = command({
 					breakpoints,
 					credentials,
 					tablesFilter,
-					prefix,
 				);
 			} else if (dialect === 'sqlite') {
 				const { introspectSqlite } = await import('./commands/introspect');
@@ -481,7 +471,6 @@ export const pull = command({
 					breakpoints,
 					credentials,
 					tablesFilter,
-					prefix,
 				);
 			} else {
 				assertUnreachable(dialect);
@@ -490,25 +479,6 @@ export const pull = command({
 			console.error(e);
 		}
 		process.exit(0);
-	},
-});
-
-export const drop = command({
-	name: 'drop',
-	options: {
-		config: optionConfig,
-		out: optionOut,
-		driver: optionDriver,
-	},
-	transform: async (opts) => {
-		const from = assertCollisions('check', opts, [], ['driver', 'out']);
-		return prepareDropParams(opts, from);
-	},
-	handler: async (config) => {
-		await assertOrmCoreVersion();
-
-		assertV1OutFolder(config.out);
-		await dropMigration(config);
 	},
 });
 
@@ -590,13 +560,6 @@ export const studio = command({
 			const { prepareServer } = await import('../serializer/studio');
 
 			const server = await prepareServer(setup);
-
-			console.log();
-			console.log(
-				withStyle.fullWarning(
-					'Drizzle Studio is currently in Beta. If you find anything that is not working as expected or should be improved, feel free to create an issue on GitHub: https://github.com/drizzle-team/drizzle-kit-mirror/issues/new or write to us on Discord: https://discord.gg/WcRKz2FFxN',
-				),
-			);
 
 			const { key, cert } = (await certs()) || {};
 			server.start({

@@ -16,7 +16,7 @@ import { drySQLite, type SQLiteSchema, squashSqliteScheme } from '../../serializ
 import { fromDatabase as fromSqliteDatabase } from '../../serializer/sqliteSerializer';
 import { applyMysqlSnapshotsDiff, applyPgSnapshotsDiff, applySqliteSnapshotsDiff } from '../../snapshotsDiffer';
 import { prepareOutFolder } from '../../utils';
-import type { Casing, Prefix } from '../validations/common';
+import type { Casing } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { SqliteCredentials } from '../validations/sqlite';
@@ -37,7 +37,6 @@ export const introspectPostgres = async (
 	credentials: PostgresCredentials,
 	tablesFilter: string[],
 	schemasFilter: string[],
-	prefix: Prefix,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const db = await preparePostgresDB(credentials);
@@ -88,7 +87,7 @@ export const introspectPostgres = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
+	const snapshots = prepareOutFolder(out, 'postgresql');
 
 	if (snapshots.length === 0) {
 		const { sqlStatements, _meta } = await applyPgSnapshotsDiff(
@@ -106,12 +105,10 @@ export const introspectPostgres = async (
 		writeResult({
 			cur: schema,
 			sqlStatements,
-			journal,
 			_meta,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 		});
 	} else {
 		render(
@@ -150,7 +147,6 @@ export const introspectMysql = async (
 	breakpoints: boolean,
 	credentials: MysqlCredentials,
 	tablesFilter: string[],
-	prefix: Prefix,
 ) => {
 	const { connectToMySQL } = await import('../connections');
 	const { db, database } = await connectToMySQL(credentials);
@@ -201,7 +197,7 @@ export const introspectMysql = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
+	const snapshots = prepareOutFolder(out, 'postgresql');
 
 	if (snapshots.length === 0) {
 		const { sqlStatements, _meta } = await applyMysqlSnapshotsDiff(
@@ -216,12 +212,10 @@ export const introspectMysql = async (
 		writeResult({
 			cur: schema,
 			sqlStatements,
-			journal,
 			_meta,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 		});
 	} else {
 		render(
@@ -260,7 +254,6 @@ export const introspectSqlite = async (
 	breakpoints: boolean,
 	credentials: SqliteCredentials,
 	tablesFilter: string[],
-	prefix: Prefix,
 ) => {
 	const { connectToSQLite } = await import('../connections');
 	const db = await connectToSQLite(credentials);
@@ -312,7 +305,7 @@ export const introspectSqlite = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
+	const snapshots = prepareOutFolder(out, 'postgresql');
 
 	if (snapshots.length === 0) {
 		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
@@ -327,12 +320,10 @@ export const introspectSqlite = async (
 		writeResult({
 			cur: schema,
 			sqlStatements,
-			journal,
 			_meta,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 		});
 	} else {
 		render(

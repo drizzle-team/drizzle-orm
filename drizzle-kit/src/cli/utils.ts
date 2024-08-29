@@ -1,5 +1,5 @@
 import semver from 'semver';
-import { err, warning } from './views';
+import { err } from './views';
 
 export const assertExists = (it?: any) => {
 	if (!it) throw new Error();
@@ -74,7 +74,8 @@ export const assertEitherPackage = async (
 	process.exit(1);
 };
 
-const requiredApiVersion = 7;
+// v8 - new migrations folder structure
+const requiredApiVersion = 8;
 export const assertOrmCoreVersion = async () => {
 	try {
 		const { compatibilityVersion } = await import('drizzle-orm/version');

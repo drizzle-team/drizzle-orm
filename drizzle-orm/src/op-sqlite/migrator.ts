@@ -13,10 +13,11 @@ async function readMigrationFiles({ journal, migrations }: MigrationConfig): Pro
 	const migrationQueries: MigrationMeta[] = [];
 
 	for await (const journalEntry of journal.entries) {
-		const query = migrations[`m${journalEntry.idx.toString().padStart(4, '0')}`];
+		const name = `m${journalEntry.idx.toString().padStart(4, '0')}`;
+		const query = migrations[name];
 
 		if (!query) {
-			throw new Error(`Missing migration: ${journalEntry.tag}`);
+			throw new Error(`Missing migration: ${name}`);
 		}
 
 		try {
@@ -26,12 +27,11 @@ async function readMigrationFiles({ journal, migrations }: MigrationConfig): Pro
 
 			migrationQueries.push({
 				sql: result,
-				bps: journalEntry.breakpoints,
 				folderMillis: journalEntry.when,
 				hash: '',
 			});
 		} catch {
-			throw new Error(`Failed to parse migration: ${journalEntry.tag}`);
+			throw new Error(`Failed to parse migration: ${name}`);
 		}
 	}
 

@@ -9,13 +9,15 @@ import {
 	pgSchemaV5,
 	PgSchemaV6,
 	pgSchemaV6,
-	Table,
 	TableV5,
 } from '../../serializer/pgSchema';
 import { prepareOutFolder, validateWithReport } from '../../utils';
+import { upgradeFolderStructure } from './utils';
 
 export const upPgHandler = (out: string) => {
-	const { snapshots } = prepareOutFolder(out, 'postgresql');
+	upgradeFolderStructure(out);
+
+	const snapshots = prepareOutFolder(out, 'postgresql');
 	const report = validateWithReport(snapshots, 'postgresql');
 
 	report.nonLatest

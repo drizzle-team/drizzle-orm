@@ -71,20 +71,6 @@ export const postgresqlDriversLiterals = [
 	literal('pglite'),
 ] as const;
 
-export const prefixes = [
-	'index',
-	'timestamp',
-	'supabase',
-	'unix',
-	'none',
-] as const;
-export const prefix = enum_(prefixes);
-export type Prefix = (typeof prefixes)[number];
-
-{
-	const _: Prefix = '' as TypeOf<typeof prefix>;
-}
-
 export const sqliteDriver = union(sqliteDriversLiterals);
 export const postgresDriver = union(postgresqlDriversLiterals);
 export const driver = union([sqliteDriver, postgresDriver]);
@@ -92,7 +78,6 @@ export const driver = union([sqliteDriver, postgresDriver]);
 export const configMigrations = object({
 	table: string().optional(),
 	schema: string().optional(),
-	prefix: prefix.optional().default('index'),
 }).optional();
 
 export const configCommonSchema = object({

@@ -2,7 +2,7 @@ import { Dialect } from '../../schemaValidator';
 import { prepareOutFolder, validateWithReport } from '../../utils';
 
 export const checkHandler = (out: string, dialect: Dialect) => {
-	const { snapshots } = prepareOutFolder(out, dialect);
+	const snapshots = prepareOutFolder(out, dialect);
 	const report = validateWithReport(snapshots, dialect);
 
 	if (report.nonLatest.length > 0) {

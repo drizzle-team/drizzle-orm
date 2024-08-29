@@ -1,10 +1,9 @@
-import chalk from 'chalk';
-import fs, { writeFileSync } from 'fs';
-import path from 'path';
-import { Column, MySqlSchema, MySqlSchemaV4, MySqlSchemaV5, mysqlSchemaV5, Table } from '../../serializer/mysqlSchema';
-import { prepareOutFolder, validateWithReport } from '../../utils';
+import { Column, MySqlSchemaV4, MySqlSchemaV5, Table } from '../../serializer/mysqlSchema';
+import { upgradeFolderStructure } from './utils';
 
-export const upMysqlHandler = (out: string) => {};
+export const upMysqlHandler = (out: string) => {
+	upgradeFolderStructure(out);
+};
 
 export const upMySqlHandlerV4toV5 = (obj: MySqlSchemaV4): MySqlSchemaV5 => {
 	const mappedTables: Record<string, Table> = {};

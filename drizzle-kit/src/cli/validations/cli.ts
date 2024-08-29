@@ -1,19 +1,6 @@
 import { boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
-import { casing, prefix } from './common';
-
-export const cliConfigGenerate = object({
-	dialect: dialect.optional(),
-	schema: union([string(), string().array()]).optional(),
-	out: string().optional().default('./drizzle'),
-	config: string().optional(),
-	name: string().optional(),
-	prefix: prefix.optional(),
-	breakpoints: boolean().optional().default(true),
-	custom: boolean().optional().default(false),
-}).strict();
-
-export type CliConfigGenerate = TypeOf<typeof cliConfigGenerate>;
+import { casing } from './common';
 
 export const pushParams = object({
 	dialect: dialect,
@@ -40,9 +27,6 @@ export const pullParams = object({
 	extensionsFilters: literal('postgis').array().optional(),
 	casing,
 	breakpoints: boolean().optional().default(true),
-	migrations: object({
-		prefix: prefix.optional().default('index'),
-	}).optional(),
 }).passthrough();
 
 export type PullParams = TypeOf<typeof pullParams>;

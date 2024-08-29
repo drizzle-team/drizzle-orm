@@ -1,6 +1,6 @@
-import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 export interface KitConfig {
 	out: string;
@@ -17,55 +17,55 @@ export interface MigrationMeta {
 	sql: string[];
 	folderMillis: number;
 	hash: string;
-	bps: boolean;
 }
 
-export function readMigrationFiles(config: string | MigrationConfig): MigrationMeta[] {
-	let migrationFolderTo: string | undefined;
+const timestampToMillis = (timestamp: string) => {
+	const year = timestamp.slice(0, 4);
+	const month = timestamp.slice(4, 6);
+	const day = timestamp.slice(6, 8);
+	const hr = timestamp.slice(8, 10);
+	const min = timestamp.slice(10, 12);
+	const sec = timestamp.slice(12, 14);
+	const isoString = `${year}-${month}-${day}T${hr}:${min}:${sec}.000Z`;
+	return +new Date(isoString);
+};
+
+export function readMigrationFiles(
+	config: string | MigrationConfig,
+): MigrationMeta[] {
+	let outFolder: string | undefined;
 	if (typeof config === 'string') {
-		const configAsString = fs.readFileSync(path.resolve('.', config), 'utf8');
-		const jsonConfig = JSON.parse(configAsString) as KitConfig;
-		migrationFolderTo = jsonConfig.out;
+		const kitConfig = JSON.parse(
+			readFileSync(resolve('.', config), 'utf8'),
+		) as KitConfig;
+		outFolder = kitConfig.out;
 	} else {
-		migrationFolderTo = config.migrationsFolder;
+		outFolder = config.migrationsFolder;
 	}
 
-	if (!migrationFolderTo) {
+	if (!outFolder) {
 		throw new Error('no migration folder defined');
 	}
 
 	const migrationQueries: MigrationMeta[] = [];
-
-	const journalPath = `${migrationFolderTo}/meta/_journal.json`;
-	if (!fs.existsSync(journalPath)) {
-		throw new Error(`Can't find meta/_journal.json file`);
-	}
-
-	const journalAsString = fs.readFileSync(`${migrationFolderTo}/meta/_journal.json`).toString();
-
-	const journal = JSON.parse(journalAsString) as {
-		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
-	};
-
-	for (const journalEntry of journal.entries) {
-		const migrationPath = `${migrationFolderTo}/${journalEntry.tag}.sql`;
-
-		try {
-			const query = fs.readFileSync(`${migrationFolderTo}/${journalEntry.tag}.sql`).toString();
-
-			const result = query.split('--> statement-breakpoint').map((it) => {
-				return it;
-			});
-
-			migrationQueries.push({
-				sql: result,
-				bps: journalEntry.breakpoints,
-				folderMillis: journalEntry.when,
-				hash: crypto.createHash('sha256').update(query).digest('hex'),
-			});
-		} catch {
-			throw new Error(`No file ${migrationPath} found in ${migrationFolderTo} folder`);
+	const migrationFolders = readdirSync(outFolder).filter((it) => lstatSync(it).isDirectory());
+	for (const migrationFolder of migrationFolders) {
+		const sqlMigrationPath = join(outFolder, migrationFolder, 'migration.sql');
+		if (!existsSync(sqlMigrationPath)) {
+			console.error('SQL migration file does not exist:', sqlMigrationPath);
+			continue;
 		}
+
+		const when = timestampToMillis(migrationFolder.slice(0, 14));
+
+		const query = readFileSync(sqlMigrationPath, 'utf8');
+		const result = query.split('--> statement-breakpoint');
+
+		migrationQueries.push({
+			sql: result,
+			folderMillis: when,
+			hash: createHash('sha256').update(query).digest('hex'),
+		});
 	}
 
 	return migrationQueries;

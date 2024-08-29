@@ -3,9 +3,12 @@ import { writeFileSync } from 'fs';
 import { mapEntries } from 'src/global';
 import { SQLiteSchema, sqliteSchemaV5 } from 'src/serializer/sqliteSchema';
 import { prepareOutFolder, validateWithReport } from 'src/utils';
+import { upgradeFolderStructure } from './utils';
 
 export const upSqliteHandler = (out: string) => {
-	const { snapshots } = prepareOutFolder(out, 'sqlite');
+	upgradeFolderStructure(out);
+
+	const snapshots = prepareOutFolder(out, 'sqlite');
 	const report = validateWithReport(snapshots, 'sqlite');
 
 	report.nonLatest

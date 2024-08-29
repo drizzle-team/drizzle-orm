@@ -1,6 +1,6 @@
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';
 import type { NamedWithSchema } from './cli/commands/migrate';
@@ -38,23 +38,18 @@ export const objectValues = <T extends object>(obj: T): Array<T[keyof T]> => {
 	return Object.values(obj);
 };
 
-export const assertV1OutFolder = (out: string) => {
+export const assertV3OutFolder = (out: string) => {
 	if (!existsSync(out)) return;
+	if (!existsSync(join(out, 'meta'))) return;
 
-	const oldMigrationFolders = readdirSync(out).filter(
-		(it) => it.length === 14 && /^\d+$/.test(it),
+	console.log(
+		`Your migrations folder format is outdated, please run ${
+			chalk.green.bold(
+				`drizzle-kit up`,
+			)
+		}`,
 	);
-
-	if (oldMigrationFolders.length > 0) {
-		console.log(
-			`Your migrations folder format is outdated, please run ${
-				chalk.green.bold(
-					`drizzle-kit up`,
-				)
-			}`,
-		);
-		process.exit(1);
-	}
+	process.exit(1);
 };
 
 export type Journal = {
@@ -67,14 +62,6 @@ export type Journal = {
 		tag: string;
 		breakpoints: boolean;
 	}[];
-};
-
-export const dryJournal = (dialect: Dialect): Journal => {
-	return {
-		version: snapshotVersion,
-		dialect,
-		entries: [],
-	};
 };
 
 // export const preparePushFolder = (dialect: Dialect) => {
@@ -91,22 +78,13 @@ export const dryJournal = (dialect: Dialect): Journal => {
 // };
 
 export const prepareOutFolder = (out: string, dialect: Dialect) => {
-	const meta = join(out, 'meta');
-	const journalPath = join(meta, '_journal.json');
-
-	if (!existsSync(join(out, 'meta'))) {
-		mkdirSync(meta, { recursive: true });
-		writeFileSync(journalPath, JSON.stringify(dryJournal(dialect)));
-	}
-
-	const journal = JSON.parse(readFileSync(journalPath).toString());
-
-	const snapshots = readdirSync(meta)
-		.filter((it) => !it.startsWith('_'))
-		.map((it) => join(meta, it));
+	mkdirSync(out, { recursive: true });
+	const snapshots = readdirSync(out).filter((it) => lstatSync(join(out, it)).isDirectory()).map((it) =>
+		join(out, it, 'snapshot.json')
+	);
 
 	snapshots.sort();
-	return { meta, snapshots, journal };
+	return snapshots;
 };
 
 const validatorForDialect = (dialect: Dialect) => {
@@ -185,7 +163,7 @@ export const prepareMigrationFolder = (
 	outFolder: string = 'drizzle',
 	dialect: Dialect,
 ) => {
-	const { snapshots, journal } = prepareOutFolder(outFolder, dialect);
+	const snapshots = prepareOutFolder(outFolder, dialect);
 	const report = validateWithReport(snapshots, dialect);
 	if (report.nonLatest.length > 0) {
 		console.log(
@@ -233,7 +211,7 @@ export const prepareMigrationFolder = (
 		process.exit(0);
 	}
 
-	return { snapshots, journal };
+	return snapshots;
 };
 
 export const prepareMigrationMeta = (
@@ -328,9 +306,7 @@ export const normaliseSQLiteUrl = (
 	assertUnreachable(type);
 };
 
-export const normalisePGliteUrl = (
-	it: string,
-) => {
+export const normalisePGliteUrl = (it: string) => {
 	if (it.startsWith('file:')) {
 		return it.substring(5);
 	}

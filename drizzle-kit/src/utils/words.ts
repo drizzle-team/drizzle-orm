@@ -1,22 +1,12 @@
-import type { Prefix } from '../cli/validations/common';
-
-export const prepareMigrationMetadata = (
-	idx: number,
-	prefixMode: Prefix,
-	name?: string,
-) => {
-	const prefix = prefixMode === 'index'
-		? idx.toFixed(0).padStart(4, '0')
-		: prefixMode === 'timestamp' || prefixMode === 'supabase'
-		? new Date()
-			.toISOString()
-			.replace('T', '')
-			.replaceAll('-', '')
-			.replaceAll(':', '')
-			.slice(0, 14)
-		: prefixMode === 'unix'
-		? Math.floor(Date.now() / 1000)
-		: '';
+export const prepareMigrationMetadata = (name?: string) => {
+	const prefix = new Date()
+		.toISOString()
+		.replace('T', '')
+		.replaceAll('-', '')
+		.replaceAll(':', '')
+		.slice(0, 14);
+	// : prefixMode === "unix"
+	// ? Math.floor(Date.now() / 1000)
 
 	const suffix = name || `${adjectives.random()}_${heroes.random()}`;
 	const tag = `${prefix}_${suffix}`;
