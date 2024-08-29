@@ -133,14 +133,13 @@ export const prepareCheckParams = async (
 		? await drizzleConfigFromFile(options.config as string | undefined)
 		: options;
 
-	if (!config.out || !config.dialect) {
+	if (!config.dialect) {
 		let text = `Please provide required params for AWS Data API driver:\n`;
 		console.log(error(text));
-		console.log(wrapParam('out', config.out));
 		console.log(wrapParam('dialect', config.dialect));
 		process.exit(1);
 	}
-	return { out: config.out, dialect: config.dialect };
+	return { out: config.out || "drizzle", dialect: config.dialect };
 };
 
 export type GenerateConfig = {
