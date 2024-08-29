@@ -33,7 +33,6 @@ test('generate #1', async (t) => {
 		dialect: 'postgresql',
 		name: undefined,
 		custom: false,
-		prefix: 'index',
 		breakpoints: true,
 		schema: 'schema.ts',
 		out: 'drizzle',
@@ -52,7 +51,6 @@ test('generate #2', async (t) => {
 		dialect: 'postgresql',
 		name: undefined,
 		custom: false,
-		prefix: 'index',
 		breakpoints: true,
 		schema: 'schema.ts',
 		out: 'out',
@@ -67,7 +65,6 @@ test('generate #3', async (t) => {
 		dialect: 'postgresql',
 		name: undefined,
 		custom: false,
-		prefix: 'index',
 		breakpoints: true,
 		schema: './schema.ts',
 		out: 'drizzle',
@@ -84,7 +81,6 @@ test('generate #4', async (t) => {
 		dialect: 'postgresql',
 		name: undefined,
 		custom: true,
-		prefix: 'index',
 		breakpoints: true,
 		schema: './schema.ts',
 		out: 'drizzle',
@@ -100,7 +96,6 @@ test('generate #5', async (t) => {
 		dialect: 'postgresql',
 		name: 'custom',
 		custom: false,
-		prefix: 'index',
 		breakpoints: true,
 		schema: './schema.ts',
 		out: 'drizzle',
@@ -108,34 +103,34 @@ test('generate #5', async (t) => {
 	});
 });
 
+// REMOVED: no prefix any more
 // config | pass through prefix
-test('generate #6', async (t) => {
-	const res = await brotest(generate, '--prefix=timestamp');
-	if (res.type !== 'handler') assert.fail(res.type, 'handler');
-	expect(res.options).toStrictEqual({
-		dialect: 'postgresql',
-		name: undefined,
-		custom: false,
-		prefix: 'timestamp',
-		breakpoints: true,
-		schema: './schema.ts',
-		out: 'drizzle',
-		bundle: false,
-	});
-});
+// test('generate #6', async (t) => {
+// 	const res = await brotest(generate, '--prefix=timestamp');
+// 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+// 	expect(res.options).toStrictEqual({
+// 		dialect: 'postgresql',
+// 		name: undefined,
+// 		custom: false,
+// 		prefix: 'timestamp',
+// 		breakpoints: true,
+// 		schema: './schema.ts',
+// 		out: 'drizzle',
+// 		bundle: false,
+// 	});
+// });
 
 // config | pass through name, prefix and custom
 test('generate #7', async (t) => {
 	const res = await brotest(
 		generate,
-		'--prefix=timestamp --name=custom --custom',
+		'--name=custom --custom',
 	);
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
 		dialect: 'postgresql',
 		name: 'custom',
 		custom: true,
-		prefix: 'timestamp',
 		breakpoints: true,
 		schema: './schema.ts',
 		out: 'drizzle',
@@ -152,7 +147,6 @@ test('generate #8', async (t) => {
 		dialect: 'sqlite',
 		name: undefined,
 		custom: false,
-		prefix: 'index',
 		breakpoints: true,
 		schema: './schema.ts',
 		out: 'drizzle',
@@ -160,11 +154,11 @@ test('generate #8', async (t) => {
 	});
 });
 
-// cli | pass through name, prefix and custom
+// cli | pass through name and custom
 test('generate #9', async (t) => {
 	const res = await brotest(
 		generate,
-		'--dialect=postgresql --schema=schema.ts --out=out --prefix=timestamp --name=custom --custom',
+		'--dialect=postgresql --schema=schema.ts --out=out --name=custom --custom',
 	);
 
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
@@ -172,7 +166,6 @@ test('generate #9', async (t) => {
 		dialect: 'postgresql',
 		name: 'custom',
 		custom: true,
-		prefix: 'timestamp',
 		breakpoints: true,
 		schema: 'schema.ts',
 		out: 'out',

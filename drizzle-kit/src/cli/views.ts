@@ -5,7 +5,7 @@ import { objectValues } from '../utils';
 import type { Named, NamedWithSchema } from './commands/migrate';
 
 export const warning = (msg: string) => {
-	render(`[${chalk.yellow('Warning')}] ${msg}`);
+	render(`${chalk.bgYellow.bold(' Warning ')} ${msg}`);
 };
 export const err = (msg: string) => {
 	render(`${chalk.bold.red('Error')} ${msg}`);
