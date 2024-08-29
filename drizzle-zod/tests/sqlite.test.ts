@@ -1,7 +1,7 @@
-import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { blob, integer, numeric, real, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
 import { z } from 'zod';
-import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
+import { createExistingViewSchema, createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils.ts';
 
 const blobJsonSchema = z.object({
@@ -20,6 +20,19 @@ const users = sqliteTable('users', {
 	text: text('text', { length: 255 }),
 	role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
 });
+
+const usersView = sqliteView("usersView", {
+	id: integer('id').primaryKey(),
+	blobJson: blob('blob', { mode: 'json' }).$type<z.infer<typeof blobJsonSchema>>().notNull(),
+	blobBigInt: blob('blob', { mode: 'bigint' }).notNull(),
+	numeric: numeric('numeric').notNull(),
+	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+	createdAtMs: integer('created_at_ms', { mode: 'timestamp_ms' }).notNull(),
+	boolean: integer('boolean', { mode: 'boolean' }).notNull(),
+	real: real('real').notNull(),
+	text: text('text', { length: 255 }),
+	role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
+}).existing();
 
 const testUser = {
 	id: 1,
@@ -144,6 +157,63 @@ test('users select schema', (t) => {
 
 test('users select schema w/ defaults', (t) => {
 	const actual = createSelectSchema(users);
+
+	const expected = z.object({
+		id: z.number(),
+		blobJson: jsonSchema,
+		blobBigInt: z.bigint(),
+		numeric: z.string(),
+		createdAt: z.date(),
+		createdAtMs: z.date(),
+		boolean: z.boolean(),
+		real: z.number(),
+		text: z.string().nullable(),
+		role: z.enum(['admin', 'user']),
+	}).required();
+
+	expectSchemaShape(t, expected).from(actual);
+});
+
+test('users view schema', (t) => {
+	const actual = createExistingViewSchema(usersView, {
+		blobJson: jsonSchema,
+		role: z.enum(['admin', 'manager', 'user']),
+	});
+
+	(() => {
+		{
+			createExistingViewSchema(usersView, {
+				// @ts-expect-error (missing property)
+				foobar: z.number(),
+			});
+		}
+
+		{
+			createExistingViewSchema(usersView, {
+				// @ts-expect-error (invalid type)
+				id: 123,
+			});
+		}
+	});
+
+	const expected = z.object({
+		id: z.number(),
+		blobJson: jsonSchema,
+		blobBigInt: z.bigint(),
+		numeric: z.string(),
+		createdAt: z.date(),
+		createdAtMs: z.date(),
+		boolean: z.boolean(),
+		real: z.number(),
+		text: z.string().nullable(),
+		role: z.enum(['admin', 'manager', 'user']),
+	}).required();
+
+	expectSchemaShape(t, expected).from(actual);
+});
+
+test('users view schema w/ defaults', (t) => {
+	const actual = createExistingViewSchema(usersView);
 
 	const expected = z.object({
 		id: z.number(),
