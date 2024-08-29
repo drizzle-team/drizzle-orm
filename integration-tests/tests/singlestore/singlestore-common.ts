@@ -72,10 +72,8 @@ import type { Equal } from '~/utils.ts';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const initSqlPath = path.resolve(__dirname, 'test/init.sql');
 
 type TestSingleStoreDB = SingleStoreDatabase<any, any>;
 
@@ -192,16 +190,25 @@ const citiesMySchemaTable = mySchema.table('cities', {
 	name: text('name').notNull(),
 });
 
+
+
 let singlestoreContainer: Docker.Container;
 export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
 	const docker = new Docker();
 	const port = await getPort({ port: 3306 });
 	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
 
+	const __filename = fileURLToPath(import.meta.url);
+	const __dirname = path.dirname(__filename);
+	const initSqlPath = path.resolve(__dirname, 'test/init.sql');
+	const initSqlContent = `CREATE DATABASE drizzle;`;
+	fs.writeFileSync(initSqlPath, initSqlContent, { encoding: 'utf8' });
+
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
+
 
 	singlestoreContainer = await docker.createContainer({
 		Image: image,
@@ -217,10 +224,10 @@ export async function createDockerDB(): Promise<{ connectionString: string; cont
 	});
 
 	await singlestoreContainer.start();
-	await new Promise((resolve) => setTimeout(resolve, 5000));
+	await new Promise((resolve) => setTimeout(resolve, 7000));
 
 	return {
-		connectionString: `singlestore://root:singlestore@127.0.0.1:${port}/drizzle`,
+		connectionString: `singlestore://root:singlestore@localhost:${port}/drizzle`,
 		container: singlestoreContainer,
 	};
 }

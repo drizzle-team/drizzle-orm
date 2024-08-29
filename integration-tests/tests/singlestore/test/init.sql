@@ -1,1 +1,1 @@
-CREATE database drizzle;
+CREATE DATABASE drizzle;
