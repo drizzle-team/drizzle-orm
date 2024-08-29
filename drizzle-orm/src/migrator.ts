@@ -48,7 +48,7 @@ export function readMigrationFiles(
 	}
 
 	const migrationQueries: MigrationMeta[] = [];
-	const migrationFolders = readdirSync(outFolder).filter((it) => lstatSync(it).isDirectory());
+	const migrationFolders = readdirSync(outFolder).filter((it) => lstatSync(join(outFolder, it)).isDirectory());
 	for (const migrationFolder of migrationFolders) {
 		const sqlMigrationPath = join(outFolder, migrationFolder, 'migration.sql');
 		if (!existsSync(sqlMigrationPath)) {
