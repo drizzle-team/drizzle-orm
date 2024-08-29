@@ -156,8 +156,6 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 	const schemaPath = config.schema;
 
 	try {
-		assertV3OutFolder(outFolder);
-
 		const snapshots = prepareMigrationFolder(
 			outFolder,
 			'postgresql',
@@ -333,8 +331,6 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 	const schemaPath = config.schema;
 
 	try {
-		assertV3OutFolder(outFolder);
-
 		const snapshots = prepareMigrationFolder(outFolder, 'mysql');
 		const { prev, cur, custom } = await prepareMySqlMigrationSnapshot(
 			snapshots,
@@ -386,8 +382,6 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	const schemaPath = config.schema;
 
 	try {
-		assertV3OutFolder(outFolder);
-
 		const snapshots = prepareMigrationFolder(outFolder, 'sqlite');
 		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
 			snapshots,

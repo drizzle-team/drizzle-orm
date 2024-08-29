@@ -1,11 +1,11 @@
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';
 import type { NamedWithSchema } from './cli/commands/migrate';
 import { info } from './cli/views';
-import { assertUnreachable, snapshotVersion } from './global';
+import { assertUnreachable } from './global';
 import type { Dialect } from './schemaValidator';
 import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';

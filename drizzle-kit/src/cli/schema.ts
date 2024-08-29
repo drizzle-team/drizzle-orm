@@ -19,6 +19,7 @@ import { boolean, command, number, string } from '@drizzle-team/brocli';
 import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { dialects } from 'src/schemaValidator';
+import { assertV3OutFolder } from 'src/utils';
 import { assertUnreachable } from '../global';
 import type { Setup } from '../serializer/studio';
 import { certs } from '../utils/certs';
@@ -63,8 +64,7 @@ export const generate = command({
 	handler: async (opts) => {
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
-
-		// const parsed = cliConfigGenerate.parse(opts);
+		assertV3OutFolder(opts.out);
 
 		const {
 			prepareAndMigratePg,
@@ -96,6 +96,7 @@ export const migrate = command({
 	handler: async (opts) => {
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
+		assertV3OutFolder(opts.out);
 
 		const { dialect, schema, table, out, credentials } = opts;
 		try {
