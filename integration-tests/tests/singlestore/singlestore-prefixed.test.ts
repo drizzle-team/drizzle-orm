@@ -1049,6 +1049,7 @@ test('having', async () => {
 	}]);
 
 	await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane', cityId: 1 }, {
+		id: 3,
 		name: 'Jack',
 		cityId: 2,
 	}]);

@@ -70,10 +70,9 @@ import { afterAll, beforeEach, describe, expect, expectTypeOf, test } from 'vite
 import { Expect, toLocalDate } from '~/utils.ts';
 import type { Equal } from '~/utils.ts';
 
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fs from 'fs';
-
 
 type TestSingleStoreDB = SingleStoreDatabase<any, any>;
 
@@ -190,8 +189,6 @@ const citiesMySchemaTable = mySchema.table('cities', {
 	name: text('name').notNull(),
 });
 
-
-
 let singlestoreContainer: Docker.Container;
 export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
 	const docker = new Docker();
@@ -208,7 +205,6 @@ export async function createDockerDB(): Promise<{ connectionString: string; cont
 	await new Promise((resolve, reject) =>
 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
-
 
 	singlestoreContainer = await docker.createContainer({
 		Image: image,
@@ -1269,7 +1265,11 @@ export function tests(driver?: string) {
 		test('insert via db.execute + select via db.execute', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.id.name)},${new Name(usersTable.name.name)}) values (1,${'John'})`);
+			await db.execute(
+				sql`insert into ${usersTable} (${new Name(usersTable.id.name)},${new Name(
+					usersTable.name.name,
+				)}) values (1,${'John'})`,
+			);
 
 			const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${usersTable}`);
 			expect(result[0]).toEqual([{ id: 1, name: 'John' }]);
@@ -1766,7 +1766,7 @@ export function tests(driver?: string) {
 				.from(users2Table)
 				.as('sq');
 
-			const res = await db.select({ name: sq.name }).from(sq).orderBy(asc(users2Table.id))
+			const res = await db.select({ name: sq.name }).from(sq).orderBy(asc(users2Table.id));
 
 			expect(res).toEqual([{ name: 'John modified' }, { name: 'Jane modified' }]);
 		});
