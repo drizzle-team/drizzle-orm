@@ -6,7 +6,7 @@ import { object, string } from 'zod';
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
-import { pullParams, pushParams } from '../validations/cli';
+import { Entities, pullParams, pushParams } from '../validations/cli';
 import {
 	Casing,
 	CliConfig,
@@ -354,6 +354,7 @@ export const preparePullConfig = async (
 		tablesFilter: string[];
 		schemasFilter: string[];
 		prefix: Prefix;
+		entities: Entities;
 	}
 > => {
 	const raw = flattenPull(
@@ -413,6 +414,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -431,6 +433,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -449,6 +452,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 

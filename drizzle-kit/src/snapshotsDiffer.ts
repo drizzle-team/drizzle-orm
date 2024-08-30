@@ -13,7 +13,7 @@ import {
 	union,
 	ZodTypeAny,
 } from 'zod';
-import { applyJsonDiff, diffColumns, diffSchemasOrTables } from './jsonDiffer';
+import { applyJsonDiff, diffColumns, diffPolicies, diffSchemasOrTables } from './jsonDiffer';
 import { fromJson } from './sqlgenerator';
 
 import {
@@ -31,8 +31,10 @@ import {
 	JsonCreateUniqueConstraint,
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
+	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
 	JsonDropPolicyStatement,
+	JsonEnableRLSStatement,
 	JsonReferenceStatement,
 	JsonRenameColumnStatement,
 	JsonRenamePolicyStatement,
@@ -219,6 +221,7 @@ const tableScheme = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()).default({}),
 	uniqueConstraints: record(string(), string()).default({}),
+	policies: record(string(), string()).default({}),
 }).strict();
 
 export const alteredTableScheme = object({
@@ -746,7 +749,7 @@ export const applyPgSnapshotsDiff = async (
 
 	//// Policies
 
-	const policyRes = diffColumns(tablesPatchedSnap1.tables, json2.tables);
+	const policyRes = diffPolicies(tablesPatchedSnap1.tables, json2.tables);
 
 	const policyRenames = [] as {
 		table: string;
@@ -770,8 +773,8 @@ export const applyPgSnapshotsDiff = async (
 		const { renamed, created, deleted } = await policyResolver({
 			tableName: entry.name,
 			schema: entry.schema,
-			deleted: entry.columns.deleted,
-			created: entry.columns.added,
+			deleted: entry.policies.deleted.map(PgSquasher.unsquashPolicy),
+			created: entry.policies.added.map(PgSquasher.unsquashPolicy),
 		});
 
 		if (created.length > 0) {
@@ -1043,31 +1046,37 @@ export const applyPgSnapshotsDiff = async (
 	const jsonAlterPoliciesStatements: JsonAlterPolicyStatement[] = [];
 	const jsonRenamePoliciesStatements: JsonRenamePolicyStatement[] = [];
 
+	const jsonEnableRLSStatements: JsonEnableRLSStatement[] = [];
+	const jsonDisableRLSStatements: JsonDisableRLSStatement[] = [];
+
 	for (let it of policyRenames) {
 		jsonRenamePoliciesStatements.push(
 			...prepareRenamePolicyJsons(it.table, it.schema, it.renames),
 		);
 	}
 
-	alteredTables.forEach((it) => {
-		// handle policies
-
+	for (const it of policyCreates) {
 		jsonCreatePoliciesStatements.push(
 			...prepareCreatePolicyJsons(
-				it.name,
+				it.table,
 				it.schema,
-				it.addedPolicies || {},
+				it.columns,
 			),
 		);
+	}
 
+	for (const it of policyDeletes) {
 		jsonDropPoliciesStatements.push(
 			...prepareDropPolicyJsons(
-				it.name,
+				it.table,
 				it.schema,
-				it.deletedPolicies || {},
+				it.columns,
 			),
 		);
+	}
 
+	alteredTables.forEach((it) => {
+		// handle policies
 		Object.keys(it.alteredPolicies).forEach((policyName: string) => {
 			const newPolicy = PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__new);
 			const oldPolicy = PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__old);
@@ -1077,7 +1086,7 @@ export const applyPgSnapshotsDiff = async (
 					...prepareDropPolicyJsons(
 						it.name,
 						it.schema,
-						{ [oldPolicy.name]: it.alteredPolicies[policyName].__old },
+						[oldPolicy],
 					),
 				);
 
@@ -1085,9 +1094,10 @@ export const applyPgSnapshotsDiff = async (
 					...prepareCreatePolicyJsons(
 						it.name,
 						it.schema,
-						{ [newPolicy.name]: it.alteredPolicies[policyName].__new },
+						[newPolicy],
 					),
 				);
+				return;
 			}
 
 			if (newPolicy.for !== oldPolicy.for) {
@@ -1095,7 +1105,7 @@ export const applyPgSnapshotsDiff = async (
 					...prepareDropPolicyJsons(
 						it.name,
 						it.schema,
-						{ [oldPolicy.name]: it.alteredPolicies[policyName].__old },
+						[oldPolicy],
 					),
 				);
 
@@ -1103,9 +1113,10 @@ export const applyPgSnapshotsDiff = async (
 					...prepareCreatePolicyJsons(
 						it.name,
 						it.schema,
-						{ [newPolicy.name]: it.alteredPolicies[policyName].__new },
+						[newPolicy],
 					),
 				);
+				return;
 			}
 
 			// alter
@@ -1118,6 +1129,33 @@ export const applyPgSnapshotsDiff = async (
 				),
 			);
 		});
+
+		// if there were no tables in json1 and is a table in json2 and it has policies -> enable
+		// if there was a table in json1 and is no table in json2 and it had policies -> disable
+
+		// Handle enabling and disabling RLS
+		for (const table of Object.values(json2.tables)) {
+			const policiesInCurrentState = Object.keys(table.policies);
+			const tableInPreviousState =
+				columnsPatchedSnap1.tables[`${table.schema === '' ? 'public' : table.schema}.${table.name}`];
+			const policiesInPreviousState = tableInPreviousState ? Object.keys(tableInPreviousState.policies) : [];
+
+			if (policiesInPreviousState.length === 0 && policiesInCurrentState.length > 0) {
+				jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
+			}
+
+			if (policiesInPreviousState.length > 0 && policiesInCurrentState.length === 0) {
+				jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+			}
+		}
+
+		for (const table of Object.values(columnsPatchedSnap1.tables)) {
+			const tableInCurrentState = json2.tables[`${table.schema === '' ? 'public' : table.schema}.${table.name}`];
+
+			if (tableInCurrentState === undefined) {
+				jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+			}
+		}
 
 		// TODO
 		// Add to sql generators
@@ -1315,6 +1353,9 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...createTables);
 
+	jsonStatements.push(...jsonEnableRLSStatements);
+	jsonStatements.push(...jsonDisableRLSStatements);
+
 	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameTables);
@@ -1346,10 +1387,10 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
-	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonRenamePoliciesStatements);
-	jsonStatements.push(...jsonAlterPoliciesStatements);
 	jsonStatements.push(...jsonDropPoliciesStatements);
+	jsonStatements.push(...jsonCreatePoliciesStatements);
+	jsonStatements.push(...jsonAlterPoliciesStatements);
 
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);

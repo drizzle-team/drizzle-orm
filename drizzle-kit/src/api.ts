@@ -44,6 +44,7 @@ export const generateDrizzleJson = (
 		prepared.enums,
 		prepared.schemas,
 		prepared.sequences,
+		prepared.roles,
 		schemaFilters,
 	);
 

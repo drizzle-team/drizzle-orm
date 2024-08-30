@@ -1,10 +1,20 @@
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
+import type { PgRole } from './roles';
+
+export type PgPolicyToOption =
+	| 'PUBLIC'
+	| 'CURRENT_ROLE'
+	| 'CURRENT_USER'
+	| 'SESSION_USER'
+	| (string & {})
+	| PgPolicyToOption[]
+	| PgRole;
 
 export interface PgPolicyConfig {
 	as?: 'permissive' | 'restrictive';
 	for?: 'all' | 'select' | 'insert' | 'update' | 'delete';
-	to?: 'PUBLIC' | 'CURRENT_ROLE' | 'CURRENT_USER' | 'SESSION_USER' | (string & {});
+	to?: PgPolicyToOption;
 	using?: SQL;
 	withCheck?: SQL;
 }

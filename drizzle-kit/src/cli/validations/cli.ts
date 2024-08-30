@@ -1,4 +1,4 @@
-import { boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
+import { array, boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
 import { casing, prefix } from './common';
 
@@ -43,7 +43,16 @@ export const pullParams = object({
 	migrations: object({
 		prefix: prefix.optional().default('index'),
 	}).optional(),
+	entities: object({
+		roles: boolean().or(object({
+			provider: string().optional(),
+			include: string().array().optional(),
+			exclude: string().array().optional(),
+		})).optional().default(false),
+	}).optional(),
 }).passthrough();
+
+export type Entities = TypeOf<typeof pullParams>['entities'];
 
 export type PullParams = TypeOf<typeof pullParams>;
 

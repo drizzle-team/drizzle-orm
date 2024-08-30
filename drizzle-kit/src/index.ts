@@ -125,6 +125,9 @@ export type Config =
 		introspect?: {
 			casing: 'camel' | 'preserve';
 		};
+		entities?: {
+			roles?: boolean | { provider?: string; exclude?: string[]; include?: string[] }[];
+		};
 	}
 	& (
 		| {

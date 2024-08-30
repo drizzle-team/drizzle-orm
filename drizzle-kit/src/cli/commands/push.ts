@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import { fromJson } from '../../sqlgenerator';
 import { Select } from '../selector-ui';
+import { Entities } from '../validations/cli';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
@@ -157,13 +158,14 @@ export const pgPush = async (
 	credentials: PostgresCredentials,
 	tablesFilter: string[],
 	schemasFilter: string[],
+	entities: Entities,
 	force: boolean,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const { pgPushIntrospect } = await import('./pgIntrospect');
 
 	const db = await preparePostgresDB(credentials);
-	const { schema } = await pgPushIntrospect(db, tablesFilter, schemasFilter);
+	const { schema } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities);
 
 	const { preparePgPush } = await import('./migrate');
 

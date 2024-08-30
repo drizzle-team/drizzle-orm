@@ -32,6 +32,7 @@ export interface JsonCreateTableStatement {
 	compositePKs: string[];
 	compositePkName?: string;
 	uniqueConstraints?: string[];
+	policies?: string[];
 	internals?: MySqlKitInternals;
 }
 
@@ -39,6 +40,7 @@ export interface JsonDropTableStatement {
 	type: 'drop_table';
 	tableName: string;
 	schema: string;
+	policies?: string[];
 }
 
 export interface JsonRenameTableStatement {
@@ -156,14 +158,14 @@ export interface JsonSqliteAddColumnStatement {
 export interface JsonCreatePolicyStatement {
 	type: 'create_policy';
 	tableName: string;
-	data: string;
+	data: Policy;
 	schema: string;
 }
 
 export interface JsonDropPolicyStatement {
 	type: 'drop_policy';
 	tableName: string;
-	data: string;
+	data: Policy;
 	schema: string;
 }
 
@@ -172,6 +174,18 @@ export interface JsonRenamePolicyStatement {
 	tableName: string;
 	oldName: string;
 	newName: string;
+	schema: string;
+}
+
+export interface JsonEnableRLSStatement {
+	type: 'enable_rls';
+	tableName: string;
+	schema: string;
+}
+
+export interface JsonDisableRLSStatement {
+	type: 'disable_rls';
+	tableName: string;
 	schema: string;
 }
 
@@ -589,14 +603,16 @@ export type JsonStatement =
 	| JsonDropPolicyStatement
 	| JsonCreatePolicyStatement
 	| JsonAlterPolicyStatement
-	| JsonRenamePolicyStatement;
+	| JsonRenamePolicyStatement
+	| JsonEnableRLSStatement
+	| JsonDisableRLSStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
 	// TODO: remove?
 	json2: PgSchema,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, policies } = table;
 	const tableKey = `${schema || 'public'}.${name}`;
 
 	// TODO: @AndriiSherman. We need this, will add test cases
@@ -614,6 +630,7 @@ export const preparePgCreateTableJson = (
 		compositePKs: Object.values(compositePrimaryKeys),
 		compositePkName: compositePkName,
 		uniqueConstraints: Object.values(uniqueConstraints),
+		policies: Object.values(policies),
 	};
 };
 
@@ -678,6 +695,7 @@ export const prepareDropTableJson = (table: Table): JsonDropTableStatement => {
 		type: 'drop_table',
 		tableName: table.name,
 		schema: table.schema,
+		policies: table.policies ? Object.values(table.policies) : [],
 	};
 };
 
@@ -1939,13 +1957,13 @@ export const prepareRenamePolicyJsons = (
 export const prepareCreatePolicyJsons = (
 	tableName: string,
 	schema: string,
-	policies: Record<string, string>,
+	policies: Policy[],
 ): JsonCreatePolicyStatement[] => {
-	return Object.values(policies).map((policyData) => {
+	return policies.map((it) => {
 		return {
 			type: 'create_policy',
 			tableName,
-			data: policyData,
+			data: it,
 			schema,
 		};
 	});
@@ -1954,13 +1972,13 @@ export const prepareCreatePolicyJsons = (
 export const prepareDropPolicyJsons = (
 	tableName: string,
 	schema: string,
-	policies: Record<string, string>,
+	policies: Policy[],
 ): JsonDropPolicyStatement[] => {
-	return Object.values(policies).map((policyData) => {
+	return policies.map((it) => {
 		return {
 			type: 'drop_policy',
 			tableName,
-			data: policyData,
+			data: it,
 			schema,
 		};
 	});

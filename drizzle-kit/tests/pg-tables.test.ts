@@ -31,6 +31,7 @@ test('add table #1', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
 	});
@@ -59,6 +60,7 @@ test('add table #2', async () => {
 			},
 		],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
 	});
@@ -98,6 +100,7 @@ test('add table #3', async () => {
 			},
 		],
 		compositePKs: ['id;users_pk'],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: 'users_pk',
 	});
@@ -118,12 +121,14 @@ test('add table #4', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_table',
 		tableName: 'posts',
+		policies: [],
 		schema: '',
 		columns: [],
 		compositePKs: [],
@@ -152,6 +157,7 @@ test('add table #5', async () => {
 		schema: 'folder',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
 	});
@@ -176,10 +182,12 @@ test('add table #6', async () => {
 		columns: [],
 		compositePKs: [],
 		uniqueConstraints: [],
+		policies: [],
 		compositePkName: '',
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
+		policies: [],
 		tableName: 'users1',
 		schema: '',
 	});
@@ -206,6 +214,7 @@ test('add table #7', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
 	});
@@ -262,6 +271,7 @@ test('multiproject schema add table #1', async () => {
 			},
 		],
 		compositePKs: [],
+		policies: [],
 		compositePkName: '',
 		uniqueConstraints: [],
 	});
@@ -284,6 +294,7 @@ test('multiproject schema drop table #1', async () => {
 		schema: '',
 		tableName: 'prefix_users',
 		type: 'drop_table',
+		policies: [],
 	});
 });
 
@@ -353,6 +364,7 @@ test('add schema + table #1', async () => {
 		type: 'create_table',
 		tableName: 'users',
 		schema: 'folder',
+		policies: [],
 		columns: [],
 		compositePKs: [],
 		uniqueConstraints: [],
@@ -610,6 +622,7 @@ test('drop table + rename schema #1', async () => {
 		type: 'drop_table',
 		tableName: 'users',
 		schema: 'folder2',
+		policies: [],
 	});
 });
 

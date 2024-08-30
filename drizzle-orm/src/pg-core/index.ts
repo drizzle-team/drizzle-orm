@@ -8,6 +8,7 @@ export * from './indexes.ts';
 export * from './policies.ts';
 export * from './primary-keys.ts';
 export * from './query-builders/index.ts';
+export * from './roles.ts';
 export * from './schema.ts';
 export * from './sequence.ts';
 export * from './session.ts';

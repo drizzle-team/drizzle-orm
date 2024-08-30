@@ -2,7 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { Database } from 'better-sqlite3';
 import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
-import { isPgEnum, isPgSequence, PgEnum, PgSchema, PgSequence, PgTable } from 'drizzle-orm/pg-core';
+import { isPgEnum, isPgSequence, PgEnum, PgRole, PgSchema, PgSequence, PgTable } from 'drizzle-orm/pg-core';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { Connection } from 'mysql2/promise';
@@ -16,6 +16,7 @@ import {
 	tablesResolver,
 } from 'src/cli/commands/migrate';
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
+import { Entities } from 'src/cli/validations/cli';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
 import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/introspect-sqlite';
@@ -24,7 +25,7 @@ import { mysqlSchema, squashMysqlScheme } from 'src/serializer/mysqlSchema';
 import { generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
 import { fromDatabase as fromMySqlDatabase } from 'src/serializer/mysqlSerializer';
 import { prepareFromPgImports } from 'src/serializer/pgImports';
-import { pgSchema, Policy, squashPgScheme } from 'src/serializer/pgSchema';
+import { pgSchema, PgSquasher, Policy, squashPgScheme } from 'src/serializer/pgSchema';
 import { fromDatabase, generatePgSnapshot } from 'src/serializer/pgSerializer';
 import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
 import { sqliteSchema, squashSqliteScheme } from 'src/serializer/sqliteSchema';
@@ -47,7 +48,7 @@ import {
 
 export type PostgresSchema = Record<
 	string,
-	PgTable<any> | PgEnum<any> | PgSchema | PgSequence
+	PgTable<any> | PgEnum<any> | PgSchema | PgSequence | PgRole
 >;
 export type MysqlSchema = Record<string, MySqlTable<any> | MySqlSchema>;
 export type SqliteSchema = Record<string, SQLiteTable<any>>;
@@ -500,11 +501,14 @@ export const diffTestSchemasPush = async (
 
 	const leftSequences = Object.values(right).filter((it) => isPgSequence(it)) as PgSequence[];
 
+	const leftRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
+
 	const serialized2 = generatePgSnapshot(
 		leftTables,
 		leftEnums,
 		leftSchemas,
 		leftSequences,
+		leftRoles,
 	);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
@@ -592,7 +596,9 @@ export const applyPgDiffs = async (sn: PostgresSchema) => {
 
 	const sequences = Object.values(sn).filter((it) => isPgSequence(it)) as PgSequence[];
 
-	const serialized1 = generatePgSnapshot(tables, enums, schemas, sequences);
+	const roles = Object.values(sn).filter((it) => is(it, PgRole)) as PgRole[];
+
+	const serialized1 = generatePgSnapshot(tables, enums, schemas, sequences, roles);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -646,17 +652,23 @@ export const diffTestSchemas = async (
 
 	const rightSequences = Object.values(right).filter((it) => isPgSequence(it)) as PgSequence[];
 
+	const leftRoles = Object.values(left).filter((it) => is(it, PgRole)) as PgRole[];
+
+	const rightRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
+
 	const serialized1 = generatePgSnapshot(
 		leftTables,
 		leftEnums,
 		leftSchemas,
 		leftSequences,
+		leftRoles,
 	);
 	const serialized2 = generatePgSnapshot(
 		rightTables,
 		rightEnums,
 		rightSchemas,
 		rightSequences,
+		rightRoles,
 	);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
@@ -1113,6 +1125,7 @@ export const introspectPgToFile = async (
 	initSchema: PostgresSchema,
 	testName: string,
 	schemas: string[] = ['public'],
+	entities: Entities,
 ) => {
 	// put in db
 	const { sqlStatements } = await applyPgDiffs(initSchema);
@@ -1130,6 +1143,7 @@ export const introspectPgToFile = async (
 		},
 		undefined,
 		schemas,
+		entities,
 	);
 
 	const file = schemaToTypeScript(introspectedSchema, 'camel');
@@ -1145,6 +1159,7 @@ export const introspectPgToFile = async (
 		response.enums,
 		response.schemas,
 		response.sequences,
+		response.roles,
 	);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
@@ -1168,11 +1183,14 @@ export const introspectPgToFile = async (
 
 	const leftSequences = Object.values(initSchema).filter((it) => isPgSequence(it)) as PgSequence[];
 
+	const leftRoles = Object.values(initSchema).filter((it) => is(it, PgRole)) as PgRole[];
+
 	const initSnapshot = generatePgSnapshot(
 		leftTables,
 		leftEnums,
 		leftSchemas,
 		leftSequences,
+		leftRoles,
 	);
 
 	const { version: initV, dialect: initD, ...initRest } = initSnapshot;

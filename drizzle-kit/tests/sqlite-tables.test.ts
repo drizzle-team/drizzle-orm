@@ -143,6 +143,7 @@ test('add table #6', async () => {
 		type: 'drop_table',
 		tableName: 'users1',
 		schema: undefined,
+		policies: [],
 	});
 });
 

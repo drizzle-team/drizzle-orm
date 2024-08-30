@@ -19,6 +19,7 @@ import {
 	Index,
 	PgKitInternals,
 	PgSchemaInternal,
+	Policy,
 	PrimaryKey,
 	UniqueConstraint,
 } from './serializer/pgSchema';
@@ -464,6 +465,19 @@ export const schemaToTypeScript = (
 		})
 		.join('');
 
+	const rolesStatements = Object.entries(schema.roles)
+		.map((it) => {
+			const fields = it[1];
+			return `export const ${withCasing(it[0], casing)} = pgRole("${fields.name}"${
+				!fields.createDb && !fields.createRole && !fields.inherit
+					? ''
+					: `, { ${fields.createDb ? `createDb: true, ` : ''}${fields.createRole ? `createRole: true, ` : ''}${
+						fields.inherit ? `inherit: true, ` : ''
+					} }`
+			});\n`;
+		})
+		.join('');
+
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const tableSchema = schemas[table.schema];
 		const paramName = paramNameFor(table.name, tableSchema);
@@ -510,6 +524,10 @@ export const schemaToTypeScript = (
 				Object.values(table.uniqueConstraints),
 				casing,
 			);
+			statement += createTablePolicies(
+				Object.values(table.policies),
+				casing,
+			);
 			statement += '\t}\n';
 			statement += '}';
 		}
@@ -528,6 +546,7 @@ export const schemaToTypeScript = (
   import { sql } from "drizzle-orm"\n\n`;
 
 	let decalrations = schemaStatements;
+	decalrations += rolesStatements;
 	decalrations += enumStatements;
 	decalrations += sequencesStatements;
 	decalrations += '\n';
@@ -1243,6 +1262,27 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 		}]${it.name ? `, name: "${it.name}"` : ''}}`;
 		statement += ')';
 		statement += `,\n`;
+	});
+
+	return statement;
+};
+
+const createTablePolicies = (
+	policies: Policy[],
+	casing: Casing,
+): string => {
+	let statement = '';
+
+	policies.forEach((it) => {
+		const idxKey = withCasing(it.name, casing);
+
+		statement += `\t\t${idxKey}: `;
+		statement += 'pgPolicy(';
+		statement += `"${it.name}", { `;
+		statement += `as: "${it.as}", for: "${it.for}", to: "${it.to?.join(',')}"${
+			it.using ? `, using: sql\`${it.using}\`` : ''
+		}${it.withCheck ? `, withCheck: sql\`${it.withCheck}\`` : ''}`;
+		statement += ` },\n`;
 	});
 
 	return statement;

@@ -39,11 +39,13 @@ import {
 	JsonDeleteCompositePK,
 	JsonDeleteReferenceStatement,
 	JsonDeleteUniqueConstraint,
+	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
 	JsonDropIndexStatement,
 	JsonDropPolicyStatement,
 	JsonDropSequenceStatement,
 	JsonDropTableStatement,
+	JsonEnableRLSStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
 	JsonRenameColumnStatement,
@@ -140,7 +142,7 @@ class PgCreatePolicyConvertor extends Convertor {
 		return statement.type === 'create_policy' && dialect === 'postgresql';
 	}
 	override convert(statement: JsonCreatePolicyStatement): string | string[] {
-		const policy = PgSquasher.unsquashPolicy(statement.data);
+		const policy = statement.data;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -150,7 +152,9 @@ class PgCreatePolicyConvertor extends Convertor {
 
 		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
 
-		return `CREATE POLICY ${policy.name} ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policy.to?.toUpperCase()}${usingPart}${withCheckPart}`;
+		return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${
+			policy.to?.join(', ')
+		}${usingPart}${withCheckPart};`;
 	}
 }
 
@@ -159,13 +163,13 @@ class PgDropPolicyConvertor extends Convertor {
 		return statement.type === 'drop_policy' && dialect === 'postgresql';
 	}
 	override convert(statement: JsonDropPolicyStatement): string | string[] {
-		const policy = PgSquasher.unsquashPolicy(statement.data);
+		const policy = statement.data;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `DROP POLICY ${policy.name} ON ${tableNameWithSchema} CASCADE`;
+		return `DROP POLICY "${policy.name}" ON ${tableNameWithSchema} CASCADE;`;
 	}
 }
 
@@ -178,7 +182,7 @@ class PgRenamePolicyConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER POLICY ${statement.oldName} ON ${tableNameWithSchema} RENAME TO ${statement.newName}`;
+		return `ALTER POLICY "${statement.oldName}" ON ${tableNameWithSchema} RENAME TO "${statement.newName}";`;
 	}
 }
 
@@ -206,7 +210,33 @@ class PgAlterPolicyConvertor extends Convertor {
 			? ` WITH CHECK  (${oldPolicy.withCheck})`
 			: '';
 
-		return `ALTER POLICY ${oldPolicy.name} ON ${tableNameWithSchema} TO ${newPolicy.to}${usingPart}${withCheckPart}`;
+		return `ALTER POLICY "${oldPolicy.name}" ON ${tableNameWithSchema} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
+	}
+}
+
+class PgEnableRlsConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'enable_rls' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonEnableRLSStatement): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} ENABLE ROW LEVEL SECURITY;`;
+	}
+}
+
+class PgDisableRlsConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'disable_rls' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDisableRLSStatement): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} DISABLE ROW LEVEL SECURITY;`;
 	}
 }
 
@@ -215,8 +245,8 @@ class PgCreateTableConvertor extends Convertor {
 		return statement.type === 'create_table' && dialect === 'postgresql';
 	}
 
-	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints } = st;
+	convert(st: JsonCreateTableStatement): string[] {
+		const { tableName, schema, columns, compositePKs, uniqueConstraints, policies } = st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
@@ -304,7 +334,22 @@ class PgCreateTableConvertor extends Convertor {
 		statement += `\n);`;
 		statement += `\n`;
 
-		return statement;
+		const createPolicyConvertor = new PgCreatePolicyConvertor();
+		const createPolicies = policies?.map((p) => {
+			return createPolicyConvertor.convert({
+				type: 'create_policy',
+				tableName,
+				data: PgSquasher.unsquashPolicy(p),
+				schema,
+			}) as string;
+		}) ?? [];
+		const enableRls = new PgEnableRlsConvertor().convert({
+			type: 'enable_rls',
+			tableName,
+			schema,
+		});
+
+		return [statement, ...(createPolicies.length > 0 ? [enableRls] : []), ...createPolicies];
 	}
 }
 
@@ -835,13 +880,26 @@ class PgDropTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonDropTableStatement) {
-		const { tableName, schema } = statement;
+		const { tableName, schema, policies } = statement;
 
 		const tableNameWithSchema = schema
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		return `DROP TABLE ${tableNameWithSchema};`;
+		const dropPolicyConvertor = new PgDropPolicyConvertor();
+		const droppedPolicies = policies?.map((p) => {
+			return dropPolicyConvertor.convert({
+				type: 'drop_policy',
+				tableName,
+				data: PgSquasher.unsquashPolicy(p),
+				schema,
+			}) as string;
+		}) ?? [];
+
+		return [
+			...droppedPolicies,
+			`DROP TABLE ${tableNameWithSchema};`,
+		];
 	}
 }
 
@@ -2651,6 +2709,8 @@ convertors.push(new PgAlterPolicyConvertor());
 convertors.push(new PgCreatePolicyConvertor());
 convertors.push(new PgDropPolicyConvertor());
 convertors.push(new PgRenamePolicyConvertor());
+convertors.push(new PgEnableRlsConvertor());
+convertors.push(new PgDisableRlsConvertor());
 
 /// generated
 convertors.push(new PgAlterTableAlterColumnSetExpressionConvertor());

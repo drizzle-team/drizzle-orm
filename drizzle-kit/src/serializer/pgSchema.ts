@@ -148,6 +148,13 @@ export const sequenceSchema = object({
 	schema: string(),
 }).strict();
 
+export const roleSchema = object({
+	name: string(),
+	createDb: boolean().optional(),
+	createRole: boolean().optional(),
+	inherit: boolean().optional(),
+}).strict();
+
 export const sequenceSquashed = object({
 	name: string(),
 	schema: string(),
@@ -224,7 +231,7 @@ const policy = object({
 	name: string(),
 	as: enumType(['permissive', 'restrictive']).optional(),
 	for: enumType(['all', 'select', 'insert', 'update', 'delete']).optional(),
-	to: string().optional(),
+	to: string().array().optional(),
 	using: string().optional(),
 	withCheck: string().optional(),
 }).strict();
@@ -379,6 +386,7 @@ export const pgSchemaInternal = object({
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
 	sequences: record(string(), sequenceSchema).default({}),
+	roles: record(string(), roleSchema).default({}),
 	_meta: object({
 		schemas: record(string(), string()),
 		tables: record(string(), string()),
@@ -440,6 +448,7 @@ export const pgSchema = pgSchemaInternal.merge(schemaHash);
 
 export type Enum = TypeOf<typeof enumSchema>;
 export type Sequence = TypeOf<typeof sequenceSchema>;
+export type Role = TypeOf<typeof roleSchema>;
 export type Column = TypeOf<typeof column>;
 export type TableV3 = TypeOf<typeof tableV3>;
 export type TableV4 = TypeOf<typeof tableV4>;
@@ -562,7 +571,7 @@ export const PgSquasher = {
 		};${fk.onDelete ?? ''};${fk.schemaTo || 'public'}`;
 	},
 	squashPolicy: (policy: Policy) => {
-		return `${policy.name}--${policy.as}--${policy.for}--${policy.to}--${policy.using}--${policy.withCheck}`;
+		return `${policy.name}--${policy.as}--${policy.for}--${policy.to?.join(',')}--${policy.using}--${policy.withCheck}`;
 	},
 	unsquashPolicy: (policy: string): Policy => {
 		const splitted = policy.split('--');
@@ -570,7 +579,7 @@ export const PgSquasher = {
 			name: splitted[0],
 			as: splitted[1] as Policy['as'],
 			for: splitted[2] as Policy['for'],
-			to: splitted[3],
+			to: splitted[3].split(','),
 			using: splitted[4] !== 'undefined' ? splitted[4] : undefined,
 			withCheck: splitted[5] !== 'undefined' ? splitted[5] : undefined,
 		};
