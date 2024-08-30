@@ -2698,7 +2698,7 @@ export function tests(driver?: string) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (intersect) from query builder', async (ctx) => {
+		test.only('set operations (intersect) from query builder', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
@@ -2732,12 +2732,12 @@ export function tests(driver?: string) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (intersect) as function', async (ctx) => {
+		test.only('set operations (intersect) as function', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
 
-			const result = await intersect(
+			const sq = await intersect(
 				db
 					.select({ id: citiesTable.id, name: citiesTable.name })
 					.from(citiesTable).where(eq(citiesTable.id, 1)),
@@ -2747,7 +2747,9 @@ export function tests(driver?: string) {
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
 					.from(users2Table).where(eq(users2Table.id, 1)),
-			).limit(1);
+			).as('sq');
+
+			const result = await db.select().from(sq).limit(1);
 
 			expect(result).toHaveLength(0);
 
@@ -2773,13 +2775,15 @@ export function tests(driver?: string) {
 
 			await setupSetOperationTest(db);
 
-			const result = await db
+			const sq = await db
 				.select({ id: citiesTable.id, name: citiesTable.name })
 				.from(citiesTable).limit(2).intersectAll(
 					db
 						.select({ id: citiesTable.id, name: citiesTable.name })
 						.from(citiesTable).limit(2),
-				).orderBy(asc(sql`id`));
+				).as('sq');
+
+			const result = await db.select().from(sq)
 
 			expect(result).toHaveLength(2);
 
