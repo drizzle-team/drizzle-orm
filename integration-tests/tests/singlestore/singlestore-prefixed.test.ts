@@ -74,7 +74,7 @@ const usersTable = singlestoreTable('userstest', {
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: json('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	createdAt: timestamp('created_at', { fsp: 6 }).notNull().defaultNow(),
 });
 
 const users2Table = singlestoreTable('users2', {
@@ -639,8 +639,8 @@ test('insert + select all possible dates', async () => {
 		date: date('date'),
 		dateAsString: date('date_as_string', { mode: 'string' }),
 		time: time('time', { fsp: 1 }),
-		datetime: datetime('datetime', { fsp: 2 }),
-		datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
+		datetime: datetime('datetime', { fsp: 6 }),
+		datetimeAsString: datetime('datetime_as_string', { fsp: 6, mode: 'string' }),
 		year: year('year'),
 	});
 
@@ -1271,6 +1271,9 @@ test('timestamp timezone', async () => {
 		createdAt: date,
 	});
 	const users = await db.select().from(usersTable);
+
+	console.log(users[0]!.createdAt, users[1]!.createdAt);
+	console.log(Date.now());
 
 	// check that the timestamps are set correctly for default times
 	expect(Math.abs(users[0]!.createdAt.getTime() - Date.now())).toBeLessThan(2000);
