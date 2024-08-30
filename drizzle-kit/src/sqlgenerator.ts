@@ -122,6 +122,7 @@ const isPgNativeType = (it: string) => {
 		|| toCheck.startsWith('intervalminutetosecond(')
 		|| toCheck.startsWith('vector(')
 		|| toCheck.startsWith('geometry(')
+		|| toCheck.startsWith('geography(')
 		|| /^(\w+)(\[\d*])+$/.test(it)
 	);
 };

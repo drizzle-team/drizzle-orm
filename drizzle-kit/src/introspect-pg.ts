@@ -57,6 +57,7 @@ const pgImportsList = new Set([
 	'point',
 	'line',
 	'geometry',
+	'geography',
 ]);
 
 const objToStatement2 = (json: { [s: string]: unknown }) => {
@@ -376,6 +377,7 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
 					patched = patched.startsWith('vector(') ? 'vector' : patched;
 					patched = patched.startsWith('geometry(') ? 'geometry' : patched;
+					patched = patched.startsWith('geography(') ? 'geography' : patched;
 					return patched;
 				})
 				.filter((type) => {
@@ -730,6 +732,10 @@ const mapDefault = (
 		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 	}
 
+	if (lowered.startsWith('geography')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
 	if (lowered.startsWith('vector')) {
 		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 	}
@@ -993,6 +999,35 @@ const column = (
 		if (isGeoUnknown) {
 			let unknown =
 				`// TODO: failed to parse geometry type because found more than 2 options inside geometry function '${type}'\n// Introspect is currently supporting only type and srid options\n`;
+			unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
+			return unknown;
+		}
+		return out;
+	}
+
+	if (lowered.startsWith('geography')) {
+		let out: string = '';
+
+		let isGeoUnknown = false;
+
+		if (lowered.length !== 9) {
+			const geographyOptions = lowered.slice(10, -1).split(',');
+			if (geographyOptions.length === 1 && geographyOptions[0] !== '') {
+				out = `${withCasing(name, casing)}: geography("${name}", { type: "${geographyOptions[0]}" })`;
+			} else if (geographyOptions.length === 2) {
+				out = `${withCasing(name, casing)}: geography("${name}", { type: "${geographyOptions[0]}", srid: ${
+					geographyOptions[1]
+				} })`;
+			} else {
+				isGeoUnknown = true;
+			}
+		} else {
+			out = `${withCasing(name, casing)}: geography("${name}")`;
+		}
+
+		if (isGeoUnknown) {
+			let unknown =
+				`// TODO: failed to parse geography type because found more than 2 options inside geography function '${type}'\n// Introspect is currently supporting only type and srid options\n`;
 			unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
 			return unknown;
 		}

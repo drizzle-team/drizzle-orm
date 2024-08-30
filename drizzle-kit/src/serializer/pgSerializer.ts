@@ -1004,12 +1004,16 @@ export const fromDatabase = async (
 
 					columnTypeMapped = trimChar(columnTypeMapped, '"');
 
+					// we should support those params in orm first
+					columnTypeMapped = columnTypeMapped
+						.replace('geography(Point,4326)', 'geography(point)');
+
 					columnToReturn[columnName] = {
 						name: columnName,
 						type:
 							// filter vectors, but in future we should filter any extension that was installed by user
 							columnAdditionalDT === 'USER-DEFINED'
-								&& !['vector', 'geometry'].includes(enumType)
+								&& !['vector', 'geometry', 'geography'].includes(enumType)
 								? enumType
 								: columnTypeMapped,
 						typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
