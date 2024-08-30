@@ -2535,7 +2535,7 @@ export function tests(driver?: string) {
 				.select({
 					id: citiesTable.id,
 					name: citiesTable.name,
-					orderCol: sql`0`.as('orderCol')
+					orderCol: sql`0`.as('orderCol'),
 				})
 				.from(citiesTable);
 
@@ -2543,7 +2543,7 @@ export function tests(driver?: string) {
 				.select({
 					id: users2Table.id,
 					name: users2Table.name,
-					orderCol: sql`1`.as('orderCol')
+					orderCol: sql`1`.as('orderCol'),
 				})
 				.from(users2Table);
 
@@ -2553,13 +2553,13 @@ export function tests(driver?: string) {
 					name: sql`name`,
 				})
 				.from(
-					citiesQuery.union(usersQuery).as('combined')
+					citiesQuery.union(usersQuery).as('combined'),
 				)
 				.orderBy(sql`orderCol`, sql`id`)
 				.limit(8);
 
 			const result = await unionQuery;
-			
+
 			expect(result).toHaveLength(8);
 
 			expect(result).toEqual([
