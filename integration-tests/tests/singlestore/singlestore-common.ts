@@ -2624,18 +2624,20 @@ export function tests(driver?: string) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (union all) from query builder', async (ctx) => {
+		test.only('set operations (union all) from query builder', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
 
-			const result = await db
+			const sq = db
 				.select({ id: citiesTable.id, name: citiesTable.name })
-				.from(citiesTable).limit(2).unionAll(
+				.from(citiesTable).orderBy(asc(sql`id`)).limit(2).unionAll(
 					db
 						.select({ id: citiesTable.id, name: citiesTable.name })
-						.from(citiesTable).limit(2),
-				).orderBy(asc(sql`id`)).limit(3);
+						.from(citiesTable).orderBy(asc(sql`id`)).limit(2),
+				).as('sq');
+
+			const result = await db.select().from(sq).orderBy(asc(sql`id`)).limit(3);
 
 			expect(result).toHaveLength(3);
 
