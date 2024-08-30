@@ -94,7 +94,7 @@ const usersTable = singlestoreTable('userstest', {
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: json('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	createdAt: timestamp('created_at', { fsp: 6 }).notNull().defaultNow(),
 });
 
 const users2Table = singlestoreTable('users2', {
@@ -121,10 +121,10 @@ const datesTable = singlestoreTable('datestable', {
 	date: date('date'),
 	dateAsString: date('date_as_string', { mode: 'string' }),
 	time: time('time', { fsp: 1 }),
-	datetime: datetime('datetime', { fsp: 2 }),
-	datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
-	timestamp: timestamp('timestamp', { fsp: 3 }),
-	timestampAsString: timestamp('timestamp_as_string', { fsp: 3, mode: 'string' }),
+	datetime: datetime('datetime', { fsp: 6 }),
+	datetimeAsString: datetime('datetime_as_string', { fsp: 6, mode: 'string' }),
+	timestamp: timestamp('timestamp', { fsp: 6 }),
+	timestampAsString: timestamp('timestamp_as_string', { fsp: 6, mode: 'string' }),
 	year: year('year'),
 });
 
@@ -175,7 +175,7 @@ const usersMySchemaTable = mySchema.table('userstest', {
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: json('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	createdAt: timestamp('created_at', { fsp: 6 }).notNull().defaultNow(),
 });
 
 const users2MySchemaTable = mySchema.table('users2', {
@@ -985,7 +985,7 @@ export function tests(driver?: string) {
 
 			expect(query).toEqual({
 				sql:
-					'insert into `userstest` (`id`, `name`, `verified`, `jsonb`, `created_at`) values (?, ?, default, ?, default) on duplicate key update `name` = ?',
+					'insert into `userstest` (`id`, `name`, `verified`, `jsonb`, `created_at`) values (?, ?, default, ?, default) on duplicate key update `id` = ?, `name` = ?',
 				params: ['John', '["foo","bar"]', 'John1'],
 			});
 		});
@@ -1764,9 +1764,10 @@ export function tests(driver?: string) {
 			const sq = db
 				.select({ name: sql<string>`concat(${users2Table.name}, " modified")`.as('name') })
 				.from(users2Table)
+				.orderBy(asc(users2Table.id))
 				.as('sq');
 
-			const res = await db.select({ name: sq.name }).from(sq).orderBy(asc(users2Table.id));
+			const res = await db.select({ name: sq.name }).from(sq);
 
 			expect(res).toEqual([{ name: 'John modified' }, { name: 'Jane modified' }]);
 		});
@@ -1821,6 +1822,7 @@ export function tests(driver?: string) {
 			}]);
 
 			await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane', cityId: 1 }, {
+				id: 3,
 				name: 'Jack',
 				cityId: 2,
 			}]);
@@ -2485,7 +2487,7 @@ export function tests(driver?: string) {
 					create table \`datestable\` (
 					    \`datetime_utc\` datetime(6),
 					    \`datetime\` datetime(6),
-					    \`datetime_as_string\` datetime
+					    \`datetime_as_string\` datetime(6)
 					)
 				`,
 			);
@@ -2525,7 +2527,7 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table if exists \`datestable\``);
 		});
 
-		test.only('set operations (union) from query builder with subquery', async (ctx) => {
+		test('set operations (union) from query builder with subquery', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);

@@ -135,15 +135,15 @@ const usersTable = singlestoreTable('userstest', {
 	name: customText('name').notNull(),
 	verified: customBoolean('verified').notNull().default(false),
 	jsonb: customJson<string[]>('jsonb'),
-	createdAt: customTimestamp('created_at', { fsp: 2 }).notNull().default(sql`now()`),
+	createdAt: customTimestamp('created_at', { fsp: 6 }).notNull().default(sql`now()`),
 });
 
 const datesTable = singlestoreTable('datestable', {
 	date: date('date'),
 	dateAsString: date('date_as_string', { mode: 'string' }),
 	time: time('time', { fsp: 1 }),
-	datetime: datetime('datetime', { fsp: 2 }),
-	datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
+	datetime: datetime('datetime', { fsp: 6 }),
+	datetimeAsString: datetime('datetime_as_string', { fsp: 6, mode: 'string' }),
 	year: year('year'),
 });
 
