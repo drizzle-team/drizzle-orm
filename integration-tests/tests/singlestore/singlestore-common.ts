@@ -2527,7 +2527,7 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table if exists \`datestable\``);
 		});
 
-		test.only('set operations (union) from query builder with subquery', async (ctx) => {
+		test('set operations (union) from query builder with subquery', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
