@@ -2525,20 +2525,39 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table if exists \`datestable\``);
 		});
 
-		test('set operations (union) from query builder with subquery', async (ctx) => {
+		test.only('set operations (union) from query builder with subquery', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
-			const sq = db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table).as('sq');
+			const citiesQuery = db
+				.select({
+					id: citiesTable.id,
+					name: citiesTable.name,
+					orderCol: sql`0`.as('orderCol')
+				})
+				.from(citiesTable);
 
-			const result = await db
-				.select({ id: citiesTable.id, name: citiesTable.name })
-				.from(citiesTable).union(
-					db.select().from(sq),
-				).limit(8);
+			const usersQuery = db
+				.select({
+					id: users2Table.id,
+					name: users2Table.name,
+					orderCol: sql`1`.as('orderCol')
+				})
+				.from(users2Table);
 
+			const unionQuery = db
+				.select({
+					id: sql`id`,
+					name: sql`name`,
+				})
+				.from(
+					citiesQuery.union(usersQuery).as('combined')
+				)
+				.orderBy(sql`orderCol`, sql`id`)
+				.limit(8);
+
+			const result = await unionQuery;
+			
 			expect(result).toHaveLength(8);
 
 			expect(result).toEqual([
