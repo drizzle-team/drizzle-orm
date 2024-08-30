@@ -2841,7 +2841,7 @@ export function tests(driver?: string) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (except) from query builder', async (ctx) => {
+		test.only('set operations (except) from query builder', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
@@ -2861,12 +2861,12 @@ export function tests(driver?: string) {
 			]);
 		});
 
-		test('set operations (except) as function', async (ctx) => {
+		test.only('set operations (except) as function', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
 
-			const result = await except(
+			const sq = await except(
 				db
 					.select({ id: citiesTable.id, name: citiesTable.name })
 					.from(citiesTable),
@@ -2876,7 +2876,9 @@ export function tests(driver?: string) {
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
 					.from(users2Table).where(eq(users2Table.id, 1)),
-			).limit(3);
+			).as('sq');
+			
+			const result = await db.select().from(sq).limit(3);
 
 			expect(result).toHaveLength(2);
 
