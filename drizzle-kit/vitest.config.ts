@@ -5,6 +5,7 @@ export default defineConfig({
 	test: {
 		include: [
 			// 'tests/**/*.test.ts',
+			'tests/rls/pg-role.test.ts',
 			'tests/rls/pg-policy.test.ts',
 		],
 

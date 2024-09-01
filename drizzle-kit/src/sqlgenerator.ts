@@ -22,6 +22,7 @@ import {
 	JsonAlterCompositePK,
 	JsonAlterPolicyStatement,
 	JsonAlterReferenceStatement,
+	JsonAlterRoleStatement,
 	JsonAlterSequenceStatement,
 	JsonAlterTableRemoveFromSchema,
 	JsonAlterTableSetNewSchema,
@@ -32,6 +33,7 @@ import {
 	JsonCreateIndexStatement,
 	JsonCreatePolicyStatement,
 	JsonCreateReferenceStatement,
+	JsonCreateRoleStatement,
 	JsonCreateSchema,
 	JsonCreateSequenceStatement,
 	JsonCreateTableStatement,
@@ -43,6 +45,7 @@ import {
 	JsonDropColumnStatement,
 	JsonDropIndexStatement,
 	JsonDropPolicyStatement,
+	JsonDropRoleStatement,
 	JsonDropSequenceStatement,
 	JsonDropTableStatement,
 	JsonEnableRLSStatement,
@@ -50,6 +53,7 @@ import {
 	JsonPgCreateIndexStatement,
 	JsonRenameColumnStatement,
 	JsonRenamePolicyStatement,
+	JsonRenameRoleStatement,
 	JsonRenameSchema,
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
@@ -136,6 +140,52 @@ abstract class Convertor {
 	abstract can(statement: JsonStatement, dialect: Dialect): boolean;
 	abstract convert(statement: JsonStatement): string | string[];
 }
+
+class PgCreateRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreateRoleStatement): string | string[] {
+		return `CREATE ROLE "${statement.name}"${
+			statement.values.createDb || statement.values.createRole || !statement.values.inherit
+				? ` WITH${statement.values.createDb ? ' CREATEDB' : ''}${statement.values.createRole ? ' CREATEROLE' : ''}${
+					statement.values.inherit ? '' : ' NOINHERIT'
+				}`
+				: ''
+		};`;
+	}
+}
+
+class PgDropRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropRoleStatement): string | string[] {
+		return `DROP ROLE "${statement.name}";`;
+	}
+}
+
+class PgRenameRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonRenameRoleStatement): string | string[] {
+		return `ALTER ROLE "${statement.nameFrom}" RENAME TO "${statement.nameTo}";`;
+	}
+}
+
+class PgAlterRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterRoleStatement): string | string[] {
+		return `ALTER ROLE "${statement.name}"${` WITH${statement.values.createDb ? ' CREATEDB' : ' NOCREATEDB'}${
+			statement.values.createRole ? ' CREATEROLE' : ' NOCREATEROLE'
+		}${statement.values.inherit ? ' INHERIT' : ' NOINHERIT'}`};`;
+	}
+}
+
+/////
 
 class PgCreatePolicyConvertor extends Convertor {
 	override can(statement: JsonStatement, dialect: Dialect): boolean {
@@ -2711,6 +2761,11 @@ convertors.push(new PgDropPolicyConvertor());
 convertors.push(new PgRenamePolicyConvertor());
 convertors.push(new PgEnableRlsConvertor());
 convertors.push(new PgDisableRlsConvertor());
+
+convertors.push(new PgDropRoleConvertor());
+convertors.push(new PgAlterRoleConvertor());
+convertors.push(new PgCreateRoleConvertor());
+convertors.push(new PgRenameRoleConvertor());
 
 /// generated
 convertors.push(new PgAlterTableAlterColumnSetExpressionConvertor());

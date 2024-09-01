@@ -38,6 +38,7 @@ import {
 	JsonReferenceStatement,
 	JsonRenameColumnStatement,
 	JsonRenamePolicyStatement,
+	JsonRenameRoleStatement,
 	JsonSqliteAddColumnStatement,
 	JsonStatement,
 	prepareAddCompositePrimaryKeyMySql,
@@ -51,11 +52,13 @@ import {
 	prepareAlterCompositePrimaryKeySqlite,
 	prepareAlterPolicyJson,
 	prepareAlterReferencesJson,
+	prepareAlterRoleJson,
 	prepareAlterSequenceJson,
 	prepareCreateEnumJson,
 	prepareCreateIndexesJson,
 	prepareCreatePolicyJsons,
 	prepareCreateReferencesJson,
+	prepareCreateRoleJson,
 	prepareCreateSchemasJson,
 	prepareCreateSequenceJson,
 	prepareDeleteCompositePrimaryKeyMySql,
@@ -67,6 +70,7 @@ import {
 	prepareDropIndexesJson,
 	prepareDropPolicyJsons,
 	prepareDropReferencesJson,
+	prepareDropRoleJson,
 	prepareDropSequenceJson,
 	prepareDropTableJson,
 	prepareMoveEnumJson,
@@ -78,6 +82,7 @@ import {
 	prepareRenameColumns,
 	prepareRenameEnumJson,
 	prepareRenamePolicyJsons,
+	prepareRenameRoleJson,
 	prepareRenameSchemasJson,
 	prepareRenameSequenceJson,
 	prepareRenameTableJson,
@@ -93,6 +98,8 @@ import {
 	PgSchemaSquashed,
 	PgSquasher,
 	Policy,
+	Role,
+	roleSchema,
 	sequenceSchema,
 	sequenceSquashed,
 } from './serializer/pgSchema';
@@ -279,6 +286,7 @@ export const diffResultScheme = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
 	alteredEnums: changedEnumSchema.array(),
 	alteredSequences: sequenceSquashed.array(),
+	alteredRoles: roleSchema.array(),
 }).strict();
 
 export const diffResultSchemeMysql = object({
@@ -323,6 +331,17 @@ export interface ColumnsResolverInput<T extends { name: string }> {
 	tableName: string;
 	schema: string;
 	created: T[];
+	deleted: T[];
+}
+
+export interface RolesResolverInput<T extends { name: string }> {
+	created: T[];
+	deleted: T[];
+}
+
+export interface RolesResolverOutput<T extends { name: string }> {
+	created: T[];
+	renamed: { from: T; to: T }[];
 	deleted: T[];
 }
 
@@ -396,6 +415,12 @@ const columnChangeFor = (
 	return column;
 };
 
+// resolve roles same as enums
+// create new json statements
+// sql generators
+
+// tests everything!
+
 export const applyPgSnapshotsDiff = async (
 	json1: PgSchemaSquashed,
 	json2: PgSchemaSquashed,
@@ -411,6 +436,9 @@ export const applyPgSnapshotsDiff = async (
 	policyResolver: (
 		input: ColumnsResolverInput<Policy>,
 	) => Promise<ColumnsResolverOutput<Policy>>,
+	roleResolver: (
+		input: RolesResolverInput<Role>,
+	) => Promise<RolesResolverOutput<Role>>,
 	tablesResolver: (
 		input: ResolverInput<Table>,
 	) => Promise<ResolverOutputWithMoved<Table>>,
@@ -632,6 +660,60 @@ export const applyPgSnapshotsDiff = async (
 
 			tableValue.columns = patchedColumns;
 			return [tableKey, tableValue];
+		},
+	);
+
+	const rolesDiff = diffSchemasOrTables(
+		schemasPatchedSnap1.roles,
+		json2.roles,
+	);
+
+	const {
+		created: createdRoles,
+		deleted: deletedRoles,
+		renamed: renamedRoles,
+	} = await roleResolver({
+		created: rolesDiff.added,
+		deleted: rolesDiff.deleted,
+	});
+
+	schemasPatchedSnap1.roles = mapEntries(
+		schemasPatchedSnap1.roles,
+		(_, it) => {
+			const { name } = nameChangeFor(it, renamedRoles);
+			it.name = name;
+			return [name, it];
+		},
+	);
+
+	const rolesChangeMap = renamedRoles.reduce(
+		(acc, it) => {
+			acc[it.from.name] = {
+				nameFrom: it.from.name,
+				nameTo: it.to.name,
+			};
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				nameFrom: string;
+				nameTo: string;
+			}
+		>,
+	);
+
+	schemasPatchedSnap1.roles = mapEntries(
+		schemasPatchedSnap1.roles,
+		(roleKey, roleValue) => {
+			const key = roleKey;
+			const change = rolesChangeMap[key];
+
+			if (change) {
+				roleValue.name = change.nameTo;
+			}
+
+			return [roleKey, roleValue];
 		},
 	);
 
@@ -1323,6 +1405,26 @@ export const applyPgSnapshotsDiff = async (
 
 	////////////
 
+	const createRoles = createdRoles.map((it) => {
+		return prepareCreateRoleJson(it);
+	}) ?? [];
+
+	const dropRoles = deletedRoles.map((it) => {
+		return prepareDropRoleJson(it.name);
+	});
+
+	const renameRoles = renamedRoles.map((it) => {
+		return prepareRenameRoleJson(it.from.name, it.to.name);
+	});
+
+	const jsonAlterRoles = typedResult.alteredRoles
+		.map((it) => {
+			return prepareAlterRoleJson(it);
+		})
+		.flat() ?? [];
+
+	////////////
+
 	const createSchemas = prepareCreateSchemasJson(
 		createdSchemas.map((it) => it.name),
 	);
@@ -1391,6 +1493,11 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonDropPoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonAlterPoliciesStatements);
+
+	jsonStatements.push(...renameRoles);
+	jsonStatements.push(...dropRoles);
+	jsonStatements.push(...createRoles);
+	jsonStatements.push(...jsonAlterRoles);
 
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);

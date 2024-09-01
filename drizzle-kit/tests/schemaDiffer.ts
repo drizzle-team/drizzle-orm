@@ -11,6 +11,7 @@ import {
 	enumsResolver,
 	Named,
 	policyResolver,
+	roleResolver,
 	schemasResolver,
 	sequencesResolver,
 	tablesResolver,
@@ -25,7 +26,7 @@ import { mysqlSchema, squashMysqlScheme } from 'src/serializer/mysqlSchema';
 import { generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
 import { fromDatabase as fromMySqlDatabase } from 'src/serializer/mysqlSerializer';
 import { prepareFromPgImports } from 'src/serializer/pgImports';
-import { pgSchema, PgSquasher, Policy, squashPgScheme } from 'src/serializer/pgSchema';
+import { pgSchema, PgSquasher, Policy, Role, squashPgScheme } from 'src/serializer/pgSchema';
 import { fromDatabase, generatePgSnapshot } from 'src/serializer/pgSerializer';
 import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
 import { sqliteSchema, squashSqliteScheme } from 'src/serializer/sqliteSchema';
@@ -42,6 +43,8 @@ import {
 	ResolverInput,
 	ResolverOutput,
 	ResolverOutputWithMoved,
+	RolesResolverInput,
+	RolesResolverOutput,
 	Sequence,
 	Table,
 } from 'src/snapshotsDiffer';
@@ -404,6 +407,64 @@ async (
 	}
 };
 
+export const testRolesResolver = (renames: Set<string>) =>
+async (
+	input: RolesResolverInput<Role>,
+): Promise<RolesResolverOutput<Role>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdPolicies = [...input.created];
+		let deletedPolicies = [...input.deleted];
+
+		const renamed: { from: Policy; to: Policy }[] = [];
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedPolicies.findIndex((it) => {
+				return `${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdPolicies.findIndex((it) => {
+					return `${it.name}` === to;
+				});
+
+				renamed.push({
+					from: deletedPolicies[idxFrom],
+					to: createdPolicies[idxTo],
+				});
+
+				delete createdPolicies[idxTo];
+				delete deletedPolicies[idxFrom];
+
+				createdPolicies = createdPolicies.filter(Boolean);
+				deletedPolicies = deletedPolicies.filter(Boolean);
+			}
+		}
+
+		return {
+			created: createdPolicies,
+			deleted: deletedPolicies,
+			renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
 export const testColumnsResolver = (renames: Set<string>) =>
 async (
 	input: ColumnsResolverInput<Column>,
@@ -546,6 +607,7 @@ export const diffTestSchemasPush = async (
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
 			testPolicyResolver(renames),
+			testRolesResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
 			validatedPrev,
@@ -561,6 +623,7 @@ export const diffTestSchemasPush = async (
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
+			roleResolver,
 			tablesResolver,
 			columnsResolver,
 			validatedPrev,
@@ -581,6 +644,7 @@ export const applyPgDiffs = async (sn: PostgresSchema) => {
 		enums: {},
 		schemas: {},
 		sequences: {},
+		roles: {},
 		_meta: {
 			schemas: {},
 			tables: {},
@@ -622,6 +686,7 @@ export const applyPgDiffs = async (sn: PostgresSchema) => {
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testPolicyResolver(new Set()),
+		testRolesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
 		validatedPrev,
@@ -706,6 +771,7 @@ export const diffTestSchemas = async (
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
 			testPolicyResolver(renames),
+			testRolesResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
 			validatedPrev,
@@ -720,6 +786,7 @@ export const diffTestSchemas = async (
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
+			roleResolver,
 			tablesResolver,
 			columnsResolver,
 			validatedPrev,
@@ -1216,6 +1283,7 @@ export const introspectPgToFile = async (
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testPolicyResolver(new Set()),
+		testRolesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
 		validatedCurAfterImport,

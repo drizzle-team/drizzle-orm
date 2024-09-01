@@ -638,11 +638,14 @@ test('add policy with multiple "to" roles', async (t) => {
 		}),
 	};
 
+	const role = pgRole('manager').existing();
+
 	const schema2 = {
+		role,
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
 		}, () => ({
-			rls: pgPolicy('test', { to: ['CURRENT_ROLE', pgRole('manager').existing()] }),
+			rls: pgPolicy('test', { to: ['CURRENT_ROLE', role] }),
 		})),
 	};
 

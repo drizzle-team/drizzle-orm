@@ -581,7 +581,7 @@ export const generatePgSnapshot = (
 				name: role.name,
 				createDb: (role as any).createDb ?? false,
 				createRole: (role as any).createRole ?? false,
-				inherit: (role as any).inherit ?? false,
+				inherit: (role as any).inherit ?? true,
 			};
 		}
 	}

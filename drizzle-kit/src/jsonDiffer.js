@@ -201,6 +201,7 @@ export function applyJsonDiff(json1, json2) {
 	difference.tables = difference.tables || {};
 	difference.enums = difference.enums || {};
 	difference.sequences = difference.sequences || {};
+	difference.roles = difference.roles || {};
 
 	// remove added/deleted schemas
 	const schemaKeys = Object.keys(difference.schemas);
@@ -282,6 +283,13 @@ export function applyJsonDiff(json1, json2) {
 			return json2.sequences[it[0]];
 		});
 
+	const rolesEntries = Object.entries(difference.roles);
+	const alteredRoles = rolesEntries
+		.filter((it) => !(it[0].includes('__added') || it[0].includes('__deleted')))
+		.map((it) => {
+			return json2.roles[it[0]];
+		});
+
 	const alteredTablesWithColumns = Object.values(difference.tables).map(
 		(table) => {
 			return findAlternationsInTable(table);
@@ -292,6 +300,7 @@ export function applyJsonDiff(json1, json2) {
 		alteredTablesWithColumns,
 		alteredEnums,
 		alteredSequences,
+		alteredRoles,
 	};
 }
 

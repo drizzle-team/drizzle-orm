@@ -437,6 +437,7 @@ export const pgSchemaSquashed = object({
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
 	sequences: record(string(), sequenceSquashed),
+	roles: record(string(), roleSchema).default({}),
 }).strict();
 
 export const pgSchemaV3 = pgSchemaInternalV3.merge(schemaHash);
@@ -746,6 +747,7 @@ export const squashPgScheme = (
 		enums: json.enums,
 		schemas: json.schemas,
 		sequences: mappedSequences,
+		roles: json.roles,
 	};
 };
 

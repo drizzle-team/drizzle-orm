@@ -3,7 +3,7 @@ import { table } from 'console';
 import { warning } from './cli/views';
 import { CommonSquashedSchema, Dialect } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher } from './serializer/mysqlSchema';
-import { Index, PgSchema, PgSquasher, Policy } from './serializer/pgSchema';
+import { Index, PgSchema, PgSquasher, Policy, Role } from './serializer/pgSchema';
 import { SQLiteKitInternals, SQLiteSquasher } from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
 
@@ -85,6 +85,40 @@ export interface JsonAddValueToEnumStatement {
 	value: string;
 	before: string;
 }
+
+//////
+
+export interface JsonCreateRoleStatement {
+	type: 'create_role';
+	name: string;
+	values: {
+		inherit?: boolean;
+		createDb?: boolean;
+		createRole?: boolean;
+	};
+}
+
+export interface JsonDropRoleStatement {
+	type: 'drop_role';
+	name: string;
+}
+export interface JsonRenameRoleStatement {
+	type: 'rename_role';
+	nameFrom: string;
+	nameTo: string;
+}
+
+export interface JsonAlterRoleStatement {
+	type: 'alter_role';
+	name: string;
+	values: {
+		inherit?: boolean;
+		createDb?: boolean;
+		createRole?: boolean;
+	};
+}
+
+//////
 
 export interface JsonCreateSequenceStatement {
 	type: 'create_sequence';
@@ -605,7 +639,11 @@ export type JsonStatement =
 	| JsonAlterPolicyStatement
 	| JsonRenamePolicyStatement
 	| JsonEnableRLSStatement
-	| JsonDisableRLSStatement;
+	| JsonDisableRLSStatement
+	| JsonRenameRoleStatement
+	| JsonCreateRoleStatement
+	| JsonDropRoleStatement
+	| JsonAlterRoleStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -845,6 +883,56 @@ export const prepareRenameSequenceJson = (
 };
 
 ////////////
+
+export const prepareCreateRoleJson = (
+	role: Role,
+): JsonCreateRoleStatement => {
+	return {
+		type: 'create_role',
+		name: role.name,
+		values: {
+			createDb: role.createDb,
+			createRole: role.createRole,
+			inherit: role.inherit,
+		},
+	};
+};
+
+export const prepareAlterRoleJson = (
+	role: Role,
+): JsonAlterRoleStatement => {
+	return {
+		type: 'alter_role',
+		name: role.name,
+		values: {
+			createDb: role.createDb,
+			createRole: role.createRole,
+			inherit: role.inherit,
+		},
+	};
+};
+
+export const prepareDropRoleJson = (
+	name: string,
+): JsonDropRoleStatement => {
+	return {
+		type: 'drop_role',
+		name: name,
+	};
+};
+
+export const prepareRenameRoleJson = (
+	nameFrom: string,
+	nameTo: string,
+): JsonRenameRoleStatement => {
+	return {
+		type: 'rename_role',
+		nameFrom,
+		nameTo,
+	};
+};
+
+//////////
 
 export const prepareCreateSchemasJson = (
 	values: string[],
