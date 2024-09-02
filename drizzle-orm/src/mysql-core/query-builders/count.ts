@@ -1,30 +1,30 @@
 import { entityKind, sql } from '~/index.ts';
 import type { SQLWrapper } from '~/sql/sql.ts';
 import { SQL } from '~/sql/sql.ts';
-import type { SQLiteDialect } from '../dialect.ts';
-import type { SQLiteSession } from '../session.ts';
-import type { SQLiteTable } from '../table.ts';
-import type { SQLiteView } from '../view.ts';
+import type { MySqlDialect } from '../dialect.ts';
+import type { MySqlSession } from '../session.ts';
+import type { MySqlTable } from '../table.ts';
+import type { MySqlViewBase } from '../view-base.ts';
 
-export class SQLiteCountBuilder<
-	TSession extends SQLiteSession<any, any, any, any>,
+export class MySqlCountBuilder<
+	TSession extends MySqlSession<any, any, any>,
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
 
-	static readonly [entityKind] = 'SQLiteCountBuilderAsync';
-	[Symbol.toStringTag] = 'SQLiteCountBuilderAsync';
+	static readonly [entityKind] = 'MySqlCountBuilder';
+	[Symbol.toStringTag] = 'MySqlCountBuilder';
 
 	private session: TSession;
 
 	private static buildEmbeddedCount(
-		source: SQLiteTable | SQLiteView | SQL | SQLWrapper,
+		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
 	}
 
 	private static buildCount(
-		source: SQLiteTable | SQLiteView | SQL | SQLWrapper,
+		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters}`;
@@ -32,17 +32,17 @@ export class SQLiteCountBuilder<
 
 	constructor(
 		readonly params: {
-			source: SQLiteTable | SQLiteView | SQL | SQLWrapper;
+			source: MySqlTable | MySqlViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
-			dialect: SQLiteDialect;
+			dialect: MySqlDialect;
 			session: TSession;
 		},
 	) {
-		super(SQLiteCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+		super(MySqlCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
 
 		this.session = params.session;
 
-		this.sql = SQLiteCountBuilder.buildCount(
+		this.sql = MySqlCountBuilder.buildCount(
 			params.source,
 			params.filters,
 		);
@@ -52,10 +52,13 @@ export class SQLiteCountBuilder<
 		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.values(this.sql)).then<number>((it) => it[0]![0] as number).then(
-			onfulfilled,
-			onrejected,
-		);
+		return Promise.resolve(this.session.all(this.sql)).then<number>((it) => {
+			return (<[{ 'count(*)': number }]> it)[0]['count(*)'];
+		})
+			.then(
+				onfulfilled,
+				onrejected,
+			);
 	}
 
 	catch(
