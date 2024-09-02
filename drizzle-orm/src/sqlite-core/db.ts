@@ -2,7 +2,7 @@ import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import {
 	QueryBuilder,
@@ -21,10 +21,12 @@ import type {
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
+import { SQLiteCountBuilderAsync } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
+import type { SQLiteViewBase } from './view-base.ts';
 
 export class BaseSQLiteDatabase<
 	TResultKind extends 'sync' | 'async',
@@ -132,6 +134,13 @@ export class BaseSQLiteDatabase<
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
+	}
+
+	$count<TSource extends SQLiteTable | SQLiteViewBase /* | Subquery | SQLiteViewBase | SQL */>(
+		source: TSource,
+		filters?: SQL<unknown>,
+	) {
+		return new SQLiteCountBuilderAsync({ source, filters, dialect: this.dialect, session: this.session });
 	}
 
 	/**
