@@ -357,6 +357,10 @@ export const schemaToTypeScript = (
 				(it) => 'unique',
 			);
 
+			const policiesImports = Object.values(it.policies).map(
+				(it) => 'pgPolicy',
+			);
+
 			if (it.schema && it.schema !== 'public' && it.schema !== '') {
 				res.pg.push('pgSchema');
 			}
@@ -365,6 +369,7 @@ export const schemaToTypeScript = (
 			res.pg.push(...fkImpots);
 			res.pg.push(...pkImports);
 			res.pg.push(...uniqueImports);
+			res.pg.push(...policiesImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -404,6 +409,10 @@ export const schemaToTypeScript = (
 			imports.pg.push('pgEnum');
 		}
 	});
+
+	if (Object.keys(schema.roles).length > 0) {
+		imports.pg.push('pgRole');
+	}
 
 	const enumStatements = Object.values(schema.enums)
 		.map((it) => {
@@ -456,7 +465,7 @@ export const schemaToTypeScript = (
 			})\n`;
 		})
 		.join('')
-		.concat('\n');
+		.concat('');
 
 	const schemaStatements = Object.entries(schemas)
 		// .filter((it) => it[0] !== "public")
@@ -465,16 +474,21 @@ export const schemaToTypeScript = (
 		})
 		.join('');
 
+	const rolesNameToTsKey: Record<string, string> = {};
+
 	const rolesStatements = Object.entries(schema.roles)
 		.map((it) => {
 			const fields = it[1];
-			return `export const ${withCasing(it[0], casing)} = pgRole("${fields.name}"${
-				!fields.createDb && !fields.createRole && !fields.inherit
+			rolesNameToTsKey[fields.name] = it[0];
+			return `export const ${withCasing(it[0], casing)} = pgRole("${fields.name}", ${
+				!fields.createDb && !fields.createRole && fields.inherit
 					? ''
-					: `, { ${fields.createDb ? `createDb: true, ` : ''}${fields.createRole ? `createRole: true, ` : ''}${
-						fields.inherit ? `inherit: true, ` : ''
-					} }`
-			});\n`;
+					: `${
+						`, { ${fields.createDb ? `createDb: true,` : ''}${fields.createRole ? ` createRole: true,` : ''}${
+							!fields.inherit ? ` inherit: false ` : ''
+						}`.trimChar(',')
+					}}`
+			} );\n`;
 		})
 		.join('');
 
@@ -504,10 +518,11 @@ export const schemaToTypeScript = (
 		if (
 			Object.keys(table.indexes).length > 0
 			|| Object.values(table.foreignKeys).length > 0
+			|| Object.values(table.policies).length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
 		) {
-			statement += ',\n';
+			statement += ', ';
 			statement += '(table) => {\n';
 			statement += '\treturn {\n';
 			statement += createTableIndexes(
@@ -527,6 +542,7 @@ export const schemaToTypeScript = (
 			statement += createTablePolicies(
 				Object.values(table.policies),
 				casing,
+				rolesNameToTsKey,
 			);
 			statement += '\t}\n';
 			statement += '}';
@@ -543,14 +559,14 @@ export const schemaToTypeScript = (
 			', ',
 		)
 	} } from "drizzle-orm/pg-core"
-  import { sql } from "drizzle-orm"\n\n`;
+import { sql } from "drizzle-orm"\n\n`;
 
 	let decalrations = schemaStatements;
 	decalrations += rolesStatements;
 	decalrations += enumStatements;
 	decalrations += sequencesStatements;
-	decalrations += '\n';
-	decalrations += tableStatements.join('\n\n');
+	// decalrations += '\n';
+	decalrations += tableStatements.join('\n');
 
 	const file = importsTs + decalrations;
 
@@ -1267,22 +1283,30 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 	return statement;
 };
 
+// get a map of db role name to ts key
+// if to by key is in this map - no quotes, otherwise - quotes
+
 const createTablePolicies = (
 	policies: Policy[],
 	casing: Casing,
+	rolesNameToTsKey: Record<string, string> = {},
 ): string => {
 	let statement = '';
 
 	policies.forEach((it) => {
 		const idxKey = withCasing(it.name, casing);
 
+		const mappedItTo = it.to?.map((v) => {
+			return rolesNameToTsKey[v] ? withCasing(rolesNameToTsKey[v], casing) : `"${v}"`;
+		});
+
 		statement += `\t\t${idxKey}: `;
 		statement += 'pgPolicy(';
 		statement += `"${it.name}", { `;
-		statement += `as: "${it.as}", for: "${it.for}", to: "${it.to?.join(',')}"${
+		statement += `as: "${it.as?.toLowerCase()}", for: "${it.for?.toLowerCase()}", to: [${mappedItTo?.join(', ')}]${
 			it.using ? `, using: sql\`${it.using}\`` : ''
-		}${it.withCheck ? `, withCheck: sql\`${it.withCheck}\`` : ''}`;
-		statement += ` },\n`;
+		}${it.withCheck ? `, withCheck: sql\`${it.withCheck}\` ` : ''}`;
+		statement += ` }),\n`;
 	});
 
 	return statement;

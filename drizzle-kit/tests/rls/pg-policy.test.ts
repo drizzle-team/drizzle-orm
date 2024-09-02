@@ -22,7 +22,7 @@ test('add policy + enable rls', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
-		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO PUBLIC;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
 	]);
 	expect(statements).toStrictEqual([
 		{
@@ -32,10 +32,10 @@ test('add policy + enable rls', async (t) => {
 		},
 		{
 			data: {
-				as: 'permissive',
-				for: 'all',
+				as: 'PERMISSIVE',
+				for: 'ALL',
 				name: 'test',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: undefined,
 				withCheck: undefined,
 			},
@@ -75,10 +75,10 @@ test('drop policy + disable rls', async (t) => {
 		},
 		{
 			data: {
-				as: 'permissive',
-				for: 'all',
+				as: 'PERMISSIVE',
+				for: 'ALL',
 				name: 'test',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: undefined,
 				withCheck: undefined,
 			},
@@ -110,15 +110,15 @@ test('add policy without enable rls', async (t) => {
 	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE POLICY "newRls" ON "users" AS PERMISSIVE FOR ALL TO PUBLIC;',
+		'CREATE POLICY "newRls" ON "users" AS PERMISSIVE FOR ALL TO public;',
 	]);
 	expect(statements).toStrictEqual([
 		{
 			data: {
-				as: 'permissive',
-				for: 'all',
+				as: 'PERMISSIVE',
+				for: 'ALL',
 				name: 'newRls',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: undefined,
 				withCheck: undefined,
 			},
@@ -155,10 +155,10 @@ test('drop policy without disable rls', async (t) => {
 	expect(statements).toStrictEqual([
 		{
 			data: {
-				as: 'permissive',
-				for: 'all',
+				as: 'PERMISSIVE',
+				for: 'ALL',
 				name: 'oldRls',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: undefined,
 				withCheck: undefined,
 			},
@@ -182,19 +182,19 @@ test('alter policy without recreation: changing roles', async (t) => {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
 		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', to: 'CURRENT_ROLE' }),
+			rls: pgPolicy('test', { as: 'permissive', to: 'current_role' }),
 		})),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'ALTER POLICY "test" ON "users" TO CURRENT_ROLE;',
+		'ALTER POLICY "test" ON "users" TO current_role;',
 	]);
 	expect(statements).toStrictEqual([
 		{
-			newData: 'test--permissive--all--CURRENT_ROLE--undefined--undefined',
-			oldData: 'test--permissive--all--PUBLIC--undefined--undefined',
+			newData: 'test--PERMISSIVE--ALL--current_role--undefined--undefined',
+			oldData: 'test--PERMISSIVE--ALL--public--undefined--undefined',
 			schema: '',
 			tableName: 'users',
 			type: 'alter_policy',
@@ -222,12 +222,12 @@ test('alter policy without recreation: changing using', async (t) => {
 	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'ALTER POLICY "test" ON "users" TO PUBLIC USING (true);',
+		'ALTER POLICY "test" ON "users" TO public USING (true);',
 	]);
 	expect(statements).toStrictEqual([
 		{
-			newData: 'test--permissive--all--PUBLIC--true--undefined',
-			oldData: 'test--permissive--all--PUBLIC--undefined--undefined',
+			newData: 'test--PERMISSIVE--ALL--public--true--undefined',
+			oldData: 'test--PERMISSIVE--ALL--public--undefined--undefined',
 			schema: '',
 			tableName: 'users',
 			type: 'alter_policy',
@@ -255,12 +255,12 @@ test('alter policy without recreation: changing with check', async (t) => {
 	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'ALTER POLICY "test" ON "users" TO PUBLIC WITH CHECK (true);',
+		'ALTER POLICY "test" ON "users" TO public WITH CHECK (true);',
 	]);
 	expect(statements).toStrictEqual([
 		{
-			newData: 'test--permissive--all--PUBLIC--undefined--true',
-			oldData: 'test--permissive--all--PUBLIC--undefined--undefined',
+			newData: 'test--PERMISSIVE--ALL--public--undefined--true',
+			oldData: 'test--PERMISSIVE--ALL--public--undefined--undefined',
 			schema: '',
 			tableName: 'users',
 			type: 'alter_policy',
@@ -291,15 +291,15 @@ test('alter policy with recreation: changing as', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'DROP POLICY "test" ON "users" CASCADE;',
-		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO PUBLIC;',
+		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO public;',
 	]);
 	expect(statements).toStrictEqual([
 		{
 			data: {
-				as: 'permissive',
-				for: 'all',
+				as: 'PERMISSIVE',
+				for: 'ALL',
 				name: 'test',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: undefined,
 				withCheck: undefined,
 			},
@@ -309,10 +309,10 @@ test('alter policy with recreation: changing as', async (t) => {
 		},
 		{
 			data: {
-				as: 'restrictive',
-				for: 'all',
+				as: 'RESTRICTIVE',
+				for: 'ALL',
 				name: 'test',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: undefined,
 				withCheck: undefined,
 			},
@@ -344,15 +344,15 @@ test('alter policy with recreation: changing for', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'DROP POLICY "test" ON "users" CASCADE;',
-		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO PUBLIC;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
 	]);
 	expect(statements).toStrictEqual([
 		{
 			data: {
-				as: 'permissive',
-				for: 'all',
+				as: 'PERMISSIVE',
+				for: 'ALL',
 				name: 'test',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: undefined,
 				withCheck: undefined,
 			},
@@ -362,10 +362,10 @@ test('alter policy with recreation: changing for', async (t) => {
 		},
 		{
 			data: {
-				as: 'permissive',
-				for: 'delete',
+				as: 'PERMISSIVE',
+				for: 'DELETE',
 				name: 'test',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: undefined,
 				withCheck: undefined,
 			},
@@ -397,15 +397,15 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 
 	expect(sqlStatements).toStrictEqual([
 		'DROP POLICY "test" ON "users" CASCADE;',
-		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR INSERT TO PUBLIC;',
+		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR INSERT TO public;',
 	]);
 	expect(statements).toStrictEqual([
 		{
 			data: {
-				as: 'permissive',
-				for: 'all',
+				as: 'PERMISSIVE',
+				for: 'ALL',
 				name: 'test',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: undefined,
 				withCheck: undefined,
 			},
@@ -415,10 +415,10 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 		},
 		{
 			data: {
-				as: 'restrictive',
-				for: 'insert',
+				as: 'RESTRICTIVE',
+				for: 'INSERT',
 				name: 'test',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: undefined,
 				withCheck: undefined,
 			},
@@ -442,7 +442,7 @@ test('alter policy with recreation: changing all fields', async (t) => {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
 		}, () => ({
-			rls: pgPolicy('test', { as: 'restrictive', to: 'CURRENT_ROLE', withCheck: sql`true` }),
+			rls: pgPolicy('test', { as: 'restrictive', to: 'current_role', withCheck: sql`true` }),
 		})),
 	};
 
@@ -450,15 +450,15 @@ test('alter policy with recreation: changing all fields', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'DROP POLICY "test" ON "users" CASCADE;',
-		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO CURRENT_ROLE WITH CHECK (true);',
+		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO current_role WITH CHECK (true);',
 	]);
 	expect(statements).toStrictEqual([
 		{
 			data: {
-				as: 'permissive',
-				for: 'select',
+				as: 'PERMISSIVE',
+				for: 'SELECT',
 				name: 'test',
-				to: ['PUBLIC'],
+				to: ['public'],
 				using: 'true',
 				withCheck: undefined,
 			},
@@ -468,10 +468,10 @@ test('alter policy with recreation: changing all fields', async (t) => {
 		},
 		{
 			data: {
-				as: 'restrictive',
-				for: 'all',
+				as: 'RESTRICTIVE',
+				for: 'ALL',
 				name: 'test',
-				to: ['CURRENT_ROLE'],
+				to: ['current_role'],
 				using: undefined,
 				withCheck: 'true',
 			},
@@ -577,7 +577,7 @@ test('create table with a policy', async (t) => {
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE IF NOT EXISTS "users2" (\n\t"id" integer PRIMARY KEY NOT NULL\n);\n',
 		'ALTER TABLE "users2" ENABLE ROW LEVEL SECURITY;',
-		'CREATE POLICY "test" ON "users2" AS PERMISSIVE FOR ALL TO PUBLIC;',
+		'CREATE POLICY "test" ON "users2" AS PERMISSIVE FOR ALL TO public;',
 	]);
 	expect(statements).toStrictEqual([
 		{
@@ -592,7 +592,7 @@ test('create table with a policy', async (t) => {
 			compositePKs: [],
 			compositePkName: '',
 			policies: [
-				'test--permissive--all--PUBLIC--undefined--undefined',
+				'test--PERMISSIVE--ALL--public--undefined--undefined',
 			],
 			schema: '',
 			tableName: 'users2',
@@ -622,7 +622,7 @@ test('drop table with a policy', async (t) => {
 	expect(statements).toStrictEqual([
 		{
 			policies: [
-				'test--permissive--all--PUBLIC--undefined--undefined',
+				'test--PERMISSIVE--ALL--public--undefined--undefined',
 			],
 			schema: '',
 			tableName: 'users2',
@@ -645,7 +645,7 @@ test('add policy with multiple "to" roles', async (t) => {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
 		}, () => ({
-			rls: pgPolicy('test', { to: ['CURRENT_ROLE', role] }),
+			rls: pgPolicy('test', { to: ['current_role', role] }),
 		})),
 	};
 
@@ -653,7 +653,7 @@ test('add policy with multiple "to" roles', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
-		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO CURRENT_ROLE, manager;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_role, "manager";',
 	]);
 	expect(statements).toStrictEqual([
 		{
@@ -663,10 +663,10 @@ test('add policy with multiple "to" roles', async (t) => {
 		},
 		{
 			data: {
-				as: 'permissive',
-				for: 'all',
+				as: 'PERMISSIVE',
+				for: 'ALL',
 				name: 'test',
-				to: ['CURRENT_ROLE', 'manager'],
+				to: ['current_role', 'manager'],
 				using: undefined,
 				withCheck: undefined,
 			},

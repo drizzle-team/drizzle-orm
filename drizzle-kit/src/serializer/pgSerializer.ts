@@ -504,7 +504,7 @@ export const generatePgSnapshot = (
 			const mappedTo = [];
 
 			if (!policy.to) {
-				mappedTo.push('PUBLIC');
+				mappedTo.push('public');
 			} else {
 				if (policy.to && typeof policy.to === 'string') {
 					mappedTo.push(policy.to);
@@ -523,9 +523,9 @@ export const generatePgSnapshot = (
 
 			policiesObject[policy.name] = {
 				name: policy.name,
-				as: policy.as ?? 'permissive',
-				for: policy.for ?? 'all',
-				to: mappedTo,
+				as: policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE',
+				for: policy.for?.toUpperCase() as Policy['for'] ?? 'ALL',
+				to: mappedTo.sort(),
 				using: is(policy.using, SQL) ? sqlToStr(policy.using) : undefined,
 				withCheck: is(policy.withCheck, SQL) ? sqlToStr(policy.withCheck) : undefined,
 			};
@@ -579,9 +579,9 @@ export const generatePgSnapshot = (
 		if (!(role as any)._existing) {
 			rolesToReturn[role.name] = {
 				name: role.name,
-				createDb: (role as any).createDb ?? false,
-				createRole: (role as any).createRole ?? false,
-				inherit: (role as any).inherit ?? true,
+				createDb: (role as any).createDb === undefined ? false : (role as any).createDb,
+				createRole: (role as any).createRole === undefined ? false : (role as any).createRole,
+				inherit: (role as any).inherit === undefined ? true : (role as any).inherit,
 			};
 		}
 	}
@@ -838,7 +838,7 @@ export const fromDatabase = async (
 
 				rolesToReturn[dbRole.rolname] = {
 					createDb: dbRole.rolcreatedb,
-					createRole: dbRole.rolcreatedb,
+					createRole: dbRole.rolcreaterole,
 					inherit: dbRole.rolinherit,
 					name: dbRole.rolname,
 				};
@@ -863,21 +863,26 @@ export const fromDatabase = async (
 			using: string;
 			withCheck: string;
 		}
-	>(`SELECT schemaname, tablename, policyname as name, permissive as "as", roles as to, cmd as for, qual as using, "withCheck" FROM pg_policies${wherePolicies};`);
+	>(`SELECT schemaname, tablename, policyname as name, permissive as "as", roles as to, cmd as for, qual as using, with_check as "withCheck" FROM pg_policies${
+		wherePolicies === '' ? '' : ` WHERE ${wherePolicies}`
+	};`);
 
 	for (const dbPolicy of allPolicies) {
-		const { tablename, schemaname, to, ...rest } = dbPolicy;
+		const { tablename, schemaname, to, withCheck, using, ...rest } = dbPolicy;
 		const tableForPolicy = policiesByTable[`${schemaname}.${tablename}`];
 
 		const parsedTo = to === '{}'
 			? []
-			: to.substring(1, to.length - 1).split(/\s*,\s*/g);
+			: to.substring(1, to.length - 1).split(/\s*,\s*/g).sort();
+
+		const parsedWithCheck = withCheck === null ? undefined : withCheck;
+		const parsedUsing = using === null ? undefined : using;
 
 		if (tableForPolicy) {
 			tableForPolicy[dbPolicy.name] = { ...rest, to: parsedTo } as Policy;
 		} else {
 			policiesByTable[`${schemaname}.${tablename}`] = {
-				[dbPolicy.name]: { ...rest, to: parsedTo } as Policy,
+				[dbPolicy.name]: { ...rest, to: parsedTo, withCheck: parsedWithCheck, using: parsedUsing } as Policy,
 			};
 		}
 	}
@@ -1359,7 +1364,7 @@ export const fromDatabase = async (
 					foreignKeys: foreignKeysToReturn,
 					compositePrimaryKeys: primaryKeys,
 					uniqueConstraints: uniqueConstrains,
-					policies: policiesByTable[`${tableSchema}.${tableName}`],
+					policies: policiesByTable[`${tableSchema}.${tableName}`] ?? {},
 				};
 			} catch (e) {
 				rej(e);

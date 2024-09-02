@@ -536,6 +536,13 @@ export const diffTestSchemasPush = async (
 	renamesArr: string[],
 	cli: boolean = false,
 	schemas: string[] = ['public'],
+	entities?: {
+		roles: boolean | {
+			provider?: string | undefined;
+			include?: string[] | undefined;
+			exclude?: string[] | undefined;
+		};
+	},
 ) => {
 	const { sqlStatements } = await applyPgDiffs(left);
 	for (const st of sqlStatements) {
@@ -552,6 +559,7 @@ export const diffTestSchemasPush = async (
 		},
 		undefined,
 		schemas,
+		entities,
 	);
 
 	const leftTables = Object.values(right).filter((it) => is(it, PgTable)) as PgTable[];
@@ -1192,7 +1200,7 @@ export const introspectPgToFile = async (
 	initSchema: PostgresSchema,
 	testName: string,
 	schemas: string[] = ['public'],
-	entities: Entities,
+	entities?: Entities,
 ) => {
 	// put in db
 	const { sqlStatements } = await applyPgDiffs(initSchema);

@@ -202,9 +202,11 @@ class PgCreatePolicyConvertor extends Convertor {
 
 		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
 
-		return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${
-			policy.to?.join(', ')
-		}${usingPart}${withCheckPart};`;
+		const policyToPart = policy.to?.map((v) =>
+			['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
+		).join(', ');
+
+		return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
 	}
 }
 

@@ -229,8 +229,8 @@ const uniqueConstraint = object({
 
 const policy = object({
 	name: string(),
-	as: enumType(['permissive', 'restrictive']).optional(),
-	for: enumType(['all', 'select', 'insert', 'update', 'delete']).optional(),
+	as: enumType(['PERMISSIVE', 'RESTRICTIVE']).optional(),
+	for: enumType(['ALL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE']).optional(),
 	to: string().array().optional(),
 	using: string().optional(),
 	withCheck: string().optional(),
@@ -585,6 +585,9 @@ export const PgSquasher = {
 			withCheck: splitted[5] !== 'undefined' ? splitted[5] : undefined,
 		};
 	},
+	squashPolicyPush: (policy: Policy) => {
+		return `${policy.name}--${policy.as}--${policy.for}--${policy.to?.join(',')}`;
+	},
 	squashPK: (pk: PrimaryKey) => {
 		return `${pk.columns.join(',')};${pk.name}`;
 	},
@@ -708,7 +711,9 @@ export const squashPgScheme = (
 			);
 
 			const squashedPolicies = mapValues(it[1].policies, (policy) => {
-				return PgSquasher.squashPolicy(policy);
+				return action === 'push'
+					? PgSquasher.squashPolicyPush(policy)
+					: PgSquasher.squashPolicy(policy);
 			});
 
 			return [

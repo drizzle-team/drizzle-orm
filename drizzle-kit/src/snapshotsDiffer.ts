@@ -1453,6 +1453,11 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...renameSequences);
 	jsonStatements.push(...jsonAlterSequences);
 
+	jsonStatements.push(...renameRoles);
+	jsonStatements.push(...dropRoles);
+	jsonStatements.push(...createRoles);
+	jsonStatements.push(...jsonAlterRoles);
+
 	jsonStatements.push(...createTables);
 
 	jsonStatements.push(...jsonEnableRLSStatements);
@@ -1493,11 +1498,6 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonDropPoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonAlterPoliciesStatements);
-
-	jsonStatements.push(...renameRoles);
-	jsonStatements.push(...dropRoles);
-	jsonStatements.push(...createRoles);
-	jsonStatements.push(...jsonAlterRoles);
 
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);

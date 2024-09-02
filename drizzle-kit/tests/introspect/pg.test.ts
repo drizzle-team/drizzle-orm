@@ -17,6 +17,8 @@ import {
 	macaddr8,
 	numeric,
 	pgEnum,
+	pgPolicy,
+	pgRole,
 	pgSchema,
 	pgTable,
 	real,
@@ -400,6 +402,244 @@ test('introspect enum with similar name to native type', async () => {
 		client,
 		schema,
 		'introspect-enum-with-similar-name-to-native-type',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+///
+
+test('basic policy', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test'),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'basic-policy',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('basic policy with "as"', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'basic-policy-as',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test.todo('basic policy with CURRENT_USER role', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { to: 'current_user' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'basic-policy',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('basic policy with all fields except "using" and "with"', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive', for: 'all', to: ['postgres'] }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'basic-policy-all-fields',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('basic policy with "using" and "with"', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'basic-policy-using-withcheck',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('multiple policies', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
+			rlsPolicy: pgPolicy('newRls'),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'multiple-policies',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('multiple policies with roles', async () => {
+	const client = new PGlite();
+
+	client.query(`CREATE ROLE manager;`);
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
+			rlsPolicy: pgPolicy('newRls', { to: ['postgres', 'manager'] }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'multiple-policies-with-roles',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('basic roles', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		usersRole: pgRole('user'),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'basic-roles',
+		['public'],
+		{ roles: { include: ['user'] } },
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('role with properties', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		usersRole: pgRole('user', { inherit: false, createDb: true, createRole: true }),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'roles-with-properties',
+		['public'],
+		{ roles: { include: ['user'] } },
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('role with a few properties', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		usersRole: pgRole('user', { inherit: false, createRole: true }),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'roles-with-few-properties',
+		['public'],
+		{ roles: { include: ['user'] } },
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('multiple policies with roles from schema', async () => {
+	const client = new PGlite();
+
+	const usersRole = pgRole('user_role', { inherit: false, createRole: true });
+
+	const schema = {
+		usersRole,
+
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
+			rlsPolicy: pgPolicy('newRls', { to: ['postgres', usersRole] }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'multiple-policies-with-roles-from-schema',
+		['public'],
+		{ roles: { include: ['user_role'] } },
 	);
 
 	expect(statements.length).toBe(0);

@@ -3,10 +3,10 @@ import type { SQL } from '~/sql/sql.ts';
 import type { PgRole } from './roles';
 
 export type PgPolicyToOption =
-	| 'PUBLIC'
-	| 'CURRENT_ROLE'
-	| 'CURRENT_USER'
-	| 'SESSION_USER'
+	| 'public'
+	| 'current_role'
+	| 'current_user'
+	| 'session_user'
 	| (string & {})
 	| PgPolicyToOption[]
 	| PgRole;

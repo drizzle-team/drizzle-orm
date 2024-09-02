@@ -13,6 +13,8 @@ import {
 	jsonb,
 	numeric,
 	pgEnum,
+	pgPolicy,
+	pgRole,
 	pgSchema,
 	pgSequence,
 	pgTable,
@@ -2239,4 +2241,1268 @@ test('add array column - default', async () => {
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
 	]);
+});
+
+// Policies and Roles push test
+test('full policy: no changes', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('add policy', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{ type: 'enable_rls', tableName: 'users', schema: '' },
+		{
+			type: 'create_policy',
+			tableName: 'users',
+			data: {
+				name: 'test',
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('drop policy', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{ type: 'disable_rls', tableName: 'users', schema: '' },
+		{
+			type: 'drop_policy',
+			tableName: 'users',
+			data: {
+				name: 'test',
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
+		'DROP POLICY "test" ON "users" CASCADE;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('add policy without enable rls', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+			newrls: pgPolicy('newRls'),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'create_policy',
+			tableName: 'users',
+			data: {
+				name: 'newRls',
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE POLICY "newRls" ON "users" AS PERMISSIVE FOR ALL TO public;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('drop policy without disable rls', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+			oldRls: pgPolicy('oldRls'),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'drop_policy',
+			tableName: 'users',
+			data: {
+				name: 'oldRls',
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'DROP POLICY "oldRls" ON "users" CASCADE;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+////
+
+test('alter policy without recreation: changing roles', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive', to: 'current_role' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER POLICY "test" ON "users" TO current_role;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			newData: 'test--PERMISSIVE--ALL--current_role',
+			oldData: 'test--PERMISSIVE--ALL--public',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_policy',
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter policy without recreation: changing using', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive', using: sql`true` }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter policy without recreation: changing with check', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive', withCheck: sql`true` }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter policy with recreation: changing as', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'restrictive' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP POLICY "test" ON "users" CASCADE;',
+		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'drop_policy',
+		},
+		{
+			data: {
+				as: 'RESTRICTIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter policy with recreation: changing for', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive', for: 'delete' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP POLICY "test" ON "users" CASCADE;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'drop_policy',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'DELETE',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter policy with recreation: changing both "as" and "for"', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'restrictive', for: 'insert' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP POLICY "test" ON "users" CASCADE;',
+		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR INSERT TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'drop_policy',
+		},
+		{
+			data: {
+				as: 'RESTRICTIVE',
+				for: 'INSERT',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter policy with recreation: changing all fields', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive', for: 'select', using: sql`true` }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'restrictive', to: 'current_role', withCheck: sql`true` }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP POLICY "test" ON "users" CASCADE;',
+		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO current_role;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'SELECT',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'drop_policy',
+		},
+		{
+			data: {
+				as: 'RESTRICTIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['current_role'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('rename policy', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('newName', { as: 'permissive' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		['public.users.test->public.users.newName'],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER POLICY "test" ON "users" RENAME TO "newName";',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			newName: 'newName',
+			oldName: 'test',
+			schema: '',
+			tableName: 'users',
+			type: 'rename_policy',
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('rename policy in renamed table', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {
+		users: pgTable('users2', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('newName', { as: 'permissive' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[
+			'public.users->public.users2',
+			'public.users2.test->public.users2.newName',
+		],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER POLICY "test" ON "users2" RENAME TO "newName";',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			fromSchema: '',
+			tableNameFrom: 'users',
+			tableNameTo: 'users2',
+			toSchema: '',
+			type: 'rename_table',
+		},
+		{
+			newName: 'newName',
+			oldName: 'test',
+			schema: '',
+			tableName: 'users2',
+			type: 'rename_policy',
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('create table with a policy', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		users: pgTable('users2', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE IF NOT EXISTS "users2" (\n\t"id" integer PRIMARY KEY NOT NULL\n);\n',
+		'ALTER TABLE "users2" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test" ON "users2" AS PERMISSIVE FOR ALL TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			columns: [
+				{
+					name: 'id',
+					notNull: true,
+					primaryKey: true,
+					type: 'integer',
+				},
+			],
+			compositePKs: [],
+			compositePkName: '',
+			policies: [
+				'test--PERMISSIVE--ALL--public',
+			],
+			schema: '',
+			tableName: 'users2',
+			type: 'create_table',
+			uniqueConstraints: [],
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('drop table with a policy', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users2', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})),
+	};
+
+	const schema2 = {};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP POLICY "test" ON "users2" CASCADE;',
+		'DROP TABLE "users2";',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			policies: [
+				'test--PERMISSIVE--ALL--public',
+			],
+			schema: '',
+			tableName: 'users2',
+			type: 'drop_table',
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('add policy with multiple "to" roles', async (t) => {
+	const client = new PGlite();
+
+	client.query(`CREATE ROLE manager;`);
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const role = pgRole('manager').existing();
+
+	const schema2 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { to: ['current_role', role] }),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_role, "manager";',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			schema: '',
+			tableName: 'users',
+			type: 'enable_rls',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['current_role', 'manager'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+////
+
+test('create role', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		manager: pgRole('manager'),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		{ roles: { include: ['manager'] } },
+	);
+
+	expect(sqlStatements).toStrictEqual(['CREATE ROLE "manager";']);
+	expect(statements).toStrictEqual([
+		{
+			name: 'manager',
+			type: 'create_role',
+			values: {
+				createDb: false,
+				createRole: false,
+				inherit: true,
+			},
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('create role with properties', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		manager: pgRole('manager', { createDb: true, inherit: false, createRole: true }),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		{ roles: { include: ['manager'] } },
+	);
+
+	expect(sqlStatements).toStrictEqual(['CREATE ROLE "manager" WITH CREATEDB CREATEROLE NOINHERIT;']);
+	expect(statements).toStrictEqual([
+		{
+			name: 'manager',
+			type: 'create_role',
+			values: {
+				createDb: true,
+				createRole: true,
+				inherit: false,
+			},
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('create role with some properties', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		manager: pgRole('manager', { createDb: true, inherit: false }),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		{ roles: { include: ['manager'] } },
+	);
+
+	expect(sqlStatements).toStrictEqual(['CREATE ROLE "manager" WITH CREATEDB NOINHERIT;']);
+	expect(statements).toStrictEqual([
+		{
+			name: 'manager',
+			type: 'create_role',
+			values: {
+				createDb: true,
+				createRole: false,
+				inherit: false,
+			},
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('drop role', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = { manager: pgRole('manager') };
+
+	const schema2 = {};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		{ roles: { include: ['manager'] } },
+	);
+
+	expect(sqlStatements).toStrictEqual(['DROP ROLE "manager";']);
+	expect(statements).toStrictEqual([
+		{
+			name: 'manager',
+			type: 'drop_role',
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('create and drop role', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		admin: pgRole('admin'),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		{ roles: { include: ['manager', 'admin'] } },
+	);
+
+	expect(sqlStatements).toStrictEqual(['DROP ROLE "manager";', 'CREATE ROLE "admin";']);
+	expect(statements).toStrictEqual([
+		{
+			name: 'manager',
+			type: 'drop_role',
+		},
+		{
+			name: 'admin',
+			type: 'create_role',
+			values: {
+				createDb: false,
+				createRole: false,
+				inherit: true,
+			},
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('rename role', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		admin: pgRole('admin'),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		['manager->admin'],
+		false,
+		['public'],
+		{ roles: { include: ['manager', 'admin'] } },
+	);
+
+	expect(sqlStatements).toStrictEqual(['ALTER ROLE "manager" RENAME TO "admin";']);
+	expect(statements).toStrictEqual([
+		{ nameFrom: 'manager', nameTo: 'admin', type: 'rename_role' },
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter all role field', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', { createDb: true, createRole: true, inherit: false }),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		{ roles: { include: ['manager'] } },
+	);
+
+	expect(sqlStatements).toStrictEqual(['ALTER ROLE "manager" WITH CREATEDB CREATEROLE NOINHERIT;']);
+	expect(statements).toStrictEqual([
+		{
+			name: 'manager',
+			type: 'alter_role',
+			values: {
+				createDb: true,
+				createRole: true,
+				inherit: false,
+			},
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter createdb in role', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', { createDb: true }),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		{ roles: { include: ['manager'] } },
+	);
+
+	expect(sqlStatements).toStrictEqual(['ALTER ROLE "manager" WITH CREATEDB NOCREATEROLE INHERIT;']);
+	expect(statements).toStrictEqual([
+		{
+			name: 'manager',
+			type: 'alter_role',
+			values: {
+				createDb: true,
+				createRole: false,
+				inherit: true,
+			},
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter createrole in role', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', { createRole: true }),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		{ roles: { include: ['manager'] } },
+	);
+
+	expect(sqlStatements).toStrictEqual(['ALTER ROLE "manager" WITH NOCREATEDB CREATEROLE INHERIT;']);
+	expect(statements).toStrictEqual([
+		{
+			name: 'manager',
+			type: 'alter_role',
+			values: {
+				createDb: false,
+				createRole: true,
+				inherit: true,
+			},
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter inherit in role', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', { inherit: false }),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		{ roles: { include: ['manager'] } },
+	);
+
+	expect(sqlStatements).toStrictEqual(['ALTER ROLE "manager" WITH NOCREATEDB NOCREATEROLE NOINHERIT;']);
+	expect(statements).toStrictEqual([
+		{
+			name: 'manager',
+			type: 'alter_role',
+			values: {
+				createDb: false,
+				createRole: false,
+				inherit: false,
+			},
+		},
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
 });
