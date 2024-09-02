@@ -21,7 +21,7 @@ import type {
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
-import { SQLiteCountBuilderAsync } from './query-builders/count.ts';
+import { SQLiteCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
@@ -136,11 +136,11 @@ export class BaseSQLiteDatabase<
 		};
 	}
 
-	$count<TSource extends SQLiteTable | SQLiteViewBase /* | Subquery | SQLiteViewBase | SQL */>(
-		source: TSource,
+	$count(
+		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	) {
-		return new SQLiteCountBuilderAsync({ source, filters, dialect: this.dialect, session: this.session });
+		return new SQLiteCountBuilder({ source, filters, dialect: this.dialect, session: this.session });
 	}
 
 	/**
