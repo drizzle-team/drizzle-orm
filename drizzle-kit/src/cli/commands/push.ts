@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import { fromJson } from '../../sqlgenerator';
 import { Select } from '../selector-ui';
+import { LibSQLCredentials } from '../validations/libsql';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
@@ -519,8 +520,6 @@ export const sqlitePush = async (
 					await db.query('rollback');
 					process.exit(1);
 				}
-			} else if (credentials.driver === 'turso') {
-				await db.batch!(statementsToExecute.map((it) => ({ query: it })));
 			}
 			render(`[${chalk.green('✓')}] Changes applied`);
 		}
@@ -531,14 +530,14 @@ export const libSQLPush = async (
 	schemaPath: string | string[],
 	verbose: boolean,
 	strict: boolean,
-	credentials: SqliteCredentials,
+	credentials: LibSQLCredentials,
 	tablesFilter: string[],
 	force: boolean,
 ) => {
-	const { connectToSQLite } = await import('../connections');
+	const { connectToLibSQL } = await import('../connections');
 	const { sqlitePushIntrospect } = await import('./sqliteIntrospect');
 
-	const db = await connectToSQLite(credentials);
+	const db = await connectToLibSQL(credentials);
 	const { schema } = await sqlitePushIntrospect(db, tablesFilter);
 
 	const { prepareLibSQLPush } = await import('./migrate');
@@ -627,21 +626,7 @@ export const libSQLPush = async (
 		if (statementsToExecute.length === 0) {
 			render(`\n[${chalk.blue('i')}] No changes detected`);
 		} else {
-			if (!('driver' in credentials)) {
-				await db.query('begin');
-				try {
-					for (const dStmnt of statementsToExecute) {
-						await db.query(dStmnt);
-					}
-					await db.query('commit');
-				} catch (e) {
-					console.error(e);
-					await db.query('rollback');
-					process.exit(1);
-				}
-			} else if (credentials.driver === 'turso') {
-				await db.batch!(statementsToExecute.map((it) => ({ query: it })));
-			}
+			await db.batchWithPragma!(statementsToExecute);
 			render(`[${chalk.green('✓')}] Changes applied`);
 		}
 	}

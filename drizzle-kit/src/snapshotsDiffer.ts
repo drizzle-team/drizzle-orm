@@ -2896,9 +2896,8 @@ export const applyLibSQLSnapshotsDiff = async (
 
 	const sqlStatements = fromJson(
 		combinedJsonStatements,
-		'sqlite',
-		action,
 		'turso',
+		action,
 		json2,
 	);
 
