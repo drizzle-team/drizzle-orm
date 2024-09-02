@@ -493,21 +493,19 @@ test('change autoincrement. table is part of foreign key', async (t) => {
 		uniqueConstraints: [],
 	});
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
-	expect(sqlStatements[1]).toBe(
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
 		`CREATE TABLE \`__new_companies\` (
 \t\`id\` integer PRIMARY KEY NOT NULL
 );\n`,
 	);
-	expect(sqlStatements[2]).toBe(
+	expect(sqlStatements[1]).toBe(
 		`INSERT INTO \`__new_companies\`("id") SELECT "id" FROM \`companies\`;`,
 	);
-	expect(sqlStatements[3]).toBe(`DROP TABLE \`companies\`;`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements[2]).toBe(`DROP TABLE \`companies\`;`);
+	expect(sqlStatements[3]).toBe(
 		`ALTER TABLE \`__new_companies\` RENAME TO \`companies\`;`,
 	);
-	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 
 	expect(columnsToRemove!.length).toBe(0);
 	expect(infoToPrint!.length).toBe(0);
@@ -756,21 +754,19 @@ test('recreate table with nested references', async (t) => {
 		uniqueConstraints: [],
 	});
 
-	expect(sqlStatements!.length).toBe(6);
-	expect(sqlStatements[0]).toBe('PRAGMA foreign_keys=OFF;');
-	expect(sqlStatements![1]).toBe(`CREATE TABLE \`__new_users\` (
+	expect(sqlStatements!.length).toBe(4);
+	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
 \t\`id\` integer PRIMARY KEY NOT NULL,
 \t\`name\` text,
 \t\`age\` integer
 );\n`);
-	expect(sqlStatements![2]).toBe(
+	expect(sqlStatements![1]).toBe(
 		`INSERT INTO \`__new_users\`("id", "name", "age") SELECT "id", "name", "age" FROM \`users\`;`,
 	);
-	expect(sqlStatements![3]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements![4]).toBe(
+	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements![3]).toBe(
 		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
 	);
-	expect(sqlStatements[5]).toBe('PRAGMA foreign_keys=ON;');
 
 	expect(columnsToRemove!.length).toBe(0);
 	expect(infoToPrint!.length).toBe(0);
