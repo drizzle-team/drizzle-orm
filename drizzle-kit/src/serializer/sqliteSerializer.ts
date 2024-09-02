@@ -388,8 +388,6 @@ export const fromDatabase = async (
     `,
 	);
 
-	console.log('HERE');
-
 	const tablesWithSeq: string[] = [];
 
 	const seq = await db.query<{
