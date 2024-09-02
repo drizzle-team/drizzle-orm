@@ -50,15 +50,21 @@ type BunSqliteDatabaseOptions =
 		readwrite?: boolean;
 	};
 
-type BunSqliteDatabaseConfig = {
-	filename?: string;
-	options?: BunSqliteDatabaseOptions;
-};
+type BunSqliteDatabaseConfig =
+	| {
+		filename?: string;
+		options?: BunSqliteDatabaseOptions;
+	}
+	| string
+	| undefined;
 
-type BetterSQLite3DatabaseConfig = {
-	filename?: string | Buffer;
-	options?: BetterSQLite3Options;
-};
+type BetterSQLite3DatabaseConfig =
+	| {
+		filename?: string | Buffer;
+		options?: BetterSQLite3Options;
+	}
+	| string
+	| undefined;
 
 type MonodriverNeonHttpConfig = {
 	connectionString: string;
@@ -77,7 +83,7 @@ type ClientDrizzleInstanceMap<TSchema extends Record<string, any>> = {
 	'tidb-serverless': TiDBServerlessDatabase<TSchema>;
 	libsql: LibSQLDatabase<TSchema>;
 	d1: DrizzleD1Database<TSchema>;
-	'bun-sqlite': BunSQLiteDatabase<TSchema>;
+	'bun:sqlite': BunSQLiteDatabase<TSchema>;
 	'better-sqlite3': BetterSQLite3Database<TSchema>;
 };
 
@@ -129,7 +135,7 @@ type InitializerParams<
 		connection: D1Database;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'bun-sqlite';
+		client: 'bun:sqlite';
 		connection: BunSqliteDatabaseConfig;
 	} & DrizzleConfig<TSchema>)
 	| ({
@@ -139,7 +145,9 @@ type InitializerParams<
 
 type DetermineClient<
 	TParams extends InitializerParams<any>,
-> = ClientDrizzleInstanceMap<TParams['schema']>[TParams['client']];
+> = ClientDrizzleInstanceMap<
+	TParams['schema'] extends Record<string, unknown> ? TParams['schema'] : Record<string, never>
+>[TParams['client']];
 
 const importError = (libName: string) => {
 	throw new Error(
@@ -172,17 +180,33 @@ export const drizzle = async <
 		}
 		case 'better-sqlite3': {
 			const { default: Client } = await import('better-sqlite3').catch(() => importError('better-sqlite3'));
-			const { filename, options } = connection as BetterSQLite3DatabaseConfig;
 			const { drizzle } = await import('./better-sqlite3');
-			const instance = new Client(filename, options);
+
+			if (typeof connection === 'object') {
+				const { filename, options } = connection as Exclude<BetterSQLite3DatabaseConfig, string | undefined>;
+
+				const instance = new Client(filename, options);
+
+				return drizzle(instance, drizzleConfig) as any;
+			}
+
+			const instance = new Client(connection);
 
 			return drizzle(instance, drizzleConfig) as any;
 		}
-		case 'bun-sqlite': {
+		case 'bun:sqlite': {
 			const { Database: Client } = await import('bun:sqlite').catch(() => importError('bun:sqlite'));
-			const { filename, options } = connection as BunSqliteDatabaseConfig;
 			const { drizzle } = await import('./bun-sqlite');
-			const instance = new Client(filename, options);
+
+			if (typeof connection === 'object') {
+				const { filename, options } = connection as Exclude<BunSqliteDatabaseConfig, string | undefined>;
+
+				const instance = new Client(filename, options);
+
+				return drizzle(instance, drizzleConfig) as any;
+			}
+
+			const instance = new Client(connection);
 
 			return drizzle(instance, drizzleConfig) as any;
 		}
