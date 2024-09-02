@@ -46,7 +46,7 @@
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=3",
 		"@electric-sql/pglite": ">=0.1.1",
-		"@libsql/client": "*",
+		"@libsql/client": ">=0.10.0",
 		"@neondatabase/serverless": ">=0.1",
 		"@op-engineering/op-sqlite": ">=2",
 		"@opentelemetry/api": "^1.4.1",
