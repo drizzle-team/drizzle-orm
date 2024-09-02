@@ -108,15 +108,23 @@ export const migrate = command({
 		try {
 			if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
-					if (credentials.driver === 'aws-data-api') {
+					const { driver } = credentials;
+					if (driver === 'aws-data-api') {
 						if (!(await ormVersionGt('0.30.10'))) {
 							console.log(
 								"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
 							);
 							process.exit(1);
 						}
+					} else if (driver === 'pglite') {
+						if (!(await ormVersionGt('0.30.6'))) {
+							console.log(
+								"To use 'pglite' driver - please update drizzle-orm to the latest version",
+							);
+							process.exit(1);
+						}
 					} else {
-						assertUnreachable(credentials.driver);
+						assertUnreachable(driver);
 					}
 				}
 				const { preparePostgresDB } = await import('./connections');
@@ -256,15 +264,23 @@ export const push = command({
 				);
 			} else if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
-					if (credentials.driver === 'aws-data-api') {
+					const { driver } = credentials;
+					if (driver === 'aws-data-api') {
 						if (!(await ormVersionGt('0.30.10'))) {
 							console.log(
 								"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
 							);
 							process.exit(1);
 						}
+					} else if (driver === 'pglite') {
+						if (!(await ormVersionGt('0.30.6'))) {
+							console.log(
+								"To use 'pglite' driver - please update drizzle-orm to the latest version",
+							);
+							process.exit(1);
+						}
 					} else {
-						assertUnreachable(credentials.driver);
+						assertUnreachable(driver);
 					}
 				}
 
@@ -427,15 +443,23 @@ export const pull = command({
 		try {
 			if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
-					if (credentials.driver === 'aws-data-api') {
+					const { driver } = credentials;
+					if (driver === 'aws-data-api') {
 						if (!(await ormVersionGt('0.30.10'))) {
 							console.log(
 								"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
 							);
 							process.exit(1);
 						}
+					} else if (driver === 'pglite') {
+						if (!(await ormVersionGt('0.30.6'))) {
+							console.log(
+								"To use 'pglite' driver - please update drizzle-orm to the latest version",
+							);
+							process.exit(1);
+						}
 					} else {
-						assertUnreachable(credentials.driver);
+						assertUnreachable(driver);
 					}
 				}
 
@@ -535,15 +559,23 @@ export const studio = command({
 		try {
 			if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
-					if (credentials.driver === 'aws-data-api') {
+					const { driver } = credentials;
+					if (driver === 'aws-data-api') {
 						if (!(await ormVersionGt('0.30.10'))) {
 							console.log(
 								"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
 							);
 							process.exit(1);
 						}
+					} else if (driver === 'pglite') {
+						if (!(await ormVersionGt('0.30.6'))) {
+							console.log(
+								"To use 'pglite' driver - please update drizzle-orm to the latest version",
+							);
+							process.exit(1);
+						}
 					} else {
-						assertUnreachable(credentials.driver);
+						assertUnreachable(driver);
 					}
 				}
 

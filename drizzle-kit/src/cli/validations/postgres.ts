@@ -35,6 +35,10 @@ export const postgresCredentials = union([
 		secretArn: string().min(1),
 		resourceArn: string().min(1),
 	}),
+	object({
+		driver: literal('pglite'),
+		url: string().min(1),
+	}),
 ]);
 
 export type PostgresCredentials = TypeOf<typeof postgresCredentials>;

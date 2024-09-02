@@ -328,6 +328,16 @@ export const normaliseSQLiteUrl = (
 	assertUnreachable(type);
 };
 
+export const normalisePGliteUrl = (
+	it: string,
+) => {
+	if (it.startsWith('file:')) {
+		return it.substring(5);
+	}
+
+	return it;
+};
+
 export function isPgArrayType(sqlType: string) {
 	return sqlType.match(/.*\[\d*\].*|.*\[\].*/g) !== null;
 }
