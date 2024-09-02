@@ -217,9 +217,10 @@ test('added column not null and without default to table with data', async (t) =
 	};
 
 	const table = getTableConfig(schema1.companies);
+
 	const seedStatements = [
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ("drizzle");`,
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ("turso");`,
+		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('drizzle');`,
+		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('turso');`,
 	];
 
 	const {
@@ -350,8 +351,8 @@ test('drop autoincrement. drop column with data', async (t) => {
 
 	const table = getTableConfig(schema1.companies);
 	const seedStatements = [
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (1, "drizzle");`,
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (2, "turso");`,
+		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (1, 'drizzle');`,
+		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (2, 'turso');`,
 	];
 
 	const {
@@ -450,8 +451,8 @@ test('change autoincrement. table is part of foreign key', async (t) => {
 	const { name: usersTableName } = getTableConfig(users1);
 	const { name: companiesTableName } = getTableConfig(companies1);
 	const seedStatements = [
-		`INSERT INTO \`${usersTableName}\` ("${schema1.users.name.name}") VALUES ("drizzle");`,
-		`INSERT INTO \`${usersTableName}\` ("${schema1.users.name.name}") VALUES ("turso");`,
+		`INSERT INTO \`${usersTableName}\` ("${schema1.users.name.name}") VALUES ('drizzle');`,
+		`INSERT INTO \`${usersTableName}\` ("${schema1.users.name.name}") VALUES ('turso');`,
 		`INSERT INTO \`${companiesTableName}\` ("${schema1.companies.id.name}") VALUES (1);`,
 		`INSERT INTO \`${companiesTableName}\` ("${schema1.companies.id.name}") VALUES (2);`,
 	];
@@ -631,7 +632,7 @@ test('drop table with data', async (t) => {
 	};
 
 	const seedStatements = [
-		`INSERT INTO \`users\` ("name") VALUES ("drizzle")`,
+		`INSERT INTO \`users\` ("name") VALUES ('drizzle')`,
 	];
 	const {
 		statements,

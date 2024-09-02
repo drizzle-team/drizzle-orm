@@ -30,6 +30,12 @@ export type SQLiteDB = {
 	): Promise<void>;
 };
 
+export type LibSQLDB = {
+	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
+	run(query: string): Promise<void>;
+	batchWithPragma?(queries: string[]): Promise<void>;
+};
+
 export const copy = <T>(it: T): T => {
 	return JSON.parse(JSON.stringify(it));
 };
@@ -114,6 +120,8 @@ const validatorForDialect = (dialect: Dialect) => {
 		case 'postgresql':
 			return { validator: backwardCompatiblePgSchema, version: 7 };
 		case 'sqlite':
+			return { validator: backwardCompatibleSqliteSchema, version: 6 };
+		case 'turso':
 			return { validator: backwardCompatibleSqliteSchema, version: 6 };
 		case 'mysql':
 			return { validator: backwardCompatibleMysqlSchema, version: 5 };

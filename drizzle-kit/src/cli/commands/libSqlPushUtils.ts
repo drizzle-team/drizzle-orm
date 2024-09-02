@@ -133,7 +133,7 @@ export const libSqlLogSuggestionsAndReturn = async (
 				tablesToRemove.push(statement.tableName);
 				shouldAskForApprove = true;
 			}
-			const fromJsonStatement = fromJson([statement], 'sqlite', 'push', 'turso', json2);
+			const fromJsonStatement = fromJson([statement], 'turso', 'push', json2);
 			statementsToExecute.push(
 				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
 			);
@@ -156,7 +156,7 @@ export const libSqlLogSuggestionsAndReturn = async (
 				shouldAskForApprove = true;
 			}
 
-			const fromJsonStatement = fromJson([statement], 'sqlite', 'push', 'turso', json2);
+			const fromJsonStatement = fromJson([statement], 'turso', 'push', json2);
 			statementsToExecute.push(
 				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
 			);
@@ -185,7 +185,7 @@ export const libSqlLogSuggestionsAndReturn = async (
 				shouldAskForApprove = true;
 			}
 
-			const fromJsonStatement = fromJson([statement], 'sqlite', 'push', 'turso', json2);
+			const fromJsonStatement = fromJson([statement], 'turso', 'push', json2);
 			statementsToExecute.push(
 				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
 			);
@@ -330,12 +330,12 @@ export const libSqlLogSuggestionsAndReturn = async (
 				columnsToRemove.push(`${tableName}_${statement.columnName}`);
 				shouldAskForApprove = true;
 			}
-			const fromJsonStatement = fromJson([statement], 'sqlite', 'push', 'turso', json2);
+			const fromJsonStatement = fromJson([statement], 'turso', 'push', json2);
 			statementsToExecute.push(
 				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
 			);
 		} else {
-			const fromJsonStatement = fromJson([statement], 'sqlite', 'push', 'turso', json2);
+			const fromJsonStatement = fromJson([statement], 'turso', 'push', json2);
 			statementsToExecute.push(
 				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
 			);

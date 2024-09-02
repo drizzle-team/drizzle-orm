@@ -61,7 +61,6 @@ export const assertCollisions = <
 };
 
 export const sqliteDriversLiterals = [
-	literal('turso'),
 	literal('d1-http'),
 	literal('expo'),
 ] as const;
@@ -156,7 +155,7 @@ export const configPushSchema = object({
 });
 
 export type CliConfig = TypeOf<typeof configCommonSchema>;
-export const drivers = ['turso', 'd1-http', 'expo', 'aws-data-api', 'pglite'] as const;
+export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite'] as const;
 export type Driver = (typeof drivers)[number];
 const _: Driver = '' as TypeOf<typeof driver>;
 

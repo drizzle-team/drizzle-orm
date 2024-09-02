@@ -396,7 +396,6 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
-	const driver = config.driver;
 
 	try {
 		assertV1OutFolder(outFolder);
@@ -428,34 +427,73 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 		const squashedPrev = squashSqliteScheme(validatedPrev);
 		const squashedCur = squashSqliteScheme(validatedCur);
 
-		let sqlStatements: string[];
-		let _meta:
-			| {
-				schemas: {};
-				tables: {};
-				columns: {};
-			}
-			| undefined;
+		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			validatedPrev,
+			validatedCur,
+		);
 
-		if (driver === 'turso') {
-			({ sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
-				squashedPrev,
-				squashedCur,
-				tablesResolver,
-				columnsResolver,
-				validatedPrev,
-				validatedCur,
-			));
-		} else {
-			({ sqlStatements, _meta } = await applySqliteSnapshotsDiff(
-				squashedPrev,
-				squashedCur,
-				tablesResolver,
-				columnsResolver,
-				validatedPrev,
-				validatedCur,
-			));
+		writeResult({
+			cur,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			bundle: config.bundle,
+			prefixMode: config.prefix,
+		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
+	const outFolder = config.out;
+	const schemaPath = config.schema;
+
+	try {
+		assertV1OutFolder(outFolder);
+
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite');
+		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
+			snapshots,
+			schemaPath,
+		);
+
+		const validatedPrev = sqliteSchema.parse(prev);
+		const validatedCur = sqliteSchema.parse(cur);
+
+		if (config.custom) {
+			writeResult({
+				cur: custom,
+				sqlStatements: [],
+				journal,
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				bundle: config.bundle,
+				type: 'custom',
+				prefixMode: config.prefix,
+			});
+			return;
 		}
+
+		const squashedPrev = squashSqliteScheme(validatedPrev);
+		const squashedCur = squashSqliteScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			validatedPrev,
+			validatedCur,
+		);
 
 		writeResult({
 			cur,
@@ -476,7 +514,6 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 export const prepareSQLitePush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
-	driver?: Driver,
 ) => {
 	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath);
 
@@ -486,34 +523,15 @@ export const prepareSQLitePush = async (
 	const squashedPrev = squashSqliteScheme(validatedPrev, 'push');
 	const squashedCur = squashSqliteScheme(validatedCur, 'push');
 
-	let sqlStatements: string[];
-	let statements: JsonStatement[];
-	let _meta: {
-		schemas: {};
-		tables: {};
-		columns: {};
-	} | undefined;
-	if (driver === 'turso') {
-		({ sqlStatements, statements, _meta } = await applyLibSQLSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			validatedPrev,
-			validatedCur,
-			'push',
-		));
-	} else {
-		({ sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			validatedPrev,
-			validatedCur,
-			'push',
-		));
-	}
+	const { sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
 
 	return {
 		sqlStatements,

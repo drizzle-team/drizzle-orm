@@ -316,7 +316,7 @@ class MySqlCreateTableConvertor extends Convertor {
 
 export class SQLiteCreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'sqlite_create_table' && dialect === 'sqlite';
+		return statement.type === 'sqlite_create_table' && (dialect === 'sqlite' || dialect === 'turso');
 	}
 
 	convert(st: JsonSqliteCreateTableStatement) {
@@ -756,7 +756,7 @@ class MySQLDropTableConvertor extends Convertor {
 
 export class SQLiteDropTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'drop_table' && dialect === 'sqlite';
+		return statement.type === 'drop_table' && (dialect === 'sqlite' || dialect === 'turso');
 	}
 
 	convert(statement: JsonDropTableStatement) {
@@ -782,7 +782,7 @@ class PgRenameTableConvertor extends Convertor {
 
 export class SqliteRenameTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'rename_table' && dialect === 'sqlite';
+		return statement.type === 'rename_table' && (dialect === 'sqlite' || dialect === 'turso');
 	}
 
 	convert(statement: JsonRenameTableStatement) {
@@ -836,7 +836,7 @@ class MySqlAlterTableRenameColumnConvertor extends Convertor {
 class SQLiteAlterTableRenameColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
-			statement.type === 'alter_table_rename_column' && dialect === 'sqlite'
+			statement.type === 'alter_table_rename_column' && (dialect === 'sqlite' || dialect === 'turso')
 		);
 	}
 
@@ -877,7 +877,7 @@ class MySqlAlterTableDropColumnConvertor extends Convertor {
 
 class SQLiteAlterTableDropColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'alter_table_drop_column' && dialect === 'sqlite';
+		return statement.type === 'alter_table_drop_column' && (dialect === 'sqlite' || dialect === 'turso');
 	}
 
 	convert(statement: JsonDropColumnStatement) {
@@ -987,7 +987,7 @@ class MySqlAlterTableAddColumnConvertor extends Convertor {
 export class SQLiteAlterTableAddColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
-			statement.type === 'sqlite_alter_table_add_column' && dialect === 'sqlite'
+			statement.type === 'sqlite_alter_table_add_column' && (dialect === 'sqlite' || dialect === 'turso')
 		);
 	}
 
@@ -1192,7 +1192,7 @@ class SqliteAlterTableAlterColumnDropGeneratedConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_generated'
-			&& dialect === 'sqlite'
+			&& (dialect === 'sqlite' || dialect === 'turso')
 		);
 	}
 
@@ -1241,7 +1241,7 @@ class SqliteAlterTableAlterColumnSetExpressionConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_generated'
-			&& dialect === 'sqlite'
+			&& (dialect === 'sqlite' || dialect === 'turso')
 		);
 	}
 
@@ -1290,7 +1290,7 @@ class SqliteAlterTableAlterColumnAlterGeneratedConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_alter_generated'
-			&& dialect === 'sqlite'
+			&& (dialect === 'sqlite' || dialect === 'turso')
 		);
 	}
 
@@ -1445,19 +1445,18 @@ type LibSQLModifyColumnStatement =
 	| JsonAlterColumnDropDefaultStatement;
 
 export class LibSQLModifyColumn extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			(statement.type === 'alter_table_alter_column_set_type'
 				|| statement.type === 'alter_table_alter_column_drop_notnull'
 				|| statement.type === 'alter_table_alter_column_set_notnull'
 				|| statement.type === 'alter_table_alter_column_set_default'
 				|| statement.type === 'alter_table_alter_column_drop_default')
-			&& dialect === 'sqlite'
-			&& driver === 'turso'
+			&& dialect === 'turso'
 		);
 	}
 
-	convert(statement: LibSQLModifyColumnStatement, json2: SQLiteSchemaSquashed, action?: 'push') {
+	convert(statement: LibSQLModifyColumnStatement, json2: SQLiteSchemaSquashed) {
 		const { tableName, columnName } = statement;
 
 		let columnType = ``;
@@ -2005,11 +2004,10 @@ class PgCreateForeignKeyConvertor extends Convertor {
 }
 
 class LibSQLCreateForeignKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'create_reference'
-			&& dialect === 'sqlite'
-			&& driver === 'turso'
+			&& dialect === 'turso'
 		);
 	}
 
@@ -2221,7 +2219,7 @@ class CreateMySqlIndexConvertor extends Convertor {
 
 export class CreateSqliteIndexConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'create_index' && dialect === 'sqlite';
+		return statement.type === 'create_index' && (dialect === 'sqlite' || dialect === 'turso');
 	}
 
 	convert(statement: JsonCreateIndexStatement): string {
@@ -2343,7 +2341,7 @@ class PgAlterTableRemoveFromSchemaConvertor extends Convertor {
 
 export class SqliteDropIndexConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'drop_index' && dialect === 'sqlite';
+		return statement.type === 'drop_index' && (dialect === 'sqlite' || dialect === 'turso');
 	}
 
 	convert(statement: JsonDropIndexStatement): string {
@@ -2364,9 +2362,9 @@ class MySqlDropIndexConvertor extends Convertor {
 }
 
 class SQLiteRecreateTableConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
-			statement.type === 'recreate_table' && dialect === 'sqlite' && !driver
+			statement.type === 'recreate_table' && dialect === 'sqlite'
 		);
 	}
 
@@ -2396,7 +2394,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
 		);
 
-		// migrate data
+		// drop table
 		sqlStatements.push(
 			new SQLiteDropTableConvertor().convert({
 				type: 'drop_table',
@@ -2423,11 +2421,10 @@ class SQLiteRecreateTableConvertor extends Convertor {
 }
 
 class LibSQLRecreateTableConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect, driver?: Driver): boolean {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'recreate_table'
-			&& dialect === 'sqlite'
-			&& driver === 'turso'
+			&& dialect === 'turso'
 		);
 	}
 
@@ -2457,7 +2454,7 @@ class LibSQLRecreateTableConvertor extends Convertor {
 			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
 		);
 
-		// migrate data
+		// drop table
 		sqlStatements.push(
 			new SQLiteDropTableConvertor().convert({
 				type: 'drop_table',
@@ -2593,13 +2590,12 @@ convertors.push(new MySqlAlterTableAlterCompositePrimaryKeyConvertor());
 // overloads for turso driver
 export function fromJson(
 	statements: JsonStatement[],
-	dialect: Exclude<Dialect, 'sqlite'>,
+	dialect: Exclude<Dialect, 'sqlite' | 'turso'>,
 ): string[];
 export function fromJson(
 	statements: JsonStatement[],
-	dialect: 'sqlite',
+	dialect: 'sqlite' | 'turso',
 	action?: 'push',
-	driver?: Driver,
 	json2?: SQLiteSchemaSquashed,
 ): string[];
 
@@ -2607,13 +2603,12 @@ export function fromJson(
 	statements: JsonStatement[],
 	dialect: Dialect,
 	action?: 'push',
-	driver?: Driver,
 	json2?: SQLiteSchemaSquashed,
 ) {
 	const result = statements
 		.flatMap((statement) => {
 			const filtered = convertors.filter((it) => {
-				return it.can(statement, dialect, driver);
+				return it.can(statement, dialect);
 			});
 
 			const convertor = filtered.length === 1 ? filtered[0] : undefined;
