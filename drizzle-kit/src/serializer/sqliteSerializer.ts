@@ -363,7 +363,6 @@ export const fromDatabase = async (
 	) => void,
 ): Promise<SQLiteSchemaInternal> => {
 	const result: Record<string, Table> = {};
-
 	const columns = await db.query<{
 		tableName: string;
 		columnName: string;
@@ -388,6 +387,8 @@ export const fromDatabase = async (
     and m.tbl_name != '_cf_KV';
     `,
 	);
+
+	console.log('HERE');
 
 	const tablesWithSeq: string[] = [];
 

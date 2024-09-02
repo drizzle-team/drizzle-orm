@@ -644,6 +644,7 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 
 		const client = createClient({
 			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
+			authToken: credentials.authToken,
 		});
 		const drzl = drizzle(client);
 		const migrateFn = async (config: MigrationConfig) => {

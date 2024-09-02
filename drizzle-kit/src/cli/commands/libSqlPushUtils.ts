@@ -298,17 +298,10 @@ export const libSqlLogSuggestionsAndReturn = async (
 				continue;
 			}
 
-			// ! for libsql it will break
-			const [{ foreign_keys: pragmaState }] = await connection.query<{
-				foreign_keys: number;
-			}>(`PRAGMA foreign_keys;`);
-
-			if (pragmaState) statementsToExecute.push(`PRAGMA foreign_keys=OFF;`);
 			// recreate table
 			statementsToExecute.push(
 				..._moveDataStatements(tableName, json2, dataLoss),
 			);
-			if (pragmaState) statementsToExecute.push(`PRAGMA foreign_keys=ON;`);
 		} else if (
 			statement.type === 'alter_table_alter_column_set_generated'
 			|| statement.type === 'alter_table_alter_column_drop_generated'
