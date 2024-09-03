@@ -3,6 +3,7 @@ import type { AwsDataApiPgDatabase } from './aws-data-api/pg/index.ts';
 import type { BetterSQLite3Database } from './better-sqlite3/index.ts';
 import type { BunSQLiteDatabase } from './bun-sqlite/index.ts';
 import type { DrizzleD1Database } from './d1/index.ts';
+import { entityKind } from './entity.ts';
 import type { ExpoSQLiteDatabase } from './expo-sqlite/index.ts';
 import type { LibSQLDatabase } from './libsql/index.ts';
 import type { MigrationConfig } from './migrator.ts';
@@ -36,117 +37,78 @@ type ExpoSQLiteMigrationConfig = {
 	migrations: Record<string, string>;
 };
 
-type DatabaseType =
-	| 'aws-data-api-pg'
-	| 'better-sqlite3'
-	| 'bun:sqlite'
-	| 'd1'
-	| 'expo-sqlite'
-	| 'libsql'
-	| 'mysql-proxy'
-	| 'mysql2'
-	| 'neon-http'
-	| 'neon-serverless'
-	| 'node-postgres'
-	| 'op-sqlite'
-	| 'pg-proxy'
-	| 'pglite'
-	| 'planetscale'
-	| 'postgres-js'
-	| 'sqlite-proxy'
-	| 'tidb-serverless'
-	| 'vercel-postgres'
-	| 'xata-http';
-
 export async function migrate(
-	type: 'aws-data-api-pg',
 	db: AwsDataApiPgDatabase<any>,
 	config: string | MigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'better-sqlite3',
 	db: BetterSQLite3Database<any>,
 	config: string | MigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'bun:sqlite',
 	db: BunSQLiteDatabase<any>,
 	config: string | MigrationConfig,
 ): Promise<void>;
-export async function migrate(type: 'd1', db: DrizzleD1Database<any>, config: string | MigrationConfig): Promise<void>;
+export async function migrate(db: DrizzleD1Database<any>, config: string | MigrationConfig): Promise<void>;
 export async function migrate(
-	type: 'expo-sqlite',
 	db: ExpoSQLiteDatabase<any>,
 	config: ExpoSQLiteMigrationConfig,
 ): Promise<void>;
-export async function migrate(type: 'libsql', db: LibSQLDatabase<any>, config: MigrationConfig): Promise<void>;
+export async function migrate(db: LibSQLDatabase<any>, config: MigrationConfig): Promise<void>;
 export async function migrate(
-	type: 'mysql-proxy',
 	db: MySqlRemoteDatabase<any>,
 	callback: MySqlProxyMigrator,
 	config: MigrationConfig,
 ): Promise<void>;
-export async function migrate(type: 'mysql2', db: MySql2Database<any>, config: MigrationConfig): Promise<void>;
+export async function migrate(db: MySql2Database<any>, config: MigrationConfig): Promise<void>;
 export async function migrate(
-	type: 'neon-http',
 	db: NeonHttpDatabase<any>,
 	config: string | MigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'neon-serverless',
 	db: NeonDatabase<any>,
 	config: string | MigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'node-postgres',
 	db: NodePgDatabase<any>,
 	config: string | MigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'op-sqlite',
 	db: OPSQLiteDatabase<any>,
 	config: OPSQLiteMigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'pg-proxy',
 	db: PgRemoteDatabase<any>,
 	callback: PgProxyMigrator,
 	config: string | MigrationConfig,
 ): Promise<void>;
-export async function migrate(type: 'pglite', db: PgliteDatabase<any>, config: string | MigrationConfig): Promise<void>;
+export async function migrate(db: PgliteDatabase<any>, config: string | MigrationConfig): Promise<void>;
 export async function migrate(
-	type: 'planetscale',
 	db: PlanetScaleDatabase<any>,
 	config: MigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'postgres-js',
 	db: PlanetScaleDatabase<any>,
 	config: string | MigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'sqlite-proxy',
 	db: PgRemoteDatabase<any>,
 	callback: SQLiteProxyMigrator,
 	config: string | MigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'tidb-serverless',
 	db: PlanetScaleDatabase<any>,
 	config: MigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'vercel-postgres',
 	db: VercelPgDatabase<any>,
 	config: string | MigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: 'xata-http',
 	db: XataHttpDatabase<any>,
 	config: string | XataHttpMigrationConfig,
 ): Promise<void>;
 export async function migrate(
-	type: DatabaseType,
 	db: any,
 	config:
 		| string
@@ -159,108 +121,106 @@ export async function migrate(
 		| SQLiteProxyMigrator,
 	extraConfig?: string | MigrationConfig | undefined,
 ) {
-	const rest = [db, config, extraConfig];
-
-	switch (type) {
-		case 'aws-data-api-pg': {
+	switch (db[entityKind]) {
+		case 'AwsDataApiPgDatabase': {
 			const { migrate } = await import('./aws-data-api/pg/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
-		case 'better-sqlite3': {
+		case 'BetterSQLite3Database': {
 			const { migrate } = await import('./better-sqlite3/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
-		case 'bun:sqlite': {
+		case 'BunSQLiteDatabase': {
 			const { migrate } = await import('./bun-sqlite/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
-		case 'd1': {
+		case 'D1Database': {
 			const { migrate } = await import('./d1/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
-		case 'expo-sqlite': {
+		case 'ExpoSQLiteDatabase': {
 			const { migrate } = await import('./expo-sqlite/migrator');
 
-			return migrate(rest[0], rest[1] as ExpoSQLiteMigrationConfig);
+			return migrate(db, config as ExpoSQLiteMigrationConfig);
 		}
-		case 'libsql': {
+		case 'LibSQLDatabase': {
 			const { migrate } = await import('./libsql/migrator');
 
-			return migrate(rest[0], rest[1] as MigrationConfig);
+			return migrate(db, config as MigrationConfig);
 		}
-		case 'mysql-proxy': {
+		case 'MySqlRemoteDatabase': {
 			const { migrate } = await import('./mysql-proxy/migrator');
 
-			return migrate(rest[0], rest[1] as MySqlProxyMigrator, rest[2] as MigrationConfig);
+			return migrate(db, config as MySqlProxyMigrator, extraConfig as MigrationConfig);
 		}
-		case 'mysql2': {
+		case 'MySql2Driver': {
 			const { migrate } = await import('./mysql2/migrator');
 
-			return migrate(rest[0], rest[1] as MigrationConfig);
+			return migrate(db, config as MigrationConfig);
 		}
-		case 'neon-http': {
+		case 'NeonHttpDatabase': {
 			const { migrate } = await import('./neon-http/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
-		case 'neon-serverless': {
+		case 'NeonServerlessDatabase': {
 			const { migrate } = await import('./neon-serverless/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
-		case 'node-postgres': {
+		case 'NodePgDriver': {
 			const { migrate } = await import('./node-postgres/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
-		case 'op-sqlite': {
+		case 'OPSQLiteDatabase': {
 			const { migrate } = await import('./op-sqlite/migrator');
 
-			return migrate(rest[0], rest[1] as OPSQLiteMigrationConfig);
+			return migrate(db, config as OPSQLiteMigrationConfig);
 		}
-		case 'pg-proxy': {
+		case 'PgRemoteDatabase': {
 			const { migrate } = await import('./pg-proxy/migrator');
 
-			return migrate(rest[0], rest[1] as PgProxyMigrator, rest[2] as string | MigrationConfig);
+			return migrate(db, config as PgProxyMigrator, extraConfig as string | MigrationConfig);
 		}
-		case 'pglite': {
+		case 'PgliteDatabase': {
 			const { migrate } = await import('./pglite/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
-		case 'planetscale': {
+		case 'PlanetScaleDatabase': {
 			const { migrate } = await import('./planetscale-serverless/migrator');
 
-			return migrate(rest[0], rest[1] as MigrationConfig);
+			return migrate(db, config as MigrationConfig);
 		}
-		case 'postgres-js': {
+		case 'PostgresJsDatabase': {
 			const { migrate } = await import('./postgres-js/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
-		case 'sqlite-proxy': {
+		case 'SqliteRemoteDatabase': {
 			const { migrate } = await import('./sqlite-proxy/migrator');
 
-			return migrate(rest[0], rest[1] as SQLiteProxyMigrator, rest[2] as string | MigrationConfig);
+			return migrate(db, config as SQLiteProxyMigrator, extraConfig as string | MigrationConfig);
 		}
-		case 'tidb-serverless': {
+		case 'TiDBServerlessDatabase': {
 			const { migrate } = await import('./tidb-serverless/migrator');
 
-			return migrate(rest[0], rest[1] as MigrationConfig);
+			return migrate(db, config as MigrationConfig);
 		}
-		case 'vercel-postgres': {
+		case 'VercelPgDatabase': {
 			const { migrate } = await import('./vercel-postgres/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
-		case 'xata-http': {
+		case 'XataHttpDatabase': {
 			const { migrate } = await import('./xata-http/migrator');
 
-			return migrate(rest[0], rest[1] as string | MigrationConfig);
+			return migrate(db, config as string | MigrationConfig);
 		}
 	}
 }

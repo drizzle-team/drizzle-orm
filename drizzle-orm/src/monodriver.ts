@@ -1,5 +1,5 @@
 /* eslint-disable import/extensions */
-import type { RDSDataClientConfig as RDSConfig } from '@aws-sdk/client-rds-data';
+import type { RDSDataClientConfig, RDSDataClientConfig as RDSConfig } from '@aws-sdk/client-rds-data';
 import type { Config as LibsqlConfig } from '@libsql/client';
 import type {
 	HTTPTransactionOptions as NeonHttpConfig,
@@ -71,6 +71,21 @@ type MonodriverNeonHttpConfig = {
 	options?: NeonHttpConfig<boolean, boolean>;
 };
 
+type DatabaseVendor =
+	| 'node-postgres'
+	| 'postgres-js'
+	| 'neon-serverless'
+	| 'neon-http'
+	| 'vercel-postgres'
+	| 'aws-data-api-pg'
+	| 'planetscale'
+	| 'mysql2'
+	| 'tidb-serverless'
+	| 'libsql'
+	| 'd1'
+	| 'bun:sqlite'
+	| 'better-sqlite3';
+
 type ClientDrizzleInstanceMap<TSchema extends Record<string, any>> = {
 	'node-postgres': NodePgDatabase<TSchema>;
 	'postgres-js': PostgresJsDatabase<TSchema>;
@@ -91,63 +106,51 @@ type InitializerParams<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > =
 	| ({
-		client: 'node-postgres';
 		connection: NodePGPoolConfig;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'postgres-js';
 		connection: PostgresJSOptions<Record<string, PostgresJSPostgresType>>;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'neon-serverless';
 		connection: NeonServerlessConfig;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'neon-http';
 		connection: MonodriverNeonHttpConfig;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'vercel-postgres';
 		connection: VercelPool;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'aws-data-api-pg';
 		connection: RDSConfig;
 	} & DrizzleAwsDataApiPgConfig<TSchema>)
 	| ({
-		client: 'planetscale';
 		connection: PlanetscaleConfig;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'mysql2';
 		connection: Mysql2Config;
 	} & MySql2DrizzleConfig<TSchema>)
 	| ({
-		client: 'tidb-serverless';
 		connection: TiDBServerlessConfig;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'libsql';
 		connection: LibsqlConfig;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'd1';
 		connection: D1Database;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'bun:sqlite';
-		connection: BunSqliteDatabaseConfig;
+		connection?: BunSqliteDatabaseConfig;
 	} & DrizzleConfig<TSchema>)
 	| ({
-		client: 'better-sqlite3';
-		connection: BetterSQLite3DatabaseConfig;
+		connection?: BetterSQLite3DatabaseConfig;
 	} & DrizzleConfig<TSchema>);
 
 type DetermineClient<
-	TParams extends InitializerParams<any>,
+	TVendor extends DatabaseVendor,
+	TSchema extends Record<string, unknown>,
 > = ClientDrizzleInstanceMap<
-	TParams['schema'] extends Record<string, unknown> ? TParams['schema'] : Record<string, never>
->[TParams['client']];
+	TSchema
+>[TVendor];
 
 const importError = (libName: string) => {
 	throw new Error(
@@ -155,11 +158,75 @@ const importError = (libName: string) => {
 	);
 };
 
-export const drizzle = async <
+const removeKey = <TRecord extends Record<string, any>, TKey extends keyof TRecord>(
+	obj: TRecord,
+	key: TKey,
+): Omit<TRecord, TKey> => {
+	if (!(key in obj)) return obj;
+
+	delete (<any> obj).key;
+	return obj;
+};
+
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'node-postgres',
+	params: { connection: NodePGPoolConfig } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'postgres-js',
+	params: { connection: string | PostgresJSOptions<Record<string, PostgresJSPostgresType>> } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'neon-serverless',
+	params: { connection: NeonServerlessConfig } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'neon-http',
+	params: { connection: MonodriverNeonHttpConfig } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'vercel-postgres',
+	params: { connection: VercelPool } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'aws-data-api-pg',
+	params?: { connection?: RDSConfig } & DrizzleAwsDataApiPgConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'planetscale',
+	params: { connection: PlanetscaleConfig } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'mysql2',
+	params: { connection: Mysql2Config | string } & MySql2DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'tidb-serverless',
+	params: { connection: TiDBServerlessConfig } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'libsql',
+	params: { connection: LibsqlConfig } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'd1',
+	params: { connection: D1Database } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'bun:sqlite',
+	params?: { connection?: BunSqliteDatabaseConfig } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'better-sqlite3',
+	params?: { connection?: BetterSQLite3DatabaseConfig } & DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<
+	TVendor extends DatabaseVendor,
 	TSchema extends Record<string, any>,
 	TParams extends InitializerParams<TSchema>,
->(params: TParams): Promise<DetermineClient<TParams>> => {
-	const { client, connection, ...drizzleConfig } = params;
+>(client: TVendor, params?: TParams): Promise<DetermineClient<TVendor, TSchema>> {
+	const connection = params?.connection;
+	const drizzleConfig = params ? removeKey(params, 'connection') : undefined;
 
 	switch (client) {
 		case 'node-postgres': {
@@ -174,7 +241,7 @@ export const drizzle = async <
 				importError('@aws-sdk/client-rds-data')
 			);
 			const { drizzle } = await import('./aws-data-api/pg');
-			const instance = new RDSDataClient(connection);
+			const instance = new RDSDataClient(connection as RDSDataClientConfig);
 
 			return drizzle(instance, drizzleConfig as any as DrizzleAwsDataApiPgConfig) as any;
 		}
@@ -272,5 +339,10 @@ export const drizzle = async <
 
 			return drizzle(sql, drizzleConfig) as any;
 		}
+		default: {
+			throw new Error(
+				`Unsupported vendor for Drizzle ORM monodriver: '${client}'. Use dedicated drizzle initializer instead.`,
+			);
+		}
 	}
-};
+}
