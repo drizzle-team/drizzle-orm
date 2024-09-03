@@ -18,6 +18,7 @@ import type { PgRemoteDatabase } from './pg-proxy/index.ts';
 import type { ProxyMigrator as PgProxyMigrator } from './pg-proxy/migrator.ts';
 import type { PgliteDatabase } from './pglite/index.ts';
 import type { PlanetScaleDatabase } from './planetscale-serverless/index.ts';
+import type { PostgresJsDatabase } from './postgres-js/driver.ts';
 import type { ProxyMigrator as SQLiteProxyMigrator } from './sqlite-proxy/migrator.ts';
 import type { VercelPgDatabase } from './vercel-postgres/index.ts';
 import type { XataHttpDatabase } from './xata-http/index.ts';
@@ -83,6 +84,7 @@ export async function migrate(
 	config: string | MigrationConfig,
 ): Promise<void>;
 export async function migrate(db: PgliteDatabase<any>, config: string | MigrationConfig): Promise<void>;
+export async function migrate(db: PostgresJsDatabase<any>, config: string | MigrationConfig): Promise<void>;
 export async function migrate(
 	db: PlanetScaleDatabase<any>,
 	config: MigrationConfig,
