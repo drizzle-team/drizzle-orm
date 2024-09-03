@@ -169,6 +169,14 @@ const removeKey = <TRecord extends Record<string, any>, TKey extends keyof TReco
 };
 
 export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'aws-data-api-pg',
+	params: { connection?: RDSConfig } & DrizzleAwsDataApiPgConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: 'mysql2',
+	params: { connection: Mysql2Config | string } & MySql2DrizzleConfig<TSchema>,
+): Promise<DetermineClient<typeof client, TSchema>>;
+export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: 'node-postgres',
 	params: { connection: NodePGPoolConfig } & DrizzleConfig<TSchema>,
 ): Promise<DetermineClient<typeof client, TSchema>>;
@@ -189,16 +197,8 @@ export async function drizzle<TSchema extends Record<string, unknown> = Record<s
 	params: { connection: VercelPool } & DrizzleConfig<TSchema>,
 ): Promise<DetermineClient<typeof client, TSchema>>;
 export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: 'aws-data-api-pg',
-	params?: { connection?: RDSConfig } & DrizzleAwsDataApiPgConfig<TSchema>,
-): Promise<DetermineClient<typeof client, TSchema>>;
-export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: 'planetscale',
 	params: { connection: PlanetscaleConfig } & DrizzleConfig<TSchema>,
-): Promise<DetermineClient<typeof client, TSchema>>;
-export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: 'mysql2',
-	params: { connection: Mysql2Config | string } & MySql2DrizzleConfig<TSchema>,
 ): Promise<DetermineClient<typeof client, TSchema>>;
 export async function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: 'tidb-serverless',
@@ -346,3 +346,9 @@ export async function drizzle<
 		}
 	}
 }
+
+const db = await drizzle('aws-data-api-pg', {
+	database: '',
+	resourceArn: '',
+	secretArn: '',
+});
