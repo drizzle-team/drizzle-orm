@@ -1,5 +1,4 @@
 import { BREAKPOINT } from './cli/commands/migrate';
-import { Driver } from './cli/validations/common';
 import {
 	JsonAddColumnStatement,
 	JsonAddValueToEnumStatement,
@@ -132,7 +131,6 @@ abstract class Convertor {
 	abstract can(
 		statement: JsonStatement,
 		dialect: Dialect,
-		driver?: Driver,
 	): boolean;
 	abstract convert(
 		statement: JsonStatement,

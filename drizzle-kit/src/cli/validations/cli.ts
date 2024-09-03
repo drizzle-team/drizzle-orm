@@ -1,6 +1,6 @@
 import { boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
-import { casing, driver, prefix } from './common';
+import { casing, prefix } from './common';
 
 export const cliConfigGenerate = object({
 	dialect: dialect.optional(),
@@ -25,7 +25,6 @@ export const pushParams = object({
 	extensionsFilters: literal('postgis').array().optional(),
 	verbose: boolean().optional(),
 	strict: boolean().optional(),
-	driver: driver.optional(),
 }).passthrough();
 
 export type PushParams = TypeOf<typeof pushParams>;
