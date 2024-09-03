@@ -346,9 +346,3 @@ export async function drizzle<
 		}
 	}
 }
-
-const db = await drizzle('aws-data-api-pg', {
-	database: '',
-	resourceArn: '',
-	secretArn: '',
-});
