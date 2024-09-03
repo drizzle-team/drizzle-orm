@@ -131,7 +131,6 @@ abstract class Convertor {
 	abstract can(
 		statement: JsonStatement,
 		dialect: Dialect,
-		driver?: Driver,
 	): boolean;
 	abstract convert(
 		statement: JsonStatement,
@@ -2587,7 +2586,6 @@ convertors.push(new MySqlAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new MySqlAlterTableAddPk());
 convertors.push(new MySqlAlterTableAlterCompositePrimaryKeyConvertor());
 
-// overloads for turso driver
 export function fromJson(
 	statements: JsonStatement[],
 	dialect: Exclude<Dialect, 'sqlite' | 'turso'>,

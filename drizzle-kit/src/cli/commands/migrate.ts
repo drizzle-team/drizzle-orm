@@ -11,7 +11,6 @@ import {
 import chalk from 'chalk';
 import { render } from 'hanji';
 import path, { join } from 'path';
-import { JsonStatement } from 'src/jsonStatements';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme } from '../../serializer/mysqlSchema';
@@ -34,7 +33,7 @@ import {
 } from '../../snapshotsDiffer';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
-import { Driver, Prefix } from '../validations/common';
+import { Prefix } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import {
 	isRenamePromptItem,

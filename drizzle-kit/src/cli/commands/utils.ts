@@ -232,7 +232,6 @@ export const preparePushConfig = async (
 			: options,
 	);
 
-	raw.driver ||= options.driver;
 	raw.verbose ||= options.verbose; // if provided in cli to debug
 	raw.strict ||= options.strict; // if provided in cli only
 
