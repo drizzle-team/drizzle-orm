@@ -12,7 +12,7 @@ import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ExpoSQLiteSession } from './session.ts';
 
-export class ExpoSQLiteDatabase<TSchema extends Record<string, unknown>>
+export class ExpoSQLiteDatabase<TSchema extends Record<string, unknown> = Record<string, never>>
 	extends BaseSQLiteDatabase<'sync', SQLiteRunResult, TSchema>
 {
 	static readonly [entityKind]: string = 'ExpoSQLiteDatabase';

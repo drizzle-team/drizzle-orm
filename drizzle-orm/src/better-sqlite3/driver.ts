@@ -12,7 +12,7 @@ import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { BetterSQLiteSession } from './session.ts';
 
-export class BetterSQLite3Database<TSchema extends Record<string, unknown>>
+export class BetterSQLite3Database<TSchema extends Record<string, unknown> = Record<string, never>>
 	extends BaseSQLiteDatabase<'sync', RunResult, TSchema>
 {
 	static readonly [entityKind]: string = 'BetterSQLite3Database';
