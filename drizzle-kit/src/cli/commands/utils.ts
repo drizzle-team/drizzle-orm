@@ -79,7 +79,7 @@ export const safeRegister = async () => {
 export const prepareCheckParams = async (
 	options: {
 		config?: string;
-		dialect: Dialect;
+		dialect?: Dialect;
 		out?: string;
 	},
 	from: 'cli' | 'config',

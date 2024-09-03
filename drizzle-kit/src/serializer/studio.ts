@@ -44,7 +44,7 @@ type SchemaFile = {
 export type Setup = {
 	dbHash: string;
 	dialect: 'postgresql' | 'mysql' | 'sqlite';
-	driver?: 'aws-data-api' | 'd1-http' | 'turso';
+	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
 	proxy: (params: ProxyParams) => Promise<any[] | any>;
 	customDefaults: CustomDefault[];
 	schema: Record<string, Record<string, AnyTable<any>>>;
@@ -218,11 +218,13 @@ export const drizzleForPostgres = async (
 	let dbUrl: string;
 
 	if ('driver' in credentials) {
-		// aws-data-api
-		if (credentials.driver === 'aws-data-api') {
+		const { driver } = credentials;
+		if (driver === 'aws-data-api') {
 			dbUrl = `aws-data-api://${credentials.database}/${credentials.secretArn}/${credentials.resourceArn}`;
+		} else if (driver === 'pglite') {
+			dbUrl = credentials.url;
 		} else {
-			assertUnreachable(credentials.driver);
+			assertUnreachable(driver);
 		}
 	} else if ('url' in credentials) {
 		dbUrl = credentials.url;
