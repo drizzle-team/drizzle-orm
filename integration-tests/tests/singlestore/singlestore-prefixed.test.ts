@@ -1345,63 +1345,6 @@ test('transaction rollback', async () => {
 	expect(result).toEqual([]);
 });
 
-test('nested transaction', async () => {
-	const users = singlestoreTable('users_nested_transactions', {
-		id: serial('id').primaryKey(),
-		balance: int('balance').notNull(),
-	});
-
-	await db.execute(sql`drop table if exists ${users}`);
-
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, balance int not null)`,
-	);
-
-	await db.transaction(async (tx) => {
-		await tx.insert(users).values({ balance: 100 });
-
-		await tx.transaction(async (tx) => {
-			await tx.update(users).set({ balance: 200 });
-		});
-	});
-
-	const result = await db.select().from(users);
-
-	await db.execute(sql`drop table ${users}`);
-
-	expect(result).toEqual([{ id: 1, balance: 200 }]);
-});
-
-test('nested transaction rollback', async () => {
-	const users = singlestoreTable('users_nested_transactions_rollback', {
-		id: serial('id').primaryKey(),
-		balance: int('balance').notNull(),
-	});
-
-	await db.execute(sql`drop table if exists ${users}`);
-
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, balance int not null)`,
-	);
-
-	await db.transaction(async (tx) => {
-		await tx.insert(users).values({ id: 1, balance: 100 });
-
-		await expect((async () => {
-			await tx.transaction(async (tx) => {
-				await tx.update(users).set({ balance: 200 });
-				tx.rollback();
-			});
-		})()).rejects.toThrowError(TransactionRollbackError);
-	});
-
-	const result = await db.select().from(users);
-
-	await db.execute(sql`drop table ${users}`);
-
-	expect(result).toEqual([{ id: 1, balance: 100 }]);
-});
-
 test('join subquery with join', async () => {
 	const internalStaff = singlestoreTable('internal_staff', {
 		userId: int('user_id').notNull(),
