@@ -539,7 +539,7 @@ export const preparePullConfig = async (
 			process.exit(1);
 		}
 		return {
-			dialect: 'sqlite',
+			dialect,
 			out: config.out,
 			breakpoints: config.breakpoints,
 			casing: config.casing,

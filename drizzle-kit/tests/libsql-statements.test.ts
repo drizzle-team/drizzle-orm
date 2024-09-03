@@ -1,4 +1,3 @@
-import { sql } from 'drizzle-orm';
 import { foreignKey, index, int, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { JsonRecreateTableStatement } from 'src/jsonStatements';
 import { expect, test } from 'vitest';
