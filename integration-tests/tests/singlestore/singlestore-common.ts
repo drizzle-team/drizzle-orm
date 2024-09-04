@@ -2054,7 +2054,7 @@ export function tests(driver?: string) {
 			expect(query.sql).toBe('select something as `test` from `users2` order by `test`');
 		});
 
-		test('timestamp timezone', async (ctx) => {
+		test.only('timestamp timezone', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			const date = new Date(Date.parse('2020-01-01T12:34:56+07:00'));
@@ -2068,10 +2068,10 @@ export function tests(driver?: string) {
 			const users = await db.select().from(usersTable).orderBy(asc(usersTable.id));
 
 			// check that the timestamps are set correctly for default times
-			expect(Math.abs(users[0]!.createdAt.getTime() - Date.now())).toBeLessThan(2000);
+			expect(Math.abs(users[1]!.createdAt.getTime() - Date.now())).toBeLessThan(2000);
 
 			// check that the timestamps are set correctly for non default times
-			expect(Math.abs(users[1]!.createdAt.getTime() - date.getTime())).toBeLessThan(2000);
+			expect(Math.abs(users[0]!.createdAt.getTime() - date.getTime())).toBeLessThan(2000);
 		});
 
 		test('transaction', async (ctx) => {

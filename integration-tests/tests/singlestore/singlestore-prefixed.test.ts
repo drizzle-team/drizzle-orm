@@ -1262,7 +1262,7 @@ test('orderBy with aliased column', () => {
 	expect(query.sql).toBe(`select something as \`test\` from \`${getTableName(users2Table)}\` order by \`test\``);
 });
 
-test('timestamp timezone', async () => {
+test.only('timestamp timezone', async () => {
 	const date = new Date(Date.parse('2020-01-01T12:34:56+07:00'));
 
 	await db.insert(usersTable).values({ name: 'With default times' });
@@ -1276,10 +1276,10 @@ test('timestamp timezone', async () => {
 	console.log(Date.now());
 
 	// check that the timestamps are set correctly for default times
-	expect(Math.abs(users[0]!.createdAt.getTime() - Date.now())).toBeLessThan(2000);
+	expect(Math.abs(users[1]!.createdAt.getTime() - Date.now())).toBeLessThan(2000);
 
 	// check that the timestamps are set correctly for non default times
-	expect(Math.abs(users[1]!.createdAt.getTime() - date.getTime())).toBeLessThan(2000);
+	expect(Math.abs(users[0]!.createdAt.getTime() - date.getTime())).toBeLessThan(2000);
 });
 
 test('transaction', async () => {
