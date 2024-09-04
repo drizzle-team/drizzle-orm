@@ -8,7 +8,6 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
-	desc,
 	eq,
 	exists,
 	getTableColumns,
@@ -2054,7 +2053,7 @@ export function tests(driver?: string) {
 			expect(query.sql).toBe('select something as `test` from `users2` order by `test`');
 		});
 
-		test.only('timestamp timezone', async (ctx) => {
+		test('timestamp timezone', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			const date = new Date(Date.parse('2020-01-01T12:34:56+07:00'));

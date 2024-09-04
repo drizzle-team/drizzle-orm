@@ -997,11 +997,12 @@ test('with ... select', async () => {
 });
 
 test('select from subquery sql', async () => {
-	await db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]);
+	await db.insert(users2Table).values([{ id: 1, name: 'John' }, { id:2, name: 'Jane' }]);
 
 	const sq = db
 		.select({ name: sql<string>`concat(${users2Table.name}, " modified")`.as('name') })
 		.from(users2Table)
+		.orderBy(asc(users2Table.id))
 		.as('sq');
 
 	const res = await db.select({ name: sq.name }).from(sq);
@@ -1262,7 +1263,7 @@ test('orderBy with aliased column', () => {
 	expect(query.sql).toBe(`select something as \`test\` from \`${getTableName(users2Table)}\` order by \`test\``);
 });
 
-test.only('timestamp timezone', async () => {
+test('timestamp timezone', async () => {
 	const date = new Date(Date.parse('2020-01-01T12:34:56+07:00'));
 
 	await db.insert(usersTable).values({ name: 'With default times' });
