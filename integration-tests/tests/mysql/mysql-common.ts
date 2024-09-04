@@ -3706,8 +3706,6 @@ export function tests(driver?: string) {
 
 			await db.execute(sql`drop table ${countTestTable}`);
 
-			await db.execute(sql`drop table ${countTestTable}`);
-
 			expect(count1).toStrictEqual([
 				{ count: 4 },
 				{ count: 4 },
@@ -3781,6 +3779,7 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table ${countTestTable}`);
 
 			expect(count).toStrictEqual([
+				{ count: 3 },
 				{ count: 3 },
 				{ count: 3 },
 				{ count: 3 },
