@@ -985,7 +985,7 @@ export function tests(driver?: string) {
 			expect(query).toEqual({
 				sql:
 					'insert into `userstest` (`id`, `name`, `verified`, `jsonb`, `created_at`) values (?, ?, default, ?, default) on duplicate key update `id` = ?, `name` = ?',
-				params: ['John', '["foo","bar"]', 'John1'],
+				params: [1, 'John', '["foo","bar"]', 1, 'John1'],
 			});
 		});
 
