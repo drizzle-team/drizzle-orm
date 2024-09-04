@@ -162,15 +162,10 @@ const importError = (libName: string) => {
 	);
 };
 
-const removeKey = <TRecord extends Record<string, any>, TKey extends keyof TRecord>(
-	obj: TRecord,
-	key: TKey,
-): Omit<TRecord, TKey> => {
-	if (!(key in obj)) return obj;
+function assertUnreachable(_: never | undefined): never {
+	throw new Error("Didn't expect to get here");
+}
 
-	delete (<any> obj).key;
-	return obj;
-};
 export async function drizzle<
 	TClient extends DatabaseClient,
 	TSchema extends Record<string, unknown> = Record<string, never>,
@@ -182,8 +177,7 @@ export async function drizzle<
 			: TClient extends 'aws-data-api-pg' ? DrizzleAwsDataApiPgConfig<TSchema>
 			: DrizzleConfig<TSchema>),
 ): Promise<DetermineClient<TClient, TSchema>> {
-	const connection = params?.connection;
-	const drizzleConfig = params ? removeKey(params, 'connection') : undefined;
+	const { connection, ...drizzleConfig } = params;
 
 	switch (client) {
 		case 'node-postgres': {
@@ -296,10 +290,7 @@ export async function drizzle<
 
 			return drizzle(sql, drizzleConfig) as any;
 		}
-		default: {
-			throw new Error(
-				`Unsupported vendor for Drizzle ORM monodriver: '${client}'. Use dedicated drizzle initializer instead.`,
-			);
-		}
 	}
+
+	assertUnreachable(client);
 }
