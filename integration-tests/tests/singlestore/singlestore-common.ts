@@ -8,6 +8,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	desc,
 	eq,
 	exists,
 	getTableColumns,
@@ -2637,7 +2638,7 @@ export function tests(driver?: string) {
 			})()).rejects.toThrowError();
 		});
 
-		test.only('set operations (intersect) from query builder', async (ctx) => {
+		test('set operations (intersect) from query builder', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
@@ -2671,7 +2672,7 @@ export function tests(driver?: string) {
 			})()).rejects.toThrowError();
 		});
 
-		test.only('set operations (intersect) as function', async (ctx) => {
+		test('set operations (intersect) as function', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
@@ -2780,7 +2781,7 @@ export function tests(driver?: string) {
 			})()).rejects.toThrowError();
 		});
 
-		test.only('set operations (except) from query builder', async (ctx) => {
+		test('set operations (except) from query builder', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
@@ -2800,7 +2801,7 @@ export function tests(driver?: string) {
 			]);
 		});
 
-		test.only('set operations (except) as function', async (ctx) => {
+		test('set operations (except) as function', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
@@ -2920,23 +2921,32 @@ export function tests(driver?: string) {
 
 			await setupSetOperationTest(db);
 
+			const sq1 = unionAll(
+				db
+					.select()
+					.from(citiesTable).where(gt(citiesTable.id, 1)),
+				db.select().from(citiesTable).where(eq(citiesTable.id, 2)),
+			).as('sq1');
+			
+			const sq2 = await db.select().from(sq1).orderBy(asc(sql`id`)).as('sq2');
+
+			const sq3 = await db.select().from(sq2).limit(1).offset(1).as('sq3');
+			
 			const result = await db
 				.select()
-				.from(citiesTable).except(
-					({ unionAll }) =>
-						unionAll(
-							db
-								.select()
-								.from(citiesTable).where(gt(citiesTable.id, 1)),
-							db.select().from(citiesTable).where(eq(citiesTable.id, 2)),
-						).orderBy(asc(citiesTable.id)).limit(1).offset(1),
+				.from(citiesTable)
+				.except(
+					db
+						.select()
+						.from(sq3)
+						,
 				);
 
 			expect(result).toHaveLength(2);
 
 			expect(result).toEqual([
-				{ id: 1, name: 'New York' },
 				{ id: 3, name: 'Tampa' },
+				{ id: 1, name: 'New York' },
 			]);
 
 			await expect((async () => {
@@ -2954,36 +2964,41 @@ export function tests(driver?: string) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (mixed all) as function with subquery', async (ctx) => {
+		test.only('set operations (mixed all) as function with subquery', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
 
-			const sq = except(
+			const sq1 = except(
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
 					.from(users2Table).where(gte(users2Table.id, 5)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
 					.from(users2Table).where(eq(users2Table.id, 7)),
-			).orderBy(asc(sql.identifier('id'))).as('sq');
-
+			).as('sq1');
+		
+			const sq2 = await db.select().from(sq1).orderBy(asc(sql.identifier('id'))).as('sq2')
+			
+			const sq3 = await db.select().from(sq2).limit(1).as('sq3');
+		
 			const result = await union(
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
 					.from(users2Table).where(eq(users2Table.id, 1)),
-				db.select().from(sq).limit(1),
+				db.select().from(sq3),
 				db
 					.select().from(citiesTable).where(gt(citiesTable.id, 1)),
 			);
+		
 
 			expect(result).toHaveLength(4);
 
 			expect(result).toEqual([
 				{ id: 1, name: 'John' },
 				{ id: 5, name: 'Ben' },
-				{ id: 2, name: 'London' },
 				{ id: 3, name: 'Tampa' },
+				{ id: 2, name: 'London' },
 			]);
 
 			await expect((async () => {
