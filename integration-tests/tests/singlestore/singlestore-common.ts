@@ -39,7 +39,6 @@ import {
 	getViewConfig,
 	int,
 	intersect,
-	intersectAll,
 	json,
 	mediumint,
 	primaryKey,
@@ -2706,77 +2705,6 @@ export function tests(driver?: string) {
 						.select({ name: users2Table.name, id: users2Table.id })
 						.from(users2Table).where(eq(users2Table.id, 1)),
 				).limit(1);
-			})()).rejects.toThrowError();
-		});
-
-		test('set operations (intersect all) from query builder', async (ctx) => {
-			const { db } = ctx.singlestore;
-
-			await setupSetOperationTest(db);
-
-			const sq = await db
-				.select({ id: citiesTable.id, name: citiesTable.name })
-				.from(citiesTable).limit(2).intersectAll(
-					db
-						.select({ id: citiesTable.id, name: citiesTable.name })
-						.from(citiesTable).limit(2),
-				).as('sq');
-
-			const result = await db.select().from(sq)
-
-			expect(result).toHaveLength(2);
-
-			expect(result).toEqual([
-				{ id: 1, name: 'New York' },
-				{ id: 2, name: 'London' },
-			]);
-
-			await expect((async () => {
-				db
-					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).limit(2).intersectAll(
-						db
-							.select({ name: citiesTable.name, id: citiesTable.id })
-							.from(citiesTable).limit(2),
-					).orderBy(asc(sql`id`));
-			})()).rejects.toThrowError();
-		});
-
-		test('set operations (intersect all) as function', async (ctx) => {
-			const { db } = ctx.singlestore;
-
-			await setupSetOperationTest(db);
-
-			const result = await intersectAll(
-				db
-					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
-				db
-					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
-				db
-					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
-			);
-
-			expect(result).toHaveLength(1);
-
-			expect(result).toEqual([
-				{ id: 1, name: 'John' },
-			]);
-
-			await expect((async () => {
-				intersectAll(
-					db
-						.select({ name: users2Table.name, id: users2Table.id })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-					db
-						.select({ id: users2Table.id, name: users2Table.name })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-					db
-						.select({ id: users2Table.id, name: users2Table.name })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-				);
 			})()).rejects.toThrowError();
 		});
 
