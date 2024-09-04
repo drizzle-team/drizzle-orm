@@ -34,7 +34,7 @@ export async function migrate(
 		| string
 		| MigrationConfig,
 ) {
-	switch ((<any> db)[entityKind]) {
+	switch ((<any> db).constructor[entityKind]) {
 		case 'AwsDataApiPgDatabase': {
 			const { migrate } = await import('./aws-data-api/pg/migrator');
 
