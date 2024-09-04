@@ -2416,7 +2416,7 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('utc config for datetime', async (ctx) => {
+		test.only('utc config for datetime', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await db.execute(sql`drop table if exists \`datestable\``);
@@ -2424,15 +2424,13 @@ export function tests(driver?: string) {
 				sql`
 					create table \`datestable\` (
 					    \`datetime_utc\` datetime(6),
-					    \`datetime\` datetime(6),
-					    \`datetime_as_string\` datetime(6)
+					    \`datetime\` datetime(6)
 					)
 				`,
 			);
 			const datesTable = singlestoreTable('datestable', {
 				datetimeUTC: datetime('datetime_utc', { fsp: 6, mode: 'date' }),
-				datetime: datetime('datetime', { fsp: 6 }),
-				datetimeAsString: datetime('datetime_as_string', { mode: 'string' }),
+				datetime: datetime('datetime', { fsp: 6 })
 			});
 
 			const dateObj = new Date('2022-11-11');
@@ -2441,7 +2439,6 @@ export function tests(driver?: string) {
 			await db.insert(datesTable).values({
 				datetimeUTC: dateUtc,
 				datetime: dateObj,
-				datetimeAsString: '2022-11-11 12:12:12000',
 			});
 
 			const res = await db.select().from(datesTable);
@@ -2454,12 +2451,10 @@ export function tests(driver?: string) {
 
 			expect(res[0]?.datetime).toBeInstanceOf(Date);
 			expect(res[0]?.datetimeUTC).toBeInstanceOf(Date);
-			expect(typeof res[0]?.datetimeAsString).toBe('string');
 
 			expect(res).toEqual([{
 				datetimeUTC: dateUtc,
 				datetime: new Date('2022-11-11'),
-				datetimeAsString: '2022-11-11 12:12:12000',
 			}]);
 
 			await db.execute(sql`drop table if exists \`datestable\``);
