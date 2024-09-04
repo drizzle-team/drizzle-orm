@@ -2964,7 +2964,7 @@ export function tests(driver?: string) {
 			})()).rejects.toThrowError();
 		});
 
-		test.only('set operations (mixed all) as function with subquery', async (ctx) => {
+		test('set operations (mixed all) as function with subquery', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
