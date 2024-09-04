@@ -591,23 +591,20 @@ export const connectToSQLite = async (
 		const { migrate } = await import('drizzle-orm/libsql/migrator');
 
 		const client = createClient({
-			url: credentials.url,
+			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
 		});
 		const drzl = drizzle(client);
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(drzl, config);
 		};
 
-		const db: LibSQLDB = {
+		const db: SQLiteDB = {
 			query: async <T>(sql: string, params?: any[]) => {
 				const res = await client.execute({ sql, args: params || [] });
 				return res.rows as T[];
 			},
 			run: async (query: string) => {
 				await client.execute(query);
-			},
-			batchWithPragma: async (queries: string[]) => {
-				await client.migrate(queries);
 			},
 		};
 
