@@ -52,18 +52,23 @@ type BunSqliteDatabaseOptions =
 
 type BunSqliteDatabaseConfig =
 	| {
-		filename?: string;
+		filename?: ':memory:' | (string & {});
 		options?: BunSqliteDatabaseOptions;
 	}
-	| string
+	| ':memory:'
+	| (string & {})
 	| undefined;
 
 type BetterSQLite3DatabaseConfig =
 	| {
-		filename?: string | Buffer;
+		filename?:
+			| ':memory:'
+			| (string & {})
+			| Buffer;
 		options?: BetterSQLite3Options;
 	}
-	| string
+	| ':memory:'
+	| (string & {})
 	| undefined;
 
 type MonodriverNeonHttpConfig = {
