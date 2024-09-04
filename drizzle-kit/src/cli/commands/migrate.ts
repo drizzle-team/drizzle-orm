@@ -17,6 +17,7 @@ import { MySqlSchema, mysqlSchema, squashMysqlScheme } from '../../serializer/my
 import { PgSchema, pgSchema, squashPgScheme } from '../../serializer/pgSchema';
 import { SQLiteSchema, sqliteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
 import {
+	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
 	applySqliteSnapshotsDiff,
@@ -450,6 +451,65 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	}
 };
 
+export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
+	const outFolder = config.out;
+	const schemaPath = config.schema;
+
+	try {
+		assertV1OutFolder(outFolder);
+
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite');
+		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
+			snapshots,
+			schemaPath,
+		);
+
+		const validatedPrev = sqliteSchema.parse(prev);
+		const validatedCur = sqliteSchema.parse(cur);
+
+		if (config.custom) {
+			writeResult({
+				cur: custom,
+				sqlStatements: [],
+				journal,
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				bundle: config.bundle,
+				type: 'custom',
+				prefixMode: config.prefix,
+			});
+			return;
+		}
+
+		const squashedPrev = squashSqliteScheme(validatedPrev);
+		const squashedCur = squashSqliteScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		writeResult({
+			cur,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			bundle: config.bundle,
+			prefixMode: config.prefix,
+		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
 export const prepareSQLitePush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
@@ -463,6 +523,37 @@ export const prepareSQLitePush = async (
 	const squashedCur = squashSqliteScheme(validatedCur, 'push');
 
 	const { sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
+
+	return {
+		sqlStatements,
+		statements,
+		squashedPrev,
+		squashedCur,
+		meta: _meta,
+	};
+};
+
+export const prepareLibSQLPush = async (
+	schemaPath: string | string[],
+	snapshot: SQLiteSchema,
+) => {
+	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath);
+
+	const validatedPrev = sqliteSchema.parse(prev);
+	const validatedCur = sqliteSchema.parse(cur);
+
+	const squashedPrev = squashSqliteScheme(validatedPrev, 'push');
+	const squashedCur = squashSqliteScheme(validatedCur, 'push');
+
+	const { sqlStatements, statements, _meta } = await applyLibSQLSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
 		tablesResolver,

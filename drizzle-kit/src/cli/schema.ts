@@ -24,13 +24,13 @@ import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { dialects } from 'src/schemaValidator';
 import { assertUnreachable } from '../global';
-import type { Setup } from '../serializer/studio';
+import { drizzleForLibSQL, type Setup } from '../serializer/studio';
 import { certs } from '../utils/certs';
 import { grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
-	.desc(`Database dialect: 'postgresql', 'mysql' or 'sqlite'`);
+	.desc(`Database dialect: 'postgresql', 'mysql', 'sqlite' or 'turso'`);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
 const optionBreakpoints = boolean().desc(
@@ -77,6 +77,7 @@ export const generate = command({
 			prepareAndMigratePg,
 			prepareAndMigrateMysql,
 			prepareAndMigrateSqlite,
+			prepareAndMigrateLibSQL,
 		} = await import('./commands/migrate');
 
 		const dialect = opts.dialect;
@@ -86,6 +87,8 @@ export const generate = command({
 			await prepareAndMigrateMysql(opts);
 		} else if (dialect === 'sqlite') {
 			await prepareAndMigrateSqlite(opts);
+		} else if (dialect === 'turso') {
+			await prepareAndMigrateLibSQL(opts);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -151,6 +154,17 @@ export const migrate = command({
 			} else if (dialect === 'sqlite') {
 				const { connectToSQLite } = await import('./connections');
 				const { migrate } = await connectToSQLite(credentials);
+				await renderWithTask(
+					new MigrateProgress(),
+					migrate({
+						migrationsFolder: opts.out,
+						migrationsTable: table,
+						migrationsSchema: schema,
+					}),
+				);
+			} else if (dialect === 'turso') {
+				const { connectToLibSQL } = await import('./connections');
+				const { migrate } = await connectToLibSQL(credentials);
 				await renderWithTask(
 					new MigrateProgress(),
 					migrate({
@@ -304,6 +318,16 @@ export const push = command({
 					tablesFilter,
 					force,
 				);
+			} else if (dialect === 'turso') {
+				const { libSQLPush } = await import('./commands/push');
+				await libSQLPush(
+					schemaPath,
+					verbose,
+					strict,
+					credentials,
+					tablesFilter,
+					force,
+				);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -359,7 +383,7 @@ export const up = command({
 			upMysqlHandler(out);
 		}
 
-		if (dialect === 'sqlite') {
+		if (dialect === 'sqlite' || dialect === 'turso') {
 			upSqliteHandler(out);
 		}
 	},
@@ -483,6 +507,16 @@ export const pull = command({
 					tablesFilter,
 					prefix,
 				);
+			} else if (dialect === 'turso') {
+				const { introspectLibSQL } = await import('./commands/introspect');
+				await introspectLibSQL(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					prefix,
+				);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -583,6 +617,11 @@ export const studio = command({
 					? await prepareSQLiteSchema(schemaPath)
 					: { schema: {}, relations: {}, files: [] };
 				setup = await drizzleForSQLite(credentials, schema, relations, files);
+			} else if (dialect === 'turso') {
+				const { schema, relations, files } = schemaPath
+					? await prepareSQLiteSchema(schemaPath)
+					: { schema: {}, relations: {}, files: [] };
+				setup = await drizzleForLibSQL(credentials, schema, relations, files);
 			} else {
 				assertUnreachable(dialect);
 			}
