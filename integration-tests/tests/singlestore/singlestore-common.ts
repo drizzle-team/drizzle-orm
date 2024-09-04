@@ -39,7 +39,6 @@ import {
 	getViewConfig,
 	int,
 	intersect,
-	intersectAll,
 	json,
 	mediumint,
 	primaryKey,

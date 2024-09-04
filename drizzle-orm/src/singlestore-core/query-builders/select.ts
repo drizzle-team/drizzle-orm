@@ -495,48 +495,6 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 	intersect = this.createSetOperator('intersect', false);
 
 	/**
-	 * Adds `intersect all` set operator to the query.
-	 *
-	 * Calling this method will retain only the rows that are present in both result sets including all duplicates.
-	 *
-	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect-all}
-	 *
-	 * @example
-	 *
-	 * ```ts
-	 * // Select all products and quantities that are ordered by both regular and VIP customers
-	 * await db.select({
-	 *   productId: regularCustomerOrders.productId,
-	 *   quantityOrdered: regularCustomerOrders.quantityOrdered
-	 * })
-	 * .from(regularCustomerOrders)
-	 * .intersectAll(
-	 *   db.select({
-	 *     productId: vipCustomerOrders.productId,
-	 *     quantityOrdered: vipCustomerOrders.quantityOrdered
-	 *   })
-	 *   .from(vipCustomerOrders)
-	 * );
-	 * // or
-	 * import { intersectAll } from 'drizzle-orm/pg-core'
-	 *
-	 * await intersectAll(
-	 *   db.select({
-	 *     productId: regularCustomerOrders.productId,
-	 *     quantityOrdered: regularCustomerOrders.quantityOrdered
-	 *   })
-	 *   .from(regularCustomerOrders),
-	 *   db.select({
-	 *     productId: vipCustomerOrders.productId,
-	 *     quantityOrdered: vipCustomerOrders.quantityOrdered
-	 *   })
-	 *   .from(vipCustomerOrders)
-	 * );
-	 * ```
-	 */
-	intersectAll = this.createSetOperator('intersect', true);
-
-	/**
 	 * Adds `except` set operator to the query.
 	 *
 	 * Calling this method will retrieve all unique rows from the left query, except for the rows that are present in the result set of the right query.
@@ -1027,7 +985,6 @@ const getSingleStoreSetOperators = () => ({
 	union,
 	unionAll,
 	intersect,
-	intersectAll,
 	except,
 	exceptAll,
 	minus,
@@ -1113,48 +1070,6 @@ export const unionAll = createSetOperator('union', true);
  * ```
  */
 export const intersect = createSetOperator('intersect', false);
-
-/**
- * Adds `intersect all` set operator to the query.
- *
- * Calling this method will retain only the rows that are present in both result sets including all duplicates.
- *
- * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect-all}
- *
- * @example
- *
- * ```ts
- * // Select all products and quantities that are ordered by both regular and VIP customers
- * import { intersectAll } from 'drizzle-orm/mysql-core'
- *
- * await intersectAll(
- *   db.select({
- *     productId: regularCustomerOrders.productId,
- *     quantityOrdered: regularCustomerOrders.quantityOrdered
- *   })
- *   .from(regularCustomerOrders),
- *   db.select({
- *     productId: vipCustomerOrders.productId,
- *     quantityOrdered: vipCustomerOrders.quantityOrdered
- *   })
- *   .from(vipCustomerOrders)
- * );
- * // or
- * await db.select({
- *   productId: regularCustomerOrders.productId,
- *   quantityOrdered: regularCustomerOrders.quantityOrdered
- * })
- * .from(regularCustomerOrders)
- * .intersectAll(
- *   db.select({
- *     productId: vipCustomerOrders.productId,
- *     quantityOrdered: vipCustomerOrders.quantityOrdered
- *   })
- *   .from(vipCustomerOrders)
- * );
- * ```
- */
-export const intersectAll = createSetOperator('intersect', true);
 
 /**
  * Adds `except` set operator to the query.

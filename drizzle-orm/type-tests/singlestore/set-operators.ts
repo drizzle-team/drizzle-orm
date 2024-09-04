@@ -4,7 +4,6 @@ import {
 	except,
 	exceptAll,
 	intersect,
-	intersectAll,
 	type SingleStoreSetOperator,
 	union,
 	unionAll,
@@ -50,18 +49,6 @@ const intersectTest = await db
 	);
 
 Expect<Equal<{ id: number; homeCity: number }[], typeof intersectTest>>;
-
-const intersectAllTest = await db
-	.select({ id: users.id, homeCity: users.class })
-	.from(users)
-	.intersect(
-		db
-			.select({ id: users.id, homeCity: users.class })
-			.from(users)
-			.leftJoin(cities, eq(users.id, cities.id)),
-	);
-
-Expect<Equal<{ id: number; homeCity: 'A' | 'C' }[], typeof intersectAllTest>>;
 
 const exceptTest = await db
 	.select({ id: users.id, homeCity: users.homeCity })
@@ -119,24 +106,6 @@ const intersect2Test = await intersect(
 );
 
 Expect<Equal<{ id: number; name: string; population: number | null }[], typeof intersect2Test>>;
-
-const intersectAll2Test = await intersectAll(
-	union(
-		db.select({
-			id: cities.id,
-		}).from(cities),
-		db.select({
-			id: cities.id,
-		})
-			.from(cities).where(sql``),
-	),
-	db.select({
-		id: cities.id,
-	})
-		.from(cities),
-).orderBy(desc(cities.id)).limit(23);
-
-Expect<Equal<{ id: number }[], typeof intersectAll2Test>>;
 
 const except2Test = await except(
 	db.select({
