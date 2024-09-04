@@ -622,7 +622,11 @@ export const withReplicas = <
 	HKT extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-	Q extends PgDatabase<HKT, TFullSchema, TSchema>,
+	Q extends PgDatabase<
+		HKT,
+		TFullSchema,
+		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
+	>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],

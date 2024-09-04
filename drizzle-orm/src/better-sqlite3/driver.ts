@@ -1,4 +1,5 @@
 import type { Database, RunResult } from 'better-sqlite3';
+import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
@@ -11,9 +12,11 @@ import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { BetterSQLiteSession } from './session.ts';
 
-export type BetterSQLite3Database<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> = BaseSQLiteDatabase<'sync', RunResult, TSchema>;
+export class BetterSQLite3Database<TSchema extends Record<string, unknown> = Record<string, never>>
+	extends BaseSQLiteDatabase<'sync', RunResult, TSchema>
+{
+	static readonly [entityKind]: string = 'BetterSQLite3Database';
+}
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Database,
@@ -41,5 +44,5 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new BetterSQLiteSession(client, dialect, schema, { logger });
-	return new BaseSQLiteDatabase('sync', dialect, session, schema) as BetterSQLite3Database<TSchema>;
+	return new BetterSQLite3Database('sync', dialect, session, schema) as BetterSQLite3Database<TSchema>;
 }
