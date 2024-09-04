@@ -3581,7 +3581,7 @@ export function tests(driver?: string) {
 		test('$count separate', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3606,7 +3606,7 @@ export function tests(driver?: string) {
 		test('$count embedded', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3638,7 +3638,7 @@ export function tests(driver?: string) {
 		test('$count separate reuse', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3675,7 +3675,7 @@ export function tests(driver?: string) {
 		test('$count embedded reuse', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3734,7 +3734,7 @@ export function tests(driver?: string) {
 		test('$count separate with filters', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3759,7 +3759,7 @@ export function tests(driver?: string) {
 		test('$count embedded with filters', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
