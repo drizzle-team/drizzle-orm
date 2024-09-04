@@ -209,9 +209,14 @@ export async function drizzle<
 		& InitializerParams[TClient]
 		& (TClient extends 'mysql2' ? MySql2DrizzleConfig<TSchema>
 			: TClient extends 'aws-data-api-pg' ? DrizzleAwsDataApiPgConfig<TSchema>
+			: TClient extends 'neon-serverless' ? DrizzleConfig<TSchema> & {
+					ws?: any;
+				}
 			: DrizzleConfig<TSchema>),
 ): Promise<DetermineClient<TClient, TSchema>> {
-	const { connection, ...drizzleConfig } = params;
+	const { connection, ws, ...drizzleConfig } = params as typeof params & {
+		ws?: any;
+	};
 
 	switch (client) {
 		case 'node-postgres': {
@@ -320,9 +325,15 @@ export async function drizzle<
 			return db;
 		}
 		case 'neon-serverless': {
-			const { Pool } = await import('@neondatabase/serverless').catch(() => importError('@neondatabase/serverless'));
+			const { Pool, neonConfig } = await import('@neondatabase/serverless').catch(() =>
+				importError('@neondatabase/serverless')
+			);
 			const { drizzle } = await import('./neon-serverless');
 			const instance = new Pool(connection as NeonServerlessConfig);
+
+			if (ws) {
+				neonConfig.webSocketConstructor = ws;
+			}
 
 			const db = drizzle(instance, drizzleConfig) as any;
 			db.$client = instance;

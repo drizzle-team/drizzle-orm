@@ -27,7 +27,9 @@ export class MySqlCountBuilder<
 		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
-		return sql<number>`select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters}`;
+		return sql<number>`select cast(count(*) as UNSIGNED) as count from ${source}${
+			sql.raw(' where ').if(filters)
+		}${filters}`;
 	}
 
 	constructor(
@@ -53,7 +55,7 @@ export class MySqlCountBuilder<
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
 		return Promise.resolve(this.session.all(this.sql)).then<number>((it) => {
-			return (<[{ 'count(*)': number }]> it)[0]['count(*)'];
+			return (<[{ count: number }]> it)[0]['count'];
 		})
 			.then(
 				onfulfilled,
