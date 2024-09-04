@@ -62,6 +62,7 @@ test('generate #2', async (t) => {
 
 test('generate #3', async (t) => {
 	const res = await brotest(generate, '');
+
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
 		dialect: 'postgresql',

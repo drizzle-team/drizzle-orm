@@ -1,9 +1,11 @@
-import Database from 'better-sqlite3';
+import { createClient } from '@libsql/client';
 import chalk from 'chalk';
+import { sql } from 'drizzle-orm';
 import {
 	blob,
 	foreignKey,
 	getTableConfig,
+	index,
 	int,
 	integer,
 	numeric,
@@ -12,11 +14,13 @@ import {
 	text,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
-import { diffTestSchemasPushSqlite } from 'tests/schemaDiffer';
+import { diffTestSchemasPushLibSQL } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
 test('nothing changed in schema', async (t) => {
-	const client = new Database(':memory:');
+	const turso = createClient({
+		url: ':memory:',
+	});
 
 	const users = sqliteTable('users', {
 		id: integer('id').primaryKey().notNull(),
@@ -66,7 +70,7 @@ test('nothing changed in schema', async (t) => {
 		shouldAskForApprove,
 		tablesToRemove,
 		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(client, schema1, schema1, [], false);
+	} = await diffTestSchemasPushLibSQL(turso, schema1, schema1, [], false);
 	expect(sqlStatements.length).toBe(0);
 	expect(statements.length).toBe(0);
 	expect(columnsToRemove!.length).toBe(0);
@@ -77,8 +81,10 @@ test('nothing changed in schema', async (t) => {
 	expect(shouldAskForApprove).toBe(false);
 });
 
-test('dropped, added unique index', async (t) => {
-	const client = new Database(':memory:');
+test('added, dropped index', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
 
 	const users = sqliteTable('users', {
 		id: integer('id').primaryKey().notNull(),
@@ -100,12 +106,11 @@ test('dropped, added unique index', async (t) => {
 
 	const schema1 = {
 		users,
-
 		customers: sqliteTable(
 			'customers',
 			{
 				id: integer('id').primaryKey(),
-				address: text('address').notNull().unique(),
+				address: text('address').notNull(),
 				isConfirmed: integer('is_confirmed', { mode: 'boolean' }),
 				registrationDate: integer('registration_date', { mode: 'timestamp_ms' })
 					.notNull()
@@ -126,7 +131,6 @@ test('dropped, added unique index', async (t) => {
 
 	const schema2 = {
 		users,
-
 		customers: sqliteTable(
 			'customers',
 			{
@@ -160,7 +164,8 @@ test('dropped, added unique index', async (t) => {
 		shouldAskForApprove,
 		tablesToRemove,
 		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(client, schema1, schema2, [], false);
+	} = await diffTestSchemasPushLibSQL(turso, schema1, schema2, [], false);
+
 	expect(statements.length).toBe(2);
 	expect(statements[0]).toStrictEqual({
 		type: 'drop_index',
@@ -173,9 +178,7 @@ test('dropped, added unique index', async (t) => {
 		tableName: 'customers',
 		data: 'customers_is_confirmed_unique;is_confirmed;true;',
 		schema: '',
-		internal: {
-			indexes: {},
-		},
+		internal: { indexes: {} },
 	});
 
 	expect(sqlStatements.length).toBe(2);
@@ -194,7 +197,9 @@ test('dropped, added unique index', async (t) => {
 });
 
 test('added column not null and without default to table with data', async (t) => {
-	const client = new Database(':memory:');
+	const turso = createClient({
+		url: ':memory:',
+	});
 
 	const schema1 = {
 		companies: sqliteTable('companies', {
@@ -212,6 +217,7 @@ test('added column not null and without default to table with data', async (t) =
 	};
 
 	const table = getTableConfig(schema1.companies);
+
 	const seedStatements = [
 		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('drizzle');`,
 		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('turso');`,
@@ -225,8 +231,8 @@ test('added column not null and without default to table with data', async (t) =
 		shouldAskForApprove,
 		tablesToRemove,
 		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(
-		client,
+	} = await diffTestSchemasPushLibSQL(
+		turso,
 		schema1,
 		schema2,
 		[],
@@ -247,6 +253,7 @@ test('added column not null and without default to table with data', async (t) =
 		},
 		referenceData: undefined,
 	});
+
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toBe(`delete from companies;`);
 	expect(sqlStatements[1]).toBe(
@@ -269,7 +276,9 @@ test('added column not null and without default to table with data', async (t) =
 });
 
 test('added column not null and without default to table without data', async (t) => {
-	const turso = new Database(':memory:');
+	const turso = createClient({
+		url: ':memory:',
+	});
 
 	const schema1 = {
 		companies: sqliteTable('companies', {
@@ -294,7 +303,7 @@ test('added column not null and without default to table without data', async (t
 		shouldAskForApprove,
 		tablesToRemove,
 		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(turso, schema1, schema2, [], false);
+	} = await diffTestSchemasPushLibSQL(turso, schema1, schema2, [], false);
 
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
@@ -323,7 +332,9 @@ test('added column not null and without default to table without data', async (t
 });
 
 test('drop autoincrement. drop column with data', async (t) => {
-	const turso = new Database(':memory:');
+	const turso = createClient({
+		url: ':memory:',
+	});
 
 	const schema1 = {
 		companies: sqliteTable('companies', {
@@ -352,7 +363,109 @@ test('drop autoincrement. drop column with data', async (t) => {
 		shouldAskForApprove,
 		tablesToRemove,
 		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(
+	} = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+		false,
+		seedStatements,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'recreate_table',
+		tableName: 'companies',
+		columns: [
+			{
+				name: 'id',
+				type: 'integer',
+				autoincrement: false,
+				notNull: true,
+				primaryKey: true,
+				generated: undefined,
+			},
+		],
+		compositePKs: [],
+		referenceData: [],
+		uniqueConstraints: [],
+	});
+
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		`CREATE TABLE \`__new_companies\` (
+\t\`id\` integer PRIMARY KEY NOT NULL
+);\n`,
+	);
+	expect(sqlStatements[1]).toBe(`INSERT INTO \`__new_companies\`("id") SELECT "id" FROM \`companies\`;`);
+	expect(sqlStatements[2]).toBe(`DROP TABLE \`companies\`;`);
+	expect(sqlStatements[3]).toBe(
+		`ALTER TABLE \`__new_companies\` RENAME TO \`companies\`;`,
+	);
+
+	expect(columnsToRemove!.length).toBe(1);
+	expect(infoToPrint!.length).toBe(1);
+	expect(infoToPrint![0]).toBe(
+		`· You're about to delete ${
+			chalk.underline(
+				'name',
+			)
+		} column in companies table with 2 items`,
+	);
+	expect(shouldAskForApprove).toBe(true);
+	expect(tablesToRemove!.length).toBe(0);
+	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('change autoincrement. table is part of foreign key', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const companies1 = sqliteTable('companies', {
+		id: integer('id').primaryKey({ autoIncrement: true }),
+	});
+	const users1 = sqliteTable('users', {
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		name: text('name').unique(),
+		companyId: integer('company_id').references(() => companies1.id),
+	});
+	const schema1 = {
+		companies: companies1,
+		users: users1,
+	};
+
+	const companies2 = sqliteTable('companies', {
+		id: integer('id').primaryKey({ autoIncrement: false }),
+	});
+	const users2 = sqliteTable('users', {
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		name: text('name').unique(),
+		companyId: integer('company_id').references(() => companies2.id),
+	});
+	const schema2 = {
+		companies: companies2,
+		users: users2,
+	};
+
+	const { name: usersTableName } = getTableConfig(users1);
+	const { name: companiesTableName } = getTableConfig(companies1);
+	const seedStatements = [
+		`INSERT INTO \`${usersTableName}\` ("${schema1.users.name.name}") VALUES ('drizzle');`,
+		`INSERT INTO \`${usersTableName}\` ("${schema1.users.name.name}") VALUES ('turso');`,
+		`INSERT INTO \`${companiesTableName}\` ("${schema1.companies.id.name}") VALUES (1);`,
+		`INSERT INTO \`${companiesTableName}\` ("${schema1.companies.id.name}") VALUES (2);`,
+	];
+
+	const {
+		statements,
+		sqlStatements,
+		columnsToRemove,
+		infoToPrint,
+		shouldAskForApprove,
+		tablesToRemove,
+		tablesToTruncate,
+	} = await diffTestSchemasPushLibSQL(
 		turso,
 		schema1,
 		schema2,
@@ -394,304 +507,31 @@ test('drop autoincrement. drop column with data', async (t) => {
 		`ALTER TABLE \`__new_companies\` RENAME TO \`companies\`;`,
 	);
 
-	expect(columnsToRemove!.length).toBe(1);
-	expect(columnsToRemove![0]).toBe('name');
-	expect(infoToPrint!.length).toBe(1);
-	expect(infoToPrint![0]).toBe(
-		`· You're about to delete ${
-			chalk.underline(
-				'name',
-			)
-		} column in companies table with 2 items`,
-	);
-	expect(shouldAskForApprove).toBe(true);
-	expect(tablesToRemove!.length).toBe(0);
-	expect(tablesToTruncate!.length).toBe(0);
-});
-
-test('drop autoincrement. drop column with data with pragma off', async (t) => {
-	const client = new Database(':memory:');
-
-	client.exec('PRAGMA foreign_keys=OFF;');
-
-	const users = sqliteTable('users', {
-		id: integer('id').primaryKey({ autoIncrement: true }),
-	});
-	const schema1 = {
-		companies: sqliteTable('companies', {
-			id: integer('id').primaryKey({ autoIncrement: true }),
-			name: text('name'),
-			user_id: integer('user_id').references(() => users.id),
-		}),
-	};
-
-	const schema2 = {
-		companies: sqliteTable('companies', {
-			id: integer('id').primaryKey({ autoIncrement: false }),
-			user_id: integer('user_id').references(() => users.id),
-		}),
-	};
-
-	const table = getTableConfig(schema1.companies);
-	const seedStatements = [
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (1, 'drizzle');`,
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (2, 'turso');`,
-	];
-
-	const {
-		sqlStatements,
-		statements,
-		columnsToRemove,
-		infoToPrint,
-		shouldAskForApprove,
-		tablesToRemove,
-		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(
-		client,
-		schema1,
-		schema2,
-		[],
-		false,
-		seedStatements,
-	);
-
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'recreate_table',
-		tableName: 'companies',
-		columns: [
-			{
-				name: 'id',
-				type: 'integer',
-				autoincrement: false,
-				notNull: true,
-				primaryKey: true,
-				generated: undefined,
-			},
-			{
-				name: 'user_id',
-				type: 'integer',
-				autoincrement: false,
-				notNull: false,
-				primaryKey: false,
-				generated: undefined,
-			},
-		],
-		compositePKs: [],
-		referenceData: [
-			{
-				columnsFrom: [
-					'user_id',
-				],
-				columnsTo: [
-					'id',
-				],
-				name: '',
-				onDelete: 'no action',
-				onUpdate: 'no action',
-				tableFrom: 'companies',
-				tableTo: 'users',
-			},
-		],
-		uniqueConstraints: [],
-	});
-
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
-		`CREATE TABLE \`__new_companies\` (
-\t\`id\` integer PRIMARY KEY NOT NULL,
-\t\`user_id\` integer,
-\tFOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE no action
-);\n`,
-	);
-	expect(sqlStatements[1]).toBe(
-		`INSERT INTO \`__new_companies\`("id", "user_id") SELECT "id", "user_id" FROM \`companies\`;`,
-	);
-	expect(sqlStatements[2]).toBe(`DROP TABLE \`companies\`;`);
-	expect(sqlStatements[3]).toBe(
-		`ALTER TABLE \`__new_companies\` RENAME TO \`companies\`;`,
-	);
-
-	expect(columnsToRemove!.length).toBe(1);
-	expect(infoToPrint!.length).toBe(1);
-	expect(infoToPrint![0]).toBe(
-		`· You're about to delete ${
-			chalk.underline(
-				'name',
-			)
-		} column in companies table with 2 items`,
-	);
-	expect(shouldAskForApprove).toBe(true);
-	expect(tablesToRemove!.length).toBe(0);
-	expect(tablesToTruncate!.length).toBe(0);
-});
-
-test('change autoincrement. other table references current', async (t) => {
-	const client = new Database(':memory:');
-
-	const companies1 = sqliteTable('companies', {
-		id: integer('id').primaryKey({ autoIncrement: true }),
-	});
-	const users1 = sqliteTable('users', {
-		id: integer('id').primaryKey({ autoIncrement: true }),
-		name: text('name').unique(),
-		companyId: text('company_id').references(() => companies1.id),
-	});
-	const schema1 = {
-		companies: companies1,
-		users: users1,
-	};
-
-	const companies2 = sqliteTable('companies', {
-		id: integer('id').primaryKey({ autoIncrement: false }),
-	});
-	const users2 = sqliteTable('users', {
-		id: integer('id').primaryKey({ autoIncrement: true }),
-		name: text('name').unique(),
-		companyId: text('company_id').references(() => companies1.id),
-	});
-	const schema2 = {
-		companies: companies2,
-		users: users2,
-	};
-
-	const { name: usersTableName } = getTableConfig(users1);
-	const { name: companiesTableName } = getTableConfig(companies1);
-	const seedStatements = [
-		`INSERT INTO \`${usersTableName}\` ("${schema1.users.name.name}") VALUES ('drizzle');`,
-		`INSERT INTO \`${usersTableName}\` ("${schema1.users.name.name}") VALUES ('turso');`,
-		`INSERT INTO \`${companiesTableName}\` ("${schema1.companies.id.name}") VALUES ('1');`,
-		`INSERT INTO \`${companiesTableName}\` ("${schema1.companies.id.name}") VALUES ('2');`,
-	];
-
-	const {
-		statements,
-		sqlStatements,
-		columnsToRemove,
-		infoToPrint,
-		shouldAskForApprove,
-		tablesToRemove,
-		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(
-		client,
-		schema1,
-		schema2,
-		[],
-		false,
-		seedStatements,
-	);
-
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'recreate_table',
-		tableName: 'companies',
-		columns: [
-			{
-				name: 'id',
-				type: 'integer',
-				autoincrement: false,
-				notNull: true,
-				primaryKey: true,
-				generated: undefined,
-			},
-		],
-		compositePKs: [],
-		referenceData: [],
-		uniqueConstraints: [],
-	});
-
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
-	expect(sqlStatements[1]).toBe(
-		`CREATE TABLE \`__new_companies\` (
-\t\`id\` integer PRIMARY KEY NOT NULL
-);\n`,
-	);
-	expect(sqlStatements[2]).toBe(
-		`INSERT INTO \`__new_companies\`("id") SELECT "id" FROM \`companies\`;`,
-	);
-	expect(sqlStatements[3]).toBe(`DROP TABLE \`companies\`;`);
-	expect(sqlStatements[4]).toBe(
-		`ALTER TABLE \`__new_companies\` RENAME TO \`companies\`;`,
-	);
-	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
-
 	expect(columnsToRemove!.length).toBe(0);
 	expect(infoToPrint!.length).toBe(0);
 	expect(shouldAskForApprove).toBe(false);
 	expect(tablesToRemove!.length).toBe(0);
 	expect(tablesToTruncate!.length).toBe(0);
-});
-
-test('create table with custom name references', async (t) => {
-	const client = new Database(':memory:');
-
-	const users = sqliteTable('users', {
-		id: int('id').primaryKey({ autoIncrement: true }),
-		name: text('name').notNull(),
-	});
-
-	const schema1 = {
-		users,
-		posts: sqliteTable(
-			'posts',
-			{
-				id: int('id').primaryKey({ autoIncrement: true }),
-				name: text('name'),
-				userId: int('user_id'),
-			},
-			(t) => ({
-				fk: foreignKey({
-					columns: [t.id],
-					foreignColumns: [users.id],
-					name: 'custom_name_fk',
-				}),
-			}),
-		),
-	};
-
-	const schema2 = {
-		users,
-		posts: sqliteTable(
-			'posts',
-			{
-				id: int('id').primaryKey({ autoIncrement: true }),
-				name: text('name'),
-				userId: int('user_id'),
-			},
-			(t) => ({
-				fk: foreignKey({
-					columns: [t.id],
-					foreignColumns: [users.id],
-					name: 'custom_name_fk',
-				}),
-			}),
-		),
-	};
-
-	const { sqlStatements } = await diffTestSchemasPushSqlite(
-		client,
-		schema1,
-		schema2,
-		[],
-	);
-
-	expect(sqlStatements!.length).toBe(0);
 });
 
 test('drop not null, add not null', async (t) => {
-	const client = new Database(':memory:');
+	const turso = createClient({
+		url: ':memory:',
+	});
 
 	const schema1 = {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey({ autoIncrement: true }),
 			name: text('name').notNull(),
 		}),
-		posts: sqliteTable('posts', {
-			id: int('id').primaryKey({ autoIncrement: true }),
-			name: text('name'),
-			userId: int('user_id'),
-		}),
+		posts: sqliteTable(
+			'posts',
+			{
+				id: int('id').primaryKey({ autoIncrement: true }),
+				name: text('name'),
+				userId: int('user_id'),
+			},
+		),
 	};
 
 	const schema2 = {
@@ -699,11 +539,14 @@ test('drop not null, add not null', async (t) => {
 			id: int('id').primaryKey({ autoIncrement: true }),
 			name: text('name'),
 		}),
-		posts: sqliteTable('posts', {
-			id: int('id').primaryKey({ autoIncrement: true }),
-			name: text('name').notNull(),
-			userId: int('user_id'),
-		}),
+		posts: sqliteTable(
+			'posts',
+			{
+				id: int('id').primaryKey({ autoIncrement: true }),
+				name: text('name').notNull(),
+				userId: int('user_id'),
+			},
+		),
 	};
 	const {
 		statements,
@@ -713,94 +556,41 @@ test('drop not null, add not null', async (t) => {
 		shouldAskForApprove,
 		tablesToRemove,
 		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(client, schema1, schema2, []);
+	} = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+	);
 
 	expect(statements!.length).toBe(2);
 	expect(statements![0]).toStrictEqual({
-		columns: [
-			{
-				autoincrement: true,
-				generated: undefined,
-				name: 'id',
-				notNull: true,
-				primaryKey: true,
-				type: 'integer',
-			},
-			{
-				autoincrement: false,
-				generated: undefined,
-				name: 'name',
-				notNull: false,
-				primaryKey: false,
-				type: 'text',
-			},
-		],
-		compositePKs: [],
-		referenceData: [],
+		columnAutoIncrement: false,
+		columnDefault: undefined,
+		columnName: 'name',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: 'text',
+		schema: '',
 		tableName: 'users',
-		type: 'recreate_table',
-		uniqueConstraints: [],
+		type: 'alter_table_alter_column_drop_notnull',
 	});
 	expect(statements![1]).toStrictEqual({
-		columns: [
-			{
-				autoincrement: true,
-				generated: undefined,
-				name: 'id',
-				notNull: true,
-				primaryKey: true,
-				type: 'integer',
-			},
-			{
-				autoincrement: false,
-				generated: undefined,
-				name: 'name',
-				notNull: true,
-				primaryKey: false,
-				type: 'text',
-			},
-			{
-				autoincrement: false,
-				generated: undefined,
-				name: 'user_id',
-				notNull: false,
-				primaryKey: false,
-				type: 'integer',
-			},
-		],
-		compositePKs: [],
-		referenceData: [],
+		columnAutoIncrement: false,
+		columnDefault: undefined,
+		columnName: 'name',
+		columnNotNull: true,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: 'text',
+		schema: '',
 		tableName: 'posts',
-		type: 'recreate_table',
-		uniqueConstraints: [],
+		type: 'alter_table_alter_column_set_notnull',
 	});
-
-	expect(sqlStatements.length).toBe(8);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE \`__new_users\` (
-\t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-\t\`name\` text
-);\n`);
-	expect(sqlStatements[1]).toBe(
-		`INSERT INTO \`__new_users\`("id", "name") SELECT "id", "name" FROM \`users\`;`,
-	);
-	expect(sqlStatements[2]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements[3]).toBe(
-		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
-	);
-
-	expect(sqlStatements![4]).toBe(`CREATE TABLE \`__new_posts\` (
-\t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-\t\`name\` text NOT NULL,
-\t\`user_id\` integer
-);\n`);
-	expect(sqlStatements![5]).toBe(
-		`INSERT INTO \`__new_posts\`("id", "name", "user_id") SELECT "id", "name", "user_id" FROM \`posts\`;`,
-	);
-	expect(sqlStatements![6]).toBe(`DROP TABLE \`posts\`;`);
-	expect(sqlStatements![7]).toBe(
-		`ALTER TABLE \`__new_posts\` RENAME TO \`posts\`;`,
-	);
-
+	expect(sqlStatements!.length).toBe(2);
+	expect(sqlStatements![0]).toBe(`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text;`);
+	expect(sqlStatements![1]).toBe(`ALTER TABLE \`posts\` ALTER COLUMN "name" TO "name" text NOT NULL;`);
 	expect(columnsToRemove!.length).toBe(0);
 	expect(infoToPrint!.length).toBe(0);
 	expect(shouldAskForApprove).toBe(false);
@@ -808,22 +598,40 @@ test('drop not null, add not null', async (t) => {
 	expect(tablesToTruncate!.length).toBe(0);
 });
 
-test('rename table and change data type', async (t) => {
-	const client = new Database(':memory:');
+test('drop table with data', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
 
 	const schema1 = {
-		users: sqliteTable('old_users', {
+		users: sqliteTable('users', {
 			id: int('id').primaryKey({ autoIncrement: true }),
-			age: text('age'),
+			name: text('name').notNull(),
 		}),
+		posts: sqliteTable(
+			'posts',
+			{
+				id: int('id').primaryKey({ autoIncrement: true }),
+				name: text('name'),
+				userId: int('user_id'),
+			},
+		),
 	};
 
 	const schema2 = {
-		users: sqliteTable('new_users', {
-			id: int('id').primaryKey({ autoIncrement: true }),
-			age: integer('age'),
-		}),
+		posts: sqliteTable(
+			'posts',
+			{
+				id: int('id').primaryKey({ autoIncrement: true }),
+				name: text('name'),
+				userId: int('user_id'),
+			},
+		),
 	};
+
+	const seedStatements = [
+		`INSERT INTO \`users\` ("name") VALUES ('drizzle')`,
+	];
 	const {
 		statements,
 		sqlStatements,
@@ -832,144 +640,37 @@ test('rename table and change data type', async (t) => {
 		shouldAskForApprove,
 		tablesToRemove,
 		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(client, schema1, schema2, [
-		'public.old_users->public.new_users',
-	]);
-
-	expect(statements!.length).toBe(2);
-	expect(statements![0]).toStrictEqual({
-		fromSchema: undefined,
-		tableNameFrom: 'old_users',
-		tableNameTo: 'new_users',
-		toSchema: undefined,
-		type: 'rename_table',
-	});
-	expect(statements![1]).toStrictEqual({
-		columns: [
-			{
-				autoincrement: true,
-				name: 'id',
-				notNull: true,
-				generated: undefined,
-				primaryKey: true,
-				type: 'integer',
-			},
-			{
-				autoincrement: false,
-				name: 'age',
-				notNull: false,
-				generated: undefined,
-				primaryKey: false,
-				type: 'integer',
-			},
-		],
-		compositePKs: [],
-		referenceData: [],
-		tableName: 'new_users',
-		type: 'recreate_table',
-		uniqueConstraints: [],
-	});
-
-	expect(sqlStatements!.length).toBe(5);
-	expect(sqlStatements![0]).toBe(
-		`ALTER TABLE \`old_users\` RENAME TO \`new_users\`;`,
+	} = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+		false,
+		seedStatements,
 	);
-	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_new_users\` (
-\t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-\t\`age\` integer
-);\n`);
-	expect(sqlStatements![2]).toBe(
-		`INSERT INTO \`__new_new_users\`("id", "age") SELECT "id", "age" FROM \`new_users\`;`,
-	);
-	expect(sqlStatements![3]).toBe(`DROP TABLE \`new_users\`;`);
-	expect(sqlStatements![4]).toBe(
-		`ALTER TABLE \`__new_new_users\` RENAME TO \`new_users\`;`,
-	);
-
-	expect(columnsToRemove!.length).toBe(0);
-	expect(infoToPrint!.length).toBe(0);
-	expect(shouldAskForApprove).toBe(false);
-	expect(tablesToRemove!.length).toBe(0);
-	expect(tablesToTruncate!.length).toBe(0);
-});
-
-test('rename column and change data type', async (t) => {
-	const client = new Database(':memory:');
-
-	const schema1 = {
-		users: sqliteTable('users', {
-			id: int('id').primaryKey({ autoIncrement: true }),
-			name: text('name'),
-		}),
-	};
-
-	const schema2 = {
-		users: sqliteTable('users', {
-			id: int('id').primaryKey({ autoIncrement: true }),
-			age: integer('age'),
-		}),
-	};
-	const {
-		statements,
-		sqlStatements,
-		columnsToRemove,
-		infoToPrint,
-		shouldAskForApprove,
-		tablesToRemove,
-		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(client, schema1, schema2, [
-		'public.users.name->public.users.age',
-	]);
 
 	expect(statements!.length).toBe(1);
 	expect(statements![0]).toStrictEqual({
-		columns: [
-			{
-				autoincrement: true,
-				name: 'id',
-				notNull: true,
-				generated: undefined,
-				primaryKey: true,
-				type: 'integer',
-			},
-			{
-				autoincrement: false,
-				name: 'age',
-				notNull: false,
-				generated: undefined,
-				primaryKey: false,
-				type: 'integer',
-			},
-		],
-		compositePKs: [],
-		referenceData: [],
+		schema: undefined,
 		tableName: 'users',
-		type: 'recreate_table',
-		uniqueConstraints: [],
+		type: 'drop_table',
 	});
 
-	expect(sqlStatements!.length).toBe(4);
-	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
-\t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-\t\`age\` integer
-);\n`);
-	expect(sqlStatements![1]).toBe(
-		`INSERT INTO \`__new_users\`("id", "age") SELECT "id", "age" FROM \`users\`;`,
-	);
-	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements![3]).toBe(
-		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
-	);
-
+	expect(sqlStatements!.length).toBe(1);
+	expect(sqlStatements![0]).toBe(`DROP TABLE \`users\`;`);
 	expect(columnsToRemove!.length).toBe(0);
-	expect(infoToPrint!.length).toBe(0);
-	expect(shouldAskForApprove).toBe(false);
-	expect(tablesToRemove!.length).toBe(0);
+	expect(infoToPrint!.length).toBe(1);
+	expect(infoToPrint![0]).toBe(`· You're about to delete ${chalk.underline('users')} table with 1 items`);
+	expect(shouldAskForApprove).toBe(true);
+	expect(tablesToRemove!.length).toBe(1);
+	expect(tablesToRemove![0]).toBe('users');
 	expect(tablesToTruncate!.length).toBe(0);
 });
 
 test('recreate table with nested references', async (t) => {
-	const client = new Database(':memory:');
+	const turso = createClient({
+		url: ':memory:',
+	});
 
 	let users = sqliteTable('users', {
 		id: int('id').primaryKey({ autoIncrement: true }),
@@ -1016,9 +717,7 @@ test('recreate table with nested references', async (t) => {
 		shouldAskForApprove,
 		tablesToRemove,
 		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(client, schema1, schema2, [
-		'public.users.name->public.users.age',
-	]);
+	} = await diffTestSchemasPushLibSQL(turso, schema1, schema2, []);
 
 	expect(statements!.length).toBe(1);
 	expect(statements![0]).toStrictEqual({
@@ -1055,21 +754,19 @@ test('recreate table with nested references', async (t) => {
 		uniqueConstraints: [],
 	});
 
-	expect(sqlStatements!.length).toBe(6);
-	expect(sqlStatements[0]).toBe('PRAGMA foreign_keys=OFF;');
-	expect(sqlStatements![1]).toBe(`CREATE TABLE \`__new_users\` (
+	expect(sqlStatements!.length).toBe(4);
+	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
 \t\`id\` integer PRIMARY KEY NOT NULL,
 \t\`name\` text,
 \t\`age\` integer
 );\n`);
-	expect(sqlStatements![2]).toBe(
+	expect(sqlStatements![1]).toBe(
 		`INSERT INTO \`__new_users\`("id", "name", "age") SELECT "id", "name", "age" FROM \`users\`;`,
 	);
-	expect(sqlStatements![3]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements![4]).toBe(
+	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements![3]).toBe(
 		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
 	);
-	expect(sqlStatements[5]).toBe('PRAGMA foreign_keys=ON;');
 
 	expect(columnsToRemove!.length).toBe(0);
 	expect(infoToPrint!.length).toBe(0);
@@ -1078,8 +775,10 @@ test('recreate table with nested references', async (t) => {
 	expect(tablesToTruncate!.length).toBe(0);
 });
 
-test('recreate table with added column not null and without default with data', async (t) => {
-	const client = new Database(':memory:');
+test('recreate table with added column not null and without default', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
 
 	const schema1 = {
 		users: sqliteTable('users', {
@@ -1111,8 +810,8 @@ test('recreate table with added column not null and without default with data', 
 		shouldAskForApprove,
 		tablesToRemove,
 		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(
-		client,
+	} = await diffTestSchemasPushLibSQL(
+		turso,
 		schema1,
 		schema2,
 		[],
@@ -1189,24 +888,27 @@ test('recreate table with added column not null and without default with data', 
 	expect(tablesToTruncate![0]).toBe('users');
 });
 
-test('recreate table with added column not null and without default with data', async (t) => {
-	const client = new Database(':memory:');
+test('set not null with index', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
 
 	const schema1 = {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey({ autoIncrement: true }),
 			name: text('name'),
-			age: integer('age'),
-		}),
+		}, (table) => ({
+			someIndex: index('users_name_index').on(table.name),
+		})),
 	};
 
 	const schema2 = {
 		users: sqliteTable('users', {
-			id: int('id').primaryKey({ autoIncrement: false }),
-			name: text('name'),
-			age: integer('age'),
-			newColumn: text('new_column').notNull(),
-		}),
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		}, (table) => ({
+			someIndex: index('users_name_index').on(table.name),
+		})),
 	};
 
 	const {
@@ -1217,8 +919,8 @@ test('recreate table with added column not null and without default with data', 
 		shouldAskForApprove,
 		tablesToRemove,
 		tablesToTruncate,
-	} = await diffTestSchemasPushSqlite(
-		client,
+	} = await diffTestSchemasPushLibSQL(
+		turso,
 		schema1,
 		schema2,
 		[],
@@ -1226,64 +928,121 @@ test('recreate table with added column not null and without default with data', 
 
 	expect(statements!.length).toBe(1);
 	expect(statements![0]).toStrictEqual({
-		columns: [
-			{
-				autoincrement: false,
-				name: 'id',
-				notNull: true,
-				generated: undefined,
-				primaryKey: true,
-				type: 'integer',
-			},
-			{
-				autoincrement: false,
-				name: 'name',
-				notNull: false,
-				generated: undefined,
-				primaryKey: false,
-				type: 'text',
-			},
-			{
-				autoincrement: false,
-				name: 'age',
-				notNull: false,
-				generated: undefined,
-				primaryKey: false,
-				type: 'integer',
-			},
-			{
-				autoincrement: false,
-				name: 'new_column',
-				notNull: true,
-				generated: undefined,
-				primaryKey: false,
-				type: 'text',
-			},
-		],
-		compositePKs: [],
-		referenceData: [],
+		columnAutoIncrement: false,
+		columnDefault: undefined,
+		columnName: 'name',
+		columnNotNull: true,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: 'text',
+		schema: '',
 		tableName: 'users',
-		type: 'recreate_table',
-		uniqueConstraints: [],
+		type: 'alter_table_alter_column_set_notnull',
 	});
 
-	expect(sqlStatements!.length).toBe(4);
-	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
-\t\`id\` integer PRIMARY KEY NOT NULL,
-\t\`name\` text,
-\t\`age\` integer,
-\t\`new_column\` text NOT NULL
-);\n`);
-	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_users`("id", "name", "age", "new_column") SELECT "id", "name", "age", "new_column" FROM `users`;',
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_alter_column_set_notnull',
+		tableName: 'users',
+		columnName: 'name',
+		schema: '',
+		newDataType: 'text',
+		columnDefault: undefined,
+		columnOnUpdate: undefined,
+		columnNotNull: true,
+		columnAutoIncrement: false,
+		columnPk: false,
+	});
+
+	expect(sqlStatements.length).toBe(3);
+	expect(sqlStatements[0]).toBe(
+		`DROP INDEX IF EXISTS "users_name_index";`,
 	);
-	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements![3]).toBe(
-		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text NOT NULL;`,
+	);
+	expect(sqlStatements[2]).toBe(
+		`CREATE INDEX \`users_name_index\` ON \`users\` (\`name\`);`,
+	);
+	expect(columnsToRemove!.length).toBe(0), expect(infoToPrint!.length).toBe(0);
+	expect(shouldAskForApprove).toBe(false);
+	expect(tablesToRemove!.length).toBe(0);
+	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('drop not null with two indexes', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+			age: int('age').notNull(),
+		}, (table) => ({
+			someUniqeIndex: uniqueIndex('users_name_unique').on(table.name),
+			someIndex: index('users_age_index').on(table.age),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+			age: int('age').notNull(),
+		}, (table) => ({
+			someUniqeIndex: uniqueIndex('users_name_unique').on(table.name),
+			someIndex: index('users_age_index').on(table.age),
+		})),
+	};
+
+	const {
+		statements,
+		sqlStatements,
+		columnsToRemove,
+		infoToPrint,
+		shouldAskForApprove,
+		tablesToRemove,
+		tablesToTruncate,
+	} = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
 	);
 
-	expect(columnsToRemove!.length).toBe(0);
-	expect(infoToPrint!.length).toBe(0);
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_alter_column_drop_notnull',
+		tableName: 'users',
+		columnName: 'name',
+		schema: '',
+		newDataType: 'text',
+		columnDefault: undefined,
+		columnOnUpdate: undefined,
+		columnNotNull: false,
+		columnAutoIncrement: false,
+		columnPk: false,
+	});
+
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(
+		`DROP INDEX IF EXISTS "users_name_unique";`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`DROP INDEX IF EXISTS "users_age_index";`,
+	);
+	expect(sqlStatements[2]).toBe(
+		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text;`,
+	);
+	expect(sqlStatements[3]).toBe(
+		`CREATE UNIQUE INDEX \`users_name_unique\` ON \`users\` (\`name\`);`,
+	);
+	expect(sqlStatements[4]).toBe(
+		`CREATE INDEX \`users_age_index\` ON \`users\` (\`age\`);`,
+	);
+	expect(columnsToRemove!.length).toBe(0), expect(infoToPrint!.length).toBe(0);
 	expect(shouldAskForApprove).toBe(false);
 	expect(tablesToRemove!.length).toBe(0);
 	expect(tablesToTruncate!.length).toBe(0);
