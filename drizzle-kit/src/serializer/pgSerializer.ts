@@ -4,11 +4,9 @@ import {
 	AnyPgTable,
 	ExtraConfigColumn,
 	IndexedColumn,
-	PgColumn,
 	PgDialect,
 	PgEnum,
 	PgEnumColumn,
-	PgInteger,
 	PgSchema,
 	PgSequence,
 	uniqueKeyName,
@@ -18,6 +16,7 @@ import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
+	CheckConstraint,
 	Column as Column,
 	Enum,
 	ForeignKey,
@@ -127,6 +126,10 @@ export const generatePgSnapshot = (
 	const indexesInSchema: Record<string, string[]> = {};
 
 	for (const table of tables) {
+		// This object stores unique names for checks and will be used to detect if you have the same names for checks
+		// within the same PostgreSQL table
+		const checksInTable: Record<string, string[]> = {};
+
 		const {
 			name: tableName,
 			columns,
@@ -144,6 +147,7 @@ export const generatePgSnapshot = (
 
 		const columnsObject: Record<string, Column> = {};
 		const indexesObject: Record<string, Index> = {};
+		const checksObject: Record<string, CheckConstraint> = {};
 		const foreignKeysObject: Record<string, ForeignKey> = {};
 		const primaryKeysObject: Record<string, PrimaryKey> = {};
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
@@ -492,6 +496,43 @@ export const generatePgSnapshot = (
 			};
 		});
 
+		checks.forEach((check) => {
+			const checkName = check.name;
+
+			if (typeof checksInTable[`"${schema ?? 'public'}"."${tableName}"`] !== 'undefined') {
+				if (checksInTable[`"${schema ?? 'public'}"."${tableName}"`].includes(check.name)) {
+					console.log(
+						`\n${
+							withStyle.errorWarning(
+								`We\'ve found duplicated check constraint name across ${
+									chalk.underline.blue(
+										schema ?? 'public',
+									)
+								} schema in ${
+									chalk.underline.blue(
+										tableName,
+									)
+								}. Please rename your check constraint in either the ${
+									chalk.underline.blue(
+										tableName,
+									)
+								} table or the table with the duplicated check contraint name`,
+							)
+						}`,
+					);
+					process.exit(1);
+				}
+				checksInTable[`"${schema ?? 'public'}"."${tableName}"`].push(checkName);
+			} else {
+				checksInTable[`"${schema ?? 'public'}"."${tableName}"`] = [check.name];
+			}
+
+			checksObject[checkName] = {
+				name: checkName,
+				value: dialect.sqlToQuery(check.value).sql,
+			};
+		});
+
 		const tableKey = `${schema ?? 'public'}.${tableName}`;
 
 		result[tableKey] = {
@@ -502,6 +543,7 @@ export const generatePgSnapshot = (
 			foreignKeys: foreignKeysObject,
 			compositePrimaryKeys: primaryKeysObject,
 			uniqueConstraints: uniqueConstraintObject,
+			checkConstraints: checksObject,
 		};
 	}
 
@@ -718,7 +760,8 @@ export const fromDatabase = async (
 				const indexToReturn: Record<string, Index> = {};
 				const foreignKeysToReturn: Record<string, ForeignKey> = {};
 				const primaryKeys: Record<string, PrimaryKey> = {};
-				const uniqueConstrains: Record<string, UniqueConstraint> = {};
+				const uniqueConstraints: Record<string, UniqueConstraint> = {};
+				const checkConstraints: Record<string, CheckConstraint> = {};
 
 				const tableResponse = await db.query(
 					`SELECT a.attrelid::regclass::text, a.attname, is_nullable, a.attndims as array_dimensions
@@ -758,13 +801,56 @@ export const fromDatabase = async (
 				);
 
 				const tableConstraints = await db.query(
-					`SELECT c.column_name, c.data_type, constraint_type, constraint_name, constraint_schema
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_name)
-      JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema
-        AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
-      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}';`,
+					`SELECT c.column_name, 
+					       c.data_type, 
+					       tc.constraint_type, 
+					       tc.constraint_name, 
+					       tc.constraint_schema,
+					       pg_get_constraintdef(con.oid) AS check_constraint_definition
+					FROM information_schema.table_constraints tc
+					JOIN information_schema.constraint_column_usage AS ccu 
+					    USING (constraint_schema, constraint_name)
+					JOIN information_schema.columns AS c 
+					    ON c.table_schema = tc.constraint_schema
+					    AND tc.table_name = c.table_name 
+					    AND ccu.column_name = c.column_name
+					JOIN pg_constraint con 
+					    ON con.conname = tc.constraint_name
+					    AND con.conrelid = (
+					        SELECT oid 
+					        FROM pg_class 
+					        WHERE relname = tc.table_name 
+					        AND relnamespace = (
+					            SELECT oid 
+					            FROM pg_namespace 
+					            WHERE nspname = tc.constraint_schema
+					        )
+					    )
+					WHERE tc.table_name = '${tableName}' AND tc.constraint_schema = '${tableSchema}';`,
 				);
+
+				const tableChecks = await db.query(`SELECT 
+			    tc.constraint_name,
+			    tc.constraint_type,
+			    pg_get_constraintdef(con.oid) AS constraint_definition
+			FROM 
+			    information_schema.table_constraints AS tc
+			    JOIN pg_constraint AS con 
+			        ON tc.constraint_name = con.conname
+			        AND con.conrelid = (
+			            SELECT oid 
+			            FROM pg_class 
+			            WHERE relname = tc.table_name 
+			            AND relnamespace = (
+			                SELECT oid 
+			                FROM pg_namespace 
+			                WHERE nspname = tc.constraint_schema
+			            )
+			        )
+			WHERE 
+			    tc.table_name = '${tableName}'
+			    AND tc.constraint_schema = '${tableSchema}'
+				AND tc.constraint_type = 'CHECK';`);
 
 				columnsCount += tableResponse.length;
 				if (progressCallback) {
@@ -773,42 +859,42 @@ export const fromDatabase = async (
 
 				const tableForeignKeys = await db.query(
 					`SELECT
-            con.contype AS constraint_type,
-            nsp.nspname AS constraint_schema,
-            con.conname AS constraint_name,
-            rel.relname AS table_name,
-            att.attname AS column_name,
-            fnsp.nspname AS foreign_table_schema,
-            frel.relname AS foreign_table_name,
-            fatt.attname AS foreign_column_name,
-            CASE con.confupdtype
-              WHEN 'a' THEN 'NO ACTION'
-              WHEN 'r' THEN 'RESTRICT'
-              WHEN 'n' THEN 'SET NULL'
-              WHEN 'c' THEN 'CASCADE'
-              WHEN 'd' THEN 'SET DEFAULT'
-            END AS update_rule,
-            CASE con.confdeltype
-              WHEN 'a' THEN 'NO ACTION'
-              WHEN 'r' THEN 'RESTRICT'
-              WHEN 'n' THEN 'SET NULL'
-              WHEN 'c' THEN 'CASCADE'
-              WHEN 'd' THEN 'SET DEFAULT'
-            END AS delete_rule
-          FROM
-            pg_catalog.pg_constraint con
-            JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
-            JOIN pg_catalog.pg_namespace nsp ON nsp.oid = con.connamespace
-            LEFT JOIN pg_catalog.pg_attribute att ON att.attnum = ANY (con.conkey)
-              AND att.attrelid = con.conrelid
-            LEFT JOIN pg_catalog.pg_class frel ON frel.oid = con.confrelid
-            LEFT JOIN pg_catalog.pg_namespace fnsp ON fnsp.oid = frel.relnamespace
-            LEFT JOIN pg_catalog.pg_attribute fatt ON fatt.attnum = ANY (con.confkey)
-              AND fatt.attrelid = con.confrelid
-          WHERE
-            nsp.nspname = '${tableSchema}'
-            AND rel.relname = '${tableName}'
-            AND con.contype IN ('f');`,
+				    con.contype AS constraint_type,
+				    nsp.nspname AS constraint_schema,
+				    con.conname AS constraint_name,
+				    rel.relname AS table_name,
+				    att.attname AS column_name,
+				    fnsp.nspname AS foreign_table_schema,
+				    frel.relname AS foreign_table_name,
+				    fatt.attname AS foreign_column_name,
+				    CASE con.confupdtype
+				      WHEN 'a' THEN 'NO ACTION'
+				      WHEN 'r' THEN 'RESTRICT'
+				      WHEN 'n' THEN 'SET NULL'
+				      WHEN 'c' THEN 'CASCADE'
+				      WHEN 'd' THEN 'SET DEFAULT'
+				    END AS update_rule,
+				    CASE con.confdeltype
+				      WHEN 'a' THEN 'NO ACTION'
+				      WHEN 'r' THEN 'RESTRICT'
+				      WHEN 'n' THEN 'SET NULL'
+				      WHEN 'c' THEN 'CASCADE'
+				      WHEN 'd' THEN 'SET DEFAULT'
+				    END AS delete_rule
+				  FROM
+				    pg_catalog.pg_constraint con
+				    JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
+				    JOIN pg_catalog.pg_namespace nsp ON nsp.oid = con.connamespace
+				    LEFT JOIN pg_catalog.pg_attribute att ON att.attnum = ANY (con.conkey)
+				      AND att.attrelid = con.conrelid
+				    LEFT JOIN pg_catalog.pg_class frel ON frel.oid = con.confrelid
+				    LEFT JOIN pg_catalog.pg_namespace fnsp ON fnsp.oid = frel.relnamespace
+				    LEFT JOIN pg_catalog.pg_attribute fatt ON fatt.attnum = ANY (con.confkey)
+				      AND fatt.attrelid = con.confrelid
+				  WHERE
+				    nsp.nspname = '${tableSchema}'
+				    AND rel.relname = '${tableName}'
+				    AND con.contype IN ('f');`,
 				);
 
 				foreignKeysCount += tableForeignKeys.length;
@@ -859,15 +945,29 @@ export const fromDatabase = async (
 					const columnName: string = unqs.column_name;
 					const constraintName: string = unqs.constraint_name;
 
-					if (typeof uniqueConstrains[constraintName] !== 'undefined') {
-						uniqueConstrains[constraintName].columns.push(columnName);
+					if (typeof uniqueConstraints[constraintName] !== 'undefined') {
+						uniqueConstraints[constraintName].columns.push(columnName);
 					} else {
-						uniqueConstrains[constraintName] = {
+						uniqueConstraints[constraintName] = {
 							columns: [columnName],
 							nullsNotDistinct: false,
 							name: constraintName,
 						};
 					}
+				}
+
+				for (const checks of tableChecks) {
+					// CHECK (((email)::text <> 'test@gmail.com'::text))
+					// Where (email) is column in table
+					let checkValue: string = checks.constraint_definition;
+					const constraintName: string = checks.constraint_name;
+
+					checkValue = checkValue.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
+
+					checkConstraints[constraintName] = {
+						name: constraintName,
+						value: checkValue,
+					};
 				}
 
 				for (const columnResponse of tableResponse) {
@@ -1180,7 +1280,8 @@ export const fromDatabase = async (
 					indexes: indexToReturn,
 					foreignKeys: foreignKeysToReturn,
 					compositePrimaryKeys: primaryKeys,
-					uniqueConstraints: uniqueConstrains,
+					uniqueConstraints: uniqueConstraints,
+					checkConstraints: checkConstraints,
 				};
 			} catch (e) {
 				rej(e);

@@ -4,6 +4,7 @@ import {
 	bigserial,
 	boolean,
 	char,
+	check,
 	date,
 	doublePrecision,
 	index,
@@ -620,6 +621,7 @@ const pgSuite: DialectSuite = {
 				tableName: 'users',
 				type: 'create_table',
 				uniqueConstraints: [],
+				checkConstraints: [],
 			},
 		]);
 		expect(sqlStatements).toStrictEqual([
@@ -1388,6 +1390,7 @@ test('create table: identity always/by default - no params', async () => {
 			tableName: 'users',
 			type: 'create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -1455,6 +1458,7 @@ test('create table: identity always/by default - few params', async () => {
 			tableName: 'users',
 			type: 'create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -1528,6 +1532,7 @@ test('create table: identity always/by default - all params', async () => {
 			tableName: 'users',
 			type: 'create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -2235,4 +2240,125 @@ test('add array column - default', async () => {
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
 	]);
+});
+
+test('add check constraint to table', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').array().default([1, 2, 3]),
+		}),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').array().default([1, 2, 3]),
+		}, (table) => ({
+			checkConstraint1: check('some_check1', sql`${table.values} < 100`),
+			checkConstraint2: check('some_check2', sql`'test' < 100`),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'create_check_constraint',
+			tableName: 'test',
+			schema: '',
+			data: 'some_check1;"test"."values" < 100',
+		},
+		{
+			data: "some_check2;'test' < 100",
+			schema: '',
+			tableName: 'test',
+			type: 'create_check_constraint',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" ADD CONSTRAINT "some_check1" CHECK ("test"."values" < 100);',
+		`ALTER TABLE "test" ADD CONSTRAINT "some_check2" CHECK ('test' < 100);`,
+	]);
+});
+
+test('drop check constraint', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').default(1),
+		}, (table) => ({
+			checkConstraint: check('some_check', sql`${table.values} < 100`),
+		})),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').default(1),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'delete_check_constraint',
+			tableName: 'test',
+			schema: '',
+			data: 'some_check',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" DROP CONSTRAINT "some_check";',
+	]);
+});
+
+test('db has checks. Push with same names', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').default(1),
+		}, (table) => ({
+			checkConstraint: check('some_check', sql`${table.values} < 100`),
+		})),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').default(1),
+		}, (table) => ({
+			checkConstraint: check('some_check', sql`some new value`),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });

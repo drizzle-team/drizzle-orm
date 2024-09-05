@@ -25,7 +25,7 @@ import {
 	JsonAlterTableRemoveFromSchema,
 	JsonAlterTableSetNewSchema,
 	JsonAlterTableSetSchema,
-	JsonAlterUniqueConstraint,
+	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
@@ -34,6 +34,7 @@ import {
 	JsonCreateSequenceStatement,
 	JsonCreateTableStatement,
 	JsonCreateUniqueConstraint,
+	JsonDeleteCheckConstraint,
 	JsonDeleteCompositePK,
 	JsonDeleteReferenceStatement,
 	JsonDeleteUniqueConstraint,
@@ -137,7 +138,7 @@ class PgCreateTableConvertor extends Convertor {
 	}
 
 	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints } = st;
+		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints } = st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
@@ -222,6 +223,15 @@ class PgCreateTableConvertor extends Convertor {
 				// statement += `\n`;
 			}
 		}
+
+		if (typeof checkConstraints !== 'undefined' && checkConstraints.length > 0) {
+			for (const checkConstraint of checkConstraints) {
+				statement += ',\n';
+				const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
+				statement += `\tCONSTRAINT "${unsquashedCheck.name}" CHECK (${unsquashedCheck.value})`;
+			}
+		}
+
 		statement += `\n);`;
 		statement += `\n`;
 
@@ -556,6 +566,40 @@ class PgAlterTableDropUniqueConstraintConvertor extends Convertor {
 	}
 	convert(statement: JsonDeleteUniqueConstraint): string {
 		const unsquashed = PgSquasher.unsquashUnique(statement.data);
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${unsquashed.name}";`;
+	}
+}
+
+class PgAlterTableAddCheckConstraintConvertor extends Convertor {
+	can(statement: JsonCreateCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'create_check_constraint' && dialect === 'postgresql'
+		);
+	}
+	convert(statement: JsonCreateCheckConstraint): string {
+		const unsquashed = PgSquasher.unsquashCheck(statement.data);
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unsquashed.name}" CHECK (${unsquashed.value});`;
+	}
+}
+
+class PgAlterTableDeleteCheckConstraintConvertor extends Convertor {
+	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'delete_check_constraint' && dialect === 'postgresql'
+		);
+	}
+	convert(statement: JsonDeleteCheckConstraint): string {
+		const unsquashed = PgSquasher.unsquashCheck(statement.data);
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -2547,6 +2591,9 @@ convertors.push(new PgAlterTableAlterColumnSetTypeConvertor());
 
 convertors.push(new PgAlterTableAddUniqueConstraintConvertor());
 convertors.push(new PgAlterTableDropUniqueConstraintConvertor());
+
+convertors.push(new PgAlterTableAddCheckConstraintConvertor());
+convertors.push(new PgAlterTableDeleteCheckConstraintConvertor());
 
 convertors.push(new MySQLAlterTableAddUniqueConstraintConvertor());
 convertors.push(new MySQLAlterTableDropUniqueConstraintConvertor());

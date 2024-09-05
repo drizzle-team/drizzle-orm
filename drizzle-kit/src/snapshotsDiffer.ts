@@ -24,9 +24,11 @@ import {
 	JsonAlterCompositePK,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
+	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
 	JsonCreateReferenceStatement,
 	JsonCreateUniqueConstraint,
+	JsonDeleteCheckConstraint,
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
 	JsonDropColumnStatement,
@@ -34,6 +36,7 @@ import {
 	JsonRenameColumnStatement,
 	JsonSqliteAddColumnStatement,
 	JsonStatement,
+	prepareAddCheckConstraintPg,
 	prepareAddCompositePrimaryKeyMySql,
 	prepareAddCompositePrimaryKeyPg,
 	prepareAddCompositePrimaryKeySqlite,
@@ -50,6 +53,7 @@ import {
 	prepareCreateReferencesJson,
 	prepareCreateSchemasJson,
 	prepareCreateSequenceJson,
+	prepareDeleteCheckConstraintPg,
 	prepareDeleteCompositePrimaryKeyMySql,
 	prepareDeleteCompositePrimaryKeyPg,
 	prepareDeleteCompositePrimaryKeySqlite,
@@ -78,7 +82,7 @@ import {
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSchema, PgSchemaSquashed, PgSquasher, sequenceSchema, sequenceSquashed } from './serializer/pgSchema';
+import { PgSchema, PgSchemaSquashed, PgSquasher, sequenceSquashed } from './serializer/pgSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 import { copy, prepareMigrationMeta } from './utils';
 
@@ -204,6 +208,7 @@ const tableScheme = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()).default({}),
 	uniqueConstraints: record(string(), string()).default({}),
+	checkConstraints: record(string(), string()).default({}),
 }).strict();
 
 export const alteredTableScheme = object({
@@ -240,6 +245,21 @@ export const alteredTableScheme = object({
 	addedUniqueConstraints: record(string(), string()),
 	deletedUniqueConstraints: record(string(), string()),
 	alteredUniqueConstraints: record(
+		string(),
+		object({
+			__new: string(),
+			__old: string(),
+		}),
+	),
+	addedCheckConstraints: record(
+		string(),
+		string(),
+	),
+	deletedCheckConstraints: record(
+		string(),
+		string(),
+	),
+	alteredCheckConstraints: record(
 		string(),
 		object({
 			__new: string(),
@@ -788,6 +808,9 @@ export const applyPgSnapshotsDiff = async (
 		});
 	}
 
+	const jsonDeletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+	const jsonCreatedCheckConstraints: JsonCreateCheckConstraint[] = [];
+
 	for (let it of alteredTables) {
 		// This part is needed to make sure that same columns in a table are not triggered for change
 		// there is a case where orm and kit are responsible for pk name generation and one of them is not sorting name
@@ -838,6 +861,8 @@ export const applyPgSnapshotsDiff = async (
 		let addedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
 		let deletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 		let alteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
+		let createCheckConstraints: JsonCreateCheckConstraint[] = [];
+		let deleteCheckConstraints: JsonDeleteCheckConstraint[] = [];
 
 		addedUniqueConstraints = prepareAddUniqueConstraint(
 			it.name,
@@ -863,6 +888,28 @@ export const applyPgSnapshotsDiff = async (
 				...prepareDeleteUniqueConstraint(it.name, it.schema, deleted),
 			);
 		}
+
+		createCheckConstraints = prepareAddCheckConstraintPg(it.name, it.schema, it.addedCheckConstraints);
+		deleteCheckConstraints = prepareDeleteCheckConstraintPg(
+			it.name,
+			it.schema,
+			it.deletedCheckConstraints,
+		);
+
+		if (it.alteredCheckConstraints && action !== 'push') {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+
+			for (const k of Object.keys(it.alteredCheckConstraints)) {
+				added[k] = it.alteredCheckConstraints[k].__new;
+				deleted[k] = it.alteredCheckConstraints[k].__old;
+			}
+			createCheckConstraints.push(...prepareAddCheckConstraintPg(it.name, it.schema, added));
+			deleteCheckConstraints.push(...prepareDeleteCheckConstraintPg(it.name, it.schema, deleted));
+		}
+
+		jsonCreatedCheckConstraints.push(...createCheckConstraints);
+		jsonDeletedCheckConstraints.push(...deleteCheckConstraints);
 
 		jsonAddedCompositePKs.push(...addedCompositePKs);
 		jsonDeletedCompositePKs.push(...deletedCompositePKs);
@@ -1108,6 +1155,7 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
+	jsonStatements.push(...jsonDeletedCheckConstraints);
 
 	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
 
@@ -1130,6 +1178,7 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlteredCompositePKs);
 
 	jsonStatements.push(...jsonAddedUniqueConstraints);
+	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 

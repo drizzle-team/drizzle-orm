@@ -32,6 +32,7 @@ export interface JsonCreateTableStatement {
 	compositePKs: string[];
 	compositePkName?: string;
 	uniqueConstraints?: string[];
+	checkConstraints?: string[];
 	internals?: MySqlKitInternals;
 }
 
@@ -206,6 +207,20 @@ export interface JsonAlterUniqueConstraint {
 	schema?: string;
 	oldConstraintName?: string;
 	newConstraintName?: string;
+}
+
+export interface JsonCreateCheckConstraint {
+	type: 'create_check_constraint';
+	tableName: string;
+	data: string;
+	schema?: string;
+}
+
+export interface JsonDeleteCheckConstraint {
+	type: 'delete_check_constraint';
+	tableName: string;
+	data: string;
+	schema?: string;
 }
 
 export interface JsonCreateCompositePK {
@@ -555,14 +570,16 @@ export type JsonStatement =
 	| JsonDropSequenceStatement
 	| JsonCreateSequenceStatement
 	| JsonMoveSequenceStatement
-	| JsonRenameSequenceStatement;
+	| JsonRenameSequenceStatement
+	| JsonCreateCheckConstraint
+	| JsonDeleteCheckConstraint;
 
 export const preparePgCreateTableJson = (
 	table: Table,
 	// TODO: remove?
 	json2: PgSchema,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
 	const tableKey = `${schema || 'public'}.${name}`;
 
 	// TODO: @AndriiSherman. We need this, will add test cases
@@ -580,6 +597,7 @@ export const preparePgCreateTableJson = (
 		compositePKs: Object.values(compositePrimaryKeys),
 		compositePkName: compositePkName,
 		uniqueConstraints: Object.values(uniqueConstraints),
+		checkConstraints: Object.values(checkConstraints),
 	};
 };
 
@@ -2133,6 +2151,36 @@ export const prepareDeleteUniqueConstraintPg = (
 			data: it,
 			schema,
 		} as JsonDeleteUniqueConstraint;
+	});
+};
+
+export const prepareAddCheckConstraintPg = (
+	tableName: string,
+	schema: string,
+	check: Record<string, string>,
+): JsonCreateCheckConstraint[] => {
+	return Object.values(check).map((it) => {
+		return {
+			type: 'create_check_constraint',
+			tableName,
+			data: it,
+			schema,
+		} as JsonCreateCheckConstraint;
+	});
+};
+
+export const prepareDeleteCheckConstraintPg = (
+	tableName: string,
+	schema: string,
+	check: Record<string, string>,
+): JsonDeleteCheckConstraint[] => {
+	return Object.values(check).map((it) => {
+		return {
+			type: 'delete_check_constraint',
+			tableName,
+			data: PgSquasher.unsquashCheck(it).name, // only name needed
+			schema,
+		} as JsonDeleteCheckConstraint;
 	});
 };
 

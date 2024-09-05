@@ -8,12 +8,12 @@ import {
 	Relation,
 	Relations,
 } from 'drizzle-orm/relations';
-import { plural, singular } from 'pluralize';
 import './@types/utils';
 import { Casing } from './cli/validations/common';
 import { vectorOps } from './extensions/vector';
 import { assertUnreachable } from './global';
 import {
+	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
@@ -356,6 +356,10 @@ export const schemaToTypeScript = (
 				(it) => 'unique',
 			);
 
+			const checkImports = Object.values(it.checkConstraints).map(
+				(it) => 'check',
+			);
+
 			if (it.schema && it.schema !== 'public' && it.schema !== '') {
 				res.pg.push('pgSchema');
 			}
@@ -364,6 +368,7 @@ export const schemaToTypeScript = (
 			res.pg.push(...fkImpots);
 			res.pg.push(...pkImports);
 			res.pg.push(...uniqueImports);
+			res.pg.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -492,6 +497,7 @@ export const schemaToTypeScript = (
 			|| Object.values(table.foreignKeys).length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
+			|| Object.keys(table.checkConstraints).length > 0
 		) {
 			statement += ',\n';
 			statement += '(table) => {\n';
@@ -508,6 +514,10 @@ export const schemaToTypeScript = (
 			);
 			statement += createTableUniques(
 				Object.values(table.uniqueConstraints),
+				casing,
+			);
+			statement += createTableChecks(
+				Object.values(table.checkConstraints),
 				casing,
 			);
 			statement += '\t}\n';
@@ -1266,6 +1276,24 @@ const createTableUniques = (
 				.join(', ')
 		})`;
 		statement += it.nullsNotDistinct ? `.nullsNotDistinct()` : '';
+		statement += `,\n`;
+	});
+
+	return statement;
+};
+
+const createTableChecks = (
+	checkConstraints: CheckConstraint[],
+	casing: Casing,
+) => {
+	let statement = '';
+
+	checkConstraints.forEach((it) => {
+		const checkKey = withCasing(it.name, casing);
+		statement += `\t\t${checkKey}: `;
+		statement += 'check(';
+		statement += `"${it.name}", `;
+		statement += `sql\`${it.value}\`)`;
 		statement += `,\n`;
 	});
 
