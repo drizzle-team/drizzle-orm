@@ -19,16 +19,14 @@ export class MySqlCountBuilder<
 		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
-		return sql<number>`(select cast(count(*) as UNSIGNED) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
+		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
 	}
 
 	private static buildCount(
 		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
-		return sql<number>`select cast(count(*) as UNSIGNED) as count from ${source}${
-			sql.raw(' where ').if(filters)
-		}${filters}`;
+		return sql<number>`select count(*) as count from ${source}${sql.raw(' where ').if(filters)}${filters}`;
 	}
 
 	constructor(
@@ -39,6 +37,8 @@ export class MySqlCountBuilder<
 		},
 	) {
 		super(MySqlCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+
+		this.mapWith(Number);
 
 		this.session = params.session;
 
@@ -52,8 +52,8 @@ export class MySqlCountBuilder<
 		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.execute(this.sql)).then<number>((it) => {
-			return (<[[{ count: number }]]> it)[0][0]['count'];
+		return Promise.resolve(this.session.execute<[[{ count: string }]]>(this.sql)).then<number>((it) => {
+			return Number(it[0][0]['count']);
 		})
 			.then(
 				onfulfilled,

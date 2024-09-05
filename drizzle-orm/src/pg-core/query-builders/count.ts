@@ -18,14 +18,14 @@ export class PgCountBuilder<
 		source: PgTable | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
-		return sql<number>`(select count(*)::int from ${source}${sql.raw(' where ').if(filters)}${filters})`;
+		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
 	}
 
 	private static buildCount(
 		source: PgTable | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
-		return sql<number>`select count(*)::int as count from ${source}${sql.raw(' where ').if(filters)}${filters};`;
+		return sql<number>`select count(*) as count from ${source}${sql.raw(' where ').if(filters)}${filters};`;
 	}
 
 	constructor(
@@ -36,6 +36,8 @@ export class PgCountBuilder<
 		},
 	) {
 		super(PgCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+
+		this.mapWith(Number);
 
 		this.session = params.session;
 
@@ -49,8 +51,8 @@ export class PgCountBuilder<
 		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.execute(this.sql)).then<number>((it) => {
-			return (<[{ count: number }]> it)[0]['count'] as number;
+		return Promise.resolve(this.session.execute<[{ count: string }]>(this.sql)).then<number>((it) => {
+			return Number(it[0]['count']);
 		})
 			.then(
 				onfulfilled,

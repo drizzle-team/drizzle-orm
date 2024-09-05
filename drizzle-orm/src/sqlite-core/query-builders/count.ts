@@ -50,7 +50,7 @@ export class SQLiteCountBuilder<
 		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.values(this.sql)).then<number>((it) => it[0]![0] as number).then(
+		return Promise.resolve(this.session.values<[[number]]>(this.sql)).then<number>((it) => it[0][0]).then(
 			onfulfilled,
 			onrejected,
 		);
