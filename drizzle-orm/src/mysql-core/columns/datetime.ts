@@ -2,9 +2,9 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { Placeholder, SQL } from '~/sql/sql.ts';
 import type { Equal } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
-import type { Placeholder, SQL } from '~/sql/sql.ts';
 
 export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBuilder<{
 	name: TName;

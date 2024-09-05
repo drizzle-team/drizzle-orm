@@ -3102,7 +3102,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				updatedAt: timestamp('updated_at', {
-					fsp: 6
+					fsp: 6,
 				})
 					.notNull()
 					.$onUpdate(() => sql`current_timestamp`),
@@ -3120,7 +3120,7 @@ export function tests(driver?: string) {
 			);
 
 			await db.insert(users).values({
-				name: 'John'
+				name: 'John',
 			});
 			const insertResp = await db.select({ updatedAt: users.updatedAt }).from(users);
 			await new Promise((resolve) => setTimeout(resolve, 50));
@@ -3128,7 +3128,7 @@ export function tests(driver?: string) {
 			const now = new Date().getTime();
 			await new Promise((resolve) => setTimeout(resolve, 50));
 			await db.update(users).set({
-				name: 'John'
+				name: 'John',
 			});
 			const updateResp = await db.select({ updatedAt: users.updatedAt }).from(users);
 

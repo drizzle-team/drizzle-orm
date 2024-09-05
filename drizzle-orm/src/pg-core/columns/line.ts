@@ -2,9 +2,9 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { Placeholder, SQL } from '~/sql/sql.ts';
 import type { Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
-import { Placeholder, SQL } from '~/sql/sql.ts';
 
 export type PgLineBuilderInitial<TName extends string> = PgLineBuilder<{
 	name: TName;
@@ -91,7 +91,9 @@ export class PgLineABC<T extends ColumnBaseConfig<'json', 'PgLineABC'>> extends 
 		return { a: Number.parseFloat(a!), b: Number.parseFloat(b!), c: Number.parseFloat(c!) };
 	}
 
-	override mapToDriverValue(value: { a: number; b: number; c: number } | SQL | Placeholder): string | SQL | Placeholder {
+	override mapToDriverValue(
+		value: { a: number; b: number; c: number } | SQL | Placeholder,
+	): string | SQL | Placeholder {
 		return is(value, SQL) || is(value, Placeholder)
 			? value
 			: `{${(value as any).a},${(value as any).b},${(value as any).c}}`;

@@ -2,10 +2,10 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { Placeholder, SQL } from '~/sql/sql.ts';
 import type { Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { parseEWKB } from './utils.ts';
-import { Placeholder, SQL } from '~/sql/sql.ts';
 
 export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
 	name: TName;

@@ -9,7 +9,7 @@ import type {
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
-import { sql, SQL, Placeholder } from '~/sql/sql.ts';
+import { Placeholder, SQL, sql } from '~/sql/sql.ts';
 import type { OnConflict } from '~/sqlite-core/utils.ts';
 import type { Equal, Or } from '~/utils.ts';
 import type { AnySQLiteTable } from '../table.ts';

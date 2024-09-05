@@ -1,10 +1,10 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import { Placeholder, SQL } from '~/sql/sql.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
 import type { Equal } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
-import { Placeholder, SQL } from '~/sql/sql.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
 

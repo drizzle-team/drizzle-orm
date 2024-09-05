@@ -2,8 +2,8 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 import { Placeholder, SQL } from '~/sql/sql.ts';
+import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
 	name: TName;
