@@ -87,7 +87,7 @@ export class LibSQLSession<
 			builtQueries.push({ sql: builtQuery.sql, args: builtQuery.params as InArgs });
 		}
 
-		const batchResults = await this.client.migrate(builtQueries);
+		const batchResults = await this.client.batch(builtQueries);
 		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
