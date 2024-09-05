@@ -10,6 +10,7 @@ jobs:
       matrix:
         package:
           - drizzle-orm
+          - drizzle-kit
           - drizzle-zod
           - drizzle-typebox
           - drizzle-valibot
@@ -138,12 +139,6 @@ jobs:
             cd drizzle-orm
             pnpm prisma generate --schema src/prisma/schema.prisma
           )
-          (
-            cd integration-tests
-            pnpm prisma generate --schema tests/prisma/pg/schema.prisma
-            pnpm prisma generate --schema tests/prisma/mysql/schema.prisma
-            pnpm prisma generate --schema tests/prisma/sqlite/schema.prisma
-          )
           pnpm build
 
       - name: Run tests
@@ -219,6 +214,38 @@ jobs:
                 repo: context.repo.repo,
                 tag_name: `${version}`,
                 name: `${version}`,
+                body: changelog,
+              });
+
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.data.id,
+                name: `${{ matrix.package }}-${version}-dist.tgz`,
+                data: fs.readFileSync(path.resolve("${{ matrix.package }}", "package.tgz")),
+              });
+            } catch (e) {
+              core.setFailed(e.message);
+            }
+
+      - name: Create GitHub release for KIT package
+        uses: actions/github-script@v6
+        if: matrix.package == 'drizzle-kit' && steps.checks.outputs.has_new_release == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const fs = require("fs");
+              const path = require("path");
+
+              const version = "${{ steps.checks.outputs.version }}";
+              const changelog = fs.readFileSync("${{ steps.checks.outputs.changelog_path }}", "utf8");
+
+              const release = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: `drizzle-kit@${version}`,
+                name: `drizzle-kit@${version}`,
                 body: changelog,
               });
 

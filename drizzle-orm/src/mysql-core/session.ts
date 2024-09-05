@@ -86,6 +86,14 @@ export abstract class MySqlSession<
 
 	abstract all<T = unknown>(query: SQL): Promise<T[]>;
 
+	async count(sql: SQL): Promise<number> {
+		const res = await this.execute<[[{ count: string }]]>(sql);
+
+		return Number(
+			res[0][0]['count'],
+		);
+	}
+
 	abstract transaction<T>(
 		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
 		config?: MySqlTransactionConfig,
@@ -98,7 +106,7 @@ export abstract class MySqlSession<
 			parts.push(`isolation level ${config.isolationLevel}`);
 		}
 
-		return parts.length ? sql.join(['set transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql`set transaction ${sql.raw(parts.join(' '))}` : undefined;
 	}
 
 	protected getStartTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
@@ -112,7 +120,7 @@ export abstract class MySqlSession<
 			parts.push(config.accessMode);
 		}
 
-		return parts.length ? sql.join(['start transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql`start transaction ${sql.raw(parts.join(' '))}` : undefined;
 	}
 }
 

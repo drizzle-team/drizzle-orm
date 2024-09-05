@@ -5,7 +5,7 @@ import type { LibSQLDatabase } from './driver.ts';
 
 export async function migrate<TSchema extends Record<string, unknown>>(
 	db: LibSQLDatabase<TSchema>,
-	config: MigrationConfig,
+	config: MigrationConfig | string,
 ) {
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config === undefined
@@ -47,5 +47,5 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		}
 	}
 
-	await db.session.batch(statementToBatch);
+	await db.session.migrate(statementToBatch);
 }

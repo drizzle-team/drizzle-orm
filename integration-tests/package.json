@@ -8,13 +8,14 @@
 		"test": "pnpm test:vitest",
 		"test:vitest": "vitest run",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
-		"test:data-api": "sst shell vitest run tests/awsdatapi.test.ts"
+		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts"
 	},
 	"keywords": [],
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"private": true,
 	"devDependencies": {
+		"@libsql/client": "^0.10.0",
 		"@neondatabase/serverless": "0.9.0",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@paralleldrive/cuid2": "^2.2.2",
@@ -41,7 +42,6 @@
 		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@aws-sdk/credential-providers": "^3.549.0",
 		"@electric-sql/pglite": "^0.1.1",
-		"@libsql/client": "^0.5.6",
 		"@miniflare/d1": "^2.14.2",
 		"@miniflare/shared": "^2.14.2",
 		"@planetscale/database": "^1.16.0",
