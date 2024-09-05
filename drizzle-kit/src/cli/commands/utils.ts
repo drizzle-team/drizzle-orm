@@ -16,6 +16,8 @@ import {
 	Prefix,
 	wrapParam,
 } from '../validations/common';
+import { LibSQLCredentials, libSQLCredentials } from '../validations/libsql';
+import { printConfigConnectionIssues as printIssuesLibSql } from '../validations/libsql';
 import {
 	MysqlCredentials,
 	mysqlCredentials,
@@ -211,6 +213,10 @@ export const preparePushConfig = async (
 			dialect: 'sqlite';
 			credentials: SqliteCredentials;
 		}
+		| {
+			dialect: 'turso';
+			credentials: LibSQLCredentials;
+		}
 	) & {
 		schemaPath: string | string[];
 		verbose: boolean;
@@ -327,6 +333,24 @@ export const preparePushConfig = async (
 		};
 	}
 
+	if (config.dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesSqlite(config, 'pull');
+			process.exit(1);
+		}
+		return {
+			dialect: 'turso',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+		};
+	}
+
 	assertUnreachable(config.dialect);
 };
 
@@ -346,6 +370,10 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'sqlite';
 			credentials: SqliteCredentials;
+		}
+		| {
+			dialect: 'turso';
+			credentials: LibSQLCredentials;
 		}
 	) & {
 		out: string;
@@ -452,6 +480,24 @@ export const preparePullConfig = async (
 		};
 	}
 
+	if (dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesLibSql(config, 'pull');
+			process.exit(1);
+		}
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+		};
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -521,6 +567,22 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		};
 	}
 
+	if (dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesLibSql(flattened as Record<string, unknown>, 'studio');
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+		};
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -578,6 +640,21 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 		const parsed = sqliteCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printIssuesSqlite(flattened as Record<string, unknown>, 'migrate');
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
+	if (dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesLibSql(flattened as Record<string, unknown>, 'migrate');
 			process.exit(1);
 		}
 		const credentials = parsed.data;

@@ -128,8 +128,7 @@ export type Config =
 	}
 	& (
 		| {
-			dialect: Verify<Dialect, 'sqlite'>;
-			driver: Verify<Driver, 'turso'>;
+			dialect: Verify<Dialect, 'turso'>;
 			dbCredentials: {
 				url: string;
 				authToken?: string;
