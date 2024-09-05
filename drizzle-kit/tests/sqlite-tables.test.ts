@@ -163,19 +163,19 @@ test('add table #7', async () => {
 
 	expect(statements.length).toBe(2);
 	expect(statements[0]).toStrictEqual({
+		type: 'rename_table',
+		tableNameFrom: 'users1',
+		tableNameTo: 'users2',
+		fromSchema: undefined,
+		toSchema: undefined,
+	});
+	expect(statements[1]).toStrictEqual({
 		type: 'sqlite_create_table',
 		tableName: 'users',
 		columns: [],
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'rename_table',
-		tableNameFrom: 'users1',
-		tableNameTo: 'users2',
-		fromSchema: undefined,
-		toSchema: undefined,
 	});
 });
 

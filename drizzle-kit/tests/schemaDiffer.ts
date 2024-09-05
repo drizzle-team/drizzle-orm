@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
+import { Client } from '@libsql/client/.';
 import { Database } from 'better-sqlite3';
 import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
@@ -6,6 +7,7 @@ import { isPgEnum, isPgSequence, PgEnum, PgRole, PgSchema, PgSequence, PgTable }
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { Connection } from 'mysql2/promise';
+import { libSqlLogSuggestionsAndReturn } from 'src/cli/commands/libSqlPushUtils';
 import {
 	columnsResolver,
 	enumsResolver,
@@ -33,6 +35,7 @@ import { sqliteSchema, squashSqliteScheme } from 'src/serializer/sqliteSchema';
 import { fromDatabase as fromSqliteDatabase } from 'src/serializer/sqliteSerializer';
 import { generateSqliteSnapshot } from 'src/serializer/sqliteSerializer';
 import {
+	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
 	applySqliteSnapshotsDiff,
@@ -998,11 +1001,18 @@ export const diffTestSchemasPushSqlite = async (
 	right: SqliteSchema,
 	renamesArr: string[],
 	cli: boolean = false,
+	seedStatements: string[] = [],
 ) => {
 	const { sqlStatements } = await applySqliteDiffs(left, 'push');
+
 	for (const st of sqlStatements) {
 		client.exec(st);
 	}
+
+	for (const st of seedStatements) {
+		client.exec(st);
+	}
+
 	// do introspect into PgSchemaInternal
 	const introspectedSchema = await fromSqliteDatabase(
 		{
@@ -1016,9 +1026,9 @@ export const diffTestSchemasPushSqlite = async (
 		undefined,
 	);
 
-	const leftTables = Object.values(right).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
+	const rightTables = Object.values(right).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
-	const serialized2 = generateSqliteSnapshot(leftTables);
+	const serialized2 = generateSqliteSnapshot(rightTables);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1055,7 +1065,15 @@ export const diffTestSchemasPushSqlite = async (
 			'push',
 		);
 
-		const { statementsToExecute } = await logSuggestionsAndReturn(
+		const {
+			statementsToExecute,
+			columnsToRemove,
+			infoToPrint,
+			schemasToRemove,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		} = await logSuggestionsAndReturn(
 			{
 				query: async <T>(sql: string, params: any[] = []) => {
 					return client.prepare(sql).bind(params).all() as T[];
@@ -1070,7 +1088,16 @@ export const diffTestSchemasPushSqlite = async (
 			_meta!,
 		);
 
-		return { sqlStatements: statementsToExecute, statements };
+		return {
+			sqlStatements: statementsToExecute,
+			statements,
+			columnsToRemove,
+			infoToPrint,
+			schemasToRemove,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		};
 	} else {
 		const { sqlStatements, statements } = await applySqliteSnapshotsDiff(
 			sn1,
@@ -1084,6 +1111,136 @@ export const diffTestSchemasPushSqlite = async (
 		return { sqlStatements, statements };
 	}
 };
+
+export async function diffTestSchemasPushLibSQL(
+	client: Client,
+	left: SqliteSchema,
+	right: SqliteSchema,
+	renamesArr: string[],
+	cli: boolean = false,
+	seedStatements: string[] = [],
+) {
+	const { sqlStatements } = await applyLibSQLDiffs(left, 'push');
+
+	for (const st of sqlStatements) {
+		await client.execute(st);
+	}
+
+	for (const st of seedStatements) {
+		await client.execute(st);
+	}
+
+	const introspectedSchema = await fromSqliteDatabase(
+		{
+			query: async <T>(sql: string, params?: any[]) => {
+				const res = await client.execute({ sql, args: params || [] });
+				return res.rows as T[];
+			},
+			run: async (query: string) => {
+				await client.execute(query);
+			},
+			batch: async (
+				queries: { query: string; values?: any[] | undefined }[],
+			) => {
+				await client.batch(
+					queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
+				);
+			},
+		},
+		undefined,
+	);
+
+	const leftTables = Object.values(right).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
+
+	const serialized2 = generateSqliteSnapshot(leftTables);
+
+	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
+	const { version: v2, dialect: d2, ...rest2 } = serialized2;
+
+	const sch1 = {
+		version: '6',
+		dialect: 'sqlite',
+		id: '0',
+		prevId: '0',
+		...rest1,
+	} as const;
+
+	const sch2 = {
+		version: '6',
+		dialect: 'sqlite',
+		id: '0',
+		prevId: '0',
+		...rest2,
+	} as const;
+
+	const sn1 = squashSqliteScheme(sch1, 'push');
+	const sn2 = squashSqliteScheme(sch2, 'push');
+
+	const renames = new Set(renamesArr);
+
+	if (!cli) {
+		const { sqlStatements, statements, _meta } = await applyLibSQLSnapshotsDiff(
+			sn1,
+			sn2,
+			testTablesResolver(renames),
+			testColumnsResolver(renames),
+			sch1,
+			sch2,
+			'push',
+		);
+
+		const {
+			statementsToExecute,
+			columnsToRemove,
+			infoToPrint,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		} = await libSqlLogSuggestionsAndReturn(
+			{
+				query: async <T>(sql: string, params?: any[]) => {
+					const res = await client.execute({ sql, args: params || [] });
+					return res.rows as T[];
+				},
+				run: async (query: string) => {
+					await client.execute(query);
+				},
+				batch: async (
+					queries: { query: string; values?: any[] | undefined }[],
+				) => {
+					await client.batch(
+						queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
+					);
+				},
+			},
+			statements,
+			sn1,
+			sn2,
+			_meta!,
+		);
+
+		return {
+			sqlStatements: statementsToExecute,
+			statements,
+			columnsToRemove,
+			infoToPrint,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		};
+	} else {
+		const { sqlStatements, statements } = await applyLibSQLSnapshotsDiff(
+			sn1,
+			sn2,
+			tablesResolver,
+			columnsResolver,
+			sch1,
+			sch2,
+			'push',
+		);
+		return { sqlStatements, statements };
+	}
+}
 
 export const applySqliteDiffs = async (
 	sn: SqliteSchema,
@@ -1121,6 +1278,54 @@ export const applySqliteDiffs = async (
 	const sn1 = squashSqliteScheme(sch1, action);
 
 	const { sqlStatements, statements } = await applySqliteSnapshotsDiff(
+		dryRun,
+		sn1,
+		testTablesResolver(new Set()),
+		testColumnsResolver(new Set()),
+		dryRun,
+		sch1,
+		action,
+	);
+
+	return { sqlStatements, statements };
+};
+
+export const applyLibSQLDiffs = async (
+	sn: SqliteSchema,
+	action?: 'push' | undefined,
+) => {
+	const dryRun = {
+		version: '6',
+		dialect: 'sqlite',
+		id: '0',
+		prevId: '0',
+		tables: {},
+		enums: {},
+		schemas: {},
+		_meta: {
+			schemas: {},
+			tables: {},
+			columns: {},
+		},
+	} as const;
+
+	const tables = Object.values(sn).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
+
+	const serialized1 = generateSqliteSnapshot(tables);
+
+	const { version: v1, dialect: d1, ...rest1 } = serialized1;
+
+	const sch1 = {
+		version: '6',
+		dialect: 'sqlite',
+		id: '0',
+		prevId: '0',
+		...rest1,
+	} as const;
+
+	const sn1 = squashSqliteScheme(sch1, action);
+
+	const { sqlStatements, statements } = await applyLibSQLSnapshotsDiff(
 		dryRun,
 		sn1,
 		testTablesResolver(new Set()),
@@ -1183,6 +1388,66 @@ export const diffTestSchemasSqlite = async (
 	}
 
 	const { sqlStatements, statements } = await applySqliteSnapshotsDiff(
+		sn1,
+		sn2,
+		tablesResolver,
+		columnsResolver,
+		sch1,
+		sch2,
+	);
+	return { sqlStatements, statements };
+};
+
+export const diffTestSchemasLibSQL = async (
+	left: SqliteSchema,
+	right: SqliteSchema,
+	renamesArr: string[],
+	cli: boolean = false,
+) => {
+	const leftTables = Object.values(left).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
+
+	const rightTables = Object.values(right).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
+
+	const serialized1 = generateSqliteSnapshot(leftTables);
+	const serialized2 = generateSqliteSnapshot(rightTables);
+
+	const { version: v1, dialect: d1, ...rest1 } = serialized1;
+	const { version: v2, dialect: d2, ...rest2 } = serialized2;
+
+	const sch1 = {
+		version: '6',
+		dialect: 'sqlite',
+		id: '0',
+		prevId: '0',
+		...rest1,
+	} as const;
+
+	const sch2 = {
+		version: '6',
+		dialect: 'sqlite',
+		id: '0',
+		prevId: '0',
+		...rest2,
+	} as const;
+
+	const sn1 = squashSqliteScheme(sch1);
+	const sn2 = squashSqliteScheme(sch2);
+
+	const renames = new Set(renamesArr);
+
+	if (!cli) {
+		const { sqlStatements, statements } = await applyLibSQLSnapshotsDiff(
+			sn1,
+			sn2,
+			testTablesResolver(renames),
+			testColumnsResolver(renames),
+			sch1,
+			sch2,
+		);
+		return { sqlStatements, statements };
+	}
+
+	const { sqlStatements, statements } = await applyLibSQLSnapshotsDiff(
 		sn1,
 		sn2,
 		tablesResolver,
