@@ -70,6 +70,7 @@ export const mysqlPush = async (
 			});
 
 			if (verbose) {
+				console.log();
 				console.log(
 					withStyle.warning('You are about to execute current statements:'),
 				);
