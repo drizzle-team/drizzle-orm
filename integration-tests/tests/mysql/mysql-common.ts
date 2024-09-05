@@ -3095,6 +3095,47 @@ export function tests(driver?: string) {
 			}
 		});
 
+		test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const users = mysqlTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				updatedAt: timestamp('updated_at', {
+					fsp: 6
+				})
+					.notNull()
+					.$onUpdate(() => sql`current_timestamp`),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(
+				sql`
+					create table ${users} (
+						\`id\` serial primary key,
+						\`name\` text not null,
+						\`updated_at\` timestamp not null
+					)
+				`,
+			);
+
+			await db.insert(users).values({
+				name: 'John'
+			});
+			const insertResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+			await new Promise((resolve) => setTimeout(resolve, 50));
+
+			const now = new Date().getTime();
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			await db.update(users).set({
+				name: 'John'
+			});
+			const updateResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+
+			expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
+		});
+
 		// mySchema tests
 		test('mySchema :: select all fields', async (ctx) => {
 			const { db } = ctx.mysql;

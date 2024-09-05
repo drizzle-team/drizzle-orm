@@ -1,8 +1,9 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { Placeholder, SQL } from '~/sql/sql.ts';
 
 export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
 	name: TName;
@@ -36,8 +37,8 @@ export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends 
 		return 'json';
 	}
 
-	override mapToDriverValue(value: T['data']): string {
-		return JSON.stringify(value);
+	override mapToDriverValue(value: T['data'] | SQL | Placeholder): string | SQL | Placeholder {
+		return is(value, SQL) || is(value, Placeholder) ? value : JSON.stringify(value);
 	}
 }
 

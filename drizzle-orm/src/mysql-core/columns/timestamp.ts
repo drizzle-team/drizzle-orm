@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import type { Equal } from '~/utils.ts';
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
+import type { Placeholder, SQL } from '~/sql/sql.ts';
 
 export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampBuilder<{
 	name: TName;
@@ -52,8 +53,8 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'date', 'MySqlTimestamp'>
 		return new Date(value + '+0000');
 	}
 
-	override mapToDriverValue(value: Date): string {
-		return value.toISOString().slice(0, -1).replace('T', ' ');
+	override mapToDriverValue(value: Date | SQL | Placeholder): string | SQL | Placeholder {
+		return value instanceof Date ? value.toISOString().slice(0, -1).replace('T', ' ') : value;
 	}
 }
 
