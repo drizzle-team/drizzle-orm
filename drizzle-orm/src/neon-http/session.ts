@@ -162,10 +162,10 @@ export class NeonHttpSession<
 	}
 
 	override async count(sql: SQL): Promise<number> {
-		const res = await this.execute<[{ count: string }]>(sql);
+		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
 
 		return Number(
-			res[0]['count'],
+			res['rows'][0]['count'],
 		);
 	}
 
