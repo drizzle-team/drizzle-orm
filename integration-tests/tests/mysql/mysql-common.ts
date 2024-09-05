@@ -3188,7 +3188,7 @@ export function tests(driver?: string) {
 			const insertResp = await db.select({ updatedAt: users.updatedAt }).from(users);
 			await new Promise((resolve) => setTimeout(resolve, 50));
 
-			const now = new Date().getTime();
+			const now = Date.now();
 			await new Promise((resolve) => setTimeout(resolve, 50));
 			await db.update(users).set({
 				name: 'John',

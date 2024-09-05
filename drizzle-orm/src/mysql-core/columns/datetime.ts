@@ -56,6 +56,7 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> 
 	}
 
 	override mapToDriverValue(value: Date | SQL | Placeholder): unknown {
+		// eslint-disable-next-line no-instanceof/no-instanceof
 		return value instanceof Date ? value.toISOString().replace('T', ' ').replace('Z', '') : value;
 	}
 

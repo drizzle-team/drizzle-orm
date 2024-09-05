@@ -65,6 +65,7 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date', 'PgTimestamp'>> exte
 	};
 
 	override mapToDriverValue = (value: Date | SQL | Placeholder): string | SQL | Placeholder => {
+		// eslint-disable-next-line no-instanceof/no-instanceof
 		return value instanceof Date ? value.toISOString() : value;
 	};
 }

@@ -43,6 +43,7 @@ export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColu
 	}
 
 	override mapToDriverValue(value: Date | SQL | Placeholder): string | SQL | Placeholder {
+		// eslint-disable-next-line no-instanceof/no-instanceof
 		return value instanceof Date ? value.toISOString() : value;
 	}
 }

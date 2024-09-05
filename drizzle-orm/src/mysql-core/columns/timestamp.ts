@@ -54,6 +54,7 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'date', 'MySqlTimestamp'>
 	}
 
 	override mapToDriverValue(value: Date | SQL | Placeholder): string | SQL | Placeholder {
+		// eslint-disable-next-line no-instanceof/no-instanceof
 		return value instanceof Date ? value.toISOString().slice(0, -1).replace('T', ' ') : value;
 	}
 }
