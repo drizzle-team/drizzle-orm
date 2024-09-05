@@ -131,7 +131,6 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 	}
 
 	async all() {
-		return this.execute();
 	}
 
 	/** @internal */

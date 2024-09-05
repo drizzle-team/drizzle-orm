@@ -1,7 +1,6 @@
 import { entityKind, sql } from '~/index.ts';
 import type { SQLWrapper } from '~/sql/sql.ts';
 import { SQL } from '~/sql/sql.ts';
-import type { PgDialect } from '../dialect.ts';
 import type { PgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
@@ -26,14 +25,13 @@ export class PgCountBuilder<
 		source: PgTable | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
-		return sql<number>`select count(*)::int from ${source}${sql.raw(' where ').if(filters)}${filters};`;
+		return sql<number>`select count(*)::int as count from ${source}${sql.raw(' where ').if(filters)}${filters};`;
 	}
 
 	constructor(
 		readonly params: {
 			source: PgTable | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
-			dialect: PgDialect;
 			session: TSession;
 		},
 	) {
@@ -51,7 +49,7 @@ export class PgCountBuilder<
 		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.all(this.sql)).then<number>((it) => {
+		return Promise.resolve(this.session.execute(this.sql)).then<number>((it) => {
 			return (<[{ count: number }]> it)[0]['count'] as number;
 		})
 			.then(

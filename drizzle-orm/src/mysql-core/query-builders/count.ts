@@ -1,7 +1,6 @@
 import { entityKind, sql } from '~/index.ts';
 import type { SQLWrapper } from '~/sql/sql.ts';
 import { SQL } from '~/sql/sql.ts';
-import type { MySqlDialect } from '../dialect.ts';
 import type { MySqlSession } from '../session.ts';
 import type { MySqlTable } from '../table.ts';
 import type { MySqlViewBase } from '../view-base.ts';
@@ -36,7 +35,6 @@ export class MySqlCountBuilder<
 		readonly params: {
 			source: MySqlTable | MySqlViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
-			dialect: MySqlDialect;
 			session: TSession;
 		},
 	) {
@@ -55,7 +53,7 @@ export class MySqlCountBuilder<
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
 		return Promise.resolve(this.session.execute(this.sql)).then<number>((it) => {
-			return (<[{ count: number }]> it)[0]['count'];
+			return (<[[{ count: number }]]> it)[0][0]['count'];
 		})
 			.then(
 				onfulfilled,
