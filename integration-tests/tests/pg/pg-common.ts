@@ -3864,10 +3864,10 @@ export function tests() {
 			}).returning({
 				updatedAt: users.updatedAt,
 			});
-			await new Promise((resolve) => setTimeout(resolve, 50));
+			await new Promise((resolve) => setTimeout(resolve, 1000));
 
 			const now = Date.now();
-			await new Promise((resolve) => setTimeout(resolve, 50));
+			await new Promise((resolve) => setTimeout(resolve, 1000));
 			const updateResp = await db.update(users).set({
 				name: 'John',
 			}).returning({

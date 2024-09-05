@@ -3186,10 +3186,10 @@ export function tests(driver?: string) {
 				name: 'John',
 			});
 			const insertResp = await db.select({ updatedAt: users.updatedAt }).from(users);
-			await new Promise((resolve) => setTimeout(resolve, 50));
+			await new Promise((resolve) => setTimeout(resolve, 1000));
 
 			const now = Date.now();
-			await new Promise((resolve) => setTimeout(resolve, 50));
+			await new Promise((resolve) => setTimeout(resolve, 1000));
 			await db.update(users).set({
 				name: 'John',
 			});
