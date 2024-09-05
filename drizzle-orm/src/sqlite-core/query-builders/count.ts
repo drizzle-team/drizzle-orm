@@ -1,7 +1,6 @@
 import { entityKind, sql } from '~/index.ts';
 import type { SQLWrapper } from '~/sql/sql.ts';
 import { SQL } from '~/sql/sql.ts';
-import type { SQLiteDialect } from '../dialect.ts';
 import type { SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
 import type { SQLiteView } from '../view.ts';
@@ -34,7 +33,6 @@ export class SQLiteCountBuilder<
 		readonly params: {
 			source: SQLiteTable | SQLiteView | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
-			dialect: SQLiteDialect;
 			session: TSession;
 		},
 	) {
@@ -52,7 +50,7 @@ export class SQLiteCountBuilder<
 		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.values(this.sql)).then<number>((it) => it[0]![0] as number).then(
+		return Promise.resolve(this.session.count(this.sql)).then(
 			onfulfilled,
 			onrejected,
 		);

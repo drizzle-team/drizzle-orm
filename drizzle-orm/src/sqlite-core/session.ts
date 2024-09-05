@@ -187,6 +187,12 @@ export abstract class SQLiteSession<
 		>;
 	}
 
+	async count(sql: SQL) {
+		const result = await this.values(sql) as [[number]];
+
+		return result[0][0];
+	}
+
 	/** @internal */
 	extractRawValuesValueFromBatchResult(_result: unknown): unknown {
 		throw new Error('Not implemented');

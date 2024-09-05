@@ -139,6 +139,14 @@ export class TiDBServerlessSession<
 		return this.client.execute(querySql.sql, querySql.params) as Promise<T[]>;
 	}
 
+	override async count(sql: SQL): Promise<number> {
+		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
+
+		return Number(
+			res['rows'][0]['count'],
+		);
+	}
+
 	override async transaction<T>(
 		transaction: (tx: TiDBServerlessTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {

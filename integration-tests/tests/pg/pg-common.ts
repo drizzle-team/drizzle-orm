@@ -4664,7 +4664,7 @@ export function tests() {
 		test('$count separate', async (ctx) => {
 			const { db } = ctx.pg;
 
-			const countTestTable = pgTable('users_distinct', {
+			const countTestTable = pgTable('count_test', {
 				id: integer('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -4689,7 +4689,7 @@ export function tests() {
 		test('$count embedded', async (ctx) => {
 			const { db } = ctx.pg;
 
-			const countTestTable = pgTable('users_distinct', {
+			const countTestTable = pgTable('count_test', {
 				id: integer('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -4721,7 +4721,7 @@ export function tests() {
 		test('$count separate reuse', async (ctx) => {
 			const { db } = ctx.pg;
 
-			const countTestTable = pgTable('users_distinct', {
+			const countTestTable = pgTable('count_test', {
 				id: integer('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -4758,7 +4758,7 @@ export function tests() {
 		test('$count embedded reuse', async (ctx) => {
 			const { db } = ctx.pg;
 
-			const countTestTable = pgTable('users_distinct', {
+			const countTestTable = pgTable('count_test', {
 				id: integer('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -4789,8 +4789,6 @@ export function tests() {
 
 			await db.execute(sql`drop table ${countTestTable}`);
 
-			await db.execute(sql`drop table ${countTestTable}`);
-
 			expect(count1).toStrictEqual([
 				{ count: 4 },
 				{ count: 4 },
@@ -4817,7 +4815,7 @@ export function tests() {
 		test('$count separate with filters', async (ctx) => {
 			const { db } = ctx.pg;
 
-			const countTestTable = pgTable('users_distinct', {
+			const countTestTable = pgTable('count_test', {
 				id: integer('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -4842,7 +4840,7 @@ export function tests() {
 		test('$count embedded with filters', async (ctx) => {
 			const { db } = ctx.pg;
 
-			const countTestTable = pgTable('users_distinct', {
+			const countTestTable = pgTable('count_test', {
 				id: integer('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -4864,6 +4862,7 @@ export function tests() {
 			await db.execute(sql`drop table ${countTestTable}`);
 
 			expect(count).toStrictEqual([
+				{ count: 3 },
 				{ count: 3 },
 				{ count: 3 },
 				{ count: 3 },
