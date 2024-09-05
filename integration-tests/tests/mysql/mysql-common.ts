@@ -3581,7 +3581,7 @@ export function tests(driver?: string) {
 		test('$count separate', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3606,7 +3606,7 @@ export function tests(driver?: string) {
 		test('$count embedded', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3638,7 +3638,7 @@ export function tests(driver?: string) {
 		test('$count separate reuse', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3675,7 +3675,7 @@ export function tests(driver?: string) {
 		test('$count embedded reuse', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3706,8 +3706,6 @@ export function tests(driver?: string) {
 
 			await db.execute(sql`drop table ${countTestTable}`);
 
-			await db.execute(sql`drop table ${countTestTable}`);
-
 			expect(count1).toStrictEqual([
 				{ count: 4 },
 				{ count: 4 },
@@ -3734,7 +3732,7 @@ export function tests(driver?: string) {
 		test('$count separate with filters', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3759,7 +3757,7 @@ export function tests(driver?: string) {
 		test('$count embedded with filters', async (ctx) => {
 			const { db } = ctx.mysql;
 
-			const countTestTable = mysqlTable('users_distinct', {
+			const countTestTable = mysqlTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
 			});
@@ -3784,31 +3782,32 @@ export function tests(driver?: string) {
 				{ count: 3 },
 				{ count: 3 },
 				{ count: 3 },
+				{ count: 3 },
 			]);
 		});
-	});
 
-	test('limit 0', async (ctx) => {
-		const { db } = ctx.mysql;
+		test('limit 0', async (ctx) => {
+			const { db } = ctx.mysql;
 
-		await db.insert(usersTable).values({ name: 'John' });
-		const users = await db
-			.select()
-			.from(usersTable)
-			.limit(0);
+			await db.insert(usersTable).values({ name: 'John' });
+			const users = await db
+				.select()
+				.from(usersTable)
+				.limit(0);
 
-		expect(users).toEqual([]);
-	});
+			expect(users).toEqual([]);
+		});
 
-	test('limit -1', async (ctx) => {
-		const { db } = ctx.mysql;
+		test('limit -1', async (ctx) => {
+			const { db } = ctx.mysql;
 
-		await db.insert(usersTable).values({ name: 'John' });
-		const users = await db
-			.select()
-			.from(usersTable)
-			.limit(-1);
+			await db.insert(usersTable).values({ name: 'John' });
+			const users = await db
+				.select()
+				.from(usersTable)
+				.limit(-1);
 
-		expect(users.length).toBeGreaterThan(0);
+			expect(users.length).toBeGreaterThan(0);
+		});
 	});
 }

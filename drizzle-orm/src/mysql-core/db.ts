@@ -140,7 +140,7 @@ export class MySqlDatabase<
 		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	) {
-		return new MySqlCountBuilder({ source, filters, dialect: this.dialect, session: this.session });
+		return new MySqlCountBuilder({ source, filters, session: this.session });
 	}
 
 	/**
