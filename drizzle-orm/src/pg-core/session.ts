@@ -86,6 +86,14 @@ export abstract class PgSession<
 		).all();
 	}
 
+	async count(sql: SQL): Promise<number> {
+		const res = await this.execute<[{ count: string }]>(sql);
+
+		return Number(
+			res[0]['count'],
+		);
+	}
+
 	abstract transaction<T>(
 		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,

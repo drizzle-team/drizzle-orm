@@ -10,7 +10,7 @@ import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from 
 import { PgPreparedQuery as PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
-import { fillPlaceholders, type Query } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
@@ -159,6 +159,14 @@ export class NeonHttpSession<
 		params: unknown[],
 	): Promise<FullQueryResults<false>> {
 		return this.client(query, params, { arrayMode: false, fullResults: true });
+	}
+
+	override async count(sql: SQL): Promise<number> {
+		const res = await this.execute<[{ count: string }]>(sql);
+
+		return Number(
+			res[0]['count'],
+		);
 	}
 
 	override async transaction<T>(

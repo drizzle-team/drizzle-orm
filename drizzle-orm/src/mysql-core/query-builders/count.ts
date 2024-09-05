@@ -52,8 +52,8 @@ export class MySqlCountBuilder<
 		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.execute<[[{ count: string }]]>(this.sql)).then<number>((it) => {
-			return Number(it[0][0]['count']);
+		return Promise.resolve(this.session.count(this.sql)).then<number>((it) => {
+			return it;
 		})
 			.then(
 				onfulfilled,
