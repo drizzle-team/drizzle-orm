@@ -31,6 +31,7 @@ import {
 	sumDistinct,
 	TransactionRollbackError,
 } from 'drizzle-orm';
+import { authenticatedRole, crudPolicy } from 'drizzle-orm/neon';
 import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
@@ -45,6 +46,7 @@ import {
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
+	index,
 	inet,
 	integer,
 	intersect,
@@ -4677,7 +4679,7 @@ export function tests() {
 				const policy = pgPolicy('test policy', {
 					as: 'permissive',
 					for: 'all',
-					to: 'PUBLIC',
+					to: 'public',
 					using: sql`1=1`,
 					withCheck: sql`1=1`,
 				});
@@ -4686,7 +4688,7 @@ export function tests() {
 				expect(policy.name).toBe('test policy');
 				expect(policy.as).toBe('permissive');
 				expect(policy.for).toBe('all');
-				expect(policy.to).toBe('PUBLIC');
+				expect(policy.to).toBe('public');
 				const dialect = new PgDialect();
 				expect(is(policy.using, SQL)).toBe(true);
 				expect(dialect.sqlToQuery(policy.using!).sql).toBe('1=1');
@@ -4707,7 +4709,7 @@ export function tests() {
 				const p2 = pgPolicy('test policy 2', {
 					as: 'permissive',
 					for: 'all',
-					to: 'PUBLIC',
+					to: 'public',
 					using: sql`1=1`,
 					withCheck: sql`1=1`,
 				});
@@ -4722,6 +4724,46 @@ export function tests() {
 				expect(config.policies).toHaveLength(2);
 				expect(config.policies[0]).toBe(p1);
 				expect(config.policies[1]).toBe(p2);
+			}
+		});
+
+		test.only('neon: policy', () => {
+			{
+				const policy = crudPolicy({
+					read: true,
+					modify: true,
+					role: authenticatedRole,
+				});
+
+				for (const it of Object.values(policy)) {
+					expect(is(it, PgPolicy)).toBe(true);
+					expect(it.to).toStrictEqual(authenticatedRole);
+					expect(it.using).toStrictEqual(sql`select true`);
+					it.withCheck ? expect(it.withCheck).toStrictEqual(sql`select true`) : '';
+				}
+			}
+
+			{
+				const table = pgTable('name', {
+					id: integer('id'),
+				}, (t) => ({
+					in: index('name').on(t.id),
+					neonPolicy: crudPolicy({
+						read: true,
+						modify: true,
+						role: authenticatedRole,
+					}),
+					pk: primaryKey({ columns: [t.id], name: 'custom' }),
+				}));
+
+				const { policies, indexes, primaryKeys } = getTableConfig(table);
+
+				expect(policies.length).toBe(2);
+				expect(indexes.length).toBe(1);
+				expect(primaryKeys.length).toBe(1);
+
+				expect(policies[0]?.name === 'crud-policy-modify');
+				expect(policies[1]?.name === 'crud-policy-read');
 			}
 		});
 
