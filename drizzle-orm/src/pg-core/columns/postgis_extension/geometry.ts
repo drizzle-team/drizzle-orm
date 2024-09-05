@@ -1,11 +1,11 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-
 import type { Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { parseEWKB } from './utils.ts';
+import { Placeholder, SQL } from '~/sql/sql.ts';
 
 export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
 	name: TName;
@@ -46,8 +46,8 @@ export class PgGeometry<T extends ColumnBaseConfig<'array', 'PgGeometry'>> exten
 		return parseEWKB(value);
 	}
 
-	override mapToDriverValue(value: [number, number]): string {
-		return `point(${value[0]} ${value[1]})`;
+	override mapToDriverValue(value: [number, number] | SQL | Placeholder): string | SQL | Placeholder {
+		return Array.isArray(value) ? `point(${value[0]} ${value[1]})` : value;
 	}
 }
 
@@ -93,8 +93,8 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'json', 'PgGeometryObje
 		return { x: parsed[0], y: parsed[1] };
 	}
 
-	override mapToDriverValue(value: { x: number; y: number }): string {
-		return `point(${value.x} ${value.y})`;
+	override mapToDriverValue(value: { x: number; y: number } | SQL | Placeholder): string | SQL | Placeholder {
+		return is(value, SQL) || is(value, Placeholder) ? value : `point(${(value as any).x} ${(value as any).y})`;
 	}
 }
 

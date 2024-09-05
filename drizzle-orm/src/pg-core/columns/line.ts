@@ -1,10 +1,10 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-
 import type { Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
+import { Placeholder, SQL } from '~/sql/sql.ts';
 
 export type PgLineBuilderInitial<TName extends string> = PgLineBuilder<{
 	name: TName;
@@ -46,8 +46,8 @@ export class PgLineTuple<T extends ColumnBaseConfig<'array', 'PgLine'>> extends 
 		return [Number.parseFloat(a!), Number.parseFloat(b!), Number.parseFloat(c!)];
 	}
 
-	override mapToDriverValue(value: [number, number, number]): string {
-		return `{${value[0]},${value[1]},${value[2]}}`;
+	override mapToDriverValue(value: [number, number, number] | SQL | Placeholder): string | SQL | Placeholder {
+		return Array.isArray(value) ? `{${value[0]},${value[1]},${value[2]}}` : value;
 	}
 }
 
@@ -91,8 +91,10 @@ export class PgLineABC<T extends ColumnBaseConfig<'json', 'PgLineABC'>> extends 
 		return { a: Number.parseFloat(a!), b: Number.parseFloat(b!), c: Number.parseFloat(c!) };
 	}
 
-	override mapToDriverValue(value: { a: number; b: number; c: number }): string {
-		return `{${value.a},${value.b},${value.c}}`;
+	override mapToDriverValue(value: { a: number; b: number; c: number } | SQL | Placeholder): string | SQL | Placeholder {
+		return is(value, SQL) || is(value, Placeholder)
+			? value
+			: `{${(value as any).a},${(value as any).b},${(value as any).c}}`;
 	}
 }
 

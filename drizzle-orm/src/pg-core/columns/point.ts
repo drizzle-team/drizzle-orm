@@ -1,10 +1,10 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-
 import type { Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
+import { Placeholder, SQL } from '~/sql/sql.ts';
 
 export type PgPointTupleBuilderInitial<TName extends string> = PgPointTupleBuilder<{
 	name: TName;
@@ -51,8 +51,8 @@ export class PgPointTuple<T extends ColumnBaseConfig<'array', 'PgPointTuple'>> e
 		return [value.x, value.y];
 	}
 
-	override mapToDriverValue(value: [number, number]): string {
-		return `(${value[0]},${value[1]})`;
+	override mapToDriverValue(value: [number, number] | SQL | Placeholder): string | SQL | Placeholder {
+		return Array.isArray(value) ? `(${value[0]},${value[1]})` : value;
 	}
 }
 
@@ -101,8 +101,8 @@ export class PgPointObject<T extends ColumnBaseConfig<'json', 'PgPointObject'>> 
 		return value;
 	}
 
-	override mapToDriverValue(value: { x: number; y: number }): string {
-		return `(${value.x},${value.y})`;
+	override mapToDriverValue(value: { x: number; y: number } | SQL | Placeholder): string | SQL | Placeholder {
+		return is(value, SQL) || is(value, Placeholder) ? value : `(${(value as any).x},${(value as any).y})`;
 	}
 }
 

@@ -3800,6 +3800,43 @@ export function tests() {
 			}
 		});
 
+		test('test $onUpdateFn and $onUpdate with sql value', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().$onUpdate(() => sql`now()`),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(
+				sql`
+					create table ${users} (
+						"id" serial primary key,
+						"name" text not null,
+						"updated_at" timestamp(3)
+					)
+				`,
+			);
+
+			const insertResp = await db.insert(users).values({
+				name: 'John'
+			}).returning({
+				updatedAt: users.updatedAt
+			});
+
+			const now = new Date().getTime();
+			const updateResp = await db.update(users).set({
+				name: 'John'
+			}).returning({
+				updatedAt: users.updatedAt
+			});
+
+			expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
+		});
+
 		test('test if method with sql operators', async (ctx) => {
 			const { db } = ctx.pg;
 

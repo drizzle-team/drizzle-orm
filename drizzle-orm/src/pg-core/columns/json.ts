@@ -1,8 +1,9 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
+import { Placeholder, SQL } from '~/sql/sql.ts';
 
 export type PgJsonBuilderInitial<TName extends string> = PgJsonBuilder<{
 	name: TName;
@@ -42,8 +43,8 @@ export class PgJson<T extends ColumnBaseConfig<'json', 'PgJson'>> extends PgColu
 		return 'json';
 	}
 
-	override mapToDriverValue(value: T['data']): string {
-		return JSON.stringify(value);
+	override mapToDriverValue(value: T['data'] | SQL | Placeholder): string | SQL | Placeholder {
+		return is(value, SQL) || is(value, Placeholder) ? value : JSON.stringify(value);
 	}
 
 	override mapFromDriverValue(value: T['data'] | string): T['data'] {
