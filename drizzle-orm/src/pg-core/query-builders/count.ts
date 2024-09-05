@@ -51,9 +51,7 @@ export class PgCountBuilder<
 		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.count(this.sql)).then<number>((it) => {
-			return it;
-		})
+		return Promise.resolve(this.session.count(this.sql))
 			.then(
 				onfulfilled,
 				onrejected,
