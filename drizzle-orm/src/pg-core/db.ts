@@ -141,7 +141,7 @@ export class PgDatabase<
 		source: PgTable | PgViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	) {
-		return new PgCountBuilder({ source, filters, dialect: this.dialect, session: this.session });
+		return new PgCountBuilder({ source, filters, session: this.session });
 	}
 
 	/**

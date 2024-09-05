@@ -3785,29 +3785,29 @@ export function tests(driver?: string) {
 				{ count: 3 },
 			]);
 		});
-	});
 
-	test('limit 0', async (ctx) => {
-		const { db } = ctx.mysql;
+		test('limit 0', async (ctx) => {
+			const { db } = ctx.mysql;
 
-		await db.insert(usersTable).values({ name: 'John' });
-		const users = await db
-			.select()
-			.from(usersTable)
-			.limit(0);
+			await db.insert(usersTable).values({ name: 'John' });
+			const users = await db
+				.select()
+				.from(usersTable)
+				.limit(0);
 
-		expect(users).toEqual([]);
-	});
+			expect(users).toEqual([]);
+		});
 
-	test('limit -1', async (ctx) => {
-		const { db } = ctx.mysql;
+		test('limit -1', async (ctx) => {
+			const { db } = ctx.mysql;
 
-		await db.insert(usersTable).values({ name: 'John' });
-		const users = await db
-			.select()
-			.from(usersTable)
-			.limit(-1);
+			await db.insert(usersTable).values({ name: 'John' });
+			const users = await db
+				.select()
+				.from(usersTable)
+				.limit(-1);
 
-		expect(users.length).toBeGreaterThan(0);
+			expect(users.length).toBeGreaterThan(0);
+		});
 	});
 }

@@ -140,7 +140,7 @@ export class BaseSQLiteDatabase<
 		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	) {
-		return new SQLiteCountBuilder({ source, filters, dialect: this.dialect, session: this.session });
+		return new SQLiteCountBuilder({ source, filters, session: this.session });
 	}
 
 	/**

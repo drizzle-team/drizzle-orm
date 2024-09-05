@@ -1,7 +1,6 @@
 import { entityKind, sql } from '~/index.ts';
 import type { SQLWrapper } from '~/sql/sql.ts';
 import { SQL } from '~/sql/sql.ts';
-import type { SQLiteDialect } from '../dialect.ts';
 import type { SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
 import type { SQLiteView } from '../view.ts';
@@ -34,7 +33,6 @@ export class SQLiteCountBuilder<
 		readonly params: {
 			source: SQLiteTable | SQLiteView | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
-			dialect: SQLiteDialect;
 			session: TSession;
 		},
 	) {
