@@ -671,7 +671,7 @@ export const connectToSQLite = async (
 	}
 
 	console.log(
-		"Please install 'better-sqlite3' for Drizzle Kit to connect to SQLite databases",
+		"Please install either 'better-sqlite3' or '@libsql/client' for Drizzle Kit to connect to SQLite databases",
 	);
 	process.exit(1);
 };
