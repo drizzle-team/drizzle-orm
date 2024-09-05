@@ -8,8 +8,8 @@ import type {
 	NotNull,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
-import { sql } from '~/sql/sql.ts';
+import { entityKind, is } from '~/entity.ts';
+import { sql, SQL, Placeholder } from '~/sql/sql.ts';
 import type { OnConflict } from '~/sqlite-core/utils.ts';
 import type { Equal, Or } from '~/utils.ts';
 import type { AnySQLiteTable } from '../table.ts';
@@ -149,8 +149,11 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig<'date', 'SQLiteTimestamp
 		return new Date(value);
 	}
 
-	override mapToDriverValue(value: Date): number {
-		const unix = value.getTime();
+	override mapToDriverValue(value: Date | SQL | Placeholder): number | SQL | Placeholder {
+		if (is(value, SQL) || is(value, Placeholder)) {
+			return value;
+		}
+		const unix = (value as Date).getTime();
 		if (this.config.mode === 'timestamp') {
 			return Math.floor(unix / 1000);
 		}
@@ -199,8 +202,10 @@ export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean', 'SQLiteBoolean'
 		return Number(value) === 1;
 	}
 
-	override mapToDriverValue(value: boolean): number {
-		return value ? 1 : 0;
+	override mapToDriverValue(value: boolean | SQL | Placeholder): number | SQL | Placeholder {
+		return typeof value === 'boolean'
+			? value ? 1 : 0
+			: value;
 	}
 }
 

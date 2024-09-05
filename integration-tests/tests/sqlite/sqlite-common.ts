@@ -2661,6 +2661,47 @@ export function tests() {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
 			}
 		});
+
+		test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const users = sqliteTable('users', {
+				id: integer('id').primaryKey({ autoIncrement: true }),
+				name: text('name').notNull(),
+				updatedAt: integer('updated_at')
+					.notNull()
+					.$onUpdate(() => sql`(strftime('%s', 'now') * 1000) + (strftime('%f', 'now') - strftime('%S', 'now')) * 1000`),
+			});
+
+			await db.run(sql`drop table if exists ${users}`);
+			await db.run(
+				sql`
+					create table ${users} (
+						\`id\` integer primary key autoincrement,
+						\`name\` text not null,
+						\`updated_at\` integer not null
+					)
+				`,
+			);
+
+			const insertResp = await db.insert(users).values({
+				name: 'John'
+			}).returning({
+				updatedAt: users.updatedAt
+			});
+			await new Promise((resolve) => setTimeout(resolve, 50));
+
+			const now = new Date().getTime();
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			const updateResp = await db.update(users).set({
+				name: 'John'
+			}).returning({
+				updatedAt: users.updatedAt
+			});
+
+			expect(insertResp[0]?.updatedAt ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt ?? 0).greaterThan(now);
+		});
 	});
 
 	test('table configs: unique third param', () => {

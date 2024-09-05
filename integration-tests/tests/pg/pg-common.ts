@@ -3800,7 +3800,7 @@ export function tests() {
 			}
 		});
 
-		test('test $onUpdateFn and $onUpdate with sql value', async (ctx) => {
+		test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
 			const { db } = ctx.pg;
 
 			const users = pgTable('users', {

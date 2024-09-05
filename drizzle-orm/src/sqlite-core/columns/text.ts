@@ -1,9 +1,10 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
 import type { Equal, Writable } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
+import { SQL, Placeholder } from '~/sql/sql.ts';
 
 export type SQLiteTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = SQLiteTextBuilder<{
 	name: TName;
@@ -99,8 +100,8 @@ export class SQLiteTextJson<T extends ColumnBaseConfig<'json', 'SQLiteTextJson'>
 		return JSON.parse(value);
 	}
 
-	override mapToDriverValue(value: T['data']): string {
-		return JSON.stringify(value);
+	override mapToDriverValue(value: T['data'] | SQL | Placeholder): string | SQL | Placeholder {
+		return is(value, SQL) || is(value, Placeholder) ? value : JSON.stringify(value);
 	}
 }
 
