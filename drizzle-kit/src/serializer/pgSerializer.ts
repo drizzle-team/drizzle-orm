@@ -526,8 +526,8 @@ export const generatePgSnapshot = (
 				as: policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE',
 				for: policy.for?.toUpperCase() as Policy['for'] ?? 'ALL',
 				to: mappedTo.sort(),
-				using: is(policy.using, SQL) ? sqlToStr(policy.using) : undefined,
-				withCheck: is(policy.withCheck, SQL) ? sqlToStr(policy.withCheck) : undefined,
+				using: is(policy.using, SQL) ? dialect.sqlToQuery(policy.using).sql : undefined,
+				withCheck: is(policy.withCheck, SQL) ? dialect.sqlToQuery(policy.withCheck).sql : undefined,
 			};
 		});
 
