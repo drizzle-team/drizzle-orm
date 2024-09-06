@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
-import type { PgRole } from './roles';
+import type { PgRole } from './roles.ts';
 
 export type PgPolicyToOption =
 	| 'public'
