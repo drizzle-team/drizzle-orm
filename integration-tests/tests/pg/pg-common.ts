@@ -1255,13 +1255,13 @@ export function tests() {
 			}
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
-			let stmt = db
+			const stmt = db
 				.select({
 					id: usersTable.id,
 					name: usersTable.name,
 				})
 				.from(usersTable)
-				.$dynamic()
+				.$dynamic();
 			withLimitOffset(stmt).prepare('stmt_limit');
 
 			const result = await stmt.execute({ limit: 1, offset: 1 });
@@ -4897,7 +4897,7 @@ export function tests() {
 
 			const users = pgTable('users', {
 				id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-				name: text('name').notNull()
+				name: text('name').notNull(),
 			});
 
 			await db.execute(sql`drop table if exists ${users}`);
@@ -4906,13 +4906,13 @@ export function tests() {
 			const result = await db.insert(users).values([
 				{ name: 'John' },
 				{ name: 'Jane' },
-				{ name: 'Bob' }
+				{ name: 'Bob' },
 			]).returning();
 
 			expect(result).toEqual([
 				{ id: 1, name: 'John' },
 				{ id: 2, name: 'Jane' },
-				{ id: 3, name: 'Bob' }
+				{ id: 3, name: 'Bob' },
 			]);
 		});
 	});

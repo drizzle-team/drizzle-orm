@@ -928,7 +928,7 @@ export function tests() {
 
 		test('prepared statement with placeholder in .offset', async (ctx) => {
 			const { db } = ctx.sqlite;
-			
+
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).run();
 			const stmt = db
 				.select({
@@ -953,13 +953,13 @@ export function tests() {
 			}
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).run();
-			let stmt = db
+			const stmt = db
 				.select({
 					id: usersTable.id,
 					name: usersTable.name,
 				})
 				.from(usersTable)
-				.$dynamic()
+				.$dynamic();
 			withLimitOffset(stmt).prepare('stmt_limit');
 
 			const result = await stmt.all({ limit: 1, offset: 1 });
