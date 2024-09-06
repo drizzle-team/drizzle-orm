@@ -35,13 +35,28 @@ export const crudPolicy = (
 	return {
 		// Important to have "_drizzle_internal" prefix for any key here. Right after we will make
 		// 3rd param in table as an array - we will move it to array and use ... operator
-		[`_drizzle_internal-${rolesName}-crud-policy-modify`]: pgPolicy(`crud-policy-modify`, {
+
+		// We can't use table name here, because in examples you can specify several crudPolicies on one table
+		// So we need some other way to have a unique name
+		[`_drizzle_internal-${rolesName}-crud-policy-insert`]: pgPolicy(`crud-${rolesName}-policy-insert`, {
 			for: 'insert',
 			to: options.role,
 			using: modify,
 			withCheck: modify,
 		}),
-		[`_drizzle_internal-${rolesName}-crud-policy-read`]: pgPolicy(`crud-policy-read`, {
+		[`_drizzle_internal-${rolesName}-crud-policy-update`]: pgPolicy(`crud-${rolesName}-policy-update`, {
+			for: 'update',
+			to: options.role,
+			using: modify,
+			withCheck: modify,
+		}),
+		[`_drizzle_internal-${rolesName}-crud-policy-delete`]: pgPolicy(`crud-${rolesName}-policy-delete`, {
+			for: 'delete',
+			to: options.role,
+			using: modify,
+			withCheck: modify,
+		}),
+		[`_drizzle_internal-${rolesName}-crud-policy-select`]: pgPolicy(`crud-${rolesName}-policy-select`, {
 			for: 'select',
 			to: options.role,
 			using: read,
