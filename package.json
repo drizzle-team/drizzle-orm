@@ -42,5 +42,6 @@
 		"patchedDependencies": {
 			"typescript@5.4.5": "patches/typescript@5.4.5.patch"
 		}
-	}
+	},
+	"packageManager": "pnpm@9.7.0"
 }

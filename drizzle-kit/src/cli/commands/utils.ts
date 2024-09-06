@@ -84,7 +84,7 @@ export const safeRegister = async () => {
 export const prepareCheckParams = async (
 	options: {
 		config?: string;
-		dialect: Dialect;
+		dialect?: Dialect;
 		out?: string;
 	},
 	from: 'cli' | 'config',
@@ -440,11 +440,11 @@ export const preparePullConfig = async (
 			dialect: 'postgresql',
 			out: config.out,
 			breakpoints: config.breakpoints,
-			casing: config.introspectCasing,
+			casing: config.casing,
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.database?.prefix || 'index',
+			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 
@@ -458,11 +458,11 @@ export const preparePullConfig = async (
 			dialect: 'mysql',
 			out: config.out,
 			breakpoints: config.breakpoints,
-			casing: config.introspectCasing,
+			casing: config.casing,
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.database?.prefix || 'index',
+			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 
@@ -495,11 +495,11 @@ export const preparePullConfig = async (
 			dialect: 'sqlite',
 			out: config.out,
 			breakpoints: config.breakpoints,
-			casing: config.introspectCasing,
+			casing: config.casing,
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.database?.prefix || 'index',
+			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 

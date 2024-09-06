@@ -40,7 +40,7 @@ type Verify<T, U extends T> = U;
  *
  * ---
  * `driver` - optional param that is responsible for explicitly providing a driver to use when accessing a database
- * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`
+ * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`, `pglite`
  * If you don't use AWS Data API, D1, Turso or Expo - ypu don't need this driver. You can check a driver strategy choice here: https://orm.drizzle.team/kit-docs/upgrade-21
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#driver
@@ -136,7 +136,7 @@ export type Config =
 			};
 		}
 		| {
-			dialect: 'sqlite';
+			dialect: Verify<Dialect, 'sqlite'>;
 			dbCredentials: {
 				url: string;
 			};
@@ -169,6 +169,13 @@ export type Config =
 				database: string;
 				secretArn: string;
 				resourceArn: string;
+			};
+		}
+		| {
+			dialect: Verify<Dialect, 'postgresql'>;
+			driver: Verify<Driver, 'pglite'>;
+			dbCredentials: {
+				url: string;
 			};
 		}
 		| {
@@ -241,7 +248,7 @@ export type Config =
  *
  * ---
  * `driver` - optional param that is responsible for explicitly providing a driver to use when accessing a database
- * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`
+ * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`, `pglite`
  * If you don't use AWS Data API, D1, Turso or Expo - ypu don't need this driver. You can check a driver strategy choice here: https://orm.drizzle.team/kit-docs/upgrade-21
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#driver
