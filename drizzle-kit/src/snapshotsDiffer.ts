@@ -1443,6 +1443,12 @@ export const applyPgSnapshotsDiff = async (
 		return preparePgCreateTableJson(it, curFull);
 	});
 
+	jsonCreatePoliciesStatements.push(...([] as JsonCreatePolicyStatement[]).concat(
+		...(createdTables.map((it) =>
+			prepareCreatePolicyJsons(it.name, it.schema, Object.values(it.policies).map(PgSquasher.unsquashPolicy))
+		)),
+	));
+
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
 	jsonStatements.push(...createEnums);

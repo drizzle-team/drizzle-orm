@@ -394,22 +394,13 @@ class PgCreateTableConvertor extends Convertor {
 		statement += `\n);`;
 		statement += `\n`;
 
-		const createPolicyConvertor = new PgCreatePolicyConvertor();
-		const createPolicies = policies?.map((p) => {
-			return createPolicyConvertor.convert({
-				type: 'create_policy',
-				tableName,
-				data: PgSquasher.unsquashPolicy(p),
-				schema,
-			}) as string;
-		}) ?? [];
 		const enableRls = new PgEnableRlsConvertor().convert({
 			type: 'enable_rls',
 			tableName,
 			schema,
 		});
 
-		return [statement, ...(createPolicies.length > 0 ? [enableRls] : []), ...createPolicies];
+		return [statement, ...(policies && policies.length > 0 ? [enableRls] : [])];
 	}
 }
 

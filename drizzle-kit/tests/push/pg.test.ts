@@ -3024,6 +3024,21 @@ test('create table with a policy', async (t) => {
 			type: 'create_table',
 			uniqueConstraints: [],
 		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: [
+					'public',
+				],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users2',
+			type: 'create_policy',
+		},
 	]);
 
 	for (const st of sqlStatements) {
