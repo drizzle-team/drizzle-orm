@@ -651,6 +651,7 @@ test('drop table with data', async (t) => {
 
 	expect(statements!.length).toBe(1);
 	expect(statements![0]).toStrictEqual({
+		policies: [],
 		schema: undefined,
 		tableName: 'users',
 		type: 'drop_table',

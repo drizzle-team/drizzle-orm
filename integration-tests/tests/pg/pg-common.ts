@@ -4727,7 +4727,7 @@ export function tests() {
 			}
 		});
 
-		test.only('neon: policy', () => {
+		test('neon: policy', () => {
 			{
 				const policy = crudPolicy({
 					read: true,
