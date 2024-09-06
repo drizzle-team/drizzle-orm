@@ -7,6 +7,7 @@ import { RowDataPacket } from 'mysql2/promise';
 import { withStyle } from '../cli/validations/outputs';
 import { IntrospectStage, IntrospectStatus } from '../cli/views';
 import {
+	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
@@ -39,14 +40,20 @@ export const generateMySqlSnapshot = (
 			indexes,
 			foreignKeys,
 			schema,
+			checks,
 			primaryKeys,
 			uniqueConstraints,
 		} = getTableConfig(table);
+
 		const columnsObject: Record<string, Column> = {};
 		const indexesObject: Record<string, Index> = {};
 		const foreignKeysObject: Record<string, ForeignKey> = {};
 		const primaryKeysObject: Record<string, PrimaryKey> = {};
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
+		const checkConstraintObject: Record<string, CheckConstraint> = {};
+
+		// this object will help to identify same check names
+		let checksInTable: Record<string, string[]> = {};
 
 		columns.forEach((column) => {
 			const notNull: boolean = column.notNull;
@@ -322,6 +329,39 @@ export const generateMySqlSnapshot = (
 			};
 		});
 
+		checks.forEach((check) => {
+			check;
+			const checkName = check.name;
+			if (typeof checksInTable[tableName] !== 'undefined') {
+				if (checksInTable[tableName].includes(check.name)) {
+					console.log(
+						`\n${
+							withStyle.errorWarning(
+								`We\'ve found duplicated check constraint name in ${
+									chalk.underline.blue(
+										tableName,
+									)
+								}. Please rename your check constraint in the ${
+									chalk.underline.blue(
+										tableName,
+									)
+								} table`,
+							)
+						}`,
+					);
+					process.exit(1);
+				}
+				checksInTable[tableName].push(checkName);
+			} else {
+				checksInTable[tableName] = [check.name];
+			}
+
+			checkConstraintObject[checkName] = {
+				name: checkName,
+				value: dialect.sqlToQuery(check.value).sql,
+			};
+		});
+
 		// only handle tables without schemas
 		if (!schema) {
 			result[tableName] = {
@@ -331,6 +371,7 @@ export const generateMySqlSnapshot = (
 				foreignKeys: foreignKeysObject,
 				compositePrimaryKeys: primaryKeysObject,
 				uniqueConstraints: uniqueConstraintObject,
+				checkConstraint: checkConstraintObject,
 			};
 		}
 	}
@@ -536,6 +577,7 @@ export const fromDatabase = async (
 				indexes: {},
 				foreignKeys: {},
 				uniqueConstraints: {},
+				checkConstraint: {},
 			};
 		} else {
 			result[tableName]!.columns[columnName] = newColumn;
@@ -713,6 +755,36 @@ export const fromDatabase = async (
 		progressCallback('indexes', indexesCount, 'done');
 		// progressCallback("enums", 0, "fetching");
 		progressCallback('enums', 0, 'done');
+	}
+
+	const checkConstraints = await db.query(
+		`SELECT 
+    tc.table_name, 
+    tc.constraint_name, 
+    cc.check_clause
+FROM 
+    information_schema.table_constraints tc
+JOIN 
+    information_schema.check_constraints cc 
+    ON tc.constraint_name = cc.constraint_name
+WHERE 
+    tc.constraint_schema = '${inputSchema}'
+AND 
+    tc.constraint_type = 'CHECK';`,
+	);
+
+	for (const checkConstraintRow of checkConstraints) {
+		const constraintName = checkConstraintRow['CONSTRAINT_NAME'];
+		const constraintValue = checkConstraintRow['CHECK_CLAUSE'];
+		const tableName = checkConstraintRow['TABLE_NAME'];
+
+		const tableInResult = result[tableName];
+		// if (typeof tableInResult === 'undefined') continue;
+
+		tableInResult.checkConstraint[constraintName] = {
+			name: constraintName,
+			value: constraintValue,
+		};
 	}
 
 	return {

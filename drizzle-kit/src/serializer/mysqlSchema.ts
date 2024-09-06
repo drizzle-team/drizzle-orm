@@ -1,5 +1,5 @@
 import { any, boolean, enum as enumType, literal, object, record, string, TypeOf, union } from 'zod';
-import { mapValues, originUUID, snapshotVersion } from '../global';
+import { mapValues, originUUID } from '../global';
 
 // ------- V3 --------
 const index = object({
@@ -52,6 +52,11 @@ const uniqueConstraint = object({
 	columns: string().array(),
 }).strict();
 
+const checkConstraint = object({
+	name: string(),
+	value: string(),
+}).strict();
+
 const tableV4 = object({
 	name: string(),
 	schema: string().optional(),
@@ -67,6 +72,7 @@ const table = object({
 	foreignKeys: record(string(), fk),
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
+	checkConstraint: record(string(), checkConstraint).default({}),
 }).strict();
 
 export const kitInternals = object({
@@ -186,6 +192,7 @@ export type Index = TypeOf<typeof index>;
 export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
+export type CheckConstraint = TypeOf<typeof checkConstraint>;
 
 export const MySqlSquasher = {
 	squashIdx: (idx: Index) => {
@@ -247,6 +254,14 @@ export const MySqlSquasher = {
 		});
 		return result;
 	},
+	squashCheck: (input: CheckConstraint): string => {
+		return `${input.name};${input.value}`;
+	},
+	unsquashCheck: (input: string): CheckConstraint => {
+		const [name, value] = input.split(';');
+
+		return { name, value };
+	},
 };
 
 export const squashMysqlSchemeV4 = (
@@ -304,6 +319,10 @@ export const squashMysqlScheme = (json: MySqlSchema): MySqlSchemaSquashed => {
 				},
 			);
 
+			const squashedCheckConstraints = mapValues(it[1].checkConstraint, (check) => {
+				return MySqlSquasher.squashCheck(check);
+			});
+
 			return [
 				it[0],
 				{
@@ -313,6 +332,7 @@ export const squashMysqlScheme = (json: MySqlSchema): MySqlSchemaSquashed => {
 					foreignKeys: squashedFKs,
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
+					checkConstraints: squashedCheckConstraints,
 				},
 			];
 		}),

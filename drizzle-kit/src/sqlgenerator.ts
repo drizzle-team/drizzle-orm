@@ -258,6 +258,7 @@ class MySqlCreateTableConvertor extends Convertor {
 			tableName,
 			columns,
 			schema,
+			checkConstraints,
 			compositePKs,
 			uniqueConstraints,
 			internals,
@@ -315,6 +316,15 @@ class MySqlCreateTableConvertor extends Convertor {
 					.join(',');
 
 				statement += `\tCONSTRAINT \`${unsquashedUnique.name}\` UNIQUE(${uniqueString})`;
+			}
+		}
+
+		if (typeof checkConstraints !== 'undefined' && checkConstraints.length > 0) {
+			for (const checkConstraint of checkConstraints) {
+				statement += ',\n';
+				const unsquashedCheck = MySqlSquasher.unsquashCheck(checkConstraint);
+
+				statement += `\tCONSTRAINT \`${unsquashedCheck.name}\` CHECK(${unsquashedCheck.value})`;
 			}
 		}
 
@@ -608,13 +618,11 @@ class PgAlterTableDeleteCheckConstraintConvertor extends Convertor {
 		);
 	}
 	convert(statement: JsonDeleteCheckConstraint): string {
-		const unsquashed = PgSquasher.unsquashCheck(statement.data);
-
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${unsquashed.name}";`;
+		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.constraintName}";`;
 	}
 }
 
@@ -639,6 +647,33 @@ class MySQLAlterTableDropUniqueConstraintConvertor extends Convertor {
 		const unsquashed = MySqlSquasher.unsquashUnique(statement.data);
 
 		return `ALTER TABLE \`${statement.tableName}\` DROP INDEX \`${unsquashed.name}\`;`;
+	}
+}
+
+class MySqlAlterTableAddCheckConstraintConvertor extends Convertor {
+	can(statement: JsonCreateCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'create_check_constraint' && dialect === 'mysql'
+		);
+	}
+	convert(statement: JsonCreateCheckConstraint): string {
+		const unsquashed = MySqlSquasher.unsquashCheck(statement.data);
+		const { tableName } = statement;
+
+		return `ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` CHECK (${unsquashed.value});`;
+	}
+}
+
+class MySqlAlterTableDeleteCheckConstraintConvertor extends Convertor {
+	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'delete_check_constraint' && dialect === 'mysql'
+		);
+	}
+	convert(statement: JsonDeleteCheckConstraint): string {
+		const { tableName } = statement;
+
+		return `ALTER TABLE \`${tableName}\` DROP CONSTRAINT \`${statement.constraintName}\`;`;
 	}
 }
 
@@ -2566,6 +2601,8 @@ convertors.push(new PgAlterTableDropUniqueConstraintConvertor());
 
 convertors.push(new PgAlterTableAddCheckConstraintConvertor());
 convertors.push(new PgAlterTableDeleteCheckConstraintConvertor());
+convertors.push(new MySqlAlterTableAddCheckConstraintConvertor());
+convertors.push(new MySqlAlterTableDeleteCheckConstraintConvertor());
 
 convertors.push(new MySQLAlterTableAddUniqueConstraintConvertor());
 convertors.push(new MySQLAlterTableDropUniqueConstraintConvertor());

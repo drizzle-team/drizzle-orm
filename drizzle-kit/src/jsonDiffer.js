@@ -654,6 +654,33 @@ const alternationsInColumn = (column) => {
 			}
 			return it;
 		})
+		.map((it) => {
+			if ('' in it) {
+				return {
+					...it,
+					autoincrement: {
+						type: 'changed',
+						old: it.autoincrement.__old,
+						new: it.autoincrement.__new,
+					},
+				};
+			}
+			if ('autoincrement__added' in it) {
+				const { autoincrement__added, ...others } = it;
+				return {
+					...others,
+					autoincrement: { type: 'added', value: it.autoincrement__added },
+				};
+			}
+			if ('autoincrement__deleted' in it) {
+				const { autoincrement__deleted, ...others } = it;
+				return {
+					...others,
+					autoincrement: { type: 'deleted', value: it.autoincrement__deleted },
+				};
+			}
+			return it;
+		})
 		.filter(Boolean);
 
 	return result[0];

@@ -2,6 +2,7 @@
 import './@types/utils';
 import type { Casing } from './cli/validations/common';
 import {
+	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
@@ -142,11 +143,15 @@ export const schemaToTypeScript = (
 			const uniqueImports = Object.values(it.uniqueConstraints).map(
 				(it) => 'unique',
 			);
+			const checkImports = Object.values(it.checkConstraint).map(
+				(it) => 'check',
+			);
 
 			res.mysql.push(...idxImports);
 			res.mysql.push(...fkImpots);
 			res.mysql.push(...pkImports);
 			res.mysql.push(...uniqueImports);
+			res.mysql.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -203,6 +208,7 @@ export const schemaToTypeScript = (
 			|| filteredFKs.length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
+			|| Object.keys(table.checkConstraint).length > 0
 		) {
 			statement += ',\n';
 			statement += '(table) => {\n';
@@ -219,6 +225,10 @@ export const schemaToTypeScript = (
 			);
 			statement += createTableUniques(
 				Object.values(table.uniqueConstraints),
+				withCasing,
+			);
+			statement += createTableChecks(
+				Object.values(table.checkConstraint),
 				withCasing,
 			);
 			statement += '\t}\n';
@@ -811,6 +821,25 @@ const createTableUniques = (
 				.join(', ')
 		}),`;
 		statement += `\n`;
+	});
+
+	return statement;
+};
+
+const createTableChecks = (
+	checks: CheckConstraint[],
+	casing: (value: string) => string,
+): string => {
+	let statement = '';
+
+	checks.forEach((it) => {
+		const checkKey = casing(it.name);
+
+		statement += `\t\t${checkKey}: `;
+		statement += 'check(';
+		statement += `"${it.name}", `;
+		statement += `sql\`${it.value.replace(/`/g, '\\`')}\`)`;
+		statement += `,\n`;
 	});
 
 	return statement;

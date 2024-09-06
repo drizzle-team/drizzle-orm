@@ -36,7 +36,7 @@ import {
 	JsonRenameColumnStatement,
 	JsonSqliteAddColumnStatement,
 	JsonStatement,
-	prepareAddCheckConstraintPg,
+	prepareAddCheckConstraint,
 	prepareAddCompositePrimaryKeyMySql,
 	prepareAddCompositePrimaryKeyPg,
 	prepareAddCompositePrimaryKeySqlite,
@@ -53,7 +53,7 @@ import {
 	prepareCreateReferencesJson,
 	prepareCreateSchemasJson,
 	prepareCreateSequenceJson,
-	prepareDeleteCheckConstraintPg,
+	prepareDeleteCheckConstraint,
 	prepareDeleteCompositePrimaryKeyMySql,
 	prepareDeleteCompositePrimaryKeyPg,
 	prepareDeleteCompositePrimaryKeySqlite,
@@ -892,8 +892,8 @@ export const applyPgSnapshotsDiff = async (
 			);
 		}
 
-		createCheckConstraints = prepareAddCheckConstraintPg(it.name, it.schema, it.addedCheckConstraints);
-		deleteCheckConstraints = prepareDeleteCheckConstraintPg(
+		createCheckConstraints = prepareAddCheckConstraint(it.name, it.schema, it.addedCheckConstraints);
+		deleteCheckConstraints = prepareDeleteCheckConstraint(
 			it.name,
 			it.schema,
 			it.deletedCheckConstraints,
@@ -907,8 +907,8 @@ export const applyPgSnapshotsDiff = async (
 				added[k] = it.alteredCheckConstraints[k].__new;
 				deleted[k] = it.alteredCheckConstraints[k].__old;
 			}
-			createCheckConstraints.push(...prepareAddCheckConstraintPg(it.name, it.schema, added));
-			deleteCheckConstraints.push(...prepareDeleteCheckConstraintPg(it.name, it.schema, deleted));
+			createCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
+			deleteCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
 		}
 
 		jsonCreatedCheckConstraints.push(...createCheckConstraints);
@@ -1436,6 +1436,9 @@ export const applyMysqlSnapshotsDiff = async (
 	const jsonDeletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 	const jsonAlteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
 
+	const jsonAddedCheckConstraints: JsonCreateCheckConstraint[] = [];
+	const jsonDeletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+
 	const jsonRenameColumnsStatements: JsonRenameColumnStatement[] = columnRenames
 		.map((it) => prepareRenameColumns(it.table, '', it.renames))
 		.flat();
@@ -1497,6 +1500,9 @@ export const applyMysqlSnapshotsDiff = async (
 		let deletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 		let alteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
 
+		let createdCheckConstraints: JsonCreateCheckConstraint[] = [];
+		let deletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+
 		addedUniqueConstraints = prepareAddUniqueConstraint(
 			it.name,
 			it.schema,
@@ -1522,6 +1528,26 @@ export const applyMysqlSnapshotsDiff = async (
 			);
 		}
 
+		createdCheckConstraints = prepareAddCheckConstraint(it.name, it.schema, it.addedCheckConstraints);
+		deletedCheckConstraints = prepareDeleteCheckConstraint(
+			it.name,
+			it.schema,
+			it.deletedCheckConstraints,
+		);
+
+		// skip for push
+		if (it.alteredCheckConstraints && action !== 'push') {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+
+			for (const k of Object.keys(it.alteredCheckConstraints)) {
+				added[k] = it.alteredCheckConstraints[k].__new;
+				deleted[k] = it.alteredCheckConstraints[k].__old;
+			}
+			createdCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
+			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+		}
+
 		jsonAddedCompositePKs.push(...addedCompositePKs);
 		jsonDeletedCompositePKs.push(...deletedCompositePKs);
 		jsonAlteredCompositePKs.push(...alteredCompositePKs);
@@ -1529,6 +1555,9 @@ export const applyMysqlSnapshotsDiff = async (
 		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
 		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
 		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+
+		jsonAddedCheckConstraints.push(...createdCheckConstraints);
+		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);
 	});
 
 	const rColumns = jsonRenameColumnsStatements.map((it) => {
@@ -1662,6 +1691,9 @@ export const applyMysqlSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
+
+	jsonStatements.push(...jsonAddedCheckConstraints);
+	jsonStatements.push(...jsonDeletedCheckConstraints);
 
 	jsonStatements.push(...jsonAddColumnsStatemets);
 

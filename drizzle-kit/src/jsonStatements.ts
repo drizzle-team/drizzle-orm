@@ -245,7 +245,7 @@ export interface JsonCreateCheckConstraint {
 export interface JsonDeleteCheckConstraint {
 	type: 'delete_check_constraint';
 	tableName: string;
-	data: string;
+	constraintName: string;
 	schema?: string;
 }
 
@@ -637,7 +637,7 @@ export const prepareMySqlCreateTableJson = (
 	// if previously it was an expression or column
 	internals: MySqlKitInternals,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
 
 	return {
 		type: 'create_table',
@@ -653,6 +653,7 @@ export const prepareMySqlCreateTableJson = (
 			: '',
 		uniqueConstraints: Object.values(uniqueConstraints),
 		internals,
+		checkConstraints: Object.values(checkConstraints),
 	};
 };
 
@@ -2349,7 +2350,7 @@ export const prepareDeleteUniqueConstraintPg = (
 	});
 };
 
-export const prepareAddCheckConstraintPg = (
+export const prepareAddCheckConstraint = (
 	tableName: string,
 	schema: string,
 	check: Record<string, string>,
@@ -2364,7 +2365,7 @@ export const prepareAddCheckConstraintPg = (
 	});
 };
 
-export const prepareDeleteCheckConstraintPg = (
+export const prepareDeleteCheckConstraint = (
 	tableName: string,
 	schema: string,
 	check: Record<string, string>,
@@ -2373,7 +2374,7 @@ export const prepareDeleteCheckConstraintPg = (
 		return {
 			type: 'delete_check_constraint',
 			tableName,
-			data: PgSquasher.unsquashCheck(it).name, // only name needed
+			constraintName: PgSquasher.unsquashCheck(it).name,
 			schema,
 		} as JsonDeleteCheckConstraint;
 	});
