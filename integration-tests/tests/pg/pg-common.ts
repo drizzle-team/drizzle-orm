@@ -4891,5 +4891,29 @@ export function tests() {
 				{ count: 3 },
 			]);
 		});
+
+		test('insert multiple rows into table with generated identity column', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+				name: text('name').notNull()
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} ("id" integer generated always as identity primary key, "name" text)`);
+
+			const result = await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+				{ name: 'Bob' }
+			]).returning();
+
+			expect(result).toEqual([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Bob' }
+			]);
+		});
 	});
 }
