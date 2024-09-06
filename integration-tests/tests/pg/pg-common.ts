@@ -4758,7 +4758,7 @@ export function tests() {
 
 				const { policies, indexes, primaryKeys } = getTableConfig(table);
 
-				expect(policies.length).toBe(2);
+				expect(policies.length).toBe(4);
 				expect(indexes.length).toBe(1);
 				expect(primaryKeys.length).toBe(1);
 
