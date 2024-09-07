@@ -88,32 +88,27 @@ export const prepareFilenames = (path: string | string[]) => {
 		const globbed = glob.sync(`${prefix}${cur}`);
 
 		globbed.forEach((it) => {
-			const fileName = fs.lstatSync(it).isDirectory() ? null : Path.resolve(it);
-
-			const filenames = fileName
-				? [fileName!]
-				: fs.readdirSync(it).map((file) => Path.join(Path.resolve(it), file));
-
-			filenames
-				.filter((file) => !fs.lstatSync(file).isDirectory())
-				.forEach((file) => result.add(file));
+			if (fs.lstatSync(it).isDirectory()) {
+				const files = fs.readdirSync(it);
+				const index = files.find((files) => /^index\.[cm]?[tj]s$/.test(files));
+				if (index) {
+					result.add(Path.join(Path.resolve(it), index));
+				} else {
+					files
+						.map((file) => Path.join(Path.resolve(it), file))
+						.filter((file) => !fs.lstatSync(file).isDirectory())
+						.forEach((file) => result.add(file));
+				}
+			} else {
+				result.add(Path.resolve(it));
+			}
 		});
-
 		return result;
 	}, new Set<string>());
 	const res = [...result];
 
 	// TODO: properly handle and test
-	const errors = res.filter((it) => {
-		return !(
-			it.endsWith('.ts')
-			|| it.endsWith('.js')
-			|| it.endsWith('.cjs')
-			|| it.endsWith('.mjs')
-			|| it.endsWith('.mts')
-			|| it.endsWith('.cts')
-		);
-	});
+	const errors = res.filter((it) => !(/\.[cm]?[tj]s$/.test(it)));
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
