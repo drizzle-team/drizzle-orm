@@ -16,6 +16,7 @@ export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQL
 	const [updatedAt, setUpdatedAt] = useState<Date>();
 
 	useEffect(() => {
+		let cancelled = false;
 		const entity = is(query, SQLiteRelationalQuery) ? query.table : (query as AnySQLiteSelect).config.table;
 
 		if (is(entity, Subquery) || is(entity, SQL)) {
@@ -26,22 +27,31 @@ export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQL
 		let listener: ReturnType<typeof addDatabaseChangeListener> | undefined;
 
 		const handleData = (data: any) => {
-			setData(data);
-			setUpdatedAt(new Date());
+			if (!cancelled) {
+				setData(data);
+				setUpdatedAt(new Date());
+			}
 		};
 
-		query.then(handleData).catch(setError);
+		const handleError = (error: Error) => {
+			if (!cancelled) {
+				setError(error);
+			}
+		};
+
+		query.then(handleData).catch(handleError);
 
 		if (is(entity, SQLiteTable) || is(entity, SQLiteView)) {
 			const config = is(entity, SQLiteTable) ? getTableConfig(entity) : getViewConfig(entity);
 			listener = addDatabaseChangeListener(({ tableName }) => {
 				if (config.name === tableName) {
-					query.then(handleData).catch(setError);
+					query.then(handleData).catch(handleError);
 				}
 			});
 		}
 
 		return () => {
+			cancelled = true;
 			listener?.remove();
 		};
 	}, deps);
