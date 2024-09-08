@@ -1,7 +1,7 @@
 import { type AnyTable, getTableUniqueName, type InferModelFromColumns, Table } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import { PrimaryKeyBuilder } from './pg-core/primary-keys.ts';
+import { PrimaryKeyBuilder } from './primary-key.ts';
 import {
 	and,
 	asc,
