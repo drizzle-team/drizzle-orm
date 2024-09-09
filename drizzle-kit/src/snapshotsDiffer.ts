@@ -1610,11 +1610,10 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...jsonDeletedCompositePKs);
 	jsonStatements.push(...jsonTableAlternations);
 	jsonStatements.push(...jsonAddedCompositePKs);
+	jsonStatements.push(...jsonAddColumnsStatemets);
 
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
-
-	jsonStatements.push(...jsonAddColumnsStatemets);
 
 	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);

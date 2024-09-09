@@ -12,6 +12,7 @@ import {
 	primaryKey,
 	serial,
 	text,
+	unique,
 	vector,
 } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
@@ -658,5 +659,28 @@ test('composite primary key', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE IF NOT EXISTS "works_to_creators" (\n\t"work_id" integer NOT NULL,\n\t"creator_id" integer NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_work_id_creator_id_classification_pk" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
+	]);
+});
+
+test('add column before creating unique constraint', async () => {
+	const from = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+		})
+	};
+	const to = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			uq: unique('uq').on(t.name),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" ADD COLUMN "name" text NOT NULL;',
+		'ALTER TABLE "table" ADD CONSTRAINT "uq" UNIQUE("name");',
 	]);
 });

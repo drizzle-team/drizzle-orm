@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, int, json, mysqlEnum, mysqlSchema, mysqlTable, primaryKey, serial, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import { index, int, json, mysqlEnum, mysqlSchema, mysqlTable, primaryKey, serial, text, unique, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasMysql } from './schemaDiffer';
 
@@ -604,5 +604,28 @@ test('composite primary key', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `works_to_creators` (\n\t`work_id` int NOT NULL,\n\t`creator_id` int NOT NULL,\n\t`classification` text NOT NULL,\n\tCONSTRAINT `works_to_creators_work_id_creator_id_classification_pk` PRIMARY KEY(`work_id`,`creator_id`,`classification`)\n);\n',
+	]);
+});
+
+test('add column before creating unique constraint', async () => {
+	const from = {
+		table: mysqlTable('table', {
+			id: serial('id').primaryKey(),
+		})
+	};
+	const to = {
+		table: mysqlTable('table', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			uq: unique('uq').on(t.name),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE `table` ADD `name` text NOT NULL;',
+		'ALTER TABLE `table` ADD CONSTRAINT `uq` UNIQUE(`name`);',
 	]);
 });
