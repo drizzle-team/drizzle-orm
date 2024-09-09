@@ -1,4 +1,4 @@
-import { pgEnum, pgSchema, pgTable } from 'drizzle-orm/pg-core';
+import { pgEnum, pgSchema, pgTable, serial } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
