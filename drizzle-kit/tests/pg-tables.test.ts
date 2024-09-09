@@ -684,3 +684,36 @@ test('add column before creating unique constraint', async () => {
 		'ALTER TABLE "table" ADD CONSTRAINT "uq" UNIQUE("name");',
 	]);
 });
+
+test('alter composite primary key', async () => {
+	const from = {
+		table: pgTable('table', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+			col3: text('col3').notNull()
+		}, (t) => ({
+			pk: primaryKey({
+				name: 'table_pk',
+				columns: [t.col1, t.col2]
+			}),
+		})),
+	};
+	const to = {
+		table: pgTable('table', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+			col3: text('col3').notNull()
+		}, (t) => ({
+			pk: primaryKey({
+				name: 'table_pk',
+				columns: [t.col2, t.col3]
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" DROP CONSTRAINT "table_pk";\n--> statement-breakpoint\nALTER TABLE "table" ADD CONSTRAINT "table_pk" PRIMARY KEY("col2","col3");',
+	]);
+});
