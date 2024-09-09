@@ -511,6 +511,32 @@ test('drop index', async () => {
 	expect(sqlStatements[0]).toBe('DROP INDEX `name_idx` ON `table`;');
 });
 
+test('drop unique constraint', async () => {
+	const from = {
+		users: mysqlTable(
+			'table',
+			{
+				name: text('name'),
+			},
+			(t) => {
+				return {
+					uq: unique('name_uq').on(t.name),
+				};
+			},
+		),
+	};
+
+	const to = {
+		users: mysqlTable('table', {
+			name: text('name'),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe('ALTER TABLE `table` DROP INDEX `name_uq`;');
+});
+
 test('add table with indexes', async () => {
 	const from = {};
 
