@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, json, mysqlEnum, mysqlSchema, mysqlTable, primaryKey, serial, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import { index, int, json, mysqlEnum, mysqlSchema, mysqlTable, primaryKey, serial, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasMysql } from './schemaDiffer';
 
@@ -584,4 +584,25 @@ test('varchar and text default values escape single quotes', async (t) => {
 	expect(sqlStatements[2]).toStrictEqual(
 		'ALTER TABLE `table` ADD `varchar` varchar(255) DEFAULT \'escape\'\'s quotes\';'
 	);
+});
+
+test('composite primary key', async () => {
+	const from = {};
+	const to = {
+		table: mysqlTable('works_to_creators', {
+			workId: int('work_id').notNull(),
+			creatorId: int('creator_id').notNull(),
+			classification: text('classification').notNull()
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.workId, t.creatorId, t.classification]
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `works_to_creators` (\n\t`work_id` int NOT NULL,\n\t`creator_id` int NOT NULL,\n\t`classification` text NOT NULL,\n\tCONSTRAINT `works_to_creators_work_id_creator_id_classification_pk` PRIMARY KEY(`work_id`,`creator_id`,`classification`)\n);\n',
+	]);
 });

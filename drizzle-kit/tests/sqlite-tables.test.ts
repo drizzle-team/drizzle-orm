@@ -397,3 +397,24 @@ test('add table with indexes', async () => {
 		'CREATE INDEX `indexColExpr` ON `users` ((lower("email")),`email`);',
 	]);
 });
+
+test('composite primary key', async () => {
+	const from = {};
+	const to = {
+		table: sqliteTable('works_to_creators', {
+			workId: int('work_id').notNull(),
+			creatorId: int('creator_id').notNull(),
+			classification: text('classification').notNull()
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.workId, t.creatorId, t.classification]
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `works_to_creators` (\n\t`work_id` integer NOT NULL,\n\t`creator_id` integer NOT NULL,\n\t`classification` text NOT NULL,\n\tPRIMARY KEY(`work_id`, `creator_id`, `classification`)\n);\n',
+	]);
+});

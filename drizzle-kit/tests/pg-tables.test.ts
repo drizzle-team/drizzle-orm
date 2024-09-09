@@ -639,3 +639,24 @@ test('create table with tsvector', async () => {
 		`CREATE INDEX IF NOT EXISTS "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
 	]);
 });
+
+test('composite primary key', async () => {
+	const from = {};
+	const to = {
+		table: pgTable('works_to_creators', {
+			workId: integer('work_id').notNull(),
+			creatorId: integer('creator_id').notNull(),
+			classification: text('classification').notNull()
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.workId, t.creatorId, t.classification]
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE IF NOT EXISTS "works_to_creators" (\n\t"work_id" integer NOT NULL,\n\t"creator_id" integer NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_work_id_creator_id_classification_pk" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
+	]);
+});
