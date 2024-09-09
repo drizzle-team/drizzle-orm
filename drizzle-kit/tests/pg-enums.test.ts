@@ -458,3 +458,18 @@ test('enums #18', async () => {
 		schema: 'schema2',
 	});
 });
+
+test('enums #19', async () => {
+	const myEnum = pgEnum('my_enum', ['escape\'s quotes']);
+	
+	const from = {};
+
+	const to = { myEnum };
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toStrictEqual(
+		'DO $$ BEGIN\n CREATE TYPE "public"."my_enum" AS ENUM(\'escape\'\'s quotes\');\nEXCEPTION\n WHEN duplicate_object THEN null;\nEND $$;\n'
+	);
+});

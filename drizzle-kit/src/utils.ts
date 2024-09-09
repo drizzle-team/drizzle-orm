@@ -356,3 +356,7 @@ export function findAddedAndRemoved(columnNames1: string[], columnNames2: string
 
 	return { addedColumns, removedColumns };
 }
+
+export function escapeSingleQuotes(str: string) {
+	return str.replace(/'/g, '\'\'');
+}

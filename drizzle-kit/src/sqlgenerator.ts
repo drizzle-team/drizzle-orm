@@ -56,6 +56,7 @@ import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
 import { PgSquasher } from './serializer/pgSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
+import { escapeSingleQuotes } from './utils';
 
 export const pgNativeTypes = new Set([
 	'uuid',
@@ -697,7 +698,7 @@ class CreateTypeEnumConvertor extends Convertor {
 		const tableNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 
 		let valuesStatement = '(';
-		valuesStatement += values.map((it) => `'${it}'`).join(', ');
+		valuesStatement += values.map((it) => `'${escapeSingleQuotes(it)}'`).join(', ');
 		valuesStatement += ')';
 
 		let statement = 'DO $$ BEGIN';
