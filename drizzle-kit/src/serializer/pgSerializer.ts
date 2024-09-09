@@ -30,7 +30,7 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/pgSchema';
-import { type DB, isPgArrayType } from '../utils';
+import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
 import { sqlToStr } from '.';
 
 const dialect = new PgDialect();
@@ -242,7 +242,7 @@ export const generatePgSnapshot = (
 					columnToSet.default = sqlToStr(column.default);
 				} else {
 					if (typeof column.default === 'string') {
-						columnToSet.default = `'${column.default}'`;
+						columnToSet.default = `'${escapeSingleQuotes(column.default)}'`;
 					} else {
 						if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
 							columnToSet.default = `'${
@@ -1225,12 +1225,10 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 	const columnName = column.attname;
 	const isArray = internals?.tables[tableName]?.columns[columnName]?.isArray ?? false;
 
-	if (column.column_default === null) {
-		return undefined;
-	}
-
 	if (
-		column.data_type === 'serial'
+		column.column_default === null
+		|| column.column_default === undefined
+		|| column.data_type === 'serial'
 		|| column.data_type === 'smallserial'
 		|| column.data_type === 'bigserial'
 	) {

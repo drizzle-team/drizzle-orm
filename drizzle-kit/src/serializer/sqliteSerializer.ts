@@ -20,7 +20,7 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/sqliteSchema';
-import type { SQLiteDB } from '../utils';
+import { escapeSingleQuotes, type SQLiteDB } from '../utils';
 import { sqlToStr } from '.';
 
 const dialect = new SQLiteSyncDialect();
@@ -77,7 +77,7 @@ export const generateSqliteSnapshot = (
 					columnToSet.default = sqlToStr(column.default);
 				} else {
 					columnToSet.default = typeof column.default === 'string'
-						? `'${column.default}'`
+						? `'${escapeSingleQuotes(column.default)}'`
 						: typeof column.default === 'object'
 								|| Array.isArray(column.default)
 						? `'${JSON.stringify(column.default)}'`

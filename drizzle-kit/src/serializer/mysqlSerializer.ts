@@ -16,7 +16,7 @@ import {
 	Table,
 	UniqueConstraint,
 } from '../serializer/mysqlSchema';
-import type { DB } from '../utils';
+import { escapeSingleQuotes, type DB } from '../utils';
 import { sqlToStr } from '.';
 // import { MySqlColumnWithAutoIncrement } from "drizzle-orm/mysql-core";
 // import { MySqlDateBaseColumn } from "drizzle-orm/mysql-core";
@@ -123,7 +123,7 @@ export const generateMySqlSnapshot = (
 					columnToSet.default = sqlToStr(column.default);
 				} else {
 					if (typeof column.default === 'string') {
-						columnToSet.default = `'${column.default}'`;
+						columnToSet.default = `'${escapeSingleQuotes(column.default)}'`;
 					} else {
 						if (sqlTypeLowered === 'json') {
 							columnToSet.default = `'${JSON.stringify(column.default)}'`;
