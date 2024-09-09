@@ -360,3 +360,8 @@ export function findAddedAndRemoved(columnNames1: string[], columnNames2: string
 export function escapeSingleQuotes(str: string) {
 	return str.replace(/'/g, '\'\'');
 }
+
+export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolean) {
+	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
+	return str.replace(/''/g, '\'').replace(regex, '\\\'');
+}

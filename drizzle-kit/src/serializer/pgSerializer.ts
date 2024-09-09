@@ -30,7 +30,7 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/pgSchema';
-import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
+import { type DB, escapeSingleQuotes, isPgArrayType, unescapeSingleQuotes } from '../utils';
 import { sqlToStr } from '.';
 
 const dialect = new PgDialect();
@@ -1308,7 +1308,7 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 	} else if (columnDefaultAsString === 'NULL') {
 		return `NULL`;
 	} else if (columnDefaultAsString.startsWith("'") && columnDefaultAsString.endsWith("'")) {
-		return columnDefaultAsString;
+		return unescapeSingleQuotes(columnDefaultAsString, true);
 	} else {
 		return `${columnDefaultAsString.replace(/\\/g, '\`\\')}`;
 	}

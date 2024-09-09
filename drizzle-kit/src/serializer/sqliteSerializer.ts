@@ -20,7 +20,7 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/sqliteSchema';
-import { escapeSingleQuotes, type SQLiteDB } from '../utils';
+import { escapeSingleQuotes, unescapeSingleQuotes, type SQLiteDB } from '../utils';
 import { sqlToStr } from '.';
 
 const dialect = new SQLiteSyncDialect();
@@ -473,7 +473,7 @@ export const fromDatabase = async (
 				: columnDefault === 'true'
 				? true
 				: columnDefault.startsWith("'") && columnDefault.endsWith("'")
-				? columnDefault
+				? unescapeSingleQuotes(columnDefault, true)
 				// ? columnDefault.substring(1, columnDefault.length - 1)
 				: `(${columnDefault})`,
 			autoincrement: isAutoincrement,

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, json, mysqlSchema, mysqlTable, primaryKey, serial, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import { index, json, mysqlEnum, mysqlSchema, mysqlTable, primaryKey, serial, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasMysql } from './schemaDiffer';
 
@@ -566,6 +566,7 @@ test('varchar and text default values escape single quotes', async (t) => {
 	const schem2 = {
 		table: mysqlTable('table', {
 			id: serial('id').primaryKey(),
+			enum: mysqlEnum('enum', ['escape\'s quotes', 'escape\'s quotes 2']).default('escape\'s quotes'),
 			text: text('text').default('escape\'s quotes'),
 			varchar: varchar('varchar', { length: 255 }).default('escape\'s quotes'),
 		}),
@@ -573,11 +574,14 @@ test('varchar and text default values escape single quotes', async (t) => {
 
 	const { sqlStatements } = await diffTestSchemasMysql(schema1, schem2, []);
 
-	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements.length).toBe(3);
 	expect(sqlStatements[0]).toStrictEqual(
-		'ALTER TABLE `table` ADD `text` text DEFAULT (\'escape\'\'s quotes\');'
+		'ALTER TABLE `table` ADD `enum` enum(\'escape\'\'s quotes\',\'escape\'\'s quotes 2\') DEFAULT \'escape\'\'s quotes\';'
 	);
 	expect(sqlStatements[1]).toStrictEqual(
+		'ALTER TABLE `table` ADD `text` text DEFAULT (\'escape\'\'s quotes\');'
+	);
+	expect(sqlStatements[2]).toStrictEqual(
 		'ALTER TABLE `table` ADD `varchar` varchar(255) DEFAULT \'escape\'\'s quotes\';'
 	);
 });

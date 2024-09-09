@@ -405,3 +405,26 @@ test('introspect enum with similar name to native type', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('instrospect strings with single quotes', async () => {
+	const client = new PGlite();
+
+	const myEnum = pgEnum('my_enum', ['escape\'s quotes']);
+	const schema = {
+		enum_: myEnum,
+		columns: pgTable('columns', {
+			enum: myEnum('my_enum').default('escape\'s quotes'),
+			text: text('text').default('escape\'s quotes'),
+			varchar: varchar('varchar').default('escape\'s quotes'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-strings-with-single-quotes',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});

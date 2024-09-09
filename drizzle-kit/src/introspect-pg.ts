@@ -23,6 +23,7 @@ import {
 	UniqueConstraint,
 } from './serializer/pgSchema';
 import { indexName } from './serializer/pgSerializer';
+import { unescapeSingleQuotes } from './utils';
 
 const pgImportsList = new Set([
 	'pgTable',
@@ -413,7 +414,7 @@ export const schemaToTypeScript = (
 			const func = enumSchema ? `${enumSchema}.enum` : 'pgEnum';
 
 			const values = Object.values(it.values)
-				.map((it) => `'${it}'`)
+				.map((it) => `'${unescapeSingleQuotes(it, false)}'`)
 				.join(', ');
 			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
 		})

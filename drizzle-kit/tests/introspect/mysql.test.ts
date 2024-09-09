@@ -1,6 +1,7 @@
+import 'dotenv/config';
 import Docker from 'dockerode';
 import { SQL, sql } from 'drizzle-orm';
-import { char, int, mysqlTable, text, varchar } from 'drizzle-orm/mysql-core';
+import { char, int, mysqlEnum, mysqlTable, text, varchar } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
@@ -164,4 +165,26 @@ test('Default value of character type column: varchar', async () => {
 	expect(sqlStatements.length).toBe(0);
 
 	await client.query(`drop table users;`);
+});
+
+test('instrospect strings with single quotes', async () => {
+	const schema = {
+		columns: mysqlTable('columns', {
+			enum: mysqlEnum('my_enum', ['escape\'s quotes', 'escape\'s quotes 2']).default('escape\'s quotes'),
+			text: text('text').default('escape\'s quotes'),
+			varchar: varchar('varchar', { length: 255 }).default('escape\'s quotes'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'introspect-strings-with-single-quotes',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	await client.query(`drop table columns;`);
 });
