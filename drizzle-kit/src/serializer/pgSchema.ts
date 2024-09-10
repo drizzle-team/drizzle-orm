@@ -1,4 +1,3 @@
-import { vectorOps } from 'src/extensions/vector';
 import { mapValues, originUUID, snapshotVersion } from '../global';
 
 import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
@@ -468,7 +467,7 @@ export const PgSquasher = {
 				.map(
 					(c) =>
 						`${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${
-							c.opclass && vectorOps.includes(c.opclass) ? c.opclass : ''
+							c.opclass ? c.opclass : ''
 						}`,
 				)
 				.join(',,')

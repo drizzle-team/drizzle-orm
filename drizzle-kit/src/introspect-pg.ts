@@ -11,7 +11,6 @@ import {
 import { plural, singular } from 'pluralize';
 import './@types/utils';
 import { Casing } from './cli/validations/common';
-import { vectorOps } from './extensions/vector';
 import { assertUnreachable } from './global';
 import {
 	Column,
@@ -1197,7 +1196,7 @@ const createTableIndexes = (
 						return `table.${withCasing(it.expression, casing)}${it.asc ? '.asc()' : '.desc()'}${
 							it.nulls === 'first' ? '.nullsFirst()' : '.nullsLast()'
 						}${
-							it.opclass && vectorOps.includes(it.opclass)
+							it.opclass
 								? `.op("${it.opclass}")`
 								: ''
 						}`;

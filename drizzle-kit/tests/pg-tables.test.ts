@@ -717,3 +717,26 @@ test('alter composite primary key', async () => {
 		'ALTER TABLE "table" DROP CONSTRAINT "table_pk";\n--> statement-breakpoint\nALTER TABLE "table" ADD CONSTRAINT "table_pk" PRIMARY KEY("col2","col3");',
 	]);
 });
+
+test('add index with op', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}),
+	};
+	const to = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			nameIdx: index().using('gin', t.name.op('gin_trgm_ops'))
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE INDEX IF NOT EXISTS "users_name_index" ON "users" USING gin ("name" gin_trgm_ops);',
+	]);
+});
