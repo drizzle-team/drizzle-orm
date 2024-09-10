@@ -27,6 +27,7 @@ export interface JsonSqliteCreateTableStatement {
 	}[];
 	compositePKs: string[][];
 	uniqueConstraints?: string[];
+	checkConstraints?: string[];
 }
 
 export interface JsonCreateTableStatement {
@@ -56,6 +57,7 @@ export interface JsonRecreateTableStatement {
 	}[];
 	compositePKs: string[][];
 	uniqueConstraints?: string[];
+	checkConstraints: string[];
 }
 
 export interface JsonDropTableStatement {
@@ -661,7 +663,7 @@ export const prepareSQLiteCreateTable = (
 	table: Table,
 	action?: 'push' | undefined,
 ): JsonSqliteCreateTableStatement => {
-	const { name, columns, uniqueConstraints } = table;
+	const { name, columns, uniqueConstraints, checkConstraints } = table;
 
 	const references: string[] = Object.values(table.foreignKeys);
 
@@ -682,6 +684,7 @@ export const prepareSQLiteCreateTable = (
 		referenceData: fks,
 		compositePKs: composites,
 		uniqueConstraints: Object.values(uniqueConstraints),
+		checkConstraints: Object.values(checkConstraints),
 	};
 };
 

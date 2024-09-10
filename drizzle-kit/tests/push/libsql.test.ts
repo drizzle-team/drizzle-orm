@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { sql } from 'drizzle-orm';
 import {
 	blob,
+	check,
 	foreignKey,
 	getTableConfig,
 	index,
@@ -389,6 +390,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 		compositePKs: [],
 		referenceData: [],
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements.length).toBe(4);
@@ -491,6 +493,7 @@ test('change autoincrement. table is part of foreign key', async (t) => {
 		compositePKs: [],
 		referenceData: [],
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements.length).toBe(4);
@@ -752,6 +755,7 @@ test('recreate table with nested references', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements!.length).toBe(4);
@@ -860,6 +864,7 @@ test('recreate table with added column not null and without default', async (t) 
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements!.length).toBe(4);
@@ -1043,6 +1048,247 @@ test('drop not null with two indexes', async (t) => {
 		`CREATE INDEX \`users_age_index\` ON \`users\` (\`age\`);`,
 	);
 	expect(columnsToRemove!.length).toBe(0), expect(infoToPrint!.length).toBe(0);
+	expect(shouldAskForApprove).toBe(false);
+	expect(tablesToRemove!.length).toBe(0);
+	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('add check constraint to table', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
+		}),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+	};
+
+	const {
+		statements,
+		sqlStatements,
+		columnsToRemove,
+		infoToPrint,
+		shouldAskForApprove,
+		tablesToRemove,
+		tablesToTruncate,
+	} = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements!.length).toBe(1);
+	expect(statements![0]).toStrictEqual({
+		columns: [
+			{
+				autoincrement: false,
+				name: 'id',
+				notNull: true,
+				generated: undefined,
+				primaryKey: true,
+				type: 'integer',
+			},
+			{
+				autoincrement: false,
+				name: 'name',
+				notNull: false,
+				generated: undefined,
+				primaryKey: false,
+				type: 'text',
+			},
+			{
+				autoincrement: false,
+				name: 'age',
+				notNull: false,
+				generated: undefined,
+				primaryKey: false,
+				type: 'integer',
+			},
+		],
+		compositePKs: [],
+		referenceData: [],
+		tableName: 'users',
+		type: 'recreate_table',
+		uniqueConstraints: [],
+		checkConstraints: ['some_check;"users"."age" > 21'],
+	});
+
+	expect(sqlStatements!.length).toBe(4);
+	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
+\t\`id\` integer PRIMARY KEY NOT NULL,
+\t\`name\` text,
+\t\`age\` integer,
+\tCONSTRAINT "some_check" CHECK("__new_users"."age" > 21)
+);\n`);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_users`("id", "name", "age") SELECT "id", "name", "age" FROM `users`;',
+	);
+	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements![3]).toBe(
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
+	);
+
+	expect(columnsToRemove!.length).toBe(0);
+	expect(infoToPrint!.length).toBe(0);
+	expect(shouldAskForApprove).toBe(false);
+	expect(tablesToRemove!.length).toBe(0);
+	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('drop check constraint', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
+		}),
+	};
+
+	const {
+		statements,
+		sqlStatements,
+		columnsToRemove,
+		infoToPrint,
+		shouldAskForApprove,
+		tablesToRemove,
+		tablesToTruncate,
+	} = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements!.length).toBe(1);
+	expect(statements![0]).toStrictEqual({
+		columns: [
+			{
+				autoincrement: false,
+				name: 'id',
+				notNull: true,
+				generated: undefined,
+				primaryKey: true,
+				type: 'integer',
+			},
+			{
+				autoincrement: false,
+				name: 'name',
+				notNull: false,
+				generated: undefined,
+				primaryKey: false,
+				type: 'text',
+			},
+			{
+				autoincrement: false,
+				name: 'age',
+				notNull: false,
+				generated: undefined,
+				primaryKey: false,
+				type: 'integer',
+			},
+		],
+		compositePKs: [],
+		referenceData: [],
+		tableName: 'users',
+		type: 'recreate_table',
+		uniqueConstraints: [],
+		checkConstraints: [],
+	});
+
+	expect(sqlStatements!.length).toBe(4);
+	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
+\t\`id\` integer PRIMARY KEY NOT NULL,
+\t\`name\` text,
+\t\`age\` integer
+);\n`);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_users`("id", "name", "age") SELECT "id", "name", "age" FROM `users`;',
+	);
+	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements![3]).toBe(
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
+	);
+
+	expect(columnsToRemove!.length).toBe(0);
+	expect(infoToPrint!.length).toBe(0);
+	expect(shouldAskForApprove).toBe(false);
+	expect(tablesToRemove!.length).toBe(0);
+	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('db has checks. Push with same names', async () => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`some new value`),
+		})),
+	};
+
+	const {
+		statements,
+		sqlStatements,
+		columnsToRemove,
+		infoToPrint,
+		shouldAskForApprove,
+		tablesToRemove,
+		tablesToTruncate,
+	} = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+		false,
+		[],
+	);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	expect(columnsToRemove!.length).toBe(0);
+	expect(infoToPrint!.length).toBe(0);
 	expect(shouldAskForApprove).toBe(false);
 	expect(tablesToRemove!.length).toBe(0);
 	expect(tablesToTruncate!.length).toBe(0);

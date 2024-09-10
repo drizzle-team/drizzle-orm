@@ -161,6 +161,7 @@ const tableSquashed = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()).default({}),
+	checkConstraints: record(string(), string()).default({}),
 }).strict();
 
 export const schemaSquashed = object({

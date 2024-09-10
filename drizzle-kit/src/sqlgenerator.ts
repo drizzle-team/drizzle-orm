@@ -346,6 +346,7 @@ export class SQLiteCreateTableConvertor extends Convertor {
 			referenceData,
 			compositePKs,
 			uniqueConstraints,
+			checkConstraints,
 		} = st;
 
 		let statement = '';
@@ -405,8 +406,19 @@ export class SQLiteCreateTableConvertor extends Convertor {
 		) {
 			for (const uniqueConstraint of uniqueConstraints) {
 				statement += ',\n';
-				const unsquashedUnique = MySqlSquasher.unsquashUnique(uniqueConstraint);
+				const unsquashedUnique = SQLiteSquasher.unsquashUnique(uniqueConstraint);
 				statement += `\tCONSTRAINT ${unsquashedUnique.name} UNIQUE(\`${unsquashedUnique.columns.join(`\`,\``)}\`)`;
+			}
+		}
+
+		if (
+			typeof checkConstraints !== 'undefined'
+			&& checkConstraints.length > 0
+		) {
+			for (const check of checkConstraints) {
+				statement += ',\n';
+				const { value, name } = SQLiteSquasher.unsquashCheck(check);
+				statement += `\tCONSTRAINT "${name}" CHECK(${value})`;
 			}
 		}
 
@@ -1530,7 +1542,9 @@ export class LibSQLModifyColumn extends Convertor {
 				|| statement.type === 'alter_table_alter_column_drop_notnull'
 				|| statement.type === 'alter_table_alter_column_set_notnull'
 				|| statement.type === 'alter_table_alter_column_set_default'
-				|| statement.type === 'alter_table_alter_column_drop_default')
+				|| statement.type === 'alter_table_alter_column_drop_default'
+				|| statement.type === 'create_check_constraint'
+				|| statement.type === 'delete_check_constraint')
 			&& dialect === 'turso'
 		);
 	}
@@ -2448,7 +2462,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string | string[] {
-		const { tableName, columns, compositePKs, referenceData } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
@@ -2456,6 +2470,12 @@ class SQLiteRecreateTableConvertor extends Convertor {
 		const sqlStatements: string[] = [];
 
 		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
+
+		// map all possible variants
+		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
+			it.replaceAll(`"${tableName}".`, `"${newTableName}".`).replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
+				.replaceAll(`${tableName}.`, `${newTableName}.`).replaceAll(`'${tableName}'.`, `'${newTableName}'.`)
+		);
 
 		// create new table
 		sqlStatements.push(
@@ -2465,6 +2485,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 				columns,
 				referenceData,
 				compositePKs,
+				checkConstraints: mappedCheckConstraints,
 			}),
 		);
 
@@ -2508,12 +2529,17 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string[] {
-		const { tableName, columns, compositePKs, referenceData } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
+
+		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
+			it.replaceAll(`"${tableName}".`, `"${newTableName}".`).replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
+				.replaceAll(`${tableName}.`, `${newTableName}.`).replaceAll(`'${tableName}'.`, `\`${newTableName}\`.`)
+		);
 
 		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
 
@@ -2525,6 +2551,7 @@ class LibSQLRecreateTableConvertor extends Convertor {
 				columns,
 				referenceData,
 				compositePKs,
+				checkConstraints: mappedCheckConstraints,
 			}),
 		);
 

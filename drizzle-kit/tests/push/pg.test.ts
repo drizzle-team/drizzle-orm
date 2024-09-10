@@ -2322,7 +2322,7 @@ test('drop check constraint', async () => {
 			type: 'delete_check_constraint',
 			tableName: 'test',
 			schema: '',
-			data: 'some_check',
+			constraintName: 'some_check',
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
