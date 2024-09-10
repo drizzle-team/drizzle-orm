@@ -74,7 +74,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { Expect } from '~/utils';
 import type { schema } from './neon-http-batch.test';
 // eslint-disable-next-line @typescript-eslint/no-import-type-side-effects
@@ -246,6 +246,7 @@ export function tests() {
 			await db.execute(sql`drop schema if exists public cascade`);
 			await db.execute(sql`drop schema if exists ${mySchema} cascade`);
 			await db.execute(sql`create schema public`);
+			await db.execute(sql`create schema if not exists custom_migrations`);
 			await db.execute(sql`create schema ${mySchema}`);
 			// public users
 			await db.execute(
@@ -375,6 +376,11 @@ export function tests() {
 					)
 				`,
 			);
+		});
+
+		afterEach(async (ctx) => {
+			const { db } = ctx.pg;
+			await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		});
 
 		async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT>) {
