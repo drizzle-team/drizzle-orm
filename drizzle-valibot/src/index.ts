@@ -41,7 +41,7 @@ import {
 	string,
 	type StringSchema,
 	tuple,
-	TupleSchema,
+	type TupleSchema,
 	union,
 	uuid,
 } from 'valibot';
