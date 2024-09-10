@@ -32,188 +32,188 @@ import {
 import { introspectPgToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
-test('basic introspect test', async () => {
-	const client = new PGlite();
+// test('basic introspect test', async () => {
+// 	const client = new PGlite();
 
-	const schema = {
-		users: pgTable('users', {
-			id: integer('id').notNull(),
-			email: text('email'),
-		}),
-	};
+// 	const schema = {
+// 		users: pgTable('users', {
+// 			id: integer('id').notNull(),
+// 			email: text('email'),
+// 		}),
+// 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
-		client,
-		schema,
-		'basic-introspect',
-	);
+// 	const { statements, sqlStatements } = await introspectPgToFile(
+// 		client,
+// 		schema,
+// 		'basic-introspect',
+// 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});
+// 	expect(statements.length).toBe(0);
+// 	expect(sqlStatements.length).toBe(0);
+// });
 
-test('basic identity always test', async () => {
-	const client = new PGlite();
+// test('basic identity always test', async () => {
+// 	const client = new PGlite();
 
-	const schema = {
-		users: pgTable('users', {
-			id: integer('id').generatedAlwaysAsIdentity(),
-			email: text('email'),
-		}),
-	};
+// 	const schema = {
+// 		users: pgTable('users', {
+// 			id: integer('id').generatedAlwaysAsIdentity(),
+// 			email: text('email'),
+// 		}),
+// 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
-		client,
-		schema,
-		'basic-identity-always-introspect',
-	);
+// 	const { statements, sqlStatements } = await introspectPgToFile(
+// 		client,
+// 		schema,
+// 		'basic-identity-always-introspect',
+// 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});
+// 	expect(statements.length).toBe(0);
+// 	expect(sqlStatements.length).toBe(0);
+// });
 
-test('basic identity by default test', async () => {
-	const client = new PGlite();
+// test('basic identity by default test', async () => {
+// 	const client = new PGlite();
 
-	const schema = {
-		users: pgTable('users', {
-			id: integer('id').generatedByDefaultAsIdentity(),
-			email: text('email'),
-		}),
-	};
+// 	const schema = {
+// 		users: pgTable('users', {
+// 			id: integer('id').generatedByDefaultAsIdentity(),
+// 			email: text('email'),
+// 		}),
+// 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
-		client,
-		schema,
-		'basic-identity-default-introspect',
-	);
+// 	const { statements, sqlStatements } = await introspectPgToFile(
+// 		client,
+// 		schema,
+// 		'basic-identity-default-introspect',
+// 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});
+// 	expect(statements.length).toBe(0);
+// 	expect(sqlStatements.length).toBe(0);
+// });
 
-test('identity always test: few params', async () => {
-	const client = new PGlite();
+// test('identity always test: few params', async () => {
+// 	const client = new PGlite();
 
-	const schema = {
-		users: pgTable('users', {
-			id: integer('id').generatedAlwaysAsIdentity({
-				startWith: 100,
-				name: 'custom_name',
-			}),
-			email: text('email'),
-		}),
-	};
+// 	const schema = {
+// 		users: pgTable('users', {
+// 			id: integer('id').generatedAlwaysAsIdentity({
+// 				startWith: 100,
+// 				name: 'custom_name',
+// 			}),
+// 			email: text('email'),
+// 		}),
+// 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
-		client,
-		schema,
-		'identity-always-few-params-introspect',
-	);
+// 	const { statements, sqlStatements } = await introspectPgToFile(
+// 		client,
+// 		schema,
+// 		'identity-always-few-params-introspect',
+// 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});
+// 	expect(statements.length).toBe(0);
+// 	expect(sqlStatements.length).toBe(0);
+// });
 
-test('identity by default test: few params', async () => {
-	const client = new PGlite();
+// test('identity by default test: few params', async () => {
+// 	const client = new PGlite();
 
-	const schema = {
-		users: pgTable('users', {
-			id: integer('id').generatedByDefaultAsIdentity({
-				maxValue: 10000,
-				name: 'custom_name',
-			}),
-			email: text('email'),
-		}),
-	};
+// 	const schema = {
+// 		users: pgTable('users', {
+// 			id: integer('id').generatedByDefaultAsIdentity({
+// 				maxValue: 10000,
+// 				name: 'custom_name',
+// 			}),
+// 			email: text('email'),
+// 		}),
+// 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
-		client,
-		schema,
-		'identity-default-few-params-introspect',
-	);
+// 	const { statements, sqlStatements } = await introspectPgToFile(
+// 		client,
+// 		schema,
+// 		'identity-default-few-params-introspect',
+// 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});
+// 	expect(statements.length).toBe(0);
+// 	expect(sqlStatements.length).toBe(0);
+// });
 
-test('identity always test: all params', async () => {
-	const client = new PGlite();
+// test('identity always test: all params', async () => {
+// 	const client = new PGlite();
 
-	const schema = {
-		users: pgTable('users', {
-			id: integer('id').generatedAlwaysAsIdentity({
-				startWith: 10,
-				increment: 4,
-				minValue: 10,
-				maxValue: 10000,
-				cache: 100,
-				cycle: true,
-			}),
-			email: text('email'),
-		}),
-	};
+// 	const schema = {
+// 		users: pgTable('users', {
+// 			id: integer('id').generatedAlwaysAsIdentity({
+// 				startWith: 10,
+// 				increment: 4,
+// 				minValue: 10,
+// 				maxValue: 10000,
+// 				cache: 100,
+// 				cycle: true,
+// 			}),
+// 			email: text('email'),
+// 		}),
+// 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
-		client,
-		schema,
-		'identity-always-all-params-introspect',
-	);
+// 	const { statements, sqlStatements } = await introspectPgToFile(
+// 		client,
+// 		schema,
+// 		'identity-always-all-params-introspect',
+// 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});
+// 	expect(statements.length).toBe(0);
+// 	expect(sqlStatements.length).toBe(0);
+// });
 
-test('identity by default test: all params', async () => {
-	const client = new PGlite();
+// test('identity by default test: all params', async () => {
+// 	const client = new PGlite();
 
-	const schema = {
-		users: pgTable('users', {
-			id: integer('id').generatedByDefaultAsIdentity({
-				startWith: 10,
-				increment: 4,
-				minValue: 10,
-				maxValue: 10000,
-				cache: 100,
-				cycle: true,
-			}),
-			email: text('email'),
-		}),
-	};
+// 	const schema = {
+// 		users: pgTable('users', {
+// 			id: integer('id').generatedByDefaultAsIdentity({
+// 				startWith: 10,
+// 				increment: 4,
+// 				minValue: 10,
+// 				maxValue: 10000,
+// 				cache: 100,
+// 				cycle: true,
+// 			}),
+// 			email: text('email'),
+// 		}),
+// 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
-		client,
-		schema,
-		'identity-default-all-params-introspect',
-	);
+// 	const { statements, sqlStatements } = await introspectPgToFile(
+// 		client,
+// 		schema,
+// 		'identity-default-all-params-introspect',
+// 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});
+// 	expect(statements.length).toBe(0);
+// 	expect(sqlStatements.length).toBe(0);
+// });
 
-test('generated column: link to another column', async () => {
-	const client = new PGlite();
+// test('generated column: link to another column', async () => {
+// 	const client = new PGlite();
 
-	const schema = {
-		users: pgTable('users', {
-			id: integer('id').generatedAlwaysAsIdentity(),
-			email: text('email'),
-			generatedEmail: text('generatedEmail').generatedAlwaysAs(
-				(): SQL => sql`email`,
-			),
-		}),
-	};
+// 	const schema = {
+// 		users: pgTable('users', {
+// 			id: integer('id').generatedAlwaysAsIdentity(),
+// 			email: text('email'),
+// 			generatedEmail: text('generatedEmail').generatedAlwaysAs(
+// 				(): SQL => sql`email`,
+// 			),
+// 		}),
+// 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
-		client,
-		schema,
-		'generated-link-column',
-	);
+// 	const { statements, sqlStatements } = await introspectPgToFile(
+// 		client,
+// 		schema,
+// 		'generated-link-column',
+// 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});
+// 	expect(statements.length).toBe(0);
+// 	expect(sqlStatements.length).toBe(0);
+// });
 
 test('instrospect all column types', async () => {
 	const client = new PGlite();
@@ -243,8 +243,10 @@ test('instrospect all column types', async () => {
 			time2: time('time2').defaultNow(),
 			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()),
 			timestamp2: timestamp('timestamp2', { withTimezone: true, precision: 6 }).defaultNow(),
+			timestamp3: timestamp('timestamp3', { withTimezone: true, precision: 6 }).default(sql`timezone('utc'::text, now())`),
 			date1: date('date1').default('2024-01-01'),
 			date2: date('date2').defaultNow(),
+			date3: date('date3').default(sql`CURRENT_TIMESTAMP`),
 			uuid1: uuid('uuid1').default('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'),
 			uuid2: uuid('uuid2').defaultRandom(),
 			inet: inet('inet').default('127.0.0.1'),

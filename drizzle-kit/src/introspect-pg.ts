@@ -652,18 +652,20 @@ const mapDefault = (
 	if (lowered.startsWith('timestamp')) {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue === 'CURRENT_TIMESTAMP'
-			? '.default(sql\`CURRENT_TIMESTAMP\`)'
-			: defaultValue
+			: /^'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?'$/.test(defaultValue) // Matches 'YYYY-MM-DD HH:MI:SS', 'YYYY-MM-DD HH:MI:SS.FFFFFF', 'YYYY-MM-DD HH:MI:SS+TZ', 'YYYY-MM-DD HH:MI:SS.FFFFFF+TZ' and 'YYYY-MM-DD HH:MI:SS+HH:MI'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
 	if (lowered.startsWith('time')) {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue
+			: /^'\d{2}:\d{2}(:\d{2})?(\.\d+)?'$/.test(defaultValue) // Matches 'HH:MI', 'HH:MI:SS' and 'HH:MI:SS.FFFFFF'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
@@ -674,10 +676,10 @@ const mapDefault = (
 	if (lowered === 'date') {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue === 'CURRENT_DATE'
-			? `.default(sql\`${defaultValue}\`)`
-			: defaultValue
+			: /^'\d{4}-\d{2}-\d{2}'$/.test(defaultValue) // Matches 'YYYY-MM-DD'
 			? `.default(${defaultValue})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
