@@ -2,13 +2,13 @@ import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type {
-	AnyQueryResultHKT,
+	AnyMySqlQueryResultHKT,
+	MySqlPreparedQueryConfig,
+	MySqlQueryResultHKT,
+	MySqlQueryResultKind,
 	MySqlSession,
-	PreparedQueryConfig,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
-	QueryResultHKT,
-	QueryResultKind,
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
@@ -27,7 +27,7 @@ export interface MySqlUpdateConfig {
 
 export type MySqlUpdateSetSource<TTable extends MySqlTable> =
 	& {
-		[Key in keyof TTable['_']['columns']]?:
+		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}
@@ -35,7 +35,7 @@ export type MySqlUpdateSetSource<TTable extends MySqlTable> =
 
 export class MySqlUpdateBuilder<
 	TTable extends MySqlTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
 	static readonly [entityKind]: string = 'MySqlUpdateBuilder';
@@ -73,8 +73,8 @@ export type MySqlUpdateWithout<
 
 export type MySqlUpdatePrepare<T extends AnyMySqlUpdateBase> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
-	PreparedQueryConfig & {
-		execute: QueryResultKind<T['_']['queryResult'], never>;
+	MySqlPreparedQueryConfig & {
+		execute: MySqlQueryResultKind<T['_']['queryResult'], never>;
 		iterator: never;
 	},
 	true
@@ -88,7 +88,7 @@ export type MySqlUpdateDynamic<T extends AnyMySqlUpdateBase> = MySqlUpdate<
 
 export type MySqlUpdate<
 	TTable extends MySqlTable = MySqlTable,
-	TQueryResult extends QueryResultHKT = AnyQueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT = AnyMySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 > = MySqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
 
@@ -96,11 +96,11 @@ export type AnyMySqlUpdateBase = MySqlUpdateBase<any, any, any, any, any>;
 
 export interface MySqlUpdateBase<
 	TTable extends MySqlTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper {
+> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>>, SQLWrapper {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
@@ -112,14 +112,14 @@ export interface MySqlUpdateBase<
 
 export class MySqlUpdateBase<
 	TTable extends MySqlTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
+> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> implements SQLWrapper {
 	static readonly [entityKind]: string = 'MySqlUpdate';
 
 	private config: MySqlUpdateConfig;
