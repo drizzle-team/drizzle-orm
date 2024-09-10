@@ -7,6 +7,7 @@ import {
 	int,
 	integer,
 	numeric,
+	primaryKey,
 	real,
 	sqliteTable,
 	text,
@@ -1287,4 +1288,46 @@ test('recreate table with added column not null and without default with data', 
 	expect(shouldAskForApprove).toBe(false);
 	expect(tablesToRemove!.length).toBe(0);
 	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('create composite primary key', async (t) => {
+	const client = new Database(':memory:');
+
+	const schema1 = {};
+
+	const schema2 = {
+		table: sqliteTable('table', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull()
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.col1, t.col2]
+			}),
+		})),
+	};
+
+	const {
+		statements,
+		sqlStatements,
+	} = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements).toStrictEqual([{
+		type: 'sqlite_create_table',
+		tableName: 'table',
+		compositePKs: [['col1', 'col2']],
+		uniqueConstraints: [],
+		referenceData: [],
+		columns: [
+			{ name: 'col1', type: 'integer', primaryKey: false, notNull: true, autoincrement: false },
+			{ name: 'col2', type: 'integer', primaryKey: false, notNull: true, autoincrement: false },
+		],
+	}]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `table` (\n\t`col1` integer NOT NULL,\n\t`col2` integer NOT NULL,\n\tPRIMARY KEY(`col1`, `col2`)\n);\n',
+	]);
 });

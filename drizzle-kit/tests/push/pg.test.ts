@@ -16,6 +16,7 @@ import {
 	pgSchema,
 	pgSequence,
 	pgTable,
+	primaryKey,
 	real,
 	serial,
 	smallint,
@@ -1063,6 +1064,50 @@ const pgSuite: DialectSuite = {
 		]);
 
 		expect(shouldAskForApprove).toBeFalsy();
+	},
+
+	async createCompositePrimaryKey() {
+		const client = new PGlite();
+	
+		const schema1 = {};
+	
+		const schema2 = {
+			table: pgTable('table', {
+				col1: integer('col1').notNull(),
+				col2: integer('col2').notNull()
+			}, (t) => ({
+				pk: primaryKey({
+					columns: [t.col1, t.col2]
+				}),
+			})),
+		};
+	
+		const { statements, sqlStatements } = await diffTestSchemasPush(
+			client,
+			schema1,
+			schema2,
+			[],
+			false,
+			['public'],
+		);
+	
+		expect(statements).toStrictEqual([
+			{
+				type: 'create_table',
+				tableName: 'table',
+				schema: '',
+				compositePKs: ['col1,col2;table_col1_col2_pk'],
+				compositePkName: 'table_col1_col2_pk',
+				uniqueConstraints: [],
+				columns: [
+					{ name: 'col1', type: 'integer', primaryKey: false, notNull: true },
+					{ name: 'col2', type: 'integer', primaryKey: false, notNull: true },
+				],
+			}
+		]);
+		expect(sqlStatements).toStrictEqual([
+			'CREATE TABLE IF NOT EXISTS "table" (\n\t"col1" integer NOT NULL,\n\t"col2" integer NOT NULL,\n\tCONSTRAINT "table_col1_col2_pk" PRIMARY KEY("col1","col2")\n);\n',
+		]);
 	},
 
 	// async addVectorIndexes() {
