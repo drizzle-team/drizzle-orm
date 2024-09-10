@@ -1,6 +1,18 @@
 import { Type } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
-import { char, date, geometry, integer, pgEnum, pgTable, serial, text, timestamp, varchar, vector } from 'drizzle-orm/pg-core';
+import {
+	char,
+	date,
+	geometry,
+	integer,
+	pgEnum,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+	varchar,
+	vector,
+} from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { createInsertSchema, createSelectSchema, Nullable } from '../src';
 import { expectSchemaShape } from './utils.ts';

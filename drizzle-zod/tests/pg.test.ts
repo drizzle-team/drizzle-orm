@@ -1,4 +1,16 @@
-import { char, date, geometry, integer, pgEnum, pgTable, serial, text, timestamp, varchar, vector } from 'drizzle-orm/pg-core';
+import {
+	char,
+	date,
+	geometry,
+	integer,
+	pgEnum,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+	varchar,
+	vector,
+} from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema } from '../src';
