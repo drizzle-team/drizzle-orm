@@ -40,9 +40,11 @@ export class MySql2Driver {
 
 export { MySqlDatabase } from '~/mysql-core/db.ts';
 
-export type MySql2Database<
+export class MySql2Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema>;
+> extends MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema> {
+	static readonly [entityKind]: string = 'MySql2Database';
+}
 
 export type MySql2DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
 	& Omit<DrizzleConfig<TSchema>, 'schema'>
@@ -87,7 +89,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const driver = new MySql2Driver(client as MySql2Client, dialect, { logger });
 	const session = driver.createSession(schema, mode);
-	return new MySqlDatabase(dialect, session, schema, mode) as MySql2Database<TSchema>;
+	return new MySql2Database(dialect, session, schema as any, mode) as MySql2Database<TSchema>;
 }
 
 interface CallbackClient {

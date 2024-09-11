@@ -108,6 +108,9 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	[IsAlias] = false;
 
 	/** @internal */
+	[IsDrizzleTable] = true;
+
+	/** @internal */
 	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown>) | undefined = undefined;
 
 	constructor(name: string, schema: string | undefined, baseName: string) {

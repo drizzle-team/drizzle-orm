@@ -481,7 +481,7 @@ export const fromDatabase = async (
 			default: columnDefault === null
 				? undefined
 				: /^-?[\d.]+(?:e-?\d+)?$/.test(columnDefault)
-						&& !columnType.startsWith('decimal')
+						&& !['decimal', 'char', 'varchar'].some((type) => columnType.startsWith(type))
 				? Number(columnDefault)
 				: isDefaultAnExpression
 				? clearDefaults(columnDefault, collation)

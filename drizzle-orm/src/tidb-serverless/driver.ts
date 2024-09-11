@@ -1,4 +1,5 @@
 import type { Connection } from '@tidbcloud/serverless';
+import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -17,9 +18,11 @@ export interface TiDBServerlessSDriverOptions {
 	logger?: Logger;
 }
 
-export type TiDBServerlessDatabase<
+export class TiDBServerlessDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = MySqlDatabase<TiDBServerlessQueryResultHKT, TiDBServerlessPreparedQueryHKT, TSchema>;
+> extends MySqlDatabase<TiDBServerlessQueryResultHKT, TiDBServerlessPreparedQueryHKT, TSchema> {
+	static readonly [entityKind]: string = 'TiDBServerlessDatabase';
+}
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Connection,
@@ -47,5 +50,5 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new TiDBServerlessSession(client, dialect, undefined, schema, { logger });
-	return new MySqlDatabase(dialect, session, schema, 'default') as TiDBServerlessDatabase<TSchema>;
+	return new TiDBServerlessDatabase(dialect, session, schema as any, 'default') as TiDBServerlessDatabase<TSchema>;
 }

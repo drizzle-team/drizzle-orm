@@ -45,9 +45,11 @@ export class NodePgDriver {
 	}
 }
 
-export type NodePgDatabase<
+export class NodePgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<NodePgQueryResultHKT, TSchema>;
+> extends PgDatabase<NodePgQueryResultHKT, TSchema> {
+	static readonly [entityKind]: string = 'NodePgDatabase';
+}
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: NodePgClient,
@@ -76,5 +78,5 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const driver = new NodePgDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new PgDatabase(dialect, session, schema) as NodePgDatabase<TSchema>;
+	return new NodePgDatabase(dialect, session, schema as any) as NodePgDatabase<TSchema>;
 }

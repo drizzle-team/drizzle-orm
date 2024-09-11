@@ -1,4 +1,5 @@
 import type { Sql } from 'postgres';
+import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -12,9 +13,11 @@ import type { DrizzleConfig } from '~/utils.ts';
 import type { PostgresJsQueryResultHKT } from './session.ts';
 import { PostgresJsSession } from './session.ts';
 
-export type PostgresJsDatabase<
+export class PostgresJsDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<PostgresJsQueryResultHKT, TSchema>;
+> extends PgDatabase<PostgresJsQueryResultHKT, TSchema> {
+	static readonly [entityKind]: string = 'PostgresJsDatabase';
+}
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Sql,
@@ -27,6 +30,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		client.options.parsers[type as any] = transparentParser;
 		client.options.serializers[type as any] = transparentParser;
 	}
+	client.options.serializers['114'] = transparentParser;
+	client.options.serializers['3802'] = transparentParser;
 
 	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
@@ -50,5 +55,5 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new PostgresJsSession(client, dialect, schema, { logger });
-	return new PgDatabase(dialect, session, schema) as PostgresJsDatabase<TSchema>;
+	return new PostgresJsDatabase(dialect, session, schema as any) as PostgresJsDatabase<TSchema>;
 }

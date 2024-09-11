@@ -2162,3 +2162,77 @@ test('add identity to column - few params', async () => {
 	//   await client.query(st);
 	// }
 });
+
+test('add array column - empty array default', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').array().default([]),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'alter_table_add_column',
+			tableName: 'test',
+			schema: '',
+			column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{}'" },
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{}\';',
+	]);
+});
+
+test('add array column - default', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').array().default([1, 2, 3]),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'alter_table_add_column',
+			tableName: 'test',
+			schema: '',
+			column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{1,2,3}'" },
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
+	]);
+});

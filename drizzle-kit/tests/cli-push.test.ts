@@ -34,10 +34,9 @@ test('push #2', async (t) => {
 	const res = await brotest(push, '--config=turso.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
-		dialect: 'sqlite',
+		dialect: 'turso',
 		credentials: {
 			authToken: 'token',
-			driver: 'turso',
 			url: 'turso.dev',
 		},
 		force: false,

@@ -101,15 +101,22 @@ const importsPatch = {
 
 const relations = new Set<string>();
 
+const escapeColumnKey = (value: string) => {
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
+		return `"${value}"`;
+	}
+	return value;
+};
+
 const prepareCasing = (casing?: Casing) => (value: string) => {
-	if (typeof casing === 'undefined') {
-		return value;
+	if (casing === 'preserve') {
+		return escapeColumnKey(value);
 	}
 	if (casing === 'camel') {
-		return value.camelCase();
+		return escapeColumnKey(value.camelCase());
 	}
 
-	return value;
+	return escapeColumnKey(value);
 };
 
 export const schemaToTypeScript = (
@@ -153,6 +160,7 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('datetime(') ? 'datetime' : patched;
 					patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 					patched = patched.startsWith('int(') ? 'int' : patched;
+					patched = patched.startsWith('double(') ? 'double' : patched;
 					return patched;
 				})
 				.filter((type) => {
