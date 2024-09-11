@@ -55,7 +55,7 @@ export const users = mysqlTable(
 		uniqueClass: uniqueIndex('uniqueClass')
 			.on(users.class, users.subClass)
 			.lock('default')
-			.algorythm('copy')
+			.algorithm('copy')
 			.using(`btree`),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
 		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),

@@ -22,7 +22,7 @@ type Verify<T, U extends T> = U;
  *
  * **Config** usage:
  *
- * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
+ * `dialect` - mandatory and is responsible for explicitly providing a database dialect you are using for all the commands
  * *Possible values*: `postgresql`, `mysql`, `sqlite`
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
@@ -41,7 +41,7 @@ type Verify<T, U extends T> = U;
  * ---
  * `driver` - optional param that is responsible for explicitly providing a driver to use when accessing a database
  * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`, `pglite`
- * If you don't use AWS Data API, D1, Turso or Expo - ypu don't need this driver. You can check a driver strategy choice here: https://orm.drizzle.team/kit-docs/upgrade-21
+ * If you don't use AWS Data API, D1, Turso or Expo - you don't need this driver. You can check a driver strategy choice here: https://orm.drizzle.team/kit-docs/upgrade-21
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#driver
  *
@@ -72,7 +72,7 @@ type Verify<T, U extends T> = U;
  * ---
  *
  * `tablesFilters` - param lets you filter tables with glob syntax for db push command.
- * It’s useful when you have only one database avaialable for several separate projects with separate sql schemas.
+ * It’s useful when you have only one database available for several separate projects with separate sql schemas.
  *
  * How to define multi-project tables with Drizzle ORM — see https://orm.drizzle.team/docs/goodies#multi-project-schema
  *
@@ -215,7 +215,7 @@ export type Config =
  *
  * **Config** usage:
  *
- * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
+ * `dialect` - mandatory and is responsible for explicitly providing a database dialect you are using for all the commands
  * *Possible values*: `postgresql`, `mysql`, `sqlite`
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
@@ -234,7 +234,7 @@ export type Config =
  * ---
  * `driver` - optional param that is responsible for explicitly providing a driver to use when accessing a database
  * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`, `pglite`
- * If you don't use AWS Data API, D1, Turso or Expo - ypu don't need this driver. You can check a driver strategy choice here: https://orm.drizzle.team/kit-docs/upgrade-21
+ * If you don't use AWS Data API, D1, Turso or Expo - you don't need this driver. You can check a driver strategy choice here: https://orm.drizzle.team/kit-docs/upgrade-21
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#driver
  *
@@ -265,7 +265,7 @@ export type Config =
  * ---
  *
  * `tablesFilters` - param lets you filter tables with glob syntax for db push command.
- * It’s useful when you have only one database avaialable for several separate projects with separate sql schemas.
+ * It’s useful when you have only one database available for several separate projects with separate sql schemas.
  *
  * How to define multi-project tables with Drizzle ORM — see https://orm.drizzle.team/docs/goodies#multi-project-schema
  *

@@ -36,7 +36,7 @@ import { Prefix } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import {
 	isRenamePromptItem,
-	RenamePropmtItem,
+	RenamePromptItem,
 	ResolveColumnSelect,
 	ResolveSchemasSelect,
 	ResolveSelect,
@@ -510,11 +510,11 @@ export const promptColumnsConflicts = async <T extends Named>(
 	do {
 		const created = newColumns[index];
 
-		const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
+		const renames: RenamePromptItem<T>[] = leftMissing.map((it) => {
 			return { from: it, to: created };
 		});
 
-		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
+		const promptData: (RenamePromptItem<T> | T)[] = [created, ...renames];
 
 		const { status, data } = await render(
 			new ResolveColumnSelect<T>(tableName, created, promptData),
@@ -586,11 +586,11 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 	let leftMissing = [...missingItems];
 	do {
 		const created = newItems[index];
-		const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
+		const renames: RenamePromptItem<T>[] = leftMissing.map((it) => {
 			return { from: it, to: created };
 		});
 
-		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
+		const promptData: (RenamePromptItem<T> | T)[] = [created, ...renames];
 
 		const { status, data } = await render(
 			new ResolveSelect<T>(created, promptData, entity),
@@ -664,11 +664,11 @@ export const promptSchemasConflict = async <T extends Named>(
 	let leftMissing = [...missingSchemas];
 	do {
 		const created = newSchemas[index];
-		const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
+		const renames: RenamePromptItem<T>[] = leftMissing.map((it) => {
 			return { from: it, to: created };
 		});
 
-		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
+		const promptData: (RenamePromptItem<T> | T)[] = [created, ...renames];
 
 		const { status, data } = await render(
 			new ResolveSchemasSelect<T>(created, promptData),

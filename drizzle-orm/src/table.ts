@@ -151,8 +151,8 @@ export function getTableUniqueName<T extends Table>(table: T): `${T['_']['schema
 	return `${table[Schema] ?? 'public'}.${table[TableName]}`;
 }
 
-export type MapColumnName<TName extends string, TColumn extends Column, TDBColumNames extends boolean> =
-	TDBColumNames extends true ? TColumn['_']['name']
+export type MapColumnName<TName extends string, TColumn extends Column, TDBColumnNames extends boolean> =
+	TDBColumnNames extends true ? TColumn['_']['name']
 		: TName;
 
 export type InferModelFromColumns<

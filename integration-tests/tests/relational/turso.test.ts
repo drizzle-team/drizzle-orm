@@ -3957,7 +3957,7 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 */
 
 /*
-	One four-level relation users+posts+comments+coment_likes
+	One four-level relation users+posts+comments+comment_likes
 */
 
 /*
@@ -6008,13 +6008,13 @@ test('.toSQL()', () => {
 // + partial + orderBy + where (all not selected)
 
 /*
-	One four-level relation users+posts+comments+coment_likes
+	One four-level relation users+posts+comments+comment_likes
 	+ users+users_to_groups+groups
 */
 
 /*
 	Really hard case
-	1. users+posts+comments+coment_likes
+	1. users+posts+comments+comment_likes
 	2. users+users_to_groups+groups
 	3. users+users
 */

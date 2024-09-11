@@ -166,9 +166,9 @@ export const schemaToTypeScript = (
 	} } from "drizzle-orm/sqlite-core"
   import { sql } from "drizzle-orm"\n\n`;
 
-	const decalrations = tableStatements.join('\n\n');
+	const declarations = tableStatements.join('\n\n');
 
-	const file = importsTs + decalrations;
+	const file = importsTs + declarations;
 
 	// for drizzle studio query runner
 	const schemaEntry = `
@@ -181,7 +181,7 @@ export const schemaToTypeScript = (
     }
   `;
 
-	return { file, imports: importsTs, decalrations, schemaEntry };
+	return { file, imports: importsTs, declarations, schemaEntry };
 };
 
 const isCyclic = (fk: ForeignKey) => {
@@ -268,7 +268,7 @@ const column = (
 		return out;
 	}
 
-	//   console.log("uknown", type);
+	//   console.log("unknown", type);
 	return `// Warning: Can't parse ${type} from database\n\t// ${type}Type: ${type}("${name}")`;
 };
 

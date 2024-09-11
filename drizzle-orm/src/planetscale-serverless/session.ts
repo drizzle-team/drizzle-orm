@@ -32,7 +32,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
 		private generatedIds?: Record<string, unknown>[],
-		// Keys that should be returned, it has the column with all properries + key from object
+		// Keys that should be returned, it has the column with all properties + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
 		super();

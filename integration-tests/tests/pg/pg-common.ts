@@ -3892,9 +3892,9 @@ export function tests() {
 				city: 'New York',
 			}]);
 
-			const condtition4 = false;
+			const condition4 = false;
 
-			const result4 = await db.select().from(users).where(eq(users.id, 1).if(condtition4));
+			const result4 = await db.select().from(users).where(eq(users.id, 1).if(condition4));
 
 			expect(result4).toEqual([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },

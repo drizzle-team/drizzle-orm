@@ -1,0 +1,20 @@
+name: "Spelling"
+
+on:
+  push:
+    branches: [ "main", "beta" ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ "main" ]
+
+jobs:
+  typos_check:
+    name: Typos
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Search for misspellings
+      uses: crate-ci/typos@master

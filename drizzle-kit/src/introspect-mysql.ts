@@ -241,10 +241,10 @@ export const schemaToTypeScript = (
 		)
 	} } from "drizzle-orm/mysql-core"\nimport { sql } from "drizzle-orm"\n\n`;
 
-	let decalrations = '';
-	decalrations += tableStatements.join('\n\n');
+	let declarations = '';
+	declarations += tableStatements.join('\n\n');
 
-	const file = importsTs + decalrations;
+	const file = importsTs + declarations;
 
 	const schemaEntry = `
     {
@@ -259,7 +259,7 @@ export const schemaToTypeScript = (
 	return {
 		file, // backward compatible, print to file
 		imports: importsTs,
-		decalrations,
+		declarations,
 		schemaEntry,
 	};
 };
@@ -674,7 +674,7 @@ const column = (
 		return out;
 	}
 
-	console.log('uknown', type);
+	console.log('unknown', type);
 	return `// Warning: Can't parse ${type} from database\n\t// ${type}Type: ${type}("${name}")`;
 };
 

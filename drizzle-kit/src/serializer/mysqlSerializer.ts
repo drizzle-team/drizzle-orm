@@ -103,7 +103,7 @@ export const generateMySqlSnapshot = (
 								chalk.underline.blue(
 									column.name,
 								)
-							} column is confilcting with a unique constraint name already defined for ${
+							} column is conflicting with a unique constraint name already defined for ${
 								chalk.underline.blue(
 									existingUnique.columns.join(','),
 								)
@@ -188,7 +188,7 @@ export const generateMySqlSnapshot = (
 								chalk.underline.blue(
 									columnNames.join(','),
 								)
-							} columns is confilcting with a unique constraint name already defined for ${
+							} columns is conflicting with a unique constraint name already defined for ${
 								chalk.underline.blue(
 									existingUnique.columns.join(','),
 								)
@@ -280,7 +280,7 @@ export const generateMySqlSnapshot = (
 									chalk.underline.blue(
 										indexColumns.join(','),
 									)
-								} columns is confilcting with a unique constraint name already defined for ${
+								} columns is conflicting with a unique constraint name already defined for ${
 									chalk.underline.blue(
 										uniqueConstraintObject[name].columns.join(','),
 									)
@@ -317,7 +317,7 @@ export const generateMySqlSnapshot = (
 				columns: indexColumns,
 				isUnique: value.config.unique ?? false,
 				using: value.config.using,
-				algorithm: value.config.algorythm,
+				algorithm: value.config.algorithm,
 				lock: value.config.lock,
 			};
 		});
@@ -422,7 +422,7 @@ export const fromDatabase = async (
 		const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
 		const columnDefault: string = column['COLUMN_DEFAULT'];
 		const collation: string = column['CHARACTER_SET_NAME'];
-		const geenratedExpression: string = column['GENERATION_EXPRESSION'];
+		const generatedExpression: string = column['GENERATION_EXPRESSION'];
 
 		let columnExtra = column['EXTRA'];
 		let isAutoincrement = false; // 'auto_increment', ''
@@ -492,9 +492,9 @@ export const fromDatabase = async (
 			primaryKey: false,
 			notNull: !isNullable,
 			onUpdate,
-			generated: geenratedExpression
+			generated: generatedExpression
 				? {
-					as: geenratedExpression,
+					as: generatedExpression,
 					type: columnExtra === 'VIRTUAL GENERATED' ? 'virtual' : 'stored',
 				}
 				: undefined,
@@ -656,7 +656,7 @@ export const fromDatabase = async (
 			];
 		}
 	} catch (e) {
-		// console.log(`Can't proccess foreign keys`);
+		// console.log(`Can't process foreign keys`);
 	}
 	if (progressCallback) {
 		progressCallback('fks', foreignKeysCount, 'done');

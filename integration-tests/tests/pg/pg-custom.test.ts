@@ -21,9 +21,9 @@ beforeAll(async () => {
 	if (process.env['PG_CONNECTION_STRING']) {
 		connectionString = process.env['PG_CONNECTION_STRING'];
 	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
+		const { connectionString: conStr, container: containerObj } = await createDockerDB();
 		connectionString = conStr;
-		container = contrainerObj;
+		container = containerObj;
 	}
 	client = await retry(async () => {
 		client = new Client(connectionString);

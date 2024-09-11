@@ -52,7 +52,7 @@ test('generated as callback: add column with generated constraint', async () => 
 	]);
 });
 
-test('generated as callback: add generated constraint to an exisiting column as stored', async () => {
+test('generated as callback: add generated constraint to an existing column as stored', async () => {
 	const from = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -103,7 +103,7 @@ test('generated as callback: add generated constraint to an exisiting column as 
 	]);
 });
 
-test('generated as callback: add generated constraint to an exisiting column as virtual', async () => {
+test('generated as callback: add generated constraint to an existing column as virtual', async () => {
 	const from = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -483,7 +483,7 @@ test('generated as sql: add column with generated constraint', async () => {
 	]);
 });
 
-test('generated as sql: add generated constraint to an exisiting column as stored', async () => {
+test('generated as sql: add generated constraint to an existing column as stored', async () => {
 	const from = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -534,7 +534,7 @@ test('generated as sql: add generated constraint to an exisiting column as store
 	]);
 });
 
-test('generated as sql: add generated constraint to an exisiting column as virtual', async () => {
+test('generated as sql: add generated constraint to an existing column as virtual', async () => {
 	const from = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -914,7 +914,7 @@ test('generated as string: add column with generated constraint', async () => {
 	]);
 });
 
-test('generated as string: add generated constraint to an exisiting column as stored', async () => {
+test('generated as string: add generated constraint to an existing column as stored', async () => {
 	const from = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -965,7 +965,7 @@ test('generated as string: add generated constraint to an exisiting column as st
 	]);
 });
 
-test('generated as string: add generated constraint to an exisiting column as virtual', async () => {
+test('generated as string: add generated constraint to an existing column as virtual', async () => {
 	const from = {
 		users: mysqlTable('users', {
 			id: int('id'),
