@@ -151,6 +151,7 @@ export const schemaToTypeScript = (
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
 					let patched = importsPatch[col.type] ?? col.type;
+					patched = patched.replace(" unsigned", "")
 					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
 					patched = patched.startsWith('char(') ? 'char' : patched;
 					patched = patched.startsWith('binary(') ? 'binary' : patched;
