@@ -1,0 +1,17 @@
+[files]
+extend-exclude = [
+    ".git/",
+]
+ignore-hidden = false
+
+[default]
+extend-ignore-re = [
+    "\\bBig Sur\\b",
+]
+
+[default.extend-words]
+"splitted" = "splitted"
+
+[default.extend-identifiers]
+# Typos
+"Github" = "GitHub"
