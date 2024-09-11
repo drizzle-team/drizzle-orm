@@ -29,7 +29,7 @@ export const customerIds = [
 	'MAISD',
 	'LAMAI',
 	'LINOD',
-	'BOTTOM',
+	'BOTTM',
 	'NORTS',
 	'QUEEN',
 	'LILAS',

@@ -1,12 +1,13 @@
 [files]
 extend-exclude = [
     ".git/",
+    "drizzle-kit/src/utils/words.ts",
 ]
 ignore-hidden = false
 
 [default]
 extend-ignore-re = [
-    "\\bBig Sur\\b",
+    "'BOTTM',",
 ]
 
 [default.extend-words]
