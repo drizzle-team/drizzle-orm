@@ -606,9 +606,7 @@ const column = (
 			| undefined;
 
 		if (lowered.length > 7) {
-			const [precision, scale] = lowered
-				.slice(8, lowered.length - 1)
-				.split(',');
+			const [precision, scale] = lowered.match(/decimal\((\d+),(\d+)\)/)?.slice(1) ?? [];
 			params = { precision, scale };
 		}
 
