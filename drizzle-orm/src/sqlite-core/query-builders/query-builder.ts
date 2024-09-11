@@ -2,7 +2,8 @@ import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { SQLiteDialect, SQLiteDialectConfig, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteDialectConfig } from '~/sqlite-core/dialect.ts';
+import { SQLiteDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { WithSubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import { WithSubquery } from '~/subquery.ts';
 import { SQLiteSelectBuilder } from './select.ts';
@@ -16,7 +17,7 @@ export class QueryBuilder {
 
 	constructor(dialect?: SQLiteDialect | SQLiteDialectConfig) {
 		this.dialect = is(dialect, SQLiteDialect) ? dialect : undefined;
-		this.dialectConfig = !is(dialect, SQLiteDialect) ? dialect : undefined;
+		this.dialectConfig = is(dialect, SQLiteDialect) ? undefined : dialect;
 	}
 
 	$with<TAlias extends string>(alias: TAlias) {

@@ -25,7 +25,7 @@ import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from 
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
 	SelectedFieldsOrdered,

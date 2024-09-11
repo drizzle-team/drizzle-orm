@@ -4569,7 +4569,7 @@ export function tests() {
 			]);
 
 			await db.execute(sql`drop table users`);
-		})
+		});
 
 		test('proper json and jsonb handling', async (ctx) => {
 			const { db } = ctx.pg;

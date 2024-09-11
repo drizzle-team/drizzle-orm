@@ -21,7 +21,7 @@ import { Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';

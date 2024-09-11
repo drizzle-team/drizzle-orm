@@ -49,7 +49,7 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';

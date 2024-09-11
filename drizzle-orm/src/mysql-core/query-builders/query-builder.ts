@@ -1,5 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
-import { MySqlDialect, MySqlDialectConfig } from '~/mysql-core/dialect.ts';
+import type { MySqlDialectConfig } from '~/mysql-core/dialect.ts';
+import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { WithSubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -16,7 +17,7 @@ export class QueryBuilder {
 
 	constructor(dialect?: MySqlDialect | MySqlDialectConfig) {
 		this.dialect = is(dialect, MySqlDialect) ? dialect : undefined;
-		this.dialectConfig = !is(dialect, MySqlDialect) ? dialect : undefined;
+		this.dialectConfig = is(dialect, MySqlDialect) ? undefined : dialect;
 	}
 
 	$with<TAlias extends string>(alias: TAlias) {

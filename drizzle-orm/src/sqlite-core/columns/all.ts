@@ -1,9 +1,9 @@
-import { blob } from './blob';
-import { customType } from './custom';
-import { integer } from './integer';
-import { numeric } from './numeric';
-import { real } from './real';
-import { text } from './text';
+import { blob } from './blob.ts';
+import { customType } from './custom.ts';
+import { integer } from './integer.ts';
+import { numeric } from './numeric.ts';
+import { real } from './real.ts';
+import { text } from './text.ts';
 
 export function getSQLiteColumnBuilders() {
 	return {

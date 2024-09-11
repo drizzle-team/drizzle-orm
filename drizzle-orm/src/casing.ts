@@ -1,10 +1,10 @@
-import { Casing, type Column, entityKind } from './index.ts';
+import { type Casing, type Column, entityKind } from './index.ts';
 import { Table } from './table.ts';
 
 export function toSnakeCase(input: string) {
 	const words = input
 		.replace(/['\u2019]/g, '')
-		.match(/[a-z0-9]+|[A-Z]+(?![a-z])|[A-Z][a-z0-9]+/g) ?? [];
+		.match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? [];
 
 	return words.map((word) => word.toLowerCase()).join('_');
 }
@@ -12,7 +12,7 @@ export function toSnakeCase(input: string) {
 export function toCamelCase(input: string) {
 	const words = input
 		.replace(/['\u2019]/g, '')
-		.match(/[a-z0-9]+|[A-Z]+(?![a-z])|[A-Z][a-z0-9]+/g) ?? [];
+		.match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? [];
 
 	return words.reduce((acc, word, i) => {
 		const formattedWord = i === 0 ? word.toLowerCase() : `${word[0]!.toUpperCase()}${word.slice(1)}`;
