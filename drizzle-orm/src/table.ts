@@ -4,6 +4,7 @@ import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
 import type { ExtraConfigColumn } from './pg-core/index.ts';
 import type { SQLWrapper } from './sql/sql.ts';
 import type { Simplify, Update } from './utils.ts';
+import { TableName } from './table.utils.ts';
 
 export interface TableConfig<TColumn extends Column = Column<any>> {
 	name: string;
@@ -15,9 +16,6 @@ export interface TableConfig<TColumn extends Column = Column<any>> {
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Required<
 	Update<T, TUpdate>
 >;
-
-/** @internal */
-export const TableName = Symbol.for('drizzle:Name');
 
 /** @internal */
 export const Schema = Symbol.for('drizzle:Schema');

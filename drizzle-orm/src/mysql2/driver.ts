@@ -12,7 +12,7 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { DrizzleError } from '../index.ts';
+import { DrizzleError } from '../errors.ts';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
 import { MySql2Session } from './session.ts';
 

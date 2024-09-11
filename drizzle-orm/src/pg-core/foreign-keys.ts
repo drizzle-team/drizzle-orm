@@ -1,6 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { AnyPgColumn, PgColumn } from './columns/index.ts';
-import { PgTable } from './table.ts';
+import type { PgTable } from './table.ts';
+import { TableName } from '~/table.utils.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
@@ -80,9 +81,9 @@ export class ForeignKey {
 		const columnNames = columns.map((column) => column.name);
 		const foreignColumnNames = foreignColumns.map((column) => column.name);
 		const chunks = [
-			this.table[PgTable.Symbol.Name],
+			this.table[TableName],
 			...columnNames,
-			foreignColumns[0]!.table[PgTable.Symbol.Name],
+			foreignColumns[0]!.table[TableName],
 			...foreignColumnNames,
 		];
 		return name ?? `${chunks.join('_')}_fk`;

@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
-import { TableName } from '~/index.ts';
 import type { PgColumn } from './columns/index.ts';
 import type { PgTable } from './table.ts';
+import { TableName } from '~/table.utils.ts';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);

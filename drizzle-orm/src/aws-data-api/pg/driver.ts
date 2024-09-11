@@ -1,6 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import type { SQL, SQLWrapper } from '~/index.ts';
-import { Param, sql, Table } from '~/index.ts';
+import { Param, sql } from '~/sql/sql.ts';
+import { Table } from '~/table.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
