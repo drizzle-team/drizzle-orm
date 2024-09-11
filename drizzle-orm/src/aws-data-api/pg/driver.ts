@@ -1,7 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
 import type { SQL, SQLWrapper } from '~/index.ts';
-import { Param, sql } from '~/sql/sql.ts';
-import { Table } from '~/table.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -15,6 +13,8 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { Param, sql } from '~/sql/sql.ts';
+import { Table } from '~/table.ts';
 import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';

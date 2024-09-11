@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
+import { TableName } from '~/table.utils.ts';
 import type { MySqlColumn } from './columns/index.ts';
 import type { MySqlTable } from './table.ts';
-import { TableName } from '~/table.utils.ts';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);

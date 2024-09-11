@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
+import { TableName } from '~/table.utils.ts';
 import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
 import type { MySqlTable } from './table.ts';
-import { TableName } from '~/table.utils.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 

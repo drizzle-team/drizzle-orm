@@ -1,7 +1,7 @@
+import type { Column } from '~/column.ts';
 import { entityKind } from './entity.ts';
 import { Table } from './table.ts';
 import type { Casing } from './utils.ts';
-import type { Column } from '~/column.ts';
 
 export function toSnakeCase(input: string) {
 	const words = input
