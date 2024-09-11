@@ -35,7 +35,7 @@ npm run generate
 npm run migrate
 ```
 
-That's it! Subscribe to our [Twitter](https://twitter.com/DrizzleOrm) and join our [comminity on Discord](http://driz.li/discord) 🚀
+That's it! Subscribe to our [Twitter](https://twitter.com/DrizzleOrm) and join our [community on Discord](http://driz.li/discord) 🚀
 
 
 

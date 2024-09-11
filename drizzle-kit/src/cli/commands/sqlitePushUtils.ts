@@ -189,7 +189,7 @@ export const logSuggestionsAndReturn = async (
 				];
 				// check table that have fk to this table
 
-				const tablesReferncingCurrent: string[] = [];
+				const tablesReferencingCurrent: string[] = [];
 
 				for (const table of Object.values(json1.tables)) {
 					const tablesRefs = Object.values(json1.tables[table.name].foreignKeys)
@@ -198,10 +198,10 @@ export const logSuggestionsAndReturn = async (
 						)
 						.map((t) => SQLiteSquasher.unsquashPushFK(t).tableFrom);
 
-					tablesReferncingCurrent.push(...tablesRefs);
+					tablesReferencingCurrent.push(...tablesRefs);
 				}
 
-				const uniqueTableRefs = [...new Set(tablesReferncingCurrent)];
+				const uniqueTableRefs = [...new Set(tablesReferencingCurrent)];
 
 				for (const table of uniqueTableRefs) {
 					if (typeof tablesContext[table] === 'undefined') {
@@ -240,7 +240,7 @@ export const logSuggestionsAndReturn = async (
 				tablesContext[newTableName] = [
 					..._moveDataStatements(statement.tableName, json2, true),
 				];
-				const tablesReferncingCurrent: string[] = [];
+				const tablesReferencingCurrent: string[] = [];
 
 				for (const table of Object.values(json1.tables)) {
 					const tablesRefs = Object.values(json1.tables[table.name].foreignKeys)
@@ -249,10 +249,10 @@ export const logSuggestionsAndReturn = async (
 						)
 						.map((t) => SQLiteSquasher.unsquashPushFK(t).tableFrom);
 
-					tablesReferncingCurrent.push(...tablesRefs);
+					tablesReferencingCurrent.push(...tablesRefs);
 				}
 
-				const uniqueTableRefs = [...new Set(tablesReferncingCurrent)];
+				const uniqueTableRefs = [...new Set(tablesReferencingCurrent)];
 
 				for (const table of uniqueTableRefs) {
 					if (typeof tablesContext[table] === 'undefined') {
@@ -317,7 +317,7 @@ export const logSuggestionsAndReturn = async (
 					}
 				}
 
-				const tablesReferncingCurrent: string[] = [];
+				const tablesReferencingCurrent: string[] = [];
 
 				for (const table of Object.values(json1.tables)) {
 					const tablesRefs = Object.values(json1.tables[table.name].foreignKeys)
@@ -331,10 +331,10 @@ export const logSuggestionsAndReturn = async (
 							);
 						});
 
-					tablesReferncingCurrent.push(...tablesRefs);
+					tablesReferencingCurrent.push(...tablesRefs);
 				}
 
-				const uniqueTableRefs = [...new Set(tablesReferncingCurrent)];
+				const uniqueTableRefs = [...new Set(tablesReferencingCurrent)];
 
 				for (const table of uniqueTableRefs) {
 					if (typeof tablesContext[table] === 'undefined') {

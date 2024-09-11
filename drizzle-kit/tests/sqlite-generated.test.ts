@@ -4,7 +4,7 @@
 // 4. add stored generated to column -> not supported +
 // 5. add virtual generated to column -> supported with drop+add column +
 // 6. drop stored/virtual expression -> supported with drop+add column
-// 7. alter generated expession -> stored not supported, virtual supported
+// 7. alter generated expression -> stored not supported, virtual supported
 
 import { SQL, sql } from 'drizzle-orm';
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
@@ -91,7 +91,7 @@ test('generated as callback: add column with virtual generated constraint', asyn
 	]);
 });
 
-test('generated as callback: add generated constraint to an exisiting column as stored', async () => {
+test('generated as callback: add generated constraint to an existing column as stored', async () => {
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),
@@ -123,7 +123,7 @@ test('generated as callback: add generated constraint to an exisiting column as 
 	expect(sqlStatements).toStrictEqual([]);
 });
 
-test('generated as callback: add generated constraint to an exisiting column as virtual', async () => {
+test('generated as callback: add generated constraint to an existing column as virtual', async () => {
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),
@@ -664,7 +664,7 @@ test('generated as sql: add column with virtual generated constraint', async () 
 	]);
 });
 
-test('generated as sql: add generated constraint to an exisiting column as stored', async () => {
+test('generated as sql: add generated constraint to an existing column as stored', async () => {
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),
@@ -696,7 +696,7 @@ test('generated as sql: add generated constraint to an exisiting column as store
 	expect(sqlStatements).toStrictEqual([]);
 });
 
-test('generated as sql: add generated constraint to an exisiting column as virtual', async () => {
+test('generated as sql: add generated constraint to an existing column as virtual', async () => {
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),
@@ -1232,7 +1232,7 @@ test('generated as string: add column with virtual generated constraint', async 
 	]);
 });
 
-test('generated as string: add generated constraint to an exisiting column as stored', async () => {
+test('generated as string: add generated constraint to an existing column as stored', async () => {
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),
@@ -1264,7 +1264,7 @@ test('generated as string: add generated constraint to an exisiting column as st
 	expect(sqlStatements).toStrictEqual([]);
 });
 
-test('generated as string: add generated constraint to an exisiting column as virtual', async () => {
+test('generated as string: add generated constraint to an existing column as virtual', async () => {
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),

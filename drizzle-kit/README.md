@@ -5,7 +5,7 @@ DrizzleKit - is a CLI migrator tool for DrizzleORM. It is probably one and only 
 
 ## Documentation
 
-Check the full documenation on [the website](https://orm.drizzle.team/kit-docs/overview)
+Check the full documentation on [the website](https://orm.drizzle.team/kit-docs/overview)
 
 ### How it works
 

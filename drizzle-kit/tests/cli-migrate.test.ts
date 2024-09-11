@@ -78,7 +78,7 @@ test('migrate #4', async (t) => {
 	});
 });
 
-// catched a bug
+// caught a bug
 test('migrate #5', async (t) => {
 	const res = await brotest(migrate, '--config=postgres2.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');

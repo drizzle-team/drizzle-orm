@@ -527,13 +527,13 @@ export const schemaToTypeScript = (
 	} } from "drizzle-orm/pg-core"
   import { sql } from "drizzle-orm"\n\n`;
 
-	let decalrations = schemaStatements;
-	decalrations += enumStatements;
-	decalrations += sequencesStatements;
-	decalrations += '\n';
-	decalrations += tableStatements.join('\n\n');
+	let declarations = schemaStatements;
+	declarations += enumStatements;
+	declarations += sequencesStatements;
+	declarations += '\n';
+	declarations += tableStatements.join('\n\n');
 
-	const file = importsTs + decalrations;
+	const file = importsTs + declarations;
 
 	// for drizzle studio query runner
 	const schemaEntry = `
@@ -546,7 +546,7 @@ export const schemaToTypeScript = (
     }
   `;
 
-	return { file, imports: importsTs, decalrations, schemaEntry };
+	return { file, imports: importsTs, declarations, schemaEntry };
 };
 
 const isCyclic = (fk: ForeignKey) => {
@@ -1118,7 +1118,7 @@ const createTableColumns = (
 			: '';
 
 		// const fks = fkByColumnName[it.name];
-		// Andrii: I switched it off until we will get a custom naem setting in references
+		// Andrii: I switched it off until we will get a custom name setting in references
 		// if (fks) {
 		// 	const fksStatement = fks
 		// 		.map((it) => {

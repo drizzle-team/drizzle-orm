@@ -81,7 +81,7 @@ export const resolveTables = <T extends Named>(added: T[], removed: T[]) => {
 		throw new Error('No handler');
 	}
 
-	console.log(`Simluated by ${handler.constructor.name}`);
+	console.log(`Simulated by ${handler.constructor.name}`);
 	return handler.handle(added, removed);
 };
 class LehaColumnsHandler<T extends Named> implements ColumnsHandler<T> {
@@ -152,6 +152,6 @@ export const resolveColumns = <T extends Named>(tableName: string, added: T[], r
 		throw new Error('No columns handler for table: ' + tableName);
 	}
 
-	console.log(`${tableName} columns simluated by ${handler.constructor.name}`);
+	console.log(`${tableName} columns simulated by ${handler.constructor.name}`);
 	return handler.handle(tableName, added, removed);
 };

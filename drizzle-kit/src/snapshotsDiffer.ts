@@ -748,8 +748,8 @@ export const applyPgSnapshotsDiff = async (
 	const alteredTables = typedResult.alteredTablesWithColumns;
 
 	const jsonRenameColumnsStatements: JsonRenameColumnStatement[] = [];
-	const jsonDropColumnsStatemets: JsonDropColumnStatement[] = [];
-	const jsonAddColumnsStatemets: JsonAddColumnStatement[] = [];
+	const jsonDropColumnsStatements: JsonDropColumnStatement[] = [];
+	const jsonAddColumnsStatements: JsonAddColumnStatement[] = [];
 
 	for (let it of columnRenames) {
 		jsonRenameColumnsStatements.push(
@@ -758,13 +758,13 @@ export const applyPgSnapshotsDiff = async (
 	}
 
 	for (let it of columnDeletes) {
-		jsonDropColumnsStatemets.push(
+		jsonDropColumnsStatements.push(
 			..._prepareDropColumns(it.table, it.schema, it.columns),
 		);
 	}
 
 	for (let it of columnCreates) {
-		jsonAddColumnsStatemets.push(
+		jsonAddColumnsStatements.push(
 			..._prepareAddColumns(it.table, it.schema, it.columns),
 		);
 	}
@@ -894,7 +894,7 @@ export const applyPgSnapshotsDiff = async (
 		})
 		.flat();
 
-	const jsonCreateIndexesFoAlteredTables = alteredTables
+	const jsonCreateIndexesForAlteredTables = alteredTables
 		.map((it) => {
 			return preparePgCreateIndexesJson(
 				it.name,
@@ -932,7 +932,7 @@ export const applyPgSnapshotsDiff = async (
 			{} as Record<string, string>,
 		);
 
-		jsonCreateIndexesFoAlteredTables.push(
+		jsonCreateIndexesForAlteredTables.push(
 			...preparePgCreateIndexesJson(
 				it.name,
 				it.schema,
@@ -1118,15 +1118,15 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonDeletedCompositePKs);
 	jsonStatements.push(...jsonTableAlternations);
 	jsonStatements.push(...jsonAddedCompositePKs);
-	jsonStatements.push(...jsonAddColumnsStatemets);
+	jsonStatements.push(...jsonAddColumnsStatements);
 
 	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
 
 	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
-	jsonStatements.push(...jsonCreateIndexesFoAlteredTables);
+	jsonStatements.push(...jsonCreateIndexesForAlteredTables);
 
-	jsonStatements.push(...jsonDropColumnsStatemets);
+	jsonStatements.push(...jsonDropColumnsStatements);
 	jsonStatements.push(...jsonAlteredCompositePKs);
 
 	jsonStatements.push(...jsonAddedUniqueConstraints);
@@ -1222,7 +1222,7 @@ export const applyMysqlSnapshotsDiff = async (
 	// it should be done for mysql only because it has no diffs for it
 
 	// TODO: @AndriiSherman
-	// Add an upgrade to v6 and move all snaphosts to this strcutre
+	// Add an upgrade to v6 and move all snaphosts to this structure
 	// After that we can generate mysql in 1 object directly(same as sqlite)
 	for (const tableName in json1.tables) {
 		const table = json1.tables[tableName];
@@ -1388,11 +1388,11 @@ export const applyMysqlSnapshotsDiff = async (
 		.map((it) => prepareRenameColumns(it.table, '', it.renames))
 		.flat();
 
-	const jsonAddColumnsStatemets: JsonAddColumnStatement[] = columnCreates
+	const jsonAddColumnsStatements: JsonAddColumnStatement[] = columnCreates
 		.map((it) => _prepareAddColumns(it.table, '', it.columns))
 		.flat();
 
-	const jsonDropColumnsStatemets: JsonDropColumnStatement[] = columnDeletes
+	const jsonDropColumnsStatements: JsonDropColumnStatement[] = columnDeletes
 		.map((it) => _prepareDropColumns(it.table, '', it.columns))
 		.flat();
 
@@ -1611,7 +1611,7 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
 
-	jsonStatements.push(...jsonAddColumnsStatemets);
+	jsonStatements.push(...jsonAddColumnsStatements);
 
 	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
@@ -1619,7 +1619,7 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
 	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
 
-	jsonStatements.push(...jsonDropColumnsStatemets);
+	jsonStatements.push(...jsonDropColumnsStatements);
 
 	// jsonStatements.push(...jsonDeletedCompositePKs);
 	// jsonStatements.push(...jsonAddedCompositePKs);
@@ -1812,11 +1812,11 @@ export const applySqliteSnapshotsDiff = async (
 		.map((it) => prepareRenameColumns(it.table, '', it.renames))
 		.flat();
 
-	const jsonDropColumnsStatemets: JsonDropColumnStatement[] = columnDeletes
+	const jsonDropColumnsStatements: JsonDropColumnStatement[] = columnDeletes
 		.map((it) => _prepareDropColumns(it.table, '', it.columns))
 		.flat();
 
-	const jsonAddColumnsStatemets: JsonSqliteAddColumnStatement[] = columnCreates
+	const jsonAddColumnsStatements: JsonSqliteAddColumnStatement[] = columnCreates
 		.map((it) => {
 			return _prepareSqliteAddColumns(
 				it.table,
@@ -2029,14 +2029,14 @@ export const applySqliteSnapshotsDiff = async (
 	jsonStatements.push(...jsonDeletedCompositePKs);
 	jsonStatements.push(...jsonTableAlternations);
 	jsonStatements.push(...jsonAddedCompositePKs);
-	jsonStatements.push(...jsonAddColumnsStatemets);
+	jsonStatements.push(...jsonAddColumnsStatements);
 
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
 
 	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
 
-	jsonStatements.push(...jsonDropColumnsStatemets);
+	jsonStatements.push(...jsonDropColumnsStatements);
 
 	// jsonStatements.push(...jsonDeletedCompositePKs);
 	// jsonStatements.push(...jsonAddedCompositePKs);
@@ -2066,5 +2066,5 @@ export const applySqliteSnapshotsDiff = async (
 	};
 };
 
-// explicitely ask if tables were renamed, if yes - add those to altered tables, otherwise - deleted
+// explicitly ask if tables were renamed, if yes - add those to altered tables, otherwise - deleted
 // double check if user wants to delete particular table and warn him on data loss

@@ -134,7 +134,7 @@ app.post('/query', (req, res) => {
       res.status(500).json({ error: e.message });
     }
   } else {
-    res.status(500).json({ error: 'Unkown method value' });
+    res.status(500).json({ error: 'Unknown method value' });
   }
 });
 

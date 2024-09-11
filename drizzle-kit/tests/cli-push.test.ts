@@ -90,7 +90,7 @@ test('push #4', async (t) => {
 	});
 });
 
-// catched a bug
+// caught a bug
 test('push #5', async (t) => {
 	const res = await brotest(push, '--config=postgres2.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
