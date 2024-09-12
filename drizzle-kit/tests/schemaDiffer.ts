@@ -20,6 +20,11 @@ import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
 import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/introspect-sqlite';
+import {
+	prepareMySqlMigrationSnapshot,
+	preparePgMigrationSnapshot,
+	prepareSqliteMigrationSnapshot,
+} from 'src/migrationPreparator';
 import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
 import { mysqlSchema, squashMysqlScheme } from 'src/serializer/mysqlSchema';
 import { generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
@@ -1341,50 +1346,33 @@ export const introspectPgToFile = async (
 	const sn2AfterIm = squashPgScheme(sch2);
 	const validatedCurAfterImport = pgSchema.parse(sch2);
 
-	const leftTables = Object.values(initSchema).filter((it) => is(it, PgTable)) as PgTable[];
+	// save snapshot
+	fs.writeFileSync(`tests/introspect/postgres/${testName}.json`, JSON.stringify(validatedCurAfterImport));
 
-	const leftSchemas = Object.values(initSchema).filter((it) => is(it, PgSchema)) as PgSchema[];
-
-	const leftEnums = Object.values(initSchema).filter((it) => isPgEnum(it)) as PgEnum<any>[];
-
-	const leftSequences = Object.values(initSchema).filter((it) => isPgSequence(it)) as PgSequence[];
-
-	const initSnapshot = generatePgSnapshot(
-		leftTables,
-		leftEnums,
-		leftSchemas,
-		leftSequences,
+	const { cur } = await preparePgMigrationSnapshot(
+		[`tests/introspect/${testName}.json`],
+		`tests/introspect/${testName}.ts`,
 	);
 
-	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
-
-	const initSch = {
-		version: '7',
-		dialect: 'postgresql',
-		id: '0',
-		prevId: '0',
-		...initRest,
-	} as const;
-
-	const initSn = squashPgScheme(initSch);
-	const validatedCur = pgSchema.parse(initSch);
+	const squashedCurr = squashPgScheme(cur);
 
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	} = await applyPgSnapshotsDiff(
 		sn2AfterIm,
-		initSn,
+		squashedCurr,
 		testSchemasResolver(new Set()),
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
 		validatedCurAfterImport,
-		validatedCur,
+		cur,
 	);
 
 	fs.rmSync(`tests/introspect/${testName}.ts`);
+	fs.rmSync(`tests/introspect/${testName}.json`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,
@@ -1438,36 +1426,30 @@ export const introspectMySQLToFile = async (
 	const sn2AfterIm = squashMysqlScheme(sch2);
 	const validatedCurAfterImport = mysqlSchema.parse(sch2);
 
-	const leftTables = Object.values(initSchema).filter((it) => is(it, MySqlTable)) as MySqlTable[];
+	// save snapshot
+	fs.writeFileSync(`tests/introspect/mysql/${testName}.json`, JSON.stringify(validatedCurAfterImport));
 
-	const initSnapshot = generateMySqlSnapshot(leftTables);
+	const { cur } = await prepareMySqlMigrationSnapshot(
+		[`tests/introspect/mysql/${testName}.json`],
+		`tests/introspect/mysql/${testName}.ts`,
+	);
 
-	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
-
-	const initSch = {
-		version: '5',
-		dialect: 'mysql',
-		id: '0',
-		prevId: '0',
-		...initRest,
-	} as const;
-
-	const initSn = squashMysqlScheme(initSch);
-	const validatedCur = mysqlSchema.parse(initSch);
+	const squashedCurr = squashMysqlScheme(cur);
 
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	} = await applyMysqlSnapshotsDiff(
 		sn2AfterIm,
-		initSn,
+		squashedCurr,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
 		validatedCurAfterImport,
-		validatedCur,
+		cur,
 	);
 
 	fs.rmSync(`tests/introspect/mysql/${testName}.ts`);
+	fs.rmSync(`tests/introspect/mysql/${testName}.json`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,
@@ -1522,36 +1504,30 @@ export const introspectSQLiteToFile = async (
 	const sn2AfterIm = squashSqliteScheme(sch2);
 	const validatedCurAfterImport = sqliteSchema.parse(sch2);
 
-	const leftTables = Object.values(initSchema).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
+	// save snapshot
+	fs.writeFileSync(`tests/introspect/sqlite/${testName}.json`, JSON.stringify(validatedCurAfterImport));
 
-	const initSnapshot = generateSqliteSnapshot(leftTables);
+	const { cur } = await prepareSqliteMigrationSnapshot(
+		[`tests/introspect/sqlite/${testName}.json`],
+		`tests/introspect/sqlite/${testName}.ts`,
+	);
 
-	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
-
-	const initSch = {
-		version: '6',
-		dialect: 'sqlite',
-		id: '0',
-		prevId: '0',
-		...initRest,
-	} as const;
-
-	const initSn = squashSqliteScheme(initSch);
-	const validatedCur = sqliteSchema.parse(initSch);
+	const squashedCurr = squashSqliteScheme(cur);
 
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	} = await applySqliteSnapshotsDiff(
 		sn2AfterIm,
-		initSn,
+		squashedCurr,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
 		validatedCurAfterImport,
-		validatedCur,
+		cur,
 	);
 
 	fs.rmSync(`tests/introspect/sqlite/${testName}.ts`);
+	fs.rmSync(`tests/introspect/sqlite/${testName}.json`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,

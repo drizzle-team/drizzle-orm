@@ -406,3 +406,57 @@ test('introspect enum with similar name to native type', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('introspect checks', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: serial('id'),
+			name: varchar('name'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-checks',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect checks from different schemas with same names', async () => {
+	const client = new PGlite();
+
+	const mySchema = pgSchema('schema2');
+	const schema = {
+		mySchema,
+		users: pgTable('users', {
+			id: serial('id'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+		usersInMySchema: mySchema.table('users', {
+			id: serial('id'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} < 1`),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-checks',
+		['public', 'schema2'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
