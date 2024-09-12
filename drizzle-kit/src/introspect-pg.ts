@@ -867,7 +867,7 @@ const column = (
 		});
 
 		let out = params
-			? `${withCasing(name, casing)}: timestamp(${dbColumnName({ name, casing, withMode: true })}, ${params})`
+			? `${withCasing(name, casing)}: timestamp(${dbColumnName({ name, casing, withMode: true })}${params})`
 			: `${withCasing(name, casing)}: timestamp(${dbColumnName({ name, casing })})`;
 
 		return out;
@@ -888,7 +888,7 @@ const column = (
 		const params = timeConfig({ precision, withTimezone });
 
 		let out = params
-			? `${withCasing(name, casing)}: time(${dbColumnName({ name, casing, withMode: true })}, ${params})`
+			? `${withCasing(name, casing)}: time(${dbColumnName({ name, casing, withMode: true })}${params})`
 			: `${withCasing(name, casing)}: time(${dbColumnName({ name, casing })})`;
 
 		return out;
@@ -903,7 +903,7 @@ const column = (
 		const params = intervalConfig(lowered);
 
 		let out = params
-			? `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing, withMode: true })}, ${params})`
+			? `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing, withMode: true })}${params})`
 			: `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing })})`;
 
 		return out;
@@ -958,7 +958,7 @@ const column = (
 					name,
 					casing,
 				)
-			}: varchar(${dbColumnName({ name, casing, withMode: true })}, { length: ${
+			}: varchar(${dbColumnName({ name, casing, withMode: true })}{ length: ${
 				lowered.substring(
 					8,
 					lowered.length - 1,
@@ -989,11 +989,11 @@ const column = (
 		if (lowered.length !== 8) {
 			const geometryOptions = lowered.slice(9, -1).split(',');
 			if (geometryOptions.length === 1 && geometryOptions[0] !== '') {
-				out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}, { type: "${
+				out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}{ type: "${
 					geometryOptions[0]
 				}" })`;
 			} else if (geometryOptions.length === 2) {
-				out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}, { type: "${
+				out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}{ type: "${
 					geometryOptions[0]
 				}", srid: ${geometryOptions[1]} })`;
 			} else {
@@ -1020,7 +1020,7 @@ const column = (
 					name,
 					casing,
 				)
-			}: vector(${dbColumnName({ name, casing, withMode: true })}, { dimensions: ${
+			}: vector(${dbColumnName({ name, casing, withMode: true })}{ dimensions: ${
 				lowered.substring(
 					7,
 					lowered.length - 1,
@@ -1041,7 +1041,7 @@ const column = (
 					name,
 					casing,
 				)
-			}: char(${dbColumnName({ name, casing, withMode: true })}, { length: ${
+			}: char(${dbColumnName({ name, casing, withMode: true })}{ length: ${
 				lowered.substring(
 					5,
 					lowered.length - 1,
