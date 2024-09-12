@@ -364,8 +364,6 @@ test('drop autoincrement. drop column with data', async (t) => {
 		seedStatements,
 	);
 
-	console.log('statements: ', statements);
-
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'recreate_table',
