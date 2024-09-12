@@ -674,6 +674,7 @@ export const fromDatabase = async (
 	let indexesCount = 0;
 	let foreignKeysCount = 0;
 	let tableCount = 0;
+	let checksCount = 0;
 
 	const sequencesToReturn: Record<string, Sequence> = {};
 
@@ -956,6 +957,10 @@ export const fromDatabase = async (
 					}
 				}
 
+				checksCount += tableChecks.length;
+				if (progressCallback) {
+					progressCallback('checks', checksCount, 'fetching');
+				}
 				for (const checks of tableChecks) {
 					// CHECK (((email)::text <> 'test@gmail.com'::text))
 					// Where (email) is column in table
@@ -1302,6 +1307,7 @@ export const fromDatabase = async (
 		progressCallback('columns', columnsCount, 'done');
 		progressCallback('indexes', indexesCount, 'done');
 		progressCallback('fks', foreignKeysCount, 'done');
+		progressCallback('checks', checksCount, 'done');
 	}
 
 	const schemasObject = Object.fromEntries([...schemas].map((it) => [it, it]));

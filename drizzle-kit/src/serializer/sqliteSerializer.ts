@@ -447,6 +447,7 @@ export const fromDatabase = async (
 	let tablesCount = new Set();
 	let indexesCount = 0;
 	let foreignKeysCount = 0;
+	let checksCount = 0;
 
 	// append primaryKeys by table
 	const tableToPk: { [tname: string]: string[] } = {};
@@ -742,6 +743,11 @@ WHERE
 			});
 		}
 
+		checksCount += Object.values(checkConstraints).length;
+		if (progressCallback) {
+			progressCallback('checks', checksCount, 'fetching');
+		}
+
 		const table = result[tableName];
 
 		if (!table) {
@@ -757,6 +763,10 @@ WHERE
 		} else {
 			result[tableName]!.checkConstraints = checkConstraints;
 		}
+	}
+
+	if (progressCallback) {
+		progressCallback('checks', checksCount, 'done');
 	}
 
 	return {

@@ -434,6 +434,7 @@ export const fromDatabase = async (
 	let tablesCount = new Set();
 	let indexesCount = 0;
 	let foreignKeysCount = 0;
+	let checksCount = 0;
 
 	const idxs = await db.query(
 		`select * from INFORMATION_SCHEMA.STATISTICS
@@ -773,6 +774,10 @@ AND
     tc.constraint_type = 'CHECK';`,
 	);
 
+	checksCount += checkConstraints.length;
+	if (progressCallback) {
+		progressCallback('checks', checksCount, 'fetching');
+	}
 	for (const checkConstraintRow of checkConstraints) {
 		const constraintName = checkConstraintRow['CONSTRAINT_NAME'];
 		const constraintValue = checkConstraintRow['CHECK_CLAUSE'];
@@ -785,6 +790,10 @@ AND
 			name: constraintName,
 			value: constraintValue,
 		};
+	}
+
+	if (progressCallback) {
+		progressCallback('checks', checksCount, 'done');
 	}
 
 	return {
