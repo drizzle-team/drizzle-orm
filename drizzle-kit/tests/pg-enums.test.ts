@@ -460,8 +460,8 @@ test('enums #18', async () => {
 });
 
 test('enums #19', async () => {
-	const myEnum = pgEnum('my_enum', ['escape\'s quotes']);
-	
+	const myEnum = pgEnum('my_enum', ["escape's quotes"]);
+
 	const from = {};
 
 	const to = { myEnum };
@@ -470,18 +470,18 @@ test('enums #19', async () => {
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toStrictEqual(
-		'DO $$ BEGIN\n CREATE TYPE "public"."my_enum" AS ENUM(\'escape\'\'s quotes\');\nEXCEPTION\n WHEN duplicate_object THEN null;\nEND $$;\n'
+		'DO $$ BEGIN\n CREATE TYPE "public"."my_enum" AS ENUM(\'escape\'\'s quotes\');\nEXCEPTION\n WHEN duplicate_object THEN null;\nEND $$;\n',
 	);
 });
 
 test('enums #20', async () => {
 	const myEnum = pgEnum('my_enum', ['one', 'two', 'three']);
-	
+
 	const from = {
 		myEnum,
 		table: pgTable('table', {
 			id: serial('id').primaryKey(),
-		})
+		}),
 	};
 
 	const to = {
@@ -490,7 +490,7 @@ test('enums #20', async () => {
 			id: serial('id').primaryKey(),
 			col1: myEnum('col1'),
 			col2: integer('col2'),
-		})
+		}),
 	};
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
@@ -498,18 +498,18 @@ test('enums #20', async () => {
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "table" ADD COLUMN "col1" "my_enum";',
-		'ALTER TABLE "table" ADD COLUMN "col2" integer;'
+		'ALTER TABLE "table" ADD COLUMN "col2" integer;',
 	]);
 });
 
 test('enums #21', async () => {
 	const myEnum = pgEnum('my_enum', ['one', 'two', 'three']);
-	
+
 	const from = {
 		myEnum,
 		table: pgTable('table', {
 			id: serial('id').primaryKey(),
-		})
+		}),
 	};
 
 	const to = {
@@ -518,7 +518,7 @@ test('enums #21', async () => {
 			id: serial('id').primaryKey(),
 			col1: myEnum('col1').array(),
 			col2: integer('col2').array(),
-		})
+		}),
 	};
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
@@ -526,6 +526,6 @@ test('enums #21', async () => {
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "table" ADD COLUMN "col1" "my_enum"[];',
-		'ALTER TABLE "table" ADD COLUMN "col2" integer[];'
+		'ALTER TABLE "table" ADD COLUMN "col2" integer[];',
 	]);
 });

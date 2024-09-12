@@ -465,10 +465,7 @@ export const PgSquasher = {
 		return `${idx.name};${
 			idx.columns
 				.map(
-					(c) =>
-						`${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${
-							c.opclass ? c.opclass : ''
-						}`,
+					(c) => `${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${c.opclass ? c.opclass : ''}`,
 				)
 				.join(',,')
 		};${idx.isUnique};${idx.concurrently};${idx.method};${idx.where};${JSON.stringify(idx.with)}`;

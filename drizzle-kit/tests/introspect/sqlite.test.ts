@@ -61,7 +61,7 @@ test('instrospect strings with single quotes', async () => {
 
 	const schema = {
 		columns: sqliteTable('columns', {
-			text: text('text').default('escape\'s quotes')
+			text: text('text').default("escape's quotes"),
 		}),
 	};
 

@@ -20,7 +20,7 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/sqliteSchema';
-import { escapeSingleQuotes, unescapeSingleQuotes, type SQLiteDB } from '../utils';
+import { escapeSingleQuotes, type SQLiteDB, unescapeSingleQuotes } from '../utils';
 import { sqlToStr } from '.';
 
 const dialect = new SQLiteSyncDialect();

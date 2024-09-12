@@ -1068,20 +1068,20 @@ const pgSuite: DialectSuite = {
 
 	async createCompositePrimaryKey() {
 		const client = new PGlite();
-	
+
 		const schema1 = {};
-	
+
 		const schema2 = {
 			table: pgTable('table', {
 				col1: integer('col1').notNull(),
-				col2: integer('col2').notNull()
+				col2: integer('col2').notNull(),
 			}, (t) => ({
 				pk: primaryKey({
-					columns: [t.col1, t.col2]
+					columns: [t.col1, t.col2],
 				}),
 			})),
 		};
-	
+
 		const { statements, sqlStatements } = await diffTestSchemasPush(
 			client,
 			schema1,
@@ -1090,7 +1090,7 @@ const pgSuite: DialectSuite = {
 			false,
 			['public'],
 		);
-	
+
 		expect(statements).toStrictEqual([
 			{
 				type: 'create_table',
@@ -1103,7 +1103,7 @@ const pgSuite: DialectSuite = {
 					{ name: 'col1', type: 'integer', primaryKey: false, notNull: true },
 					{ name: 'col2', type: 'integer', primaryKey: false, notNull: true },
 				],
-			}
+			},
 		]);
 		expect(sqlStatements).toStrictEqual([
 			'CREATE TABLE IF NOT EXISTS "table" (\n\t"col1" integer NOT NULL,\n\t"col2" integer NOT NULL,\n\tCONSTRAINT "table_col1_col2_pk" PRIMARY KEY("col1","col2")\n);\n',
@@ -1112,25 +1112,25 @@ const pgSuite: DialectSuite = {
 
 	async renameTableWithCompositePrimaryKey() {
 		const client = new PGlite();
-	
+
 		const productsCategoriesTable = (tableName: string) => {
 			return pgTable(tableName, {
-				productId: text("product_id").notNull(),
-				categoryId: text("category_id").notNull()
+				productId: text('product_id').notNull(),
+				categoryId: text('category_id').notNull(),
 			}, (t) => ({
 				pk: primaryKey({
 					columns: [t.productId, t.categoryId],
 				}),
-			}));		
-		}
-	
+			}));
+		};
+
 		const schema1 = {
 			table: productsCategoriesTable('products_categories'),
 		};
 		const schema2 = {
 			test: productsCategoriesTable('products_to_categories'),
 		};
-	
+
 		const { sqlStatements } = await diffTestSchemasPush(
 			client,
 			schema1,
@@ -2321,7 +2321,7 @@ test('add array column - default', async () => {
 test('Column with same name as enum', async () => {
 	const client = new PGlite();
 	const statusEnum = pgEnum('status', ['inactive', 'active', 'banned']);
-	
+
 	const schema1 = {
 		statusEnum,
 		table1: pgTable('table1', {
@@ -2360,15 +2360,29 @@ test('Column with same name as enum', async () => {
 			uniqueConstraints: [],
 			columns: [
 				{ name: 'id', type: 'serial', primaryKey: true, notNull: true },
-				{ name: 'status', type: 'status', typeSchema: 'public', primaryKey: false, notNull: false, default: "'inactive'" },
+				{
+					name: 'status',
+					type: 'status',
+					typeSchema: 'public',
+					primaryKey: false,
+					notNull: false,
+					default: "'inactive'",
+				},
 			],
 		},
 		{
 			type: 'alter_table_add_column',
 			tableName: 'table1',
 			schema: '',
-			column: { name: 'status', type: 'status', typeSchema: 'public', primaryKey: false, notNull: false, default: "'inactive'" },
-		}
+			column: {
+				name: 'status',
+				type: 'status',
+				typeSchema: 'public',
+				primaryKey: false,
+				notNull: false,
+				default: "'inactive'",
+			},
+		},
 	]);
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE IF NOT EXISTS "table2" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"status" "status" DEFAULT \'inactive\'\n);\n',

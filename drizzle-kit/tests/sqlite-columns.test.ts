@@ -1024,7 +1024,7 @@ test('text default values escape single quotes', async (t) => {
 	const schem2 = {
 		table: sqliteTable('table', {
 			id: integer('id').primaryKey(),
-			text: text('text').default('escape\'s quotes')
+			text: text('text').default("escape's quotes"),
 		}),
 	};
 
@@ -1032,6 +1032,6 @@ test('text default values escape single quotes', async (t) => {
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toStrictEqual(
-		'ALTER TABLE `table` ADD `text` text DEFAULT \'escape\'\'s quotes\';'
+		"ALTER TABLE `table` ADD `text` text DEFAULT 'escape''s quotes';",
 	);
 });

@@ -109,7 +109,7 @@ const parseType = (schemaPrefix: string, type: string) => {
 	return pgNativeTypes.some((it) => type.startsWith(it))
 		? `${withoutArrayDefinition}${arrayDefinition}`
 		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
-}
+};
 
 abstract class Convertor {
 	abstract can(
@@ -1812,7 +1812,7 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-			console.log(statement.oldConstraintName, statement.newConstraintName)
+		console.log(statement.oldConstraintName, statement.newConstraintName);
 		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.oldConstraintName}";\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.newConstraintName}" PRIMARY KEY("${
 			newColumns.join('","')
 		}");`;

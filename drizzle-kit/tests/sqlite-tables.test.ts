@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { AnySQLiteColumn, index, int, primaryKey, sqliteTable, text, unique, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+	AnySQLiteColumn,
+	index,
+	int,
+	primaryKey,
+	sqliteTable,
+	text,
+	unique,
+	uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasSqlite } from './schemaDiffer';
 
@@ -404,10 +413,10 @@ test('composite primary key', async () => {
 		table: sqliteTable('works_to_creators', {
 			workId: int('work_id').notNull(),
 			creatorId: int('creator_id').notNull(),
-			classification: text('classification').notNull()
+			classification: text('classification').notNull(),
 		}, (t) => ({
 			pk: primaryKey({
-				columns: [t.workId, t.creatorId, t.classification]
+				columns: [t.workId, t.creatorId, t.classification],
 			}),
 		})),
 	};
@@ -423,7 +432,7 @@ test('add column before creating unique constraint', async () => {
 	const from = {
 		table: sqliteTable('table', {
 			id: int('id').primaryKey(),
-		})
+		}),
 	};
 	const to = {
 		table: sqliteTable('table', {

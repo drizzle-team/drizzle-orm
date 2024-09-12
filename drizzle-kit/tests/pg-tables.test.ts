@@ -647,10 +647,10 @@ test('composite primary key', async () => {
 		table: pgTable('works_to_creators', {
 			workId: integer('work_id').notNull(),
 			creatorId: integer('creator_id').notNull(),
-			classification: text('classification').notNull()
+			classification: text('classification').notNull(),
 		}, (t) => ({
 			pk: primaryKey({
-				columns: [t.workId, t.creatorId, t.classification]
+				columns: [t.workId, t.creatorId, t.classification],
 			}),
 		})),
 	};
@@ -666,7 +666,7 @@ test('add column before creating unique constraint', async () => {
 	const from = {
 		table: pgTable('table', {
 			id: serial('id').primaryKey(),
-		})
+		}),
 	};
 	const to = {
 		table: pgTable('table', {
@@ -690,11 +690,11 @@ test('alter composite primary key', async () => {
 		table: pgTable('table', {
 			col1: integer('col1').notNull(),
 			col2: integer('col2').notNull(),
-			col3: text('col3').notNull()
+			col3: text('col3').notNull(),
 		}, (t) => ({
 			pk: primaryKey({
 				name: 'table_pk',
-				columns: [t.col1, t.col2]
+				columns: [t.col1, t.col2],
 			}),
 		})),
 	};
@@ -702,11 +702,11 @@ test('alter composite primary key', async () => {
 		table: pgTable('table', {
 			col1: integer('col1').notNull(),
 			col2: integer('col2').notNull(),
-			col3: text('col3').notNull()
+			col3: text('col3').notNull(),
 		}, (t) => ({
 			pk: primaryKey({
 				name: 'table_pk',
-				columns: [t.col2, t.col3]
+				columns: [t.col2, t.col3],
 			}),
 		})),
 	};
@@ -730,7 +730,7 @@ test('add index with op', async () => {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 		}, (t) => ({
-			nameIdx: index().using('gin', t.name.op('gin_trgm_ops'))
+			nameIdx: index().using('gin', t.name.op('gin_trgm_ops')),
 		})),
 	};
 

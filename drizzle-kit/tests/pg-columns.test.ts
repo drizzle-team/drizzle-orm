@@ -467,8 +467,8 @@ test('varchar and text default values escape single quotes', async (t) => {
 	const schem2 = {
 		table: pgTable('table', {
 			id: serial('id').primaryKey(),
-			text: text('text').default('escape\'s quotes'),
-			varchar: varchar('varchar').default('escape\'s quotes'),
+			text: text('text').default("escape's quotes"),
+			varchar: varchar('varchar').default("escape's quotes"),
 		}),
 	};
 
@@ -476,9 +476,9 @@ test('varchar and text default values escape single quotes', async (t) => {
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toStrictEqual(
-		'ALTER TABLE "table" ADD COLUMN "text" text DEFAULT \'escape\'\'s quotes\';'
+		'ALTER TABLE "table" ADD COLUMN "text" text DEFAULT \'escape\'\'s quotes\';',
 	);
 	expect(sqlStatements[1]).toStrictEqual(
-		'ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT \'escape\'\'s quotes\';'
+		'ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT \'escape\'\'s quotes\';',
 	);
 });

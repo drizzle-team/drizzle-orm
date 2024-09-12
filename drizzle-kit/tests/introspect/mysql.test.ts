@@ -170,9 +170,9 @@ test('Default value of character type column: varchar', async () => {
 test('instrospect strings with single quotes', async () => {
 	const schema = {
 		columns: mysqlTable('columns', {
-			enum: mysqlEnum('my_enum', ['escape\'s quotes', 'escape\'s quotes 2']).default('escape\'s quotes'),
-			text: text('text').default('escape\'s quotes'),
-			varchar: varchar('varchar', { length: 255 }).default('escape\'s quotes'),
+			enum: mysqlEnum('my_enum', ["escape's quotes", "escape's quotes 2"]).default("escape's quotes"),
+			text: text('text').default("escape's quotes"),
+			varchar: varchar('varchar', { length: 255 }).default("escape's quotes"),
 		}),
 	};
 

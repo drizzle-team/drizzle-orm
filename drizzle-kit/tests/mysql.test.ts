@@ -1,5 +1,18 @@
 import { sql } from 'drizzle-orm';
-import { index, int, json, mysqlEnum, mysqlSchema, mysqlTable, primaryKey, serial, text, unique, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import {
+	index,
+	int,
+	json,
+	mysqlEnum,
+	mysqlSchema,
+	mysqlTable,
+	primaryKey,
+	serial,
+	text,
+	unique,
+	uniqueIndex,
+	varchar,
+} from 'drizzle-orm/mysql-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasMysql } from './schemaDiffer';
 
@@ -592,9 +605,9 @@ test('varchar and text default values escape single quotes', async (t) => {
 	const schem2 = {
 		table: mysqlTable('table', {
 			id: serial('id').primaryKey(),
-			enum: mysqlEnum('enum', ['escape\'s quotes', 'escape\'s quotes 2']).default('escape\'s quotes'),
-			text: text('text').default('escape\'s quotes'),
-			varchar: varchar('varchar', { length: 255 }).default('escape\'s quotes'),
+			enum: mysqlEnum('enum', ["escape's quotes", "escape's quotes 2"]).default("escape's quotes"),
+			text: text('text').default("escape's quotes"),
+			varchar: varchar('varchar', { length: 255 }).default("escape's quotes"),
 		}),
 	};
 
@@ -602,13 +615,13 @@ test('varchar and text default values escape single quotes', async (t) => {
 
 	expect(sqlStatements.length).toBe(3);
 	expect(sqlStatements[0]).toStrictEqual(
-		'ALTER TABLE `table` ADD `enum` enum(\'escape\'\'s quotes\',\'escape\'\'s quotes 2\') DEFAULT \'escape\'\'s quotes\';'
+		"ALTER TABLE `table` ADD `enum` enum('escape''s quotes','escape''s quotes 2') DEFAULT 'escape''s quotes';",
 	);
 	expect(sqlStatements[1]).toStrictEqual(
-		'ALTER TABLE `table` ADD `text` text DEFAULT (\'escape\'\'s quotes\');'
+		"ALTER TABLE `table` ADD `text` text DEFAULT ('escape''s quotes');",
 	);
 	expect(sqlStatements[2]).toStrictEqual(
-		'ALTER TABLE `table` ADD `varchar` varchar(255) DEFAULT \'escape\'\'s quotes\';'
+		"ALTER TABLE `table` ADD `varchar` varchar(255) DEFAULT 'escape''s quotes';",
 	);
 });
 
@@ -618,10 +631,10 @@ test('composite primary key', async () => {
 		table: mysqlTable('works_to_creators', {
 			workId: int('work_id').notNull(),
 			creatorId: int('creator_id').notNull(),
-			classification: text('classification').notNull()
+			classification: text('classification').notNull(),
 		}, (t) => ({
 			pk: primaryKey({
-				columns: [t.workId, t.creatorId, t.classification]
+				columns: [t.workId, t.creatorId, t.classification],
 			}),
 		})),
 	};
@@ -637,7 +650,7 @@ test('add column before creating unique constraint', async () => {
 	const from = {
 		table: mysqlTable('table', {
 			id: serial('id').primaryKey(),
-		})
+		}),
 	};
 	const to = {
 		table: mysqlTable('table', {

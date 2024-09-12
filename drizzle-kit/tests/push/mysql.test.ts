@@ -664,20 +664,20 @@ const mysqlSuite: DialectSuite = {
 	createTableWithGeneratedConstraint: function(context?: any): Promise<void> {
 		return {} as any;
 	},
-	createCompositePrimaryKey: async function (context: any): Promise<void> {
+	createCompositePrimaryKey: async function(context: any): Promise<void> {
 		const schema1 = {};
-	
+
 		const schema2 = {
 			table: mysqlTable('table', {
 				col1: int('col1').notNull(),
-				col2: int('col2').notNull()
+				col2: int('col2').notNull(),
 			}, (t) => ({
 				pk: primaryKey({
-					columns: [t.col1, t.col2]
+					columns: [t.col1, t.col2],
 				}),
 			})),
 		};
-	
+
 		const { statements, sqlStatements } = await diffTestSchemasPushMysql(
 			context.client as Connection,
 			schema1,
@@ -686,7 +686,7 @@ const mysqlSuite: DialectSuite = {
 			'drizzle',
 			false,
 		);
-	
+
 		expect(statements).toStrictEqual([
 			{
 				type: 'create_table',
@@ -694,7 +694,7 @@ const mysqlSuite: DialectSuite = {
 				schema: undefined,
 				internals: {
 					indexes: {},
-					tables: {}
+					tables: {},
 				},
 				compositePKs: ['table_col1_col2_pk;col1,col2'],
 				compositePkName: 'table_col1_col2_pk',
@@ -703,7 +703,7 @@ const mysqlSuite: DialectSuite = {
 					{ name: 'col1', type: 'int', primaryKey: false, notNull: true, autoincrement: false },
 					{ name: 'col2', type: 'int', primaryKey: false, notNull: true, autoincrement: false },
 				],
-			}
+			},
 		]);
 		expect(sqlStatements).toStrictEqual([
 			'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `table_col1_col2_pk` PRIMARY KEY(`col1`,`col2`)\n);\n',
@@ -712,14 +712,14 @@ const mysqlSuite: DialectSuite = {
 	renameTableWithCompositePrimaryKey: async function(context?: any): Promise<void> {
 		const productsCategoriesTable = (tableName: string) => {
 			return mysqlTable(tableName, {
-				productId: varchar("product_id", { length: 10 }).notNull(),
-				categoryId: varchar("category_id", { length: 10 }).notNull()
+				productId: varchar('product_id', { length: 10 }).notNull(),
+				categoryId: varchar('category_id', { length: 10 }).notNull(),
 			}, (t) => ({
 				pk: primaryKey({
 					columns: [t.productId, t.categoryId],
 				}),
-			}));		
-		}
+			}));
+		};
 
 		const schema1 = {
 			table: productsCategoriesTable('products_categories'),
@@ -744,7 +744,7 @@ const mysqlSuite: DialectSuite = {
 		]);
 
 		await context.client.query(`DROP TABLE \`products_categories\``);
-	}
+	},
 };
 
 run(

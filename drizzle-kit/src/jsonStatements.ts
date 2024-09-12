@@ -2216,7 +2216,7 @@ export const prepareDeleteCompositePrimaryKeySqlite = (
 		return {
 			type: 'delete_composite_pk',
 			tableName,
-			data: it
+			data: it,
 		} as JsonDeleteCompositePK;
 	});
 };
@@ -2262,7 +2262,7 @@ export const prepareDeleteCompositePrimaryKeyPg = (
 			tableName,
 			data: it,
 			schema,
-			constraintName: PgSquasher.unsquashPK(it).name
+			constraintName: PgSquasher.unsquashPK(it).name,
 		} as JsonDeleteCompositePK;
 	});
 };

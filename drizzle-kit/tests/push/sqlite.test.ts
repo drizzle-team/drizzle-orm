@@ -1298,10 +1298,10 @@ test('create composite primary key', async (t) => {
 	const schema2 = {
 		table: sqliteTable('table', {
 			col1: integer('col1').notNull(),
-			col2: integer('col2').notNull()
+			col2: integer('col2').notNull(),
 		}, (t) => ({
 			pk: primaryKey({
-				columns: [t.col1, t.col2]
+				columns: [t.col1, t.col2],
 			}),
 		})),
 	};
@@ -1337,14 +1337,14 @@ test('rename table with composite primary key', async () => {
 
 	const productsCategoriesTable = (tableName: string) => {
 		return sqliteTable(tableName, {
-			productId: text("product_id").notNull(),
-			categoryId: text("category_id").notNull()
+			productId: text('product_id').notNull(),
+			categoryId: text('category_id').notNull(),
 		}, (t) => ({
 			pk: primaryKey({
 				columns: [t.productId, t.categoryId],
 			}),
-		}));		
-	}
+		}));
+	};
 
 	const schema1 = {
 		table: productsCategoriesTable('products_categories'),
@@ -1361,6 +1361,6 @@ test('rename table with composite primary key', async () => {
 		false,
 	);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE `products_categories` RENAME TO `products_to_categories`;'
+		'ALTER TABLE `products_categories` RENAME TO `products_to_categories`;',
 	]);
-})
+});
