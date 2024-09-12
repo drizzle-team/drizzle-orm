@@ -5,14 +5,10 @@ import type { LibSQLDatabase } from './driver.ts';
 
 export async function migrate<TSchema extends Record<string, unknown>>(
 	db: LibSQLDatabase<TSchema>,
-	config: MigrationConfig | string,
+	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	const migrationsTable = config === undefined
-		? '__drizzle_migrations'
-		: typeof config === 'string'
-		? '__drizzle_migrations'
-		: config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
 	const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (

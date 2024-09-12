@@ -55,10 +55,15 @@ export class NeonHttpDatabase<
 	}
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: NeonQueryFunction<any, any>,
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends NeonQueryFunction<any, any> = NeonQueryFunction<any, any>,
+>(
+	client: TClient,
 	config: DrizzleConfig<TSchema> = {},
-): NeonHttpDatabase<TSchema> {
+): NeonHttpDatabase<TSchema> & {
+	$client: TClient;
+} {
 	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {
@@ -83,9 +88,12 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	const driver = new NeonHttpDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
 
-	return new NeonHttpDatabase(
+	const db = new NeonHttpDatabase(
 		dialect,
 		session,
 		schema as RelationalSchemaConfig<ExtractTablesWithRelations<TSchema>> | undefined,
 	);
+	(<any> db).$client = client;
+
+	return db as any;
 }

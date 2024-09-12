@@ -162,6 +162,7 @@
 		"@cloudflare/workers-types": "^4.20230904.0",
 		"@electric-sql/pglite": "^0.1.1",
 		"@libsql/client": "^0.10.0",
+		"@miniflare/d1": "^2.14.2",
 		"@neondatabase/serverless": "^0.9.0",
 		"@op-engineering/op-sqlite": "^2.0.16",
 		"@opentelemetry/api": "^1.4.1",

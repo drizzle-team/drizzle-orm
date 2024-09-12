@@ -19,7 +19,7 @@ import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { PgColumn } from './columns/index.ts';
@@ -597,10 +597,10 @@ export class PgDatabase<
 	}
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
-		query: SQLWrapper,
+		query: SQLWrapper | string,
 	): PgRaw<PgQueryResultKind<TQueryResult, TRow>> {
-		const sql = query.getSQL();
-		const builtQuery = this.dialect.sqlToQuery(sql);
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
 		>(
@@ -611,7 +611,7 @@ export class PgDatabase<
 		);
 		return new PgRaw(
 			() => prepared.execute(),
-			sql,
+			sequel,
 			builtQuery,
 			(result) => prepared.mapResult(result, true),
 		);
