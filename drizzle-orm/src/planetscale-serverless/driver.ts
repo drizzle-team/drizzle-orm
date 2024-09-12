@@ -25,10 +25,15 @@ export class PlanetScaleDatabase<
 	static readonly [entityKind]: string = 'PlanetScaleDatabase';
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: Client | Connection,
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends Client | Connection = Client | Connection,
+>(
+	client: TClient,
 	config: DrizzleConfig<TSchema> = {},
-): PlanetScaleDatabase<TSchema> {
+): PlanetScaleDatabase<TSchema> & {
+	$client: TClient;
+} {
 	// Client is not Drizzle Object, so we can ignore this rule here
 	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (!(client instanceof Client)) {
@@ -85,5 +90,8 @@ Starting from version 0.30.0, you will encounter an error if you attempt to use 
 	}
 
 	const session = new PlanetscaleSession(client, dialect, undefined, schema, { logger });
-	return new PlanetScaleDatabase(dialect, session, schema as any, 'planetscale') as PlanetScaleDatabase<TSchema>;
+	const db = new PlanetScaleDatabase(dialect, session, schema as any, 'planetscale') as PlanetScaleDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }
