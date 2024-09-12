@@ -80,7 +80,7 @@ import {
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSchema, PgSchemaSquashed, sequenceSquashed } from './serializer/pgSchema';
+import { PgSchema, PgSchemaSquashed, PgSquasher, sequenceSquashed } from './serializer/pgSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';
@@ -795,22 +795,22 @@ export const applyPgSnapshotsDiff = async (
 		// This part is needed to make sure that same columns in a table are not triggered for change
 		// there is a case where orm and kit are responsible for pk name generation and one of them is not sorting name
 		// We double-check that pk with same set of columns are both in added and deleted diffs
-		let addedColumns: string[] = [];
+		let addedColumns: { name: string; columns: string[] } | undefined;
 		for (const addedPkName of Object.keys(it.addedCompositePKs)) {
 			const addedPkColumns = it.addedCompositePKs[addedPkName];
-			addedColumns = SQLiteSquasher.unsquashPK(addedPkColumns);
+			addedColumns = PgSquasher.unsquashPK(addedPkColumns);
 		}
 
-		let deletedColumns: string[] = [];
+		let deletedColumns: { name: string; columns: string[] } | undefined;
 		for (const deletedPkName of Object.keys(it.deletedCompositePKs)) {
 			const deletedPkColumns = it.deletedCompositePKs[deletedPkName];
-			deletedColumns = SQLiteSquasher.unsquashPK(deletedPkColumns);
+			deletedColumns = PgSquasher.unsquashPK(deletedPkColumns);
 		}
 
 		// Don't need to sort, but need to add tests for it
 		// addedColumns.sort();
 		// deletedColumns.sort();
-		const doPerformDeleteAndCreate = JSON.stringify(addedColumns) !== JSON.stringify(deletedColumns);
+		const doPerformDeleteAndCreate = JSON.stringify(addedColumns ?? {}) !== JSON.stringify(deletedColumns ?? {});
 
 		let addedCompositePKs: JsonCreateCompositePK[] = [];
 		let deletedCompositePKs: JsonDeleteCompositePK[] = [];
@@ -820,21 +820,17 @@ export const applyPgSnapshotsDiff = async (
 				it.name,
 				it.schema,
 				it.addedCompositePKs,
-				curFull as PgSchema,
 			);
 			deletedCompositePKs = prepareDeleteCompositePrimaryKeyPg(
 				it.name,
 				it.schema,
 				it.deletedCompositePKs,
-				prevFull as PgSchema,
 			);
 		}
 		alteredCompositePKs = prepareAlterCompositePrimaryKeyPg(
 			it.name,
 			it.schema,
 			it.alteredCompositePKs,
-			prevFull as PgSchema,
-			curFull as PgSchema,
 		);
 
 		// add logic for unique constraints

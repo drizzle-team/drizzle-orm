@@ -708,6 +708,42 @@ const mysqlSuite: DialectSuite = {
 		expect(sqlStatements).toStrictEqual([
 			'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `table_col1_col2_pk` PRIMARY KEY(`col1`,`col2`)\n);\n',
 		]);
+	},
+	renameTableWithCompositePrimaryKey: async function(context?: any): Promise<void> {
+		const productsCategoriesTable = (tableName: string) => {
+			return mysqlTable(tableName, {
+				productId: varchar("product_id", { length: 10 }).notNull(),
+				categoryId: varchar("category_id", { length: 10 }).notNull()
+			}, (t) => ({
+				pk: primaryKey({
+					columns: [t.productId, t.categoryId],
+				}),
+			}));		
+		}
+
+		const schema1 = {
+			table: productsCategoriesTable('products_categories'),
+		};
+		const schema2 = {
+			test: productsCategoriesTable('products_to_categories'),
+		};
+
+		const { sqlStatements } = await diffTestSchemasPushMysql(
+			context.client as Connection,
+			schema1,
+			schema2,
+			['public.products_categories->public.products_to_categories'],
+			'drizzle',
+			false,
+		);
+
+		expect(sqlStatements).toStrictEqual([
+			'RENAME TABLE `products_categories` TO `products_to_categories`;',
+			'ALTER TABLE `products_to_categories` DROP PRIMARY KEY;',
+			'ALTER TABLE `products_to_categories` ADD PRIMARY KEY(`product_id`,`category_id`);',
+		]);
+
+		await context.client.query(`DROP TABLE \`products_categories\``);
 	}
 };
 

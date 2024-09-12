@@ -1331,3 +1331,36 @@ test('create composite primary key', async (t) => {
 		'CREATE TABLE `table` (\n\t`col1` integer NOT NULL,\n\t`col2` integer NOT NULL,\n\tPRIMARY KEY(`col1`, `col2`)\n);\n',
 	]);
 });
+
+test('rename table with composite primary key', async () => {
+	const client = new Database(':memory:');
+
+	const productsCategoriesTable = (tableName: string) => {
+		return sqliteTable(tableName, {
+			productId: text("product_id").notNull(),
+			categoryId: text("category_id").notNull()
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.productId, t.categoryId],
+			}),
+		}));		
+	}
+
+	const schema1 = {
+		table: productsCategoriesTable('products_categories'),
+	};
+	const schema2 = {
+		test: productsCategoriesTable('products_to_categories'),
+	};
+
+	const { sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		['public.products_categories->public.products_to_categories'],
+		false,
+	);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE `products_categories` RENAME TO `products_to_categories`;'
+	]);
+})

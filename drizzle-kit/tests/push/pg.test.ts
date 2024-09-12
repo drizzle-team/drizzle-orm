@@ -1110,6 +1110,42 @@ const pgSuite: DialectSuite = {
 		]);
 	},
 
+	async renameTableWithCompositePrimaryKey() {
+		const client = new PGlite();
+	
+		const productsCategoriesTable = (tableName: string) => {
+			return pgTable(tableName, {
+				productId: text("product_id").notNull(),
+				categoryId: text("category_id").notNull()
+			}, (t) => ({
+				pk: primaryKey({
+					columns: [t.productId, t.categoryId],
+				}),
+			}));		
+		}
+	
+		const schema1 = {
+			table: productsCategoriesTable('products_categories'),
+		};
+		const schema2 = {
+			test: productsCategoriesTable('products_to_categories'),
+		};
+	
+		const { sqlStatements } = await diffTestSchemasPush(
+			client,
+			schema1,
+			schema2,
+			['public.products_categories->public.products_to_categories'],
+			false,
+			['public'],
+		);
+		expect(sqlStatements).toStrictEqual([
+			'ALTER TABLE "products_categories" RENAME TO "products_to_categories";',
+			'ALTER TABLE "products_to_categories" DROP CONSTRAINT "products_categories_product_id_category_id_pk";',
+			'ALTER TABLE "products_to_categories" ADD CONSTRAINT "products_to_categories_product_id_category_id_pk" PRIMARY KEY("product_id","category_id");',
+		]);
+	},
+
 	// async addVectorIndexes() {
 	//   const client = new PGlite();
 
