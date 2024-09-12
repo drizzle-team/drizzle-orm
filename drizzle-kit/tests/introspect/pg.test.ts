@@ -30,8 +30,13 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
+import fs from 'fs';
 import { introspectPgToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
+
+if (!fs.existsSync('tests/introspect/postgres')) {
+	fs.mkdirSync('tests/introspect/postgres');
+}
 
 test('basic introspect test', async () => {
 	const client = new PGlite();

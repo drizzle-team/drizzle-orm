@@ -186,4 +186,6 @@ test('introspect checks', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+
+	await client.query(`drop table users;`);
 });

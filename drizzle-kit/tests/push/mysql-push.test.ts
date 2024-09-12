@@ -120,7 +120,7 @@ test('add check constraint to table', async () => {
 		`ALTER TABLE \`test\` ADD CONSTRAINT \`some_check2\` CHECK ('test' < 100);`,
 	]);
 
-	await client.query(`DROP TABLE \`test\``);
+	await client.query(`DROP TABLE \`test\`;`);
 });
 
 test('drop check constraint to table', async () => {
@@ -168,7 +168,7 @@ test('drop check constraint to table', async () => {
 		`ALTER TABLE \`test\` DROP CONSTRAINT \`some_check2\`;`,
 	]);
 
-	await client.query(`DROP TABLE \`test\``);
+	await client.query(`DROP TABLE \`test\`;`);
 });
 
 test('db has checks. Push with same names', async () => {
@@ -199,4 +199,6 @@ test('db has checks. Push with same names', async () => {
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
+
+	await client.query(`DROP TABLE \`test\`;`);
 });
