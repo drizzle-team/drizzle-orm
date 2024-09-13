@@ -267,10 +267,10 @@ export interface PgUpdateBase<
 	readonly _: {
 		readonly dialect: 'pg';
 		readonly table: TTable;
-		readonly from: TFrom;
 		readonly joins: TJoins;
 		readonly nullabilityMap: TNullabilityMap;
 		readonly queryResult: TQueryResult;
+		readonly from: TFrom;
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;

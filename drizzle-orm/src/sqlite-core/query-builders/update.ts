@@ -1,21 +1,27 @@
 import type { GetColumnData } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
-import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { entityKind, is } from '~/entity.ts';
+import type { JoinType, SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
-import type { Subquery } from '~/subquery.ts';
-import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { Subquery } from '~/subquery.ts';
+import { type DrizzleTypeError, getTableLikeName, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
-import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
+import type { SelectedFields, SelectedFieldsOrdered, SQLiteJoinFn, SQLiteSelectJoinConfig } from './select.types.ts';
+import { SQLiteViewBase } from '../view-base.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import { Table } from '~/table.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: SQLiteTable;
+	from?: SQLiteTable | Subquery | SQLiteViewBase | SQL;
+	joins: SQLiteSelectJoinConfig[];
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 }
@@ -24,7 +30,8 @@ export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
 	& {
 		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
-			| SQL;
+			| SQL
+			| SQLiteColumn;
 	}
 	& {};
 
@@ -46,14 +53,14 @@ export class SQLiteUpdateBuilder<
 		private withList?: Subquery[],
 	) {}
 
-	set(values: SQLiteUpdateSetSource<TTable>): SQLiteUpdateBase<TTable, TResultType, TRunResult> {
+	set(values: SQLiteUpdateSetSource<TTable>): SQLiteUpdateWithout<SQLiteUpdateBase<TTable, TResultType, TRunResult>, false, 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'> {
 		return new SQLiteUpdateBase(
 			this.table,
 			mapUpdateSet(this.table, values),
 			this.session,
 			this.dialect,
 			this.withList,
-		);
+		) as any;
 	}
 }
 
@@ -66,6 +73,7 @@ export type SQLiteUpdateWithout<
 		T['_']['table'],
 		T['_']['resultType'],
 		T['_']['runResult'],
+		T['_']['from'],
 		T['_']['returning'],
 		TDynamic,
 		T['_']['excludedMethods'] | K
@@ -73,11 +81,29 @@ export type SQLiteUpdateWithout<
 	T['_']['excludedMethods'] | K
 >;
 
+export type SQLiteUpdateWithJoins<
+	T extends AnySQLiteUpdate,
+	TDynamic extends boolean,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL,
+> = TDynamic extends true ? T : Omit<
+	SQLiteUpdateBase<
+		T['_']['table'],
+		T['_']['resultType'],
+		T['_']['runResult'],
+		TFrom,
+		T['_']['returning'],
+		TDynamic,
+		Exclude<T['_']['excludedMethods'] | 'from', 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'>
+	>,
+	Exclude<T['_']['excludedMethods'] | 'from', 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'>
+>;
+
 export type SQLiteUpdateReturningAll<T extends AnySQLiteUpdate, TDynamic extends boolean> = SQLiteUpdateWithout<
 	SQLiteUpdateBase<
 		T['_']['table'],
 		T['_']['resultType'],
 		T['_']['runResult'],
+		T['_']['from'],
 		T['_']['table']['$inferSelect'],
 		TDynamic,
 		T['_']['excludedMethods']
@@ -95,6 +121,7 @@ export type SQLiteUpdateReturning<
 		T['_']['table'],
 		T['_']['resultType'],
 		T['_']['runResult'],
+		T['_']['from'],
 		SelectResultFields<TSelectedFields>,
 		TDynamic,
 		T['_']['excludedMethods']
@@ -131,15 +158,17 @@ export type SQLiteUpdate<
 	TTable extends SQLiteTable = SQLiteTable,
 	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = any,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-> = SQLiteUpdateBase<TTable, TResultType, TRunResult, TReturning, true, never>;
+> = SQLiteUpdateBase<TTable, TResultType, TRunResult, TFrom, TReturning, true, never>;
 
-export type AnySQLiteUpdate = SQLiteUpdateBase<any, any, any, any, any, any>;
+export type AnySQLiteUpdate = SQLiteUpdateBase<any, any, any, any, any, any, any>;
 
 export interface SQLiteUpdateBase<
 	TTable extends SQLiteTable = SQLiteTable,
 	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
 	TReturning = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
@@ -149,6 +178,7 @@ export interface SQLiteUpdateBase<
 		readonly table: TTable;
 		readonly resultType: TResultType;
 		readonly runResult: TRunResult;
+		readonly from: TFrom;
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
@@ -161,6 +191,7 @@ export class SQLiteUpdateBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
 	TReturning = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
@@ -182,8 +213,64 @@ export class SQLiteUpdateBase<
 		withList?: Subquery[],
 	) {
 		super();
-		this.config = { set, table, withList };
+		this.config = { set, table, withList, joins: [] };
 	}
+
+	from<TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL>(
+		source: TFrom,
+	): SQLiteUpdateWithJoins<this, TDynamic, TFrom> {
+		this.config.from = source;
+		return this as any;
+	}
+
+	private createJoin<TJoinType extends JoinType>(
+		joinType: TJoinType,
+	): SQLiteJoinFn<this, TDynamic, TJoinType> {
+		return ((
+			table: SQLiteTable | Subquery | SQLiteViewBase | SQL,
+			on: ((updateTable: TTable, from: TFrom) => SQL | undefined) | SQL | undefined,
+		) => {
+			const tableName = getTableLikeName(table);
+
+			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
+				throw new Error(`Alias "${tableName}" is already used in this query`);
+			}
+
+			if (typeof on === 'function') {
+				let from = this.config.from
+					? is(table, SQLiteTable)
+							? table[Table.Symbol.Columns]
+							: is(table, Subquery)
+							? table._.selectedFields
+							: is(table, SQLiteViewBase)
+							? table[ViewBaseConfig].selectedFields
+							: undefined
+					: undefined;
+				on = on(
+					new Proxy(
+						this.config.table[Table.Symbol.Columns],
+						new SelectionProxyHandler({ sqlAliasedBehavior: 'sql', sqlBehavior: 'sql' }),
+					) as any,
+					from && new Proxy(
+						from,
+						new SelectionProxyHandler({ sqlAliasedBehavior: 'sql', sqlBehavior: 'sql' }),
+					) as any,
+				);
+			}
+
+			this.config.joins.push({ on, table, joinType, alias: tableName });
+
+			return this as any;
+		}) as any;
+	}
+
+	leftJoin = this.createJoin('left');
+
+	rightJoin = this.createJoin('right');
+
+	innerJoin = this.createJoin('inner');
+
+	fullJoin = this.createJoin('full');
 
 	/**
 	 * Adds a 'where' clause to the query.
