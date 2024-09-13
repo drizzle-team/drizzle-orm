@@ -176,6 +176,7 @@ export class AwsDataApiSession<
 		};
 	}
 
+	// @ts-ignore
 	prepareQuery<
 		T extends PreparedQueryConfig & {
 			values: AwsDataApiPgQueryResult<unknown[]>;
@@ -210,6 +211,8 @@ export class AwsDataApiSession<
 			undefined,
 			false,
 			undefined,
+			undefined,
+			// @ts-ignore
 			this.transactionId,
 		).execute();
 	}
@@ -220,6 +223,7 @@ export class AwsDataApiSession<
 	): Promise<T> {
 		const { transactionId } = await this.client.send(new BeginTransactionCommand(this.rawQuery));
 		const session = new AwsDataApiSession(this.client, this.dialect, this.schema, this.options, transactionId);
+		// @ts-ignore
 		const tx = new AwsDataApiTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 		if (config) {
 			await tx.setTransaction(config);

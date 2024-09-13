@@ -115,6 +115,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new AwsDataApiSession(client, dialect, schema, { ...config, logger }, undefined);
+	// @ts-ignore
 	const db = new AwsDataApiPgDatabase(dialect, session, schema as any);
 	(<any> db).$client = client;
 
