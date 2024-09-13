@@ -4,7 +4,7 @@ import { Expect } from 'type-tests/utils.ts';
 import { eq } from '~/expressions.ts';
 import type { PgUpdate } from '~/pg-core/index.ts';
 import { sql } from '~/sql/sql.ts';
-import { Simplify } from '~/utils.ts';
+import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 import { cities, salEmp, users } from './tables.ts';
 

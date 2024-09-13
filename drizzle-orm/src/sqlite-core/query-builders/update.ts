@@ -3,18 +3,18 @@ import { entityKind, is } from '~/entity.ts';
 import type { JoinType, SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import { type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
-import { type DrizzleTypeError, getTableLikeName, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import type { SQLiteColumn } from '../columns/common.ts';
-import type { SelectedFields, SelectedFieldsOrdered, SQLiteJoinFn, SQLiteSelectJoinConfig } from './select.types.ts';
-import { SQLiteViewBase } from '../view-base.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { Table } from '~/table.ts';
+import { type DrizzleTypeError, getTableLikeName, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { SQLiteColumn } from '../columns/common.ts';
+import { SQLiteViewBase } from '../view-base.ts';
+import type { SelectedFields, SelectedFieldsOrdered, SQLiteJoinFn, SQLiteSelectJoinConfig } from './select.types.ts';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
@@ -53,7 +53,13 @@ export class SQLiteUpdateBuilder<
 		private withList?: Subquery[],
 	) {}
 
-	set(values: SQLiteUpdateSetSource<TTable>): SQLiteUpdateWithout<SQLiteUpdateBase<TTable, TResultType, TRunResult>, false, 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'> {
+	set(
+		values: SQLiteUpdateSetSource<TTable>,
+	): SQLiteUpdateWithout<
+		SQLiteUpdateBase<TTable, TResultType, TRunResult>,
+		false,
+		'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'
+	> {
 		return new SQLiteUpdateBase(
 			this.table,
 			mapUpdateSet(this.table, values),
@@ -237,14 +243,14 @@ export class SQLiteUpdateBase<
 			}
 
 			if (typeof on === 'function') {
-				let from = this.config.from
+				const from = this.config.from
 					? is(table, SQLiteTable)
-							? table[Table.Symbol.Columns]
-							: is(table, Subquery)
-							? table._.selectedFields
-							: is(table, SQLiteViewBase)
-							? table[ViewBaseConfig].selectedFields
-							: undefined
+						? table[Table.Symbol.Columns]
+						: is(table, Subquery)
+						? table._.selectedFields
+						: is(table, SQLiteViewBase)
+						? table[ViewBaseConfig].selectedFields
+						: undefined
 					: undefined;
 				on = on(
 					new Proxy(

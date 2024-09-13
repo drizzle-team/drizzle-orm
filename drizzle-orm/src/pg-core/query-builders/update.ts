@@ -1,4 +1,4 @@
-import type { Column, GetColumnData } from '~/column.ts';
+import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
@@ -18,25 +18,17 @@ import type {
 	JoinType,
 	SelectMode,
 	SelectResult,
-	SelectResultFields,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { ColumnsSelection, type Query, SQL, type SQLWrapper, View } from '~/sql/sql.ts';
+import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import {
-	Assume,
-	getTableColumns,
-	getTableLikeName,
-	mapUpdateSet,
-	orderSelectedFields,
-	type UpdateSet,
-} from '~/utils.ts';
+import { type Assume, getTableLikeName, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
-import { PgViewBase } from '../view-base.ts';
+import type { PgViewBase } from '../view-base.ts';
 import type { PgJoinFn, PgSelectJoinConfig, SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface PgUpdateConfig {
@@ -283,7 +275,9 @@ export class PgUpdateBase<
 	TQueryResult extends PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = undefined,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TJoins extends Join[] = [],
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
@@ -347,7 +341,7 @@ export class PgUpdateBase<
 			}
 
 			if (typeof on === 'function') {
-				let from = this.config.from && !is(this.config.from, SQL)
+				const from = this.config.from && !is(this.config.from, SQL)
 					? this.getTableLikeFields(this.config.from)
 					: undefined;
 				on = on(

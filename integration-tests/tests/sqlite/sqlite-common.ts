@@ -3001,7 +3001,7 @@ export function tests() {
 		expect(result).toStrictEqual([{
 			id: 1,
 			name: 'John',
-			cityId: 2
+			cityId: 2,
 		}]);
 	});
 
@@ -3046,7 +3046,7 @@ export function tests() {
 		expect(result).toStrictEqual([{
 			id: 1,
 			name: 'John',
-			cityId: 2
+			cityId: 2,
 		}]);
 
 		await db.run(sql`drop table if exists \`users2\``);
@@ -3131,12 +3131,12 @@ export function tests() {
 		expect(result1).toStrictEqual([{
 			id: 1,
 			name: 'John',
-			cityId: 2
+			cityId: 2,
 		}]);
 		expect(result2).toStrictEqual([{
 			id: 3,
 			name: 'Jack',
-			cityId: 3
+			cityId: 3,
 		}]);
 	});
 }

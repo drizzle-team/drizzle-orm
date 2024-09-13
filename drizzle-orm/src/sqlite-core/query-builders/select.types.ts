@@ -115,17 +115,17 @@ export type SQLiteJoinFn<
 	table: TJoinedTable,
 	on: T extends AnySQLiteSelectQueryBuilder ? ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined
 		: T extends SQLiteUpdateBase<infer TTable, any, any, infer TFrom, any, any, any> ?
-		| (
-			(
-				updateTable: TTable['_']['columns'],
-				from: TFrom extends SQLiteTable ? TFrom['_']['columns']
-					: TFrom extends Subquery | SQLiteViewBase ? TFrom['_']['selectedFields']
-					: never,
-			) => SQL | undefined
-		)
-		| SQL
-		| undefined
-: never,
+				| (
+					(
+						updateTable: TTable['_']['columns'],
+						from: TFrom extends SQLiteTable ? TFrom['_']['columns']
+							: TFrom extends Subquery | SQLiteViewBase ? TFrom['_']['selectedFields']
+							: never,
+					) => SQL | undefined
+				)
+				| SQL
+				| undefined
+		: never,
 ) => T extends AnySQLiteSelectQueryBuilder ? SQLiteJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
 	: T extends AnySQLiteUpdate ? T
 	: never;
