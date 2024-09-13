@@ -19,15 +19,17 @@ import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { PgColumn } from './columns/index.ts';
+import { PgCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { PgRaw } from './query-builders/raw.ts';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
+import type { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView } from './view.ts';
 
 export class PgDatabase<
@@ -133,6 +135,13 @@ export class PgDatabase<
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
+	}
+
+	$count(
+		source: PgTable | PgViewBase | SQL | SQLWrapper,
+		filters?: SQL<unknown>,
+	) {
+		return new PgCountBuilder({ source, filters, session: this.session });
 	}
 
 	/**
@@ -588,10 +597,10 @@ export class PgDatabase<
 	}
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
-		query: SQLWrapper,
+		query: SQLWrapper | string,
 	): PgRaw<PgQueryResultKind<TQueryResult, TRow>> {
-		const sql = query.getSQL();
-		const builtQuery = this.dialect.sqlToQuery(sql);
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
 		>(
@@ -602,7 +611,7 @@ export class PgDatabase<
 		);
 		return new PgRaw(
 			() => prepared.execute(),
-			sql,
+			sequel,
 			builtQuery,
 			(result) => prepared.mapResult(result, true),
 		);
@@ -622,7 +631,11 @@ export const withReplicas = <
 	HKT extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-	Q extends PgDatabase<HKT, TFullSchema, TSchema>,
+	Q extends PgDatabase<
+		HKT,
+		TFullSchema,
+		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
+	>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],

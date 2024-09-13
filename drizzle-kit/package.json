@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "0.24.0",
+	"version": "0.25.0",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -54,7 +54,7 @@
 		"@electric-sql/pglite": "^0.1.5",
 		"@hono/node-server": "^1.9.0",
 		"@hono/zod-validator": "^0.2.1",
-		"@libsql/client": "^0.4.2",
+		"@libsql/client": "^0.10.0",
 		"@neondatabase/serverless": "^0.9.1",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.16.0",
@@ -74,6 +74,7 @@
 		"@vercel/postgres": "^0.8.0",
 		"ava": "^5.1.0",
 		"better-sqlite3": "^9.4.3",
+		"bun-types": "^0.6.6",
 		"camelcase": "^7.0.1",
 		"chalk": "^5.2.0",
 		"commander": "^12.1.0",

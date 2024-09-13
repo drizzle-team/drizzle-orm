@@ -68,15 +68,14 @@ test('migrator : default migration strategy', async () => {
 });
 
 test('migrator : migrate with custom schema', async () => {
-	const customSchema = randomString();
 	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: 'custom_migrations' });
 
 	// test if the custom migrations table was created
-	const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
+	const { rowCount } = await db.execute(sql`select * from custom_migrations."__drizzle_migrations";`);
 	expect(rowCount && rowCount > 0).toBeTruthy();
 
 	// test if the migrated table are working as expected
@@ -86,7 +85,7 @@ test('migrator : migrate with custom schema', async () => {
 
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
+	await db.execute(sql`drop table custom_migrations."__drizzle_migrations"`);
 });
 
 test('migrator : migrate with custom table', async () => {
@@ -113,7 +112,6 @@ test('migrator : migrate with custom table', async () => {
 
 test('migrator : migrate with custom table and custom schema', async () => {
 	const customTable = randomString();
-	const customSchema = randomString();
 	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
@@ -121,12 +119,12 @@ test('migrator : migrate with custom table and custom schema', async () => {
 	await migrate(db, {
 		migrationsFolder: './drizzle2/pg',
 		migrationsTable: customTable,
-		migrationsSchema: customSchema,
+		migrationsSchema: 'custom_migrations',
 	});
 
 	// test if the custom migrations table was created
 	const { rowCount } = await db.execute(
-		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
+		sql`select * from custom_migrations.${sql.identifier(customTable)};`,
 	);
 	expect(rowCount && rowCount > 0).toBeTruthy();
 
@@ -137,7 +135,7 @@ test('migrator : migrate with custom table and custom schema', async () => {
 
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
+	await db.execute(sql`drop table custom_migrations.${sql.identifier(customTable)}`);
 });
 
 test('all date and time columns without timezone first case mode string', async () => {
