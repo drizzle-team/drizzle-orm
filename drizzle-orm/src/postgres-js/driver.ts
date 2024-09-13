@@ -22,7 +22,9 @@ export class PostgresJsDatabase<
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Sql,
 	config: DrizzleConfig<TSchema> = {},
-): PostgresJsDatabase<TSchema> {
+): PostgresJsDatabase<TSchema> & {
+	$client: Sql;
+} {
 	const transparentParser = (val: any) => val;
 
 	// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
@@ -55,5 +57,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new PostgresJsSession(client, dialect, schema, { logger });
-	return new PostgresJsDatabase(dialect, session, schema as any) as PostgresJsDatabase<TSchema>;
+	const db = new PostgresJsDatabase(dialect, session, schema as any) as PostgresJsDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

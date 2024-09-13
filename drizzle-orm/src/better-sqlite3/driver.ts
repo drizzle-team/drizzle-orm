@@ -21,7 +21,9 @@ export class BetterSQLite3Database<TSchema extends Record<string, unknown> = Rec
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Database,
 	config: DrizzleConfig<TSchema> = {},
-): BetterSQLite3Database<TSchema> {
+): BetterSQLite3Database<TSchema> & {
+	$client: Database;
+} {
 	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -44,5 +46,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new BetterSQLiteSession(client, dialect, schema, { logger });
-	return new BetterSQLite3Database('sync', dialect, session, schema) as BetterSQLite3Database<TSchema>;
+	const db = new BetterSQLite3Database('sync', dialect, session, schema);
+	(<any> db).$client = client;
+
+	return db as any;
 }

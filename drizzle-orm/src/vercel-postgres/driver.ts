@@ -51,7 +51,9 @@ export class VercelPgDatabase<
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: VercelPgClient,
 	config: DrizzleConfig<TSchema> = {},
-): VercelPgDatabase<TSchema> {
+): VercelPgDatabase<TSchema> & {
+	$client: VercelPgClient;
+} {
 	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -75,5 +77,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const driver = new VercelPgDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new VercelPgDatabase(dialect, session, schema as any) as VercelPgDatabase<TSchema>;
+	const db = new VercelPgDatabase(dialect, session, schema as any) as VercelPgDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

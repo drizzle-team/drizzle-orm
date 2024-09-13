@@ -41,7 +41,7 @@ export class AwsDataApiPgDatabase<
 
 	override execute<
 		TRow extends Record<string, unknown> = Record<string, unknown>,
-	>(query: SQLWrapper): PgRaw<AwsDataApiPgQueryResult<TRow>> {
+	>(query: SQLWrapper | string): PgRaw<AwsDataApiPgQueryResult<TRow>> {
 		return super.execute(query);
 	}
 }
@@ -91,7 +91,9 @@ export class AwsPgDialect extends PgDialect {
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: AwsDataApiClient,
 	config: DrizzleAwsDataApiPgConfig<TSchema>,
-): AwsDataApiPgDatabase<TSchema> {
+): AwsDataApiPgDatabase<TSchema> & {
+	$client: AwsDataApiClient;
+} {
 	const dialect = new AwsPgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -114,5 +116,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new AwsDataApiSession(client, dialect, schema, { ...config, logger }, undefined);
-	return new PgDatabase(dialect, session, schema) as AwsDataApiPgDatabase<TSchema>;
+	const db = new AwsDataApiPgDatabase(dialect, session, schema as any);
+	(<any> db).$client = client;
+
+	return db as any;
 }

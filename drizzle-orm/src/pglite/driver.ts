@@ -43,7 +43,9 @@ export class PgliteDatabase<
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: PgliteClient,
 	config: DrizzleConfig<TSchema> = {},
-): PgliteDatabase<TSchema> {
+): PgliteDatabase<TSchema> & {
+	$client: PgliteClient;
+} {
 	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -67,5 +69,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const driver = new PgliteDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new PgliteDatabase(dialect, session, schema as any) as PgliteDatabase<TSchema>;
+	const db = new PgliteDatabase(dialect, session, schema as any) as PgliteDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

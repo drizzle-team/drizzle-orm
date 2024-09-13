@@ -49,7 +49,9 @@ export class XataHttpDatabase<TSchema extends Record<string, unknown> = Record<s
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: XataHttpClient,
 	config: DrizzleConfig<TSchema> = {},
-): XataHttpDatabase<TSchema> {
+): XataHttpDatabase<TSchema> & {
+	$client: XataHttpClient;
+} {
 	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -71,9 +73,12 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	const driver = new XataHttpDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
 
-	return new XataHttpDatabase(
+	const db = new XataHttpDatabase(
 		dialect,
 		session,
 		schema as RelationalSchemaConfig<ExtractTablesWithRelations<TSchema>> | undefined,
 	);
+	(<any> db).$client = client;
+
+	return db as any;
 }

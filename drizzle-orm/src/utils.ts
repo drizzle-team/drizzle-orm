@@ -236,3 +236,4 @@ export function getColumnNameAndConfig<
 		config: typeof a === 'object' ? a : b as TConfig,
 	};
 }
+export type IfNotImported<T, Y, N> = unknown extends T ? Y : N;

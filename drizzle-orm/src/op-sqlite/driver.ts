@@ -21,7 +21,9 @@ export class OPSQLiteDatabase<
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: OPSQLiteConnection,
 	config: DrizzleConfig<TSchema> = {},
-): OPSQLiteDatabase<TSchema> {
+): OPSQLiteDatabase<TSchema> & {
+	$client: OPSQLiteConnection;
+} {
 	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -44,5 +46,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new OPSQLiteSession(client, dialect, schema, { logger });
-	return new OPSQLiteDatabase('async', dialect, session, schema) as OPSQLiteDatabase<TSchema>;
+	const db = new OPSQLiteDatabase('async', dialect, session, schema) as OPSQLiteDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

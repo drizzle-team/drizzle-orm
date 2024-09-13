@@ -3,7 +3,7 @@ import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { MySqlDialect } from './dialect.ts';
@@ -461,9 +461,9 @@ export class MySqlDatabase<
 	}
 
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
-		query: SQLWrapper,
+		query: SQLWrapper | string,
 	): Promise<MySqlQueryResultKind<TQueryResult, T>> {
-		return this.session.execute(query.getSQL());
+		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
 	}
 
 	transaction<T>(
