@@ -74,7 +74,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { Expect } from '~/utils';
 import type { schema } from './neon-http-batch.test';
 // eslint-disable-next-line @typescript-eslint/no-import-type-side-effects
@@ -246,6 +246,7 @@ export function tests() {
 			await db.execute(sql`drop schema if exists public cascade`);
 			await db.execute(sql`drop schema if exists ${mySchema} cascade`);
 			await db.execute(sql`create schema public`);
+			await db.execute(sql`create schema if not exists custom_migrations`);
 			await db.execute(sql`create schema ${mySchema}`);
 			// public users
 			await db.execute(
@@ -375,6 +376,11 @@ export function tests() {
 					)
 				`,
 			);
+		});
+
+		afterEach(async (ctx) => {
+			const { db } = ctx.pg;
+			await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		});
 
 		async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT>) {
@@ -4659,6 +4665,214 @@ export function tests() {
 				jsonbStringField: testString,
 				jsonbNumberField: testNumber,
 			}]);
+		});
+
+		test('$count separate', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.$count(countTestTable);
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual(4);
+		});
+
+		test('$count embedded', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.select({
+				count: db.$count(countTestTable),
+			}).from(countTestTable);
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual([
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+			]);
+		});
+
+		test('$count separate reuse', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = db.$count(countTestTable);
+
+			const count1 = await count;
+
+			await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+			const count2 = await count;
+
+			await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+			const count3 = await count;
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count1).toStrictEqual(4);
+			expect(count2).toStrictEqual(5);
+			expect(count3).toStrictEqual(6);
+		});
+
+		test('$count embedded reuse', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = db.select({
+				count: db.$count(countTestTable),
+			}).from(countTestTable);
+
+			const count1 = await count;
+
+			await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+			const count2 = await count;
+
+			await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+			const count3 = await count;
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count1).toStrictEqual([
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+			]);
+			expect(count2).toStrictEqual([
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+			]);
+			expect(count3).toStrictEqual([
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+			]);
+		});
+
+		test('$count separate with filters', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.$count(countTestTable, gt(countTestTable.id, 1));
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual(3);
+		});
+
+		test('$count embedded with filters', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.select({
+				count: db.$count(countTestTable, gt(countTestTable.id, 1)),
+			}).from(countTestTable);
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual([
+				{ count: 3 },
+				{ count: 3 },
+				{ count: 3 },
+				{ count: 3 },
+			]);
 		});
 	});
 }

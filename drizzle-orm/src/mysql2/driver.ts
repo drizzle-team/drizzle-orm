@@ -40,18 +40,25 @@ export class MySql2Driver {
 
 export { MySqlDatabase } from '~/mysql-core/db.ts';
 
-export type MySql2Database<
+export class MySql2Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema>;
+> extends MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema> {
+	static readonly [entityKind]: string = 'MySql2Database';
+}
 
 export type MySql2DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
 	& Omit<DrizzleConfig<TSchema>, 'schema'>
 	& ({ schema: TSchema; mode: Mode } | { schema?: undefined; mode?: Mode });
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: MySql2Client | CallbackConnection | CallbackPool,
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends MySql2Client | CallbackConnection | CallbackPool = MySql2Client | CallbackConnection | CallbackPool,
+>(
+	client: TClient,
 	config: MySql2DrizzleConfig<TSchema> = {},
-): MySql2Database<TSchema> {
+): MySql2Database<TSchema> & {
+	$client: TClient;
+} {
 	const dialect = new MySqlDialect();
 	let logger;
 	if (config.logger === true) {
@@ -59,9 +66,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	} else if (config.logger !== false) {
 		logger = config.logger;
 	}
-	if (isCallbackClient(client)) {
-		client = client.promise();
-	}
+
+	const clientForInstance = isCallbackClient(client) ? client.promise() : client;
 
 	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
 	if (config.schema) {
@@ -85,9 +91,12 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const mode = config.mode ?? 'default';
 
-	const driver = new MySql2Driver(client as MySql2Client, dialect, { logger });
+	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger });
 	const session = driver.createSession(schema, mode);
-	return new MySqlDatabase(dialect, session, schema, mode) as MySql2Database<TSchema>;
+	const db = new MySql2Database(dialect, session, schema as any, mode) as MySql2Database<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }
 
 interface CallbackClient {
