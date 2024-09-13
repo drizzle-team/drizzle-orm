@@ -60,6 +60,7 @@ export abstract class PgSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+		isOptimized?: boolean,
 	): PgPreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {

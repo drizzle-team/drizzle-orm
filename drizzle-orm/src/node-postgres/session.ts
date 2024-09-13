@@ -31,6 +31,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private isOptimized?: boolean,
 	) {
 		super({ sql: queryString, params });
 		this.rawQueryConfig = {
@@ -50,8 +51,15 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 			this.logger.logQuery(this.rawQueryConfig.text, params);
 
-			const { fields, rawQueryConfig: rawQuery, client, queryConfig: query, joinsNotNullableMap, customResultMapper } =
-				this;
+			const {
+				fields,
+				rawQueryConfig: rawQuery,
+				client,
+				queryConfig: query,
+				joinsNotNullableMap,
+				customResultMapper,
+				isOptimized,
+			} = this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
 					span?.setAttributes({
@@ -73,7 +81,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
+				return isOptimized ? result.rows.flat(1) : customResultMapper
 					? customResultMapper(result.rows)
 					: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 			});
@@ -129,6 +137,7 @@ export class NodePgSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		isOptimized?: boolean,
 	): PgPreparedQuery<T> {
 		return new NodePgPreparedQuery(
 			this.client,
@@ -139,6 +148,7 @@ export class NodePgSession<
 			name,
 			isResponseInArrayMode,
 			customResultMapper,
+			isOptimized,
 		);
 	}
 

@@ -898,6 +898,11 @@ export abstract class PgSelectQueryBuilderBase<
 	$dynamic(): PgSelectDynamic<this> {
 		return this;
 	}
+
+	$optimize(): PgSelectWithout<this, TDynamic, '$optimize'> {
+		this.config.optimize = true;
+		return this as any;
+	}
 }
 
 export interface PgSelectBase<
@@ -959,7 +964,7 @@ export class PgSelectBase<
 			const fieldsList = orderSelectedFields<PgColumn>(config.fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true);
+			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, config.optimize);
 			query.joinsNotNullableMap = joinsNotNullableMap;
 			return query;
 		});

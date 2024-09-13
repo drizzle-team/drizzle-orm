@@ -23,6 +23,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private isOptimized?: boolean,
 	) {
 		super({ sql: queryString, params });
 	}
@@ -38,7 +39,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 
 			this.logger.logQuery(this.queryString, params);
 
-			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper } = this;
+			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper, isOptimized } = this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', () => {
 					return client.unsafe(query, params as any[]);
@@ -55,7 +56,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
+				return isOptimized ? rows.flat(1) : customResultMapper
 					? customResultMapper(rows)
 					: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 			});
@@ -116,6 +117,7 @@ export class PostgresJsSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		isOptimized?: boolean,
 	): PgPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
 			this.client,
@@ -125,6 +127,7 @@ export class PostgresJsSession<
 			fields,
 			isResponseInArrayMode,
 			customResultMapper,
+			isOptimized,
 		);
 	}
 

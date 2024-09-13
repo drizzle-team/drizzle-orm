@@ -233,6 +233,63 @@ export class PgDialect {
 		return sql.join(chunks);
 	}
 
+	private buildOptimizedSelection(
+		fields: SelectedFieldsOrdered,
+		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+	): SQL {
+		const columnsLen = fields.length;
+
+		const chunks = fields
+			.flatMap(({ field }, i) => {
+				const chunk: SQLChunk[] = [];
+
+				if (is(field, SQL.Aliased) && field.isSelectionField) {
+					chunk.push(sql.identifier(field.fieldAlias));
+				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
+					const query = is(field, SQL.Aliased) ? field.sql : field;
+
+					if (isSingleTable) {
+						const parts: SQLChunk[] = [];
+
+						for (const c of query.queryChunks) {
+							if (is(c, PgColumn)) {
+								parts.push(sql.raw(c.name), sql`, `, sql.identifier(c.name));
+
+								continue;
+							}
+
+							parts.push(c);
+						}
+
+						chunk.push(new SQL(parts));
+					} else {
+						chunk.push(query);
+					}
+
+					if (is(field, SQL.Aliased)) {
+						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					}
+				} else if (is(field, Column)) {
+					if (isSingleTable) {
+						chunk.push(sql`'${sql.raw(field.name)}', ${sql.identifier(field.name)}`);
+					} else {
+						chunk.push(field);
+					}
+				}
+
+				if (i < columnsLen - 1) {
+					chunk.push(sql`, `);
+				}
+
+				return chunk;
+			});
+
+		chunks.unshift(sql`json_build_object(`);
+		chunks.push(sql`)`);
+
+		return sql.join(chunks);
+	}
+
 	buildSelectQuery(
 		{
 			withList,
@@ -249,9 +306,11 @@ export class PgDialect {
 			lockingClause,
 			distinct,
 			setOperators,
+			optimize,
 		}: PgSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn>(fields);
+
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
@@ -286,7 +345,11 @@ export class PgDialect {
 			distinctSql = distinct === true ? sql` distinct` : sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
 		}
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = optimize
+			? this.buildOptimizedSelection(fieldsList, {
+				isSingleTable,
+			})
+			: this.buildSelection(fieldsList, { isSingleTable });
 
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
