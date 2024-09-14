@@ -122,19 +122,8 @@ export const preparePostgresDB = async (
 
 			const proxy = async (params: ProxyParams) => {
 				const preparedParams = preparePGliteParams(params.params);
-				if (
-					params.method === 'values'
-					|| params.method === 'get'
-					|| params.method === 'all'
-				) {
-					const result = await pglite.query(params.sql, preparedParams, {
-						rowMode: params.mode,
-						parsers,
-					});
-					return result.rows;
-				}
-
 				const result = await pglite.query(params.sql, preparedParams, {
+					rowMode: params.mode,
 					parsers,
 				});
 				return result.rows;
