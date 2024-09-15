@@ -1,5 +1,6 @@
 /* eslint-disable import/extensions */
 import type { RDSDataClient, RDSDataClientConfig as RDSConfig } from '@aws-sdk/client-rds-data';
+import type { PGlite, PGliteOptions } from '@electric-sql/pglite';
 import type { Client as LibsqlClient, Config as LibsqlConfig } from '@libsql/client';
 import type {
 	HTTPTransactionOptions as NeonHttpConfig,
@@ -30,6 +31,7 @@ import type { MySql2Database, MySql2DrizzleConfig } from './mysql2/index.ts';
 import type { NeonHttpDatabase } from './neon-http/index.ts';
 import type { NeonDatabase } from './neon-serverless/index.ts';
 import type { NodePgDatabase } from './node-postgres/driver.ts';
+import type { PgliteDatabase } from './pglite/driver.ts';
 import type { PlanetScaleDatabase } from './planetscale-serverless/index.ts';
 import type { PostgresJsDatabase } from './postgres-js/index.ts';
 import type { TiDBServerlessDatabase } from './tidb-serverless/index.ts';
@@ -95,7 +97,8 @@ type DatabaseClient =
 	| 'turso'
 	| 'd1'
 	| 'bun:sqlite'
-	| 'better-sqlite3';
+	| 'better-sqlite3'
+	| 'pglite';
 
 type ClientDrizzleInstanceMap<TSchema extends Record<string, any>> = {
 	'node-postgres': NodePgDatabase<TSchema>;
@@ -112,6 +115,7 @@ type ClientDrizzleInstanceMap<TSchema extends Record<string, any>> = {
 	d1: DrizzleD1Database<TSchema>;
 	'bun:sqlite': BunSQLiteDatabase<TSchema>;
 	'better-sqlite3': DrizzleBetterSQLite3Database<TSchema>;
+	pglite: PgliteDatabase<TSchema>;
 };
 
 type Primitive = string | number | boolean | undefined | null;
@@ -133,6 +137,7 @@ type ClientInstanceMap = {
 	d1: AnyD1Database;
 	'bun:sqlite': BunDatabase;
 	'better-sqlite3': BetterSQLite3Database;
+	pglite: PGlite;
 };
 
 type ClientTypeImportErrorMap = {
@@ -150,6 +155,7 @@ type ClientTypeImportErrorMap = {
 	d1: '@cloudflare/workers-types` or `@miniflare/d1';
 	'bun:sqlite': 'bun-types';
 	'better-sqlite3': 'better-sqlite3';
+	pglite: '@electric-sql/pglite';
 };
 
 type ImportTypeError<TClient extends DatabaseClient> =
@@ -196,6 +202,9 @@ type InitializerParams = {
 	'better-sqlite3': {
 		connection?: BetterSQLite3DatabaseConfig;
 	};
+	pglite: {
+		connection?: (PGliteOptions & { dataDir?: string }) | string;
+	};
 };
 
 type DetermineClient<
@@ -224,7 +233,7 @@ export async function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 >(
 	client: TClient,
-	...params: TClient extends 'bun:sqlite' | 'better-sqlite3' ? (
+	...params: TClient extends 'bun:sqlite' | 'better-sqlite3' | 'pglite' ? (
 			[] | [
 				(
 					& IfNotImported<
@@ -611,6 +620,36 @@ export async function drizzle<
 			const { drizzle } = await import('./vercel-postgres');
 
 			const db = drizzle(sql, drizzleConfig);
+
+			return db as any;
+		}
+
+		case 'pglite': {
+			const { PGlite } = await import('@electric-sql/pglite').catch(() => importError('@electric-sql/pglite'));
+			const { drizzle } = await import('./pglite');
+
+			if (typeof params[0] === 'object') {
+				const { connection, ...drizzleConfig } = params[0] as {
+					connection: PGliteOptions & { dataDir: string };
+				} & DrizzleConfig;
+
+				if (typeof connection === 'object') {
+					const { dataDir, ...options } = connection;
+
+					const instance = new PGlite(dataDir, options);
+					const db = drizzle(instance, drizzleConfig);
+
+					return db as any;
+				}
+
+				const instance = new PGlite(connection);
+				const db = drizzle(instance, drizzleConfig);
+
+				return db as any;
+			}
+
+			const instance = new PGlite(params[0]);
+			const db = drizzle(instance);
 
 			return db as any;
 		}
