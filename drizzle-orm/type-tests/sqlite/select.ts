@@ -1,3 +1,4 @@
+import { alias } from '~/alias.ts';
 import {
 	and,
 	between,
@@ -22,7 +23,6 @@ import {
 	or,
 } from '~/expressions.ts';
 import { param, sql } from '~/sql/sql.ts';
-import { alias } from '~/alias.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';

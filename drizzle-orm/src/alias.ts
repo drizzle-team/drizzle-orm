@@ -1,21 +1,21 @@
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
+import type { BuildAliasTable as MySqlBuildAliasTable } from './mysql-core/query-builders/select.types.ts';
+import type { MySqlTable } from './mysql-core/table.ts';
+import type { MySqlViewBase } from './mysql-core/view-base.ts';
+import type { BuildAliasTable as PgBuildAliasTable } from './pg-core/query-builders/select.types.ts';
+import type { PgTable } from './pg-core/table.ts';
+import type { PgViewBase } from './pg-core/view-base.ts';
 import type { Relation } from './relations.ts';
 import type { View } from './sql/sql.ts';
 import { SQL, sql } from './sql/sql.ts';
-import { Table } from './table.ts';
-import { ViewBaseConfig } from './view-common.ts';
-import type { MySqlTable } from './mysql-core/table.ts';
-import type { MySqlViewBase } from './mysql-core/view-base.ts';
-import type { BuildAliasTable as MySqlBuildAliasTable } from './mysql-core/query-builders/select.types.ts';
-import type { PgTable } from './pg-core/table.ts';
-import type { PgViewBase } from './pg-core/view-base.ts';
-import type { BuildAliasTable as PgBuildAliasTable } from './pg-core/query-builders/select.types.ts';
+import type { BuildAliasTable as SQLiteBuildAliasTable } from './sqlite-core/query-builders/select.types.ts';
 import type { SQLiteTable } from './sqlite-core/table.ts';
 import type { SQLiteViewBase } from './sqlite-core/view-base.ts';
-import type { BuildAliasTable as SQLiteBuildAliasTable } from './sqlite-core/query-builders/select.types.ts';
-import { Assume } from './utils.ts';
+import { Table } from './table.ts';
+import type { Assume } from './utils.ts';
+import { ViewBaseConfig } from './view-common.ts';
 
 export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
@@ -110,10 +110,17 @@ export function alias<TTable extends SQLiteTable | SQLiteViewBase, TAlias extend
 	table: TTable,
 	alias: TAlias,
 ): SQLiteBuildAliasTable<TTable, TAlias>;
-export function alias<TTable extends MySqlTable | PgTable | SQLiteTable | MySqlViewBase | PgViewBase | SQLiteViewBase, TAlias extends string>(
+export function alias<
+	TTable extends MySqlTable | PgTable | SQLiteTable | MySqlViewBase | PgViewBase | SQLiteViewBase,
+	TAlias extends string,
+>(
 	table: TTable,
 	alias: TAlias,
-): MySqlBuildAliasTable<Assume<TTable, MySqlTable>, TAlias> | PgBuildAliasTable<Assume<TTable, PgTable>, TAlias> | SQLiteBuildAliasTable<Assume<TTable, SQLiteTable>, TAlias> {
+):
+	| MySqlBuildAliasTable<Assume<TTable, MySqlTable>, TAlias>
+	| PgBuildAliasTable<Assume<TTable, PgTable>, TAlias>
+	| SQLiteBuildAliasTable<Assume<TTable, SQLiteTable>, TAlias>
+{
 	return new Proxy(table, new TableAliasProxyHandler(alias, false)) as any;
 }
 
