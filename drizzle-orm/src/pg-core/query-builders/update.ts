@@ -29,7 +29,7 @@ import { type Assume, getTableLikeName, mapUpdateSet, orderSelectedFields, type 
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
-import type { PgJoinFn, PgSelectJoinConfig, SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
+import type { PgSelectJoinConfig, PgSelectJoinFn, SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
@@ -116,6 +116,27 @@ export type PgUpdateWithJoins<
 	>,
 	Exclude<T['_']['excludedMethods'] | 'from', 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'>
 >;
+
+export type PgUpdateJoinFn<
+	T extends AnyPgUpdate,
+	TDynamic extends boolean,
+	TJoinType extends JoinType,
+> = <
+	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
+>(
+	table: TJoinedTable,
+	on:
+		| (
+			(
+				updateTable: T['_']['table']['_']['columns'],
+				from: T['_']['from'] extends PgTable ? T['_']['from']['_']['columns']
+					: T['_']['from'] extends Subquery | PgViewBase ? T['_']['from']['_']['selectedFields']
+					: never,
+			) => SQL | undefined
+		)
+		| SQL
+		| undefined,
+) => PgUpdateJoin<T, TDynamic, TJoinType, TJoinedTable>;
 
 export type PgUpdateJoin<
 	T extends AnyPgUpdate,
@@ -329,7 +350,7 @@ export class PgUpdateBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): PgJoinFn<this, TDynamic, TJoinType> {
+	): PgUpdateJoinFn<this, TDynamic, TJoinType> {
 		return ((
 			table: PgTable | Subquery | PgViewBase | SQL,
 			on: ((updateTable: TTable, from: TFrom) => SQL | undefined) | SQL | undefined,

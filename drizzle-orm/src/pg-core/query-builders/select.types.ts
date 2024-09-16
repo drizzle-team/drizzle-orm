@@ -26,7 +26,6 @@ import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape, ValueOrArray } from '~/utils.ts';
 import type { PgPreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { PgSelectBase, PgSelectQueryBuilderBase } from './select.ts';
-import type { AnyPgUpdate, PgUpdateBase, PgUpdateJoin } from './update.ts';
 
 export interface PgSelectJoinConfig {
 	on: SQL | undefined;
@@ -80,7 +79,7 @@ export interface PgSelectConfig {
 	}[];
 }
 
-export type PgJoin<
+export type PgSelectJoin<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
@@ -109,8 +108,8 @@ export type PgJoin<
 	>
 	: never;
 
-export type PgJoinFn<
-	T extends AnyPgSelectQueryBuilder | AnyPgUpdate,
+export type PgSelectJoinFn<
+	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 > = <
@@ -118,22 +117,8 @@ export type PgJoinFn<
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
 	table: TJoinedTable,
-	on: T extends AnyPgSelectQueryBuilder ? ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined
-		: T extends PgUpdateBase<infer TTable, any, infer TFrom, any, any, any, any, any> ?
-				| (
-					(
-						updateTable: TTable['_']['columns'],
-						from: TFrom extends PgTable ? TFrom['_']['columns']
-							: TFrom extends Subquery | PgViewBase ? TFrom['_']['selectedFields']
-							: never,
-					) => SQL | undefined
-				)
-				| SQL
-				| undefined
-		: never,
-) => T extends AnyPgSelectQueryBuilder ? PgJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
-	: T extends AnyPgUpdate ? PgUpdateJoin<T, TDynamic, TJoinType, TJoinedTable>
-	: never;
+	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn>;
 
