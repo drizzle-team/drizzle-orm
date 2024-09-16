@@ -27,7 +27,6 @@ import type { SQLitePreparedQuery } from '../session.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import type { SQLiteViewWithSelection } from '../view.ts';
 import type { SQLiteSelectBase, SQLiteSelectQueryBuilderBase } from './select.ts';
-import type { AnySQLiteUpdate, SQLiteUpdateBase } from './update.ts';
 
 export interface SQLiteSelectJoinConfig {
 	on: SQL | undefined;
@@ -113,7 +112,7 @@ export type SQLiteSelectJoinFn<
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
 	table: TJoinedTable,
-	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined
+	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => SQLiteSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectFieldsFlatBase<SQLiteColumn>;

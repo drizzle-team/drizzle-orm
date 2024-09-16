@@ -14,7 +14,7 @@ import { type DrizzleTypeError, getTableLikeName, mapUpdateSet, orderSelectedFie
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
 import { SQLiteViewBase } from '../view-base.ts';
-import type { SelectedFields, SelectedFieldsOrdered, SQLiteSelectJoinFn, SQLiteSelectJoinConfig } from './select.types.ts';
+import type { SelectedFields, SelectedFieldsOrdered, SQLiteSelectJoinConfig } from './select.types.ts';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;

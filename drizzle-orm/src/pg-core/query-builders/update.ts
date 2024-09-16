@@ -29,7 +29,7 @@ import { type Assume, getTableLikeName, mapUpdateSet, orderSelectedFields, type 
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
-import type { PgSelectJoinConfig, PgSelectJoinFn, SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
+import type { PgSelectJoinConfig, SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
