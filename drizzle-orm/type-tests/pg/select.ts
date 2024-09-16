@@ -27,7 +27,7 @@ import {
 	notLike,
 	or,
 } from '~/expressions.ts';
-import { alias } from '~/pg-core/alias.ts';
+import { alias } from '~/alias.ts';
 import {
 	boolean,
 	integer,

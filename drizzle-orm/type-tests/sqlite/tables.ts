@@ -3,7 +3,6 @@ import { Expect } from 'type-tests/utils.ts';
 import { eq, gt } from '~/expressions.ts';
 import { sql } from '~/sql/sql.ts';
 import {
-	alias,
 	check,
 	foreignKey,
 	index,
@@ -14,6 +13,7 @@ import {
 	text,
 	uniqueIndex,
 } from '~/sqlite-core/index.ts';
+import { alias } from '~/alias.ts';
 import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view.ts';
 import { db } from './db.ts';
 

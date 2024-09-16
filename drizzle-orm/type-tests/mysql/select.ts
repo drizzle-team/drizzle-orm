@@ -21,7 +21,7 @@ import {
 	notLike,
 	or,
 } from '~/expressions.ts';
-import { alias } from '~/mysql-core/alias.ts';
+import { alias } from '~/alias.ts';
 import { param, sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';

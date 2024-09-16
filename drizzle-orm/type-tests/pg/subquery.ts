@@ -1,6 +1,7 @@
 import { Expect } from 'type-tests/utils.ts';
 import { and, eq } from '~/expressions.ts';
-import { alias, integer, pgTable, serial, text } from '~/pg-core/index.ts';
+import { integer, pgTable, serial, text } from '~/pg-core/index.ts';
+import { alias } from '~/alias.ts';
 import { sql } from '~/sql/sql.ts';
 import type { DrizzleTypeError, Equal } from '~/utils.ts';
 import { db } from './db.ts';
