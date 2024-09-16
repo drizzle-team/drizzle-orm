@@ -39,7 +39,7 @@ import type {
 	SelectedFields,
 	SetOperatorRightSelect,
 	SQLiteCreateSetOperatorFn,
-	SQLiteJoinFn,
+	SQLiteSelectJoinFn,
 	SQLiteSelectConfig,
 	SQLiteSelectDynamic,
 	SQLiteSelectExecute,
@@ -193,7 +193,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): SQLiteJoinFn<this, TDynamic, TJoinType> {
+	): SQLiteSelectJoinFn<this, TDynamic, TJoinType> {
 		return (
 			table: SQLiteTable | Subquery | SQLiteViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,

@@ -73,7 +73,7 @@ export interface SQLiteSelectConfig {
 	}[];
 }
 
-export type SQLiteJoin<
+export type SQLiteSelectJoin<
 	T extends AnySQLiteSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
@@ -104,8 +104,8 @@ export type SQLiteJoin<
 	>
 	: never;
 
-export type SQLiteJoinFn<
-	T extends AnySQLiteSelectQueryBuilder | AnySQLiteUpdate,
+export type SQLiteSelectJoinFn<
+	T extends AnySQLiteSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 > = <
@@ -113,22 +113,8 @@ export type SQLiteJoinFn<
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
 	table: TJoinedTable,
-	on: T extends AnySQLiteSelectQueryBuilder ? ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined
-		: T extends SQLiteUpdateBase<infer TTable, any, any, infer TFrom, any, any, any> ?
-				| (
-					(
-						updateTable: TTable['_']['columns'],
-						from: TFrom extends SQLiteTable ? TFrom['_']['columns']
-							: TFrom extends Subquery | SQLiteViewBase ? TFrom['_']['selectedFields']
-							: never,
-					) => SQL | undefined
-				)
-				| SQL
-				| undefined
-		: never,
-) => T extends AnySQLiteSelectQueryBuilder ? SQLiteJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
-	: T extends AnySQLiteUpdate ? T
-	: never;
+	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined
+) => SQLiteSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectFieldsFlatBase<SQLiteColumn>;
 
