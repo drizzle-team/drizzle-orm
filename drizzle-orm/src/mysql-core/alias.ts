@@ -5,7 +5,7 @@ import type { MySqlViewBase } from './view-base.ts';
 
 /**
  * @deprecated
- * Use `alias` instead from `drizzle-orm` instead.
+ * Use `alias` from `drizzle-orm` instead.
  */
 export function alias<TTable extends MySqlTable | MySqlViewBase, TAlias extends string>(
 	table: TTable,
