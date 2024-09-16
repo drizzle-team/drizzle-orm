@@ -114,7 +114,7 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 		.filter(([, value]) => value !== undefined)
 		.map(([key, value]) => {
 			// eslint-disable-next-line unicorn/prefer-ternary
-			if (is(value, SQL)) {
+			if (is(value, SQL) || is(value, Column)) {
 				return [key, value];
 			} else {
 				return [key, new Param(value, table[Table.Symbol.Columns][key])];
@@ -128,7 +128,7 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 	return Object.fromEntries(entries);
 }
 
-export type UpdateSet = Record<string, SQL | Param | null | undefined>;
+export type UpdateSet = Record<string, SQL | Param | AnyColumn | null | undefined>;
 
 export type OneOrMany<T> = T | T[];
 
