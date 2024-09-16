@@ -10,6 +10,7 @@ import type { MySql2Database } from './mysql2/index.ts';
 import type { NeonHttpDatabase } from './neon-http/index.ts';
 import type { NeonDatabase } from './neon-serverless/index.ts';
 import type { NodePgDatabase } from './node-postgres/index.ts';
+import type { PgliteDatabase } from './pglite/driver.ts';
 import type { PlanetScaleDatabase } from './planetscale-serverless/index.ts';
 import type { PostgresJsDatabase } from './postgres-js/index.ts';
 import type { TiDBServerlessDatabase } from './tidb-serverless/index.ts';
@@ -29,7 +30,8 @@ export async function migrate(
 		| PlanetScaleDatabase<any>
 		| PostgresJsDatabase<any>
 		| VercelPgDatabase<any>
-		| TiDBServerlessDatabase<any>,
+		| TiDBServerlessDatabase<any>
+		| PgliteDatabase<any>,
 	config: MigrationConfig,
 ) {
 	switch ((<any> db).constructor[entityKind]) {
@@ -97,6 +99,11 @@ export async function migrate(
 			const { migrate } = await import('./vercel-postgres/migrator');
 
 			return migrate(db as VercelPgDatabase, config as MigrationConfig);
+		}
+		case 'PgliteDatabase': {
+			const { migrate } = await import('./pglite/migrator');
+
+			return migrate(db as PgliteDatabase, config as MigrationConfig);
 		}
 	}
 }
