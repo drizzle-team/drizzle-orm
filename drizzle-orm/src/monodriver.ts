@@ -159,7 +159,7 @@ type ClientTypeImportErrorMap = {
 };
 
 type ImportTypeError<TClient extends DatabaseClient> =
-	`Please install \`${ClientTypeImportErrorMap[TClient]}\` for Drizzle ORM to connect to database`;
+	`Please install \`${ClientTypeImportErrorMap[TClient]}\`to allow Drizzle ORM to connect to the database`;
 
 type InitializerParams = {
 	'node-postgres': {
@@ -220,7 +220,7 @@ type DetermineClient<
 
 const importError = (libName: string) => {
 	throw new Error(
-		`Please install '${libName}' for Drizzle ORM to connect to database`,
+		`Please install '${libName}' to allow Drizzle ORM to connect to the database`,
 	);
 };
 
