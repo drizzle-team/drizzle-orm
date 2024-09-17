@@ -3821,7 +3821,9 @@ export function tests(driver?: string) {
 
 			await db.update(usersTable).set({ verified: true }).limit(2).orderBy(asc(usersTable.name));
 
-			const result =  await db.select({ name: usersTable.name, verified: usersTable.verified }).from(usersTable).orderBy(asc(usersTable.name));
+			const result = await db.select({ name: usersTable.name, verified: usersTable.verified }).from(usersTable).orderBy(
+				asc(usersTable.name),
+			);
 			expect(result).toStrictEqual([
 				{ name: 'Alan', verified: true },
 				{ name: 'Barry', verified: true },

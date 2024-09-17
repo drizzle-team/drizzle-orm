@@ -185,7 +185,7 @@ export abstract class SQLiteDialect {
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
 		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
 			? sql` limit ${limit}`
-			: undefined
+			: undefined;
 	}
 
 	private buildOrderBy(orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
@@ -200,8 +200,8 @@ export abstract class SQLiteDialect {
 				}
 			}
 		}
-	
-		return orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : undefined
+
+		return orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : undefined;
 	}
 
 	buildSelectQuery(

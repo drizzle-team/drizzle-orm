@@ -3,16 +3,22 @@ import { entityKind } from '~/entity.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet, type ValueOrArray } from '~/utils.ts';
+import { Table } from '~/table.ts';
+import {
+	type DrizzleTypeError,
+	mapUpdateSet,
+	orderSelectedFields,
+	type UpdateSet,
+	type ValueOrArray,
+} from '~/utils.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { Table } from '~/table.ts';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;

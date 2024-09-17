@@ -11,13 +11,13 @@ import type {
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { Table } from '~/table.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import type { SelectedFieldsOrdered } from './select.types.ts';
-import type { MySqlColumn } from '../columns/common.ts';
+import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { MySqlColumn } from '../columns/common.ts';
+import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export type MySqlDeleteWithout<
 	T extends AnyMySqlDeleteBase,

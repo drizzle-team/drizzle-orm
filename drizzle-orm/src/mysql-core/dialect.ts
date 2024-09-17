@@ -220,11 +220,11 @@ export class MySqlDialect {
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
 		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
 			? sql` limit ${limit}`
-			: undefined
+			: undefined;
 	}
 
 	private buildOrderBy(orderBy: (MySqlColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
-		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
+		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
 	}
 
 	buildSelectQuery(
