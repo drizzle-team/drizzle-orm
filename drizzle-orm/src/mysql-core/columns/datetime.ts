@@ -3,7 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import type { Equal } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
 
 export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBuilder<{
 	name: TName;
@@ -16,7 +16,7 @@ export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBui
 }>;
 
 export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDateTime'>>
-	extends MySqlColumnBuilder<T, MySqlDatetimeConfig>
+	extends MySqlDateColumnBaseBuilder<T, MySqlDatetimeConfig>
 {
 	static readonly [entityKind]: string = 'MySqlDateTimeBuilder';
 
@@ -36,7 +36,7 @@ export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MyS
 	}
 }
 
-export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> extends MySqlColumn<T> {
+export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> extends MySqlDateBaseColumn<T> {
 	static readonly [entityKind]: string = 'MySqlDateTime';
 
 	readonly fsp: number | undefined;
@@ -74,7 +74,7 @@ export type MySqlDateTimeStringBuilderInitial<TName extends string> = MySqlDateT
 }>;
 
 export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlDateTimeString'>>
-	extends MySqlColumnBuilder<T, MySqlDatetimeConfig>
+	extends MySqlDateColumnBaseBuilder<T, MySqlDatetimeConfig>
 {
 	static readonly [entityKind]: string = 'MySqlDateTimeStringBuilder';
 
@@ -94,7 +94,9 @@ export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'strin
 	}
 }
 
-export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDateTimeString'>> extends MySqlColumn<T> {
+export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDateTimeString'>>
+	extends MySqlDateBaseColumn<T>
+{
 	static readonly [entityKind]: string = 'MySqlDateTimeString';
 
 	readonly fsp: number | undefined;
