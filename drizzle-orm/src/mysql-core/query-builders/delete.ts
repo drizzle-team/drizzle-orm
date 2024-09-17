@@ -11,9 +11,13 @@ import type {
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { Table } from '~/table.ts';
+import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
+import type { MySqlColumn } from '../columns/common.ts';
+import type { ValueOrArray } from '~/utils.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export type MySqlDeleteWithout<
 	T extends AnyMySqlDeleteBase,
@@ -39,6 +43,8 @@ export type MySqlDelete<
 
 export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
+	limit?: number | Placeholder;
+	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	table: MySqlTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
@@ -131,6 +137,37 @@ export class MySqlDeleteBase<
 	 */
 	where(where: SQL | undefined): MySqlDeleteWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
+		return this as any;
+	}
+
+	orderBy(
+		builder: (updateTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
+	): MySqlDeleteWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): MySqlDeleteWithout<this, TDynamic, 'orderBy'>;
+	orderBy(
+		...columns:
+			| [(updateTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
+			| (MySqlColumn | SQL | SQL.Aliased)[]
+	): MySqlDeleteWithout<this, TDynamic, 'orderBy'> {
+		if (typeof columns[0] === 'function') {
+			const orderBy = columns[0](
+				new Proxy(
+					this.config.table[Table.Symbol.Columns],
+					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
+				) as any,
+			);
+
+			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
+			this.config.orderBy = orderByArray;
+		} else {
+			const orderByArray = columns as (MySqlColumn | SQL | SQL.Aliased)[];
+			this.config.orderBy = orderByArray;
+		}
+		return this as any;
+	}
+
+	limit(limit: number | Placeholder): MySqlDeleteWithout<this, TDynamic, 'limit'> {
+		this.config.limit = limit;
 		return this as any;
 	}
 
