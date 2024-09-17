@@ -2893,7 +2893,7 @@ export function tests() {
 			// Limit and order by may not be supported by all SQLite databases, so we just verify that the query is correct
 
 			const query = db.update(usersTable).set({ verified: true }).limit(2).orderBy(asc(usersTable.name)).toSQL();
-			
+
 			expect(query).toStrictEqual({
 				sql: 'update "users" set "verified" = ? order by "users"."name" asc limit ?',
 				params: [1, 2],
