@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { Placeholder, SQL } from '~/sql/sql.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
 
@@ -41,8 +42,9 @@ export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColu
 		return new Date(value);
 	}
 
-	override mapToDriverValue(value: Date): string {
-		return value.toISOString();
+	override mapToDriverValue(value: Date | SQL | Placeholder): string | SQL | Placeholder {
+		// eslint-disable-next-line no-instanceof/no-instanceof
+		return value instanceof Date ? value.toISOString() : value;
 	}
 }
 
