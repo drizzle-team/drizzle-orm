@@ -2,14 +2,16 @@ import { entityKind } from '~/entity.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
+import { type DrizzleTypeError, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import { Table } from '~/table.ts';
 
 export type SQLiteDeleteWithout<
 	T extends AnySQLiteDeleteBase,
@@ -37,6 +39,8 @@ export type SQLiteDelete<
 
 export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;
+	limit?: number | Placeholder;
+	orderBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
 	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
@@ -182,6 +186,37 @@ export class SQLiteDeleteBase<
 	 */
 	where(where: SQL | undefined): SQLiteDeleteWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
+		return this as any;
+	}
+
+	orderBy(
+		builder: (deleteTable: TTable) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
+	): SQLiteDeleteWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (SQLiteColumn | SQL | SQL.Aliased)[]): SQLiteDeleteWithout<this, TDynamic, 'orderBy'>;
+	orderBy(
+		...columns:
+			| [(deleteTable: TTable) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
+			| (SQLiteColumn | SQL | SQL.Aliased)[]
+	): SQLiteDeleteWithout<this, TDynamic, 'orderBy'> {
+		if (typeof columns[0] === 'function') {
+			const orderBy = columns[0](
+				new Proxy(
+					this.config.table[Table.Symbol.Columns],
+					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
+				) as any,
+			);
+
+			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
+			this.config.orderBy = orderByArray;
+		} else {
+			const orderByArray = columns as (SQLiteColumn | SQL | SQL.Aliased)[];
+			this.config.orderBy = orderByArray;
+		}
+		return this as any;
+	}
+
+	limit(limit: number | Placeholder): SQLiteDeleteWithout<this, TDynamic, 'limit'> {
+		this.config.limit = limit;
 		return this as any;
 	}
 

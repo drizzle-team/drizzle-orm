@@ -224,7 +224,7 @@ export class MySqlDialect {
 	}
 
 	private buildOrderBy(orderBy: (MySqlColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
-		return orderBy ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
+		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
 	}
 
 	buildSelectQuery(

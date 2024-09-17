@@ -141,12 +141,12 @@ export class MySqlDeleteBase<
 	}
 
 	orderBy(
-		builder: (updateTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
+		builder: (deleteTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
 	): MySqlDeleteWithout<this, TDynamic, 'orderBy'>;
 	orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): MySqlDeleteWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
-			| [(updateTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
+			| [(deleteTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
 			| (MySqlColumn | SQL | SQL.Aliased)[]
 	): MySqlDeleteWithout<this, TDynamic, 'orderBy'> {
 		if (typeof columns[0] === 'function') {
