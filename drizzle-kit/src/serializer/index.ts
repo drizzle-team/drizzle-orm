@@ -60,11 +60,11 @@ export const serializePg = async (
 	const { prepareFromPgImports } = await import('./pgImports');
 	const { generatePgSnapshot } = await import('./pgSerializer');
 
-	const { tables, enums, schemas, sequences } = await prepareFromPgImports(
+	const { tables, enums, schemas, sequences, views } = await prepareFromPgImports(
 		filenames,
 	);
 
-	return generatePgSnapshot(tables, enums, schemas, sequences, schemaFilter);
+	return generatePgSnapshot(tables, enums, schemas, sequences, views, schemaFilter);
 };
 
 export const serializeSQLite = async (

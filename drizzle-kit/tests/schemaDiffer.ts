@@ -3,7 +3,7 @@ import { Client } from '@libsql/client/.';
 import { Database } from 'better-sqlite3';
 import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
-import { isPgEnum, isPgSequence, PgEnum, PgSchema, PgSequence, PgTable } from 'drizzle-orm/pg-core';
+import { isPgEnum, isPgSequence, PgEnum, PgSchema, PgSequence, PgTable, PgView } from 'drizzle-orm/pg-core';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { Connection } from 'mysql2/promise';
@@ -15,6 +15,7 @@ import {
 	schemasResolver,
 	sequencesResolver,
 	tablesResolver,
+	viewsResolver,
 } from 'src/cli/commands/migrate';
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
@@ -45,11 +46,12 @@ import {
 	ResolverOutputWithMoved,
 	Sequence,
 	Table,
+	ViewSquashed,
 } from 'src/snapshotsDiffer';
 
 export type PostgresSchema = Record<
 	string,
-	PgTable<any> | PgEnum<any> | PgSchema | PgSequence
+	PgTable<any> | PgEnum<any> | PgSchema | PgSequence | PgView
 >;
 export type MysqlSchema = Record<string, MySqlTable<any> | MySqlSchema>;
 export type SqliteSchema = Record<string, SQLiteTable<any>>;
@@ -405,6 +407,82 @@ async (
 	}
 };
 
+export const testViewsResolver = (renames: Set<string>) =>
+async (
+	input: ResolverInput<ViewSquashed>,
+): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdViews = [...input.created];
+		let deletedViews = [...input.deleted];
+
+		const result: {
+			created: ViewSquashed[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: ViewSquashed; to: ViewSquashed }[];
+			deleted: ViewSquashed[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedViews.findIndex((it) => {
+				return `${it.schema || 'public'}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdViews.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === to;
+				});
+
+				const viewFrom = deletedViews[idxFrom];
+				const viewTo = createdViews[idxFrom];
+
+				if (viewFrom.schema !== viewTo.schema) {
+					result.moved.push({
+						name: viewFrom.name,
+						schemaFrom: viewFrom.schema,
+						schemaTo: viewTo.schema,
+					});
+				}
+
+				if (viewFrom.name !== viewTo.name) {
+					result.renamed.push({
+						from: deletedViews[idxFrom],
+						to: createdViews[idxTo],
+					});
+				}
+
+				delete createdViews[idxTo];
+				delete deletedViews[idxFrom];
+
+				createdViews = createdViews.filter(Boolean);
+				deletedViews = deletedViews.filter(Boolean);
+			}
+		}
+
+		result.created = createdViews;
+		result.deleted = deletedViews;
+
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
 export const diffTestSchemasPush = async (
 	client: PGlite,
 	left: PostgresSchema,
@@ -559,6 +637,10 @@ export const applyPgDiffs = async (sn: PostgresSchema) => {
 	return { sqlStatements, statements };
 };
 
+export function isPgView(obj: unknown): obj is PgView {
+	return is(obj, PgView);
+}
+
 export const diffTestSchemas = async (
 	left: PostgresSchema,
 	right: PostgresSchema,
@@ -581,17 +663,23 @@ export const diffTestSchemas = async (
 
 	const rightSequences = Object.values(right).filter((it) => isPgSequence(it)) as PgSequence[];
 
+	const leftViews = Object.values(left).filter((it) => isPgView(it)) as PgView[];
+
+	const rightViews = Object.values(right).filter((it) => isPgView(it)) as PgView[];
+
 	const serialized1 = generatePgSnapshot(
 		leftTables,
 		leftEnums,
 		leftSchemas,
 		leftSequences,
+		leftViews,
 	);
 	const serialized2 = generatePgSnapshot(
 		rightTables,
 		rightEnums,
 		rightSchemas,
 		rightSequences,
+		rightViews,
 	);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
@@ -630,6 +718,7 @@ export const diffTestSchemas = async (
 			testSequencesResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
+			testViewsResolver(renames),
 			validatedPrev,
 			validatedCur,
 		);
@@ -643,6 +732,7 @@ export const diffTestSchemas = async (
 			sequencesResolver,
 			tablesResolver,
 			columnsResolver,
+			viewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -982,13 +1072,6 @@ export async function diffTestSchemasPushLibSQL(
 			run: async (query: string) => {
 				await client.execute(query);
 			},
-			batch: async (
-				queries: { query: string; values?: any[] | undefined }[],
-			) => {
-				await client.batch(
-					queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
-				);
-			},
 		},
 		undefined,
 	);
@@ -1047,13 +1130,6 @@ export async function diffTestSchemasPushLibSQL(
 				},
 				run: async (query: string) => {
 					await client.execute(query);
-				},
-				batch: async (
-					queries: { query: string; values?: any[] | undefined }[],
-				) => {
-					await client.batch(
-						queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
-					);
 				},
 			},
 			statements,

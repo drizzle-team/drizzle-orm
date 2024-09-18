@@ -26,6 +26,10 @@ import {
 	JsonAlterTableRemoveFromSchema,
 	JsonAlterTableSetNewSchema,
 	JsonAlterTableSetSchema,
+	JsonAlterViewAddWithOptionStatement,
+	JsonAlterViewAlterSchemaStatement,
+	JsonAlterViewAlterWithOptionStatement,
+	JsonAlterViewDropWithOptionStatement,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
@@ -34,6 +38,7 @@ import {
 	JsonCreateSequenceStatement,
 	JsonCreateTableStatement,
 	JsonCreateUniqueConstraint,
+	JsonCreateViewStatement,
 	JsonDeleteCompositePK,
 	JsonDeleteReferenceStatement,
 	JsonDeleteUniqueConstraint,
@@ -41,6 +46,7 @@ import {
 	JsonDropIndexStatement,
 	JsonDropSequenceStatement,
 	JsonDropTableStatement,
+	JsonDropViewStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
 	JsonRecreateTableStatement,
@@ -48,6 +54,7 @@ import {
 	JsonRenameSchema,
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
+	JsonRenameViewStatement,
 	JsonSqliteAddColumnStatement,
 	JsonSqliteCreateTableStatement,
 	JsonStatement,
@@ -392,6 +399,117 @@ export class SQLiteCreateTableConvertor extends Convertor {
 		statement += `\n`;
 		statement += `);`;
 		statement += `\n`;
+		return statement;
+	}
+}
+
+class PgCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_view' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonCreateViewStatement) {
+		const { definition, name: viewName, schema, with: withClause } = st;
+
+		const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
+
+		let statement = `CREATE VIEW ${name}`;
+		statement += withClause
+			? ` WITH (check_option = ${withClause.checkOption}, security_barrier = ${withClause.securityBarrier}, security_invoker = ${withClause.securityInvoker})`
+			: '';
+		statement += ` AS (${definition});`;
+
+		return statement;
+	}
+}
+
+class PgDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name: viewName, schema } = st;
+
+		const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
+
+		const statement = `DROP VIEW ${name};`;
+
+		return statement;
+	}
+}
+
+class PgRenameViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_view' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonRenameViewStatement) {
+		const { nameFrom: from, nameTo: to, schema } = st;
+
+		const nameFrom = schema ? `"${schema}"."${from}"` : `"${from}"`;
+		const nameTo = schema ? `"${schema}"."${to}"` : `"${to}"`;
+
+		const statement = `ALTER VIEW ${nameFrom} RENAME TO ${nameTo};`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewSchemaConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_alter_schema' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAlterSchemaStatement) {
+		const { fromSchema, toSchema, name } = st;
+
+		const statement = `ALTER VIEW "${fromSchema}"."${name}" SET SCHEMA "${toSchema}";`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewAlterWithOptionConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_alter_with_option' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAlterWithOptionStatement) {
+		const { schema, with: withOption, name } = st;
+
+		const statement =
+			`ALTER VIEW "${schema}"."${name}" SET (check_option = ${withOption.checkOption}, security_barrier = ${withOption.securityBarrier}, security_invoker = ${withOption.securityInvoker});`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewAddWithOptionConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_add_with_option' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAddWithOptionStatement) {
+		const { schema, with: withOption, name } = st;
+
+		const statement =
+			`ALTER VIEW "${schema}"."${name}" SET (check_option = ${withOption.checkOption}, security_barrier = ${withOption.securityBarrier}, security_invoker = ${withOption.securityInvoker});`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewDropWithOptionConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_drop_with_option' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewDropWithOptionStatement) {
+		const { schema, name } = st;
+
+		const statement = `ALTER VIEW "${schema}"."${name}" RESET (check_option, security_barrier, security_invoker);`;
+
 		return statement;
 	}
 }
@@ -2485,6 +2603,14 @@ convertors.push(new MySqlCreateTableConvertor());
 convertors.push(new SQLiteCreateTableConvertor());
 convertors.push(new SQLiteRecreateTableConvertor());
 convertors.push(new LibSQLRecreateTableConvertor());
+
+convertors.push(new PgCreateViewConvertor());
+convertors.push(new PgDropViewConvertor());
+convertors.push(new PgRenameViewConvertor());
+convertors.push(new PgAlterViewSchemaConvertor());
+convertors.push(new PgAlterViewAlterWithOptionConvertor());
+convertors.push(new PgAlterViewAddWithOptionConvertor());
+convertors.push(new PgAlterViewDropWithOptionConvertor());
 
 convertors.push(new CreateTypeEnumConvertor());
 

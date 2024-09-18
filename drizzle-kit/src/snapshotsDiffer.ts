@@ -24,14 +24,18 @@ import {
 	JsonAlterCompositePK,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
+	JsonAlterViewStatement,
 	JsonCreateCompositePK,
 	JsonCreateReferenceStatement,
 	JsonCreateUniqueConstraint,
+	JsonCreateViewStatement,
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
 	JsonDropColumnStatement,
+	JsonDropViewStatement,
 	JsonReferenceStatement,
 	JsonRenameColumnStatement,
+	JsonRenameViewStatement,
 	JsonSqliteAddColumnStatement,
 	JsonStatement,
 	prepareAddCompositePrimaryKeyMySql,
@@ -66,8 +70,15 @@ import {
 	prepareMoveSequenceJson,
 	prepareMySqlCreateTableJson,
 	preparePgAlterColumns,
+	preparePgAlterViewAddWithOptionJson,
+	preparePgAlterViewAlterSchemaJson,
+	preparePgAlterViewAlterWithOptionJson,
+	preparePgAlterViewDropWithOptionJson,
 	preparePgCreateIndexesJson,
 	preparePgCreateTableJson,
+	preparePgCreateViewJson,
+	preparePgDropViewJson,
+	preparePgRenameViewJson,
 	prepareRenameColumns,
 	prepareRenameEnumJson,
 	prepareRenameSchemasJson,
@@ -80,7 +91,7 @@ import {
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSchema, PgSchemaSquashed, sequenceSquashed } from './serializer/pgSchema';
+import { PgSchema, PgSchemaSquashed, sequenceSquashed, viewSquashed } from './serializer/pgSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';
@@ -251,10 +262,34 @@ export const alteredTableScheme = object({
 	),
 }).strict();
 
+export const alteredViewSchema = object({
+	name: string(),
+	schema: string(),
+	deletedWithOption: string().optional(),
+	addedWithOption: string().optional(),
+	alteredWith: object({
+		__old: string(),
+		__new: string(),
+	}).strict().optional(),
+	alteredSchema: object({
+		__old: string(),
+		__new: string(),
+	}).strict().optional(),
+	alteredDefinition: object({
+		__old: string(),
+		__new: string(),
+	}).strict().optional(),
+	alteredExisting: object({
+		__old: boolean(),
+		__new: boolean(),
+	}).strict().optional(),
+}).strict();
+
 export const diffResultScheme = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
 	alteredEnums: changedEnumSchema.array(),
 	alteredSequences: sequenceSquashed.array(),
+	alteredViews: alteredViewSchema.array(),
 }).strict();
 
 export const diffResultSchemeMysql = object({
@@ -272,6 +307,7 @@ export type AlteredColumn = TypeOf<typeof alteredColumnSchema>;
 export type Enum = TypeOf<typeof enumSchema>;
 export type Sequence = TypeOf<typeof sequenceSquashed>;
 export type Table = TypeOf<typeof tableScheme>;
+export type ViewSquashed = TypeOf<typeof viewSquashed>;
 export type AlteredTable = TypeOf<typeof alteredTableScheme>;
 export type DiffResult = TypeOf<typeof diffResultScheme>;
 export type DiffResultMysql = TypeOf<typeof diffResultSchemeMysql>;
@@ -390,6 +426,9 @@ export const applyPgSnapshotsDiff = async (
 	columnsResolver: (
 		input: ColumnsResolverInput<Column>,
 	) => Promise<ColumnsResolverOutput<Column>>,
+	viewsResolver: (
+		input: ResolverInput<ViewSquashed>,
+	) => Promise<ResolverOutputWithMoved<ViewSquashed>>,
 	prevFull: PgSchema,
 	curFull: PgSchema,
 	action?: 'push' | undefined,
@@ -720,11 +759,19 @@ export const applyPgSnapshotsDiff = async (
 		},
 	);
 
-	const diffResult = applyJsonDiff(columnsPatchedSnap1, json2);
+	const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
 
-	// no diffs
+	const {
+		created: createdViews,
+		deleted: deletedViews,
+		renamed: renamedViews,
+	} = await viewsResolver({
+		created: viewsDiff.added,
+		deleted: viewsDiff.deleted,
+	});
+
+	const diffResult = applyJsonDiff(columnsPatchedSnap1, json2);
 	const typedResult: DiffResult = diffResultScheme.parse(diffResult);
-	// const typedResult: DiffResult = {};
 
 	const jsonStatements: JsonStatement[] = [];
 
@@ -1091,6 +1138,74 @@ export const applyPgSnapshotsDiff = async (
 		return preparePgCreateTableJson(it, curFull);
 	});
 
+	const createViews: JsonCreateViewStatement[] = [];
+	const dropViews: JsonDropViewStatement[] = [];
+	const renameViews: JsonRenameViewStatement[] = [];
+	const alterViews: JsonAlterViewStatement[] = [];
+
+	createViews.push(
+		...createdViews.filter((it) => !it.isExisting).map((it) => {
+			return preparePgCreateViewJson(it.name, it.schema, it.definition!, it.with);
+		}),
+	);
+
+	dropViews.push(
+		...deletedViews.filter((it) => !it.isExisting).map((it) => {
+			return preparePgDropViewJson(it.name, it.schema);
+		}),
+	);
+
+	renameViews.push(
+		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
+			return preparePgRenameViewJson(it.to.name, it.from.name, it.to.schema);
+		}),
+	);
+
+	const alteredViews = typedResult.alteredViews.filter((it) => !json2.views[it.name].isExisting);
+	for (const alteredView of alteredViews) {
+		if (alteredView.alteredExisting || alteredView.alteredDefinition) {
+			dropViews.push(preparePgDropViewJson(alteredView.name, alteredView.schema));
+
+			createViews.push(
+				preparePgCreateViewJson(
+					alteredView.name,
+					alteredView.schema,
+					json2.views[alteredView.name].definition!,
+					json2.views[alteredView.name].with,
+				),
+			);
+			continue;
+		}
+
+		if (alteredView.deletedWithOption) {
+			alterViews.push(
+				preparePgAlterViewDropWithOptionJson(alteredView.name, alteredView.schema),
+			);
+		}
+
+		if (alteredView.addedWithOption) {
+			alterViews.push(
+				preparePgAlterViewAddWithOptionJson(alteredView.name, alteredView.schema, alteredView.addedWithOption),
+			);
+		}
+
+		if (alteredView.alteredSchema) {
+			alterViews.push(
+				preparePgAlterViewAlterSchemaJson(
+					alteredView.alteredSchema.__new,
+					alteredView.alteredSchema.__old,
+					alteredView.name,
+				),
+			);
+		}
+
+		if (alteredView.alteredWith) {
+			alterViews.push(
+				preparePgAlterViewAlterWithOptionJson(alteredView.name, alteredView.schema, alteredView.alteredWith.__new),
+			);
+		}
+	}
+
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
 	jsonStatements.push(...createEnums);
@@ -1104,6 +1219,10 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlterSequences);
 
 	jsonStatements.push(...createTables);
+
+	jsonStatements.push(...dropViews);
+	jsonStatements.push(...renameViews);
+	jsonStatements.push(...alterViews);
 
 	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonSetTableSchemas);
@@ -1135,6 +1254,8 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+
+	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);

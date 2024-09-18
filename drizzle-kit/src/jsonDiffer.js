@@ -158,6 +158,7 @@ export function applyJsonDiff(json1, json2) {
 	difference.tables = difference.tables || {};
 	difference.enums = difference.enums || {};
 	difference.sequences = difference.sequences || {};
+	difference.views = difference.views || {};
 
 	// remove added/deleted schemas
 	const schemaKeys = Object.keys(difference.schemas);
@@ -239,6 +240,35 @@ export function applyJsonDiff(json1, json2) {
 			return json2.sequences[it[0]];
 		});
 
+	const viewsEntries = Object.entries(difference.views);
+
+	const alteredViews = viewsEntries.filter((it) => !(it[0].includes('__added') || it[0].includes('__deleted'))).map(
+		([name, view]) => {
+			const deletedWithOption = view.with__deleted;
+
+			const addedWithOption = view.with__added;
+
+			const alteredWith = view.with;
+
+			const alteredSchema = view.schema;
+
+			const alteredDefinition = view.definition;
+
+			const alteredExisting = view.isExisting;
+
+			return {
+				name: name,
+				schema: json2.views[name].schema,
+				deletedWithOption,
+				addedWithOption,
+				alteredWith,
+				alteredSchema,
+				alteredDefinition,
+				alteredExisting,
+			};
+		},
+	);
+
 	const alteredTablesWithColumns = Object.values(difference.tables).map(
 		(table) => {
 			return findAlternationsInTable(table);
@@ -249,6 +279,7 @@ export function applyJsonDiff(json1, json2) {
 		alteredTablesWithColumns,
 		alteredEnums,
 		alteredSequences,
+		alteredViews,
 	};
 }
 

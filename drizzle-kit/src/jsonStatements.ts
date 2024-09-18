@@ -1,9 +1,9 @@
 import chalk from 'chalk';
-import { getNewTableName, getOldTableName } from './cli/commands/sqlitePushUtils';
+import { getNewTableName } from './cli/commands/sqlitePushUtils';
 import { warning } from './cli/views';
 import { CommonSquashedSchema, Dialect } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher } from './serializer/mysqlSchema';
-import { Index, PgSchema, PgSquasher } from './serializer/pgSchema';
+import { Index, PgSchema, PgSquasher, View, ViewWithOption } from './serializer/pgSchema';
 import {
 	SQLiteKitInternals,
 	SQLiteSchemaInternal,
@@ -524,6 +524,60 @@ export interface JsonRenameSchema {
 	to: string;
 }
 
+export interface JsonCreateViewStatement {
+	type: 'create_view';
+	name: string;
+	schema: string;
+	definition: string;
+	with: ViewWithOption;
+}
+
+export interface JsonDropViewStatement {
+	type: 'drop_view';
+	name: string;
+	schema: string;
+}
+
+export interface JsonRenameViewStatement {
+	type: 'rename_view';
+	nameTo: string;
+	nameFrom: string;
+	schema: string;
+}
+
+export interface JsonAlterViewAlterSchemaStatement {
+	type: 'alter_view_alter_schema';
+	fromSchema: string;
+	toSchema: string;
+	name: string;
+}
+
+export interface JsonAlterViewAlterWithOptionStatement {
+	type: 'alter_view_alter_with_option';
+	schema: string;
+	name: string;
+	with: Exclude<ViewWithOption, undefined>;
+}
+
+export interface JsonAlterViewAddWithOptionStatement {
+	type: 'alter_view_add_with_option';
+	schema: string;
+	name: string;
+	with: Exclude<ViewWithOption, undefined>;
+}
+
+export interface JsonAlterViewDropWithOptionStatement {
+	type: 'alter_view_drop_with_option';
+	schema: string;
+	name: string;
+}
+
+export type JsonAlterViewStatement =
+	| JsonAlterViewAlterSchemaStatement
+	| JsonAlterViewAlterWithOptionStatement
+	| JsonAlterViewAddWithOptionStatement
+	| JsonAlterViewDropWithOptionStatement;
+
 export type JsonAlterColumnStatement =
 	| JsonRenameColumnStatement
 	| JsonAlterColumnTypeStatement
@@ -582,7 +636,11 @@ export type JsonStatement =
 	| JsonDropSequenceStatement
 	| JsonCreateSequenceStatement
 	| JsonMoveSequenceStatement
-	| JsonRenameSequenceStatement;
+	| JsonRenameSequenceStatement
+	| JsonCreateViewStatement
+	| JsonDropViewStatement
+	| JsonRenameViewStatement
+	| JsonAlterViewStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -2424,4 +2482,94 @@ export const prepareAlterCompositePrimaryKeyMySql = (
 			].name,
 		} as JsonAlterCompositePK;
 	});
+};
+
+export const preparePgCreateViewJson = (
+	name: string,
+	schema: string,
+	definition: string,
+	withClause?: string,
+): JsonCreateViewStatement => {
+	const unsquashedWith = withClause ? PgSquasher.unsquashViewWith(withClause) : undefined;
+	return {
+		type: 'create_view',
+		name,
+		schema,
+		definition,
+		with: unsquashedWith,
+	};
+};
+
+export const preparePgDropViewJson = (
+	name: string,
+	schema: string,
+): JsonDropViewStatement => {
+	return {
+		type: 'drop_view',
+		name,
+		schema,
+	};
+};
+
+export const preparePgRenameViewJson = (
+	to: string,
+	from: string,
+	schema: string,
+): JsonRenameViewStatement => {
+	return {
+		type: 'rename_view',
+		nameTo: to,
+		nameFrom: from,
+		schema,
+	};
+};
+
+export const preparePgAlterViewAlterSchemaJson = (
+	to: string,
+	from: string,
+	name: string,
+): JsonAlterViewAlterSchemaStatement => {
+	return {
+		type: 'alter_view_alter_schema',
+		fromSchema: from,
+		toSchema: to,
+		name,
+	};
+};
+
+export const preparePgAlterViewAddWithOptionJson = (
+	name: string,
+	schema: string,
+	withOption: string,
+): JsonAlterViewAddWithOptionStatement => {
+	return {
+		type: 'alter_view_add_with_option',
+		name,
+		schema,
+		with: PgSquasher.unsquashViewWith(withOption),
+	};
+};
+
+export const preparePgAlterViewAlterWithOptionJson = (
+	name: string,
+	schema: string,
+	withOption: string,
+): JsonAlterViewAlterWithOptionStatement => {
+	return {
+		type: 'alter_view_alter_with_option',
+		name,
+		schema,
+		with: PgSquasher.unsquashViewWith(withOption),
+	};
+};
+
+export const preparePgAlterViewDropWithOptionJson = (
+	name: string,
+	schema: string,
+): JsonAlterViewDropWithOptionStatement => {
+	return {
+		type: 'alter_view_drop_with_option',
+		name,
+		schema,
+	};
 };

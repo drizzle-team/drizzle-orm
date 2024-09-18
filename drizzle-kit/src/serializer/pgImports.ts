@@ -1,5 +1,5 @@
 import { is } from 'drizzle-orm';
-import { AnyPgTable, isPgEnum, isPgSequence, PgEnum, PgSchema, PgSequence, PgTable } from 'drizzle-orm/pg-core';
+import { AnyPgTable, isPgEnum, isPgSequence, PgEnum, PgSchema, PgSequence, PgTable, PgView } from 'drizzle-orm/pg-core';
 import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
@@ -7,6 +7,7 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const enums: PgEnum<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
+	const views: PgView[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -22,12 +23,16 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 			schemas.push(t);
 		}
 
+		if (is(t, PgView)) {
+			views.push(t);
+		}
+
 		if (isPgSequence(t)) {
 			sequences.push(t);
 		}
 	});
 
-	return { tables, enums, schemas, sequences };
+	return { tables, enums, schemas, sequences, views };
 };
 
 export const prepareFromPgImports = async (imports: string[]) => {
@@ -35,6 +40,7 @@ export const prepareFromPgImports = async (imports: string[]) => {
 	let enums: PgEnum<any>[] = [];
 	let schemas: PgSchema[] = [];
 	let sequences: PgSequence[] = [];
+	let views: PgView[] = [];
 
 	const { unregister } = await safeRegister();
 	for (let i = 0; i < imports.length; i++) {
@@ -47,8 +53,9 @@ export const prepareFromPgImports = async (imports: string[]) => {
 		enums.push(...prepared.enums);
 		schemas.push(...prepared.schemas);
 		sequences.push(...prepared.sequences);
+		views.push(...prepared.views);
 	}
 	unregister();
 
-	return { tables: Array.from(new Set(tables)), enums, schemas, sequences };
+	return { tables: Array.from(new Set(tables)), enums, schemas, sequences, views };
 };

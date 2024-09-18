@@ -220,6 +220,32 @@ const uniqueConstraint = object({
 	nullsNotDistinct: boolean(),
 }).strict();
 
+const viewWithOption = object({
+	checkOption: enumType(['cascaded', 'local']),
+	securityBarrier: boolean(),
+	securityInvoker: boolean(),
+}).strict().optional();
+
+export const view = object({
+	name: string(),
+	schema: string(),
+	columns: record(string(), column),
+	definition: string().optional(),
+	materialized: boolean().optional(),
+	with: viewWithOption,
+	isExisting: boolean(),
+}).strict();
+
+export const viewSquashed = object({
+	name: string(),
+	schema: string(),
+	columns: record(string(), column),
+	definition: string().optional(),
+	materialized: boolean().optional(),
+	with: string().optional(),
+	isExisting: boolean(),
+});
+
 const tableV4 = object({
 	name: string(),
 	schema: string(),
@@ -368,6 +394,7 @@ export const pgSchemaInternal = object({
 	tables: record(string(), table),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
+	views: record(string(), view).default({}),
 	sequences: record(string(), sequenceSchema).default({}),
 	_meta: object({
 		schemas: record(string(), string()),
@@ -417,6 +444,7 @@ export const pgSchemaSquashed = object({
 	tables: record(string(), tableSquashed),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
+	views: record(string(), viewSquashed),
 	sequences: record(string(), sequenceSquashed),
 }).strict();
 
@@ -445,6 +473,8 @@ export type Index = TypeOf<typeof index>;
 export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
+export type View = TypeOf<typeof view>;
+export type ViewWithOption = TypeOf<typeof viewWithOption>;
 export type PgKitInternals = TypeOf<typeof kitInternals>;
 
 export type PgSchemaV1 = TypeOf<typeof pgSchemaV1>;
@@ -627,6 +657,17 @@ export const PgSquasher = {
 			cycle: splitted[7] === 'true',
 		};
 	},
+	squashViewWith: (withOption: Exclude<View['with'], undefined>): string => {
+		return `${withOption.checkOption};${withOption.securityBarrier};${withOption.securityInvoker}`;
+	},
+	unsquashViewWith: (squashed: string): Exclude<View['with'], undefined> => {
+		const [checkOption, securityBarrier, securityInvoker] = squashed.split(';');
+		return {
+			checkOption: checkOption as 'cascaded' | 'local',
+			securityBarrier: securityBarrier === 'true',
+			securityInvoker: securityInvoker === 'true',
+		};
+	},
 };
 
 export const squashPgScheme = (
@@ -699,12 +740,30 @@ export const squashPgScheme = (
 		}),
 	);
 
+	const mappedViews = Object.fromEntries(
+		Object.entries(json.views).map((it) => {
+			return [
+				it[0],
+				{
+					name: it[1].name,
+					columns: it[1].columns,
+					definition: it[1].definition,
+					isExisting: it[1].isExisting,
+					with: it[1].with ? PgSquasher.squashViewWith(it[1].with) : undefined,
+					schema: it[1].schema,
+					materialized: it[1].materialized,
+				},
+			];
+		}),
+	);
+
 	return {
 		version: '7',
 		dialect: json.dialect,
 		tables: mappedTables,
 		enums: json.enums,
 		schemas: json.schemas,
+		views: mappedViews,
 		sequences: mappedSequences,
 	};
 };

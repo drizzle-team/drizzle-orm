@@ -3,14 +3,15 @@ import { getTableName, is, SQL } from 'drizzle-orm';
 import {
 	AnyPgTable,
 	ExtraConfigColumn,
+	getViewConfig,
 	IndexedColumn,
 	PgColumn,
 	PgDialect,
 	PgEnum,
 	PgEnumColumn,
-	PgInteger,
 	PgSchema,
 	PgSequence,
+	PgView,
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
 import { getTableConfig } from 'drizzle-orm/pg-core';
@@ -29,6 +30,7 @@ import type {
 	Sequence,
 	Table,
 	UniqueConstraint,
+	View,
 } from '../serializer/pgSchema';
 import { type DB, isPgArrayType } from '../utils';
 import { sqlToStr } from '.';
@@ -117,9 +119,11 @@ export const generatePgSnapshot = (
 	enums: PgEnum<any>[],
 	schemas: PgSchema[],
 	sequences: PgSequence[],
+	views: PgView[],
 	schemaFilter?: string[],
 ): PgSchemaInternal => {
 	const result: Record<string, Table> = {};
+	const resultViews: Record<string, View> = {};
 	const sequencesToReturn: Record<string, Sequence> = {};
 
 	// This object stores unique names for indexes and will be used to detect if you have the same names for indexes
@@ -535,6 +539,175 @@ export const generatePgSnapshot = (
 		}
 	}
 
+	for (const view of views) {
+		const { name: viewName, schema, query, selectedFields, isExisting, with: viewWithOptions } = getViewConfig(view);
+
+		const columnsObject: Record<string, Column> = {};
+		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
+
+		const existingView = resultViews[viewName];
+		if (typeof existingView !== 'undefined') {
+			console.log(
+				`\n${
+					withStyle.errorWarning(
+						`We\'ve found duplicated view name across ${
+							chalk.underline.blue(
+								schema ?? 'public',
+							)
+						} schema. Please rename your view`,
+					)
+				}`,
+			);
+			process.exit(1);
+		}
+
+		for (const key in selectedFields) {
+			if (is(selectedFields[key], PgColumn)) {
+				const column = selectedFields[key];
+
+				const notNull: boolean = column.notNull;
+				const primaryKey: boolean = column.primary;
+				const sqlTypeLowered = column.getSQLType().toLowerCase();
+
+				const typeSchema = is(column, PgEnumColumn)
+					? column.enum.schema || 'public'
+					: undefined;
+				const generated = column.generated;
+				const identity = column.generatedIdentity;
+
+				const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
+				const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
+					?? (parseFloat(increment) < 0
+						? minRangeForIdentityBasedOn(column.columnType)
+						: '1');
+				const maxValue = stringFromIdentityProperty(identity?.sequenceOptions?.maxValue)
+					?? (parseFloat(increment) < 0
+						? '-1'
+						: maxRangeForIdentityBasedOn(column.getSQLType()));
+				const startWith = stringFromIdentityProperty(identity?.sequenceOptions?.startWith)
+					?? (parseFloat(increment) < 0 ? maxValue : minValue);
+				const cache = stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? '1';
+
+				const columnToSet: Column = {
+					name: column.name,
+					type: column.getSQLType(),
+					typeSchema: typeSchema,
+					primaryKey,
+					notNull,
+					generated: generated
+						? {
+							as: is(generated.as, SQL)
+								? dialect.sqlToQuery(generated.as as SQL).sql
+								: typeof generated.as === 'function'
+								? dialect.sqlToQuery(generated.as() as SQL).sql
+								: (generated.as as any),
+							type: 'stored',
+						}
+						: undefined,
+					identity: identity
+						? {
+							type: identity.type,
+							name: identity.sequenceName ?? `${viewName}_${column.name}_seq`,
+							schema: schema ?? 'public',
+							increment,
+							startWith,
+							minValue,
+							maxValue,
+							cache,
+							cycle: identity?.sequenceOptions?.cycle ?? false,
+						}
+						: undefined,
+				};
+
+				if (column.isUnique) {
+					const existingUnique = uniqueConstraintObject[column.uniqueName!];
+					if (typeof existingUnique !== 'undefined') {
+						console.log(
+							`\n${
+								withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
+									chalk.underline.blue(
+										viewName,
+									)
+								} table. 
+          The unique constraint ${
+									chalk.underline.blue(
+										column.uniqueName,
+									)
+								} on the ${
+									chalk.underline.blue(
+										column.name,
+									)
+								} column is confilcting with a unique constraint name already defined for ${
+									chalk.underline.blue(
+										existingUnique.columns.join(','),
+									)
+								} columns\n`)
+							}`,
+						);
+						process.exit(1);
+					}
+					uniqueConstraintObject[column.uniqueName!] = {
+						name: column.uniqueName!,
+						nullsNotDistinct: column.uniqueType === 'not distinct',
+						columns: [columnToSet.name],
+					};
+				}
+
+				if (column.default !== undefined) {
+					if (is(column.default, SQL)) {
+						columnToSet.default = sqlToStr(column.default);
+					} else {
+						if (typeof column.default === 'string') {
+							columnToSet.default = `'${column.default}'`;
+						} else {
+							if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
+								columnToSet.default = `'${
+									JSON.stringify(
+										column.default,
+									)
+								}'::${sqlTypeLowered}`;
+							} else if (column.default instanceof Date) {
+								if (sqlTypeLowered === 'date') {
+									columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
+								} else if (sqlTypeLowered === 'timestamp') {
+									columnToSet.default = `'${
+										column.default
+											.toISOString()
+											.replace('T', ' ')
+											.slice(0, 23)
+									}'`;
+								} else {
+									columnToSet.default = `'${column.default.toISOString()}'`;
+								}
+							} else if (isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)) {
+								columnToSet.default = `'${
+									buildArrayString(
+										column.default,
+										sqlTypeLowered,
+									)
+								}'`;
+							} else {
+								// Should do for all types
+								// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
+								columnToSet.default = column.default;
+							}
+						}
+					}
+				}
+				columnsObject[column.name] = columnToSet;
+			}
+		}
+
+		resultViews[viewName] = {
+			columns: columnsObject,
+			definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
+			name: viewName,
+			schema: schema ?? 'public',
+			isExisting,
+			with: viewWithOptions,
+		};
+	}
+
 	const enumsToReturn: Record<string, Enum> = enums.reduce<{
 		[key: string]: Enum;
 	}>((map, obj) => {
@@ -569,6 +742,7 @@ export const generatePgSnapshot = (
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
+		views: resultViews,
 		_meta: {
 			schemas: {},
 			tables: {},
@@ -1212,6 +1386,7 @@ export const fromDatabase = async (
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
+		views: {},
 		_meta: {
 			schemas: {},
 			tables: {},
