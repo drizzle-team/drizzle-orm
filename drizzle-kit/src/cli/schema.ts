@@ -1,11 +1,20 @@
+import { boolean, command, number, string } from '@drizzle-team/brocli';
 import chalk from 'chalk';
-import { checkHandler } from './commands/check';
-import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
+import 'dotenv/config';
+import { mkdirSync } from 'fs';
+import { renderWithTask } from 'hanji';
+import { dialects } from 'src/schemaValidator';
 import '../@types/utils';
+import { assertUnreachable } from '../global';
+import { drizzleForLibSQL, drizzleForSingleStore, prepareSingleStoreSchema, type Setup } from '../serializer/studio';
 import { assertV1OutFolder } from '../utils';
+import { certs } from '../utils/certs';
+import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
+import { prepareAndMigrateSingleStore } from './commands/migrate';
 import { upMysqlHandler } from './commands/mysqlUp';
 import { upPgHandler } from './commands/pgUp';
+import { upSinglestoreHandler } from './commands/singlestoreUp';
 import { upSqliteHandler } from './commands/sqliteUp';
 import {
 	prepareCheckParams,
@@ -16,17 +25,9 @@ import {
 	preparePushConfig,
 	prepareStudioConfig,
 } from './commands/utils';
+import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
-import 'dotenv/config';
-import { boolean, command, number, string } from '@drizzle-team/brocli';
-import { mkdirSync } from 'fs';
-import { renderWithTask } from 'hanji';
-import { dialects } from 'src/schemaValidator';
-import { assertUnreachable } from '../global';
-import { drizzleForLibSQL, drizzleForSingleStore, prepareSingleStoreSchema, type Setup } from '../serializer/studio';
-import { certs } from '../utils/certs';
-import { prepareAndMigrateSingleStore } from './commands/migrate';
 import { grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
@@ -405,6 +406,10 @@ export const up = command({
 
 		if (dialect === 'mysql') {
 			upMysqlHandler(out);
+		}
+
+		if (dialect === 'singlestore') {
+			upSinglestoreHandler(out);
 		}
 
 		if (dialect === 'sqlite' || dialect === 'turso') {

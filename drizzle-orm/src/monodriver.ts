@@ -30,6 +30,7 @@ import type { NeonDatabase } from './neon-serverless/index.ts';
 import type { NodePgDatabase } from './node-postgres/index.ts';
 import type { PlanetScaleDatabase } from './planetscale-serverless/index.ts';
 import type { PostgresJsDatabase } from './postgres-js/index.ts';
+import type { SingleStore2Database, SingleStore2DrizzleConfig } from './singlestore/driver.ts';
 import type { TiDBServerlessDatabase } from './tidb-serverless/index.ts';
 import type { DrizzleConfig } from './utils.ts';
 import type { VercelPgDatabase } from './vercel-postgres/index.ts';
@@ -98,7 +99,8 @@ type DatabaseClient =
 	| 'libsql'
 	| 'd1'
 	| 'bun:sqlite'
-	| 'better-sqlite3';
+	| 'better-sqlite3'
+	| 'singlestore';
 
 type ClientDrizzleInstanceMap<TSchema extends Record<string, any>> = {
 	'node-postgres': NodePgDatabase<TSchema>;
@@ -114,6 +116,7 @@ type ClientDrizzleInstanceMap<TSchema extends Record<string, any>> = {
 	d1: DrizzleD1Database<TSchema>;
 	'bun:sqlite': BunSQLiteDatabase<TSchema>;
 	'better-sqlite3': DrizzleBetterSQLite3Database<TSchema>;
+	singlestore: SingleStore2Database<TSchema>;
 };
 
 type ClientInstanceMap = {
@@ -135,6 +138,7 @@ type ClientInstanceMap = {
 	d1: D1Database;
 	'bun:sqlite': BunDatabase;
 	'better-sqlite3': BetterSQLite3Database;
+	singlestore: SingleStore2Database;
 };
 
 type InitializerParams = {
@@ -176,6 +180,10 @@ type InitializerParams = {
 	};
 	'better-sqlite3': {
 		connection?: BetterSQLite3DatabaseConfig;
+	};
+	singlestore: {
+		// This Mysql2Config is from the node package 'mysql2' and not the one from Drizzle
+		connection: Mysql2Config;
 	};
 };
 
@@ -378,6 +386,16 @@ export async function drizzle<
 
 			const db = drizzle(sql, drizzleConfig) as any;
 			db.$client = sql;
+
+			return db;
+		}
+		case 'singlestore': {
+			const { createPool } = await import('mysql2/promise').catch(() => importError('mysql2/promise'));
+			const instance = createPool(connection as Mysql2Config);
+			const { drizzle } = await import('./mysql2');
+
+			const db = drizzle(instance, drizzleConfig as SingleStore2DrizzleConfig) as any;
+			db.$client = instance;
 
 			return db;
 		}

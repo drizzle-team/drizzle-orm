@@ -334,7 +334,7 @@ export const preparePushConfig = async (
 	if (config.dialect === 'singlestore') {
 		const parsed = singlestoreCredentials.safeParse(config);
 		if (!parsed.success) {
-			printIssuesPg(config);
+			printIssuesSingleStore(config);
 			process.exit(1);
 		}
 
@@ -508,7 +508,7 @@ export const preparePullConfig = async (
 	if (dialect === 'singlestore') {
 		const parsed = singlestoreCredentials.safeParse(config);
 		if (!parsed.success) {
-			printIssuesPg(config);
+			printIssuesSingleStore(config);
 			process.exit(1);
 		}
 
@@ -617,7 +617,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	if (dialect === 'singlestore') {
 		const parsed = singlestoreCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesPg(flattened as Record<string, unknown>);
+			printIssuesSingleStore(flattened as Record<string, unknown>);
 			process.exit(1);
 		}
 		const credentials = parsed.data;
