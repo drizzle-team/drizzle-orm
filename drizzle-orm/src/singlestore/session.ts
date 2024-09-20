@@ -31,6 +31,7 @@ import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
+// must keep this type here for compatibility with DrizzleConfig
 export type Mode = 'default';
 
 export type SingleStoreDriverClient = Pool | Connection;

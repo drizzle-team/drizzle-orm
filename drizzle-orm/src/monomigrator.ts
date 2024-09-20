@@ -12,7 +12,7 @@ import type { NeonDatabase } from './neon-serverless/index.ts';
 import type { NodePgDatabase } from './node-postgres/index.ts';
 import type { PlanetScaleDatabase } from './planetscale-serverless/index.ts';
 import type { PostgresJsDatabase } from './postgres-js/index.ts';
-import type { SingleStore2Database } from './singlestore/driver.ts';
+import type { SingleStoreDriverDatabase } from './singlestore/driver.ts';
 import type { TiDBServerlessDatabase } from './tidb-serverless/index.ts';
 import type { VercelPgDatabase } from './vercel-postgres/index.ts';
 
@@ -31,7 +31,7 @@ export async function migrate(
 		| PostgresJsDatabase<any>
 		| VercelPgDatabase<any>
 		| TiDBServerlessDatabase<any>
-		| SingleStore2Database<any>,
+		| SingleStoreDriverDatabase<any>,
 	config:
 		| string
 		| MigrationConfig,
@@ -105,7 +105,7 @@ export async function migrate(
 		case 'SingleStore2Database': {
 			const { migrate } = await import('./singlestore/migrator');
 
-			return migrate(db as SingleStore2Database, config as MigrationConfig);
+			return migrate(db as SingleStoreDriverDatabase, config as MigrationConfig);
 		}
 	}
 }

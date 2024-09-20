@@ -220,9 +220,8 @@ export async function drizzle<
 			: TClient extends 'neon-serverless' ? DrizzleConfig<TSchema> & {
 					ws?: any;
 				}
-			: 
-			TClient extends 'singlestore' ? SingleStoreDriverDrizzleConfig<TSchema> :
-			DrizzleConfig<TSchema>),
+			: TClient extends 'singlestore' ? SingleStoreDriverDrizzleConfig<TSchema>
+			: DrizzleConfig<TSchema>),
 ): Promise<DetermineClient<TClient, TSchema>> {
 	const { connection, ws, ...drizzleConfig } = params as typeof params & {
 		ws?: any;

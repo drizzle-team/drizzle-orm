@@ -12,6 +12,7 @@ import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import type {
+	Mode,
 	SingleStoreDriverClient,
 	SingleStoreDriverPreparedQueryHKT,
 	SingleStoreDriverQueryResultHKT,
@@ -44,7 +45,6 @@ export { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 export type SingleStoreDriverDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > = SingleStoreDatabase<SingleStoreDriverQueryResultHKT, SingleStoreDriverPreparedQueryHKT, TSchema>;
-
 
 export type SingleStoreDriverDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
 	& Omit<DrizzleConfig<TSchema>, 'schema'>
