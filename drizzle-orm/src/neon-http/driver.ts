@@ -64,7 +64,7 @@ export function drizzle<
 ): NeonHttpDatabase<TSchema> & {
 	$client: TClient;
 } {
-	const dialect = new PgDialect();
+	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

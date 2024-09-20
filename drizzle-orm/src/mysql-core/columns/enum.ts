@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import type { Writable } from '~/utils.ts';
+import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> =
@@ -49,13 +49,22 @@ export class MySqlEnumColumn<T extends ColumnBaseConfig<'string', 'MySqlEnumColu
 	}
 }
 
+export function mysqlEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
+	values: T | Writable<T>,
+): MySqlEnumColumnBuilderInitial<'', Writable<T>>;
 export function mysqlEnum<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
 	values: T | Writable<T>,
-): MySqlEnumColumnBuilderInitial<TName, Writable<T>> {
+): MySqlEnumColumnBuilderInitial<TName, Writable<T>>;
+export function mysqlEnum(
+	a?: string | readonly [string, ...string[]] | [string, ...string[]],
+	b?: readonly [string, ...string[]] | [string, ...string[]],
+): any {
+	const { name, config: values } = getColumnNameAndConfig<readonly [string, ...string[]] | [string, ...string[]]>(a, b);
+
 	if (values.length === 0) {
 		throw new Error(`You have an empty array for "${name}" enum values`);
 	}
 
-	return new MySqlEnumColumnBuilder(name, values);
+	return new MySqlEnumColumnBuilder(name, values as any);
 }

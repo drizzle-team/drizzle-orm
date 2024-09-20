@@ -30,7 +30,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 ): TiDBServerlessDatabase<TSchema> & {
 	$client: Connection;
 } {
-	const dialect = new MySqlDialect();
+	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
