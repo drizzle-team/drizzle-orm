@@ -98,7 +98,7 @@ const users = singlestoreTable(
 }
 
 {
-	const db = drizzle({} as any, { schema: { users }, mode: 'default' });
+	const db = drizzle({} as any, { schema: { users } });
 
 	const dbUser = await db.query.users.findFirst();
 
@@ -118,7 +118,7 @@ const users = singlestoreTable(
 }
 
 {
-	const db = drizzle({} as any, { schema: { users }, mode: 'default' });
+	const db = drizzle({} as any, { schema: { users } });
 
 	const dbUser = await db.query.users.findMany();
 

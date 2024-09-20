@@ -1,15 +1,7 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import { eq } from '~/expressions.ts';
-import {
-	except,
-	exceptAll,
-	intersect,
-	intersectAll,
-	type SingleStoreSetOperator,
-	union,
-	unionAll,
-} from '~/singlestore-core/index.ts';
-import { desc, sql } from '~/sql/index.ts';
+import { except, intersect, type SingleStoreSetOperator, union, unionAll } from '~/singlestore-core/index.ts';
+import { sql } from '~/sql/index.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
 
@@ -51,18 +43,6 @@ const intersectTest = await db
 
 Expect<Equal<{ id: number; homeCity: number }[], typeof intersectTest>>;
 
-const intersectAllTest = await db
-	.select({ id: users.id, homeCity: users.class })
-	.from(users)
-	.intersect(
-		db
-			.select({ id: users.id, homeCity: users.class })
-			.from(users)
-			.leftJoin(cities, eq(users.id, cities.id)),
-	);
-
-Expect<Equal<{ id: number; homeCity: 'A' | 'C' }[], typeof intersectAllTest>>;
-
 const exceptTest = await db
 	.select({ id: users.id, homeCity: users.homeCity })
 	.from(users)
@@ -73,17 +53,6 @@ const exceptTest = await db
 	);
 
 Expect<Equal<{ id: number; homeCity: number }[], typeof exceptTest>>;
-
-const exceptAllTest = await db
-	.select({ id: users.id, homeCity: users.class })
-	.from(users)
-	.except(
-		db
-			.select({ id: users.id, homeCity: sql<'A' | 'C'>`${users.class}` })
-			.from(users),
-	);
-
-Expect<Equal<{ id: number; homeCity: 'A' | 'C' }[], typeof exceptAllTest>>;
 
 const union2Test = await union(db.select().from(cities), db.select().from(cities), db.select().from(cities));
 
@@ -120,24 +89,6 @@ const intersect2Test = await intersect(
 
 Expect<Equal<{ id: number; name: string; population: number | null }[], typeof intersect2Test>>;
 
-const intersectAll2Test = await intersectAll(
-	union(
-		db.select({
-			id: cities.id,
-		}).from(cities),
-		db.select({
-			id: cities.id,
-		})
-			.from(cities).where(sql``),
-	),
-	db.select({
-		id: cities.id,
-	})
-		.from(cities),
-).orderBy(desc(cities.id)).limit(23);
-
-Expect<Equal<{ id: number }[], typeof intersectAll2Test>>;
-
 const except2Test = await except(
 	db.select({
 		userId: newYorkers.userId,
@@ -149,20 +100,6 @@ const except2Test = await except(
 );
 
 Expect<Equal<{ userId: number }[], typeof except2Test>>;
-
-const exceptAll2Test = await exceptAll(
-	db.select({
-		userId: newYorkers.userId,
-		cityId: newYorkers.cityId,
-	})
-		.from(newYorkers).where(sql``),
-	db.select({
-		userId: newYorkers.userId,
-		cityId: newYorkers.cityId,
-	}).from(newYorkers).leftJoin(users, sql``),
-);
-
-Expect<Equal<{ userId: number; cityId: number | null }[], typeof exceptAll2Test>>;
 
 const unionfull = await union(db.select().from(users), db.select().from(users)).orderBy(sql``).limit(1).offset(2);
 

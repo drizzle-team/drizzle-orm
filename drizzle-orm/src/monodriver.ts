@@ -30,7 +30,7 @@ import type { NeonDatabase } from './neon-serverless/index.ts';
 import type { NodePgDatabase } from './node-postgres/index.ts';
 import type { PlanetScaleDatabase } from './planetscale-serverless/index.ts';
 import type { PostgresJsDatabase } from './postgres-js/index.ts';
-import type { SingleStore2Database, SingleStore2DrizzleConfig } from './singlestore/driver.ts';
+import type { SingleStoreDriverDatabase, SingleStoreDriverDrizzleConfig } from './singlestore/driver.ts';
 import type { TiDBServerlessDatabase } from './tidb-serverless/index.ts';
 import type { DrizzleConfig } from './utils.ts';
 import type { VercelPgDatabase } from './vercel-postgres/index.ts';
@@ -116,7 +116,7 @@ type ClientDrizzleInstanceMap<TSchema extends Record<string, any>> = {
 	d1: DrizzleD1Database<TSchema>;
 	'bun:sqlite': BunSQLiteDatabase<TSchema>;
 	'better-sqlite3': DrizzleBetterSQLite3Database<TSchema>;
-	singlestore: SingleStore2Database<TSchema>;
+	singlestore: SingleStoreDriverDatabase<TSchema>;
 };
 
 type ClientInstanceMap = {
@@ -138,7 +138,7 @@ type ClientInstanceMap = {
 	d1: D1Database;
 	'bun:sqlite': BunDatabase;
 	'better-sqlite3': BetterSQLite3Database;
-	singlestore: SingleStore2Database;
+	singlestore: SingleStoreDriverDatabase;
 };
 
 type InitializerParams = {
@@ -220,7 +220,9 @@ export async function drizzle<
 			: TClient extends 'neon-serverless' ? DrizzleConfig<TSchema> & {
 					ws?: any;
 				}
-			: DrizzleConfig<TSchema>),
+			: 
+			TClient extends 'singlestore' ? SingleStoreDriverDrizzleConfig<TSchema> :
+			DrizzleConfig<TSchema>),
 ): Promise<DetermineClient<TClient, TSchema>> {
 	const { connection, ws, ...drizzleConfig } = params as typeof params & {
 		ws?: any;
@@ -394,7 +396,7 @@ export async function drizzle<
 			const instance = createPool(connection as Mysql2Config);
 			const { drizzle } = await import('./mysql2');
 
-			const db = drizzle(instance, drizzleConfig as SingleStore2DrizzleConfig) as any;
+			const db = drizzle(instance, drizzleConfig as SingleStoreDriverDrizzleConfig) as any;
 			db.$client = instance;
 
 			return db;

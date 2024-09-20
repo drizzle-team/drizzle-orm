@@ -18,7 +18,6 @@ import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
 import {
-	type Mode,
 	type PreparedQueryKind,
 	SingleStorePreparedQuery,
 	type SingleStorePreparedQueryConfig,
@@ -32,7 +31,9 @@ import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export type SingleStore2Client = Pool | Connection;
+export type Mode = 'default';
+
+export type SingleStoreDriverClient = Pool | Connection;
 
 export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
 export type SingleStoreQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
@@ -40,14 +41,16 @@ export type SingleStoreQueryResult<
 	T = any,
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
-export class SingleStore2PreparedQuery<T extends SingleStorePreparedQueryConfig> extends SingleStorePreparedQuery<T> {
-	static readonly [entityKind]: string = 'SingleStore2PreparedQuery';
+export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryConfig>
+	extends SingleStorePreparedQuery<T>
+{
+	static readonly [entityKind]: string = 'SingleStoreDriverPreparedQuery';
 
 	private rawQuery: QueryOptions;
 	private query: QueryOptions;
 
 	constructor(
-		private client: SingleStore2Client,
+		private client: SingleStoreDriverClient,
 		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
@@ -181,29 +184,26 @@ export class SingleStore2PreparedQuery<T extends SingleStorePreparedQueryConfig>
 	}
 }
 
-export interface SingleStore2SessionOptions {
+export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
-	mode: Mode;
 }
 
-export class SingleStore2Session<
+export class SingleStoreDriverSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SingleStoreSession<SingleStoreQueryResultHKT, SingleStore2PreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SingleStore2Session';
+> extends SingleStoreSession<SingleStoreQueryResultHKT, SingleStoreDriverPreparedQueryHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SingleStoreDriverSession';
 
 	private logger: Logger;
-	private mode: Mode;
 
 	constructor(
-		private client: SingleStore2Client,
+		private client: SingleStoreDriverClient,
 		dialect: SingleStoreDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
-		private options: SingleStore2SessionOptions,
+		private options: SingleStoreDriverSessionOptions,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.mode = options.mode;
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
@@ -212,10 +212,10 @@ export class SingleStore2Session<
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
-	): PreparedQueryKind<SingleStore2PreparedQueryHKT, T> {
+	): PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T> {
 		// Add returningId fields
 		// Each driver gets them from response from database
-		return new SingleStore2PreparedQuery(
+		return new SingleStoreDriverPreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
@@ -224,7 +224,7 @@ export class SingleStore2Session<
 			customResultMapper,
 			generatedIds,
 			returningIds,
-		) as PreparedQueryKind<SingleStore2PreparedQueryHKT, T>;
+		) as PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T>;
 	}
 
 	/**
@@ -254,29 +254,24 @@ export class SingleStore2Session<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: SingleStore2Transaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: SingleStoreTransactionConfig,
 	): Promise<T> {
 		const session = isPool(this.client)
-			? new SingleStore2Session(
+			? new SingleStoreDriverSession(
 				await this.client.getConnection(),
 				this.dialect,
 				this.schema,
 				this.options,
 			)
 			: this;
-		const tx = new SingleStore2Transaction<TFullSchema, TSchema>(
+		const tx = new SingleStoreDriverTransaction<TFullSchema, TSchema>(
 			this.dialect,
 			session as SingleStoreSession<any, any, any, any>,
 			this.schema,
 			0,
-			this.mode,
 		);
 		if (config) {
-			const setTransactionConfigSql = this.getSetTransactionSQL(config);
-			if (setTransactionConfigSql) {
-				await tx.execute(setTransactionConfigSql);
-			}
 			const startTransactionSql = this.getStartTransactionSQL(config);
 			await (startTransactionSql ? tx.execute(startTransactionSql) : tx.execute(sql`begin`));
 		} else {
@@ -297,22 +292,26 @@ export class SingleStore2Session<
 	}
 }
 
-export class SingleStore2Transaction<
+export class SingleStoreDriverTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SingleStoreTransaction<SingleStore2QueryResultHKT, SingleStore2PreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SingleStore2Transaction';
+> extends SingleStoreTransaction<
+	SingleStoreDriverQueryResultHKT,
+	SingleStoreDriverPreparedQueryHKT,
+	TFullSchema,
+	TSchema
+> {
+	static readonly [entityKind]: string = 'SingleStoreDriverTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: SingleStore2Transaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new SingleStore2Transaction<TFullSchema, TSchema>(
+		const tx = new SingleStoreDriverTransaction<TFullSchema, TSchema>(
 			this.dialect,
 			this.session,
 			this.schema,
 			this.nestedIndex + 1,
-			this.mode,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
@@ -326,14 +325,14 @@ export class SingleStore2Transaction<
 	}
 }
 
-function isPool(client: SingleStore2Client): client is Pool {
+function isPool(client: SingleStoreDriverClient): client is Pool {
 	return 'getConnection' in client;
 }
 
-export interface SingleStore2QueryResultHKT extends SingleStoreQueryResultHKT {
+export interface SingleStoreDriverQueryResultHKT extends SingleStoreQueryResultHKT {
 	type: SingleStoreRawQueryResult;
 }
 
-export interface SingleStore2PreparedQueryHKT extends SingleStorePreparedQueryHKT {
-	type: SingleStore2PreparedQuery<Assume<this['config'], SingleStorePreparedQueryConfig>>;
+export interface SingleStoreDriverPreparedQueryHKT extends SingleStorePreparedQueryHKT {
+	type: SingleStoreDriverPreparedQuery<Assume<this['config'], SingleStorePreparedQueryConfig>>;
 }

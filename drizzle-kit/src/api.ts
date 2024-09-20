@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { PgDatabase } from 'drizzle-orm/pg-core';
-import { SingleStore2Database } from 'drizzle-orm/singlestore';
+import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import {
 	columnsResolver,
 	enumsResolver,
@@ -394,7 +394,7 @@ export const generateSingleStoreMigration = async (
 
 export const pushSingleStoreSchema = async (
 	imports: Record<string, unknown>,
-	drizzleInstance: SingleStore2Database<any>,
+	drizzleInstance: SingleStoreDriverDatabase<any>,
 	databaseName: string,
 ) => {
 	const { applySingleStoreSnapshotsDiff } = await import('./snapshotsDiffer');

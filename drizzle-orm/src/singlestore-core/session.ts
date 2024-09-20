@@ -7,8 +7,6 @@ import { SingleStoreDatabase } from './db.ts';
 import type { SingleStoreDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
-export type Mode = 'default' | 'planetscale';
-
 export interface SingleStoreQueryResultHKT {
 	readonly $brand: 'SingleStoreQueryResultHKT';
 	readonly row: unknown;
@@ -53,10 +51,10 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 	abstract iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']>;
 }
 
+// In SingleStore, there is no need to explicitly set the isolation level, since READ COMMITTED is the only isolation level supported and is set by default for all transactions
 export interface SingleStoreTransactionConfig {
 	withConsistentSnapshot?: boolean;
 	accessMode?: 'read only' | 'read write';
-	isolationLevel: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
 }
 
 export abstract class SingleStoreSession<
@@ -94,16 +92,6 @@ export abstract class SingleStoreSession<
 		config?: SingleStoreTransactionConfig,
 	): Promise<T>;
 
-	protected getSetTransactionSQL(config: SingleStoreTransactionConfig): SQL | undefined {
-		const parts: string[] = [];
-
-		if (config.isolationLevel) {
-			parts.push(`isolation level ${config.isolationLevel}`);
-		}
-
-		return parts.length ? sql.join(['set transaction ', parts.join(' ')]) : undefined;
-	}
-
 	protected getStartTransactionSQL(config: SingleStoreTransactionConfig): SQL | undefined {
 		const parts: string[] = [];
 
@@ -132,9 +120,8 @@ export abstract class SingleStoreTransaction<
 		session: SingleStoreSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
-		mode: Mode,
 	) {
-		super(dialect, session, schema, mode);
+		super(dialect, session, schema);
 	}
 
 	rollback(): never {

@@ -24,7 +24,6 @@ import type { OptimizeTableArgument } from './query-builders/optimizeTable.types
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
-	Mode,
 	PreparedQueryHKTBase,
 	SingleStoreQueryResultHKT,
 	SingleStoreQueryResultKind,
@@ -61,7 +60,6 @@ export class SingleStoreDatabase<
 		/** @internal */
 		readonly session: SingleStoreSession<any, any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
-		protected readonly mode: Mode,
 	) {
 		this._ = schema
 			? {
@@ -86,7 +84,6 @@ export class SingleStoreDatabase<
 						columns,
 						dialect,
 						session,
-						this.mode,
 					);
 			}
 		}
