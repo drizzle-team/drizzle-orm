@@ -102,7 +102,7 @@ export async function migrate(
 
 			return migrate(db as VercelPgDatabase, config as string | MigrationConfig);
 		}
-		case 'SingleStore2Database': {
+		case 'SingleStoreDriverDatabase': {
 			const { migrate } = await import('./singlestore/migrator');
 
 			return migrate(db as SingleStoreDriverDatabase, config as MigrationConfig);
