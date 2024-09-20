@@ -20,6 +20,7 @@ import { MySqlSchema, mysqlSchema, squashMysqlScheme } from '../../serializer/my
 import { PgSchema, pgSchema, squashPgScheme } from '../../serializer/pgSchema';
 import { SQLiteSchema, sqliteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
 import {
+	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
 	applySingleStoreSnapshotsDiff,
@@ -395,6 +396,58 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 	}
 };
 
+// Not needed for now
+function mySingleStoreSchemaSuggestions(
+	curSchema: TypeOf<typeof singlestoreSchema>,
+	prevSchema: TypeOf<typeof singlestoreSchema>,
+) {
+	const suggestions: string[] = [];
+	const usedSuggestions: string[] = [];
+	const suggestionTypes = {
+		// TODO: Check if SingleStore has serial type
+		serial: withStyle.errorWarning(
+			`We deprecated the use of 'serial' for SingleStore starting from version 0.20.0. In SingleStore, 'serial' is simply an alias for 'bigint unsigned not null auto_increment unique,' which creates all constraints and indexes for you. This may make the process less explicit for both users and drizzle-kit push commands`,
+		),
+	};
+
+	for (const table of Object.values(curSchema.tables)) {
+		for (const column of Object.values(table.columns)) {
+			if (column.type === 'serial') {
+				if (!usedSuggestions.includes('serial')) {
+					suggestions.push(suggestionTypes['serial']);
+				}
+
+				const uniqueForSerial = Object.values(
+					prevSchema.tables[table.name].uniqueConstraints,
+				).find((it) => it.columns[0] === column.name);
+
+				suggestions.push(
+					`\n`
+						+ withStyle.suggestion(
+							`We are suggesting to change ${
+								chalk.blue(
+									column.name,
+								)
+							} column in ${
+								chalk.blueBright(
+									table.name,
+								)
+							} table from serial to bigint unsigned\n\n${
+								chalk.blueBright(
+									`bigint("${column.name}", { mode: "number", unsigned: true }).notNull().autoincrement().unique(${
+										uniqueForSerial?.name ? `"${uniqueForSerial?.name}"` : ''
+									})`,
+								)
+							}`,
+						),
+				);
+			}
+		}
+	}
+
+	return suggestions;
+}
+
 // Intersect with prepareAnMigrate
 export const prepareSingleStorePush = async (
 	schemaPath: string | string[],
@@ -546,6 +599,65 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	}
 };
 
+export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
+	const outFolder = config.out;
+	const schemaPath = config.schema;
+
+	try {
+		assertV1OutFolder(outFolder);
+
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite');
+		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
+			snapshots,
+			schemaPath,
+		);
+
+		const validatedPrev = sqliteSchema.parse(prev);
+		const validatedCur = sqliteSchema.parse(cur);
+
+		if (config.custom) {
+			writeResult({
+				cur: custom,
+				sqlStatements: [],
+				journal,
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				bundle: config.bundle,
+				type: 'custom',
+				prefixMode: config.prefix,
+			});
+			return;
+		}
+
+		const squashedPrev = squashSqliteScheme(validatedPrev);
+		const squashedCur = squashSqliteScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		writeResult({
+			cur,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			bundle: config.bundle,
+			prefixMode: config.prefix,
+		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
 export const prepareSQLitePush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
@@ -559,6 +671,37 @@ export const prepareSQLitePush = async (
 	const squashedCur = squashSqliteScheme(validatedCur, 'push');
 
 	const { sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
+
+	return {
+		sqlStatements,
+		statements,
+		squashedPrev,
+		squashedCur,
+		meta: _meta,
+	};
+};
+
+export const prepareLibSQLPush = async (
+	schemaPath: string | string[],
+	snapshot: SQLiteSchema,
+) => {
+	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath);
+
+	const validatedPrev = sqliteSchema.parse(prev);
+	const validatedCur = sqliteSchema.parse(cur);
+
+	const squashedPrev = squashSqliteScheme(validatedPrev, 'push');
+	const squashedCur = squashSqliteScheme(validatedCur, 'push');
+
+	const { sqlStatements, statements, _meta } = await applyLibSQLSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
 		tablesResolver,

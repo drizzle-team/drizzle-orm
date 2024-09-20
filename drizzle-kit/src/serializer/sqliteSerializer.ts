@@ -363,7 +363,6 @@ export const fromDatabase = async (
 	) => void,
 ): Promise<SQLiteSchemaInternal> => {
 	const result: Record<string, Table> = {};
-
 	const columns = await db.query<{
 		tableName: string;
 		columnName: string;

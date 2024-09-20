@@ -3,10 +3,11 @@ import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { MySqlDialect } from './dialect.ts';
+import { MySqlCountBuilder } from './query-builders/count.ts';
 import {
 	MySqlDeleteBase,
 	MySqlInsertBuilder,
@@ -27,6 +28,7 @@ import type {
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { MySqlTable } from './table.ts';
+import type { MySqlViewBase } from './view-base.ts';
 
 export class MySqlDatabase<
 	TQueryResult extends MySqlQueryResultHKT,
@@ -132,6 +134,13 @@ export class MySqlDatabase<
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
+	}
+
+	$count(
+		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
+		filters?: SQL<unknown>,
+	) {
+		return new MySqlCountBuilder({ source, filters, session: this.session });
 	}
 
 	/**

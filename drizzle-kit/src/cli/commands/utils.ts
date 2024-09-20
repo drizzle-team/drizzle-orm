@@ -17,6 +17,11 @@ import {
 	wrapParam,
 } from '../validations/common';
 import {
+	LibSQLCredentials,
+	libSQLCredentials,
+	printConfigConnectionIssues as printIssuesLibSql,
+} from '../validations/libsql';
+import {
 	MysqlCredentials,
 	mysqlCredentials,
 	printConfigConnectionIssues as printIssuesMysql,
@@ -217,6 +222,14 @@ export const preparePushConfig = async (
 			credentials: SqliteCredentials;
 		}
 		| {
+			dialect: 'turso';
+			credentials: LibSQLCredentials;
+		}
+		| {
+			dialect: 'singlestore';
+			credentials: SingleStoreCredentials;
+		}
+		| {
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
 		}
@@ -321,7 +334,7 @@ export const preparePushConfig = async (
 	if (config.dialect === 'singlestore') {
 		const parsed = singlestoreCredentials.safeParse(config);
 		if (!parsed.success) {
-			printIssuesPg(config);
+			printIssuesSingleStore(config);
 			process.exit(1);
 		}
 
@@ -355,6 +368,24 @@ export const preparePushConfig = async (
 		};
 	}
 
+	if (config.dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesSqlite(config, 'pull');
+			process.exit(1);
+		}
+		return {
+			dialect: 'turso',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+		};
+	}
+
 	assertUnreachable(config.dialect);
 };
 
@@ -374,6 +405,14 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'sqlite';
 			credentials: SqliteCredentials;
+		}
+		| {
+			dialect: 'singlestore';
+			credentials: SingleStoreCredentials;
+		}
+		| {
+			dialect: 'turso';
+			credentials: LibSQLCredentials;
 		}
 		| {
 			dialect: 'singlestore';
@@ -469,7 +508,7 @@ export const preparePullConfig = async (
 	if (dialect === 'singlestore') {
 		const parsed = singlestoreCredentials.safeParse(config);
 		if (!parsed.success) {
-			printIssuesPg(config);
+			printIssuesSingleStore(config);
 			process.exit(1);
 		}
 
@@ -477,11 +516,11 @@ export const preparePullConfig = async (
 			dialect: 'singlestore',
 			out: config.out,
 			breakpoints: config.breakpoints,
-			casing: config.introspectCasing,
+			casing: config.casing,
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.database?.prefix || 'index',
+			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 
@@ -493,6 +532,24 @@ export const preparePullConfig = async (
 		}
 		return {
 			dialect: 'sqlite',
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+		};
+	}
+
+	if (dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesLibSql(config, 'pull');
+			process.exit(1);
+		}
+		return {
+			dialect,
 			out: config.out,
 			breakpoints: config.breakpoints,
 			casing: config.casing,
@@ -560,7 +617,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	if (dialect === 'singlestore') {
 		const parsed = singlestoreCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesPg(flattened as Record<string, unknown>);
+			printIssuesSingleStore(flattened as Record<string, unknown>);
 			process.exit(1);
 		}
 		const credentials = parsed.data;
@@ -577,6 +634,22 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		const parsed = sqliteCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printIssuesSqlite(flattened as Record<string, unknown>, 'studio');
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+		};
+	}
+
+	if (dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesLibSql(flattened as Record<string, unknown>, 'studio');
 			process.exit(1);
 		}
 		const credentials = parsed.data;
@@ -663,6 +736,21 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 		const parsed = sqliteCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printIssuesSqlite(flattened as Record<string, unknown>, 'migrate');
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
+	if (dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesLibSql(flattened as Record<string, unknown>, 'migrate');
 			process.exit(1);
 		}
 		const credentials = parsed.data;
