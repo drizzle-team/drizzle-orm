@@ -1,6 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
 import type { SQL, SQLWrapper } from '~/index.ts';
-import { Param, sql, Table } from '~/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -14,6 +13,8 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { Param, sql } from '~/sql/sql.ts';
+import { Table } from '~/table.ts';
 import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
@@ -40,7 +41,7 @@ export class AwsDataApiPgDatabase<
 
 	override execute<
 		TRow extends Record<string, unknown> = Record<string, unknown>,
-	>(query: SQLWrapper): PgRaw<AwsDataApiPgQueryResult<TRow>> {
+	>(query: SQLWrapper | string): PgRaw<AwsDataApiPgQueryResult<TRow>> {
 		return super.execute(query);
 	}
 }
@@ -90,8 +91,10 @@ export class AwsPgDialect extends PgDialect {
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: AwsDataApiClient,
 	config: DrizzleAwsDataApiPgConfig<TSchema>,
-): AwsDataApiPgDatabase<TSchema> {
-	const dialect = new AwsPgDialect();
+): AwsDataApiPgDatabase<TSchema> & {
+	$client: AwsDataApiClient;
+} {
+	const dialect = new AwsPgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -113,5 +116,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new AwsDataApiSession(client, dialect, schema, { ...config, logger }, undefined);
-	return new PgDatabase(dialect, session, schema) as AwsDataApiPgDatabase<TSchema>;
+	const db = new AwsDataApiPgDatabase(dialect, session, schema as any);
+	(<any> db).$client = client;
+
+	return db as any;
 }

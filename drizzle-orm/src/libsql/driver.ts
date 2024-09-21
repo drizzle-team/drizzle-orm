@@ -31,8 +31,10 @@ export class LibSQLDatabase<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
->(client: Client, config: DrizzleConfig<TSchema> = {}): LibSQLDatabase<TSchema> {
-	const dialect = new SQLiteAsyncDialect();
+>(client: Client, config: DrizzleConfig<TSchema> = {}): LibSQLDatabase<TSchema> & {
+	$client: Client;
+} {
+	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -54,5 +56,8 @@ export function drizzle<
 	}
 
 	const session = new LibSQLSession(client, dialect, schema, { logger }, undefined);
-	return new LibSQLDatabase('async', dialect, session, schema) as LibSQLDatabase<TSchema>;
+	const db = new LibSQLDatabase('async', dialect, session, schema) as LibSQLDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

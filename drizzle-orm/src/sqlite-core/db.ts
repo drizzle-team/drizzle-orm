@@ -2,7 +2,7 @@ import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import {
 	QueryBuilder,
@@ -120,12 +120,13 @@ export class BaseSQLiteDatabase<
 	 * ```
 	 */
 	$with<TAlias extends string>(alias: TAlias) {
+		const self = this;
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
-					qb = qb(new QueryBuilder());
+					qb = qb(new QueryBuilder(self.dialect));
 				}
 
 				return new Proxy(
@@ -518,60 +519,60 @@ export class BaseSQLiteDatabase<
 		return new SQLiteDeleteBase(from, this.session, this.dialect);
 	}
 
-	run(query: SQLWrapper): DBResult<TResultKind, TRunResult> {
-		const sql = query.getSQL();
+	run(query: SQLWrapper | string): DBResult<TResultKind, TRunResult> {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		if (this.resultKind === 'async') {
 			return new SQLiteRaw(
-				async () => this.session.run(sql),
-				() => sql,
+				async () => this.session.run(sequel),
+				() => sequel,
 				'run',
 				this.dialect as SQLiteAsyncDialect,
 				this.session.extractRawRunValueFromBatchResult.bind(this.session),
 			) as DBResult<TResultKind, TRunResult>;
 		}
-		return this.session.run(sql) as DBResult<TResultKind, TRunResult>;
+		return this.session.run(sequel) as DBResult<TResultKind, TRunResult>;
 	}
 
-	all<T = unknown>(query: SQLWrapper): DBResult<TResultKind, T[]> {
-		const sql = query.getSQL();
+	all<T = unknown>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		if (this.resultKind === 'async') {
 			return new SQLiteRaw(
-				async () => this.session.all(sql),
-				() => sql,
+				async () => this.session.all(sequel),
+				() => sequel,
 				'all',
 				this.dialect as SQLiteAsyncDialect,
 				this.session.extractRawAllValueFromBatchResult.bind(this.session),
 			) as any;
 		}
-		return this.session.all(sql) as DBResult<TResultKind, T[]>;
+		return this.session.all(sequel) as DBResult<TResultKind, T[]>;
 	}
 
-	get<T = unknown>(query: SQLWrapper): DBResult<TResultKind, T> {
-		const sql = query.getSQL();
+	get<T = unknown>(query: SQLWrapper | string): DBResult<TResultKind, T> {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		if (this.resultKind === 'async') {
 			return new SQLiteRaw(
-				async () => this.session.get(sql),
-				() => sql,
+				async () => this.session.get(sequel),
+				() => sequel,
 				'get',
 				this.dialect as SQLiteAsyncDialect,
 				this.session.extractRawGetValueFromBatchResult.bind(this.session),
 			) as DBResult<TResultKind, T>;
 		}
-		return this.session.get(sql) as DBResult<TResultKind, T>;
+		return this.session.get(sequel) as DBResult<TResultKind, T>;
 	}
 
-	values<T extends unknown[] = unknown[]>(query: SQLWrapper): DBResult<TResultKind, T[]> {
-		const sql = query.getSQL();
+	values<T extends unknown[] = unknown[]>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		if (this.resultKind === 'async') {
 			return new SQLiteRaw(
-				async () => this.session.values(sql),
-				() => sql,
+				async () => this.session.values(sequel),
+				() => sequel,
 				'values',
 				this.dialect as SQLiteAsyncDialect,
 				this.session.extractRawValuesValueFromBatchResult.bind(this.session),
 			) as any;
 		}
-		return this.session.values(sql) as DBResult<TResultKind, T[]>;
+		return this.session.values(sequel) as DBResult<TResultKind, T[]>;
 	}
 
 	transaction<T>(

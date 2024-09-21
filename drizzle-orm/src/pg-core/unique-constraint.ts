@@ -1,13 +1,14 @@
 import { entityKind } from '~/entity.ts';
+import { TableName } from '~/table.utils.ts';
 import type { PgColumn } from './columns/index.ts';
-import { PgTable } from './table.ts';
+import type { PgTable } from './table.ts';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);
 }
 
 export function uniqueKeyName(table: PgTable, columns: string[]) {
-	return `${table[PgTable.Symbol.Name]}_${columns.join('_')}_unique`;
+	return `${table[TableName]}_${columns.join('_')}_unique`;
 }
 
 export class UniqueConstraintBuilder {
