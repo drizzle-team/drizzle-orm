@@ -39,6 +39,8 @@ export class SQLiteReal<T extends ColumnBaseConfig<'number', 'SQLiteReal'>> exte
 	}
 }
 
-export function real<TName extends string>(name: TName): SQLiteRealBuilderInitial<TName> {
-	return new SQLiteRealBuilder(name);
+export function real(): SQLiteRealBuilderInitial<''>;
+export function real<TName extends string>(name: TName): SQLiteRealBuilderInitial<TName>;
+export function real(name?: string) {
+	return new SQLiteRealBuilder(name ?? '');
 }
