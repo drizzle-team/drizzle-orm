@@ -28,6 +28,7 @@ import {
 	schemasResolver,
 	sequencesResolver,
 	tablesResolver,
+	viewsResolver,
 	writeResult,
 } from './migrate';
 
@@ -100,6 +101,7 @@ export const introspectPostgres = async (
 			sequencesResolver,
 			tablesResolver,
 			columnsResolver,
+			viewsResolver,
 			dryPg,
 			schema,
 		);

@@ -225,3 +225,7 @@ export type KnownKeysOnly<T, U> = {
 export type IsAny<T> = 0 extends (1 & T) ? true : false;
 
 export type IfNotImported<T, Y, N> = unknown extends T ? Y : N;
+
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends any
+	? Required<Pick<T, Keys>> & Partial<Omit<T, Keys>>
+	: never;

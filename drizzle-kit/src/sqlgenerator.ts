@@ -1,5 +1,4 @@
 import { BREAKPOINT } from './cli/commands/migrate';
-import { Driver } from './cli/validations/common';
 import {
 	JsonAddColumnStatement,
 	JsonAddValueToEnumStatement,
@@ -28,7 +27,7 @@ import {
 	JsonAlterTableSetSchema,
 	JsonAlterViewAddWithOptionStatement,
 	JsonAlterViewAlterSchemaStatement,
-	JsonAlterViewAlterWithOptionStatement,
+	JsonAlterViewAlterTablespaceStatement,
 	JsonAlterViewDropWithOptionStatement,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
@@ -409,15 +408,36 @@ class PgCreateViewConvertor extends Convertor {
 	}
 
 	convert(st: JsonCreateViewStatement) {
-		const { definition, name: viewName, schema, with: withClause } = st;
+		const { definition, name: viewName, schema, with: withOption, materialized, withNoData, tablespace, using } = st;
 
 		const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
 
-		let statement = `CREATE VIEW ${name}`;
-		statement += withClause
-			? ` WITH (check_option = ${withClause.checkOption}, security_barrier = ${withClause.securityBarrier}, security_invoker = ${withClause.securityInvoker})`
-			: '';
-		statement += ` AS (${definition});`;
+		let statement = materialized ? `CREATE MATERIALIZED VIEW ${name}` : `CREATE VIEW ${name}`;
+
+		if (using) statement += ` USING "${using}"`;
+
+		const options: string[] = [];
+		if (withOption) {
+			statement += ` WITH (`;
+
+			Object.entries(withOption).forEach(([key, value]) => {
+				if (typeof value === 'undefined') return;
+
+				options.push(`${key.snake_case()} = ${value}`);
+			});
+
+			statement += options.join(', ');
+
+			statement += `)`;
+		}
+
+		if (tablespace) statement += ` TABLESPACE ${tablespace}`;
+
+		statement += ` AS (${definition})`;
+
+		if (withNoData) statement += ` WITH NO DATA`;
+
+		statement += `;`;
 
 		return statement;
 	}
@@ -429,13 +449,11 @@ class PgDropViewConvertor extends Convertor {
 	}
 
 	convert(st: JsonDropViewStatement) {
-		const { name: viewName, schema } = st;
+		const { name: viewName, schema, materialized } = st;
 
 		const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
 
-		const statement = `DROP VIEW ${name};`;
-
-		return statement;
+		return `DROP${materialized ? ' MATERIALIZED' : ''} VIEW ${name};`;
 	}
 }
 
@@ -445,14 +463,11 @@ class PgRenameViewConvertor extends Convertor {
 	}
 
 	convert(st: JsonRenameViewStatement) {
-		const { nameFrom: from, nameTo: to, schema } = st;
+		const { nameFrom: from, nameTo: to, schema, materialized } = st;
 
-		const nameFrom = schema ? `"${schema}"."${from}"` : `"${from}"`;
-		const nameTo = schema ? `"${schema}"."${to}"` : `"${to}"`;
+		const nameFrom = `"${schema}"."${from}"`;
 
-		const statement = `ALTER VIEW ${nameFrom} RENAME TO ${nameTo};`;
-
-		return statement;
+		return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO "${to}";`;
 	}
 }
 
@@ -462,24 +477,11 @@ class PgAlterViewSchemaConvertor extends Convertor {
 	}
 
 	convert(st: JsonAlterViewAlterSchemaStatement) {
-		const { fromSchema, toSchema, name } = st;
+		const { fromSchema, toSchema, name, materialized } = st;
 
-		const statement = `ALTER VIEW "${fromSchema}"."${name}" SET SCHEMA "${toSchema}";`;
-
-		return statement;
-	}
-}
-
-class PgAlterViewAlterWithOptionConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'alter_view_alter_with_option' && dialect === 'postgresql';
-	}
-
-	convert(st: JsonAlterViewAlterWithOptionStatement) {
-		const { schema, with: withOption, name } = st;
-
-		const statement =
-			`ALTER VIEW "${schema}"."${name}" SET (check_option = ${withOption.checkOption}, security_barrier = ${withOption.securityBarrier}, security_invoker = ${withOption.securityInvoker});`;
+		const statement = `ALTER${
+			materialized ? ' MATERIALIZED' : ''
+		} VIEW "${fromSchema}"."${name}" SET SCHEMA "${toSchema}";`;
 
 		return statement;
 	}
@@ -491,10 +493,19 @@ class PgAlterViewAddWithOptionConvertor extends Convertor {
 	}
 
 	convert(st: JsonAlterViewAddWithOptionStatement) {
-		const { schema, with: withOption, name } = st;
+		const { schema, with: withOption, name, materialized } = st;
 
-		const statement =
-			`ALTER VIEW "${schema}"."${name}" SET (check_option = ${withOption.checkOption}, security_barrier = ${withOption.securityBarrier}, security_invoker = ${withOption.securityInvoker});`;
+		let statement = `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW "${schema}"."${name}" SET (`;
+
+		const options: string[] = [];
+
+		Object.entries(withOption).forEach(([key, value]) => {
+			options.push(`${key.snake_case()} = ${value}`);
+		});
+
+		statement += options.join(', ');
+
+		statement += `);`;
 
 		return statement;
 	}
@@ -506,9 +517,33 @@ class PgAlterViewDropWithOptionConvertor extends Convertor {
 	}
 
 	convert(st: JsonAlterViewDropWithOptionStatement) {
-		const { schema, name } = st;
+		const { schema, name, materialized, with: withOptions } = st;
 
-		const statement = `ALTER VIEW "${schema}"."${name}" RESET (check_option, security_barrier, security_invoker);`;
+		let statement = `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW "${schema}"."${name}" RESET (`;
+
+		const options: string[] = [];
+
+		Object.entries(withOptions).forEach(([key, value]) => {
+			options.push(`${key.snake_case()}`);
+		});
+
+		statement += options.join(', ');
+
+		statement += ');';
+
+		return statement;
+	}
+}
+
+class PgAlterViewAlterTablespaceConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_alter_tablespace' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAlterTablespaceStatement) {
+		const { schema, name, toTablespace } = st;
+
+		const statement = `ALTER MATERIALIZED VIEW "${schema}"."${name}" SET TABLESPACE ${toTablespace};`;
 
 		return statement;
 	}
@@ -2608,9 +2643,9 @@ convertors.push(new PgCreateViewConvertor());
 convertors.push(new PgDropViewConvertor());
 convertors.push(new PgRenameViewConvertor());
 convertors.push(new PgAlterViewSchemaConvertor());
-convertors.push(new PgAlterViewAlterWithOptionConvertor());
 convertors.push(new PgAlterViewAddWithOptionConvertor());
 convertors.push(new PgAlterViewDropWithOptionConvertor());
+convertors.push(new PgAlterViewAlterTablespaceConvertor());
 
 convertors.push(new CreateTypeEnumConvertor());
 

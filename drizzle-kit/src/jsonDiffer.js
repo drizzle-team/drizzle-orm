@@ -243,12 +243,32 @@ export function applyJsonDiff(json1, json2) {
 	const viewsEntries = Object.entries(difference.views);
 
 	const alteredViews = viewsEntries.filter((it) => !(it[0].includes('__added') || it[0].includes('__deleted'))).map(
-		([name, view]) => {
+		([nameWithSchema, view]) => {
 			const deletedWithOption = view.with__deleted;
 
 			const addedWithOption = view.with__added;
 
-			const alteredWith = view.with;
+			const deletedWith = Object.fromEntries(
+				Object.entries(view.with || {}).filter((it) => it[0].endsWith('__deleted')).map(([key, value]) => {
+					return [key.replace('__deleted', ''), value];
+				}),
+			);
+
+			const addedWith = Object.fromEntries(
+				Object.entries(view.with || {}).filter((it) => it[0].endsWith('__added')).map(([key, value]) => {
+					return [key.replace('__added', ''), value];
+				}),
+			);
+
+			const alterWith = Object.fromEntries(
+				Object.entries(view.with || {}).filter((it) =>
+					typeof it[1].__old !== 'undefined' && typeof it[1].__new !== 'undefined'
+				).map(
+					(it) => {
+						return [it[0], it[1].__new];
+					},
+				),
+			);
 
 			const alteredSchema = view.schema;
 
@@ -256,15 +276,29 @@ export function applyJsonDiff(json1, json2) {
 
 			const alteredExisting = view.isExisting;
 
+			const addedTablespace = view.tablespace__added;
+			const droppedTablespace = view.tablespace__deleted;
+			const alterTablespaceTo = view.tablespace;
+
+			let alteredTablespace;
+			if (addedTablespace) alteredTablespace = { __new: addedTablespace, __old: 'pg_default' };
+			if (droppedTablespace) alteredTablespace = { __new: 'pg_default', __old: droppedTablespace };
+			if (alterTablespaceTo) alteredTablespace = alterTablespaceTo;
+
 			return {
-				name: name,
-				schema: json2.views[name].schema,
-				deletedWithOption,
-				addedWithOption,
-				alteredWith,
+				name: json2.views[nameWithSchema].name,
+				schema: json2.views[nameWithSchema].schema,
+				deletedWithOption: deletedWithOption,
+				addedWithOption: addedWithOption,
+				alteredWith: {
+					deletedWith: Object.keys(deletedWith).length ? deletedWith : undefined,
+					addedWith: Object.keys(addedWith).length ? addedWith : undefined,
+					alterWith: Object.keys(alterWith).length ? alterWith : undefined,
+				},
 				alteredSchema,
 				alteredDefinition,
 				alteredExisting,
+				alteredTablespace,
 			};
 		},
 	);

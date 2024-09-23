@@ -1,10 +1,11 @@
 import type { BuildColumns } from '~/column-builder.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
+import type { RequireAtLeastOne } from '~/utils.ts';
 import type { PgColumn, PgColumnBuilderBase } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
@@ -12,11 +13,11 @@ import { pgTable } from './table.ts';
 import { PgViewBase } from './view-base.ts';
 import { PgViewConfig } from './view-common.ts';
 
-export interface ViewWithConfig {
+export type ViewWithConfig = RequireAtLeastOne<{
 	checkOption: 'local' | 'cascaded';
 	securityBarrier: boolean;
 	securityInvoker: boolean;
-}
+}>;
 
 export class DefaultViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
 	static readonly [entityKind]: string = 'PgDefaultViewBuilderCore';
@@ -130,9 +131,26 @@ export class ManualViewBuilder<
 	}
 }
 
-export interface PgMaterializedViewWithConfig {
-	[Key: string]: string | number | boolean | SQL;
-}
+export type PgMaterializedViewWithConfig = RequireAtLeastOne<{
+	fillfactor: number;
+	toastTupleTarget: number;
+	parallelWorkers: number;
+	autovacuumEnabled: boolean;
+	vacuumIndexCleanup: 'auto' | 'off' | 'on';
+	vacuumTruncate: boolean;
+	autovacuumVacuumThreshold: number;
+	autovacuumVacuumScaleFactor: number;
+	autovacuumVacuumCostDelay: number;
+	autovacuumVacuumCostLimit: number;
+	autovacuumFreezeMinAge: number;
+	autovacuumFreezeMaxAge: number;
+	autovacuumFreezeTableAge: number;
+	autovacuumMultixactFreezeMinAge: number;
+	autovacuumMultixactFreezeMaxAge: number;
+	autovacuumMultixactFreezeTableAge: number;
+	logAutovacuumMinDuration: number;
+	userCatalogTable: boolean;
+}>;
 
 export class MaterializedViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
 	static readonly [entityKind]: string = 'PgMaterializedViewBuilderCore';
@@ -233,7 +251,12 @@ export class ManualMaterializedViewBuilder<
 	existing(): PgMaterializedViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'pg'>> {
 		return new Proxy(
 			new PgMaterializedView({
-				pgConfig: undefined,
+				pgConfig: {
+					tablespace: this.config.tablespace,
+					using: this.config.using,
+					with: this.config.with,
+					withNoData: this.config.withNoData,
+				},
 				config: {
 					name: this.name,
 					schema: this.schema,
@@ -253,7 +276,12 @@ export class ManualMaterializedViewBuilder<
 	as(query: SQL): PgMaterializedViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'pg'>> {
 		return new Proxy(
 			new PgMaterializedView({
-				pgConfig: undefined,
+				pgConfig: {
+					tablespace: this.config.tablespace,
+					using: this.config.using,
+					with: this.config.with,
+					withNoData: this.config.withNoData,
+				},
 				config: {
 					name: this.name,
 					schema: this.schema,
@@ -397,4 +425,12 @@ export function pgMaterializedView(
 	columns?: Record<string, PgColumnBuilderBase>,
 ): MaterializedViewBuilder | ManualMaterializedViewBuilder {
 	return pgMaterializedViewWithSchema(name, columns, undefined);
+}
+
+export function isPgView(obj: unknown): obj is PgView {
+	return is(obj, PgView);
+}
+
+export function isPgMaterializedView(obj: unknown): obj is PgMaterializedView {
+	return is(obj, PgMaterializedView);
 }

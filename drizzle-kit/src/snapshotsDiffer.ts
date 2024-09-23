@@ -5,7 +5,6 @@ import {
 	enum as enumType,
 	literal,
 	never,
-	number,
 	object,
 	record,
 	string,
@@ -72,7 +71,7 @@ import {
 	preparePgAlterColumns,
 	preparePgAlterViewAddWithOptionJson,
 	preparePgAlterViewAlterSchemaJson,
-	preparePgAlterViewAlterWithOptionJson,
+	preparePgAlterViewAlterTablespaceOptionJson,
 	preparePgAlterViewDropWithOptionJson,
 	preparePgCreateIndexesJson,
 	preparePgCreateTableJson,
@@ -91,7 +90,7 @@ import {
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSchema, PgSchemaSquashed, sequenceSquashed, viewSquashed } from './serializer/pgSchema';
+import { mergedViewWithOption, PgSchema, PgSchemaSquashed, sequenceSquashed, View } from './serializer/pgSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';
@@ -265,12 +264,13 @@ export const alteredTableScheme = object({
 export const alteredViewSchema = object({
 	name: string(),
 	schema: string(),
-	deletedWithOption: string().optional(),
-	addedWithOption: string().optional(),
+	deletedWithOption: mergedViewWithOption.optional(),
+	addedWithOption: mergedViewWithOption.optional(),
 	alteredWith: object({
-		__old: string(),
-		__new: string(),
-	}).strict().optional(),
+		addedWith: mergedViewWithOption.optional(),
+		deletedWith: mergedViewWithOption.optional(),
+		alterWith: mergedViewWithOption.optional(),
+	}).strict(),
 	alteredSchema: object({
 		__old: string(),
 		__new: string(),
@@ -282,6 +282,10 @@ export const alteredViewSchema = object({
 	alteredExisting: object({
 		__old: boolean(),
 		__new: boolean(),
+	}).strict().optional(),
+	alteredTablespace: object({
+		__old: string(),
+		__new: string(),
 	}).strict().optional(),
 }).strict();
 
@@ -307,7 +311,6 @@ export type AlteredColumn = TypeOf<typeof alteredColumnSchema>;
 export type Enum = TypeOf<typeof enumSchema>;
 export type Sequence = TypeOf<typeof sequenceSquashed>;
 export type Table = TypeOf<typeof tableScheme>;
-export type ViewSquashed = TypeOf<typeof viewSquashed>;
 export type AlteredTable = TypeOf<typeof alteredTableScheme>;
 export type DiffResult = TypeOf<typeof diffResultScheme>;
 export type DiffResultMysql = TypeOf<typeof diffResultSchemeMysql>;
@@ -427,8 +430,8 @@ export const applyPgSnapshotsDiff = async (
 		input: ColumnsResolverInput<Column>,
 	) => Promise<ColumnsResolverOutput<Column>>,
 	viewsResolver: (
-		input: ResolverInput<ViewSquashed>,
-	) => Promise<ResolverOutputWithMoved<ViewSquashed>>,
+		input: ResolverInput<View>,
+	) => Promise<ResolverOutputWithMoved<View>>,
 	prevFull: PgSchema,
 	curFull: PgSchema,
 	action?: 'push' | undefined,
@@ -765,6 +768,7 @@ export const applyPgSnapshotsDiff = async (
 		created: createdViews,
 		deleted: deletedViews,
 		renamed: renamedViews,
+		moved: movedViews,
 	} = await viewsResolver({
 		created: viewsDiff.added,
 		deleted: viewsDiff.deleted,
@@ -1145,63 +1149,132 @@ export const applyPgSnapshotsDiff = async (
 
 	createViews.push(
 		...createdViews.filter((it) => !it.isExisting).map((it) => {
-			return preparePgCreateViewJson(it.name, it.schema, it.definition!, it.with);
+			return preparePgCreateViewJson(
+				it.name,
+				it.schema,
+				it.definition!,
+				it.materialized,
+				it.withNoData,
+				it.with,
+				it.using,
+				it.tablespace,
+			);
 		}),
 	);
 
 	dropViews.push(
 		...deletedViews.filter((it) => !it.isExisting).map((it) => {
-			return preparePgDropViewJson(it.name, it.schema);
+			return preparePgDropViewJson(it.name, it.schema, it.materialized);
 		}),
 	);
 
 	renameViews.push(
 		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
-			return preparePgRenameViewJson(it.to.name, it.from.name, it.to.schema);
+			return preparePgRenameViewJson(it.to.name, it.from.name, it.to.schema, it.to.materialized);
 		}),
 	);
 
-	const alteredViews = typedResult.alteredViews.filter((it) => !json2.views[it.name].isExisting);
+	alterViews.push(
+		...movedViews.filter((it) => !json2.views[`${it.schemaTo}.${it.name}`].isExisting).map((it) => {
+			return preparePgAlterViewAlterSchemaJson(
+				it.schemaTo,
+				it.schemaFrom,
+				it.name,
+				json2.views[`${it.schemaTo}.${it.name}`].materialized,
+			);
+		}),
+	);
+
+	const alteredViews = typedResult.alteredViews.filter((it) => !json2.views[`${it.schema}.${it.name}`].isExisting);
+
 	for (const alteredView of alteredViews) {
-		if (alteredView.alteredExisting || alteredView.alteredDefinition) {
-			dropViews.push(preparePgDropViewJson(alteredView.name, alteredView.schema));
+		const viewKey = `${alteredView.schema}.${alteredView.name}`;
+
+		const { materialized, with: withOption, definition, withNoData, using, tablespace } = json2.views[viewKey];
+
+		if (alteredView.alteredExisting || (alteredView.alteredDefinition && action !== 'push')) {
+			dropViews.push(preparePgDropViewJson(alteredView.name, alteredView.schema, materialized));
 
 			createViews.push(
 				preparePgCreateViewJson(
 					alteredView.name,
 					alteredView.schema,
-					json2.views[alteredView.name].definition!,
-					json2.views[alteredView.name].with,
+					definition!,
+					materialized,
+					withNoData,
+					withOption,
+					using,
+					tablespace,
 				),
 			);
 			continue;
 		}
 
-		if (alteredView.deletedWithOption) {
-			alterViews.push(
-				preparePgAlterViewDropWithOptionJson(alteredView.name, alteredView.schema),
-			);
-		}
-
 		if (alteredView.addedWithOption) {
 			alterViews.push(
-				preparePgAlterViewAddWithOptionJson(alteredView.name, alteredView.schema, alteredView.addedWithOption),
+				preparePgAlterViewAddWithOptionJson(
+					alteredView.name,
+					alteredView.schema,
+					materialized,
+					alteredView.addedWithOption,
+				),
 			);
 		}
 
-		if (alteredView.alteredSchema) {
+		if (alteredView.deletedWithOption) {
 			alterViews.push(
-				preparePgAlterViewAlterSchemaJson(
-					alteredView.alteredSchema.__new,
-					alteredView.alteredSchema.__old,
+				preparePgAlterViewDropWithOptionJson(
 					alteredView.name,
+					alteredView.schema,
+					materialized,
+					alteredView.deletedWithOption,
 				),
 			);
 		}
 
 		if (alteredView.alteredWith) {
+			if (alteredView.alteredWith.addedWith) {
+				alterViews.push(
+					preparePgAlterViewAddWithOptionJson(
+						alteredView.name,
+						alteredView.schema,
+						materialized,
+						alteredView.alteredWith.addedWith,
+					),
+				);
+			}
+
+			if (alteredView.alteredWith.deletedWith) {
+				alterViews.push(
+					preparePgAlterViewDropWithOptionJson(
+						alteredView.name,
+						alteredView.schema,
+						materialized,
+						alteredView.alteredWith.deletedWith,
+					),
+				);
+			}
+
+			if (alteredView.alteredWith.alterWith) {
+				alterViews.push(
+					preparePgAlterViewAddWithOptionJson(
+						alteredView.name,
+						alteredView.schema,
+						materialized,
+						alteredView.alteredWith.alterWith,
+					),
+				);
+			}
+		}
+
+		if (alteredView.alteredTablespace) {
 			alterViews.push(
-				preparePgAlterViewAlterWithOptionJson(alteredView.name, alteredView.schema, alteredView.alteredWith.__new),
+				preparePgAlterViewAlterTablespaceOptionJson(
+					alteredView.name,
+					alteredView.schema,
+					materialized,
+					alteredView.alteredTablespace.__new,
+				),
 			);
 		}
 	}

@@ -388,6 +388,35 @@ export const schemaToTypeScript = (
 		{ pg: [] as string[] },
 	);
 
+	Object.values(schema.views).forEach((it) => {
+		if (it.schema && it.schema !== 'public' && it.schema !== '') {
+			imports.pg.push('pgSchema');
+		} else if (it.schema === 'public') {
+			it.materialized ? imports.pg.push('pgMaterializedView') : imports.pg.push('pgView');
+		}
+
+		Object.values(it.columns).forEach(() => {
+			const columnImports = Object.values(it.columns)
+				.map((col) => {
+					let patched: string = (importsPatch[col.type] || col.type).replace('[]', '');
+					patched = patched === 'double precision' ? 'doublePrecision' : patched;
+					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+					patched = patched.startsWith('char(') ? 'char' : patched;
+					patched = patched.startsWith('numeric(') ? 'numeric' : patched;
+					patched = patched.startsWith('time(') ? 'time' : patched;
+					patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
+					patched = patched.startsWith('vector(') ? 'vector' : patched;
+					patched = patched.startsWith('geometry(') ? 'geometry' : patched;
+					return patched;
+				})
+				.filter((type) => {
+					return pgImportsList.has(type);
+				});
+
+			imports.pg.push(...columnImports);
+		});
+	});
+
 	Object.values(schema.sequences).forEach((it) => {
 		if (it.schema && it.schema !== 'public' && it.schema !== '') {
 			imports.pg.push('pgSchema');
@@ -518,6 +547,41 @@ export const schemaToTypeScript = (
 		return statement;
 	});
 
+	const viewsStatements = Object.values(schema.views)
+		.map((it) => {
+			const viewSchema = schemas[it.schema];
+
+			const paramName = paramNameFor(it.name, viewSchema);
+
+			const func = viewSchema
+				? (it.materialized ? `${viewSchema}.materializedView` : `${viewSchema}.view`)
+				: (it.materialized ? 'pgMaterializedView' : 'pgView');
+
+			const withOption = it.with ?? '';
+
+			const as = `sql\`${it.definition}\``;
+
+			const tablespace = it.tablespace ?? '';
+
+			const columns = createTableColumns(
+				'',
+				Object.values(it.columns),
+				[],
+				enumTypes,
+				schemas,
+				casing,
+				schema.internal,
+			);
+
+			let statement = `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", {${columns}})`;
+			statement += tablespace ? `.tablespace("${tablespace}")` : '';
+			statement += withOption ? `.with(${JSON.stringify(withOption)})` : '';
+			statement += `.as(${as});`;
+
+			return statement;
+		})
+		.join('\n\n');
+
 	const uniquePgImports = ['pgTable', ...new Set(imports.pg)];
 
 	const importsTs = `import { ${
@@ -532,6 +596,8 @@ export const schemaToTypeScript = (
 	decalrations += sequencesStatements;
 	decalrations += '\n';
 	decalrations += tableStatements.join('\n\n');
+	decalrations += '\n';
+	decalrations += viewsStatements;
 
 	const file = importsTs + decalrations;
 

@@ -221,30 +221,46 @@ const uniqueConstraint = object({
 }).strict();
 
 const viewWithOption = object({
-	checkOption: enumType(['cascaded', 'local']),
-	securityBarrier: boolean(),
-	securityInvoker: boolean(),
-}).strict().optional();
+	checkOption: enumType(['local', 'cascaded']).optional(),
+	securityBarrier: boolean().optional(),
+	securityInvoker: boolean().optional(),
+}).strict();
+
+const matViewWithOption = object({
+	fillfactor: number().optional(),
+	toastTupleTarget: number().optional(),
+	parallelWorkers: number().optional(),
+	autovacuumEnabled: boolean().optional(),
+	vacuumIndexCleanup: enumType(['auto', 'off', 'on']).optional(),
+	vacuumTruncate: boolean().optional(),
+	autovacuumVacuumThreshold: number().optional(),
+	autovacuumVacuumScaleFactor: number().optional(),
+	autovacuumVacuumCostDelay: number().optional(),
+	autovacuumVacuumCostLimit: number().optional(),
+	autovacuumFreezeMinAge: number().optional(),
+	autovacuumFreezeMaxAge: number().optional(),
+	autovacuumFreezeTableAge: number().optional(),
+	autovacuumMultixactFreezeMinAge: number().optional(),
+	autovacuumMultixactFreezeMaxAge: number().optional(),
+	autovacuumMultixactFreezeTableAge: number().optional(),
+	logAutovacuumMinDuration: number().optional(),
+	userCatalogTable: boolean().optional(),
+}).strict();
+
+export const mergedViewWithOption = viewWithOption.merge(matViewWithOption);
 
 export const view = object({
 	name: string(),
 	schema: string(),
 	columns: record(string(), column),
 	definition: string().optional(),
-	materialized: boolean().optional(),
-	with: viewWithOption,
+	materialized: boolean(),
+	with: mergedViewWithOption.optional(),
 	isExisting: boolean(),
+	withNoData: boolean().optional(),
+	using: string().optional(),
+	tablespace: string().optional(),
 }).strict();
-
-export const viewSquashed = object({
-	name: string(),
-	schema: string(),
-	columns: record(string(), column),
-	definition: string().optional(),
-	materialized: boolean().optional(),
-	with: string().optional(),
-	isExisting: boolean(),
-});
 
 const tableV4 = object({
 	name: string(),
@@ -444,7 +460,7 @@ export const pgSchemaSquashed = object({
 	tables: record(string(), tableSquashed),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
-	views: record(string(), viewSquashed),
+	views: record(string(), view),
 	sequences: record(string(), sequenceSquashed),
 }).strict();
 
@@ -474,7 +490,9 @@ export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
 export type View = TypeOf<typeof view>;
+export type MatViewWithOption = TypeOf<typeof matViewWithOption>;
 export type ViewWithOption = TypeOf<typeof viewWithOption>;
+
 export type PgKitInternals = TypeOf<typeof kitInternals>;
 
 export type PgSchemaV1 = TypeOf<typeof pgSchemaV1>;
@@ -657,17 +675,6 @@ export const PgSquasher = {
 			cycle: splitted[7] === 'true',
 		};
 	},
-	squashViewWith: (withOption: Exclude<View['with'], undefined>): string => {
-		return `${withOption.checkOption};${withOption.securityBarrier};${withOption.securityInvoker}`;
-	},
-	unsquashViewWith: (squashed: string): Exclude<View['with'], undefined> => {
-		const [checkOption, securityBarrier, securityInvoker] = squashed.split(';');
-		return {
-			checkOption: checkOption as 'cascaded' | 'local',
-			securityBarrier: securityBarrier === 'true',
-			securityInvoker: securityInvoker === 'true',
-		};
-	},
 };
 
 export const squashPgScheme = (
@@ -740,30 +747,13 @@ export const squashPgScheme = (
 		}),
 	);
 
-	const mappedViews = Object.fromEntries(
-		Object.entries(json.views).map((it) => {
-			return [
-				it[0],
-				{
-					name: it[1].name,
-					columns: it[1].columns,
-					definition: it[1].definition,
-					isExisting: it[1].isExisting,
-					with: it[1].with ? PgSquasher.squashViewWith(it[1].with) : undefined,
-					schema: it[1].schema,
-					materialized: it[1].materialized,
-				},
-			];
-		}),
-	);
-
 	return {
 		version: '7',
 		dialect: json.dialect,
 		tables: mappedTables,
 		enums: json.enums,
 		schemas: json.schemas,
-		views: mappedViews,
+		views: json.views,
 		sequences: mappedSequences,
 	};
 };

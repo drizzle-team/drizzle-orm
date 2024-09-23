@@ -1,9 +1,21 @@
 import { PGlite } from '@electric-sql/pglite';
 import { Client } from '@libsql/client/.';
 import { Database } from 'better-sqlite3';
+import { randomUUID } from 'crypto';
 import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
-import { isPgEnum, isPgSequence, PgEnum, PgSchema, PgSequence, PgTable, PgView } from 'drizzle-orm/pg-core';
+import {
+	isPgEnum,
+	isPgMaterializedView,
+	isPgSequence,
+	isPgView,
+	PgEnum,
+	PgMaterializedView,
+	PgSchema,
+	PgSequence,
+	PgTable,
+	PgView,
+} from 'drizzle-orm/pg-core';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { Connection } from 'mysql2/promise';
@@ -26,7 +38,7 @@ import { mysqlSchema, squashMysqlScheme } from 'src/serializer/mysqlSchema';
 import { generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
 import { fromDatabase as fromMySqlDatabase } from 'src/serializer/mysqlSerializer';
 import { prepareFromPgImports } from 'src/serializer/pgImports';
-import { pgSchema, squashPgScheme } from 'src/serializer/pgSchema';
+import { pgSchema, squashPgScheme, View } from 'src/serializer/pgSchema';
 import { fromDatabase, generatePgSnapshot } from 'src/serializer/pgSerializer';
 import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
 import { sqliteSchema, squashSqliteScheme } from 'src/serializer/sqliteSchema';
@@ -46,12 +58,11 @@ import {
 	ResolverOutputWithMoved,
 	Sequence,
 	Table,
-	ViewSquashed,
 } from 'src/snapshotsDiffer';
 
 export type PostgresSchema = Record<
 	string,
-	PgTable<any> | PgEnum<any> | PgSchema | PgSequence | PgView
+	PgTable<any> | PgEnum<any> | PgSchema | PgSequence | PgView | PgMaterializedView
 >;
 export type MysqlSchema = Record<string, MySqlTable<any> | MySqlSchema>;
 export type SqliteSchema = Record<string, SQLiteTable<any>>;
@@ -409,8 +420,8 @@ async (
 
 export const testViewsResolver = (renames: Set<string>) =>
 async (
-	input: ResolverInput<ViewSquashed>,
-): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	input: ResolverInput<View>,
+): Promise<ResolverOutputWithMoved<View>> => {
 	try {
 		if (
 			input.created.length === 0
@@ -429,10 +440,10 @@ async (
 		let deletedViews = [...input.deleted];
 
 		const result: {
-			created: ViewSquashed[];
+			created: View[];
 			moved: { name: string; schemaFrom: string; schemaTo: string }[];
-			renamed: { from: ViewSquashed; to: ViewSquashed }[];
-			deleted: ViewSquashed[];
+			renamed: { from: View; to: View }[];
+			deleted: View[];
 		} = { created: [], renamed: [], deleted: [], moved: [] };
 
 		for (let rename of renames) {
@@ -516,11 +527,17 @@ export const diffTestSchemasPush = async (
 
 	const leftSequences = Object.values(right).filter((it) => isPgSequence(it)) as PgSequence[];
 
+	const leftViews = Object.values(right).filter((it) => isPgView(it)) as PgView[];
+
+	const leftMaterializedViews = Object.values(right).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
+
 	const serialized2 = generatePgSnapshot(
 		leftTables,
 		leftEnums,
 		leftSchemas,
 		leftSequences,
+		leftViews,
+		leftMaterializedViews,
 	);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
@@ -559,6 +576,7 @@ export const diffTestSchemasPush = async (
 			testSequencesResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
+			testViewsResolver(renames),
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -573,6 +591,7 @@ export const diffTestSchemasPush = async (
 			sequencesResolver,
 			tablesResolver,
 			columnsResolver,
+			viewsResolver,
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -589,6 +608,7 @@ export const applyPgDiffs = async (sn: PostgresSchema) => {
 		prevId: '0',
 		tables: {},
 		enums: {},
+		views: {},
 		schemas: {},
 		sequences: {},
 		_meta: {
@@ -606,7 +626,11 @@ export const applyPgDiffs = async (sn: PostgresSchema) => {
 
 	const sequences = Object.values(sn).filter((it) => isPgSequence(it)) as PgSequence[];
 
-	const serialized1 = generatePgSnapshot(tables, enums, schemas, sequences);
+	const views = Object.values(sn).filter((it) => isPgView(it)) as PgView[];
+
+	const materializedViews = Object.values(sn).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
+
+	const serialized1 = generatePgSnapshot(tables, enums, schemas, sequences, views, materializedViews);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -631,15 +655,12 @@ export const applyPgDiffs = async (sn: PostgresSchema) => {
 		testSequencesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
+		testViewsResolver(new Set()),
 		validatedPrev,
 		validatedCur,
 	);
 	return { sqlStatements, statements };
 };
-
-export function isPgView(obj: unknown): obj is PgView {
-	return is(obj, PgView);
-}
 
 export const diffTestSchemas = async (
 	left: PostgresSchema,
@@ -667,12 +688,17 @@ export const diffTestSchemas = async (
 
 	const rightViews = Object.values(right).filter((it) => isPgView(it)) as PgView[];
 
+	const leftMaterializedViews = Object.values(left).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
+
+	const rightMaterializedViews = Object.values(right).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
+
 	const serialized1 = generatePgSnapshot(
 		leftTables,
 		leftEnums,
 		leftSchemas,
 		leftSequences,
 		leftViews,
+		leftMaterializedViews,
 	);
 	const serialized2 = generatePgSnapshot(
 		rightTables,
@@ -680,6 +706,7 @@ export const diffTestSchemas = async (
 		rightSchemas,
 		rightSequences,
 		rightViews,
+		rightMaterializedViews,
 	);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
@@ -1405,10 +1432,10 @@ export const introspectPgToFile = async (
 
 	const file = schemaToTypeScript(introspectedSchema, 'camel');
 
-	fs.writeFileSync(`tests/introspect/${testName}.ts`, file.file);
+	fs.writeFileSync(`tests/introspect/postgres/${testName}.ts`, file.file);
 
 	const response = await prepareFromPgImports([
-		`tests/introspect/${testName}.ts`,
+		`tests/introspect/postgres/${testName}.ts`,
 	]);
 
 	const afterFileImports = generatePgSnapshot(
@@ -1416,6 +1443,8 @@ export const introspectPgToFile = async (
 		response.enums,
 		response.schemas,
 		response.sequences,
+		response.views,
+		response.matViews,
 	);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
@@ -1431,50 +1460,38 @@ export const introspectPgToFile = async (
 	const sn2AfterIm = squashPgScheme(sch2);
 	const validatedCurAfterImport = pgSchema.parse(sch2);
 
-	const leftTables = Object.values(initSchema).filter((it) => is(it, PgTable)) as PgTable[];
+	// save snapshot
+	fs.writeFileSync(`tests/introspect/postgres/${testName}.json`, JSON.stringify(validatedCurAfterImport));
 
-	const leftSchemas = Object.values(initSchema).filter((it) => is(it, PgSchema)) as PgSchema[];
-
-	const leftEnums = Object.values(initSchema).filter((it) => isPgEnum(it)) as PgEnum<any>[];
-
-	const leftSequences = Object.values(initSchema).filter((it) => isPgSequence(it)) as PgSequence[];
-
-	const initSnapshot = generatePgSnapshot(
-		leftTables,
-		leftEnums,
-		leftSchemas,
-		leftSequences,
+	const prevSnapshot = pgSchema.parse(
+		JSON.parse(fs.readFileSync(`tests/introspect/postgres/${testName}.json`).toString()),
+	);
+	const { tables, enums, sequences, schemas: schemaImports, views, matViews } = await prepareFromPgImports(
+		[`tests/introspect/postgres/${testName}.ts`],
 	);
 
-	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
-
-	const initSch = {
-		version: '7',
-		dialect: 'postgresql',
-		id: '0',
-		prevId: '0',
-		...initRest,
-	} as const;
-
-	const initSn = squashPgScheme(initSch);
-	const validatedCur = pgSchema.parse(initSch);
+	const serialized = generatePgSnapshot(tables, enums, schemaImports, sequences, views, matViews, schemas);
+	const cur = { id: randomUUID(), ...serialized, prevId: prevSnapshot.id };
+	const squashedCurr = squashPgScheme(cur);
 
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	} = await applyPgSnapshotsDiff(
 		sn2AfterIm,
-		initSn,
+		squashedCurr,
 		testSchemasResolver(new Set()),
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
+		testViewsResolver(new Set()),
 		validatedCurAfterImport,
-		validatedCur,
+		cur,
 	);
 
-	fs.rmSync(`tests/introspect/${testName}.ts`);
+	fs.rmSync(`tests/introspect/postgres/${testName}.ts`);
+	fs.rmSync(`tests/introspect/postgres/${testName}.json`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,

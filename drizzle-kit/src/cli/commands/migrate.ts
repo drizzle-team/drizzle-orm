@@ -30,7 +30,6 @@ import {
 	ResolverOutputWithMoved,
 	Sequence,
 	Table,
-	ViewSquashed,
 } from '../../snapshotsDiffer';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
@@ -94,8 +93,8 @@ export const tablesResolver = async (
 };
 
 export const viewsResolver = async (
-	input: ResolverInput<ViewSquashed>,
-): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	input: ResolverInput<View>,
+): Promise<ResolverOutputWithMoved<View>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,

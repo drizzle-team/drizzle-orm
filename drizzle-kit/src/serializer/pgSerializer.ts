@@ -3,12 +3,14 @@ import { getTableName, is, SQL } from 'drizzle-orm';
 import {
 	AnyPgTable,
 	ExtraConfigColumn,
+	getMaterializedViewConfig,
 	getViewConfig,
 	IndexedColumn,
 	PgColumn,
 	PgDialect,
 	PgEnum,
 	PgEnumColumn,
+	PgMaterializedView,
 	PgSchema,
 	PgSequence,
 	PgView,
@@ -120,6 +122,7 @@ export const generatePgSnapshot = (
 	schemas: PgSchema[],
 	sequences: PgSequence[],
 	views: PgView[],
+	matViews: PgMaterializedView[],
 	schemaFilter?: string[],
 ): PgSchemaInternal => {
 	const result: Record<string, Table> = {};
@@ -539,13 +542,38 @@ export const generatePgSnapshot = (
 		}
 	}
 
-	for (const view of views) {
-		const { name: viewName, schema, query, selectedFields, isExisting, with: viewWithOptions } = getViewConfig(view);
+	const combinedViews = [...views, ...matViews];
+	for (const view of combinedViews) {
+		let viewName;
+		let schema;
+		let query;
+		let selectedFields;
+		let isExisting;
+		let withOption;
+		let tablespace;
+		let using;
+		let withNoData;
+		let materialized: boolean = false;
+
+		if (is(view, PgView)) {
+			({ name: viewName, schema, query, selectedFields, isExisting, with: withOption } = getViewConfig(view));
+		} else {
+			({ name: viewName, schema, query, selectedFields, isExisting, with: withOption, tablespace, using, withNoData } =
+				getMaterializedViewConfig(
+					view,
+				));
+
+			materialized = true;
+		}
+
+		const viewSchema = schema ?? 'public';
+
+		const viewKey = `${viewSchema}.${viewName}`;
 
 		const columnsObject: Record<string, Column> = {};
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
 
-		const existingView = resultViews[viewName];
+		const existingView = resultViews[viewKey];
 		if (typeof existingView !== 'undefined') {
 			console.log(
 				`\n${
@@ -698,13 +726,17 @@ export const generatePgSnapshot = (
 			}
 		}
 
-		resultViews[viewName] = {
+		resultViews[viewKey] = {
 			columns: columnsObject,
 			definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
 			name: viewName,
-			schema: schema ?? 'public',
+			schema: viewSchema,
 			isExisting,
-			with: viewWithOptions,
+			with: withOption,
+			withNoData,
+			materialized,
+			tablespace,
+			using,
 		};
 	}
 
@@ -775,12 +807,27 @@ export const fromDatabase = async (
 	) => void,
 ): Promise<PgSchemaInternal> => {
 	const result: Record<string, Table> = {};
+	const views: Record<string, View> = {};
 	const internals: PgKitInternals = { tables: {} };
 
-	const where = schemaFilters.map((t) => `table_schema = '${t}'`).join(' or ');
+	const where = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
 
-	const allTables = await db.query(
-		`SELECT table_schema, table_name FROM information_schema.tables${where === '' ? '' : ` WHERE ${where}`};`,
+	const allTables = await db.query<{ table_schema: string; table_name: string; type: string }>(
+		`SELECT 
+    n.nspname AS table_schema, 
+    c.relname AS table_name, 
+    CASE 
+        WHEN c.relkind = 'r' THEN 'table'
+        WHEN c.relkind = 'v' THEN 'view'
+        WHEN c.relkind = 'm' THEN 'materialized_view'
+    END AS type
+FROM 
+    pg_catalog.pg_class c
+JOIN 
+    pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+WHERE 
+	c.relkind IN ('r', 'v', 'm') 
+    ${where === '' ? '' : ` AND ${where}`};`,
 	);
 
 	const schemas = new Set(allTables.map((it) => it.table_schema));
@@ -880,7 +927,7 @@ export const fromDatabase = async (
 
 	const sequencesInColumns: string[] = [];
 
-	const all = allTables.map((row) => {
+	const all = allTables.filter((it) => it.type === 'table').map((row) => {
 		return new Promise(async (res, rej) => {
 			const tableName = row.table_name as string;
 			if (!tablesFilter(tableName)) return res('');
@@ -1371,6 +1418,406 @@ export const fromDatabase = async (
 	for await (const _ of all) {
 	}
 
+	const allViews = allTables.filter((it) => it.type === 'view' || it.type === 'materialized_view').map((row) => {
+		return new Promise(async (res, rej) => {
+			const viewName = row.table_name as string;
+			if (!tablesFilter(viewName)) return res('');
+			tableCount += 1;
+			const viewSchema = row.table_schema;
+
+			try {
+				const columnToReturn: Record<string, Column> = {};
+
+				const viewResponses = await db.query(`WITH view_columns AS (
+    SELECT DISTINCT
+        nv.nspname::information_schema.sql_identifier AS view_schema,
+        v.relname::information_schema.sql_identifier AS view_name,
+        nt.nspname::information_schema.sql_identifier AS table_schema,
+        t.relname::information_schema.sql_identifier AS table_name,
+        a.attname::information_schema.sql_identifier AS column_name
+    FROM pg_namespace nv
+    JOIN pg_class v ON nv.oid = v.relnamespace
+    JOIN pg_depend dv ON v.oid = dv.refobjid
+    JOIN pg_depend dt ON dv.objid = dt.objid
+    JOIN pg_class t ON dt.refobjid = t.oid
+    JOIN pg_namespace nt ON t.relnamespace = nt.oid
+    JOIN pg_attribute a ON t.oid = a.attrelid
+    WHERE (v.relkind = 'v'::"char" OR v.relkind = 'm'::"char")
+      AND dv.refclassid = 'pg_class'::regclass::oid
+      AND dv.classid = 'pg_rewrite'::regclass::oid
+      AND dv.deptype = 'i'::"char"
+      AND dv.objid = dt.objid
+      AND dv.refobjid <> dt.refobjid
+      AND dt.classid = 'pg_rewrite'::regclass::oid
+      AND dt.refclassid = 'pg_class'::regclass::oid
+      AND t.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'p'::"char"])
+      AND dt.refobjsubid = a.attnum
+      AND pg_has_role(t.relowner, 'USAGE'::text)
+	  AND nv.nspname::information_schema.sql_identifier = '${viewSchema}'
+      AND v.relname::information_schema.sql_identifier = '${viewName}'
+),
+column_descriptions AS (
+    SELECT DISTINCT
+        a.attrelid::regclass::text AS table_name,
+        a.attname AS column_name,
+        c.is_nullable,
+        a.attndims AS array_dimensions,
+        CASE
+            WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[]) AND EXISTS (
+                SELECT FROM pg_attrdef ad
+                WHERE ad.adrelid = a.attrelid
+                AND ad.adnum = a.attnum
+                AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval(''' || pg_get_serial_sequence(a.attrelid::regclass::text, a.attname)::regclass || '''::regclass)'
+            )
+            THEN CASE a.atttypid
+                WHEN 'int'::regtype  THEN 'serial'
+                WHEN 'int8'::regtype THEN 'bigserial'
+                WHEN 'int2'::regtype THEN 'smallserial'
+            END
+            ELSE format_type(a.atttypid, a.atttypmod)
+        END AS data_type,
+        pg_get_serial_sequence('"' || c.table_schema || '"."' || c.table_name || '"', a.attname)::regclass AS seq_name,
+        c.column_default,
+        c.data_type AS additional_dt,
+        c.udt_name AS enum_name,
+        c.is_generated,
+        c.generation_expression,
+        c.is_identity,
+        c.identity_generation,
+        c.identity_start,
+        c.identity_increment,
+        c.identity_maximum,
+        c.identity_minimum,
+        c.identity_cycle
+    FROM pg_attribute a
+    JOIN information_schema.columns c ON c.column_name = a.attname
+    JOIN pg_type t ON t.oid = a.atttypid
+    LEFT JOIN pg_namespace ns ON ns.oid = t.typnamespace
+    WHERE a.attnum > 0
+    AND NOT a.attisdropped
+),
+table_constraints AS (
+    SELECT DISTINCT ON (ccu.column_name)
+        ccu.column_name,
+        c.data_type,
+        tc.constraint_type,
+        tc.constraint_name,
+        tc.constraint_schema,
+        tc.table_name
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.constraint_column_usage ccu USING (constraint_schema, constraint_name)
+    JOIN information_schema.columns c ON c.table_schema = tc.constraint_schema
+        AND tc.table_name = c.table_name
+        AND ccu.column_name = c.column_name
+),
+additional_column_info AS (
+    SELECT DISTINCT
+        a.attrelid::regclass::text AS table_name,
+        a.attname AS column_name,
+        is_nullable,
+        a.attndims AS array_dimensions,
+        CASE
+            WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[]) AND EXISTS (
+                SELECT FROM pg_attrdef ad
+                WHERE ad.adrelid = a.attrelid
+                AND ad.adnum = a.attnum
+                AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval(''' || pg_get_serial_sequence(a.attrelid::regclass::text, a.attname)::regclass || '''::regclass)'
+            )
+            THEN CASE a.atttypid
+                WHEN 'int'::regtype  THEN 'serial'
+                WHEN 'int8'::regtype THEN 'bigserial'
+                WHEN 'int2'::regtype THEN 'smallserial'
+            END
+            ELSE format_type(a.atttypid, a.atttypmod)
+        END AS data_type,
+        pg_get_serial_sequence('"' || c.table_schema || '"."' || c.table_name || '"', a.attname)::regclass AS seq_name,
+        c.column_default,
+        c.data_type AS additional_dt,
+        c.udt_name AS enum_name,
+        c.is_generated,
+        generation_expression,
+        is_identity,
+        identity_generation,
+        identity_start,
+        identity_increment,
+        identity_maximum,
+        identity_minimum,
+        identity_cycle
+    FROM pg_attribute a
+    JOIN information_schema.columns c ON c.column_name = a.attname
+    LEFT JOIN pg_type t ON t.oid = a.atttypid
+    LEFT JOIN pg_namespace ns ON ns.oid = t.typnamespace
+    WHERE a.attnum > 0
+    AND NOT a.attisdropped
+)
+SELECT DISTINCT ON (vc.table_name, vc.column_name)
+    vc.view_schema,
+    vc.view_name,
+    vc.table_schema,
+    vc.table_name,
+    vc.column_name,
+    COALESCE(cd.data_type, aci.data_type) AS data_type,
+    tc.constraint_type,
+    tc.constraint_name,
+    aci.is_nullable,
+    aci.array_dimensions,
+    aci.seq_name,
+    aci.column_default,
+    aci.additional_dt,
+    aci.enum_name,
+    aci.is_generated,
+    aci.generation_expression,
+    aci.is_identity,
+    aci.identity_generation,
+    aci.identity_start,
+    aci.identity_increment,
+    aci.identity_maximum,
+    aci.identity_minimum,
+    aci.identity_cycle
+FROM view_columns vc
+LEFT JOIN column_descriptions cd ON vc.table_name = cd.table_name AND vc.column_name = cd.column_name
+LEFT JOIN table_constraints tc ON vc.table_name = tc.table_name AND vc.column_name = tc.column_name
+LEFT JOIN additional_column_info aci ON vc.table_name = aci.table_name AND vc.column_name = aci.column_name
+ORDER BY vc.table_name, vc.column_name;`);
+
+				for (const viewResponse of viewResponses) {
+					const columnName = viewResponse.column_name;
+					const columnAdditionalDT = viewResponse.additional_dt;
+					const columnDimensions = viewResponse.array_dimensions;
+					const enumType: string = viewResponse.enum_name;
+					let columnType: string = viewResponse.data_type;
+					const typeSchema = viewResponse.type_schema;
+					// const defaultValueRes: string = viewResponse.column_default;
+
+					const isGenerated = viewResponse.is_generated === 'ALWAYS';
+					const generationExpression = viewResponse.generation_expression;
+					const isIdentity = viewResponse.is_identity === 'YES';
+					const identityGeneration = viewResponse.identity_generation === 'ALWAYS'
+						? 'always'
+						: 'byDefault';
+					const identityStart = viewResponse.identity_start;
+					const identityIncrement = viewResponse.identity_increment;
+					const identityMaximum = viewResponse.identity_maximum;
+					const identityMinimum = viewResponse.identity_minimum;
+					const identityCycle = viewResponse.identity_cycle === 'YES';
+					const identityName = viewResponse.seq_name;
+					const defaultValueRes = viewResponse.column_default;
+
+					const primaryKey = viewResponse.constraint_type === 'PRIMARY KEY';
+
+					let columnTypeMapped = columnType;
+
+					// Set default to internal object
+					if (columnAdditionalDT === 'ARRAY') {
+						if (typeof internals.tables[viewName] === 'undefined') {
+							internals.tables[viewName] = {
+								columns: {
+									[columnName]: {
+										isArray: true,
+										dimensions: columnDimensions,
+										rawType: columnTypeMapped.substring(
+											0,
+											columnTypeMapped.length - 2,
+										),
+									},
+								},
+							};
+						} else {
+							if (
+								typeof internals.tables[viewName]!.columns[columnName]
+									=== 'undefined'
+							) {
+								internals.tables[viewName]!.columns[columnName] = {
+									isArray: true,
+									dimensions: columnDimensions,
+									rawType: columnTypeMapped.substring(
+										0,
+										columnTypeMapped.length - 2,
+									),
+								};
+							}
+						}
+					}
+
+					const defaultValue = defaultForColumn(
+						viewResponse,
+						internals,
+						viewName,
+					);
+					if (
+						defaultValue === 'NULL'
+						|| (defaultValueRes && defaultValueRes.startsWith('(') && defaultValueRes.endsWith(')'))
+					) {
+						if (typeof internals!.tables![viewName] === 'undefined') {
+							internals!.tables![viewName] = {
+								columns: {
+									[columnName]: {
+										isDefaultAnExpression: true,
+									},
+								},
+							};
+						} else {
+							if (
+								typeof internals!.tables![viewName]!.columns[columnName]
+									=== 'undefined'
+							) {
+								internals!.tables![viewName]!.columns[columnName] = {
+									isDefaultAnExpression: true,
+								};
+							} else {
+								internals!.tables![viewName]!.columns[
+									columnName
+								]!.isDefaultAnExpression = true;
+							}
+						}
+					}
+
+					const isSerial = columnType === 'serial';
+
+					if (columnTypeMapped.startsWith('numeric(')) {
+						columnTypeMapped = columnTypeMapped.replace(',', ', ');
+					}
+
+					if (columnAdditionalDT === 'ARRAY') {
+						for (let i = 1; i < Number(columnDimensions); i++) {
+							columnTypeMapped += '[]';
+						}
+					}
+
+					columnTypeMapped = columnTypeMapped
+						.replace('character varying', 'varchar')
+						.replace(' without time zone', '')
+						// .replace("timestamp without time zone", "timestamp")
+						.replace('character', 'char');
+
+					columnTypeMapped = trimChar(columnTypeMapped, '"');
+
+					columnToReturn[columnName] = {
+						name: columnName,
+						type:
+							// filter vectors, but in future we should filter any extension that was installed by user
+							columnAdditionalDT === 'USER-DEFINED'
+								&& !['vector', 'geometry'].includes(enumType)
+								? enumType
+								: columnTypeMapped,
+						typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
+							? enumsToReturn[`${typeSchema}.${enumType}`].schema
+							: undefined,
+						primaryKey: primaryKey,
+						notNull: viewResponse.is_nullable === 'NO',
+						generated: isGenerated
+							? { as: generationExpression, type: 'stored' }
+							: undefined,
+						identity: isIdentity
+							? {
+								type: identityGeneration,
+								name: identityName,
+								increment: stringFromDatabaseIdentityProperty(identityIncrement),
+								minValue: stringFromDatabaseIdentityProperty(identityMinimum),
+								maxValue: stringFromDatabaseIdentityProperty(identityMaximum),
+								startWith: stringFromDatabaseIdentityProperty(identityStart),
+								cache: sequencesToReturn[identityName]?.cache
+									? sequencesToReturn[identityName]?.cache
+									: sequencesToReturn[`${viewSchema}.${identityName}`]?.cache
+									? sequencesToReturn[`${viewSchema}.${identityName}`]?.cache
+									: undefined,
+								cycle: identityCycle,
+								schema: viewSchema,
+							}
+							: undefined,
+					};
+
+					if (identityName) {
+						// remove "" from sequence name
+						delete sequencesToReturn[
+							`${viewSchema}.${
+								identityName.startsWith('"') && identityName.endsWith('"') ? identityName.slice(1, -1) : identityName
+							}`
+						];
+						delete sequencesToReturn[identityName];
+					}
+
+					if (!isSerial && typeof defaultValue !== 'undefined') {
+						columnToReturn[columnName].default = defaultValue;
+					}
+				}
+
+				const [viewInfo] = await db.query<
+					{
+						view_name: string;
+						schema_name: string;
+						definition: string;
+						tablespace_name: string | null;
+						options: string[] | null;
+						location: string | null;
+					}
+				>(`
+					SELECT
+    c.relname AS view_name,
+    n.nspname AS schema_name,
+    pg_get_viewdef(c.oid, true) AS definition,
+    ts.spcname AS tablespace_name,
+    c.reloptions AS options,
+    pg_tablespace_location(ts.oid) AS location
+FROM
+    pg_class c
+JOIN
+    pg_namespace n ON c.relnamespace = n.oid
+LEFT JOIN
+    pg_tablespace ts ON c.reltablespace = ts.oid 
+WHERE
+    (c.relkind = 'm' OR c.relkind = 'v')
+    AND n.nspname = '${viewSchema}'
+    AND c.relname = '${viewName}';`);
+
+				const resultWith: { [key: string]: string | boolean | number } = {};
+				if (viewInfo.options) {
+					viewInfo.options.forEach((pair) => {
+						const splitted = pair.split('=');
+						const key = splitted[0];
+						const value = splitted[1];
+
+						if (value === 'true') {
+							resultWith[key] = true;
+						} else if (value === 'false') {
+							resultWith[key] = false;
+						} else if (!isNaN(Number(value))) {
+							resultWith[key] = Number(value);
+						} else {
+							resultWith[key] = value;
+						}
+					});
+				}
+
+				const definition = viewInfo.definition.replace(/\s+/g, ' ').replace(';', '').trim();
+				// { "check_option":"cascaded","security_barrier":true} -> // { "checkOption":"cascaded","securityBarrier":true}
+				const withOption = Object.values(resultWith).length
+					? Object.fromEntries(Object.entries(resultWith).map(([key, value]) => [key.camelCase(), value]))
+					: undefined;
+
+				const materialized = row.type === 'materialized_view';
+
+				views[`${viewSchema}.${viewName}`] = {
+					name: viewName,
+					schema: viewSchema,
+					columns: columnToReturn,
+					isExisting: false,
+					definition: definition,
+					materialized: materialized,
+					with: withOption,
+					tablespace: viewInfo.tablespace_name ?? undefined,
+				};
+			} catch (e) {
+				rej(e);
+				return;
+			}
+			res('');
+		});
+	});
+
+	for await (const _ of allViews) {
+	}
+
 	if (progressCallback) {
 		progressCallback('columns', columnsCount, 'done');
 		progressCallback('indexes', indexesCount, 'done');
@@ -1386,7 +1833,7 @@ export const fromDatabase = async (
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
-		views: {},
+		views: views,
 		_meta: {
 			schemas: {},
 			tables: {},
