@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
 
@@ -91,15 +92,19 @@ export class PgBigInt64<T extends ColumnBaseConfig<'bigint', 'PgBigInt64'>> exte
 	}
 }
 
-interface PgBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export interface PgBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
 	mode: T;
 }
 
+export function bigint<TMode extends PgBigIntConfig['mode']>(
+	config: PgBigIntConfig<TMode>,
+): TMode extends 'number' ? PgBigInt53BuilderInitial<''> : PgBigInt64BuilderInitial<''>;
 export function bigint<TName extends string, TMode extends PgBigIntConfig['mode']>(
 	name: TName,
 	config: PgBigIntConfig<TMode>,
 ): TMode extends 'number' ? PgBigInt53BuilderInitial<TName> : PgBigInt64BuilderInitial<TName>;
-export function bigint(name: string, config: PgBigIntConfig) {
+export function bigint(a: string | PgBigIntConfig, b?: PgBigIntConfig) {
+	const { name, config } = getColumnNameAndConfig<PgBigIntConfig>(a, b);
 	if (config.mode === 'number') {
 		return new PgBigInt53Builder(name);
 	}

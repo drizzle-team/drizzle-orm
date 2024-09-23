@@ -34,7 +34,7 @@ export function drizzle<
 >(client: Client, config: DrizzleConfig<TSchema> = {}): LibSQLDatabase<TSchema> & {
 	$client: Client;
 } {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
