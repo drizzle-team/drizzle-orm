@@ -506,8 +506,8 @@ export const newYorkers2 = pgMaterializedView('new_yorkers')
 	.using('btree')
 	.with({
 		fillfactor: 90,
-		toast_tuple_target: 0.5,
-		autovacuum_enabled: true,
+		toastTupleTarget: 0.5,
+		autovacuumEnabled: true,
 	})
 	.tablespace('custom_tablespace')
 	.withNoData()
@@ -568,8 +568,8 @@ Expect<
 		.using('btree')
 		.with({
 			fillfactor: 90,
-			toast_tuple_target: 0.5,
-			autovacuum_enabled: true,
+			toastTupleTarget: 0.5,
+			autovacuumEnabled: true,
 		})
 		.tablespace('custom_tablespace')
 		.withNoData()
@@ -634,8 +634,8 @@ Expect<
 		.using('btree')
 		.with({
 			fillfactor: 90,
-			toast_tuple_target: 0.5,
-			autovacuum_enabled: true,
+			toastTupleTarget: 0.5,
+			autovacuumEnabled: true,
 		})
 		.tablespace('custom_tablespace')
 		.withNoData()
@@ -694,8 +694,8 @@ Expect<
 		.using('btree')
 		.with({
 			fillfactor: 90,
-			toast_tuple_target: 0.5,
-			autovacuum_enabled: true,
+			toastTupleTarget: 0.5,
+			autovacuumEnabled: true,
 		})
 		.tablespace('custom_tablespace')
 		.withNoData()

@@ -9,6 +9,7 @@ import {
 	schemasResolver,
 	sequencesResolver,
 	tablesResolver,
+	viewsResolver,
 } from './cli/commands/migrate';
 import { pgPushIntrospect } from './cli/commands/pgIntrospect';
 import { pgSuggestions } from './cli/commands/pgPushUtils';
@@ -43,6 +44,8 @@ export const generateDrizzleJson = (
 		prepared.enums,
 		prepared.schemas,
 		prepared.sequences,
+		prepared.views,
+		prepared.matViews,
 		schemaFilters,
 	);
 
@@ -73,6 +76,7 @@ export const generateMigration = async (
 		sequencesResolver,
 		tablesResolver,
 		columnsResolver,
+		viewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -116,6 +120,7 @@ export const pushSchema = async (
 		sequencesResolver,
 		tablesResolver,
 		columnsResolver,
+		viewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
