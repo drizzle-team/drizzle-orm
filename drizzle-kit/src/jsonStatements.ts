@@ -587,11 +587,20 @@ export interface JsonAlterViewAlterTablespaceStatement {
 	materialized: true;
 }
 
+export interface JsonAlterViewAlterUsingStatement {
+	type: 'alter_view_alter_using';
+	toUsing: string;
+	name: string;
+	schema: string;
+	materialized: true;
+}
+
 export type JsonAlterViewStatement =
 	| JsonAlterViewAlterSchemaStatement
 	| JsonAlterViewAddWithOptionStatement
 	| JsonAlterViewDropWithOptionStatement
-	| JsonAlterViewAlterTablespaceStatement;
+	| JsonAlterViewAlterTablespaceStatement
+	| JsonAlterViewAlterUsingStatement;
 
 export type JsonAlterColumnStatement =
 	| JsonRenameColumnStatement
@@ -2595,7 +2604,7 @@ export const preparePgAlterViewDropWithOptionJson = (
 	} as JsonAlterViewDropWithOptionStatement;
 };
 
-export const preparePgAlterViewAlterTablespaceOptionJson = (
+export const preparePgAlterViewAlterTablespaceJson = (
 	name: string,
 	schema: string,
 	materialized: boolean,
@@ -2608,4 +2617,19 @@ export const preparePgAlterViewAlterTablespaceOptionJson = (
 		materialized: materialized,
 		toTablespace: to,
 	} as JsonAlterViewAlterTablespaceStatement;
+};
+
+export const preparePgAlterViewAlterUsingJson = (
+	name: string,
+	schema: string,
+	materialized: boolean,
+	to: string,
+): JsonAlterViewAlterUsingStatement => {
+	return {
+		type: 'alter_view_alter_using',
+		name,
+		schema,
+		materialized: materialized,
+		toUsing: to,
+	} as JsonAlterViewAlterUsingStatement;
 };

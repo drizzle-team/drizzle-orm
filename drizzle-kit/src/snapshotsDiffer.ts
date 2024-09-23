@@ -71,7 +71,8 @@ import {
 	preparePgAlterColumns,
 	preparePgAlterViewAddWithOptionJson,
 	preparePgAlterViewAlterSchemaJson,
-	preparePgAlterViewAlterTablespaceOptionJson,
+	preparePgAlterViewAlterTablespaceJson,
+	preparePgAlterViewAlterUsingJson,
 	preparePgAlterViewDropWithOptionJson,
 	preparePgCreateIndexesJson,
 	preparePgCreateTableJson,
@@ -284,6 +285,10 @@ export const alteredViewSchema = object({
 		__new: boolean(),
 	}).strict().optional(),
 	alteredTablespace: object({
+		__old: string(),
+		__new: string(),
+	}).strict().optional(),
+	alteredUsing: object({
 		__old: string(),
 		__new: string(),
 	}).strict().optional(),
@@ -1269,11 +1274,22 @@ export const applyPgSnapshotsDiff = async (
 
 		if (alteredView.alteredTablespace) {
 			alterViews.push(
-				preparePgAlterViewAlterTablespaceOptionJson(
+				preparePgAlterViewAlterTablespaceJson(
 					alteredView.name,
 					alteredView.schema,
 					materialized,
 					alteredView.alteredTablespace.__new,
+				),
+			);
+		}
+
+		if (alteredView.alteredUsing) {
+			alterViews.push(
+				preparePgAlterViewAlterUsingJson(
+					alteredView.name,
+					alteredView.schema,
+					materialized,
+					alteredView.alteredUsing.__new,
 				),
 			);
 		}

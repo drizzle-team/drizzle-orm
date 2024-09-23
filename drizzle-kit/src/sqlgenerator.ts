@@ -28,6 +28,7 @@ import {
 	JsonAlterViewAddWithOptionStatement,
 	JsonAlterViewAlterSchemaStatement,
 	JsonAlterViewAlterTablespaceStatement,
+	JsonAlterViewAlterUsingStatement,
 	JsonAlterViewDropWithOptionStatement,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
@@ -544,6 +545,20 @@ class PgAlterViewAlterTablespaceConvertor extends Convertor {
 		const { schema, name, toTablespace } = st;
 
 		const statement = `ALTER MATERIALIZED VIEW "${schema}"."${name}" SET TABLESPACE ${toTablespace};`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewAlterUsingConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_alter_using' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAlterUsingStatement) {
+		const { schema, name, toUsing } = st;
+
+		const statement = `ALTER MATERIALIZED VIEW "${schema}"."${name}" SET ACCESS METHOD "${toUsing}";`;
 
 		return statement;
 	}
@@ -2646,6 +2661,7 @@ convertors.push(new PgAlterViewSchemaConvertor());
 convertors.push(new PgAlterViewAddWithOptionConvertor());
 convertors.push(new PgAlterViewDropWithOptionConvertor());
 convertors.push(new PgAlterViewAlterTablespaceConvertor());
+convertors.push(new PgAlterViewAlterUsingConvertor());
 
 convertors.push(new CreateTypeEnumConvertor());
 

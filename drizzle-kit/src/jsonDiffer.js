@@ -285,6 +285,15 @@ export function applyJsonDiff(json1, json2) {
 			if (droppedTablespace) alteredTablespace = { __new: 'pg_default', __old: droppedTablespace };
 			if (alterTablespaceTo) alteredTablespace = alterTablespaceTo;
 
+			const addedUsing = view.using__added;
+			const droppedUsing = view.using__deleted;
+			const alterUsingTo = view.using;
+
+			let alteredUsing;
+			if (addedUsing) alteredUsing = { __new: addedUsing, __old: 'heap' };
+			if (droppedUsing) alteredUsing = { __new: 'heap', __old: droppedUsing };
+			if (alterUsingTo) alteredUsing = alterUsingTo;
+
 			return {
 				name: json2.views[nameWithSchema].name,
 				schema: json2.views[nameWithSchema].schema,
@@ -299,6 +308,7 @@ export function applyJsonDiff(json1, json2) {
 				alteredDefinition,
 				alteredExisting,
 				alteredTablespace,
+				alteredUsing,
 			};
 		},
 	);
