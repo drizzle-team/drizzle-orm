@@ -33,8 +33,7 @@ import type {
 import { type DB, getColumnCasing, isPgArrayType } from '../utils';
 import { sqlToStr } from '.';
 import { CasingType } from 'src/cli/validations/common';
-
-const dialect = new PgDialect();
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -121,6 +120,9 @@ export const generatePgSnapshot = (
 	casing: CasingType | undefined,
 	schemaFilter?: string[],
 ): PgSchemaInternal => {
+	const dialect = new PgDialect({
+		casing: casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined,
+	});
 	const result: Record<string, Table> = {};
 	const sequencesToReturn: Record<string, Sequence> = {};
 
@@ -285,9 +287,18 @@ export const generatePgSnapshot = (
 		});
 
 		primaryKeys.map((pk) => {
+			const originalColumnNames = pk.columns.map((c) => c.name);
 			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
-			primaryKeysObject[pk.getName()] = {
-				name: pk.getName(),
+			
+			let name = pk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnNames.length; i++) {
+					name = name.replace(originalColumnNames[i], columnNames[i]);
+				}
+			}
+
+			primaryKeysObject[name] = {
+				name,
 				columns: columnNames,
 			};
 		});
@@ -332,7 +343,6 @@ export const generatePgSnapshot = (
 		});
 
 		const fks: ForeignKey[] = foreignKeys.map((fk) => {
-			const name = fk.getName();
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete;
 			const onUpdate = fk.onUpdate;
@@ -343,8 +353,20 @@ export const generatePgSnapshot = (
 			// getTableConfig(reference.foreignTable).schema || "public";
 			const schemaTo = getTableConfig(reference.foreignTable).schema;
 
+			const originalColumnsFrom = reference.columns.map((it) => it.name);
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+
+			let name = fk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnsFrom.length; i++) {
+					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+				}
+				for (let i = 0; i < originalColumnsTo.length; i++) {
+					name = name.replace(originalColumnsTo[i], columnsTo[i]);
+				}
+			}
 
 			return {
 				name,
