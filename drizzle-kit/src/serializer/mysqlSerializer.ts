@@ -23,8 +23,6 @@ import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 // import { MySqlColumnWithAutoIncrement } from "drizzle-orm/mysql-core";
 // import { MySqlDateBaseColumn } from "drizzle-orm/mysql-core";
 
-const dialect = new MySqlDialect();
-
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
 };
@@ -33,6 +31,9 @@ export const generateMySqlSnapshot = (
 	tables: AnyMySqlTable[],
 	casing: CasingType | undefined,
 ): MySqlSchemaInternal => {
+	const dialect = new MySqlDialect({
+		casing: casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined,
+	});
 	const result: Record<string, Table> = {};
 	const internal: MySqlKitInternals = { tables: {}, indexes: {} };
 	for (const table of tables) {
@@ -158,9 +159,18 @@ export const generateMySqlSnapshot = (
 		});
 
 		primaryKeys.map((pk: PrimaryKeyORM) => {
+			const originalColumnNames = pk.columns.map((c) => c.name);
 			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
-			primaryKeysObject[pk.getName()] = {
-				name: pk.getName(),
+
+			let name = pk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnNames.length; i++) {
+					name = name.replace(originalColumnNames[i], columnNames[i]);
+				}
+			}
+
+			primaryKeysObject[name] = {
+				name,
 				columns: columnNames,
 			};
 
@@ -210,7 +220,6 @@ export const generateMySqlSnapshot = (
 		});
 
 		const fks: ForeignKey[] = foreignKeys.map((fk) => {
-			const name = fk.getName();
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete ?? 'no action';
 			const onUpdate = fk.onUpdate ?? 'no action';
@@ -220,8 +229,22 @@ export const generateMySqlSnapshot = (
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
+
+			const originalColumnsFrom = reference.columns.map((it) => it.name);
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+
+			let name = fk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnsFrom.length; i++) {
+					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+				}
+				for (let i = 0; i < originalColumnsTo.length; i++) {
+					name = name.replace(originalColumnsTo[i], columnsTo[i]);
+				}
+			}
+
 			return {
 				name,
 				tableFrom,
