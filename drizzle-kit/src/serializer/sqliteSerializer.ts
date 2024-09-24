@@ -25,12 +25,13 @@ import { sqlToStr } from '.';
 import { CasingType } from 'src/cli/validations/common';
 import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 
-const dialect = new SQLiteSyncDialect();
-
 export const generateSqliteSnapshot = (
 	tables: AnySQLiteTable[],
 	casing: CasingType | undefined,
 ): SQLiteSchemaInternal => {
+	const dialect = new SQLiteSyncDialect({
+		casing: casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined,
+	});
 	const result: Record<string, Table> = {};
 	const internal: SQLiteKitInternals = { indexes: {} };
 	for (const table of tables) {
@@ -126,7 +127,6 @@ export const generateSqliteSnapshot = (
 		});
 
 		const foreignKeys: ForeignKey[] = tableForeignKeys.map((fk) => {
-			const name = fk.getName();
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete ?? 'no action';
 			const onUpdate = fk.onUpdate ?? 'no action';
@@ -136,8 +136,22 @@ export const generateSqliteSnapshot = (
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
+
+			const originalColumnsFrom = reference.columns.map((it) => it.name);
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+
+			let name = fk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnsFrom.length; i++) {
+					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+				}
+				for (let i = 0; i < originalColumnsTo.length; i++) {
+					name = name.replace(originalColumnsTo[i], columnsTo[i]);
+				}
+			}
+
 			return {
 				name,
 				tableFrom,
@@ -240,9 +254,19 @@ export const generateSqliteSnapshot = (
 
 		primaryKeys.forEach((it) => {
 			if (it.columns.length > 1) {
-				primaryKeysObject[it.getName()] = {
-					columns: it.columns.map((it) => getColumnCasing(it, casing)),
-					name: it.getName(),
+				const originalColumnNames = it.columns.map((c) => c.name);
+				const columnNames = it.columns.map((c) => getColumnCasing(c, casing));
+
+				let name = it.getName();
+				if (casing !== undefined) {
+					for (let i = 0; i < originalColumnNames.length; i++) {
+						name = name.replace(originalColumnNames[i], columnNames[i]);
+					}
+				}
+
+				primaryKeysObject[name] = {
+					columns: columnNames,
+					name
 				};
 			} else {
 				columnsObject[getColumnCasing(it.columns[0], casing)].primaryKey = true;
