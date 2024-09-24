@@ -1,14 +1,14 @@
 import chalk from 'chalk';
 import { SQL, Table } from 'drizzle-orm';
+import { CasingCache } from 'drizzle-orm/casing';
 import fs from 'fs';
 import * as glob from 'glob';
 import Path from 'path';
+import { CasingType } from 'src/cli/validations/common';
 import { error } from '../cli/views';
 import type { MySqlSchemaInternal } from './mysqlSchema';
 import type { PgSchemaInternal } from './pgSchema';
 import type { SQLiteSchemaInternal } from './sqliteSchema';
-import { CasingType } from 'src/cli/validations/common';
-import { CasingCache } from 'drizzle-orm/casing';
 
 export const sqlToStr = (sql: SQL, casing: CasingType | undefined) => {
 	return sql.toQuery({
@@ -21,7 +21,7 @@ export const sqlToStr = (sql: SQL, casing: CasingType | undefined) => {
 		escapeString: () => {
 			throw new Error("we don't support params for `sql` default values");
 		},
-		casing: new CasingCache(casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined)
+		casing: new CasingCache(casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined),
 	}).sql;
 };
 
@@ -36,7 +36,7 @@ export const sqlToStrGenerated = (sql: SQL, casing: CasingType | undefined) => {
 		escapeString: () => {
 			throw new Error("we don't support params for `sql` default values");
 		},
-		casing: new CasingCache(casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined)
+		casing: new CasingCache(casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined),
 	}).sql;
 };
 

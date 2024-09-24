@@ -249,7 +249,7 @@ export const push = command({
 				'schemaFilters',
 				'extensionsFilters',
 				'tablesFilter',
-				'casing'
+				'casing',
 			],
 		);
 

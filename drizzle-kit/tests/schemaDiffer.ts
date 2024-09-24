@@ -413,7 +413,7 @@ export const diffTestSchemasPush = async (
 	renamesArr: string[],
 	cli: boolean = false,
 	schemas: string[] = ['public'],
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) => {
 	const { sqlStatements } = await applyPgDiffs(left, casing);
 	for (const st of sqlStatements) {
@@ -445,7 +445,7 @@ export const diffTestSchemasPush = async (
 		leftEnums,
 		leftSchemas,
 		leftSequences,
-		casing
+		casing,
 	);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
@@ -567,7 +567,7 @@ export const diffTestSchemas = async (
 	right: PostgresSchema,
 	renamesArr: string[],
 	cli: boolean = false,
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, PgTable)) as PgTable[];
 
@@ -590,14 +590,14 @@ export const diffTestSchemas = async (
 		leftEnums,
 		leftSchemas,
 		leftSequences,
-		casing
+		casing,
 	);
 	const serialized2 = generatePgSnapshot(
 		rightTables,
 		rightEnums,
 		rightSchemas,
 		rightSequences,
-		casing
+		casing,
 	);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
@@ -663,7 +663,7 @@ export const diffTestSchemasPushMysql = async (
 	renamesArr: string[],
 	schema: string,
 	cli: boolean = false,
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) => {
 	const { sqlStatements } = await applyMySqlDiffs(left, casing);
 	for (const st of sqlStatements) {
@@ -787,7 +787,7 @@ export const diffTestSchemasMysql = async (
 	right: MysqlSchema,
 	renamesArr: string[],
 	cli: boolean = false,
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 
@@ -853,7 +853,7 @@ export const diffTestSchemasPushSqlite = async (
 	renamesArr: string[],
 	cli: boolean = false,
 	seedStatements: string[] = [],
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) => {
 	const { sqlStatements } = await applySqliteDiffs(left, 'push');
 
@@ -971,7 +971,7 @@ export async function diffTestSchemasPushLibSQL(
 	renamesArr: string[],
 	cli: boolean = false,
 	seedStatements: string[] = [],
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) {
 	const { sqlStatements } = await applyLibSQLDiffs(left, 'push');
 
@@ -1198,7 +1198,7 @@ export const diffTestSchemasSqlite = async (
 	right: SqliteSchema,
 	renamesArr: string[],
 	cli: boolean = false,
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
@@ -1259,7 +1259,7 @@ export const diffTestSchemasLibSQL = async (
 	right: SqliteSchema,
 	renamesArr: string[],
 	cli: boolean = false,
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
@@ -1322,7 +1322,7 @@ export const introspectPgToFile = async (
 	initSchema: PostgresSchema,
 	testName: string,
 	schemas: string[] = ['public'],
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) => {
 	// put in db
 	const { sqlStatements } = await applyPgDiffs(initSchema, casing);
@@ -1355,7 +1355,7 @@ export const introspectPgToFile = async (
 		response.enums,
 		response.schemas,
 		response.sequences,
-		casing
+		casing,
 	);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
@@ -1384,7 +1384,7 @@ export const introspectPgToFile = async (
 		leftEnums,
 		leftSchemas,
 		leftSequences,
-		casing
+		casing,
 	);
 
 	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
@@ -1428,7 +1428,7 @@ export const introspectMySQLToFile = async (
 	initSchema: MysqlSchema,
 	testName: string,
 	schema: string,
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) => {
 	// put in db
 	const { sqlStatements } = await applyMySqlDiffs(initSchema, casing);
@@ -1511,7 +1511,7 @@ export const introspectSQLiteToFile = async (
 	client: Database,
 	initSchema: SqliteSchema,
 	testName: string,
-	casing?: CasingType | undefined
+	casing?: CasingType | undefined,
 ) => {
 	// put in db
 	const { sqlStatements } = await applySqliteDiffs(initSchema);

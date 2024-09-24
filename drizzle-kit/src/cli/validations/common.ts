@@ -109,7 +109,7 @@ export const configCommonSchema = object({
 	schemaFilter: union([string(), string().array()]).default(['public']),
 	migrations: configMigrations,
 	dbCredentials: any().optional(),
-	casing: casingType
+	casing: casingType,
 }).passthrough();
 
 export const casing = union([literal('camel'), literal('preserve')]).default(

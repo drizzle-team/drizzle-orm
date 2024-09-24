@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
 	// AnySQLiteColumnBuilder,
 	AnySQLiteTable,
@@ -8,6 +9,7 @@ import {
 	SQLiteSyncDialect,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
+import { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
@@ -22,8 +24,6 @@ import type {
 } from '../serializer/sqliteSchema';
 import { getColumnCasing, type SQLiteDB } from '../utils';
 import { sqlToStr } from '.';
-import { CasingType } from 'src/cli/validations/common';
-import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 
 export const generateSqliteSnapshot = (
 	tables: AnySQLiteTable[],
@@ -266,7 +266,7 @@ export const generateSqliteSnapshot = (
 
 				primaryKeysObject[name] = {
 					columns: columnNames,
-					name
+					name,
 				};
 			} else {
 				columnsObject[getColumnCasing(it.columns[0], casing)].primaryKey = true;

@@ -666,13 +666,13 @@ test('optional db aliases (snake case)', async () => {
 				foreignColumns: [t3.t3Id1, t3.t3Id2],
 			}),
 		}),
-	)
+	);
 
 	const t2 = pgTable(
 		't2',
 		{
-			t2Id: serial().primaryKey()
-		}
+			t2Id: serial().primaryKey(),
+		},
 	);
 
 	const t3 = pgTable(
@@ -691,7 +691,7 @@ test('optional db aliases (snake case)', async () => {
 	const to = {
 		t1,
 		t2,
-		t3
+		t3,
 	};
 
 	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'snake');
@@ -764,13 +764,13 @@ test('optional db aliases (camel case)', async () => {
 				foreignColumns: [t3.t3_id1, t3.t3_id2],
 			}),
 		}),
-	)
+	);
 
 	const t2 = pgTable(
 		't2',
 		{
-			t2_id: serial().primaryKey()
-		}
+			t2_id: serial().primaryKey(),
+		},
 	);
 
 	const t3 = pgTable(
@@ -789,7 +789,7 @@ test('optional db aliases (camel case)', async () => {
 	const to = {
 		t1,
 		t2,
-		t3
+		t3,
 	};
 
 	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'camel');

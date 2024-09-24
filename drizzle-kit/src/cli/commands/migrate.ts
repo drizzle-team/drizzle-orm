@@ -169,7 +169,7 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await preparePgMigrationSnapshot(
 			snapshots,
 			schemaPath,
-			casing
+			casing,
 		);
 
 		const validatedPrev = pgSchema.parse(prev);
@@ -222,7 +222,7 @@ export const preparePgPush = async (
 	schemaPath: string | string[],
 	snapshot: PgSchema,
 	schemaFilter: string[],
-	casing: CasingType | undefined
+	casing: CasingType | undefined,
 ) => {
 	const { prev, cur } = await preparePgDbPushSnapshot(
 		snapshot,
@@ -314,7 +314,7 @@ export const prepareMySQLPush = async (
 		const { prev, cur } = await prepareMySqlDbPushSnapshot(
 			snapshot,
 			schemaPath,
-			casing
+			casing,
 		);
 
 		const validatedPrev = mysqlSchema.parse(prev);
@@ -353,7 +353,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await prepareMySqlMigrationSnapshot(
 			snapshots,
 			schemaPath,
-			casing
+			casing,
 		);
 
 		const validatedPrev = mysqlSchema.parse(prev);
@@ -412,7 +412,7 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
 			snapshots,
 			schemaPath,
-			casing
+			casing,
 		);
 
 		const validatedPrev = sqliteSchema.parse(prev);
@@ -473,7 +473,7 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
 			snapshots,
 			schemaPath,
-			casing
+			casing,
 		);
 
 		const validatedPrev = sqliteSchema.parse(prev);
@@ -525,7 +525,7 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 export const prepareSQLitePush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
-	casing: CasingType | undefined
+	casing: CasingType | undefined,
 ) => {
 	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath, casing);
 
@@ -557,7 +557,7 @@ export const prepareSQLitePush = async (
 export const prepareLibSQLPush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
-	casing: CasingType | undefined
+	casing: CasingType | undefined,
 ) => {
 	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath, casing);
 

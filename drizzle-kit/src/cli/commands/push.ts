@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import { fromJson } from '../../sqlgenerator';
 import { Select } from '../selector-ui';
+import { CasingType } from '../validations/common';
 import { LibSQLCredentials } from '../validations/libsql';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
@@ -11,7 +12,6 @@ import { libSqlLogSuggestionsAndReturn } from './libSqlPushUtils';
 import { filterStatements, logSuggestionsAndReturn } from './mysqlPushUtils';
 import { pgSuggestions } from './pgPushUtils';
 import { logSuggestionsAndReturn as sqliteSuggestions } from './sqlitePushUtils';
-import { CasingType } from '../validations/common';
 
 export const mysqlPush = async (
 	schemaPath: string | string[],
@@ -20,7 +20,7 @@ export const mysqlPush = async (
 	strict: boolean,
 	verbose: boolean,
 	force: boolean,
-	casing: CasingType | undefined
+	casing: CasingType | undefined,
 ) => {
 	const { connectToMySQL } = await import('../connections');
 	const { mysqlPushIntrospect } = await import('./mysqlIntrospect');
@@ -161,7 +161,7 @@ export const pgPush = async (
 	tablesFilter: string[],
 	schemasFilter: string[],
 	force: boolean,
-	casing: CasingType | undefined
+	casing: CasingType | undefined,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const { pgPushIntrospect } = await import('./pgIntrospect');
@@ -271,7 +271,7 @@ export const sqlitePush = async (
 	credentials: SqliteCredentials,
 	tablesFilter: string[],
 	force: boolean,
-	casing: CasingType | undefined
+	casing: CasingType | undefined,
 ) => {
 	const { connectToSQLite } = await import('../connections');
 	const { sqlitePushIntrospect } = await import('./sqliteIntrospect');
@@ -390,7 +390,7 @@ export const libSQLPush = async (
 	credentials: LibSQLCredentials,
 	tablesFilter: string[],
 	force: boolean,
-	casing: CasingType | undefined
+	casing: CasingType | undefined,
 ) => {
 	const { connectToLibSQL } = await import('../connections');
 	const { sqlitePushIntrospect } = await import('./sqliteIntrospect');

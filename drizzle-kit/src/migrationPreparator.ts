@@ -1,10 +1,10 @@
 import { randomUUID } from 'crypto';
 import fs from 'fs';
+import { CasingType } from './cli/validations/common';
 import { serializeMySql, serializePg, serializeSQLite } from './serializer';
 import { dryMySql, MySqlSchema, mysqlSchema } from './serializer/mysqlSchema';
 import { dryPg, PgSchema, pgSchema, PgSchemaInternal } from './serializer/pgSchema';
 import { drySQLite, SQLiteSchema, sqliteSchema } from './serializer/sqliteSchema';
-import { CasingType } from './cli/validations/common';
 
 export const prepareMySqlDbPushSnapshot = async (
 	prev: MySqlSchema,
@@ -139,7 +139,7 @@ export const fillPgSnapshot = ({
 export const preparePgMigrationSnapshot = async (
 	snapshots: string[],
 	schemaPath: string | string[],
-	casing: CasingType | undefined
+	casing: CasingType | undefined,
 ): Promise<{ prev: PgSchema; cur: PgSchema; custom: PgSchema }> => {
 	const prevSnapshot = pgSchema.parse(preparePrevSnapshot(snapshots, dryPg));
 	const serialized = await serializePg(schemaPath, casing);

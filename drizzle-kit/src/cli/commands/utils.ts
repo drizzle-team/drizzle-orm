@@ -139,7 +139,7 @@ export const prepareGenerateConfig = async (
 		dialect?: Dialect;
 		driver?: Driver;
 		prefix?: Prefix;
-		casing?: CasingType
+		casing?: CasingType;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
@@ -173,7 +173,7 @@ export const prepareGenerateConfig = async (
 		schema: schema,
 		out: out || 'drizzle',
 		bundle: driver === 'expo',
-		casing
+		casing,
 	};
 };
 

@@ -1,5 +1,17 @@
 import { sql } from 'drizzle-orm';
-import { foreignKey, index, int, json, mysqlSchema, mysqlTable, primaryKey, serial, text, unique, uniqueIndex } from 'drizzle-orm/mysql-core';
+import {
+	foreignKey,
+	index,
+	int,
+	json,
+	mysqlSchema,
+	mysqlTable,
+	primaryKey,
+	serial,
+	text,
+	unique,
+	uniqueIndex,
+} from 'drizzle-orm/mysql-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasMysql } from './schemaDiffer';
 
@@ -579,13 +591,13 @@ test('optional db aliases (snake case)', async () => {
 				foreignColumns: [t3.t3Id1, t3.t3Id2],
 			}),
 		}),
-	)
+	);
 
 	const t2 = mysqlTable(
 		't2',
 		{
-			t2Id: serial().primaryKey()
-		}
+			t2Id: serial().primaryKey(),
+		},
 	);
 
 	const t3 = mysqlTable(
@@ -604,7 +616,7 @@ test('optional db aliases (snake case)', async () => {
 	const to = {
 		t1,
 		t2,
-		t3
+		t3,
 	};
 
 	const { sqlStatements } = await diffTestSchemasMysql(from, to, [], false, 'snake');
@@ -636,9 +648,11 @@ test('optional db aliases (snake case)', async () => {
 );
 `;
 
-	const st4 = `ALTER TABLE \`t1\` ADD CONSTRAINT \`t1_t2_ref_t2_t2_id_fk\` FOREIGN KEY (\`t2_ref\`) REFERENCES \`t2\`(\`t2_id\`) ON DELETE no action ON UPDATE no action;`;
+	const st4 =
+		`ALTER TABLE \`t1\` ADD CONSTRAINT \`t1_t2_ref_t2_t2_id_fk\` FOREIGN KEY (\`t2_ref\`) REFERENCES \`t2\`(\`t2_id\`) ON DELETE no action ON UPDATE no action;`;
 
-	const st5 = `ALTER TABLE \`t1\` ADD CONSTRAINT \`t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk\` FOREIGN KEY (\`t1_col2\`,\`t1_col3\`) REFERENCES \`t3\`(\`t3_id1\`,\`t3_id2\`) ON DELETE no action ON UPDATE no action;`;
+	const st5 =
+		`ALTER TABLE \`t1\` ADD CONSTRAINT \`t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk\` FOREIGN KEY (\`t1_col2\`,\`t1_col3\`) REFERENCES \`t3\`(\`t3_id1\`,\`t3_id2\`) ON DELETE no action ON UPDATE no action;`;
 
 	const st6 = `CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`;
 
@@ -668,13 +682,13 @@ test('optional db aliases (camel case)', async () => {
 				foreignColumns: [t3.t3_id1, t3.t3_id2],
 			}),
 		}),
-	)
+	);
 
 	const t2 = mysqlTable(
 		't2',
 		{
-			t2_id: serial().primaryKey()
-		}
+			t2_id: serial().primaryKey(),
+		},
 	);
 
 	const t3 = mysqlTable(
@@ -693,7 +707,7 @@ test('optional db aliases (camel case)', async () => {
 	const to = {
 		t1,
 		t2,
-		t3
+		t3,
 	};
 
 	const { sqlStatements } = await diffTestSchemasMysql(from, to, [], false, 'camel');
@@ -725,9 +739,11 @@ test('optional db aliases (camel case)', async () => {
 );
 `;
 
-	const st4 = `ALTER TABLE \`t1\` ADD CONSTRAINT \`t1_t2Ref_t2_t2Id_fk\` FOREIGN KEY (\`t2Ref\`) REFERENCES \`t2\`(\`t2Id\`) ON DELETE no action ON UPDATE no action;`;
+	const st4 =
+		`ALTER TABLE \`t1\` ADD CONSTRAINT \`t1_t2Ref_t2_t2Id_fk\` FOREIGN KEY (\`t2Ref\`) REFERENCES \`t2\`(\`t2Id\`) ON DELETE no action ON UPDATE no action;`;
 
-	const st5 = `ALTER TABLE \`t1\` ADD CONSTRAINT \`t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk\` FOREIGN KEY (\`t1Col2\`,\`t1Col3\`) REFERENCES \`t3\`(\`t3Id1\`,\`t3Id2\`) ON DELETE no action ON UPDATE no action;`;
+	const st5 =
+		`ALTER TABLE \`t1\` ADD CONSTRAINT \`t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk\` FOREIGN KEY (\`t1Col2\`,\`t1Col3\`) REFERENCES \`t3\`(\`t3Id1\`,\`t3Id2\`) ON DELETE no action ON UPDATE no action;`;
 
 	const st6 = `CREATE INDEX \`t1Idx\` ON \`t1\` (\`t1Idx\`);`;
 

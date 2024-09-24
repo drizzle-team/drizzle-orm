@@ -1,9 +1,11 @@
 import chalk from 'chalk';
 import { getTableName, is } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import { AnyMySqlTable, MySqlDialect, type PrimaryKey as PrimaryKeyORM, uniqueKeyName } from 'drizzle-orm/mysql-core';
 import { getTableConfig } from 'drizzle-orm/mysql-core';
 import { RowDataPacket } from 'mysql2/promise';
+import { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../cli/validations/outputs';
 import { IntrospectStage, IntrospectStatus } from '../cli/views';
 import {
@@ -16,10 +18,8 @@ import {
 	Table,
 	UniqueConstraint,
 } from '../serializer/mysqlSchema';
-import { getColumnCasing, type DB } from '../utils';
+import { type DB, getColumnCasing } from '../utils';
 import { sqlToStr } from '.';
-import { CasingType } from 'src/cli/validations/common';
-import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 // import { MySqlColumnWithAutoIncrement } from "drizzle-orm/mysql-core";
 // import { MySqlDateBaseColumn } from "drizzle-orm/mysql-core";
 

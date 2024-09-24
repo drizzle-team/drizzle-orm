@@ -1,5 +1,15 @@
 import { sql } from 'drizzle-orm';
-import { AnySQLiteColumn, foreignKey, index, int, primaryKey, sqliteTable, text, unique, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+	AnySQLiteColumn,
+	foreignKey,
+	index,
+	int,
+	primaryKey,
+	sqliteTable,
+	text,
+	unique,
+	uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasSqlite } from './schemaDiffer';
 
@@ -421,13 +431,13 @@ test('optional db aliases (snake case)', async () => {
 				foreignColumns: [t3.t3Id1, t3.t3Id2],
 			}),
 		}),
-	)
+	);
 
 	const t2 = sqliteTable(
 		't2',
 		{
-			t2Id: int().primaryKey({ autoIncrement: true })
-		}
+			t2Id: int().primaryKey({ autoIncrement: true }),
+		},
 	);
 
 	const t3 = sqliteTable(
@@ -446,7 +456,7 @@ test('optional db aliases (snake case)', async () => {
 	const to = {
 		t1,
 		t2,
-		t3
+		t3,
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite(from, to, [], false, 'snake');
@@ -508,13 +518,13 @@ test('optional db aliases (camel case)', async () => {
 				foreignColumns: [t3.t3_id1, t3.t3_id2],
 			}),
 		}),
-	)
+	);
 
 	const t2 = sqliteTable(
 		't2',
 		{
-			t2_id: int().primaryKey({ autoIncrement: true })
-		}
+			t2_id: int().primaryKey({ autoIncrement: true }),
+		},
 	);
 
 	const t3 = sqliteTable(
@@ -533,7 +543,7 @@ test('optional db aliases (camel case)', async () => {
 	const to = {
 		t1,
 		t2,
-		t3
+		t3,
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite(from, to, [], false, 'camel');

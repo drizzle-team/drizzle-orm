@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
 	AnyPgTable,
 	ExtraConfigColumn,
@@ -14,6 +15,7 @@ import {
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
 import { getTableConfig } from 'drizzle-orm/pg-core';
+import { CasingType } from 'src/cli/validations/common';
 import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
@@ -32,8 +34,6 @@ import type {
 } from '../serializer/pgSchema';
 import { type DB, getColumnCasing, isPgArrayType } from '../utils';
 import { sqlToStr } from '.';
-import { CasingType } from 'src/cli/validations/common';
-import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -289,7 +289,7 @@ export const generatePgSnapshot = (
 		primaryKeys.map((pk) => {
 			const originalColumnNames = pk.columns.map((c) => c.name);
 			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
-			
+
 			let name = pk.getName();
 			if (casing !== undefined) {
 				for (let i = 0; i < originalColumnNames.length; i++) {
