@@ -16,8 +16,10 @@ import {
 	Table,
 	UniqueConstraint,
 } from '../serializer/mysqlSchema';
-import type { DB } from '../utils';
+import { getColumnCasing, type DB } from '../utils';
 import { sqlToStr } from '.';
+import { CasingType } from 'src/cli/validations/common';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 // import { MySqlColumnWithAutoIncrement } from "drizzle-orm/mysql-core";
 // import { MySqlDateBaseColumn } from "drizzle-orm/mysql-core";
 
@@ -29,6 +31,7 @@ export const indexName = (tableName: string, columns: string[]) => {
 
 export const generateMySqlSnapshot = (
 	tables: AnyMySqlTable[],
+	casing: CasingType | undefined,
 ): MySqlSchemaInternal => {
 	const result: Record<string, Table> = {};
 	const internal: MySqlKitInternals = { tables: {}, indexes: {} };
@@ -49,6 +52,7 @@ export const generateMySqlSnapshot = (
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
 
 		columns.forEach((column) => {
+			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 			const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
@@ -58,7 +62,7 @@ export const generateMySqlSnapshot = (
 			const generated = column.generated;
 
 			const columnToSet: Column = {
-				name: column.name,
+				name,
 				type: column.getSQLType(),
 				primaryKey: false,
 				// If field is autoincrement it's notNull by default
@@ -79,9 +83,9 @@ export const generateMySqlSnapshot = (
 			};
 
 			if (column.primary) {
-				primaryKeysObject[`${tableName}_${column.name}`] = {
-					name: `${tableName}_${column.name}`,
-					columns: [column.name],
+				primaryKeysObject[`${tableName}_${name}`] = {
+					name: `${tableName}_${name}`,
+					columns: [name],
 				};
 			}
 
@@ -101,7 +105,7 @@ export const generateMySqlSnapshot = (
 								)
 							} on the ${
 								chalk.underline.blue(
-									column.name,
+									name,
 								)
 							} column is confilcting with a unique constraint name already defined for ${
 								chalk.underline.blue(
@@ -120,7 +124,7 @@ export const generateMySqlSnapshot = (
 
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
-					columnToSet.default = sqlToStr(column.default);
+					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					if (typeof column.default === 'string') {
 						columnToSet.default = `'${column.default}'`;
@@ -150,11 +154,11 @@ export const generateMySqlSnapshot = (
 					}
 				}
 			}
-			columnsObject[column.name] = columnToSet;
+			columnsObject[name] = columnToSet;
 		});
 
 		primaryKeys.map((pk: PrimaryKeyORM) => {
-			const columnNames = pk.columns.map((c: any) => c.name);
+			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
 			primaryKeysObject[pk.getName()] = {
 				name: pk.getName(),
 				columns: columnNames,
@@ -162,12 +166,12 @@ export const generateMySqlSnapshot = (
 
 			// all composite pk's should be treated as notNull
 			for (const column of pk.columns) {
-				columnsObject[column.name].notNull = true;
+				columnsObject[getColumnCasing(column, casing)].notNull = true;
 			}
 		});
 
 		uniqueConstraints?.map((unq) => {
-			const columnNames = unq.columns.map((c) => c.name);
+			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
 
 			const name = unq.name ?? uniqueKeyName(table, columnNames);
 
@@ -216,8 +220,8 @@ export const generateMySqlSnapshot = (
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
-			const columnsFrom = reference.columns.map((it) => it.name);
-			const columnsTo = reference.foreignColumns.map((it) => it.name);
+			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
 			return {
 				name,
 				tableFrom,
@@ -259,7 +263,7 @@ export const generateMySqlSnapshot = (
 					}
 					return sql;
 				} else {
-					return `${it.name}`;
+					return `${getColumnCasing(it, casing)}`;
 				}
 			});
 

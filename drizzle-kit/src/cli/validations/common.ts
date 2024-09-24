@@ -84,6 +84,10 @@ export type Prefix = (typeof prefixes)[number];
 	const _: Prefix = '' as TypeOf<typeof prefix>;
 }
 
+export const casingTypes = ['snake', 'camel'] as const;
+export const casingType = enum_(casingTypes);
+export type CasingType = (typeof casingTypes)[number];
+
 export const sqliteDriver = union(sqliteDriversLiterals);
 export const postgresDriver = union(postgresqlDriversLiterals);
 export const driver = union([sqliteDriver, postgresDriver]);
@@ -105,6 +109,7 @@ export const configCommonSchema = object({
 	schemaFilter: union([string(), string().array()]).default(['public']),
 	migrations: configMigrations,
 	dbCredentials: any().optional(),
+	casing: casingType
 }).passthrough();
 
 export const casing = union([literal('camel'), literal('preserve')]).default(

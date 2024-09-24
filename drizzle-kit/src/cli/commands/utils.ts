@@ -9,6 +9,7 @@ import { prepareFilenames } from '../../serializer';
 import { pullParams, pushParams } from '../validations/cli';
 import {
 	Casing,
+	CasingType,
 	CliConfig,
 	configCommonSchema,
 	configMigrations,
@@ -124,6 +125,7 @@ export type GenerateConfig = {
 	prefix: Prefix;
 	custom: boolean;
 	bundle: boolean;
+	casing?: CasingType;
 };
 
 export const prepareGenerateConfig = async (
@@ -137,12 +139,13 @@ export const prepareGenerateConfig = async (
 		dialect?: Dialect;
 		driver?: Driver;
 		prefix?: Prefix;
+		casing?: CasingType
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
 
-	const { schema, out, breakpoints, dialect, driver } = config;
+	const { schema, out, breakpoints, dialect, driver, casing } = config;
 
 	if (!schema || !dialect) {
 		console.log(error('Please provide required params:'));
@@ -170,6 +173,7 @@ export const prepareGenerateConfig = async (
 		schema: schema,
 		out: out || 'drizzle',
 		bundle: driver === 'expo',
+		casing
 	};
 };
 
@@ -224,6 +228,7 @@ export const preparePushConfig = async (
 		force: boolean;
 		tablesFilter: string[];
 		schemasFilter: string[];
+		casing?: CasingType;
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -292,6 +297,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -310,6 +316,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -328,6 +335,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -346,6 +354,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
 		};

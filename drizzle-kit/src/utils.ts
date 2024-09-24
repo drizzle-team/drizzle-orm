@@ -11,6 +11,8 @@ import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';
 import { backwardCompatibleSqliteSchema } from './serializer/sqliteSchema';
 import type { ProxyParams } from './serializer/studio';
+import { CasingType } from './cli/validations/common';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
 
@@ -355,4 +357,13 @@ export function findAddedAndRemoved(columnNames1: string[], columnNames2: string
 	const removedColumns = columnNames1.filter((it) => !set2.has(it));
 
 	return { addedColumns, removedColumns };
+}
+
+export function getColumnCasing(column: { keyAsName: boolean; name: string | undefined; }, casing: CasingType | undefined) {
+	if (!column.name) return '';
+	return !column.keyAsName || casing === undefined
+	? column.name
+	: casing === 'camel'
+		? toCamelCase(column.name)
+		: toSnakeCase(column.name)
 }
