@@ -17,7 +17,7 @@ export type CliConfigGenerate = TypeOf<typeof cliConfigGenerate>;
 
 export const pushParams = object({
 	dialect: dialect,
-	casing: casingType,
+	casing: casingType.optional(),
 	schema: union([string(), string().array()]),
 	tablesFilter: union([string(), string().array()]).optional(),
 	schemaFilter: union([string(), string().array()])
