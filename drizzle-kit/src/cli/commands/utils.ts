@@ -720,6 +720,7 @@ export const drizzleConfigFromFile = async (
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);
 	if (!res.success) {
+		console.log(res.error);
 		if (!('dialect' in content)) {
 			console.log(error("Please specify 'dialect' param in config file"));
 		}
