@@ -24,6 +24,7 @@ test('migrate #1', async (t) => {
 		},
 		schema: undefined, // drizzle migrations table schema
 		table: undefined, // drizzle migrations table name
+		casing: undefined,
 	});
 });
 
@@ -39,6 +40,7 @@ test('migrate #2', async (t) => {
 		},
 		schema: undefined, // drizzle migrations table schema
 		table: undefined, // drizzle migrations table name
+		casing: undefined,
 	});
 });
 
@@ -56,6 +58,7 @@ test('migrate #3', async (t) => {
 		},
 		schema: undefined, // drizzle migrations table schema
 		table: undefined, // drizzle migrations table name
+		casing: undefined,
 	});
 });
 
@@ -74,6 +77,7 @@ test('migrate #4', async (t) => {
 		},
 		schema: undefined, // drizzle migrations table schema
 		table: undefined, // drizzle migrations table name
+		casing: undefined,
 	});
 });
 
@@ -93,6 +97,7 @@ test('migrate #5', async (t) => {
 		},
 		schema: 'custom', // drizzle migrations table schema
 		table: 'custom', // drizzle migrations table name
+		casing: undefined,
 	});
 });
 
