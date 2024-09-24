@@ -1,6 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
 import { integer, pgMaterializedView, pgSchema, pgTable, pgView } from 'drizzle-orm/pg-core';
-import { JsonAlterViewAlterTablespaceStatement } from 'src/jsonStatements';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
@@ -1670,6 +1669,33 @@ test('set existing', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('set existing', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().notNull(),
+	});
+
+	const from = {
+		users,
+		view: pgView('some_view', { id: integer('id') }).with({
+			checkOption: 'cascaded',
+		}).as(sql`SELECT 'asd'`),
+	};
+
+	const to = {
+		users,
+		view: pgView('new_some_view', { id: integer('id') }).with({
+			checkOption: 'cascaded',
+			securityBarrier: true,
+		}).existing(),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, ['public.some_view->public.new_some_view']);
+
+	expect(statements.length).toBe(0);
+
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('alter using - materialize', async () => {
 	const users = pgTable('users', {
 		id: integer('id').primaryKey().notNull(),
@@ -1778,4 +1804,77 @@ test('drop using - materialize', async () => {
 	expect(sqlStatements[0]).toBe(
 		`ALTER MATERIALIZED VIEW "public"."some_view" SET ACCESS METHOD "heap";`,
 	);
+});
+
+test('rename view and alter view', async () => {
+	const from = {
+		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
+	};
+
+	const to = {
+		view: pgView('new_some_view', { id: integer('id') }).with({ checkOption: 'cascaded' }).as(
+			sql`SELECT * FROM "users"`,
+		),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, ['public.some_view->public.new_some_view']);
+
+	expect(statements.length).toBe(2);
+	expect(statements[0]).toStrictEqual({
+		type: 'rename_view',
+		nameFrom: 'some_view',
+		nameTo: 'new_some_view',
+		schema: 'public',
+		materialized: false,
+	});
+	expect(statements[1]).toStrictEqual({
+		materialized: false,
+		name: 'new_some_view',
+		schema: 'public',
+		type: 'alter_view_add_with_option',
+		with: {
+			checkOption: 'cascaded',
+		},
+	});
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(`ALTER VIEW "public"."some_view" RENAME TO "new_some_view";`);
+	expect(sqlStatements[1]).toBe(`ALTER VIEW "public"."new_some_view" SET (check_option = cascaded);`);
+});
+
+test('moved schema and alter view', async () => {
+	const schema = pgSchema('my_schema');
+	const from = {
+		schema,
+		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
+	};
+
+	const to = {
+		schema,
+		view: schema.view('some_view', { id: integer('id') }).with({ checkOption: 'cascaded' }).as(
+			sql`SELECT * FROM "users"`,
+		),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, ['public.some_view->my_schema.some_view']);
+
+	expect(statements.length).toBe(2);
+	expect(statements[0]).toStrictEqual({
+		fromSchema: 'public',
+		materialized: false,
+		name: 'some_view',
+		toSchema: 'my_schema',
+		type: 'alter_view_alter_schema',
+	});
+	expect(statements[1]).toStrictEqual({
+		materialized: false,
+		name: 'some_view',
+		schema: 'my_schema',
+		type: 'alter_view_add_with_option',
+		with: {
+			checkOption: 'cascaded',
+		},
+	});
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(`ALTER VIEW "public"."some_view" SET SCHEMA "my_schema";`);
+	expect(sqlStatements[1]).toBe(`ALTER VIEW "my_schema"."some_view" SET (check_option = cascaded);`);
 });

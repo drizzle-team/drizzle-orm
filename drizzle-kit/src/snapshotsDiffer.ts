@@ -779,7 +779,36 @@ export const applyPgSnapshotsDiff = async (
 		deleted: viewsDiff.deleted,
 	});
 
-	const diffResult = applyJsonDiff(columnsPatchedSnap1, json2);
+	const renamesViewDic: Record<string, { to: string; from: string }> = {};
+	renamedViews.forEach((it) => {
+		renamesViewDic[`${it.from.schema}.${it.from.name}`] = { to: it.to.name, from: it.from.name };
+	});
+
+	const movedViewDic: Record<string, { to: string; from: string }> = {};
+	movedViews.forEach((it) => {
+		movedViewDic[`${it.schemaFrom}.${it.name}`] = { to: it.schemaTo, from: it.schemaFrom };
+	});
+
+	const viewsPatchedSnap1 = copy(columnsPatchedSnap1);
+	viewsPatchedSnap1.views = mapEntries(
+		viewsPatchedSnap1.views,
+		(viewKey, viewValue) => {
+			const rename = renamesViewDic[`${viewValue.schema}.${viewValue.name}`];
+			const moved = movedViewDic[`${viewValue.schema}.${viewValue.name}`];
+
+			if (rename) {
+				viewValue.name = rename.to;
+				viewKey = `${viewValue.schema}.${viewValue.name}`;
+			}
+
+			if (moved) viewKey = `${moved.to}.${viewValue.name}`;
+
+			return [viewKey, viewValue];
+		},
+	);
+
+	const diffResult = applyJsonDiff(viewsPatchedSnap1, json2);
+
 	const typedResult: DiffResult = diffResultScheme.parse(diffResult);
 
 	const jsonStatements: JsonStatement[] = [];
