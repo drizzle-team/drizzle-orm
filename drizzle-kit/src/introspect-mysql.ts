@@ -186,6 +186,31 @@ export const schemaToTypeScript = (
 		{ mysql: [] as string[] },
 	);
 
+	Object.values(schema.views).forEach((it) => {
+		imports.mysql.push('mysqlView');
+
+		Object.values(it.columns).forEach(() => {
+			const columnImports = Object.values(it.columns)
+				.map((col) => {
+					let patched: string = (importsPatch[col.type] || col.type).replace('[]', '');
+					patched = patched === 'double precision' ? 'doublePrecision' : patched;
+					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+					patched = patched.startsWith('char(') ? 'char' : patched;
+					patched = patched.startsWith('numeric(') ? 'numeric' : patched;
+					patched = patched.startsWith('time(') ? 'time' : patched;
+					patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
+					patched = patched.startsWith('vector(') ? 'vector' : patched;
+					patched = patched.startsWith('geometry(') ? 'geometry' : patched;
+					return patched;
+				})
+				.filter((type) => {
+					return mysqlImportsList.has(type);
+				});
+
+			imports.mysql.push(...columnImports);
+		});
+	});
+
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const func = 'mysqlTable';
 		let statement = '';
@@ -243,6 +268,38 @@ export const schemaToTypeScript = (
 		return statement;
 	});
 
+	const viewsStatements = Object.values(schema.views).map((view) => {
+		const { columns, name, algorithm, definer, definition, sqlSecurity, withCheckOption } = view;
+		const func = 'mysqlView';
+		let statement = '';
+
+		if (imports.mysql.includes(withCasing(name))) {
+			statement = `// Table name is in conflict with ${
+				withCasing(
+					view.name,
+				)
+			} import.\n// Please change to any other name, that is not in imports list\n`;
+		}
+		statement += `export const ${withCasing(name)} = ${func}("${name}", {\n`;
+		statement += createTableColumns(
+			Object.values(columns),
+			[],
+			withCasing,
+			casing,
+			name,
+			schema,
+		);
+		statement += '})';
+
+		statement += algorithm ? `.algorithm("${algorithm}")` : '';
+		statement += definer ? `.definer("${definer}")` : '';
+		statement += sqlSecurity ? `.sqlSecurity("${sqlSecurity}")` : '';
+		statement += withCheckOption ? `.withCheckOption("${withCheckOption}")` : '';
+		statement += `.as(sql\`${definition?.replaceAll('`', '\\`')}\`);`;
+
+		return statement;
+	});
+
 	const uniqueMySqlImports = [
 		'mysqlTable',
 		'mysqlSchema',
@@ -257,6 +314,8 @@ export const schemaToTypeScript = (
 
 	let decalrations = '';
 	decalrations += tableStatements.join('\n\n');
+	decalrations += '\n';
+	decalrations += viewsStatements.join('\n\n');
 
 	const file = importsTs + decalrations;
 

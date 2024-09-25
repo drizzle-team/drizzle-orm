@@ -832,6 +832,39 @@ export const fromDatabase = async (
 		}
 	}
 
+	const views = await db.query(
+		`select * from INFORMATION_SCHEMA.VIEWS WHERE table_schema = '${inputSchema}';`,
+	);
+
+	const resultViews: Record<string, View> = {};
+
+	for await (const view of views) {
+		const viewName = view['TABLE_NAME'];
+		const definition = view['VIEW_DEFINITION'];
+
+		const withCheckOption = view['CHECK_OPTION'] === 'NONE' ? undefined : view['CHECK_OPTION'].toLowerCase();
+		const definer = view['DEFINER'].split('@').map((it: string) => `'${it}'`).join('@');
+		const sqlSecurity = view['SECURITY_TYPE'].toLowerCase();
+
+		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW \`${viewName}\`;`);
+		const algorithmMatch = createSqlStatement['Create View'].match(/ALGORITHM=([^ ]+)/);
+		const algorithm = algorithmMatch ? algorithmMatch[1].toLowerCase() : undefined;
+
+		const columns = result[viewName].columns;
+		delete result[viewName];
+
+		resultViews[viewName] = {
+			columns: columns,
+			isExisting: false,
+			name: viewName,
+			definer,
+			algorithm,
+			definition,
+			sqlSecurity,
+			withCheckOption,
+		};
+	}
+
 	if (progressCallback) {
 		progressCallback('indexes', indexesCount, 'done');
 		// progressCallback("enums", 0, "fetching");
@@ -842,7 +875,7 @@ export const fromDatabase = async (
 		version: '5',
 		dialect: 'mysql',
 		tables: result,
-		views: {},
+		views: resultViews,
 		_meta: {
 			tables: {},
 			columns: {},

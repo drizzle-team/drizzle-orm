@@ -20,6 +20,7 @@ import {
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
+	JsonAlterMySqlViewStatement,
 	JsonAlterReferenceStatement,
 	JsonAlterSequenceStatement,
 	JsonAlterTableRemoveFromSchema,
@@ -488,6 +489,27 @@ class MySqlDropViewConvertor extends Convertor {
 		const { name } = st;
 
 		return `DROP VIEW ${name};`;
+	}
+}
+
+class MySqlAlterViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_mysql_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonAlterMySqlViewStatement) {
+		const { name, algorithm, definer, definition, sqlSecurity, withCheckOption } = st;
+
+		let statement = `ALTER `;
+		statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
+		statement += definer ? `DEFINER = ${definer}\n` : '';
+		statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
+		statement += `VIEW \`${name}\` AS ${definition}`;
+		statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';
+
+		statement += ';';
+
+		return statement;
 	}
 }
 
@@ -2711,6 +2733,7 @@ convertors.push(new PgAlterViewAlterUsingConvertor());
 convertors.push(new MySqlCreateViewConvertor());
 convertors.push(new MySqlDropViewConvertor());
 convertors.push(new MySqlRenameViewConvertor());
+convertors.push(new MySqlAlterViewConvertor());
 
 convertors.push(new CreateTypeEnumConvertor());
 

@@ -279,11 +279,9 @@ export const alteredPgViewSchema = alteredViewCommon.merge(
 		schema: string(),
 		deletedWithOption: mergedViewWithOption.optional(),
 		addedWithOption: mergedViewWithOption.optional(),
-		alteredWith: object({
-			addedWith: mergedViewWithOption.optional(),
-			deletedWith: mergedViewWithOption.optional(),
-			alterWith: mergedViewWithOption.optional(),
-		}).strict(),
+		addedWith: mergedViewWithOption.optional(),
+		deletedWith: mergedViewWithOption.optional(),
+		alterWith: mergedViewWithOption.optional(),
 		alteredSchema: object({
 			__old: string(),
 			__new: string(),
@@ -1285,39 +1283,37 @@ export const applyPgSnapshotsDiff = async (
 			);
 		}
 
-		if (alteredView.alteredWith) {
-			if (alteredView.alteredWith.addedWith) {
-				alterViews.push(
-					preparePgAlterViewAddWithOptionJson(
-						alteredView.name,
-						alteredView.schema,
-						materialized,
-						alteredView.alteredWith.addedWith,
-					),
-				);
-			}
+		if (alteredView.addedWith) {
+			alterViews.push(
+				preparePgAlterViewAddWithOptionJson(
+					alteredView.name,
+					alteredView.schema,
+					materialized,
+					alteredView.addedWith,
+				),
+			);
+		}
 
-			if (alteredView.alteredWith.deletedWith) {
-				alterViews.push(
-					preparePgAlterViewDropWithOptionJson(
-						alteredView.name,
-						alteredView.schema,
-						materialized,
-						alteredView.alteredWith.deletedWith,
-					),
-				);
-			}
+		if (alteredView.deletedWith) {
+			alterViews.push(
+				preparePgAlterViewDropWithOptionJson(
+					alteredView.name,
+					alteredView.schema,
+					materialized,
+					alteredView.deletedWith,
+				),
+			);
+		}
 
-			if (alteredView.alteredWith.alterWith) {
-				alterViews.push(
-					preparePgAlterViewAddWithOptionJson(
-						alteredView.name,
-						alteredView.schema,
-						materialized,
-						alteredView.alteredWith.alterWith,
-					),
-				);
-			}
+		if (alteredView.alterWith) {
+			alterViews.push(
+				preparePgAlterViewAddWithOptionJson(
+					alteredView.name,
+					alteredView.schema,
+					materialized,
+					alteredView.alterWith,
+				),
+			);
 		}
 
 		if (alteredView.alteredTablespace) {
@@ -1643,7 +1639,7 @@ export const applyMysqlSnapshotsDiff = async (
 		},
 	);
 
-	const diffResult = applyJsonDiff(columnsPatchedSnap1, json2);
+	const diffResult = applyJsonDiff(viewsPatchedSnap1, json2);
 
 	const typedResult: DiffResultMysql = diffResultSchemeMysql.parse(diffResult);
 
@@ -1931,7 +1927,7 @@ export const applyMysqlSnapshotsDiff = async (
 		}
 
 		if (alteredView.alteredMeta) {
-			const view = { ...json2['views'][alteredView.name], isExisting: undefined };
+			const view = { ...curFull['views'][alteredView.name], isExisting: undefined };
 			alterViews.push(
 				prepareMySqlAlterView(view),
 			);

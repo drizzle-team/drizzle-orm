@@ -25,6 +25,7 @@ import { IntrospectProgress } from '../views';
 import {
 	columnsResolver,
 	enumsResolver,
+	mySqlViewsResolver,
 	schemasResolver,
 	sequencesResolver,
 	tablesResolver,
@@ -212,6 +213,7 @@ export const introspectMysql = async (
 			squashMysqlScheme(schema),
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			dryMySql,
 			schema,
 		);

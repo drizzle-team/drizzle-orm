@@ -2672,5 +2672,5 @@ export const preparePgAlterViewAlterUsingJson = (
 export const prepareMySqlAlterView = (
 	view: Omit<MySqlView, 'isExisting'>,
 ): JsonAlterMySqlViewStatement => {
-	return view as JsonAlterMySqlViewStatement;
+	return { type: 'alter_mysql_view', ...view };
 };

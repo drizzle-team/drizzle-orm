@@ -247,7 +247,7 @@ const matViewWithOption = object({
 	userCatalogTable: boolean().optional(),
 }).strict();
 
-export const mergedViewWithOption = viewWithOption.merge(matViewWithOption);
+export const mergedViewWithOption = viewWithOption.merge(matViewWithOption).strict();
 
 export const view = object({
 	name: string(),

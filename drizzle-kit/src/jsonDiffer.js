@@ -296,26 +296,26 @@ export function applyJsonDiff(json1, json2) {
 
 			const alteredMeta = view.meta;
 
-			return {
-				name: json2.views[nameWithSchema].name,
-				schema: json2.views[nameWithSchema].schema,
-				// pg
-				deletedWithOption: deletedWithOption,
-				addedWithOption: addedWithOption,
-				alteredWith: {
+			return Object.fromEntries(
+				Object.entries({
+					name: json2.views[nameWithSchema].name,
+					schema: json2.views[nameWithSchema].schema,
+					// pg
+					deletedWithOption: deletedWithOption,
+					addedWithOption: addedWithOption,
 					deletedWith: Object.keys(deletedWith).length ? deletedWith : undefined,
 					addedWith: Object.keys(addedWith).length ? addedWith : undefined,
-					alterWith: Object.keys(alterWith).length ? alterWith : undefined,
-				},
-				alteredSchema,
-				alteredExisting,
-				alteredTablespace,
-				alteredUsing,
-				// mysql
-				alteredMeta,
-				// common
-				alteredDefinition,
-			};
+					alteredWith: Object.keys(alterWith).length ? alterWith : undefined,
+					alteredSchema,
+					alteredExisting,
+					alteredTablespace,
+					alteredUsing,
+					// mysql
+					alteredMeta,
+					// common
+					alteredDefinition,
+				}).filter(([_, value]) => value !== undefined),
+			);
 		},
 	);
 
