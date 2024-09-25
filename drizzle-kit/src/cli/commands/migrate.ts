@@ -13,7 +13,7 @@ import { render } from 'hanji';
 import path, { join } from 'path';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
-import { MySqlSchema, mysqlSchema, squashMysqlScheme } from '../../serializer/mysqlSchema';
+import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
 import { PgSchema, pgSchema, squashPgScheme, View } from '../../serializer/pgSchema';
 import { SQLiteSchema, sqliteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
 import {
@@ -95,6 +95,28 @@ export const tablesResolver = async (
 export const viewsResolver = async (
 	input: ResolverInput<View>,
 ): Promise<ResolverOutputWithMoved<View>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const mySqlViewsResolver = async (
+	input: ResolverInput<ViewSquashed & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<ViewSquashed & { schema: '' }>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,
@@ -346,6 +368,7 @@ export const prepareMySQLPush = async (
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -397,6 +420,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);

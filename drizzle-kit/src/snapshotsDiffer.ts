@@ -21,13 +21,15 @@ import {
 	_prepareSqliteAddColumns,
 	JsonAddColumnStatement,
 	JsonAlterCompositePK,
+	JsonAlterMySqlViewStatement,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
 	JsonAlterViewStatement,
 	JsonCreateCompositePK,
+	JsonCreateMySqlViewStatement,
+	JsonCreatePgViewStatement,
 	JsonCreateReferenceStatement,
 	JsonCreateUniqueConstraint,
-	JsonCreateViewStatement,
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
 	JsonDropColumnStatement,
@@ -63,11 +65,14 @@ import {
 	prepareDropReferencesJson,
 	prepareDropSequenceJson,
 	prepareDropTableJson,
+	prepareDropViewJson,
 	prepareLibSQLCreateReferencesJson,
 	prepareLibSQLDropReferencesJson,
 	prepareMoveEnumJson,
 	prepareMoveSequenceJson,
+	prepareMySqlAlterView,
 	prepareMySqlCreateTableJson,
+	prepareMySqlCreateViewJson,
 	preparePgAlterColumns,
 	preparePgAlterViewAddWithOptionJson,
 	preparePgAlterViewAlterSchemaJson,
@@ -77,20 +82,19 @@ import {
 	preparePgCreateIndexesJson,
 	preparePgCreateTableJson,
 	preparePgCreateViewJson,
-	preparePgDropViewJson,
-	preparePgRenameViewJson,
 	prepareRenameColumns,
 	prepareRenameEnumJson,
 	prepareRenameSchemasJson,
 	prepareRenameSequenceJson,
 	prepareRenameTableJson,
+	prepareRenameViewJson,
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
 } from './jsonStatements';
 
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
-import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher } from './serializer/mysqlSchema';
+import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher, ViewSquashed } from './serializer/mysqlSchema';
 import { mergedViewWithOption, PgSchema, PgSchemaSquashed, sequenceSquashed, View } from './serializer/pgSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
@@ -262,48 +266,63 @@ export const alteredTableScheme = object({
 	),
 }).strict();
 
-export const alteredViewSchema = object({
+const alteredViewCommon = object({
 	name: string(),
-	schema: string(),
-	deletedWithOption: mergedViewWithOption.optional(),
-	addedWithOption: mergedViewWithOption.optional(),
-	alteredWith: object({
-		addedWith: mergedViewWithOption.optional(),
-		deletedWith: mergedViewWithOption.optional(),
-		alterWith: mergedViewWithOption.optional(),
-	}).strict(),
-	alteredSchema: object({
-		__old: string(),
-		__new: string(),
-	}).strict().optional(),
 	alteredDefinition: object({
 		__old: string(),
 		__new: string(),
 	}).strict().optional(),
-	alteredExisting: object({
-		__old: boolean(),
-		__new: boolean(),
-	}).strict().optional(),
-	alteredTablespace: object({
-		__old: string(),
-		__new: string(),
-	}).strict().optional(),
-	alteredUsing: object({
-		__old: string(),
-		__new: string(),
-	}).strict().optional(),
-}).strict();
+});
+
+export const alteredPgViewSchema = alteredViewCommon.merge(
+	object({
+		schema: string(),
+		deletedWithOption: mergedViewWithOption.optional(),
+		addedWithOption: mergedViewWithOption.optional(),
+		alteredWith: object({
+			addedWith: mergedViewWithOption.optional(),
+			deletedWith: mergedViewWithOption.optional(),
+			alterWith: mergedViewWithOption.optional(),
+		}).strict(),
+		alteredSchema: object({
+			__old: string(),
+			__new: string(),
+		}).strict().optional(),
+		alteredExisting: object({
+			__old: boolean(),
+			__new: boolean(),
+		}).strict().optional(),
+		alteredTablespace: object({
+			__old: string(),
+			__new: string(),
+		}).strict().optional(),
+		alteredUsing: object({
+			__old: string(),
+			__new: string(),
+		}).strict().optional(),
+	}).strict(),
+);
+
+export const alteredMySqlViewSchema = alteredViewCommon.merge(
+	object({
+		alteredMeta: object({
+			__old: string(),
+			__new: string(),
+		}).strict().optional(),
+	}).strict(),
+);
 
 export const diffResultScheme = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
 	alteredEnums: changedEnumSchema.array(),
 	alteredSequences: sequenceSquashed.array(),
-	alteredViews: alteredViewSchema.array(),
+	alteredViews: alteredPgViewSchema.array(),
 }).strict();
 
 export const diffResultSchemeMysql = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
 	alteredEnums: never().array(),
+	alteredViews: alteredMySqlViewSchema.array(),
 });
 
 export const diffResultSchemeSQLite = object({
@@ -1176,7 +1195,7 @@ export const applyPgSnapshotsDiff = async (
 		return preparePgCreateTableJson(it, curFull);
 	});
 
-	const createViews: JsonCreateViewStatement[] = [];
+	const createViews: JsonCreatePgViewStatement[] = [];
 	const dropViews: JsonDropViewStatement[] = [];
 	const renameViews: JsonRenameViewStatement[] = [];
 	const alterViews: JsonAlterViewStatement[] = [];
@@ -1198,13 +1217,13 @@ export const applyPgSnapshotsDiff = async (
 
 	dropViews.push(
 		...deletedViews.filter((it) => !it.isExisting).map((it) => {
-			return preparePgDropViewJson(it.name, it.schema, it.materialized);
+			return prepareDropViewJson(it.name, it.schema, it.materialized);
 		}),
 	);
 
 	renameViews.push(
 		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
-			return preparePgRenameViewJson(it.to.name, it.from.name, it.to.schema, it.to.materialized);
+			return prepareRenameViewJson(it.to.name, it.from.name, it.to.schema, it.to.materialized);
 		}),
 	);
 
@@ -1227,7 +1246,7 @@ export const applyPgSnapshotsDiff = async (
 		const { materialized, with: withOption, definition, withNoData, using, tablespace } = json2.views[viewKey];
 
 		if (alteredView.alteredExisting || (alteredView.alteredDefinition && action !== 'push')) {
-			dropViews.push(preparePgDropViewJson(alteredView.name, alteredView.schema, materialized));
+			dropViews.push(prepareDropViewJson(alteredView.name, alteredView.schema, materialized));
 
 			createViews.push(
 				preparePgCreateViewJson(
@@ -1444,6 +1463,9 @@ export const applyMysqlSnapshotsDiff = async (
 	columnsResolver: (
 		input: ColumnsResolverInput<Column>,
 	) => Promise<ColumnsResolverOutput<Column>>,
+	viewsResolver: (
+		input: ResolverInput<ViewSquashed & { schema: '' }>,
+	) => Promise<ResolverOutputWithMoved<ViewSquashed & { schema: '' }>>,
 	prevFull: MySqlSchema,
 	curFull: MySqlSchema,
 	action?: 'push' | undefined,
@@ -1588,6 +1610,36 @@ export const applyMysqlSnapshotsDiff = async (
 
 			tableValue.columns = patchedColumns;
 			return [tableKey, tableValue];
+		},
+	);
+
+	const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
+
+	const {
+		created: createdViews,
+		deleted: deletedViews,
+		renamed: renamedViews, // renamed or moved
+	} = await viewsResolver({
+		created: viewsDiff.added,
+		deleted: viewsDiff.deleted,
+	});
+
+	const renamesViewDic: Record<string, { to: string; from: string }> = {};
+	renamedViews.forEach((it) => {
+		renamesViewDic[`${it.from.schema}.${it.from.name}`] = { to: it.to.name, from: it.from.name };
+	});
+
+	const viewsPatchedSnap1 = copy(columnsPatchedSnap1);
+	viewsPatchedSnap1.views = mapEntries(
+		viewsPatchedSnap1.views,
+		(viewKey, viewValue) => {
+			const rename = renamesViewDic[viewValue.name];
+
+			if (rename) {
+				viewValue.name = rename.to;
+			}
+
+			return [viewKey, viewValue];
 		},
 	);
 
@@ -1832,11 +1884,69 @@ export const applyMysqlSnapshotsDiff = async (
 			curFull.internal,
 		);
 	});
+
+	const createViews: JsonCreateMySqlViewStatement[] = [];
+	const dropViews: JsonDropViewStatement[] = [];
+	const renameViews: JsonRenameViewStatement[] = [];
+	const alterViews: JsonAlterMySqlViewStatement[] = [];
+
+	createViews.push(
+		...createdViews.filter((it) => !it.isExisting).map((it) => {
+			return prepareMySqlCreateViewJson(
+				it.name,
+				it.definition!,
+				it.meta,
+			);
+		}),
+	);
+
+	dropViews.push(
+		...deletedViews.filter((it) => !it.isExisting).map((it) => {
+			return prepareDropViewJson(it.name);
+		}),
+	);
+
+	renameViews.push(
+		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
+			return prepareRenameViewJson(it.to.name, it.from.name);
+		}),
+	);
+
+	const alteredViews = typedResult.alteredViews.filter((it) => !json2.views[it.name].isExisting);
+
+	for (const alteredView of alteredViews) {
+		const { definition, meta } = json2.views[alteredView.name];
+
+		if (alteredView.alteredDefinition && action !== 'push') {
+			dropViews.push(prepareDropViewJson(alteredView.name));
+
+			createViews.push(
+				prepareMySqlCreateViewJson(
+					alteredView.name,
+					definition!,
+					meta,
+				),
+			);
+			continue;
+		}
+
+		if (alteredView.alteredMeta) {
+			const view = { ...json2['views'][alteredView.name], isExisting: undefined };
+			alterViews.push(
+				prepareMySqlAlterView(view),
+			);
+		}
+	}
+
 	jsonStatements.push(...jsonMySqlCreateTables);
 
 	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonRenameTables);
 	jsonStatements.push(...jsonRenameColumnsStatements);
+
+	jsonStatements.push(...dropViews);
+	jsonStatements.push(...renameViews);
+	jsonStatements.push(...alterViews);
 
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
 
@@ -1868,6 +1978,8 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlteredCompositePKs);
 
 	jsonStatements.push(...jsonAddedUniqueConstraints);
+
+	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 

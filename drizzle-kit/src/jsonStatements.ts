@@ -2,8 +2,8 @@ import chalk from 'chalk';
 import { getNewTableName } from './cli/commands/sqlitePushUtils';
 import { warning } from './cli/views';
 import { CommonSquashedSchema } from './schemaValidator';
-import { MySqlKitInternals, MySqlSchema, MySqlSquasher } from './serializer/mysqlSchema';
-import { Index, MatViewWithOption, PgSchema, PgSquasher, View, ViewWithOption } from './serializer/pgSchema';
+import { MySqlKitInternals, MySqlSchema, MySqlSquasher, View as MySqlView } from './serializer/mysqlSchema';
+import { Index, MatViewWithOption, PgSchema, PgSquasher, View as PgView, ViewWithOption } from './serializer/pgSchema';
 import {
 	SQLiteKitInternals,
 	SQLiteSchemaInternal,
@@ -524,15 +524,19 @@ export interface JsonRenameSchema {
 	to: string;
 }
 
-export type JsonCreateViewStatement = {
+export type JsonCreatePgViewStatement = {
 	type: 'create_view';
-} & Omit<View, 'columns' | 'isExisting'>;
+} & Omit<PgView, 'columns' | 'isExisting'>;
+
+export type JsonCreateMySqlViewStatement = {
+	type: 'mysql_create_view';
+} & Omit<MySqlView, 'columns' | 'isExisting'>;
 
 export interface JsonDropViewStatement {
 	type: 'drop_view';
 	name: string;
 	schema: string;
-	materialized: boolean;
+	materialized?: boolean;
 }
 
 export interface JsonRenameViewStatement {
@@ -540,7 +544,15 @@ export interface JsonRenameViewStatement {
 	nameTo: string;
 	nameFrom: string;
 	schema: string;
-	materialized: boolean;
+	materialized?: boolean;
+}
+
+export interface JsonRenameMySqlViewStatement {
+	type: 'rename_view';
+	nameTo: string;
+	nameFrom: string;
+	schema: string;
+	materialized?: boolean;
 }
 
 export interface JsonAlterViewAlterSchemaStatement {
@@ -594,6 +606,10 @@ export interface JsonAlterViewAlterUsingStatement {
 	schema: string;
 	materialized: true;
 }
+
+export type JsonAlterMySqlViewStatement = {
+	type: 'alter_mysql_view';
+} & Omit<MySqlView, 'isExisting'>;
 
 export type JsonAlterViewStatement =
 	| JsonAlterViewAlterSchemaStatement
@@ -661,10 +677,12 @@ export type JsonStatement =
 	| JsonCreateSequenceStatement
 	| JsonMoveSequenceStatement
 	| JsonRenameSequenceStatement
-	| JsonCreateViewStatement
+	| JsonCreatePgViewStatement
 	| JsonDropViewStatement
 	| JsonRenameViewStatement
-	| JsonAlterViewStatement;
+	| JsonAlterViewStatement
+	| JsonCreateMySqlViewStatement
+	| JsonAlterMySqlViewStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -2517,7 +2535,7 @@ export const preparePgCreateViewJson = (
 	withOption?: any,
 	using?: string,
 	tablespace?: string,
-): JsonCreateViewStatement => {
+): JsonCreatePgViewStatement => {
 	return {
 		type: 'create_view',
 		name: name,
@@ -2531,10 +2549,27 @@ export const preparePgCreateViewJson = (
 	};
 };
 
-export const preparePgDropViewJson = (
+export const prepareMySqlCreateViewJson = (
 	name: string,
-	schema: string,
-	materialized: boolean,
+	definition: string,
+	meta: string,
+): JsonCreateMySqlViewStatement => {
+	const { algorithm, definer, sqlSecurity, withCheckOption } = MySqlSquasher.unsquashView(meta);
+	return {
+		type: 'mysql_create_view',
+		name: name,
+		definition: definition,
+		algorithm,
+		definer,
+		sqlSecurity,
+		withCheckOption,
+	};
+};
+
+export const prepareDropViewJson = (
+	name: string,
+	schema: string = '',
+	materialized: boolean = false,
 ): JsonDropViewStatement => {
 	return {
 		type: 'drop_view',
@@ -2544,11 +2579,11 @@ export const preparePgDropViewJson = (
 	};
 };
 
-export const preparePgRenameViewJson = (
+export const prepareRenameViewJson = (
 	to: string,
 	from: string,
-	schema: string,
-	materialized: boolean,
+	schema: string = '',
+	materialized: boolean = false,
 ): JsonRenameViewStatement => {
 	return {
 		type: 'rename_view',
@@ -2632,4 +2667,10 @@ export const preparePgAlterViewAlterUsingJson = (
 		materialized: materialized,
 		toUsing: to,
 	} as JsonAlterViewAlterUsingStatement;
+};
+
+export const prepareMySqlAlterView = (
+	view: Omit<MySqlView, 'isExisting'>,
+): JsonAlterMySqlViewStatement => {
+	return view as JsonAlterMySqlViewStatement;
 };

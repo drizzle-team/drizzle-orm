@@ -1,11 +1,11 @@
 import { randomUUID } from 'crypto';
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import {
 	columnsResolver,
 	enumsResolver,
+	mySqlViewsResolver,
 	schemasResolver,
 	sequencesResolver,
 	tablesResolver,
@@ -255,7 +255,7 @@ export const generateMySQLDrizzleJson = async (
 
 	const id = randomUUID();
 
-	const snapshot = generateMySqlSnapshot(prepared.tables);
+	const snapshot = generateMySqlSnapshot(prepared.tables, prepared.views);
 
 	return {
 		...snapshot,
@@ -281,6 +281,7 @@ export const generateMySQLMigration = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		mySqlViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -322,6 +323,7 @@ export const pushMySQLSchema = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		mySqlViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',

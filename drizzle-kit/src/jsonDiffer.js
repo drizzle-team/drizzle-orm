@@ -294,9 +294,12 @@ export function applyJsonDiff(json1, json2) {
 			if (droppedUsing) alteredUsing = { __new: 'heap', __old: droppedUsing };
 			if (alterUsingTo) alteredUsing = alterUsingTo;
 
+			const alteredMeta = view.meta;
+
 			return {
 				name: json2.views[nameWithSchema].name,
 				schema: json2.views[nameWithSchema].schema,
+				// pg
 				deletedWithOption: deletedWithOption,
 				addedWithOption: addedWithOption,
 				alteredWith: {
@@ -305,10 +308,13 @@ export function applyJsonDiff(json1, json2) {
 					alterWith: Object.keys(alterWith).length ? alterWith : undefined,
 				},
 				alteredSchema,
-				alteredDefinition,
 				alteredExisting,
 				alteredTablespace,
 				alteredUsing,
+				// mysql
+				alteredMeta,
+				// common
+				alteredDefinition,
 			};
 		},
 	);

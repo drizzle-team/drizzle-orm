@@ -46,9 +46,9 @@ export const serializeMySql = async (
 	const { prepareFromMySqlImports } = await import('./mysqlImports');
 	const { generateMySqlSnapshot } = await import('./mysqlSerializer');
 
-	const { tables } = await prepareFromMySqlImports(filenames);
+	const { tables, views } = await prepareFromMySqlImports(filenames);
 
-	return generateMySqlSnapshot(tables);
+	return generateMySqlSnapshot(tables, views);
 };
 
 export const serializePg = async (

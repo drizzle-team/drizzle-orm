@@ -1,7 +1,15 @@
 import chalk from 'chalk';
 import { getTableName, is } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm';
-import { AnyMySqlTable, MySqlDialect, type PrimaryKey as PrimaryKeyORM, uniqueKeyName } from 'drizzle-orm/mysql-core';
+import {
+	AnyMySqlTable,
+	getViewConfig,
+	MySqlColumn,
+	MySqlDialect,
+	MySqlView,
+	type PrimaryKey as PrimaryKeyORM,
+	uniqueKeyName,
+} from 'drizzle-orm/mysql-core';
 import { getTableConfig } from 'drizzle-orm/mysql-core';
 import { RowDataPacket } from 'mysql2/promise';
 import { withStyle } from '../cli/validations/outputs';
@@ -15,11 +23,10 @@ import {
 	PrimaryKey,
 	Table,
 	UniqueConstraint,
+	View,
 } from '../serializer/mysqlSchema';
 import type { DB } from '../utils';
 import { sqlToStr } from '.';
-// import { MySqlColumnWithAutoIncrement } from "drizzle-orm/mysql-core";
-// import { MySqlDateBaseColumn } from "drizzle-orm/mysql-core";
 
 const dialect = new MySqlDialect();
 
@@ -29,9 +36,12 @@ export const indexName = (tableName: string, columns: string[]) => {
 
 export const generateMySqlSnapshot = (
 	tables: AnyMySqlTable[],
+	views: MySqlView[],
 ): MySqlSchemaInternal => {
 	const result: Record<string, Table> = {};
+	const resultViews: Record<string, View> = {};
 	const internal: MySqlKitInternals = { tables: {}, indexes: {} };
+
 	for (const table of tables) {
 		const {
 			name: tableName,
@@ -335,10 +345,123 @@ export const generateMySqlSnapshot = (
 		}
 	}
 
+	for (const view of views) {
+		const {
+			isExisting,
+			name,
+			query,
+			schema,
+			selectedFields,
+			algorithm,
+			definer,
+			sqlSecurity,
+			withCheckOption,
+		} = getViewConfig(view);
+
+		const columnsObject: Record<string, Column> = {};
+
+		const existingView = resultViews[name];
+		if (typeof existingView !== 'undefined') {
+			console.log(
+				`\n${
+					withStyle.errorWarning(
+						`We\'ve found duplicated view name across ${
+							chalk.underline.blue(
+								schema ?? 'public',
+							)
+						} schema. Please rename your view`,
+					)
+				}`,
+			);
+			process.exit(1);
+		}
+
+		for (const key in selectedFields) {
+			if (is(selectedFields[key], MySqlColumn)) {
+				const column = selectedFields[key];
+
+				const notNull: boolean = column.notNull;
+				const sqlTypeLowered = column.getSQLType().toLowerCase();
+				const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
+					? false
+					: (column as any).autoIncrement;
+
+				const generated = column.generated;
+
+				const columnToSet: Column = {
+					name: column.name,
+					type: column.getSQLType(),
+					primaryKey: false,
+					// If field is autoincrement it's notNull by default
+					// notNull: autoIncrement ? true : notNull,
+					notNull,
+					autoincrement: autoIncrement,
+					onUpdate: (column as any).hasOnUpdateNow,
+					generated: generated
+						? {
+							as: is(generated.as, SQL)
+								? dialect.sqlToQuery(generated.as as SQL).sql
+								: typeof generated.as === 'function'
+								? dialect.sqlToQuery(generated.as() as SQL).sql
+								: (generated.as as any),
+							type: generated.mode ?? 'stored',
+						}
+						: undefined,
+				};
+
+				if (column.default !== undefined) {
+					if (is(column.default, SQL)) {
+						columnToSet.default = sqlToStr(column.default);
+					} else {
+						if (typeof column.default === 'string') {
+							columnToSet.default = `'${column.default}'`;
+						} else {
+							if (sqlTypeLowered === 'json') {
+								columnToSet.default = `'${JSON.stringify(column.default)}'`;
+							} else if (column.default instanceof Date) {
+								if (sqlTypeLowered === 'date') {
+									columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
+								} else if (
+									sqlTypeLowered.startsWith('datetime')
+									|| sqlTypeLowered.startsWith('timestamp')
+								) {
+									columnToSet.default = `'${
+										column.default
+											.toISOString()
+											.replace('T', ' ')
+											.slice(0, 23)
+									}'`;
+								}
+							} else {
+								columnToSet.default = column.default;
+							}
+						}
+						if (['blob', 'text', 'json'].includes(column.getSQLType())) {
+							columnToSet.default = `(${columnToSet.default})`;
+						}
+					}
+				}
+				columnsObject[column.name] = columnToSet;
+			}
+		}
+
+		resultViews[name] = {
+			columns: columnsObject,
+			name,
+			isExisting,
+			definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
+			withCheckOption,
+			definer,
+			algorithm,
+			sqlSecurity,
+		};
+	}
+
 	return {
 		version: '5',
 		dialect: 'mysql',
 		tables: result,
+		views: resultViews,
 		_meta: {
 			tables: {},
 			columns: {},
@@ -719,6 +842,7 @@ export const fromDatabase = async (
 		version: '5',
 		dialect: 'mysql',
 		tables: result,
+		views: {},
 		_meta: {
 			tables: {},
 			columns: {},

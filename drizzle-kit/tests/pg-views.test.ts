@@ -1642,7 +1642,7 @@ test('drop tablespace - materialize', async () => {
 	);
 });
 
-test('set existing', async () => {
+test('set existing - materialized', async () => {
 	const users = pgTable('users', {
 		id: integer('id').primaryKey().notNull(),
 	});
@@ -1667,6 +1667,33 @@ test('set existing', async () => {
 	expect(statements.length).toBe(0);
 
 	expect(sqlStatements.length).toBe(0);
+});
+
+test('drop existing - materialized', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().notNull(),
+	});
+
+	const from = {
+		users,
+		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('new_tablespace').with({
+			autovacuumVacuumCostLimit: 1,
+		}).existing(),
+	};
+
+	const to = {
+		users,
+		view: pgMaterializedView('some_view', { id: integer('id') }).with({
+			autovacuumVacuumCostLimit: 1,
+			autovacuumFreezeMinAge: 1,
+		}).withNoData().as(sql`SELECT 'asd'`),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(statements.length).toBe(2);
+
+	expect(sqlStatements.length).toBe(2);
 });
 
 test('set existing', async () => {
