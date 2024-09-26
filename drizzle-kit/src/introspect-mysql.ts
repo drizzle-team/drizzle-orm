@@ -189,26 +189,26 @@ export const schemaToTypeScript = (
 	Object.values(schema.views).forEach((it) => {
 		imports.mysql.push('mysqlView');
 
-		Object.values(it.columns).forEach(() => {
-			const columnImports = Object.values(it.columns)
-				.map((col) => {
-					let patched: string = (importsPatch[col.type] || col.type).replace('[]', '');
-					patched = patched === 'double precision' ? 'doublePrecision' : patched;
-					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-					patched = patched.startsWith('char(') ? 'char' : patched;
-					patched = patched.startsWith('numeric(') ? 'numeric' : patched;
-					patched = patched.startsWith('time(') ? 'time' : patched;
-					patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
-					patched = patched.startsWith('vector(') ? 'vector' : patched;
-					patched = patched.startsWith('geometry(') ? 'geometry' : patched;
-					return patched;
-				})
-				.filter((type) => {
-					return mysqlImportsList.has(type);
-				});
+		const columnImports = Object.values(it.columns)
+			.map((col) => {
+				let patched = importsPatch[col.type] ?? col.type;
+				patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+				patched = patched.startsWith('char(') ? 'char' : patched;
+				patched = patched.startsWith('binary(') ? 'binary' : patched;
+				patched = patched.startsWith('decimal(') ? 'decimal' : patched;
+				patched = patched.startsWith('smallint(') ? 'smallint' : patched;
+				patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
+				patched = patched.startsWith('datetime(') ? 'datetime' : patched;
+				patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
+				patched = patched.startsWith('int(') ? 'int' : patched;
+				patched = patched.startsWith('double(') ? 'double' : patched;
+				return patched;
+			})
+			.filter((type) => {
+				return mysqlImportsList.has(type);
+			});
 
-			imports.mysql.push(...columnImports);
-		});
+		imports.mysql.push(...columnImports);
 	});
 
 	const tableStatements = Object.values(schema.tables).map((table) => {

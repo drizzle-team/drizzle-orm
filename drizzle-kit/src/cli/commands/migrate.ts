@@ -15,7 +15,7 @@ import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
 import { PgSchema, pgSchema, squashPgScheme, View } from '../../serializer/pgSchema';
-import { SQLiteSchema, sqliteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
+import { SQLiteSchema, sqliteSchema, squashSqliteScheme, View as SQLiteView } from '../../serializer/sqliteSchema';
 import {
 	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
@@ -116,7 +116,29 @@ export const viewsResolver = async (
 
 export const mySqlViewsResolver = async (
 	input: ResolverInput<ViewSquashed & { schema: '' }>,
-): Promise<ResolverOutputWithMoved<ViewSquashed & { schema: '' }>> => {
+): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const sqliteViewsResolver = async (
+	input: ResolverInput<SQLiteView & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<SQLiteView>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,
@@ -479,6 +501,7 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -538,6 +561,7 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -575,6 +599,7 @@ export const prepareSQLitePush = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -606,6 +631,7 @@ export const prepareLibSQLPush = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',

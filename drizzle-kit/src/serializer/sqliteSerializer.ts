@@ -4,8 +4,11 @@ import {
 	// AnySQLiteColumnBuilder,
 	AnySQLiteTable,
 	getTableConfig,
+	getViewConfig,
 	SQLiteBaseInteger,
+	SQLiteColumn,
 	SQLiteSyncDialect,
+	SQLiteView,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
 import { withStyle } from '../cli/validations/outputs';
@@ -19,6 +22,7 @@ import type {
 	SQLiteSchemaInternal,
 	Table,
 	UniqueConstraint,
+	View,
 } from '../serializer/sqliteSchema';
 import type { SQLiteDB } from '../utils';
 import { sqlToStr } from '.';
@@ -27,8 +31,11 @@ const dialect = new SQLiteSyncDialect();
 
 export const generateSqliteSnapshot = (
 	tables: AnySQLiteTable[],
+	views: SQLiteView[],
 ): SQLiteSchemaInternal => {
 	const result: Record<string, Table> = {};
+	const resultViews: Record<string, View> = {};
+
 	const internal: SQLiteKitInternals = { indexes: {} };
 	for (const table of tables) {
 		// const tableName = getTableName(table);
@@ -255,10 +262,83 @@ export const generateSqliteSnapshot = (
 		};
 	}
 
+	for (const view of views) {
+		const { name, isExisting, selectedFields, query, schema } = getViewConfig(view);
+
+		const columnsObject: Record<string, Column> = {};
+
+		const existingView = resultViews[name];
+		if (typeof existingView !== 'undefined') {
+			console.log(
+				`\n${
+					withStyle.errorWarning(
+						`We\'ve found duplicated view name across ${
+							chalk.underline.blue(
+								schema ?? 'public',
+							)
+						} schema. Please rename your view`,
+					)
+				}`,
+			);
+			process.exit(1);
+		}
+
+		for (const key in selectedFields) {
+			if (is(selectedFields[key], SQLiteColumn)) {
+				const column = selectedFields[key];
+				const notNull: boolean = column.notNull;
+				const primaryKey: boolean = column.primary;
+				const generated = column.generated;
+
+				const columnToSet: Column = {
+					name: column.name,
+					type: column.getSQLType(),
+					primaryKey,
+					notNull,
+					autoincrement: is(column, SQLiteBaseInteger)
+						? column.autoIncrement
+						: false,
+					generated: generated
+						? {
+							as: is(generated.as, SQL)
+								? `(${dialect.sqlToQuery(generated.as as SQL, 'indexes').sql})`
+								: typeof generated.as === 'function'
+								? `(${dialect.sqlToQuery(generated.as() as SQL, 'indexes').sql})`
+								: `(${generated.as as any})`,
+							type: generated.mode ?? 'virtual',
+						}
+						: undefined,
+				};
+
+				if (column.default !== undefined) {
+					if (is(column.default, SQL)) {
+						columnToSet.default = sqlToStr(column.default);
+					} else {
+						columnToSet.default = typeof column.default === 'string'
+							? `'${column.default}'`
+							: typeof column.default === 'object'
+									|| Array.isArray(column.default)
+							? `'${JSON.stringify(column.default)}'`
+							: column.default;
+					}
+				}
+				columnsObject[column.name] = columnToSet;
+			}
+		}
+
+		resultViews[name] = {
+			columns: columnsObject,
+			name,
+			isExisting,
+			definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
+		};
+	}
+
 	return {
 		version: '6',
 		dialect: 'sqlite',
 		tables: result,
+		views: resultViews,
 		enums: {},
 		_meta: {
 			tables: {},
@@ -363,6 +443,8 @@ export const fromDatabase = async (
 	) => void,
 ): Promise<SQLiteSchemaInternal> => {
 	const result: Record<string, Table> = {};
+	const resultViews: Record<string, View> = {};
+
 	const columns = await db.query<{
 		tableName: string;
 		columnName: string;
@@ -377,7 +459,7 @@ export const fromDatabase = async (
 		`SELECT 
     m.name as "tableName", p.name as "columnName", p.type as "columnType", p."notnull" as "notNull", p.dflt_value as "defaultValue", p.pk as pk, p.hidden as hidden, m.sql
     FROM sqlite_master AS m JOIN pragma_table_xinfo(m.name) AS p
-    WHERE m.type = 'table' 
+    WHERE m.type = 'table'
     and m.tbl_name != 'sqlite_sequence' 
     and m.tbl_name != 'sqlite_stat1' 
     and m.tbl_name != '_litestream_seq' 
@@ -670,10 +752,42 @@ WHERE
 		progressCallback('enums', 0, 'done');
 	}
 
+	const views = await db.query(
+		`SELECT name AS view_name, sql AS sql FROM sqlite_master WHERE type = 'view';`,
+	);
+
+	for (const view of views) {
+		const viewName = view['view_name'];
+		const sql = view['sql'];
+
+		const regex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'i');
+		const match = sql.match(regex);
+
+		if (!match) {
+			console.log('Could not process view');
+			process.exit(1);
+		}
+
+		const viewDefinition = match[1] as string;
+
+		const viewOriginalTableRegex = sql.match(/FROM\s+([^\s;]+)/i); // Matches the table name after 'FROM'
+		let sourceTable = viewOriginalTableRegex ? viewOriginalTableRegex[1] as string : undefined;
+
+		const columns = sourceTable ? result[sourceTable] ? result[sourceTable].columns : {} : {};
+
+		resultViews[viewName] = {
+			columns: columns,
+			isExisting: false,
+			name: viewName,
+			definition: viewDefinition,
+		};
+	}
+
 	return {
 		version: '6',
 		dialect: 'sqlite',
 		tables: result,
+		views: resultViews,
 		enums: {},
 		_meta: {
 			tables: {},

@@ -58,6 +58,13 @@ const table = object({
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
 }).strict();
 
+export const view = object({
+	name: string(),
+	columns: record(string(), column),
+	definition: string().optional(),
+	isExisting: boolean(),
+}).strict();
+
 // use main dialect
 const dialect = enumType(['sqlite']);
 
@@ -77,6 +84,7 @@ export const schemaInternalV4 = object({
 	version: literal('4'),
 	dialect: dialect,
 	tables: record(string(), table),
+	views: record(string(), view),
 	enums: object({}),
 }).strict();
 
@@ -108,6 +116,7 @@ export const schemaInternal = object({
 	version: latestVersion,
 	dialect: dialect,
 	tables: record(string(), table),
+	views: record(string(), view),
 	enums: object({}),
 	_meta: object({
 		tables: record(string(), string()),
@@ -134,6 +143,7 @@ export const schemaSquashed = object({
 	version: latestVersion,
 	dialect: dialect,
 	tables: record(string(), tableSquashed),
+	views: record(string(), view),
 	enums: any(),
 }).strict();
 
@@ -150,6 +160,7 @@ export type Index = TypeOf<typeof index>;
 export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
+export type View = TypeOf<typeof view>;
 
 export const SQLiteSquasher = {
 	squashIdx: (idx: Index) => {
@@ -286,6 +297,7 @@ export const squashSqliteScheme = (
 		version: '6',
 		dialect: json.dialect,
 		tables: mappedTables,
+		views: json.views,
 		enums: json.enums,
 	};
 };
@@ -296,6 +308,7 @@ export const drySQLite = schema.parse({
 	id: originUUID,
 	prevId: '',
 	tables: {},
+	views: {},
 	enums: {},
 	_meta: {
 		tables: {},

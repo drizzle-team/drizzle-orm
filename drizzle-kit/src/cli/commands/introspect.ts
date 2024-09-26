@@ -28,6 +28,7 @@ import {
 	mySqlViewsResolver,
 	schemasResolver,
 	sequencesResolver,
+	sqliteViewsResolver,
 	tablesResolver,
 	viewsResolver,
 	writeResult,
@@ -325,6 +326,7 @@ export const introspectSqlite = async (
 			squashSqliteScheme(schema),
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			drySQLite,
 			schema,
 		);
@@ -436,6 +438,7 @@ export const introspectLibSQL = async (
 			squashSqliteScheme(schema),
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			drySQLite,
 			schema,
 		);

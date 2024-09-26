@@ -39,6 +39,7 @@ import {
 	JsonCreateReferenceStatement,
 	JsonCreateSchema,
 	JsonCreateSequenceStatement,
+	JsonCreateSqliteViewStatement,
 	JsonCreateTableStatement,
 	JsonCreateUniqueConstraint,
 	JsonDeleteCompositePK,
@@ -452,9 +453,10 @@ class MySqlCreateViewConvertor extends Convertor {
 	}
 
 	convert(st: JsonCreateMySqlViewStatement) {
-		const { definition, name, algorithm, definer, sqlSecurity, withCheckOption } = st;
+		const { definition, name, algorithm, definer, sqlSecurity, withCheckOption, replace } = st;
 
 		let statement = `CREATE `;
+		statement += replace ? `OR REPLACE` : '';
 		statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
 		statement += definer ? `DEFINER = ${definer}\n` : '';
 		statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
@@ -466,6 +468,19 @@ class MySqlCreateViewConvertor extends Convertor {
 		return statement;
 	}
 }
+
+class SqliteCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'sqlite_create_view' && (dialect === 'sqlite' || dialect === 'turso');
+	}
+
+	convert(st: JsonCreateSqliteViewStatement) {
+		const { definition, name } = st;
+
+		return `CREATE VIEW \`${name}\` AS ${definition};`;
+	}
+}
+
 class PgDropViewConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_view' && dialect === 'postgresql';
@@ -489,6 +504,18 @@ class MySqlDropViewConvertor extends Convertor {
 		const { name } = st;
 
 		return `DROP VIEW ${name};`;
+	}
+}
+
+class SqliteDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && (dialect === 'sqlite' || dialect === 'turso');
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name } = st;
+
+		return `DROP VIEW \`${name}\`;`;
 	}
 }
 
@@ -2734,6 +2761,9 @@ convertors.push(new MySqlCreateViewConvertor());
 convertors.push(new MySqlDropViewConvertor());
 convertors.push(new MySqlRenameViewConvertor());
 convertors.push(new MySqlAlterViewConvertor());
+
+convertors.push(new SqliteCreateViewConvertor());
+convertors.push(new SqliteDropViewConvertor());
 
 convertors.push(new CreateTypeEnumConvertor());
 

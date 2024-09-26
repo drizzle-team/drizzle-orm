@@ -74,8 +74,8 @@ export const serializeSQLite = async (
 
 	const { prepareFromSqliteImports } = await import('./sqliteImports');
 	const { generateSqliteSnapshot } = await import('./sqliteSerializer');
-	const { tables } = await prepareFromSqliteImports(filenames);
-	return generateSqliteSnapshot(tables);
+	const { tables, views } = await prepareFromSqliteImports(filenames);
+	return generateSqliteSnapshot(tables, views);
 };
 
 export const prepareFilenames = (path: string | string[]) => {

@@ -9,6 +9,7 @@ import {
 	SQLiteSchemaInternal,
 	SQLiteSchemaSquashed,
 	SQLiteSquasher,
+	View as SqliteView,
 } from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
 
@@ -530,7 +531,12 @@ export type JsonCreatePgViewStatement = {
 
 export type JsonCreateMySqlViewStatement = {
 	type: 'mysql_create_view';
+	replace: boolean;
 } & Omit<MySqlView, 'columns' | 'isExisting'>;
+
+export type JsonCreateSqliteViewStatement = {
+	type: 'sqlite_create_view';
+} & Omit<SqliteView, 'columns' | 'isExisting'>;
 
 export interface JsonDropViewStatement {
 	type: 'drop_view';
@@ -682,7 +688,8 @@ export type JsonStatement =
 	| JsonRenameViewStatement
 	| JsonAlterViewStatement
 	| JsonCreateMySqlViewStatement
-	| JsonAlterMySqlViewStatement;
+	| JsonAlterMySqlViewStatement
+	| JsonCreateSqliteViewStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -2553,6 +2560,7 @@ export const prepareMySqlCreateViewJson = (
 	name: string,
 	definition: string,
 	meta: string,
+	replace: boolean = false,
 ): JsonCreateMySqlViewStatement => {
 	const { algorithm, definer, sqlSecurity, withCheckOption } = MySqlSquasher.unsquashView(meta);
 	return {
@@ -2563,6 +2571,18 @@ export const prepareMySqlCreateViewJson = (
 		definer,
 		sqlSecurity,
 		withCheckOption,
+		replace,
+	};
+};
+
+export const prepareSqliteCreateViewJson = (
+	name: string,
+	definition: string,
+): JsonCreateSqliteViewStatement => {
+	return {
+		type: 'sqlite_create_view',
+		name: name,
+		definition: definition,
 	};
 };
 

@@ -29,6 +29,7 @@ import {
 	JsonCreateMySqlViewStatement,
 	JsonCreatePgViewStatement,
 	JsonCreateReferenceStatement,
+	JsonCreateSqliteViewStatement,
 	JsonCreateUniqueConstraint,
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
@@ -90,13 +91,14 @@ import {
 	prepareRenameViewJson,
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
+	prepareSqliteCreateViewJson,
 } from './jsonStatements';
 
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher, ViewSquashed } from './serializer/mysqlSchema';
 import { mergedViewWithOption, PgSchema, PgSchemaSquashed, sequenceSquashed, View } from './serializer/pgSchema';
-import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
+import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher, View as SqliteView } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';
 
@@ -301,7 +303,7 @@ export const alteredPgViewSchema = alteredViewCommon.merge(
 	}).strict(),
 );
 
-export const alteredMySqlViewSchema = alteredViewCommon.merge(
+const alteredMySqlViewSchema = alteredViewCommon.merge(
 	object({
 		alteredMeta: object({
 			__old: string(),
@@ -326,6 +328,7 @@ export const diffResultSchemeMysql = object({
 export const diffResultSchemeSQLite = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
 	alteredEnums: never().array(),
+	alteredViews: alteredViewCommon.array(),
 });
 
 export type Column = TypeOf<typeof columnSchema>;
@@ -1461,7 +1464,7 @@ export const applyMysqlSnapshotsDiff = async (
 	) => Promise<ColumnsResolverOutput<Column>>,
 	viewsResolver: (
 		input: ResolverInput<ViewSquashed & { schema: '' }>,
-	) => Promise<ResolverOutputWithMoved<ViewSquashed & { schema: '' }>>,
+	) => Promise<ResolverOutputWithMoved<ViewSquashed>>,
 	prevFull: MySqlSchema,
 	curFull: MySqlSchema,
 	action?: 'push' | undefined,
@@ -1622,7 +1625,7 @@ export const applyMysqlSnapshotsDiff = async (
 
 	const renamesViewDic: Record<string, { to: string; from: string }> = {};
 	renamedViews.forEach((it) => {
-		renamesViewDic[`${it.from.schema}.${it.from.name}`] = { to: it.to.name, from: it.from.name };
+		renamesViewDic[it.from.name] = { to: it.to.name, from: it.from.name };
 	});
 
 	const viewsPatchedSnap1 = copy(columnsPatchedSnap1);
@@ -1914,16 +1917,14 @@ export const applyMysqlSnapshotsDiff = async (
 		const { definition, meta } = json2.views[alteredView.name];
 
 		if (alteredView.alteredDefinition && action !== 'push') {
-			dropViews.push(prepareDropViewJson(alteredView.name));
-
 			createViews.push(
 				prepareMySqlCreateViewJson(
 					alteredView.name,
 					definition!,
 					meta,
+					true,
 				),
 			);
-			continue;
 		}
 
 		if (alteredView.alteredMeta) {
@@ -2010,6 +2011,9 @@ export const applySqliteSnapshotsDiff = async (
 	columnsResolver: (
 		input: ColumnsResolverInput<Column>,
 	) => Promise<ColumnsResolverOutput<Column>>,
+	viewsResolver: (
+		input: ResolverInput<SqliteView & { schema: '' }>,
+	) => Promise<ResolverOutputWithMoved<SqliteView>>,
 	prevFull: SQLiteSchema,
 	curFull: SQLiteSchema,
 	action?: 'push' | undefined,
@@ -2122,7 +2126,37 @@ export const applySqliteSnapshotsDiff = async (
 		},
 	);
 
-	const diffResult = applyJsonDiff(columnsPatchedSnap1, json2);
+	const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
+
+	const {
+		created: createdViews,
+		deleted: deletedViews,
+		renamed: renamedViews, // renamed or moved
+	} = await viewsResolver({
+		created: viewsDiff.added,
+		deleted: viewsDiff.deleted,
+	});
+
+	const renamesViewDic: Record<string, { to: string; from: string }> = {};
+	renamedViews.forEach((it) => {
+		renamesViewDic[it.from.name] = { to: it.to.name, from: it.from.name };
+	});
+
+	const viewsPatchedSnap1 = copy(columnsPatchedSnap1);
+	viewsPatchedSnap1.views = mapEntries(
+		viewsPatchedSnap1.views,
+		(viewKey, viewValue) => {
+			const rename = renamesViewDic[viewValue.name];
+
+			if (rename) {
+				viewValue.name = rename.to;
+			}
+
+			return [viewKey, viewValue];
+		},
+	);
+
+	const diffResult = applyJsonDiff(viewsPatchedSnap1, json2);
 
 	const typedResult = diffResultSchemeSQLite.parse(diffResult);
 
@@ -2363,6 +2397,52 @@ export const applySqliteSnapshotsDiff = async (
 		(t) => t.type === 'delete_reference',
 	);
 
+	const createViews: JsonCreateSqliteViewStatement[] = [];
+	const dropViews: JsonDropViewStatement[] = [];
+
+	createViews.push(
+		...createdViews.filter((it) => !it.isExisting).map((it) => {
+			return prepareSqliteCreateViewJson(
+				it.name,
+				it.definition!,
+			);
+		}),
+	);
+
+	dropViews.push(
+		...deletedViews.filter((it) => !it.isExisting).map((it) => {
+			return prepareDropViewJson(it.name);
+		}),
+	);
+
+	dropViews.push(
+		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
+			return prepareDropViewJson(it.from.name);
+		}),
+	);
+	createViews.push(
+		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
+			return prepareSqliteCreateViewJson(it.to.name, it.to.definition!);
+		}),
+	);
+
+	const alteredViews = typedResult.alteredViews.filter((it) => !json2.views[it.name].isExisting);
+
+	for (const alteredView of alteredViews) {
+		const { definition } = json2.views[alteredView.name];
+
+		if (alteredView.alteredDefinition && action !== 'push') {
+			dropViews.push(prepareDropViewJson(alteredView.name));
+
+			createViews.push(
+				prepareSqliteCreateViewJson(
+					alteredView.name,
+					definition!,
+				),
+			);
+		}
+	}
+
 	const jsonStatements: JsonStatement[] = [];
 	jsonStatements.push(...jsonCreateTables);
 
@@ -2393,6 +2473,9 @@ export const applySqliteSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlteredCompositePKs);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+
+	jsonStatements.push(...dropViews);
+	jsonStatements.push(...createViews);
 
 	const combinedJsonStatements = sqliteCombineStatements(jsonStatements, json2, action);
 	const sqlStatements = fromJson(combinedJsonStatements, 'sqlite');
@@ -2426,6 +2509,9 @@ export const applyLibSQLSnapshotsDiff = async (
 	columnsResolver: (
 		input: ColumnsResolverInput<Column>,
 	) => Promise<ColumnsResolverOutput<Column>>,
+	viewsResolver: (
+		input: ResolverInput<SqliteView & { schema: '' }>,
+	) => Promise<ResolverOutputWithMoved<SqliteView>>,
 	prevFull: SQLiteSchema,
 	curFull: SQLiteSchema,
 	action?: 'push',
@@ -2537,7 +2623,37 @@ export const applyLibSQLSnapshotsDiff = async (
 		},
 	);
 
-	const diffResult = applyJsonDiff(columnsPatchedSnap1, json2);
+	const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
+
+	const {
+		created: createdViews,
+		deleted: deletedViews,
+		renamed: renamedViews, // renamed or moved
+	} = await viewsResolver({
+		created: viewsDiff.added,
+		deleted: viewsDiff.deleted,
+	});
+
+	const renamesViewDic: Record<string, { to: string; from: string }> = {};
+	renamedViews.forEach((it) => {
+		renamesViewDic[it.from.name] = { to: it.to.name, from: it.from.name };
+	});
+
+	const viewsPatchedSnap1 = copy(columnsPatchedSnap1);
+	viewsPatchedSnap1.views = mapEntries(
+		viewsPatchedSnap1.views,
+		(viewKey, viewValue) => {
+			const rename = renamesViewDic[viewValue.name];
+
+			if (rename) {
+				viewValue.name = rename.to;
+			}
+
+			return [viewKey, viewValue];
+		},
+	);
+
+	const diffResult = applyJsonDiff(viewsPatchedSnap1, json2);
 
 	const typedResult = diffResultSchemeSQLite.parse(diffResult);
 
@@ -2786,6 +2902,52 @@ export const applyLibSQLSnapshotsDiff = async (
 		(t) => t.type === 'delete_reference',
 	);
 
+	const createViews: JsonCreateSqliteViewStatement[] = [];
+	const dropViews: JsonDropViewStatement[] = [];
+
+	createViews.push(
+		...createdViews.filter((it) => !it.isExisting).map((it) => {
+			return prepareSqliteCreateViewJson(
+				it.name,
+				it.definition!,
+			);
+		}),
+	);
+
+	dropViews.push(
+		...deletedViews.filter((it) => !it.isExisting).map((it) => {
+			return prepareDropViewJson(it.name);
+		}),
+	);
+
+	dropViews.push(
+		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
+			return prepareDropViewJson(it.from.name);
+		}),
+	);
+	createViews.push(
+		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
+			return prepareSqliteCreateViewJson(it.to.name, it.to.definition!);
+		}),
+	);
+
+	const alteredViews = typedResult.alteredViews.filter((it) => !json2.views[it.name].isExisting);
+
+	for (const alteredView of alteredViews) {
+		const { definition } = json2.views[alteredView.name];
+
+		if (alteredView.alteredDefinition && action !== 'push') {
+			dropViews.push(prepareDropViewJson(alteredView.name));
+
+			createViews.push(
+				prepareSqliteCreateViewJson(
+					alteredView.name,
+					definition!,
+				),
+			);
+		}
+	}
+
 	const jsonStatements: JsonStatement[] = [];
 	jsonStatements.push(...jsonCreateTables);
 
@@ -2806,6 +2968,9 @@ export const applyLibSQLSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
+
+	jsonStatements.push(...dropViews);
+	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
 
