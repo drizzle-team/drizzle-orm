@@ -84,7 +84,7 @@ export type Prefix = (typeof prefixes)[number];
 	const _: Prefix = '' as TypeOf<typeof prefix>;
 }
 
-export const casingTypes = ['snake', 'camel'] as const;
+export const casingTypes = ['snake_case', 'camelCase'] as const;
 export const casingType = enum_(casingTypes);
 export type CasingType = (typeof casingTypes)[number];
 

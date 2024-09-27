@@ -31,9 +31,7 @@ export const generateMySqlSnapshot = (
 	tables: AnyMySqlTable[],
 	casing: CasingType | undefined,
 ): MySqlSchemaInternal => {
-	const dialect = new MySqlDialect({
-		casing: casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined,
-	});
+	const dialect = new MySqlDialect({ casing });
 	const result: Record<string, Table> = {};
 	const internal: MySqlKitInternals = { tables: {}, indexes: {} };
 	for (const table of tables) {

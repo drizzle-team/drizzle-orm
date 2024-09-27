@@ -29,9 +29,7 @@ export const generateSqliteSnapshot = (
 	tables: AnySQLiteTable[],
 	casing: CasingType | undefined,
 ): SQLiteSchemaInternal => {
-	const dialect = new SQLiteSyncDialect({
-		casing: casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined,
-	});
+	const dialect = new SQLiteSyncDialect({ casing });
 	const result: Record<string, Table> = {};
 	const internal: SQLiteKitInternals = { indexes: {} };
 	for (const table of tables) {

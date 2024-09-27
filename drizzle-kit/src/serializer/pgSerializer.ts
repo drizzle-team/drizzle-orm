@@ -120,9 +120,7 @@ export const generatePgSnapshot = (
 	casing: CasingType | undefined,
 	schemaFilter?: string[],
 ): PgSchemaInternal => {
-	const dialect = new PgDialect({
-		casing: casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined,
-	});
+	const dialect = new PgDialect({ casing });
 	const result: Record<string, Table> = {};
 	const sequencesToReturn: Record<string, Sequence> = {};
 

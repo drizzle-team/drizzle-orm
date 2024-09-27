@@ -15,7 +15,6 @@ import { push } from '../src/cli/schema';
 
 test('push #1', async (t) => {
 	const res = await brotest(push, '');
-	console.log(res);
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
 		dialect: 'postgresql',

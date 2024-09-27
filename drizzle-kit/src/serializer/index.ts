@@ -21,7 +21,7 @@ export const sqlToStr = (sql: SQL, casing: CasingType | undefined) => {
 		escapeString: () => {
 			throw new Error("we don't support params for `sql` default values");
 		},
-		casing: new CasingCache(casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined),
+		casing: new CasingCache(casing),
 	}).sql;
 };
 
@@ -36,7 +36,7 @@ export const sqlToStrGenerated = (sql: SQL, casing: CasingType | undefined) => {
 		escapeString: () => {
 			throw new Error("we don't support params for `sql` default values");
 		},
-		casing: new CasingCache(casing === 'camel' ? 'camelCase' : casing === 'snake' ? 'snake_case' : undefined),
+		casing: new CasingCache(casing),
 	}).sql;
 };
 

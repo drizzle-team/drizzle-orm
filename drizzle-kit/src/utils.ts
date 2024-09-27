@@ -366,7 +366,7 @@ export function getColumnCasing(
 	if (!column.name) return '';
 	return !column.keyAsName || casing === undefined
 		? column.name
-		: casing === 'camel'
+		: casing === 'camelCase'
 		? toCamelCase(column.name)
 		: toSnakeCase(column.name);
 }

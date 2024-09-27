@@ -41,7 +41,7 @@ const optionDriver = string()
 	.enum(...drivers)
 	.desc('Database driver');
 
-const optionCasing = string().enum('camel', 'snake').desc('Casing for serialization');
+const optionCasing = string().enum('camelCase', 'snake_case').desc('Casing for serialization');
 
 export const generate = command({
 	name: 'generate',
