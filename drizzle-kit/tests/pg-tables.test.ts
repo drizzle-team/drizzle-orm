@@ -694,7 +694,7 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'snake');
+	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'snake_case');
 
 	const st1 = `CREATE TABLE IF NOT EXISTS "t1" (
 	"t1_id1" integer PRIMARY KEY NOT NULL,
@@ -792,7 +792,7 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'camel');
+	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'camelCase');
 
 	const st1 = `CREATE TABLE IF NOT EXISTS "t1" (
 	"t1Id1" integer PRIMARY KEY NOT NULL,

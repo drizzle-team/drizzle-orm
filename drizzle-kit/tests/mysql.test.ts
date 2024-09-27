@@ -619,7 +619,7 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diffTestSchemasMysql(from, to, [], false, 'snake');
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, [], false, 'snake_case');
 
 	const st1 = `CREATE TABLE \`t1\` (
 	\`t1_id1\` int NOT NULL,
@@ -710,7 +710,7 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diffTestSchemasMysql(from, to, [], false, 'camel');
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, [], false, 'camelCase');
 
 	const st1 = `CREATE TABLE \`t1\` (
 	\`t1Id1\` int NOT NULL,
