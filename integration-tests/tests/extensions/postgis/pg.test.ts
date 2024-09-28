@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { bigserial, geometry, line, pgTable, point } from 'drizzle-orm/pg-core';
+import { bigserial, geometry, geography, line, pgTable, point } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -85,9 +85,11 @@ const items = pgTable('items', {
 	pointObj: point('point_xy', { mode: 'xy' }),
 	line: line('line'),
 	lineObj: line('line_abc', { mode: 'abc' }),
-	geo: geometry('geo', { type: 'point' }),
-	geoObj: geometry('geo_obj', { type: 'point', mode: 'xy' }),
-	geoSrid: geometry('geo_options', { type: 'point', mode: 'xy', srid: 4000 }),
+	geometry: geometry('geometry', { type: 'point' }),
+	geometryObj: geometry('geometry_obj', { type: 'point', mode: 'xy' }),
+	geometrySrid: geometry('geometry_options', { type: 'point', mode: 'xy', srid: 4000 }),
+	geography: geometry('geography', { type: 'point' }),
+	geographyObj: geography('geography_obj', { type: 'point', mode: 'json' }),
 });
 
 beforeEach(async () => {
@@ -99,9 +101,11 @@ beforeEach(async () => {
 		          "point_xy" point,
 		          "line" line,
 		          "line_abc" line,
-				  "geo" geometry(point),
-				  "geo_obj" geometry(point),
-				  "geo_options" geometry(point,4000)
+				  "geometry" geometry(point),
+				  "geometry_obj" geometry(point),
+				  "geometry_options" geometry(point,4000),
+				  "geography" geography(point),
+				  "geography_obj" geography(point)
 		      );
 	`);
 });
@@ -112,9 +116,11 @@ test('insert + select', async () => {
 		pointObj: { x: 1, y: 2 },
 		line: [1, 2, 3],
 		lineObj: { a: 1, b: 2, c: 3 },
-		geo: [1, 2],
-		geoObj: { x: 1, y: 2 },
-		geoSrid: { x: 1, y: 2 },
+		geometry: [1, 2],
+		geometryObj: { x: 1, y: 2 },
+		geometrySrid: { x: 1, y: 2 },
+		geography: [1, 2],
+		geographyObj: { lon: 1, lat: 2 },
 	}]).returning();
 
 	const response = await db.select().from(items);
@@ -125,9 +131,11 @@ test('insert + select', async () => {
 		pointObj: { x: 1, y: 2 },
 		line: [1, 2, 3],
 		lineObj: { a: 1, b: 2, c: 3 },
-		geo: [1, 2],
-		geoObj: { x: 1, y: 2 },
-		geoSrid: { x: 1, y: 2 },
+		geometry: [1, 2],
+		geometryObj: { x: 1, y: 2 },
+		geometrySrid: { x: 1, y: 2 },
+		geography: [1, 2],
+		geographyObj: { lon: 1, lat: 2 },
 	}]);
 
 	expect(response).toStrictEqual([{
@@ -136,8 +144,10 @@ test('insert + select', async () => {
 		pointObj: { x: 1, y: 2 },
 		line: [1, 2, 3],
 		lineObj: { a: 1, b: 2, c: 3 },
-		geo: [1, 2],
-		geoObj: { x: 1, y: 2 },
-		geoSrid: { x: 1, y: 2 },
+		geometry: [1, 2],
+		geometryObj: { x: 1, y: 2 },
+		geometrySrid: { x: 1, y: 2 },
+		geography: [1, 2],
+		geographyObj: { lon: 1, lat: 2 },
 	}]);
 });
