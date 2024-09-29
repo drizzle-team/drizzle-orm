@@ -87,7 +87,7 @@ const items = pgTable('items', {
 	lineObj: line('line_abc', { mode: 'abc' }),
 	geometry: geometry('geometry', { type: 'point' }),
 	geometryObj: geometry('geometry_obj', { type: 'point', mode: 'xy' }),
-	geometrySrid: geometry('geometry_options', { type: 'point', mode: 'xy', srid: 4000 }),
+	geometrySrid: geometry('geometry_options', { type: 'point', mode: 'xy', srid: 4326 }),
 	geography: geometry('geography', { type: 'point' }),
 	geographyObj: geography('geography_obj', { type: 'point', mode: 'json' }),
 });
@@ -103,7 +103,7 @@ beforeEach(async () => {
 		          "line_abc" line,
 				  "geometry" geometry(point),
 				  "geometry_obj" geometry(point),
-				  "geometry_options" geometry(point,4000),
+				  "geometry_options" geometry(point,4326),
 				  "geography" geography(point),
 				  "geography_obj" geography(point)
 		      );
