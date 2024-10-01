@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlBinaryBuilderInitial<TName extends string> = MySqlBinaryBuilder<{
@@ -50,9 +51,15 @@ export interface MySqlBinaryConfig {
 	length?: number;
 }
 
+export function binary(): MySqlBinaryBuilderInitial<''>;
+export function binary(
+	config?: MySqlBinaryConfig,
+): MySqlBinaryBuilderInitial<''>;
 export function binary<TName extends string>(
 	name: TName,
-	config: MySqlBinaryConfig = {},
-): MySqlBinaryBuilderInitial<TName> {
+	config?: MySqlBinaryConfig,
+): MySqlBinaryBuilderInitial<TName>;
+export function binary(a?: string | MySqlBinaryConfig, b: MySqlBinaryConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<MySqlBinaryConfig>(a, b);
 	return new MySqlBinaryBuilder(name, config.length);
 }

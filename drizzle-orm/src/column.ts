@@ -68,6 +68,8 @@ export abstract class Column<
 
 	declare readonly _: ColumnTypeConfig<T, TTypeConfig>;
 
+	/** @internal */
+	readonly keyAsName: boolean;
 	readonly name: string;
 	readonly primary: boolean;
 	readonly notNull: boolean;
@@ -92,6 +94,7 @@ export abstract class Column<
 	) {
 		this.config = config;
 		this.name = config.name;
+		this.keyAsName = config.keyAsName;
 		this.notNull = config.notNull;
 		this.default = config.default;
 		this.defaultFn = config.defaultFn;

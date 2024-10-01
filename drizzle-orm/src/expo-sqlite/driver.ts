@@ -21,8 +21,10 @@ export class ExpoSQLiteDatabase<TSchema extends Record<string, unknown> = Record
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: SQLiteDatabase,
 	config: DrizzleConfig<TSchema> = {},
-): ExpoSQLiteDatabase<TSchema> {
-	const dialect = new SQLiteSyncDialect();
+): ExpoSQLiteDatabase<TSchema> & {
+	$client: SQLiteDatabase;
+} {
+	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -44,5 +46,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new ExpoSQLiteSession(client, dialect, schema, { logger });
-	return new ExpoSQLiteDatabase('sync', dialect, session, schema) as ExpoSQLiteDatabase<TSchema>;
+	const db = new ExpoSQLiteDatabase('sync', dialect, session, schema) as ExpoSQLiteDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

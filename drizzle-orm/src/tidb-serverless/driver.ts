@@ -27,8 +27,10 @@ export class TiDBServerlessDatabase<
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Connection,
 	config: DrizzleConfig<TSchema> = {},
-): TiDBServerlessDatabase<TSchema> {
-	const dialect = new MySqlDialect();
+): TiDBServerlessDatabase<TSchema> & {
+	$client: Connection;
+} {
+	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -50,5 +52,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new TiDBServerlessSession(client, dialect, undefined, schema, { logger });
-	return new TiDBServerlessDatabase(dialect, session, schema as any, 'default') as TiDBServerlessDatabase<TSchema>;
+	const db = new TiDBServerlessDatabase(dialect, session, schema as any, 'default') as TiDBServerlessDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

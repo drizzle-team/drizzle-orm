@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
 export type PgHalfVectorBuilderInitial<TName extends string> = PgHalfVectorBuilder<{
@@ -63,9 +64,14 @@ export interface PgHalfVectorConfig {
 	dimensions: number;
 }
 
+export function halfvec(
+	config: PgHalfVectorConfig,
+): PgHalfVectorBuilderInitial<''>;
 export function halfvec<TName extends string>(
 	name: TName,
 	config: PgHalfVectorConfig,
-): PgHalfVectorBuilderInitial<TName> {
+): PgHalfVectorBuilderInitial<TName>;
+export function halfvec(a: string | PgHalfVectorConfig, b?: PgHalfVectorConfig) {
+	const { name, config } = getColumnNameAndConfig<PgHalfVectorConfig>(a, b);
 	return new PgHalfVectorBuilder(name, config);
 }

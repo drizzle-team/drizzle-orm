@@ -36,6 +36,7 @@ import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
 	alias,
+	bigserial,
 	boolean,
 	char,
 	cidr,
@@ -80,7 +81,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { Expect } from '~/utils';
 import type { schema } from './neon-http-batch.test';
 // eslint-disable-next-line @typescript-eslint/no-import-type-side-effects
@@ -252,6 +253,7 @@ export function tests() {
 			await db.execute(sql`drop schema if exists public cascade`);
 			await db.execute(sql`drop schema if exists ${mySchema} cascade`);
 			await db.execute(sql`create schema public`);
+			await db.execute(sql`create schema if not exists custom_migrations`);
 			await db.execute(sql`create schema ${mySchema}`);
 			// public users
 			await db.execute(
@@ -381,6 +383,11 @@ export function tests() {
 					)
 				`,
 			);
+		});
+
+		afterEach(async (ctx) => {
+			const { db } = ctx.pg;
+			await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		});
 
 		async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT>) {
@@ -4525,6 +4532,49 @@ export function tests() {
 				.limit(-1);
 
 			expect(users.length).toBeGreaterThan(0);
+		});
+
+		test('Object keys as column names', async (ctx) => {
+			const { db } = ctx.pg;
+
+			// Tests the following:
+			// Column with required config
+			// Column with optional config without providing a value
+			// Column with optional config providing a value
+			// Column without config
+			const users = pgTable('users', {
+				id: bigserial({ mode: 'number' }).primaryKey(),
+				firstName: varchar(),
+				lastName: varchar({ length: 50 }),
+				admin: boolean(),
+			});
+
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(
+				sql`
+					create table users (
+						"id" bigserial primary key,
+						"firstName" varchar,
+						"lastName" varchar(50),
+						"admin" boolean
+					)
+				`,
+			);
+
+			await db.insert(users).values([
+				{ firstName: 'John', lastName: 'Doe', admin: true },
+				{ firstName: 'Jane', lastName: 'Smith', admin: false },
+			]);
+			const result = await db
+				.select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+				.from(users)
+				.where(eq(users.admin, true));
+
+			expect(result).toEqual([
+				{ id: 1, firstName: 'John', lastName: 'Doe' },
+			]);
+
+			await db.execute(sql`drop table users`);
 		});
 
 		test('proper json and jsonb handling', async (ctx) => {
