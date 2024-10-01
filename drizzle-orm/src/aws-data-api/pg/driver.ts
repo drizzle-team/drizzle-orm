@@ -12,7 +12,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { Param, SQL, sql, SQLWrapper } from '~/sql/sql.ts';
+import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
