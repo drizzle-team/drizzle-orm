@@ -1,5 +1,5 @@
 import { is } from 'drizzle-orm';
-import { AnyPgTable, isPgEnum, isPgSequence, PgEnum, PgSchema, PgSequence, PgTable } from 'drizzle-orm/pg-core';
+import { AnyPgTable, isPgEnum, isPgSequence, PgEnum, PgMaterializedView, PgSchema, PgSequence, PgTable, PgView } from 'drizzle-orm/pg-core';
 import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
@@ -7,6 +7,8 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const enums: PgEnum<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
+	const views: PgView[] = [];
+	const materializedViews: PgMaterializedView[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -25,9 +27,17 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 		if (isPgSequence(t)) {
 			sequences.push(t);
 		}
+
+		if (is(t, PgView)) {
+			views.push(t);
+		}
+
+		if (is(t, PgMaterializedView)) {
+			materializedViews.push(t);
+		}
 	});
 
-	return { tables, enums, schemas, sequences };
+	return { tables, enums, schemas, sequences, views, materializedViews };
 };
 
 export const prepareFromPgImports = async (imports: string[]) => {
