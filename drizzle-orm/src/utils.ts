@@ -207,9 +207,12 @@ export type ColumnsWithTable<
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
 > = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
 
+export type Casing = 'snake_case' | 'camelCase';
+
 export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
 	logger?: boolean | Logger;
 	schema?: TSchema;
+	casing?: Casing;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -224,4 +227,13 @@ export type KnownKeysOnly<T, U> = {
 
 export type IsAny<T> = 0 extends (1 & T) ? true : false;
 
+/** @internal */
+export function getColumnNameAndConfig<
+	TConfig extends Record<string, any> | undefined,
+>(a: string | TConfig | undefined, b: TConfig | undefined) {
+	return {
+		name: typeof a === 'string' && a.length > 0 ? a : '' as string,
+		config: typeof a === 'object' ? a : b as TConfig,
+	};
+}
 export type IfNotImported<T, Y, N> = unknown extends T ? Y : N;

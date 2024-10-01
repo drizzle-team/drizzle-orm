@@ -12,8 +12,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { Param, sql } from '~/sql/sql.ts';
-import type { SQL, SQLWrapper } from '~/sql/sql.ts';
+import { Param, SQL, sql, SQLWrapper } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
@@ -94,7 +93,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 ): AwsDataApiPgDatabase<TSchema> & {
 	$client: AwsDataApiClient;
 } {
-	const dialect = new AwsPgDialect();
+	const dialect = new AwsPgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

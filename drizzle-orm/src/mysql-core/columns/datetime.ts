@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import type { Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBuilder<{
@@ -120,12 +120,17 @@ export interface MySqlDatetimeConfig<TMode extends 'date' | 'string' = 'date' | 
 	fsp?: DatetimeFsp;
 }
 
+export function datetime(): MySqlDateTimeBuilderInitial<''>;
+export function datetime<TMode extends MySqlDatetimeConfig['mode'] & {}>(
+	config?: MySqlDatetimeConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? MySqlDateTimeStringBuilderInitial<''> : MySqlDateTimeBuilderInitial<''>;
 export function datetime<TName extends string, TMode extends MySqlDatetimeConfig['mode'] & {}>(
 	name: TName,
 	config?: MySqlDatetimeConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? MySqlDateTimeStringBuilderInitial<TName> : MySqlDateTimeBuilderInitial<TName>;
-export function datetime(name: string, config: MySqlDatetimeConfig = {}) {
-	if (config.mode === 'string') {
+export function datetime(a?: string | MySqlDatetimeConfig, b?: MySqlDatetimeConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlDatetimeConfig | undefined>(a, b);
+	if (config?.mode === 'string') {
 		return new MySqlDateTimeStringBuilder(name, config);
 	}
 	return new MySqlDateTimeBuilder(name, config);
