@@ -124,7 +124,7 @@ export abstract class PgColumnBuilder<
 	buildExtraConfigColumn<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): ExtraConfigColumn {
-		return new ExtraConfigColumn(table, this.config);
+		return new ExtraConfigColumn(table, this.config, this.build(table));
 	}
 }
 
@@ -154,9 +154,16 @@ export class ExtraConfigColumn<
 > extends PgColumn<T, IndexedExtraConfigType> {
 	static readonly [entityKind]: string = 'ExtraConfigColumn';
 
-	override getSQLType(): string {
-		return this.getSQLType();
+	constructor(
+		override readonly table: PgTable,
+		config: ColumnBuilderRuntimeConfig<T['data'], IndexedExtraConfigType>,
+		builtColumn: PgColumn<T>,
+	) {
+		super(table, config);
+		this.getSQLType = builtColumn.getSQLType;
 	}
+
+	override getSQLType: () => string;
 
 	indexConfig: IndexedExtraConfigType = {
 		order: this.config.order ?? 'asc',
