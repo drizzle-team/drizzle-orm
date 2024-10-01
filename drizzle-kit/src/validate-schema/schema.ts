@@ -1,31 +1,37 @@
 import { ValidateIndex } from '.';
 import { ValidateEnum } from './enum';
+import { SchemaValidationErrors } from './errors';
 import { ValidateForeignKey } from './foreign-key';
+import { ValidatePrimaryKey } from './primary-key';
 import { ValidateSequence } from './sequence';
 import { ValidateTable } from './table';
 import { Enum, getCollisions, listStr, MaterializedView, Sequence, Table, View } from './utils';
 
 export class ValidateSchema {
-  constructor(private errors: string[], private schema: string | undefined) {}
+  constructor(private errors: string[], private errorCodes: Set<number>, private schema: string | undefined) {}
 
   validateEnum(enumName: string) {
-    return new ValidateEnum(this.errors, this.schema, enumName);
+    return new ValidateEnum(this.errors, this.errorCodes, this.schema, enumName);
   }
 
   validateSequence(sequenceName: string) {
-    return new ValidateSequence(this.errors, this.schema, sequenceName);
+    return new ValidateSequence(this.errors, this.errorCodes, this.schema, sequenceName);
   }
 
   validateTable(tableName: string) {
-    return new ValidateTable(this.errors, this.schema, tableName);
+    return new ValidateTable(this.errors, this.errorCodes, this.schema, tableName);
   }
 
   validateForeignKey(foreignKeyName: string) {
-    return new ValidateForeignKey(this.errors, this.schema, foreignKeyName);
+    return new ValidateForeignKey(this.errors, this.errorCodes, this.schema, foreignKeyName);
+  }
+
+  validatePrimaryKey(primaryKeyName: string) {
+    return new ValidatePrimaryKey(this.errors, this.errorCodes, this.schema, primaryKeyName);
   }
 
   validateIndex(indexName: string) {
-    return new ValidateIndex(this.errors, this.schema, indexName);
+    return new ValidateIndex(this.errors, this.errorCodes, this.schema, indexName);
   }
 
   entityNameCollisions(
@@ -44,25 +50,30 @@ export class ValidateSchema {
     ];
 
     const collisions = getCollisions(names);
-    const messages = collisions.map((name) => {
-      const inTables = tables.filter((t) => t.name === name).length;
-      const inViews = views.filter((v) => v.name === name).length;
-      const inMaterializedViews = materializedViews.filter((mv) => mv.name === name).length;
-      const inEnums = enums.filter((e) => e.enumName === name).length;
-      const inSequences = sequences.filter((s) => s.seqName === name).length;
 
-      const list = listStr(
-        [inTables, 'table', 'tables'],
-        [inViews, 'view', 'views'],
-        [inMaterializedViews, 'materialized view', 'materialized views'],
-        [inEnums, 'enum', 'enums'],
-        [inSequences, 'sequence', 'sequences'],
-      );
+    if (collisions.length > 0) {
+      const messages = collisions.map((name) => {
+        const inTables = tables.filter((t) => t.name === name).length;
+        const inViews = views.filter((v) => v.name === name).length;
+        const inMaterializedViews = materializedViews.filter((mv) => mv.name === name).length;
+        const inEnums = enums.filter((e) => e.enumName === name).length;
+        const inSequences = sequences.filter((s) => s.seqName === name).length;
+  
+        const list = listStr(
+          [inTables, 'table', 'tables'],
+          [inViews, 'view', 'views'],
+          [inMaterializedViews, 'materialized view', 'materialized views'],
+          [inEnums, 'enum', 'enums'],
+          [inSequences, 'sequence', 'sequences'],
+        );
+  
+        return `${this.schema ? `In schema "${this.schema}", ` : ''}${list} have the same name, "${name}"`;
+      });
+  
+      this.errors.push(...messages);
+      this.errorCodes.add(SchemaValidationErrors.SchemaEntityNameCollisions);
+    }
 
-      return `${this.schema ? `In schema "${this.schema}", ` : ''}${list} have the same name, "${name}"`;
-    });
-
-    this.errors.push(...messages);
     return this;
   }
 
@@ -82,25 +93,30 @@ export class ValidateSchema {
     ];
 
     const collisions = getCollisions(names);
-    const messages = collisions.map((name) => {
-      const inIndexes = indexes.filter((i) => i.name === name).length;
-      const inForeignKeys = foreignKeys.filter((f) => f.name === name).length;
-      const inChecks = checks.filter((c) => c.name === name).length;
-      const inPrimaryKeys = primaryKeys.filter((p) => p.name === name).length;
-      const inUniqueConstraints = uniqueConstraints.filter((u) => u.name === name).length;
 
-      const list = listStr(
-        [inIndexes, 'index', 'indexes'],
-        [inForeignKeys, 'foreign key', 'foreign keys'],
-        [inChecks, 'check', 'checks'],
-        [inPrimaryKeys, 'primary key', 'primary keys'],
-        [inUniqueConstraints, 'unique constraint', 'unique constraints'],
-      );
+    if (collisions.length > 0) {
+      const messages = collisions.map((name) => {
+        const inIndexes = indexes.filter((i) => i.name === name).length;
+        const inForeignKeys = foreignKeys.filter((f) => f.name === name).length;
+        const inChecks = checks.filter((c) => c.name === name).length;
+        const inPrimaryKeys = primaryKeys.filter((p) => p.name === name).length;
+        const inUniqueConstraints = uniqueConstraints.filter((u) => u.name === name).length;
+  
+        const list = listStr(
+          [inIndexes, 'index', 'indexes'],
+          [inForeignKeys, 'foreign key', 'foreign keys'],
+          [inChecks, 'check', 'checks'],
+          [inPrimaryKeys, 'primary key', 'primary keys'],
+          [inUniqueConstraints, 'unique constraint', 'unique constraints'],
+        );
+  
+        return `${this.schema ? `In schema "${this.schema}", ` : ''}${list} have the same name, "${name}"`;
+      });
+  
+      this.errors.push(...messages);
+      this.errorCodes.add(SchemaValidationErrors.SchemaConstraintNameCollisions);
+    }
 
-      return `${this.schema ? `In schema "${this.schema}", ` : ''}${list} have the same name, "${name}"`;
-    });
-
-    this.errors.push(...messages);
     return this;
   }
 }

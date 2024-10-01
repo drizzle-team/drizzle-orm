@@ -67,15 +67,27 @@ export type Table = {
     columns: {
       name: string;
       getSQLType: () => string;
+      table: {
+        name: string;
+        schema?: string;
+      };
     }[];
     foreignColumns: {
       name: string;
       getSQLType: () => string;
+      table: {
+        name: string;
+        schema?: string;
+      };
     }[];
   } }[];
   checks: { name: string }[];
-  primaryKeys: { name?: string; columns: {
+  primaryKeys: { name: string; columns: {
     name: string;
+    table: {
+      name: string;
+      schema?: string;
+    };
   }[]; }[];
   uniqueConstraints: { name: string }[];
 };

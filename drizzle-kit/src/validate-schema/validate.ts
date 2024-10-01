@@ -22,8 +22,8 @@ export function validatePgSchema(
   const viewConfigs = views.map((view) => getPgViewConfig(view));
   const materializedViewConfigs = materializedViews.map((view) => getPgMaterializedViewConfig(view));
 
-  const allSchemas = [
-    pgSchema('public'),
+  const group = [
+    new PgSchema('public'),
     ...schemas
   ].map((schema) => {
     const schemaTables = tableConfigs
@@ -97,16 +97,30 @@ export function validatePgSchema(
             name: getForeignKeyName(fk, casing),
             reference: {
               columns: ref.columns.map(
-                (column) => ({
-                  name: getColumnCasing(column, casing),
-                  getSQLType: column.getSQLType
-                })
+                (column) => {
+                  const tableConfig = getPgTableConfig(column.table);
+                  return {
+                    name: getColumnCasing(column, casing),
+                    getSQLType: column.getSQLType,
+                    table: {
+                      name: tableConfig.name,
+                      schema: tableConfig.schema
+                    }
+                  };
+                }
               ),
               foreignColumns: ref.foreignColumns.map(
-                (column) => ({
-                  name: getColumnCasing(column, casing),
-                  getSQLType: column.getSQLType
-                })
+                (column) => {
+                  const tableConfig = getPgTableConfig(column.table);
+                  return {
+                    name: getColumnCasing(column, casing),
+                    getSQLType: column.getSQLType,
+                    table: {
+                      name: tableConfig.name,
+                      schema: tableConfig.schema
+                    }
+                  };
+                }
               ),
             }
           };
@@ -125,11 +139,18 @@ export function validatePgSchema(
     const schemaPrimaryKeys = schemaTables.map(
       (table) => table.primaryKeys.map(
         (pk) => ({
-          name: pk.name,
+          name: pk.getName(),
           columns: pk.columns.map(
-            (column) => ({
-              name: getColumnCasing(column, casing)
-            })
+            (column) => {
+              const tableConfig = getPgTableConfig(column.table);
+              return {
+                name: getColumnCasing(column, casing),
+                table: {
+                  name: tableConfig.name,
+                  schema: tableConfig.schema
+                }
+              }
+            }
           )
         })
       )
@@ -141,7 +162,7 @@ export function validatePgSchema(
           const columnNames = unique.columns.map((column) => getColumnCasing(column, casing));
 
           return {
-            name: unique.name ?? pgUniqueKeyName(tables.find((t) => getTableName(t) === table.name)!, columnNames)
+            name: unique.name ?? pgUniqueKeyName(tables.find((t) => getTableName(t) === table.name && getPgTableConfig(t).schema === table.schema)!, columnNames)
           };
         }
       )
@@ -161,12 +182,11 @@ export function validatePgSchema(
       uniqueConstraints: schemaUniqueConstraints
     };
   });
-  const allTables = allSchemas.map((schema) => schema.tables).flat(1);
 
   const vDb = new ValidateDatabase();
   vDb.schemaNameCollisions(schemas);
 
-  for (const schema of allSchemas) {
+  for (const schema of group) {
     const v = vDb.validateSchema(schema.name ?? 'public');
 
     v
@@ -200,9 +220,15 @@ export function validatePgSchema(
     for (const foreignKey of schema.foreignKeys) {
       v
         .validateForeignKey(foreignKey.name)
-        .columnsMixingTables(foreignKey, allTables)
+        .columnsMixingTables(foreignKey)
         .mismatchingColumnCount(foreignKey)
         .mismatchingDataTypes(foreignKey);
+    }
+
+    for (const primaryKey of schema.primaryKeys) {
+      v
+        .validatePrimaryKey(primaryKey.name)
+        .columnsMixingTables(primaryKey);
     }
 
     for (const index of schema.indexes) {
@@ -213,7 +239,10 @@ export function validatePgSchema(
     }
   }
 
-  return vDb.errors;
+  return {
+    messages: vDb.errors,
+    codes: vDb.errorCodes
+  };
 }
 
 export function validateMySqlSchema(
