@@ -1,8 +1,8 @@
 import { entityKind } from '~/entity.ts';
-import type { SQL, SQLWrapper } from '~/index.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
+import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '../dialect.ts';
 
 type SQLiteRawAction = 'all' | 'get' | 'values' | 'run';
