@@ -46,7 +46,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 ): PgliteDatabase<TSchema> & {
 	$client: PgliteClient;
 } {
-	const dialect = new PgDialect();
+	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

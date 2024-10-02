@@ -1,6 +1,5 @@
-import { entityKind, sql } from '~/index.ts';
-import type { SQLWrapper } from '~/sql/sql.ts';
-import { SQL } from '~/sql/sql.ts';
+import { entityKind } from '~/entity.ts';
+import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
 import type { SQLiteView } from '../view.ts';

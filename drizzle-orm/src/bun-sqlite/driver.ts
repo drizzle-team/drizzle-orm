@@ -26,7 +26,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 ): BunSQLiteDatabase<TSchema> & {
 	$client: Database;
 } {
-	const dialect = new SQLiteSyncDialect();
+	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

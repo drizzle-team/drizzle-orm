@@ -3810,4 +3810,53 @@ export function tests(driver?: string) {
 			expect(users.length).toBeGreaterThan(0);
 		});
 	});
+
+	test('Object keys as column names', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		// Tests the following:
+		// Column with required config
+		// Column with optional config without providing a value
+		// Column with optional config providing a value
+		// Column without config
+		const users = mysqlTable('users', {
+			id: bigint({ mode: 'number' }).autoincrement().primaryKey(),
+			createdAt: timestamp(),
+			updatedAt: timestamp({ fsp: 3 }),
+			admin: boolean(),
+		});
+
+		await db.execute(sql`drop table if exists users`);
+		await db.execute(
+			sql`
+				create table users (
+					\`id\` bigint auto_increment primary key,
+					\`createdAt\` timestamp,
+					\`updatedAt\` timestamp(3),
+					\`admin\` boolean
+				)
+			`,
+		);
+
+		await db.insert(users).values([
+			{ createdAt: sql`now() - interval 30 day`, updatedAt: sql`now() - interval 1 day`, admin: true },
+			{ createdAt: sql`now() - interval 1 day`, updatedAt: sql`now() - interval 30 day`, admin: true },
+			{ createdAt: sql`now() - interval 1 day`, updatedAt: sql`now() - interval 1 day`, admin: false },
+		]);
+		const result = await db
+			.select({ id: users.id, admin: users.admin })
+			.from(users)
+			.where(
+				and(
+					gt(users.createdAt, sql`now() - interval 7 day`),
+					gt(users.updatedAt, sql`now() - interval 7 day`),
+				),
+			);
+
+		expect(result).toEqual([
+			{ id: 3, admin: false },
+		]);
+
+		await db.execute(sql`drop table users`);
+	});
 }

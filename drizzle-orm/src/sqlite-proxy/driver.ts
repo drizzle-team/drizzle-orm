@@ -55,7 +55,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	batchCallback?: AsyncBatchRemoteCallback | DrizzleConfig<TSchema>,
 	config?: DrizzleConfig<TSchema>,
 ): SqliteRemoteDatabase<TSchema> {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteAsyncDialect({ casing: config?.casing });
 	let logger;
 	let _batchCallback: AsyncBatchRemoteCallback | undefined;
 	let _config: DrizzleConfig<TSchema> = {};

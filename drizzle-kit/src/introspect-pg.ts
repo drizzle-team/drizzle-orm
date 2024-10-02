@@ -9,6 +9,7 @@ import {
 	Relations,
 } from 'drizzle-orm/relations';
 import './@types/utils';
+import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from './cli/validations/common';
 import { vectorOps } from './extensions/vector';
 import { assertUnreachable } from './global';
@@ -171,6 +172,17 @@ const withCasing = (value: string, casing: Casing) => {
 	}
 	if (casing === 'camel') {
 		return escapeColumnKey(value.camelCase());
+	}
+
+	assertUnreachable(casing);
+};
+
+const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
+	if (casing === 'preserve') {
+		return '';
+	}
+	if (casing === 'camel') {
+		return toCamelCase(name) === name ? '' : withMode ? `"${name}", ` : `"${name}"`;
 	}
 
 	assertUnreachable(casing);
@@ -770,16 +782,16 @@ const column = (
 				paramNameFor(type.replace('[]', ''), typeSchema),
 				casing,
 			)
-		}("${name}")`;
+		}(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('serial')) {
-		return `${withCasing(name, casing)}: serial("${name}")`;
+		return `${withCasing(name, casing)}: serial(${dbColumnName({ name, casing })})`;
 	}
 
 	if (lowered.startsWith('smallserial')) {
-		return `${withCasing(name, casing)}: smallserial("${name}")`;
+		return `${withCasing(name, casing)}: smallserial(${dbColumnName({ name, casing })})`;
 	}
 
 	if (lowered.startsWith('bigserial')) {
@@ -788,42 +800,42 @@ const column = (
 				name,
 				casing,
 			)
-		}: bigserial("${name}", { mode: "bigint" })`;
+		}: bigserial(${dbColumnName({ name, casing, withMode: true })}{ mode: "bigint" })`;
 	}
 
 	if (lowered.startsWith('integer')) {
-		let out = `${withCasing(name, casing)}: integer("${name}")`;
+		let out = `${withCasing(name, casing)}: integer(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('smallint')) {
-		let out = `${withCasing(name, casing)}: smallint("${name}")`;
+		let out = `${withCasing(name, casing)}: smallint(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('bigint')) {
 		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
-		out += `${withCasing(name, casing)}: bigint("${name}", { mode: "number" })`;
+		out += `${withCasing(name, casing)}: bigint(${dbColumnName({ name, casing, withMode: true })}{ mode: "number" })`;
 		return out;
 	}
 
 	if (lowered.startsWith('boolean')) {
-		let out = `${withCasing(name, casing)}: boolean("${name}")`;
+		let out = `${withCasing(name, casing)}: boolean(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('double precision')) {
-		let out = `${withCasing(name, casing)}: doublePrecision("${name}")`;
+		let out = `${withCasing(name, casing)}: doublePrecision(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('real')) {
-		let out = `${withCasing(name, casing)}: real("${name}")`;
+		let out = `${withCasing(name, casing)}: real(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('uuid')) {
-		let out = `${withCasing(name, casing)}: uuid("${name}")`;
+		let out = `${withCasing(name, casing)}: uuid(${dbColumnName({ name, casing })})`;
 
 		return out;
 	}
@@ -841,8 +853,8 @@ const column = (
 		}
 
 		let out = params
-			? `${withCasing(name, casing)}: numeric("${name}", ${timeConfig(params)})`
-			: `${withCasing(name, casing)}: numeric("${name}")`;
+			? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${timeConfig(params)})`
+			: `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
 
 		return out;
 	}
@@ -866,8 +878,8 @@ const column = (
 		});
 
 		let out = params
-			? `${withCasing(name, casing)}: timestamp("${name}", ${params})`
-			: `${withCasing(name, casing)}: timestamp("${name}")`;
+			? `${withCasing(name, casing)}: timestamp(${dbColumnName({ name, casing, withMode: true })}${params})`
+			: `${withCasing(name, casing)}: timestamp(${dbColumnName({ name, casing })})`;
 
 		return out;
 	}
@@ -887,8 +899,8 @@ const column = (
 		const params = timeConfig({ precision, withTimezone });
 
 		let out = params
-			? `${withCasing(name, casing)}: time("${name}", ${params})`
-			: `${withCasing(name, casing)}: time("${name}")`;
+			? `${withCasing(name, casing)}: time(${dbColumnName({ name, casing, withMode: true })}${params})`
+			: `${withCasing(name, casing)}: time(${dbColumnName({ name, casing })})`;
 
 		return out;
 	}
@@ -902,50 +914,50 @@ const column = (
 		const params = intervalConfig(lowered);
 
 		let out = params
-			? `${withCasing(name, casing)}: interval("${name}", ${params})`
-			: `${withCasing(name, casing)}: interval("${name}")`;
+			? `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing, withMode: true })}${params})`
+			: `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing })})`;
 
 		return out;
 	}
 
 	if (lowered === 'date') {
-		let out = `${withCasing(name, casing)}: date("${name}")`;
+		let out = `${withCasing(name, casing)}: date(${dbColumnName({ name, casing })})`;
 
 		return out;
 	}
 
 	if (lowered.startsWith('text')) {
-		let out = `${withCasing(name, casing)}: text("${name}")`;
+		let out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('jsonb')) {
-		let out = `${withCasing(name, casing)}: jsonb("${name}")`;
+		let out = `${withCasing(name, casing)}: jsonb(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('json')) {
-		let out = `${withCasing(name, casing)}: json("${name}")`;
+		let out = `${withCasing(name, casing)}: json(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('inet')) {
-		let out = `${withCasing(name, casing)}: inet("${name}")`;
+		let out = `${withCasing(name, casing)}: inet(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('cidr')) {
-		let out = `${withCasing(name, casing)}: cidr("${name}")`;
+		let out = `${withCasing(name, casing)}: cidr(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('macaddr8')) {
-		let out = `${withCasing(name, casing)}: macaddr8("${name}")`;
+		let out = `${withCasing(name, casing)}: macaddr8(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('macaddr')) {
-		let out = `${withCasing(name, casing)}: macaddr("${name}")`;
+		let out = `${withCasing(name, casing)}: macaddr(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
@@ -957,26 +969,26 @@ const column = (
 					name,
 					casing,
 				)
-			}: varchar("${name}", { length: ${
+			}: varchar(${dbColumnName({ name, casing, withMode: true })}{ length: ${
 				lowered.substring(
 					8,
 					lowered.length - 1,
 				)
 			} })`;
 		} else {
-			out = `${withCasing(name, casing)}: varchar("${name}")`;
+			out = `${withCasing(name, casing)}: varchar(${dbColumnName({ name, casing })})`;
 		}
 
 		return out;
 	}
 
 	if (lowered.startsWith('point')) {
-		let out: string = `${withCasing(name, casing)}: point("${name}")`;
+		let out: string = `${withCasing(name, casing)}: point(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
 	if (lowered.startsWith('line')) {
-		let out: string = `${withCasing(name, casing)}: point("${name}")`;
+		let out: string = `${withCasing(name, casing)}: point(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
@@ -988,16 +1000,18 @@ const column = (
 		if (lowered.length !== 8) {
 			const geometryOptions = lowered.slice(9, -1).split(',');
 			if (geometryOptions.length === 1 && geometryOptions[0] !== '') {
-				out = `${withCasing(name, casing)}: geometry("${name}", { type: "${geometryOptions[0]}" })`;
+				out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}{ type: "${
+					geometryOptions[0]
+				}" })`;
 			} else if (geometryOptions.length === 2) {
-				out = `${withCasing(name, casing)}: geometry("${name}", { type: "${geometryOptions[0]}", srid: ${
-					geometryOptions[1]
-				} })`;
+				out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}{ type: "${
+					geometryOptions[0]
+				}", srid: ${geometryOptions[1]} })`;
 			} else {
 				isGeoUnknown = true;
 			}
 		} else {
-			out = `${withCasing(name, casing)}: geometry("${name}")`;
+			out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing })})`;
 		}
 
 		if (isGeoUnknown) {
@@ -1017,14 +1031,14 @@ const column = (
 					name,
 					casing,
 				)
-			}: vector("${name}", { dimensions: ${
+			}: vector(${dbColumnName({ name, casing, withMode: true })}{ dimensions: ${
 				lowered.substring(
 					7,
 					lowered.length - 1,
 				)
 			} })`;
 		} else {
-			out = `${withCasing(name, casing)}: vector("${name}")`;
+			out = `${withCasing(name, casing)}: vector(${dbColumnName({ name, casing })})`;
 		}
 
 		return out;
@@ -1038,14 +1052,14 @@ const column = (
 					name,
 					casing,
 				)
-			}: char("${name}", { length: ${
+			}: char(${dbColumnName({ name, casing, withMode: true })}{ length: ${
 				lowered.substring(
 					5,
 					lowered.length - 1,
 				)
 			} })`;
 		} else {
-			out = `${withCasing(name, casing)}: char("${name}")`;
+			out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing })})`;
 		}
 
 		return out;

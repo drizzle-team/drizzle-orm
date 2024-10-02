@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
 
@@ -69,9 +70,15 @@ export interface IntervalConfig {
 	precision?: Precision;
 }
 
+export function interval(): PgIntervalBuilderInitial<''>;
+export function interval(
+	config?: IntervalConfig,
+): PgIntervalBuilderInitial<''>;
 export function interval<TName extends string>(
 	name: TName,
-	config: IntervalConfig = {},
-): PgIntervalBuilderInitial<TName> {
+	config?: IntervalConfig,
+): PgIntervalBuilderInitial<TName>;
+export function interval(a?: string | IntervalConfig, b: IntervalConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<IntervalConfig>(a, b);
 	return new PgIntervalBuilder(name, config);
 }

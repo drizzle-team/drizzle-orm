@@ -35,7 +35,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client.options.serializers['114'] = transparentParser;
 	client.options.serializers['3802'] = transparentParser;
 
-	const dialect = new PgDialect();
+	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
