@@ -1,9 +1,10 @@
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import { CasingType } from './cli/validations/common';
-import { serializeMySql, serializePg, serializeSQLite } from './serializer';
+import { serializeMySql, serializePg, serializeSingleStore, serializeSQLite } from './serializer';
 import { dryMySql, MySqlSchema, mysqlSchema } from './serializer/mysqlSchema';
 import { dryPg, PgSchema, pgSchema, PgSchemaInternal } from './serializer/pgSchema';
+import { drySingleStore, SingleStoreSchema, singlestoreSchema } from './serializer/singlestoreSchema';
 import { drySQLite, SQLiteSchema, sqliteSchema } from './serializer/sqliteSchema';
 
 export const prepareMySqlDbPushSnapshot = async (
@@ -18,6 +19,21 @@ export const prepareMySqlDbPushSnapshot = async (
 
 	const { version, dialect, ...rest } = serialized;
 	const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
+
+	return { prev, cur: result };
+};
+
+export const prepareSingleStoreDbPushSnapshot = async (
+	prev: SingleStoreSchema,
+	schemaPath: string | string[],
+): Promise<{ prev: SingleStoreSchema; cur: SingleStoreSchema }> => {
+	const serialized = await serializeSingleStore(schemaPath);
+
+	const id = randomUUID();
+	const idPrev = prev.id;
+
+	const { version, dialect, ...rest } = serialized;
+	const result: SingleStoreSchema = { version, dialect, id, prevId: idPrev, ...rest };
 
 	return { prev, cur: result };
 };
@@ -81,6 +97,33 @@ export const prepareMySqlMigrationSnapshot = async (
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: MySqlSchema = {
+		id,
+		prevId: idPrev,
+		...prevRest,
+	};
+
+	return { prev: prevSnapshot, cur: result, custom };
+};
+
+export const prepareSingleStoreMigrationSnapshot = async (
+	migrationFolders: string[],
+	schemaPath: string | string[],
+): Promise<{ prev: SingleStoreSchema; cur: SingleStoreSchema; custom: SingleStoreSchema }> => {
+	const prevSnapshot = singlestoreSchema.parse(
+		preparePrevSnapshot(migrationFolders, drySingleStore),
+	);
+	const serialized = await serializeSingleStore(schemaPath);
+
+	const id = randomUUID();
+	const idPrev = prevSnapshot.id;
+
+	const { version, dialect, ...rest } = serialized;
+	const result: SingleStoreSchema = { version, dialect, id, prevId: idPrev, ...rest };
+
+	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+
+	// that's for custom migrations, when we need new IDs, but old snapshot
+	const custom: SingleStoreSchema = {
 		id,
 		prevId: idPrev,
 		...prevRest,

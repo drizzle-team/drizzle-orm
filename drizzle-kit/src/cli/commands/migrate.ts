@@ -4,6 +4,8 @@ import {
 	prepareMySqlMigrationSnapshot,
 	preparePgDbPushSnapshot,
 	preparePgMigrationSnapshot,
+	prepareSingleStoreDbPushSnapshot,
+	prepareSingleStoreMigrationSnapshot,
 	prepareSQLiteDbPushSnapshot,
 	prepareSqliteMigrationSnapshot,
 } from '../../migrationPreparator';
@@ -11,6 +13,7 @@ import {
 import chalk from 'chalk';
 import { render } from 'hanji';
 import path, { join } from 'path';
+import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
@@ -20,6 +23,7 @@ import {
 	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
+	applySingleStoreSnapshotsDiff,
 	applySqliteSnapshotsDiff,
 	Column,
 	ColumnsResolverInput,
@@ -502,6 +506,150 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 			tablesResolver,
 			columnsResolver,
 			mySqlViewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		writeResult({
+			cur,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			prefixMode: config.prefix,
+		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+// Not needed for now
+function singleStoreSchemaSuggestions(
+	curSchema: TypeOf<typeof singlestoreSchema>,
+	prevSchema: TypeOf<typeof singlestoreSchema>,
+) {
+	const suggestions: string[] = [];
+	const usedSuggestions: string[] = [];
+	const suggestionTypes = {
+		// TODO: Check if SingleStore has serial type
+		serial: withStyle.errorWarning(
+			`We deprecated the use of 'serial' for SingleStore starting from version 0.20.0. In SingleStore, 'serial' is simply an alias for 'bigint unsigned not null auto_increment unique,' which creates all constraints and indexes for you. This may make the process less explicit for both users and drizzle-kit push commands`,
+		),
+	};
+
+	for (const table of Object.values(curSchema.tables)) {
+		for (const column of Object.values(table.columns)) {
+			if (column.type === 'serial') {
+				if (!usedSuggestions.includes('serial')) {
+					suggestions.push(suggestionTypes['serial']);
+				}
+
+				const uniqueForSerial = Object.values(
+					prevSchema.tables[table.name].uniqueConstraints,
+				).find((it) => it.columns[0] === column.name);
+
+				suggestions.push(
+					`\n`
+						+ withStyle.suggestion(
+							`We are suggesting to change ${
+								chalk.blue(
+									column.name,
+								)
+							} column in ${
+								chalk.blueBright(
+									table.name,
+								)
+							} table from serial to bigint unsigned\n\n${
+								chalk.blueBright(
+									`bigint("${column.name}", { mode: "number", unsigned: true }).notNull().autoincrement().unique(${
+										uniqueForSerial?.name ? `"${uniqueForSerial?.name}"` : ''
+									})`,
+								)
+							}`,
+						),
+				);
+			}
+		}
+	}
+
+	return suggestions;
+}
+
+// Intersect with prepareAnMigrate
+export const prepareSingleStorePush = async (
+	schemaPath: string | string[],
+	snapshot: SingleStoreSchema,
+) => {
+	try {
+		const { prev, cur } = await prepareSingleStoreDbPushSnapshot(
+			snapshot,
+			schemaPath,
+		);
+
+		const validatedPrev = singlestoreSchema.parse(prev);
+		const validatedCur = singlestoreSchema.parse(cur);
+
+		const squashedPrev = squashSingleStoreScheme(validatedPrev);
+		const squashedCur = squashSingleStoreScheme(validatedCur);
+
+		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			validatedPrev,
+			validatedCur,
+			'push',
+		);
+
+		return { sqlStatements, statements, validatedCur, validatedPrev };
+	} catch (e) {
+		console.error(e);
+		process.exit(1);
+	}
+};
+
+export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
+	const outFolder = config.out;
+	const schemaPath = config.schema;
+
+	try {
+		// TODO: remove
+		assertV1OutFolder(outFolder);
+
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'singlestore');
+		const { prev, cur, custom } = await prepareSingleStoreMigrationSnapshot(
+			snapshots,
+			schemaPath,
+		);
+
+		const validatedPrev = singlestoreSchema.parse(prev);
+		const validatedCur = singlestoreSchema.parse(cur);
+
+		if (config.custom) {
+			writeResult({
+				cur: custom,
+				sqlStatements: [],
+				journal,
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				type: 'custom',
+				prefixMode: config.prefix,
+			});
+			return;
+		}
+
+		const squashedPrev = squashSingleStoreScheme(validatedPrev);
+		const squashedCur = squashSingleStoreScheme(validatedCur);
+
+		const { sqlStatements, statements, _meta } = await applySingleStoreSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
 			validatedPrev,
 			validatedCur,
 		);
