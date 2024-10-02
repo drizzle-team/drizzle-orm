@@ -1,12 +1,13 @@
-import { getTableConfig as getPgTableConfig, getViewConfig as getPgViewConfig, getMaterializedViewConfig as getPgMaterializedViewConfig, PgEnum, PgMaterializedView, PgSchema, PgSequence, PgTable, PgView, IndexedColumn, uniqueKeyName as pgUniqueKeyName, PgColumn, PgDialect } from 'drizzle-orm/pg-core';
+import { getTableConfig as getPgTableConfig, getViewConfig as getPgViewConfig, getMaterializedViewConfig as getPgMaterializedViewConfig, PgEnum, PgMaterializedView, PgSchema, PgSequence, PgTable, PgView, IndexedColumn as PgIndexColumn, uniqueKeyName as pgUniqueKeyName, PgColumn, PgDialect } from 'drizzle-orm/pg-core';
 import { Sequence as SequenceCommon, Table as TableCommon } from './utils';
-import { MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
+import { MySqlDialect, MySqlTable, MySqlView, getTableConfig as getMySqlTableConfig, getViewConfig as getMySqlViewConfig, IndexColumn as MySqlIndexColumn, MySqlColumn, uniqueKeyName as mysqlUniqueKeyName } from 'drizzle-orm/mysql-core';
 import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import { GeneratedIdentityConfig, getTableName, is, SQL } from 'drizzle-orm';
 import { ValidateDatabase } from './db';
 import { CasingType } from 'src/cli/validations/common';
-import { getColumnCasing, getForeignKeyName, getIdentitySequenceName } from 'src/utils';
+import { getColumnCasing, getForeignKeyName, getIdentitySequenceName, getPrimaryKeyName } from 'src/utils';
 import { indexName as pgIndexName } from 'src/serializer/pgSerializer';
+import { indexName as mysqlIndexName } from 'src/serializer/mysqlSerializer';
 import chalk from 'chalk';
 import { render } from 'hanji';
 import { ValidationError } from './errors';
@@ -80,7 +81,7 @@ export function validatePgSchema(
       (table) => table.indexes.map(
         (index) => {
           const indexColumns = index.config.columns
-            .filter((column): column is IndexedColumn => !is(column, SQL));
+            .filter((column): column is PgIndexColumn => !is(column, SQL));
 
           const indexColumnNames = indexColumns
             .map((column) => column.name)
@@ -96,7 +97,7 @@ export function validatePgSchema(
               if (is(column, SQL)) {
                 return column;
               }
-              const c = column as IndexedColumn;
+              const c = column as PgIndexColumn;
               return {
                 type: c.type,
                 op: c.indexConfig.opClass,
@@ -158,7 +159,7 @@ export function validatePgSchema(
     const schemaPrimaryKeys = schemaTables.map(
       (table) => table.primaryKeys.map(
         (pk) => ({
-          name: pk.getName(),
+          name: getPrimaryKeyName(pk, casing),
           columns: pk.columns.map(
             (column) => {
               const tableConfig = getPgTableConfig(column.table);
@@ -269,7 +270,177 @@ export function validateMySqlSchema(
   tables: MySqlTable[],
   views: MySqlView[],
 ) {
+  const tableConfigs = tables.map((table) => getMySqlTableConfig(table));
+  const viewConfigs = views.map((view) => getMySqlViewConfig(view));
 
+  const group = (() => {
+    const dbTables = tableConfigs
+      .map((table) => ({
+        ...table,
+        columns: table.columns.map((column) => ({
+          ...column,
+          name: getColumnCasing(column, casing)
+        }))
+      }));
+  
+    const dbViews = viewConfigs;
+  
+    const dbIndexes = dbTables.map(
+      (table) => table.indexes.map(
+        (index) => {
+          const indexColumns = index.config.columns
+            .filter((column): column is MySqlColumn => !is(column, SQL));
+  
+          const indexColumnNames = indexColumns
+            .map((column) => column.name)
+            .filter((c) => c !== undefined);
+  
+          return {
+            name: index.config.name
+              ? index.config.name
+              : indexColumns.length === index.config.columns.length
+                ? mysqlIndexName(table.name, indexColumnNames)
+                : '',
+            columns: index.config.columns.map((column) => {
+              if (is(column, SQL)) {
+                return column;
+              }
+  
+              return {
+                type: '',
+                name: getColumnCasing(column as MySqlColumn, casing),
+              }
+            })
+          };
+        }
+      )
+    ).flat(1) satisfies TableCommon['indexes'];
+  
+    const dbForeignKeys = dbTables.map(
+      (table) => table.foreignKeys.map(
+        (fk) => {
+          const ref = fk.reference();
+          return {
+            name: getForeignKeyName(fk, casing),
+            reference: {
+              columns: ref.columns.map(
+                (column) => {
+                  const tableConfig = getMySqlTableConfig(column.table);
+                  return {
+                    name: getColumnCasing(column, casing),
+                    getSQLType: column.getSQLType,
+                    table: {
+                      name: tableConfig.name,
+                      schema: tableConfig.schema
+                    }
+                  };
+                }
+              ),
+              foreignColumns: ref.foreignColumns.map(
+                (column) => {
+                  const tableConfig = getMySqlTableConfig(column.table);
+                  return {
+                    name: getColumnCasing(column, casing),
+                    getSQLType: column.getSQLType,
+                    table: {
+                      name: tableConfig.name,
+                      schema: tableConfig.schema
+                    }
+                  };
+                }
+              ),
+            }
+          };
+        }
+      )
+    ).flat(1) satisfies TableCommon['foreignKeys'];
+  
+    const dbChecks = dbTables.map(
+      (table) => table.checks.map(
+        (check) => ({
+          name: check.name
+        })
+      )
+    ).flat(1) satisfies TableCommon['checks'];
+  
+    const dbPrimaryKeys = dbTables.map(
+      (table) => table.primaryKeys.map(
+        (pk) => ({
+          name: getPrimaryKeyName(pk, casing),
+          columns: pk.columns.map(
+            (column) => {
+              const tableConfig = getMySqlTableConfig(column.table);
+              return {
+                name: getColumnCasing(column, casing),
+                table: {
+                  name: tableConfig.name,
+                  schema: tableConfig.schema
+                }
+              }
+            }
+          )
+        })
+      )
+    ).flat(1) satisfies TableCommon['primaryKeys'];
+  
+    const dbUniqueConstraints = dbTables.map(
+      (table) => table.uniqueConstraints.map(
+        (unique) => {
+          const columnNames = unique.columns.map((column) => getColumnCasing(column, casing));
+  
+          return {
+            name: unique.name ?? mysqlUniqueKeyName(tables.find((t) => getTableName(t) === table.name && getMySqlTableConfig(t).schema === table.schema)!, columnNames)
+          };
+        }
+      )
+    ).flat(1) satisfies TableCommon['uniqueConstraints'];
+
+    return {
+      tables: dbTables,
+      views: dbViews,
+      indexes: dbIndexes,
+      foreignKeys: dbForeignKeys,
+      checks: dbChecks,
+      primaryKeys: dbPrimaryKeys,
+      uniqueConstraints: dbUniqueConstraints
+    };
+  })();
+
+  const v = new ValidateDatabase().validateSchema(undefined);
+
+  v
+    .constraintNameCollisions(
+      group.indexes,
+      group.foreignKeys,
+      group.checks,
+      group.primaryKeys,
+      group.uniqueConstraints
+    )
+    .entityNameCollisions(
+      group.tables,
+      group.views,
+      [],
+      [],
+      []
+    );
+
+  for (const table of group.tables) {
+    v.validateTable(table.name).columnNameCollisions(table.columns, casing);
+  }
+
+  for (const foreignKey of group.foreignKeys) {
+    v
+      .validateForeignKey(foreignKey.name)
+      .columnsMixingTables(foreignKey)
+      .mismatchingColumnCount(foreignKey)
+      .mismatchingDataTypes(foreignKey);
+  }
+
+  for (const primaryKey of group.primaryKeys) {
+    v
+      .validatePrimaryKey(primaryKey.name)
+      .columnsMixingTables(primaryKey);
+  }
 }
 
 export function validateSQLiteSchema(
