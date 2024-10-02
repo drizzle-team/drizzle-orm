@@ -1924,6 +1924,8 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 			}
 			return columnDefaultAsString;
 		}
+	} else if (column.data_type.includes('numeric')) {
+		return `'${column.column_default}'`;
 	} else if (column.data_type === 'json' || column.data_type === 'jsonb') {
 		const jsonWithoutSpaces = JSON.stringify(JSON.parse(columnDefaultAsString.slice(1, -1)));
 		return `'${jsonWithoutSpaces}'::${column.data_type}`;
