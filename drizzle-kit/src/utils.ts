@@ -9,6 +9,7 @@ import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
 import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';
+import { backwardCompatibleSingleStoreSchema } from './serializer/singlestoreSchema';
 import { backwardCompatibleSqliteSchema } from './serializer/sqliteSchema';
 import type { ProxyParams } from './serializer/studio';
 
@@ -117,6 +118,8 @@ const validatorForDialect = (dialect: Dialect) => {
 			return { validator: backwardCompatibleSqliteSchema, version: 6 };
 		case 'mysql':
 			return { validator: backwardCompatibleMysqlSchema, version: 5 };
+		case 'singlestore':
+			return { validator: backwardCompatibleSingleStoreSchema, version: 1 };
 	}
 };
 
