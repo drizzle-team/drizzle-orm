@@ -2550,7 +2550,7 @@ test('add with options to materialized with existing flag', async () => {
 	});
 	const schema1 = {
 		test: table,
-		view: pgMaterializedView('view', {}).existing(),
+		view: pgMaterializedView('view', {}).as(sql`SELECT '123'`),
 	};
 
 	const schema2 = {
