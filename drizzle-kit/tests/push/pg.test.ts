@@ -1118,1126 +1118,1126 @@ const pgSuite: DialectSuite = {
 	},
 };
 
-// run(pgSuite);
-
-// test('full sequence: no changes', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		seq: pgSequence('my_seq', {
-// 			startWith: 100,
-// 			maxValue: 10000,
-// 			minValue: 100,
-// 			cycle: true,
-// 			cache: 10,
-// 			increment: 2,
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		seq: pgSequence('my_seq', {
-// 			startWith: 100,
-// 			maxValue: 10000,
-// 			minValue: 100,
-// 			cycle: true,
-// 			cache: 10,
-// 			increment: 2,
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements.length).toBe(0);
-// 	expect(sqlStatements.length).toBe(0);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('basic sequence: change fields', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		seq: pgSequence('my_seq', {
-// 			startWith: 100,
-// 			maxValue: 10000,
-// 			minValue: 100,
-// 			cycle: true,
-// 			cache: 10,
-// 			increment: 2,
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		seq: pgSequence('my_seq', {
-// 			startWith: 100,
-// 			maxValue: 100000,
-// 			minValue: 100,
-// 			cycle: true,
-// 			cache: 10,
-// 			increment: 4,
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			type: 'alter_sequence',
-// 			schema: 'public',
-// 			name: 'my_seq',
-// 			values: {
-// 				minValue: '100',
-// 				maxValue: '100000',
-// 				increment: '4',
-// 				startWith: '100',
-// 				cache: '10',
-// 				cycle: true,
-// 			},
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER SEQUENCE "public"."my_seq" INCREMENT BY 4 MINVALUE 100 MAXVALUE 100000 START WITH 100 CACHE 10 CYCLE;',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('basic sequence: change name', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		seq: pgSequence('my_seq', {
-// 			startWith: 100,
-// 			maxValue: 10000,
-// 			minValue: 100,
-// 			cycle: true,
-// 			cache: 10,
-// 			increment: 2,
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		seq: pgSequence('my_seq2', {
-// 			startWith: 100,
-// 			maxValue: 10000,
-// 			minValue: 100,
-// 			cycle: true,
-// 			cache: 10,
-// 			increment: 2,
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		['public.my_seq->public.my_seq2'],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			nameFrom: 'my_seq',
-// 			nameTo: 'my_seq2',
-// 			schema: 'public',
-// 			type: 'rename_sequence',
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER SEQUENCE "public"."my_seq" RENAME TO "my_seq2";',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('basic sequence: change name and fields', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		seq: pgSequence('my_seq', {
-// 			startWith: 100,
-// 			maxValue: 10000,
-// 			minValue: 100,
-// 			cycle: true,
-// 			cache: 10,
-// 			increment: 2,
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		seq: pgSequence('my_seq2', {
-// 			startWith: 100,
-// 			maxValue: 10000,
-// 			minValue: 100,
-// 			cycle: true,
-// 			cache: 10,
-// 			increment: 4,
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		['public.my_seq->public.my_seq2'],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			nameFrom: 'my_seq',
-// 			nameTo: 'my_seq2',
-// 			schema: 'public',
-// 			type: 'rename_sequence',
-// 		},
-// 		{
-// 			name: 'my_seq2',
-// 			schema: 'public',
-// 			type: 'alter_sequence',
-// 			values: {
-// 				cache: '10',
-// 				cycle: true,
-// 				increment: '4',
-// 				maxValue: '10000',
-// 				minValue: '100',
-// 				startWith: '100',
-// 			},
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER SEQUENCE "public"."my_seq" RENAME TO "my_seq2";',
-// 		'ALTER SEQUENCE "public"."my_seq2" INCREMENT BY 4 MINVALUE 100 MAXVALUE 10000 START WITH 100 CACHE 10 CYCLE;',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// // identity push tests
-// test('create table: identity always/by default - no params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity(),
-// 			id1: bigint('id1', { mode: 'number' }).generatedByDefaultAsIdentity(),
-// 			id2: smallint('id2').generatedByDefaultAsIdentity(),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columns: [
-// 				{
-// 					identity: 'users_id_seq;byDefault;1;2147483647;1;1;1;false',
-// 					name: 'id',
-// 					notNull: true,
-// 					primaryKey: false,
-// 					type: 'integer',
-// 				},
-// 				{
-// 					identity: 'users_id1_seq;byDefault;1;9223372036854775807;1;1;1;false',
-// 					name: 'id1',
-// 					notNull: true,
-// 					primaryKey: false,
-// 					type: 'bigint',
-// 				},
-// 				{
-// 					identity: 'users_id2_seq;byDefault;1;32767;1;1;1;false',
-// 					name: 'id2',
-// 					notNull: true,
-// 					primaryKey: false,
-// 					type: 'smallint',
-// 				},
-// 			],
-// 			compositePKs: [],
-// 			compositePkName: '',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'create_table',
-// 			uniqueConstraints: [],
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),\n\t"id1" bigint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id1_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),\n\t"id2" smallint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id2_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 32767 START WITH 1 CACHE 1)\n);\n',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('create table: identity always/by default - few params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({ increment: 4 }),
-// 			id1: bigint('id1', { mode: 'number' }).generatedByDefaultAsIdentity({
-// 				startWith: 120,
-// 				maxValue: 17000,
-// 			}),
-// 			id2: smallint('id2').generatedByDefaultAsIdentity({ cycle: true }),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columns: [
-// 				{
-// 					identity: 'users_id_seq;byDefault;1;2147483647;4;1;1;false',
-// 					name: 'id',
-// 					notNull: true,
-// 					primaryKey: false,
-// 					type: 'integer',
-// 				},
-// 				{
-// 					identity: 'users_id1_seq;byDefault;1;17000;1;120;1;false',
-// 					name: 'id1',
-// 					notNull: true,
-// 					primaryKey: false,
-// 					type: 'bigint',
-// 				},
-// 				{
-// 					identity: 'users_id2_seq;byDefault;1;32767;1;1;1;true',
-// 					name: 'id2',
-// 					notNull: true,
-// 					primaryKey: false,
-// 					type: 'smallint',
-// 				},
-// 			],
-// 			compositePKs: [],
-// 			compositePkName: '',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'create_table',
-// 			uniqueConstraints: [],
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 4 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),\n\t"id1" bigint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id1_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 17000 START WITH 120 CACHE 1),\n\t"id2" smallint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id2_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 32767 START WITH 1 CACHE 1 CYCLE)\n);\n',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('create table: identity always/by default - all params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({
-// 				increment: 4,
-// 				minValue: 100,
-// 			}),
-// 			id1: bigint('id1', { mode: 'number' }).generatedByDefaultAsIdentity({
-// 				startWith: 120,
-// 				maxValue: 17000,
-// 				increment: 3,
-// 				cycle: true,
-// 				cache: 100,
-// 			}),
-// 			id2: smallint('id2').generatedByDefaultAsIdentity({ cycle: true }),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columns: [
-// 				{
-// 					identity: 'users_id_seq;byDefault;100;2147483647;4;100;1;false',
-// 					name: 'id',
-// 					notNull: true,
-// 					primaryKey: false,
-// 					type: 'integer',
-// 				},
-// 				{
-// 					identity: 'users_id1_seq;byDefault;1;17000;3;120;100;true',
-// 					name: 'id1',
-// 					notNull: true,
-// 					primaryKey: false,
-// 					type: 'bigint',
-// 				},
-// 				{
-// 					identity: 'users_id2_seq;byDefault;1;32767;1;1;1;true',
-// 					name: 'id2',
-// 					notNull: true,
-// 					primaryKey: false,
-// 					type: 'smallint',
-// 				},
-// 			],
-// 			compositePKs: [],
-// 			compositePkName: '',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'create_table',
-// 			uniqueConstraints: [],
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 4 MINVALUE 100 MAXVALUE 2147483647 START WITH 100 CACHE 1),\n\t"id1" bigint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id1_seq" INCREMENT BY 3 MINVALUE 1 MAXVALUE 17000 START WITH 120 CACHE 100 CYCLE),\n\t"id2" smallint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id2_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 32767 START WITH 1 CACHE 1 CYCLE)\n);\n',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('no diff: identity always/by default - no params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity(),
-// 			id2: integer('id2').generatedAlwaysAsIdentity(),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity(),
-// 			id2: integer('id2').generatedAlwaysAsIdentity(),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([]);
-// 	expect(sqlStatements).toStrictEqual([]);
-// });
-
-// test('no diff: identity always/by default - few params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({
-// 				name: 'custom_name',
-// 			}),
-// 			id2: integer('id2').generatedAlwaysAsIdentity({
-// 				increment: 1,
-// 				startWith: 3,
-// 			}),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({
-// 				name: 'custom_name',
-// 			}),
-// 			id2: integer('id2').generatedAlwaysAsIdentity({
-// 				increment: 1,
-// 				startWith: 3,
-// 			}),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([]);
-// 	expect(sqlStatements).toStrictEqual([]);
-// });
-
-// test('no diff: identity always/by default - all params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({
-// 				name: 'custom_name',
-// 				startWith: 10,
-// 				minValue: 10,
-// 				maxValue: 1000,
-// 				cycle: true,
-// 				cache: 10,
-// 				increment: 2,
-// 			}),
-// 			id2: integer('id2').generatedAlwaysAsIdentity({
-// 				startWith: 10,
-// 				minValue: 10,
-// 				maxValue: 1000,
-// 				cycle: true,
-// 				cache: 10,
-// 				increment: 2,
-// 			}),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({
-// 				name: 'custom_name',
-// 				startWith: 10,
-// 				minValue: 10,
-// 				maxValue: 1000,
-// 				cycle: true,
-// 				cache: 10,
-// 				increment: 2,
-// 			}),
-// 			id2: integer('id2').generatedAlwaysAsIdentity({
-// 				startWith: 10,
-// 				minValue: 10,
-// 				maxValue: 1000,
-// 				cycle: true,
-// 				cache: 10,
-// 				increment: 2,
-// 			}),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([]);
-// 	expect(sqlStatements).toStrictEqual([]);
-// });
-
-// test('drop identity from a column - no params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity(),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id'),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columnName: 'id',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_drop_identity',
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('drop identity from a column - few params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({ name: 'custom_name' }),
-// 			id1: integer('id1').generatedByDefaultAsIdentity({
-// 				name: 'custom_name1',
-// 				increment: 4,
-// 			}),
-// 			id2: integer('id2').generatedAlwaysAsIdentity({
-// 				name: 'custom_name2',
-// 				increment: 4,
-// 			}),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id'),
-// 			id1: integer('id1'),
-// 			id2: integer('id2'),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columnName: 'id',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_drop_identity',
-// 		},
-// 		{
-// 			columnName: 'id1',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_drop_identity',
-// 		},
-// 		{
-// 			columnName: 'id2',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_drop_identity',
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
-// 		'ALTER TABLE "users" ALTER COLUMN "id1" DROP IDENTITY;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id2" DROP IDENTITY;',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('drop identity from a column - all params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity(),
-// 			id1: integer('id1').generatedByDefaultAsIdentity({
-// 				name: 'custom_name1',
-// 				startWith: 10,
-// 				minValue: 10,
-// 				maxValue: 1000,
-// 				cycle: true,
-// 				cache: 10,
-// 				increment: 2,
-// 			}),
-// 			id2: integer('id2').generatedAlwaysAsIdentity({
-// 				name: 'custom_name2',
-// 				startWith: 10,
-// 				minValue: 10,
-// 				maxValue: 1000,
-// 				cycle: true,
-// 				cache: 10,
-// 				increment: 2,
-// 			}),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id'),
-// 			id1: integer('id1'),
-// 			id2: integer('id2'),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columnName: 'id',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_drop_identity',
-// 		},
-// 		{
-// 			columnName: 'id1',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_drop_identity',
-// 		},
-// 		{
-// 			columnName: 'id2',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_drop_identity',
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
-// 		'ALTER TABLE "users" ALTER COLUMN "id1" DROP IDENTITY;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id2" DROP IDENTITY;',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('alter identity from a column - no params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity(),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({ startWith: 100 }),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columnName: 'id',
-// 			identity: 'users_id_seq;byDefault;1;2147483647;1;100;1;false',
-// 			oldIdentity: 'users_id_seq;byDefault;1;2147483647;1;1;1;false',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_change_identity',
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET START WITH 100;',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('alter identity from a column - few params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({ startWith: 100 }),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({
-// 				startWith: 100,
-// 				increment: 4,
-// 				maxValue: 10000,
-// 			}),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columnName: 'id',
-// 			identity: 'users_id_seq;byDefault;1;10000;4;100;1;false',
-// 			oldIdentity: 'users_id_seq;byDefault;1;2147483647;1;100;1;false',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_change_identity',
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET MAXVALUE 10000;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET INCREMENT BY 4;',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('alter identity from a column - by default to always', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({ startWith: 100 }),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedAlwaysAsIdentity({
-// 				startWith: 100,
-// 				increment: 4,
-// 				maxValue: 10000,
-// 			}),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columnName: 'id',
-// 			identity: 'users_id_seq;always;1;10000;4;100;1;false',
-// 			oldIdentity: 'users_id_seq;byDefault;1;2147483647;1;100;1;false',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_change_identity',
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET GENERATED ALWAYS;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET MAXVALUE 10000;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET INCREMENT BY 4;',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('alter identity from a column - always to by default', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedAlwaysAsIdentity({ startWith: 100 }),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({
-// 				startWith: 100,
-// 				increment: 4,
-// 				maxValue: 10000,
-// 				cycle: true,
-// 				cache: 100,
-// 			}),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columnName: 'id',
-// 			identity: 'users_id_seq;byDefault;1;10000;4;100;100;true',
-// 			oldIdentity: 'users_id_seq;always;1;2147483647;1;100;1;false',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_change_identity',
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET GENERATED BY DEFAULT;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET MAXVALUE 10000;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET INCREMENT BY 4;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET CACHE 100;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET CYCLE;',
-// 	]);
-
-// 	for (const st of sqlStatements) {
-// 		await client.query(st);
-// 	}
-// });
-
-// test('add column with identity - few params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			email: text('email'),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			email: text('email'),
-// 			id: integer('id').generatedByDefaultAsIdentity({ name: 'custom_name' }),
-// 			id1: integer('id1').generatedAlwaysAsIdentity({
-// 				name: 'custom_name1',
-// 				increment: 4,
-// 			}),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			column: {
-// 				identity: 'custom_name;byDefault;1;2147483647;1;1;1;false',
-// 				name: 'id',
-// 				notNull: true,
-// 				primaryKey: false,
-// 				type: 'integer',
-// 			},
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_add_column',
-// 		},
-// 		{
-// 			column: {
-// 				identity: 'custom_name1;always;1;2147483647;4;1;1;false',
-// 				name: 'id1',
-// 				notNull: true,
-// 				primaryKey: false,
-// 				type: 'integer',
-// 			},
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_add_column',
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER TABLE "users" ADD COLUMN "id" integer NOT NULL GENERATED BY DEFAULT AS IDENTITY (sequence name "custom_name" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
-// 		'ALTER TABLE "users" ADD COLUMN "id1" integer NOT NULL GENERATED ALWAYS AS IDENTITY (sequence name "custom_name1" INCREMENT BY 4 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
-// 	]);
-
-// 	// for (const st of sqlStatements) {
-// 	//   await client.query(st);
-// 	// }
-// });
-
-// test('add identity to column - few params', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		users: pgTable('users', {
-// 			id: integer('id'),
-// 			id1: integer('id1'),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: pgTable('users', {
-// 			id: integer('id').generatedByDefaultAsIdentity({ name: 'custom_name' }),
-// 			id1: integer('id1').generatedAlwaysAsIdentity({
-// 				name: 'custom_name1',
-// 				increment: 4,
-// 			}),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			columnName: 'id',
-// 			identity: 'custom_name;byDefault;1;2147483647;1;1;1;false',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_set_identity',
-// 		},
-// 		{
-// 			columnName: 'id1',
-// 			identity: 'custom_name1;always;1;2147483647;4;1;1;false',
-// 			schema: '',
-// 			tableName: 'users',
-// 			type: 'alter_table_alter_column_set_identity',
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER TABLE "users" ALTER COLUMN "id" ADD GENERATED BY DEFAULT AS IDENTITY (sequence name "custom_name" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
-// 		'ALTER TABLE "users" ALTER COLUMN "id1" ADD GENERATED ALWAYS AS IDENTITY (sequence name "custom_name1" INCREMENT BY 4 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
-// 	]);
-
-// 	// for (const st of sqlStatements) {
-// 	//   await client.query(st);
-// 	// }
-// });
-
-// test('add array column - empty array default', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		test: pgTable('test', {
-// 			id: serial('id').primaryKey(),
-// 		}),
-// 	};
-// 	const schema2 = {
-// 		test: pgTable('test', {
-// 			id: serial('id').primaryKey(),
-// 			values: integer('values').array().default([]),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			type: 'alter_table_add_column',
-// 			tableName: 'test',
-// 			schema: '',
-// 			column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{}'" },
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{}\';',
-// 	]);
-// });
-
-// test('add array column - default', async () => {
-// 	const client = new PGlite();
-
-// 	const schema1 = {
-// 		test: pgTable('test', {
-// 			id: serial('id').primaryKey(),
-// 		}),
-// 	};
-// 	const schema2 = {
-// 		test: pgTable('test', {
-// 			id: serial('id').primaryKey(),
-// 			values: integer('values').array().default([1, 2, 3]),
-// 		}),
-// 	};
-
-// 	const { statements, sqlStatements } = await diffTestSchemasPush(
-// 		client,
-// 		schema1,
-// 		schema2,
-// 		[],
-// 		false,
-// 		['public'],
-// 	);
-
-// 	expect(statements).toStrictEqual([
-// 		{
-// 			type: 'alter_table_add_column',
-// 			tableName: 'test',
-// 			schema: '',
-// 			column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{1,2,3}'" },
-// 		},
-// 	]);
-// 	expect(sqlStatements).toStrictEqual([
-// 		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
-// 	]);
-// });
+run(pgSuite);
+
+test('full sequence: no changes', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const schema2 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('basic sequence: change fields', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const schema2 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 100000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 4,
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'alter_sequence',
+			schema: 'public',
+			name: 'my_seq',
+			values: {
+				minValue: '100',
+				maxValue: '100000',
+				increment: '4',
+				startWith: '100',
+				cache: '10',
+				cycle: true,
+			},
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER SEQUENCE "public"."my_seq" INCREMENT BY 4 MINVALUE 100 MAXVALUE 100000 START WITH 100 CACHE 10 CYCLE;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('basic sequence: change name', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const schema2 = {
+		seq: pgSequence('my_seq2', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		['public.my_seq->public.my_seq2'],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			nameFrom: 'my_seq',
+			nameTo: 'my_seq2',
+			schema: 'public',
+			type: 'rename_sequence',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER SEQUENCE "public"."my_seq" RENAME TO "my_seq2";',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('basic sequence: change name and fields', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const schema2 = {
+		seq: pgSequence('my_seq2', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 4,
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		['public.my_seq->public.my_seq2'],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			nameFrom: 'my_seq',
+			nameTo: 'my_seq2',
+			schema: 'public',
+			type: 'rename_sequence',
+		},
+		{
+			name: 'my_seq2',
+			schema: 'public',
+			type: 'alter_sequence',
+			values: {
+				cache: '10',
+				cycle: true,
+				increment: '4',
+				maxValue: '10000',
+				minValue: '100',
+				startWith: '100',
+			},
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER SEQUENCE "public"."my_seq" RENAME TO "my_seq2";',
+		'ALTER SEQUENCE "public"."my_seq2" INCREMENT BY 4 MINVALUE 100 MAXVALUE 10000 START WITH 100 CACHE 10 CYCLE;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+// identity push tests
+test('create table: identity always/by default - no params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity(),
+			id1: bigint('id1', { mode: 'number' }).generatedByDefaultAsIdentity(),
+			id2: smallint('id2').generatedByDefaultAsIdentity(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columns: [
+				{
+					identity: 'users_id_seq;byDefault;1;2147483647;1;1;1;false',
+					name: 'id',
+					notNull: true,
+					primaryKey: false,
+					type: 'integer',
+				},
+				{
+					identity: 'users_id1_seq;byDefault;1;9223372036854775807;1;1;1;false',
+					name: 'id1',
+					notNull: true,
+					primaryKey: false,
+					type: 'bigint',
+				},
+				{
+					identity: 'users_id2_seq;byDefault;1;32767;1;1;1;false',
+					name: 'id2',
+					notNull: true,
+					primaryKey: false,
+					type: 'smallint',
+				},
+			],
+			compositePKs: [],
+			compositePkName: '',
+			schema: '',
+			tableName: 'users',
+			type: 'create_table',
+			uniqueConstraints: [],
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),\n\t"id1" bigint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id1_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),\n\t"id2" smallint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id2_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 32767 START WITH 1 CACHE 1)\n);\n',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('create table: identity always/by default - few params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({ increment: 4 }),
+			id1: bigint('id1', { mode: 'number' }).generatedByDefaultAsIdentity({
+				startWith: 120,
+				maxValue: 17000,
+			}),
+			id2: smallint('id2').generatedByDefaultAsIdentity({ cycle: true }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columns: [
+				{
+					identity: 'users_id_seq;byDefault;1;2147483647;4;1;1;false',
+					name: 'id',
+					notNull: true,
+					primaryKey: false,
+					type: 'integer',
+				},
+				{
+					identity: 'users_id1_seq;byDefault;1;17000;1;120;1;false',
+					name: 'id1',
+					notNull: true,
+					primaryKey: false,
+					type: 'bigint',
+				},
+				{
+					identity: 'users_id2_seq;byDefault;1;32767;1;1;1;true',
+					name: 'id2',
+					notNull: true,
+					primaryKey: false,
+					type: 'smallint',
+				},
+			],
+			compositePKs: [],
+			compositePkName: '',
+			schema: '',
+			tableName: 'users',
+			type: 'create_table',
+			uniqueConstraints: [],
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 4 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),\n\t"id1" bigint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id1_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 17000 START WITH 120 CACHE 1),\n\t"id2" smallint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id2_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 32767 START WITH 1 CACHE 1 CYCLE)\n);\n',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('create table: identity always/by default - all params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({
+				increment: 4,
+				minValue: 100,
+			}),
+			id1: bigint('id1', { mode: 'number' }).generatedByDefaultAsIdentity({
+				startWith: 120,
+				maxValue: 17000,
+				increment: 3,
+				cycle: true,
+				cache: 100,
+			}),
+			id2: smallint('id2').generatedByDefaultAsIdentity({ cycle: true }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columns: [
+				{
+					identity: 'users_id_seq;byDefault;100;2147483647;4;100;1;false',
+					name: 'id',
+					notNull: true,
+					primaryKey: false,
+					type: 'integer',
+				},
+				{
+					identity: 'users_id1_seq;byDefault;1;17000;3;120;100;true',
+					name: 'id1',
+					notNull: true,
+					primaryKey: false,
+					type: 'bigint',
+				},
+				{
+					identity: 'users_id2_seq;byDefault;1;32767;1;1;1;true',
+					name: 'id2',
+					notNull: true,
+					primaryKey: false,
+					type: 'smallint',
+				},
+			],
+			compositePKs: [],
+			compositePkName: '',
+			schema: '',
+			tableName: 'users',
+			type: 'create_table',
+			uniqueConstraints: [],
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 4 MINVALUE 100 MAXVALUE 2147483647 START WITH 100 CACHE 1),\n\t"id1" bigint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id1_seq" INCREMENT BY 3 MINVALUE 1 MAXVALUE 17000 START WITH 120 CACHE 100 CYCLE),\n\t"id2" smallint GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id2_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 32767 START WITH 1 CACHE 1 CYCLE)\n);\n',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('no diff: identity always/by default - no params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity(),
+			id2: integer('id2').generatedAlwaysAsIdentity(),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity(),
+			id2: integer('id2').generatedAlwaysAsIdentity(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('no diff: identity always/by default - few params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({
+				name: 'custom_name',
+			}),
+			id2: integer('id2').generatedAlwaysAsIdentity({
+				increment: 1,
+				startWith: 3,
+			}),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({
+				name: 'custom_name',
+			}),
+			id2: integer('id2').generatedAlwaysAsIdentity({
+				increment: 1,
+				startWith: 3,
+			}),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('no diff: identity always/by default - all params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({
+				name: 'custom_name',
+				startWith: 10,
+				minValue: 10,
+				maxValue: 1000,
+				cycle: true,
+				cache: 10,
+				increment: 2,
+			}),
+			id2: integer('id2').generatedAlwaysAsIdentity({
+				startWith: 10,
+				minValue: 10,
+				maxValue: 1000,
+				cycle: true,
+				cache: 10,
+				increment: 2,
+			}),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({
+				name: 'custom_name',
+				startWith: 10,
+				minValue: 10,
+				maxValue: 1000,
+				cycle: true,
+				cache: 10,
+				increment: 2,
+			}),
+			id2: integer('id2').generatedAlwaysAsIdentity({
+				startWith: 10,
+				minValue: 10,
+				maxValue: 1000,
+				cycle: true,
+				cache: 10,
+				increment: 2,
+			}),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('drop identity from a column - no params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity(),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columnName: 'id',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_drop_identity',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('drop identity from a column - few params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({ name: 'custom_name' }),
+			id1: integer('id1').generatedByDefaultAsIdentity({
+				name: 'custom_name1',
+				increment: 4,
+			}),
+			id2: integer('id2').generatedAlwaysAsIdentity({
+				name: 'custom_name2',
+				increment: 4,
+			}),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id1: integer('id1'),
+			id2: integer('id2'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columnName: 'id',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_drop_identity',
+		},
+		{
+			columnName: 'id1',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_drop_identity',
+		},
+		{
+			columnName: 'id2',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_drop_identity',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
+		'ALTER TABLE "users" ALTER COLUMN "id1" DROP IDENTITY;',
+		'ALTER TABLE "users" ALTER COLUMN "id2" DROP IDENTITY;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('drop identity from a column - all params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity(),
+			id1: integer('id1').generatedByDefaultAsIdentity({
+				name: 'custom_name1',
+				startWith: 10,
+				minValue: 10,
+				maxValue: 1000,
+				cycle: true,
+				cache: 10,
+				increment: 2,
+			}),
+			id2: integer('id2').generatedAlwaysAsIdentity({
+				name: 'custom_name2',
+				startWith: 10,
+				minValue: 10,
+				maxValue: 1000,
+				cycle: true,
+				cache: 10,
+				increment: 2,
+			}),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id1: integer('id1'),
+			id2: integer('id2'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columnName: 'id',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_drop_identity',
+		},
+		{
+			columnName: 'id1',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_drop_identity',
+		},
+		{
+			columnName: 'id2',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_drop_identity',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
+		'ALTER TABLE "users" ALTER COLUMN "id1" DROP IDENTITY;',
+		'ALTER TABLE "users" ALTER COLUMN "id2" DROP IDENTITY;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter identity from a column - no params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity(),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({ startWith: 100 }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columnName: 'id',
+			identity: 'users_id_seq;byDefault;1;2147483647;1;100;1;false',
+			oldIdentity: 'users_id_seq;byDefault;1;2147483647;1;1;1;false',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_change_identity',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ALTER COLUMN "id" SET START WITH 100;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter identity from a column - few params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({ startWith: 100 }),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({
+				startWith: 100,
+				increment: 4,
+				maxValue: 10000,
+			}),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columnName: 'id',
+			identity: 'users_id_seq;byDefault;1;10000;4;100;1;false',
+			oldIdentity: 'users_id_seq;byDefault;1;2147483647;1;100;1;false',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_change_identity',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ALTER COLUMN "id" SET MAXVALUE 10000;',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET INCREMENT BY 4;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter identity from a column - by default to always', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({ startWith: 100 }),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedAlwaysAsIdentity({
+				startWith: 100,
+				increment: 4,
+				maxValue: 10000,
+			}),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columnName: 'id',
+			identity: 'users_id_seq;always;1;10000;4;100;1;false',
+			oldIdentity: 'users_id_seq;byDefault;1;2147483647;1;100;1;false',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_change_identity',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ALTER COLUMN "id" SET GENERATED ALWAYS;',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET MAXVALUE 10000;',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET INCREMENT BY 4;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('alter identity from a column - always to by default', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').generatedAlwaysAsIdentity({ startWith: 100 }),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({
+				startWith: 100,
+				increment: 4,
+				maxValue: 10000,
+				cycle: true,
+				cache: 100,
+			}),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columnName: 'id',
+			identity: 'users_id_seq;byDefault;1;10000;4;100;100;true',
+			oldIdentity: 'users_id_seq;always;1;2147483647;1;100;1;false',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_change_identity',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ALTER COLUMN "id" SET GENERATED BY DEFAULT;',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET MAXVALUE 10000;',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET INCREMENT BY 4;',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET CACHE 100;',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET CYCLE;',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('add column with identity - few params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			email: text('email'),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			email: text('email'),
+			id: integer('id').generatedByDefaultAsIdentity({ name: 'custom_name' }),
+			id1: integer('id1').generatedAlwaysAsIdentity({
+				name: 'custom_name1',
+				increment: 4,
+			}),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			column: {
+				identity: 'custom_name;byDefault;1;2147483647;1;1;1;false',
+				name: 'id',
+				notNull: true,
+				primaryKey: false,
+				type: 'integer',
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_add_column',
+		},
+		{
+			column: {
+				identity: 'custom_name1;always;1;2147483647;4;1;1;false',
+				name: 'id1',
+				notNull: true,
+				primaryKey: false,
+				type: 'integer',
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_add_column',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ADD COLUMN "id" integer NOT NULL GENERATED BY DEFAULT AS IDENTITY (sequence name "custom_name" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
+		'ALTER TABLE "users" ADD COLUMN "id1" integer NOT NULL GENERATED ALWAYS AS IDENTITY (sequence name "custom_name1" INCREMENT BY 4 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
+	]);
+
+	// for (const st of sqlStatements) {
+	//   await client.query(st);
+	// }
+});
+
+test('add identity to column - few params', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id1: integer('id1'),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity({ name: 'custom_name' }),
+			id1: integer('id1').generatedAlwaysAsIdentity({
+				name: 'custom_name1',
+				increment: 4,
+			}),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			columnName: 'id',
+			identity: 'custom_name;byDefault;1;2147483647;1;1;1;false',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_set_identity',
+		},
+		{
+			columnName: 'id1',
+			identity: 'custom_name1;always;1;2147483647;4;1;1;false',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_alter_column_set_identity',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ALTER COLUMN "id" ADD GENERATED BY DEFAULT AS IDENTITY (sequence name "custom_name" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
+		'ALTER TABLE "users" ALTER COLUMN "id1" ADD GENERATED ALWAYS AS IDENTITY (sequence name "custom_name1" INCREMENT BY 4 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
+	]);
+
+	// for (const st of sqlStatements) {
+	//   await client.query(st);
+	// }
+});
+
+test('add array column - empty array default', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').array().default([]),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'alter_table_add_column',
+			tableName: 'test',
+			schema: '',
+			column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{}'" },
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{}\';',
+	]);
+});
+
+test('add array column - default', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').array().default([1, 2, 3]),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'alter_table_add_column',
+			tableName: 'test',
+			schema: '',
+			column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{1,2,3}'" },
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
+	]);
+});
 
 test('create view', async () => {
 	const client = new PGlite();
@@ -2352,7 +2352,6 @@ test('drop view', async () => {
 			name: 'view',
 			schema: 'public',
 			type: 'drop_view',
-			materialized: false,
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -2543,7 +2542,7 @@ test('add with options to materialized', async () => {
 	);
 });
 
-test('add with options to materialized with existing option', async () => {
+test('add with options to materialized with existing flag', async () => {
 	const client = new PGlite();
 
 	const table = pgTable('test', {

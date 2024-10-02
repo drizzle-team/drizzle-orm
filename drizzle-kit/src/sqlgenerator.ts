@@ -453,14 +453,13 @@ class MySqlCreateViewConvertor extends Convertor {
 	}
 
 	convert(st: JsonCreateMySqlViewStatement) {
-		const { definition, name, algorithm, definer, sqlSecurity, withCheckOption, replace } = st;
+		const { definition, name, algorithm, sqlSecurity, withCheckOption, replace } = st;
 
 		let statement = `CREATE `;
-		statement += replace ? `OR REPLACE` : '';
+		statement += replace ? `OR REPLACE ` : '';
 		statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
-		statement += definer ? `DEFINER = ${definer}\n` : '';
 		statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
-		statement += `VIEW \`${name}\` AS ${definition}`;
+		statement += `VIEW \`${name}\` AS (${definition})`;
 		statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';
 
 		statement += ';';
@@ -503,7 +502,7 @@ class MySqlDropViewConvertor extends Convertor {
 	convert(st: JsonDropViewStatement) {
 		const { name } = st;
 
-		return `DROP VIEW ${name};`;
+		return `DROP VIEW \`${name}\`;`;
 	}
 }
 
@@ -525,11 +524,10 @@ class MySqlAlterViewConvertor extends Convertor {
 	}
 
 	convert(st: JsonAlterMySqlViewStatement) {
-		const { name, algorithm, definer, definition, sqlSecurity, withCheckOption } = st;
+		const { name, algorithm, definition, sqlSecurity, withCheckOption } = st;
 
 		let statement = `ALTER `;
 		statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
-		statement += definer ? `DEFINER = ${definer}\n` : '';
 		statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
 		statement += `VIEW \`${name}\` AS ${definition}`;
 		statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';

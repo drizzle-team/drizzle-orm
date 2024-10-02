@@ -8,6 +8,7 @@ import {
 	mySqlViewsResolver,
 	schemasResolver,
 	sequencesResolver,
+	sqliteViewsResolver,
 	tablesResolver,
 	viewsResolver,
 } from './cli/commands/migrate';
@@ -152,7 +153,7 @@ export const generateSQLiteDrizzleJson = async (
 
 	const id = randomUUID();
 
-	const snapshot = generateSqliteSnapshot(prepared.tables);
+	const snapshot = generateSqliteSnapshot(prepared.tables, prepared.views);
 
 	return {
 		...snapshot,
@@ -178,6 +179,7 @@ export const generateSQLiteMigration = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -218,6 +220,7 @@ export const pushSQLiteSchema = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',

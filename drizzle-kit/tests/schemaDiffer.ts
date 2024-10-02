@@ -1,9 +1,8 @@
 import { PGlite } from '@electric-sql/pglite';
 import { Client } from '@libsql/client/.';
 import { Database } from 'better-sqlite3';
-import { randomUUID } from 'crypto';
 import { is } from 'drizzle-orm';
-import { MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
+import { MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import {
 	isPgEnum,
 	isPgMaterializedView,
@@ -16,16 +15,18 @@ import {
 	PgTable,
 	PgView,
 } from 'drizzle-orm/pg-core';
-import { SQLiteTable } from 'drizzle-orm/sqlite-core';
+import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { Connection } from 'mysql2/promise';
 import { libSqlLogSuggestionsAndReturn } from 'src/cli/commands/libSqlPushUtils';
 import {
 	columnsResolver,
 	enumsResolver,
+	mySqlViewsResolver,
 	Named,
 	schemasResolver,
 	sequencesResolver,
+	sqliteViewsResolver,
 	tablesResolver,
 	viewsResolver,
 } from 'src/cli/commands/migrate';
@@ -34,14 +35,14 @@ import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-my
 import { schemaToTypeScript } from 'src/introspect-pg';
 import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/introspect-sqlite';
 import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
-import { mysqlSchema, squashMysqlScheme } from 'src/serializer/mysqlSchema';
+import { mysqlSchema, squashMysqlScheme, ViewSquashed } from 'src/serializer/mysqlSchema';
 import { generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
 import { fromDatabase as fromMySqlDatabase } from 'src/serializer/mysqlSerializer';
 import { prepareFromPgImports } from 'src/serializer/pgImports';
 import { pgSchema, squashPgScheme, View } from 'src/serializer/pgSchema';
 import { fromDatabase, generatePgSnapshot } from 'src/serializer/pgSerializer';
 import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
-import { sqliteSchema, squashSqliteScheme } from 'src/serializer/sqliteSchema';
+import { sqliteSchema, squashSqliteScheme, View as SqliteView } from 'src/serializer/sqliteSchema';
 import { fromDatabase as fromSqliteDatabase } from 'src/serializer/sqliteSerializer';
 import { generateSqliteSnapshot } from 'src/serializer/sqliteSerializer';
 import {
@@ -64,8 +65,8 @@ export type PostgresSchema = Record<
 	string,
 	PgTable<any> | PgEnum<any> | PgSchema | PgSequence | PgView | PgMaterializedView
 >;
-export type MysqlSchema = Record<string, MySqlTable<any> | MySqlSchema>;
-export type SqliteSchema = Record<string, SQLiteTable<any>>;
+export type MysqlSchema = Record<string, MySqlTable<any> | MySqlSchema | MySqlView>;
+export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
 
 export const testSchemasResolver =
 	(renames: Set<string>) => async (input: ResolverInput<Named>): Promise<ResolverOutput<Named>> => {
@@ -494,6 +495,150 @@ async (
 	}
 };
 
+export const testViewsResolverMySql = (renames: Set<string>) =>
+async (
+	input: ResolverInput<ViewSquashed & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdViews = [...input.created];
+		let deletedViews = [...input.deleted];
+
+		const result: {
+			created: ViewSquashed[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: ViewSquashed; to: ViewSquashed }[];
+			deleted: ViewSquashed[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedViews.findIndex((it) => {
+				return `${it.schema || 'public'}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdViews.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === to;
+				});
+
+				const viewFrom = deletedViews[idxFrom];
+				const viewTo = createdViews[idxFrom];
+
+				if (viewFrom.schema !== viewTo.schema) {
+					result.moved.push({
+						name: viewFrom.name,
+						schemaFrom: viewFrom.schema,
+						schemaTo: viewTo.schema,
+					});
+				}
+
+				if (viewFrom.name !== viewTo.name) {
+					result.renamed.push({
+						from: deletedViews[idxFrom],
+						to: createdViews[idxTo],
+					});
+				}
+
+				delete createdViews[idxTo];
+				delete deletedViews[idxFrom];
+
+				createdViews = createdViews.filter(Boolean);
+				deletedViews = deletedViews.filter(Boolean);
+			}
+		}
+
+		result.created = createdViews;
+		result.deleted = deletedViews;
+
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const testViewsResolverSqlite = (renames: Set<string>) =>
+async (
+	input: ResolverInput<SqliteView>,
+): Promise<ResolverOutputWithMoved<SqliteView>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdViews = [...input.created];
+		let deletedViews = [...input.deleted];
+
+		const result: {
+			created: SqliteView[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: SqliteView; to: SqliteView }[];
+			deleted: SqliteView[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedViews.findIndex((it) => {
+				return it.name === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdViews.findIndex((it) => {
+					return it.name === to;
+				});
+
+				const viewFrom = deletedViews[idxFrom];
+				const viewTo = createdViews[idxFrom];
+
+				if (viewFrom.name !== viewTo.name) {
+					result.renamed.push({
+						from: deletedViews[idxFrom],
+						to: createdViews[idxTo],
+					});
+				}
+
+				delete createdViews[idxTo];
+				delete deletedViews[idxFrom];
+
+				createdViews = createdViews.filter(Boolean);
+				deletedViews = deletedViews.filter(Boolean);
+			}
+		}
+
+		result.created = createdViews;
+		result.deleted = deletedViews;
+
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
 export const diffTestSchemasPush = async (
 	client: PGlite,
 	left: PostgresSchema,
@@ -792,7 +937,9 @@ export const diffTestSchemasPushMysql = async (
 
 	const leftTables = Object.values(right).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 
-	const serialized2 = generateMySqlSnapshot(leftTables);
+	const leftViews = Object.values(right).filter((it) => is(it, MySqlView)) as MySqlView[];
+
+	const serialized2 = generateMySqlSnapshot(leftTables, leftViews);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -827,6 +974,7 @@ export const diffTestSchemasPushMysql = async (
 			sn2,
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
+			testViewsResolverMySql(renames),
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -838,6 +986,7 @@ export const diffTestSchemasPushMysql = async (
 			sn2,
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -852,6 +1001,7 @@ export const applyMySqlDiffs = async (sn: MysqlSchema) => {
 		dialect: 'mysql',
 		id: '0',
 		prevId: '0',
+		views: {},
 		tables: {},
 		enums: {},
 		schemas: {},
@@ -864,7 +1014,9 @@ export const applyMySqlDiffs = async (sn: MysqlSchema) => {
 
 	const tables = Object.values(sn).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 
-	const serialized1 = generateMySqlSnapshot(tables);
+	const views = Object.values(sn).filter((it) => is(it, MySqlView)) as MySqlView[];
+
+	const serialized1 = generateMySqlSnapshot(tables, views);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -886,6 +1038,7 @@ export const applyMySqlDiffs = async (sn: MysqlSchema) => {
 		sn1,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
+		testViewsResolverMySql(new Set()),
 		validatedPrev,
 		validatedCur,
 	);
@@ -900,10 +1053,14 @@ export const diffTestSchemasMysql = async (
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 
+	const leftViews = Object.values(left).filter((it) => is(it, MySqlView)) as MySqlView[];
+
 	const rightTables = Object.values(right).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 
-	const serialized1 = generateMySqlSnapshot(leftTables);
-	const serialized2 = generateMySqlSnapshot(rightTables);
+	const rightViews = Object.values(right).filter((it) => is(it, MySqlView)) as MySqlView[];
+
+	const serialized1 = generateMySqlSnapshot(leftTables, leftViews);
+	const serialized2 = generateMySqlSnapshot(rightTables, rightViews);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -938,6 +1095,7 @@ export const diffTestSchemasMysql = async (
 			sn2,
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
+			testViewsResolverMySql(renames),
 			validatedPrev,
 			validatedCur,
 		);
@@ -949,6 +1107,7 @@ export const diffTestSchemasMysql = async (
 		sn2,
 		tablesResolver,
 		columnsResolver,
+		mySqlViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -988,7 +1147,9 @@ export const diffTestSchemasPushSqlite = async (
 
 	const rightTables = Object.values(right).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
-	const serialized2 = generateSqliteSnapshot(rightTables);
+	const rightViews = Object.values(right).filter((it) => is(it, SQLiteView)) as SQLiteView[];
+
+	const serialized2 = generateSqliteSnapshot(rightTables, rightViews);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1020,6 +1181,7 @@ export const diffTestSchemasPushSqlite = async (
 			sn2,
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
+			testViewsResolverSqlite(renames),
 			sch1,
 			sch2,
 			'push',
@@ -1064,6 +1226,7 @@ export const diffTestSchemasPushSqlite = async (
 			sn2,
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			sch1,
 			sch2,
 			'push',
@@ -1105,7 +1268,9 @@ export async function diffTestSchemasPushLibSQL(
 
 	const leftTables = Object.values(right).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
-	const serialized2 = generateSqliteSnapshot(leftTables);
+	const leftViews = Object.values(right).filter((it) => is(it, SQLiteView)) as SQLiteView[];
+
+	const serialized2 = generateSqliteSnapshot(leftTables, leftViews);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1137,6 +1302,7 @@ export async function diffTestSchemasPushLibSQL(
 			sn2,
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
+			testViewsResolverSqlite(renames),
 			sch1,
 			sch2,
 			'push',
@@ -1180,6 +1346,7 @@ export async function diffTestSchemasPushLibSQL(
 			sn2,
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			sch1,
 			sch2,
 			'push',
@@ -1199,6 +1366,7 @@ export const applySqliteDiffs = async (
 		prevId: '0',
 		tables: {},
 		enums: {},
+		views: {},
 		schemas: {},
 		_meta: {
 			schemas: {},
@@ -1209,7 +1377,9 @@ export const applySqliteDiffs = async (
 
 	const tables = Object.values(sn).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
-	const serialized1 = generateSqliteSnapshot(tables);
+	const views = Object.values(sn).filter((it) => is(it, SQLiteView)) as SQLiteView[];
+
+	const serialized1 = generateSqliteSnapshot(tables, views);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -1228,6 +1398,7 @@ export const applySqliteDiffs = async (
 		sn1,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
+		testViewsResolverSqlite(new Set()),
 		dryRun,
 		sch1,
 		action,
@@ -1246,6 +1417,7 @@ export const applyLibSQLDiffs = async (
 		id: '0',
 		prevId: '0',
 		tables: {},
+		views: {},
 		enums: {},
 		schemas: {},
 		_meta: {
@@ -1257,7 +1429,9 @@ export const applyLibSQLDiffs = async (
 
 	const tables = Object.values(sn).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
-	const serialized1 = generateSqliteSnapshot(tables);
+	const views = Object.values(sn).filter((it) => is(it, SQLiteView)) as SQLiteView[];
+
+	const serialized1 = generateSqliteSnapshot(tables, views);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -1276,6 +1450,7 @@ export const applyLibSQLDiffs = async (
 		sn1,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
+		testViewsResolverSqlite(new Set()),
 		dryRun,
 		sch1,
 		action,
@@ -1292,10 +1467,14 @@ export const diffTestSchemasSqlite = async (
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
+	const leftViews = Object.values(left).filter((it) => is(it, SQLiteView)) as SQLiteView[];
+
 	const rightTables = Object.values(right).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
-	const serialized1 = generateSqliteSnapshot(leftTables);
-	const serialized2 = generateSqliteSnapshot(rightTables);
+	const rightViews = Object.values(right).filter((it) => is(it, SQLiteView)) as SQLiteView[];
+
+	const serialized1 = generateSqliteSnapshot(leftTables, leftViews);
+	const serialized2 = generateSqliteSnapshot(rightTables, rightViews);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1327,6 +1506,7 @@ export const diffTestSchemasSqlite = async (
 			sn2,
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
+			testViewsResolverSqlite(renames),
 			sch1,
 			sch2,
 		);
@@ -1338,6 +1518,7 @@ export const diffTestSchemasSqlite = async (
 		sn2,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		sch1,
 		sch2,
 	);
@@ -1352,10 +1533,14 @@ export const diffTestSchemasLibSQL = async (
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
+	const leftViews = Object.values(left).filter((it) => is(it, SQLiteView)) as SQLiteView[];
+
 	const rightTables = Object.values(right).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
-	const serialized1 = generateSqliteSnapshot(leftTables);
-	const serialized2 = generateSqliteSnapshot(rightTables);
+	const rightViews = Object.values(right).filter((it) => is(it, SQLiteView)) as SQLiteView[];
+
+	const serialized1 = generateSqliteSnapshot(leftTables, leftViews);
+	const serialized2 = generateSqliteSnapshot(rightTables, rightViews);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1387,6 +1572,7 @@ export const diffTestSchemasLibSQL = async (
 			sn2,
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
+			testViewsResolverSqlite(renames),
 			sch1,
 			sch2,
 		);
@@ -1398,6 +1584,7 @@ export const diffTestSchemasLibSQL = async (
 		sn2,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		sch1,
 		sch2,
 	);
@@ -1430,10 +1617,25 @@ export const introspectPgToFile = async (
 		schemas,
 	);
 
+	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
+
+	const initSch = {
+		version: '7',
+		dialect: 'postgresql',
+		id: '0',
+		prevId: '0',
+		...initRest,
+	} as const;
+
+	const initSn = squashPgScheme(initSch);
+	const validatedCur = pgSchema.parse(initSch);
+
+	// write to ts file
 	const file = schemaToTypeScript(introspectedSchema, 'camel');
 
 	fs.writeFileSync(`tests/introspect/postgres/${testName}.ts`, file.file);
 
+	// generate snapshot from ts file
 	const response = await prepareFromPgImports([
 		`tests/introspect/postgres/${testName}.ts`,
 	]);
@@ -1460,38 +1662,23 @@ export const introspectPgToFile = async (
 	const sn2AfterIm = squashPgScheme(sch2);
 	const validatedCurAfterImport = pgSchema.parse(sch2);
 
-	// save snapshot
-	fs.writeFileSync(`tests/introspect/postgres/${testName}.json`, JSON.stringify(validatedCurAfterImport));
-
-	const prevSnapshot = pgSchema.parse(
-		JSON.parse(fs.readFileSync(`tests/introspect/postgres/${testName}.json`).toString()),
-	);
-	const { tables, enums, sequences, schemas: schemaImports, views, matViews } = await prepareFromPgImports(
-		[`tests/introspect/postgres/${testName}.ts`],
-	);
-
-	const serialized = generatePgSnapshot(tables, enums, schemaImports, sequences, views, matViews, schemas);
-	const cur = { id: randomUUID(), ...serialized, prevId: prevSnapshot.id };
-	const squashedCurr = squashPgScheme(cur);
-
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	} = await applyPgSnapshotsDiff(
+		initSn,
 		sn2AfterIm,
-		squashedCurr,
 		testSchemasResolver(new Set()),
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
 		testViewsResolver(new Set()),
+		validatedCur,
 		validatedCurAfterImport,
-		cur,
 	);
 
 	fs.rmSync(`tests/introspect/postgres/${testName}.ts`);
-	fs.rmSync(`tests/introspect/postgres/${testName}.json`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,
@@ -1522,6 +1709,19 @@ export const introspectMySQLToFile = async (
 		schema,
 	);
 
+	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
+
+	const initSch = {
+		version: '5',
+		dialect: 'mysql',
+		id: '0',
+		prevId: '0',
+		...initRest,
+	} as const;
+
+	const initSn = squashMysqlScheme(initSch);
+	const validatedCur = mysqlSchema.parse(initSch);
+
 	const file = schemaToTypeScriptMySQL(introspectedSchema, 'camel');
 
 	fs.writeFileSync(`tests/introspect/mysql/${testName}.ts`, file.file);
@@ -1530,7 +1730,7 @@ export const introspectMySQLToFile = async (
 		`tests/introspect/mysql/${testName}.ts`,
 	]);
 
-	const afterFileImports = generateMySqlSnapshot(response.tables);
+	const afterFileImports = generateMySqlSnapshot(response.tables, response.views);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 
@@ -1545,23 +1745,6 @@ export const introspectMySQLToFile = async (
 	const sn2AfterIm = squashMysqlScheme(sch2);
 	const validatedCurAfterImport = mysqlSchema.parse(sch2);
 
-	const leftTables = Object.values(initSchema).filter((it) => is(it, MySqlTable)) as MySqlTable[];
-
-	const initSnapshot = generateMySqlSnapshot(leftTables);
-
-	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
-
-	const initSch = {
-		version: '5',
-		dialect: 'mysql',
-		id: '0',
-		prevId: '0',
-		...initRest,
-	} as const;
-
-	const initSn = squashMysqlScheme(initSch);
-	const validatedCur = mysqlSchema.parse(initSch);
-
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
@@ -1570,6 +1753,7 @@ export const introspectMySQLToFile = async (
 		initSn,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
+		testViewsResolverMySql(new Set()),
 		validatedCurAfterImport,
 		validatedCur,
 	);
@@ -1606,6 +1790,20 @@ export const introspectSQLiteToFile = async (
 		undefined,
 	);
 
+	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
+
+	const initSch = {
+		version: '6',
+		dialect: 'sqlite',
+		id: '0',
+		prevId: '0',
+		...initRest,
+	} as const;
+
+	const initSn = squashSqliteScheme(initSch);
+
+	const validatedCur = sqliteSchema.parse(initSch);
+
 	const file = schemaToTypeScriptSQLite(introspectedSchema, 'camel');
 
 	fs.writeFileSync(`tests/introspect/sqlite/${testName}.ts`, file.file);
@@ -1614,7 +1812,7 @@ export const introspectSQLiteToFile = async (
 		`tests/introspect/sqlite/${testName}.ts`,
 	]);
 
-	const afterFileImports = generateSqliteSnapshot(response.tables);
+	const afterFileImports = generateSqliteSnapshot(response.tables, response.views);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 
@@ -1629,11 +1827,52 @@ export const introspectSQLiteToFile = async (
 	const sn2AfterIm = squashSqliteScheme(sch2);
 	const validatedCurAfterImport = sqliteSchema.parse(sch2);
 
-	const leftTables = Object.values(initSchema).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
+	const {
+		sqlStatements: afterFileSqlStatements,
+		statements: afterFileStatements,
+	} = await applySqliteSnapshotsDiff(
+		sn2AfterIm,
+		initSn,
+		testTablesResolver(new Set()),
+		testColumnsResolver(new Set()),
+		testViewsResolverSqlite(new Set()),
+		validatedCurAfterImport,
+		validatedCur,
+	);
 
-	const initSnapshot = generateSqliteSnapshot(leftTables);
+	fs.rmSync(`tests/introspect/sqlite/${testName}.ts`);
 
-	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
+	return {
+		sqlStatements: afterFileSqlStatements,
+		statements: afterFileStatements,
+	};
+};
+
+export const introspectLibSQLToFile = async (
+	client: Client,
+	initSchema: SqliteSchema,
+	testName: string,
+) => {
+	// put in db
+	const { sqlStatements } = await applyLibSQLDiffs(initSchema);
+	for (const st of sqlStatements) {
+		client.execute(st);
+	}
+
+	// introspect to schema
+	const introspectedSchema = await fromSqliteDatabase(
+		{
+			query: async <T>(sql: string, params: any[] = []) => {
+				return (await client.execute({ sql, args: params })).rows as T[];
+			},
+			run: async (query: string) => {
+				client.execute(query);
+			},
+		},
+		undefined,
+	);
+
+	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
 
 	const initSch = {
 		version: '6',
@@ -1644,21 +1883,46 @@ export const introspectSQLiteToFile = async (
 	} as const;
 
 	const initSn = squashSqliteScheme(initSch);
+
 	const validatedCur = sqliteSchema.parse(initSch);
+
+	const file = schemaToTypeScriptSQLite(introspectedSchema, 'camel');
+
+	fs.writeFileSync(`tests/introspect/libsql/${testName}.ts`, file.file);
+
+	const response = await prepareFromSqliteImports([
+		`tests/introspect/libsql/${testName}.ts`,
+	]);
+
+	const afterFileImports = generateSqliteSnapshot(response.tables, response.views);
+
+	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
+
+	const sch2 = {
+		version: '6',
+		dialect: 'sqlite',
+		id: '0',
+		prevId: '0',
+		...rest2,
+	} as const;
+
+	const sn2AfterIm = squashSqliteScheme(sch2);
+	const validatedCurAfterImport = sqliteSchema.parse(sch2);
 
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
-	} = await applySqliteSnapshotsDiff(
+	} = await applyLibSQLSnapshotsDiff(
 		sn2AfterIm,
 		initSn,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
+		testViewsResolverSqlite(new Set()),
 		validatedCurAfterImport,
 		validatedCur,
 	);
 
-	fs.rmSync(`tests/introspect/sqlite/${testName}.ts`);
+	fs.rmSync(`tests/introspect/libsql/${testName}.ts`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,

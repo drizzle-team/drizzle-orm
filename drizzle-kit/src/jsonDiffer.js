@@ -307,13 +307,13 @@ export function applyJsonDiff(json1, json2) {
 					addedWith: Object.keys(addedWith).length ? addedWith : undefined,
 					alteredWith: Object.keys(alterWith).length ? alterWith : undefined,
 					alteredSchema,
-					alteredExisting,
 					alteredTablespace,
 					alteredUsing,
 					// mysql
 					alteredMeta,
 					// common
 					alteredDefinition,
+					alteredExisting,
 				}).filter(([_, value]) => value !== undefined),
 			);
 		},

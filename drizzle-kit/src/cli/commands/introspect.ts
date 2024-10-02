@@ -14,7 +14,12 @@ import { dryPg, type PgSchema, squashPgScheme } from '../../serializer/pgSchema'
 import { fromDatabase as fromPostgresDatabase } from '../../serializer/pgSerializer';
 import { drySQLite, type SQLiteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
 import { fromDatabase as fromSqliteDatabase } from '../../serializer/sqliteSerializer';
-import { applyMysqlSnapshotsDiff, applyPgSnapshotsDiff, applySqliteSnapshotsDiff } from '../../snapshotsDiffer';
+import {
+	applyLibSQLSnapshotsDiff,
+	applyMysqlSnapshotsDiff,
+	applyPgSnapshotsDiff,
+	applySqliteSnapshotsDiff,
+} from '../../snapshotsDiffer';
 import { prepareOutFolder } from '../../utils';
 import type { Casing, Prefix } from '../validations/common';
 import { LibSQLCredentials } from '../validations/libsql';
@@ -433,7 +438,7 @@ export const introspectLibSQL = async (
 	const { snapshots, journal } = prepareOutFolder(out, 'sqlite');
 
 	if (snapshots.length === 0) {
-		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
+		const { sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
 			squashSqliteScheme(drySQLite),
 			squashSqliteScheme(schema),
 			tablesResolver,

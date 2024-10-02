@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { integer, pgMaterializedView, pgSchema, pgTable, pgView } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
@@ -639,7 +639,6 @@ test('drop view #1', async () => {
 		type: 'drop_view',
 		name: 'some_view',
 		schema: 'public',
-		materialized: false,
 	});
 
 	expect(sqlStatements.length).toBe(1);
@@ -731,7 +730,6 @@ test('rename view #1', async () => {
 		nameFrom: 'some_view',
 		nameTo: 'new_some_view',
 		schema: 'public',
-		materialized: false,
 	});
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`ALTER VIEW "public"."some_view" RENAME TO "new_some_view";`);
@@ -814,7 +812,6 @@ test('view alter schema', async () => {
 		toSchema: 'new_schema',
 		fromSchema: 'public',
 		name: 'some_view',
-		materialized: false,
 	});
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toBe(`CREATE SCHEMA "new_schema";\n`);
@@ -1254,14 +1251,14 @@ test('alter with option in view #2', async () => {
 	const from = {
 		users,
 		view: pgView('some_view').with({ checkOption: 'local', securityBarrier: true, securityInvoker: true }).as((qb) =>
-			qb.select().from(users)
+			qb.selectDistinct().from(users)
 		),
 	};
 
 	const to = {
 		users,
 		view: pgView('some_view').with({ checkOption: 'cascaded', securityBarrier: true, securityInvoker: true }).as((qb) =>
-			qb.select().from(users)
+			qb.selectDistinct().from(users)
 		),
 	};
 
@@ -1279,6 +1276,7 @@ test('alter with option in view #2', async () => {
 	});
 
 	expect(sqlStatements.length).toBe(1);
+
 	expect(sqlStatements[0]).toBe(
 		`ALTER VIEW "public"."some_view" SET (check_option = cascaded);`,
 	);
@@ -1353,7 +1351,6 @@ test('alter view ".as" value', async () => {
 			name: 'some_view',
 			schema: 'public',
 			type: 'drop_view',
-			materialized: false,
 		},
 	);
 	expect(statements[1]).toStrictEqual(
@@ -1362,12 +1359,12 @@ test('alter view ".as" value', async () => {
 			name: 'some_view',
 			schema: 'public',
 			type: 'create_view',
+			materialized: false,
 			with: {
 				checkOption: 'local',
 				securityBarrier: true,
 				securityInvoker: true,
 			},
-			materialized: false,
 			withNoData: false,
 			tablespace: undefined,
 			using: undefined,
@@ -1486,7 +1483,7 @@ test('alter materialized view ".as" value with existing flag', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('create view with dropped existing flag', async () => {
+test('drop existing flag', async () => {
 	const users = pgTable('users', {
 		id: integer('id').primaryKey().notNull(),
 	});
@@ -1852,7 +1849,6 @@ test('rename view and alter view', async () => {
 		nameFrom: 'some_view',
 		nameTo: 'new_some_view',
 		schema: 'public',
-		materialized: false,
 	});
 	expect(statements[1]).toStrictEqual({
 		materialized: false,
@@ -1887,16 +1883,15 @@ test('moved schema and alter view', async () => {
 	expect(statements.length).toBe(2);
 	expect(statements[0]).toStrictEqual({
 		fromSchema: 'public',
-		materialized: false,
 		name: 'some_view',
 		toSchema: 'my_schema',
 		type: 'alter_view_alter_schema',
 	});
 	expect(statements[1]).toStrictEqual({
-		materialized: false,
 		name: 'some_view',
 		schema: 'my_schema',
 		type: 'alter_view_add_with_option',
+		materialized: false,
 		with: {
 			checkOption: 'cascaded',
 		},

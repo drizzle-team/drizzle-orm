@@ -70,9 +70,8 @@ const table = object({
 }).strict();
 
 const viewMeta = object({
-	definer: string().optional(),
-	algorithm: enumType(['undefined', 'merge', 'temptable']).optional(),
-	sqlSecurity: enumType(['definer', 'invoker']).optional(),
+	algorithm: enumType(['undefined', 'merge', 'temptable']),
+	sqlSecurity: enumType(['definer', 'invoker']),
 	withCheckOption: enumType(['local', 'cascaded']).optional(),
 }).strict();
 
@@ -82,7 +81,7 @@ export const view = object({
 	definition: string().optional(),
 	isExisting: boolean(),
 }).strict().merge(viewMeta);
-type ViewMeta = TypeOf<typeof viewMeta>;
+type SquasherViewMeta = Omit<TypeOf<typeof viewMeta>, 'definer'>;
 
 export const kitInternals = object({
 	tables: record(
@@ -175,7 +174,6 @@ const tableSquashed = object({
 
 const viewSquashed = view.omit({
 	algorithm: true,
-	definer: true,
 	sqlSecurity: true,
 	withCheckOption: true,
 }).extend({ meta: string() });
@@ -274,14 +272,13 @@ export const MySqlSquasher = {
 		return result;
 	},
 	squashView: (view: View): string => {
-		return `${view.algorithm};${view.definer};${view.sqlSecurity};${view.withCheckOption}`;
+		return `${view.algorithm};${view.sqlSecurity};${view.withCheckOption}`;
 	},
-	unsquashView: (meta: string): ViewMeta => {
-		const [algorithm, definer, sqlSecurity, withCheckOption] = meta.split(';');
+	unsquashView: (meta: string): SquasherViewMeta => {
+		const [algorithm, sqlSecurity, withCheckOption] = meta.split(';');
 		const toReturn = {
-			algorithm: algorithm !== 'undefined' ? algorithm : undefined,
-			definer: definer !== 'undefined' ? definer : undefined,
-			sqlSecurity: sqlSecurity !== 'undefined' ? sqlSecurity : undefined,
+			algorithm: algorithm,
+			sqlSecurity: sqlSecurity,
 			withCheckOption: withCheckOption !== 'undefined' ? withCheckOption : undefined,
 		};
 

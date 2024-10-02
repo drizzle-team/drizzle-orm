@@ -274,6 +274,10 @@ const alteredViewCommon = object({
 		__old: string(),
 		__new: string(),
 	}).strict().optional(),
+	alteredExisting: object({
+		__old: boolean(),
+		__new: boolean(),
+	}).strict().optional(),
 });
 
 export const alteredPgViewSchema = alteredViewCommon.merge(
@@ -283,14 +287,10 @@ export const alteredPgViewSchema = alteredViewCommon.merge(
 		addedWithOption: mergedViewWithOption.optional(),
 		addedWith: mergedViewWithOption.optional(),
 		deletedWith: mergedViewWithOption.optional(),
-		alterWith: mergedViewWithOption.optional(),
+		alteredWith: mergedViewWithOption.optional(),
 		alteredSchema: object({
 			__old: string(),
 			__new: string(),
-		}).strict().optional(),
-		alteredExisting: object({
-			__old: boolean(),
-			__new: boolean(),
 		}).strict().optional(),
 		alteredTablespace: object({
 			__old: string(),
@@ -1223,13 +1223,16 @@ export const applyPgSnapshotsDiff = async (
 	);
 
 	renameViews.push(
-		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
-			return prepareRenameViewJson(it.to.name, it.from.name, it.to.schema, it.to.materialized);
-		}),
+		...renamedViews.filter((it) => !it.to.isExisting && !json1.views[`${it.from.schema}.${it.from.name}`].isExisting)
+			.map((it) => {
+				return prepareRenameViewJson(it.to.name, it.from.name, it.to.schema, it.to.materialized);
+			}),
 	);
 
 	alterViews.push(
-		...movedViews.filter((it) => !json2.views[`${it.schemaTo}.${it.name}`].isExisting).map((it) => {
+		...movedViews.filter((it) =>
+			!json2.views[`${it.schemaTo}.${it.name}`].isExisting && !json1.views[`${it.schemaFrom}.${it.name}`].isExisting
+		).map((it) => {
 			return preparePgAlterViewAlterSchemaJson(
 				it.schemaTo,
 				it.schemaFrom,
@@ -1261,6 +1264,7 @@ export const applyPgSnapshotsDiff = async (
 					tablespace,
 				),
 			);
+
 			continue;
 		}
 
@@ -1308,13 +1312,13 @@ export const applyPgSnapshotsDiff = async (
 			);
 		}
 
-		if (alteredView.alterWith) {
+		if (alteredView.alteredWith) {
 			alterViews.push(
 				preparePgAlterViewAddWithOptionJson(
 					alteredView.name,
 					alteredView.schema,
 					materialized,
-					alteredView.alterWith,
+					alteredView.alteredWith,
 				),
 			);
 		}
@@ -1636,6 +1640,7 @@ export const applyMysqlSnapshotsDiff = async (
 
 			if (rename) {
 				viewValue.name = rename.to;
+				viewKey = rename.to;
 			}
 
 			return [viewKey, viewValue];
@@ -1906,7 +1911,7 @@ export const applyMysqlSnapshotsDiff = async (
 	);
 
 	renameViews.push(
-		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
+		...renamedViews.filter((it) => !it.to.isExisting && !json1.views[it.from.name].isExisting).map((it) => {
 			return prepareRenameViewJson(it.to.name, it.from.name);
 		}),
 	);
@@ -1915,6 +1920,20 @@ export const applyMysqlSnapshotsDiff = async (
 
 	for (const alteredView of alteredViews) {
 		const { definition, meta } = json2.views[alteredView.name];
+
+		if (alteredView.alteredExisting) {
+			dropViews.push(prepareDropViewJson(alteredView.name));
+
+			createViews.push(
+				prepareMySqlCreateViewJson(
+					alteredView.name,
+					definition!,
+					meta,
+				),
+			);
+
+			continue;
+		}
 
 		if (alteredView.alteredDefinition && action !== 'push') {
 			createViews.push(
@@ -1925,10 +1944,11 @@ export const applyMysqlSnapshotsDiff = async (
 					true,
 				),
 			);
+			continue;
 		}
 
 		if (alteredView.alteredMeta) {
-			const view = { ...curFull['views'][alteredView.name], isExisting: undefined };
+			const view = curFull['views'][alteredView.name];
 			alterViews.push(
 				prepareMySqlAlterView(view),
 			);
@@ -2920,6 +2940,7 @@ export const applyLibSQLSnapshotsDiff = async (
 		}),
 	);
 
+	// renames
 	dropViews.push(
 		...renamedViews.filter((it) => !it.to.isExisting).map((it) => {
 			return prepareDropViewJson(it.from.name);

@@ -353,7 +353,6 @@ export const generateMySqlSnapshot = (
 			schema,
 			selectedFields,
 			algorithm,
-			definer,
 			sqlSecurity,
 			withCheckOption,
 		} = getViewConfig(view);
@@ -451,9 +450,8 @@ export const generateMySqlSnapshot = (
 			isExisting,
 			definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
 			withCheckOption,
-			definer,
-			algorithm,
-			sqlSecurity,
+			algorithm: algorithm ?? 'undefined', // set default values
+			sqlSecurity: sqlSecurity ?? 'definer', // set default values
 		};
 	}
 
@@ -843,7 +841,6 @@ export const fromDatabase = async (
 		const definition = view['VIEW_DEFINITION'];
 
 		const withCheckOption = view['CHECK_OPTION'] === 'NONE' ? undefined : view['CHECK_OPTION'].toLowerCase();
-		const definer = view['DEFINER'].split('@').map((it: string) => `'${it}'`).join('@');
 		const sqlSecurity = view['SECURITY_TYPE'].toLowerCase();
 
 		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW \`${viewName}\`;`);
@@ -857,7 +854,6 @@ export const fromDatabase = async (
 			columns: columns,
 			isExisting: false,
 			name: viewName,
-			definer,
 			algorithm,
 			definition,
 			sqlSecurity,

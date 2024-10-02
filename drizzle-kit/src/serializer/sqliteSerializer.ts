@@ -770,8 +770,13 @@ WHERE
 
 		const viewDefinition = match[1] as string;
 
+		// CREATE VIEW test_view AS SELECT * FROM users;
+		// CREATE VIEW test_view1 AS SELECT * FROM `users`;
+		// CREATE VIEW test_view2 AS SELECT * FROM "users";
 		const viewOriginalTableRegex = sql.match(/FROM\s+([^\s;]+)/i); // Matches the table name after 'FROM'
-		let sourceTable = viewOriginalTableRegex ? viewOriginalTableRegex[1] as string : undefined;
+		let sourceTable = viewOriginalTableRegex
+			? (viewOriginalTableRegex[1] as string).replaceAll('"', '').replaceAll('`', '').replaceAll("'", '')
+			: undefined;
 
 		const columns = sourceTable ? result[sourceTable] ? result[sourceTable].columns : {} : {};
 

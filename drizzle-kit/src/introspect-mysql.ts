@@ -269,7 +269,7 @@ export const schemaToTypeScript = (
 	});
 
 	const viewsStatements = Object.values(schema.views).map((view) => {
-		const { columns, name, algorithm, definer, definition, sqlSecurity, withCheckOption } = view;
+		const { columns, name, algorithm, definition, sqlSecurity, withCheckOption } = view;
 		const func = 'mysqlView';
 		let statement = '';
 
@@ -292,7 +292,6 @@ export const schemaToTypeScript = (
 		statement += '})';
 
 		statement += algorithm ? `.algorithm("${algorithm}")` : '';
-		statement += definer ? `.definer("${definer}")` : '';
 		statement += sqlSecurity ? `.sqlSecurity("${sqlSecurity}")` : '';
 		statement += withCheckOption ? `.withCheckOption("${withCheckOption}")` : '';
 		statement += `.as(sql\`${definition?.replaceAll('`', '\\`')}\`);`;

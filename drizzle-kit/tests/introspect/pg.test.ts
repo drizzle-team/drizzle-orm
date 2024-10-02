@@ -456,7 +456,7 @@ test('introspect view #2', async () => {
 	const { statements, sqlStatements } = await introspectPgToFile(
 		client,
 		schema,
-		'introspect-view-#2',
+		'introspect-view-2',
 	);
 
 	expect(statements.length).toBe(0);
@@ -485,6 +485,7 @@ test('introspect view in other schema', async () => {
 		client,
 		schema,
 		'introspect-view-in-other-schema',
+		['new_schema'],
 	);
 
 	expect(statements.length).toBe(0);
@@ -513,6 +514,7 @@ test('introspect materialized view in other schema', async () => {
 		client,
 		schema,
 		'introspect-view-in-other-schema',
+		['new_schema'],
 	);
 
 	expect(statements.length).toBe(0);
@@ -543,32 +545,6 @@ test('introspect materialized view #1', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect view #2', async () => {
-	const client = new PGlite();
-
-	const users = pgTable('users', {
-		id: serial('id').primaryKey().notNull(),
-		name: varchar('users'),
-	});
-
-	const view = pgView('some_view', { id: integer('asd') }).with({ checkOption: 'cascaded' }).as(
-		sql`SELECT * FROM ${users}`,
-	);
-	const schema = {
-		view,
-		users,
-	};
-
-	const { statements, sqlStatements } = await introspectPgToFile(
-		client,
-		schema,
-		'introspect-view-#2',
-	);
-
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});
-
 test('introspect materialized view #2', async () => {
 	const client = new PGlite();
 
@@ -588,7 +564,7 @@ test('introspect materialized view #2', async () => {
 	const { statements, sqlStatements } = await introspectPgToFile(
 		client,
 		schema,
-		'introspect-materialized-view-#2',
+		'introspect-materialized-view-2',
 	);
 
 	expect(statements.length).toBe(0);

@@ -541,7 +541,7 @@ export type JsonCreateSqliteViewStatement = {
 export interface JsonDropViewStatement {
 	type: 'drop_view';
 	name: string;
-	schema: string;
+	schema?: string;
 	materialized?: boolean;
 }
 
@@ -566,7 +566,7 @@ export interface JsonAlterViewAlterSchemaStatement {
 	fromSchema: string;
 	toSchema: string;
 	name: string;
-	materialized: boolean;
+	materialized?: boolean;
 }
 
 export type JsonAlterViewAddWithOptionStatement =
@@ -2562,13 +2562,12 @@ export const prepareMySqlCreateViewJson = (
 	meta: string,
 	replace: boolean = false,
 ): JsonCreateMySqlViewStatement => {
-	const { algorithm, definer, sqlSecurity, withCheckOption } = MySqlSquasher.unsquashView(meta);
+	const { algorithm, sqlSecurity, withCheckOption } = MySqlSquasher.unsquashView(meta);
 	return {
 		type: 'mysql_create_view',
 		name: name,
 		definition: definition,
 		algorithm,
-		definer,
 		sqlSecurity,
 		withCheckOption,
 		replace,
@@ -2588,45 +2587,51 @@ export const prepareSqliteCreateViewJson = (
 
 export const prepareDropViewJson = (
 	name: string,
-	schema: string = '',
-	materialized: boolean = false,
+	schema?: string,
+	materialized?: boolean,
 ): JsonDropViewStatement => {
-	return {
-		type: 'drop_view',
-		name,
-		schema,
-		materialized,
-	};
+	const resObject: JsonDropViewStatement = <JsonDropViewStatement> { name, type: 'drop_view' };
+
+	if (schema) resObject['schema'] = schema;
+
+	if (materialized) resObject['materialized'] = materialized;
+
+	return resObject;
 };
 
 export const prepareRenameViewJson = (
 	to: string,
 	from: string,
-	schema: string = '',
-	materialized: boolean = false,
+	schema?: string,
+	materialized?: boolean,
 ): JsonRenameViewStatement => {
-	return {
+	const resObject: JsonRenameViewStatement = <JsonRenameViewStatement> {
 		type: 'rename_view',
 		nameTo: to,
 		nameFrom: from,
-		schema,
-		materialized,
 	};
+
+	if (schema) resObject['schema'] = schema;
+	if (materialized) resObject['materialized'] = materialized;
+
+	return resObject;
 };
 
 export const preparePgAlterViewAlterSchemaJson = (
 	to: string,
 	from: string,
 	name: string,
-	materialized: boolean,
+	materialized?: boolean,
 ): JsonAlterViewAlterSchemaStatement => {
-	return {
+	const returnObject: JsonAlterViewAlterSchemaStatement = {
 		type: 'alter_view_alter_schema',
 		fromSchema: from,
 		toSchema: to,
 		name,
-		materialized,
 	};
+
+	if (materialized) returnObject['materialized'] = materialized;
+	return returnObject;
 };
 
 export const preparePgAlterViewAddWithOptionJson = (
