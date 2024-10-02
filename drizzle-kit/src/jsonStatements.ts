@@ -27,6 +27,7 @@ export interface JsonSqliteCreateTableStatement {
 	}[];
 	compositePKs: string[][];
 	uniqueConstraints?: string[];
+	checkConstraints?: string[];
 }
 
 export interface JsonCreateTableStatement {
@@ -37,6 +38,7 @@ export interface JsonCreateTableStatement {
 	compositePKs: string[];
 	compositePkName?: string;
 	uniqueConstraints?: string[];
+	checkConstraints?: string[];
 	internals?: MySqlKitInternals;
 }
 
@@ -55,6 +57,7 @@ export interface JsonRecreateTableStatement {
 	}[];
 	compositePKs: string[][];
 	uniqueConstraints?: string[];
+	checkConstraints: string[];
 }
 
 export interface JsonDropTableStatement {
@@ -232,6 +235,20 @@ export interface JsonAlterUniqueConstraint {
 	schema?: string;
 	oldConstraintName?: string;
 	newConstraintName?: string;
+}
+
+export interface JsonCreateCheckConstraint {
+	type: 'create_check_constraint';
+	tableName: string;
+	data: string;
+	schema?: string;
+}
+
+export interface JsonDeleteCheckConstraint {
+	type: 'delete_check_constraint';
+	tableName: string;
+	constraintName: string;
+	schema?: string;
 }
 
 export interface JsonCreateCompositePK {
@@ -582,14 +599,16 @@ export type JsonStatement =
 	| JsonDropSequenceStatement
 	| JsonCreateSequenceStatement
 	| JsonMoveSequenceStatement
-	| JsonRenameSequenceStatement;
+	| JsonRenameSequenceStatement
+	| JsonCreateCheckConstraint
+	| JsonDeleteCheckConstraint;
 
 export const preparePgCreateTableJson = (
 	table: Table,
 	// TODO: remove?
 	json2: PgSchema,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
 	const tableKey = `${schema || 'public'}.${name}`;
 
 	// TODO: @AndriiSherman. We need this, will add test cases
@@ -607,6 +626,7 @@ export const preparePgCreateTableJson = (
 		compositePKs: Object.values(compositePrimaryKeys),
 		compositePkName: compositePkName,
 		uniqueConstraints: Object.values(uniqueConstraints),
+		checkConstraints: Object.values(checkConstraints),
 	};
 };
 
@@ -619,7 +639,7 @@ export const prepareMySqlCreateTableJson = (
 	// if previously it was an expression or column
 	internals: MySqlKitInternals,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
 
 	return {
 		type: 'create_table',
@@ -635,6 +655,7 @@ export const prepareMySqlCreateTableJson = (
 			: '',
 		uniqueConstraints: Object.values(uniqueConstraints),
 		internals,
+		checkConstraints: Object.values(checkConstraints),
 	};
 };
 
@@ -642,7 +663,7 @@ export const prepareSQLiteCreateTable = (
 	table: Table,
 	action?: 'push' | undefined,
 ): JsonSqliteCreateTableStatement => {
-	const { name, columns, uniqueConstraints } = table;
+	const { name, columns, uniqueConstraints, checkConstraints } = table;
 
 	const references: string[] = Object.values(table.foreignKeys);
 
@@ -663,6 +684,7 @@ export const prepareSQLiteCreateTable = (
 		referenceData: fks,
 		compositePKs: composites,
 		uniqueConstraints: Object.values(uniqueConstraints),
+		checkConstraints: Object.values(checkConstraints),
 	};
 };
 
@@ -2328,6 +2350,36 @@ export const prepareDeleteUniqueConstraintPg = (
 			data: it,
 			schema,
 		} as JsonDeleteUniqueConstraint;
+	});
+};
+
+export const prepareAddCheckConstraint = (
+	tableName: string,
+	schema: string,
+	check: Record<string, string>,
+): JsonCreateCheckConstraint[] => {
+	return Object.values(check).map((it) => {
+		return {
+			type: 'create_check_constraint',
+			tableName,
+			data: it,
+			schema,
+		} as JsonCreateCheckConstraint;
+	});
+};
+
+export const prepareDeleteCheckConstraint = (
+	tableName: string,
+	schema: string,
+	check: Record<string, string>,
+): JsonDeleteCheckConstraint[] => {
+	return Object.values(check).map((it) => {
+		return {
+			type: 'delete_check_constraint',
+			tableName,
+			constraintName: PgSquasher.unsquashCheck(it).name,
+			schema,
+		} as JsonDeleteCheckConstraint;
 	});
 };
 

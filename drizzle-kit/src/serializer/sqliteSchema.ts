@@ -1,5 +1,5 @@
 import { any, boolean, enum as enumType, literal, object, record, string, TypeOf, union } from 'zod';
-import { customMapEntries, mapEntries, mapValues, originUUID } from '../global';
+import { customMapEntries, mapValues, originUUID } from '../global';
 
 // ------- V3 --------
 const index = object({
@@ -49,6 +49,11 @@ const uniqueConstraint = object({
 	columns: string().array(),
 }).strict();
 
+const checkConstraint = object({
+	name: string(),
+	value: string(),
+}).strict();
+
 const table = object({
 	name: string(),
 	columns: record(string(), column),
@@ -56,6 +61,7 @@ const table = object({
 	foreignKeys: record(string(), fk),
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
+	checkConstraints: record(string(), checkConstraint).default({}),
 }).strict();
 
 // use main dialect
@@ -128,6 +134,7 @@ const tableSquashed = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()).default({}),
+	checkConstraints: record(string(), string()).default({}),
 }).strict();
 
 export const schemaSquashed = object({
@@ -150,6 +157,7 @@ export type Index = TypeOf<typeof index>;
 export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
+export type CheckConstraint = TypeOf<typeof checkConstraint>;
 
 export const SQLiteSquasher = {
 	squashIdx: (idx: Index) => {
@@ -233,6 +241,17 @@ export const SQLiteSquasher = {
 	unsquashPK: (pk: string) => {
 		return pk.split(',');
 	},
+	squashCheck: (check: CheckConstraint) => {
+		return `${check.name};${check.value}`;
+	},
+	unsquashCheck: (input: string): CheckConstraint => {
+		const [
+			name,
+			value,
+		] = input.split(';');
+
+		return { name, value };
+	},
 };
 
 export const squashSqliteScheme = (
@@ -268,6 +287,13 @@ export const squashSqliteScheme = (
 				},
 			);
 
+			const squashedCheckConstraints = mapValues(
+				it[1].checkConstraints,
+				(check) => {
+					return SQLiteSquasher.squashCheck(check);
+				},
+			);
+
 			return [
 				it[0],
 				{
@@ -277,6 +303,7 @@ export const squashSqliteScheme = (
 					foreignKeys: squashedFKs,
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
+					checkConstraints: squashedCheckConstraints,
 				},
 			];
 		}),

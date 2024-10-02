@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { Client } from '@libsql/client/.';
 import { Database } from 'better-sqlite3';
+import { randomUUID } from 'crypto';
 import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
 import { isPgEnum, isPgSequence, PgEnum, PgSchema, PgSequence, PgTable } from 'drizzle-orm/pg-core';
@@ -982,13 +983,6 @@ export async function diffTestSchemasPushLibSQL(
 			run: async (query: string) => {
 				await client.execute(query);
 			},
-			batch: async (
-				queries: { query: string; values?: any[] | undefined }[],
-			) => {
-				await client.batch(
-					queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
-				);
-			},
 		},
 		undefined,
 	);
@@ -1047,13 +1041,6 @@ export async function diffTestSchemasPushLibSQL(
 				},
 				run: async (query: string) => {
 					await client.execute(query);
-				},
-				batch: async (
-					queries: { query: string; values?: any[] | undefined }[],
-				) => {
-					await client.batch(
-						queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
-					);
 				},
 			},
 			statements,
@@ -1327,12 +1314,25 @@ export const introspectPgToFile = async (
 		schemas,
 	);
 
+	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
+
+	const initSch = {
+		version: '7',
+		dialect: 'postgresql',
+		id: '0',
+		prevId: '0',
+		...initRest,
+	} as const;
+
+	const initSn = squashPgScheme(initSch);
+	const validatedCur = pgSchema.parse(initSch);
+
 	const file = schemaToTypeScript(introspectedSchema, 'camel');
 
-	fs.writeFileSync(`tests/introspect/${testName}.ts`, file.file);
+	fs.writeFileSync(`tests/introspect/postgres/${testName}.ts`, file.file);
 
 	const response = await prepareFromPgImports([
-		`tests/introspect/${testName}.ts`,
+		`tests/introspect/postgres/${testName}.ts`,
 	]);
 
 	const afterFileImports = generatePgSnapshot(
@@ -1355,50 +1355,22 @@ export const introspectPgToFile = async (
 	const sn2AfterIm = squashPgScheme(sch2);
 	const validatedCurAfterImport = pgSchema.parse(sch2);
 
-	const leftTables = Object.values(initSchema).filter((it) => is(it, PgTable)) as PgTable[];
-
-	const leftSchemas = Object.values(initSchema).filter((it) => is(it, PgSchema)) as PgSchema[];
-
-	const leftEnums = Object.values(initSchema).filter((it) => isPgEnum(it)) as PgEnum<any>[];
-
-	const leftSequences = Object.values(initSchema).filter((it) => isPgSequence(it)) as PgSequence[];
-
-	const initSnapshot = generatePgSnapshot(
-		leftTables,
-		leftEnums,
-		leftSchemas,
-		leftSequences,
-	);
-
-	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
-
-	const initSch = {
-		version: '7',
-		dialect: 'postgresql',
-		id: '0',
-		prevId: '0',
-		...initRest,
-	} as const;
-
-	const initSn = squashPgScheme(initSch);
-	const validatedCur = pgSchema.parse(initSch);
-
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	} = await applyPgSnapshotsDiff(
-		sn2AfterIm,
 		initSn,
+		sn2AfterIm,
 		testSchemasResolver(new Set()),
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
-		validatedCurAfterImport,
 		validatedCur,
+		validatedCurAfterImport,
 	);
 
-	fs.rmSync(`tests/introspect/${testName}.ts`);
+	fs.rmSync(`tests/introspect/postgres/${testName}.ts`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,
@@ -1429,6 +1401,19 @@ export const introspectMySQLToFile = async (
 		schema,
 	);
 
+	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
+
+	const initSch = {
+		version: '5',
+		dialect: 'mysql',
+		id: '0',
+		prevId: '0',
+		...initRest,
+	} as const;
+
+	const initSn = squashMysqlScheme(initSch);
+	const validatedCur = mysqlSchema.parse(initSch);
+
 	const file = schemaToTypeScriptMySQL(introspectedSchema, 'camel');
 
 	fs.writeFileSync(`tests/introspect/mysql/${testName}.ts`, file.file);
@@ -1452,33 +1437,16 @@ export const introspectMySQLToFile = async (
 	const sn2AfterIm = squashMysqlScheme(sch2);
 	const validatedCurAfterImport = mysqlSchema.parse(sch2);
 
-	const leftTables = Object.values(initSchema).filter((it) => is(it, MySqlTable)) as MySqlTable[];
-
-	const initSnapshot = generateMySqlSnapshot(leftTables);
-
-	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
-
-	const initSch = {
-		version: '5',
-		dialect: 'mysql',
-		id: '0',
-		prevId: '0',
-		...initRest,
-	} as const;
-
-	const initSn = squashMysqlScheme(initSch);
-	const validatedCur = mysqlSchema.parse(initSch);
-
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	} = await applyMysqlSnapshotsDiff(
-		sn2AfterIm,
 		initSn,
+		sn2AfterIm,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
-		validatedCurAfterImport,
 		validatedCur,
+		validatedCurAfterImport,
 	);
 
 	fs.rmSync(`tests/introspect/mysql/${testName}.ts`);
@@ -1513,6 +1481,19 @@ export const introspectSQLiteToFile = async (
 		undefined,
 	);
 
+	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
+
+	const initSch = {
+		version: '6',
+		dialect: 'sqlite',
+		id: '0',
+		prevId: '0',
+		...initRest,
+	} as const;
+
+	const initSn = squashSqliteScheme(initSch);
+	const validatedCur = sqliteSchema.parse(initSch);
+
 	const file = schemaToTypeScriptSQLite(introspectedSchema, 'camel');
 
 	fs.writeFileSync(`tests/introspect/sqlite/${testName}.ts`, file.file);
@@ -1536,29 +1517,12 @@ export const introspectSQLiteToFile = async (
 	const sn2AfterIm = squashSqliteScheme(sch2);
 	const validatedCurAfterImport = sqliteSchema.parse(sch2);
 
-	const leftTables = Object.values(initSchema).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
-
-	const initSnapshot = generateSqliteSnapshot(leftTables);
-
-	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
-
-	const initSch = {
-		version: '6',
-		dialect: 'sqlite',
-		id: '0',
-		prevId: '0',
-		...initRest,
-	} as const;
-
-	const initSn = squashSqliteScheme(initSch);
-	const validatedCur = sqliteSchema.parse(initSch);
-
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	} = await applySqliteSnapshotsDiff(
-		sn2AfterIm,
 		initSn,
+		sn2AfterIm,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
 		validatedCurAfterImport,

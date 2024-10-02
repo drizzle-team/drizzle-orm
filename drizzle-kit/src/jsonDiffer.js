@@ -346,6 +346,24 @@ const findAlternationsInTable = (table) => {
 		}),
 	);
 
+	const addedCheckConstraints = Object.fromEntries(
+		Object.entries(table.checkConstraints || {}).filter((it) => {
+			return it[0].endsWith('__added');
+		}),
+	);
+
+	const deletedCheckConstraints = Object.fromEntries(
+		Object.entries(table.checkConstraints || {}).filter((it) => {
+			return it[0].endsWith('__deleted');
+		}),
+	);
+
+	const alteredCheckConstraints = Object.fromEntries(
+		Object.entries(table.checkConstraints || {}).filter((it) => {
+			return !it[0].endsWith('__deleted') && !it[0].endsWith('__added');
+		}),
+	);
+
 	const mappedAltered = altered.map((it) => alternationsInColumn(it)).filter(Boolean);
 
 	return {
@@ -364,11 +382,15 @@ const findAlternationsInTable = (table) => {
 		addedUniqueConstraints,
 		deletedUniqueConstraints,
 		alteredUniqueConstraints,
+		addedCheckConstraints,
+		deletedCheckConstraints,
+		alteredCheckConstraints,
 	};
 };
 
 const alternationsInColumn = (column) => {
 	const altered = [column];
+
 	const result = altered
 		.filter((it) => {
 			if ('type' in it && it.type.__old.replace(' (', '(') === it.type.__new.replace(' (', '(')) {
@@ -607,6 +629,33 @@ const alternationsInColumn = (column) => {
 		})
 		.map((it) => {
 			if ('autoincrement' in it) {
+				return {
+					...it,
+					autoincrement: {
+						type: 'changed',
+						old: it.autoincrement.__old,
+						new: it.autoincrement.__new,
+					},
+				};
+			}
+			if ('autoincrement__added' in it) {
+				const { autoincrement__added, ...others } = it;
+				return {
+					...others,
+					autoincrement: { type: 'added', value: it.autoincrement__added },
+				};
+			}
+			if ('autoincrement__deleted' in it) {
+				const { autoincrement__deleted, ...others } = it;
+				return {
+					...others,
+					autoincrement: { type: 'deleted', value: it.autoincrement__deleted },
+				};
+			}
+			return it;
+		})
+		.map((it) => {
+			if ('' in it) {
 				return {
 					...it,
 					autoincrement: {

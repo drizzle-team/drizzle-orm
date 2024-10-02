@@ -27,6 +27,14 @@ export const _moveDataStatements = (
 	const compositePKs = Object.values(
 		json.tables[tableName].compositePrimaryKeys,
 	).map((it) => SQLiteSquasher.unsquashPK(it));
+	const checkConstraints = Object.values(json.tables[tableName].checkConstraints);
+
+	const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
+		it.replaceAll(`"${tableName}".`, `"${newTableName}".`)
+			.replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
+			.replaceAll(`${tableName}.`, `${newTableName}.`)
+			.replaceAll(`'${tableName}'.`, `\`${newTableName}\`.`)
+	);
 
 	const fks = referenceData.map((it) => SQLiteSquasher.unsquashPushFK(it));
 
@@ -38,6 +46,7 @@ export const _moveDataStatements = (
 			columns: tableColumns,
 			referenceData: fks,
 			compositePKs,
+			checkConstraints: mappedCheckConstraints,
 		}),
 	);
 
