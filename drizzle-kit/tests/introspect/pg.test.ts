@@ -458,9 +458,11 @@ test('introspect checks from different schemas with same names', async () => {
 	const { statements, sqlStatements } = await introspectPgToFile(
 		client,
 		schema,
-		'introspect-checks',
+		'introspect-checks-diff-schema-same-names',
 		['public', 'schema2'],
 	);
+
+	console.log('statements: ', statements);
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
