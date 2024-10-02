@@ -76,7 +76,7 @@ export type Table = {
   foreignKeys: { name: string; reference: {
     columns: {
       name: string;
-      getSQLType: () => string;
+      sqlType: string;
       table: {
         name: string;
         schema?: string;
@@ -84,7 +84,7 @@ export type Table = {
     }[];
     foreignColumns: {
       name: string;
-      getSQLType: () => string;
+      sqlType: string;
       table: {
         name: string;
         schema?: string;

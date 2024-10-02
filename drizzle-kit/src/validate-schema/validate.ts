@@ -121,7 +121,7 @@ export function validatePgSchema(
                   const tableConfig = getPgTableConfig(column.table);
                   return {
                     name: getColumnCasing(column, casing),
-                    getSQLType: column.getSQLType,
+                    sqlType: column.getSQLType(),
                     table: {
                       name: tableConfig.name,
                       schema: tableConfig.schema
@@ -134,7 +134,7 @@ export function validatePgSchema(
                   const tableConfig = getPgTableConfig(column.table);
                   return {
                     name: getColumnCasing(column, casing),
-                    getSQLType: column.getSQLType,
+                    sqlType: column.getSQLType(),
                     table: {
                       name: tableConfig.name,
                       schema: tableConfig.schema
@@ -328,7 +328,7 @@ export function validateMySqlSchema(
                   const tableConfig = getMySqlTableConfig(column.table);
                   return {
                     name: getColumnCasing(column, casing),
-                    getSQLType: column.getSQLType,
+                    sqlType: column.getSQLType(),
                     table: {
                       name: tableConfig.name,
                       schema: tableConfig.schema
@@ -341,7 +341,7 @@ export function validateMySqlSchema(
                   const tableConfig = getMySqlTableConfig(column.table);
                   return {
                     name: getColumnCasing(column, casing),
-                    getSQLType: column.getSQLType,
+                    sqlType: column.getSQLType(),
                     table: {
                       name: tableConfig.name,
                       schema: tableConfig.schema
@@ -406,7 +406,8 @@ export function validateMySqlSchema(
     };
   })();
 
-  const v = new ValidateDatabase().validateSchema(undefined);
+  const vDb = new ValidateDatabase();
+  const v = vDb.validateSchema(undefined);
 
   v
     .constraintNameCollisions(
@@ -441,6 +442,11 @@ export function validateMySqlSchema(
       .validatePrimaryKey(primaryKey.name)
       .columnsMixingTables(primaryKey);
   }
+
+  return {
+    messages: vDb.errors,
+    codes: vDb.errorCodes
+  };
 }
 
 export function validateSQLiteSchema(

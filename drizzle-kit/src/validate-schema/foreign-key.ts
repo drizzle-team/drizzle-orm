@@ -21,8 +21,8 @@ export class ValidateForeignKey {
   mismatchingDataTypes(foreignKey: Table['foreignKeys'][number]) {
     const { columns, foreignColumns }  = foreignKey.reference;
 
-    const types = `(${columns.map((c) => c.getSQLType()).join(', ')})`;
-    const foreignTypes = `(${foreignColumns.map((c) => c.getSQLType()).join(', ')})`;
+    const types = `(${columns.map((c) => c.sqlType).join(', ')})`;
+    const foreignTypes = `(${foreignColumns.map((c) => c.sqlType).join(', ')})`;
 
     if (types !== foreignTypes) {
       this.errors.push({

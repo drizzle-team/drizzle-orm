@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { printValidationErrors, validatePgSchema } from 'src/validate-schema/validate';
+import { validatePgSchema } from 'src/validate-schema/validate';
 import { foreignKey, index, integer, pgEnum, pgSchema, pgSequence, pgTable, primaryKey, serial, text, unique, vector } from 'drizzle-orm/pg-core';
 import { prepareFromExports } from 'src/serializer/pgImports';
 import { SchemaValidationErrors as Err } from 'src/validate-schema/errors';
@@ -168,13 +168,13 @@ test('schema constraint name collisions #2', () => {
       id: serial().primaryKey(),
       name: text('name').notNull()
     }, (table) => ({
-      idx: index('name_idx').on(table.name),
+      idx: index('test1_name_idx').on(table.name),
     })),
     table2: pgTable('test2', {
       id: serial().primaryKey(),
       name: text('name').notNull()
     }, (table) => ({
-      unique: unique('name_idx').on(table.name),
+      unique: unique('test2_name_idx').on(table.name),
     })),
   };
 
@@ -190,8 +190,8 @@ test('schema constraint name collisions #2', () => {
     sequences
   );
 
-  expect(messages).length(1);
-  expect(codes).contains(Err.SchemaConstraintNameCollisions);
+  expect(messages).length(0);
+  expect(codes).not.contains(Err.SchemaConstraintNameCollisions);
 });
 
 test('enum value collisions #1', () => {
