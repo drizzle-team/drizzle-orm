@@ -8,7 +8,8 @@
 		"test": "turbo run test --color",
 		"t": "pnpm test",
 		"test:types": "turbo run test:types --color",
-		"lint": "concurrently -n eslint,dprint \"eslint --ext ts .\" \"dprint check --list-different\""
+		"lint": "concurrently -n eslint,dprint \"eslint --ext ts .\" \"dprint check --list-different\"",
+		"lint:fix": "concurrently -n eslint,dprint \"eslint --ext ts --fix .\" \"dprint fmt\""
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.15.3",
