@@ -233,10 +233,14 @@ export class One<
 		this.alias = config?.alias;
 		this.where = config?.where;
 		if (config?.from) {
-			this.sourceColumns = config.from.map((it) => it._.column as AnyColumn<{ tableName: TSourceTableName }>);
+			this.sourceColumns = Array.isArray(config.from)
+				? config.from.map((it) => it._.column as AnyColumn<{ tableName: TSourceTableName }>)
+				: [(config.from as RelationsBuilderColumn)._.column as AnyColumn<{ tableName: TSourceTableName }>];
 		}
 		if (config?.to) {
-			this.targetColumns = config.to.map((it) => it._.column as AnyColumn<{ tableName: TTargetTableName }>);
+			this.targetColumns = Array.isArray(config.to)
+				? config.to.map((it) => it._.column as AnyColumn<{ tableName: TTargetTableName }>)
+				: [(config.to as RelationsBuilderColumn)._.column as AnyColumn<{ tableName: TTargetTableName }>];
 		}
 		this.optional = (config?.optional ?? false) as TOptional;
 	}
@@ -257,10 +261,14 @@ export class Many<
 		this.alias = config?.alias;
 		this.where = config?.where;
 		if (config?.from) {
-			this.sourceColumns = config.from.map((it) => it._.column as AnyColumn<{ tableName: TSourceTableName }>);
+			this.sourceColumns = Array.isArray(config.from)
+				? config.from.map((it) => it._.column as AnyColumn<{ tableName: TSourceTableName }>)
+				: [(config.from as RelationsBuilderColumn)._.column as AnyColumn<{ tableName: TSourceTableName }>];
 		}
 		if (config?.to) {
-			this.targetColumns = config.to.map((it) => it._.column as AnyColumn<{ tableName: TTargetTableName }>);
+			this.targetColumns = Array.isArray(config.to)
+				? config.to.map((it) => it._.column as AnyColumn<{ tableName: TTargetTableName }>)
+				: [(config.to as RelationsBuilderColumn)._.column as AnyColumn<{ tableName: TTargetTableName }>];
 		}
 	}
 }
@@ -686,39 +694,51 @@ export type RelationsFilter<TColumns extends Record<string, Column>> =
 	};
 
 export interface OneConfig<
-	TTables extends Record<string, Table>,
-	TSourceColumns extends Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]>,
+	TSchema extends Record<string, Table>,
+	TSourceColumns extends
+		| Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]>
+		| Readonly<RelationsBuilderColumn>,
 	TTargetTableName extends string,
 	TOptional extends boolean,
 > {
 	from?: TSourceColumns | Writable<TSourceColumns>;
-	to?: { [K in keyof TSourceColumns]: RelationsBuilderColumn<TTargetTableName> };
-	where?: RelationsFilter<TTables[TSourceColumns[number]['_']['tableName']]['_']['columns']>;
+	to?: TSourceColumns extends [RelationsBuilderColumn, ...RelationsBuilderColumn[]]
+		? { [K in keyof TSourceColumns]: RelationsBuilderColumn<TTargetTableName> }
+		: RelationsBuilderColumn<TTargetTableName>;
+	where?: TSourceColumns extends [RelationsBuilderColumn, ...RelationsBuilderColumn[]]
+		? RelationsFilter<TSchema[TSourceColumns[number]['_']['tableName']]['_']['columns']>
+		: RelationsFilter<TSchema[Assume<TSourceColumns, RelationsBuilderColumn>['_']['tableName']]['_']['columns']>;
 	optional?: TOptional;
 	alias?: string;
 }
 
 export type AnyOneConfig = OneConfig<
 	Record<string, Table>,
-	Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]>,
+	Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]] | RelationsBuilderColumn<string, unknown>>,
 	string,
 	boolean
 >;
 
 export interface ManyConfig<
 	TSchema extends Record<string, Table>,
-	TSourceColumns extends Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]>,
+	TSourceColumns extends
+		| Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]>
+		| Readonly<RelationsBuilderColumn>,
 	TTargetTableName extends string,
 > {
 	from?: TSourceColumns;
-	to?: { [K in keyof TSourceColumns]: RelationsBuilderColumn<TTargetTableName> };
-	where?: RelationsFilter<TSchema[TSourceColumns[number]['_']['tableName']]['_']['columns']>;
+	to?: TSourceColumns extends [RelationsBuilderColumn, ...RelationsBuilderColumn[]]
+		? { [K in keyof TSourceColumns]: RelationsBuilderColumn<TTargetTableName> }
+		: RelationsBuilderColumn<TTargetTableName>;
+	where?: TSourceColumns extends [RelationsBuilderColumn, ...RelationsBuilderColumn[]]
+		? RelationsFilter<TSchema[TSourceColumns[number]['_']['tableName']]['_']['columns']>
+		: RelationsFilter<TSchema[Assume<TSourceColumns, RelationsBuilderColumn>['_']['tableName']]['_']['columns']>;
 	alias?: string;
 }
 
 export type AnyManyConfig = ManyConfig<
 	Record<string, Table>,
-	Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]>,
+	Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]> | Readonly<RelationsBuilderColumn>,
 	string
 >;
 
@@ -728,11 +748,19 @@ export interface OneFn<
 > {
 	<
 		// "any" default value is required for cases where config is not provided, to satisfy the source table name constraint
-		TSourceColumns extends Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]> = any,
+		TSourceColumns extends
+			| Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]>
+			| RelationsBuilderColumn = any,
 		TOptional extends boolean = false,
 	>(
 		config?: OneConfig<TTables, TSourceColumns, TTargetTableName, TOptional>,
-	): One<TSourceColumns[number]['_']['tableName'], TTargetTableName, TOptional>;
+	): One<
+		TSourceColumns extends [RelationsBuilderColumn, ...RelationsBuilderColumn[]]
+			? TSourceColumns[number]['_']['tableName']
+			: Assume<TSourceColumns, RelationsBuilderColumn>['_']['tableName'],
+		TTargetTableName,
+		TOptional
+	>;
 }
 
 export interface ManyFn<
@@ -741,10 +769,17 @@ export interface ManyFn<
 > {
 	<
 		// "any" default value is required for cases where config is not provided, to satisfy the source table name constraint
-		TSourceColumns extends Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]> = any,
+		TSourceColumns extends
+			| Readonly<[RelationsBuilderColumn, ...RelationsBuilderColumn[]]>
+			| RelationsBuilderColumn = any,
 	>(
 		config?: ManyConfig<TTables, TSourceColumns, TTargetTableName>,
-	): Many<TSourceColumns[number]['_']['tableName'], TTargetTableName>;
+	): Many<
+		TSourceColumns extends [RelationsBuilderColumn, ...RelationsBuilderColumn[]]
+			? TSourceColumns[number]['_']['tableName']
+			: Assume<TSourceColumns, RelationsBuilderColumn>['_']['tableName'],
+		TTargetTableName
+	>;
 }
 
 export class RelationsHelperStatic<TTables extends Record<string, Table>> {
@@ -778,11 +813,11 @@ export class RelationsHelperStatic<TTables extends Record<string, Table>> {
 	}
 
 	one: {
-		[K in keyof TTables]: OneFn<TTables, TTables[K]['_']['name']>;
+		[K in keyof TTables]: OneFn<TTables, Assume<keyof TTables, string>>;
 	};
 
 	many: {
-		[K in keyof TTables]: ManyFn<TTables, TTables[K]['_']['name']>;
+		[K in keyof TTables]: ManyFn<TTables, Assume<keyof TTables, string>>;
 	};
 
 	aggs = {
