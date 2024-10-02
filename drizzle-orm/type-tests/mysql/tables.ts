@@ -1,6 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
+import type { BuildColumn } from '~/column-builder.ts';
 import { eq, gt } from '~/expressions.ts';
-import type { BuildColumn, InferSelectModel, Simplify } from '~/index.ts';
 import {
 	bigint,
 	binary,
@@ -41,6 +41,8 @@ import {
 import { mysqlSchema } from '~/mysql-core/schema.ts';
 import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view.ts';
 import { sql } from '~/sql/sql.ts';
+import type { InferSelectModel } from '~/table.ts';
+import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const users = mysqlTable(
