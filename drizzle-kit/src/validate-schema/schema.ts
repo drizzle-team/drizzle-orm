@@ -68,7 +68,11 @@ export class ValidateSchema {
         );
   
         return {
-          message: `${this.schema ? `In schema ${entityName(undefined, this.schema, true)}, ` : ''}${list} have the same name, ${fmtValue(name, true)}`,
+          message: `${
+            this.schema
+              ? `In schema ${entityName(undefined, this.schema, true)}, ${list} have `
+              : `Database has ${list} with `
+          }the same name, ${fmtValue(name, true)}`,
           hint: 'Each entity (table, view, materialized view, enum and sequence) in a schema must have a unique name. Rename any of the conflicting entities',
         };
       });
@@ -114,7 +118,11 @@ export class ValidateSchema {
         );
   
         return {
-          message: `${this.schema ? `In schema ${entityName(undefined, this.schema, true)}, ` : ''}${list} have the same name, ${fmtValue(name, true)}`,
+          message: `${
+            this.schema
+              ? `In schema ${entityName(undefined, this.schema, true)}, ${list} have `
+              : `Database has ${list} with `
+          }the same name, ${fmtValue(name, true)}`,
           hint: 'Each constraint (primary key, foreign key, check and unique) and index in a schema must have a unique name. Rename any of the conflicting constraints/indexes',
         };
       });
