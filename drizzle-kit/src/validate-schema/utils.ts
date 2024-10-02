@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { SQL } from 'drizzle-orm';
 import { getMaterializedViewConfig, PgEnum } from 'drizzle-orm/pg-core';
 
@@ -48,10 +49,19 @@ export function listStr<
   }
 
   if (in_.length === 1) {
-    return in_[0];
+    return fmtValue(in_[0], false);
   }
 
-  return `${[...in_.slice(0, -1)].join(', ')} and ${in_.slice(-1)}`;
+  return fmtValue(`${[...in_.slice(0, -1)].join(', ')} and ${in_.slice(-1)}`, false);
+}
+
+export function entityName(schema: string | undefined, name: string, fmt?: boolean) {
+  const str = `${schema ? `"${schema}".` : ''}"${name}"`;
+  return fmt ? chalk.underline.bold(str) : str;
+}
+
+export function fmtValue(value: string, withQuotes: boolean) {
+  return chalk.bold(withQuotes ? `"${value}"` : value);
 }
 
 export type Table = {

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { validatePgSchema } from 'src/validate-schema/validate';
+import { printValidationErrors, validatePgSchema } from 'src/validate-schema/validate';
 import { foreignKey, index, integer, pgEnum, pgSchema, pgSequence, pgTable, primaryKey, serial, text, unique, vector } from 'drizzle-orm/pg-core';
 import { prepareFromExports } from 'src/serializer/pgImports';
 import { SchemaValidationErrors as Err } from 'src/validate-schema/errors';
@@ -885,3 +885,49 @@ test('primary key columns mixing tables #1', () => {
   expect(messages).length(1);
   expect(codes).contains(Err.PrimaryKeyColumnsMixingTables);
 });
+
+// This is just for visualizing the formatted error messages
+// test('test', () => {
+//   const users = pgTable('users', {
+//     id: serial('id').primaryKey(),
+//     firstName: text('first_name').notNull(),
+//     lastName: text('first_name').notNull(),
+//     profileViews: integer('profile_views').notNull().default(0)
+//   }, (table) => ({
+//     profileViewsIdx: index('views_idx').on(table.profileViews),
+//   }))
+//   const posts = pgTable('posts', {
+//     id: serial('id').primaryKey(),
+//     userId: text('user_id').notNull(),
+//     title: text('title').notNull(),
+//     body: text('body').notNull(),
+//     views: integer('views').notNull().default(0),
+//     embedding: vector('embedding', { dimensions: 3 })
+//   }, (table) => ({
+//     viewsIdx: index('views_idx').on(table.views),
+//     embeddingIdx: index('embedding_idx').on(table.embedding),
+//     fk: foreignKey({
+//       columns: [table.userId],
+//       foreignColumns: [users.id],
+//     })
+//   }));
+//   const schema = {
+//     users,
+//     posts
+//   };
+
+//   const { schemas, enums, tables, sequences, views, materializedViews } = prepareFromExports(schema);
+
+//   const { messages } = validatePgSchema(
+//     'snake_case',
+//     schemas,
+//     tables,
+//     views,
+//     materializedViews,
+//     enums,
+//     sequences
+//   );
+
+//   printValidationErrors(messages, false);
+//   expect(true).toBeTruthy();
+// });

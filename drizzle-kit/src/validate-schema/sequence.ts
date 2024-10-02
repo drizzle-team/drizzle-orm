@@ -1,21 +1,27 @@
-import { SchemaValidationErrors } from './errors';
-import { Sequence } from './utils';
+import { SchemaValidationErrors, ValidationError } from './errors';
+import { entityName, fmtValue, Sequence } from './utils';
 
 export class ValidateSequence {
-  constructor(private errors: string[], private errorCodes: Set<number>, private schema: string | undefined, private name: string) {}
+  constructor(private errors: ValidationError[], private errorCodes: Set<number>, private schema: string | undefined, private name: string) {}
 
   incorrectvalues(sequence: Sequence) {
     let { increment, maxValue, minValue } = sequence.seqOptions ?? {};
     increment ??= 1;
-    const baseMessage = `Sequence ${this.schema ? `"${this.schema}".` : ''}"${this.name}" `;
+    const baseMessage = `Sequence ${entityName(this.schema, this.name)} `;
 
     if (Number(increment) === 0) {
-      this.errors.push(`${baseMessage}is set to increment by 0, which is an invalid value`);
+      this.errors.push({
+        message: `${baseMessage}is set to increment by ${fmtValue('0', false)}`,
+        hint: 'Sequences must increment by a non-zero value. Set the increment value to one that is greater or less than zero'
+      });
       this.errorCodes.add(SchemaValidationErrors.SequenceIncrementByZero)
     }
 
     if (minValue && maxValue && Number(minValue) > Number(maxValue)) {
-      this.errors.push(`${baseMessage}has a minimum value greater than its max value`);
+      this.errors.push({
+        message: `${baseMessage}has a minimum value greater than its max value`,
+        hint: 'Sequences must have a minimum value that is less than or equal to its maximum value'
+      });
       this.errorCodes.add(SchemaValidationErrors.SequenceInvalidMinMax);
     }
 

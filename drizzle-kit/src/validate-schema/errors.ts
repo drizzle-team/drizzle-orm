@@ -22,3 +22,8 @@ export enum SchemaValidationErrors {
   IndexRequiresName = 10,
   IndexVectorColumnRequiresOp = 11,
 };
+
+export interface ValidationError {
+  message: string;
+  hint: string;
+}

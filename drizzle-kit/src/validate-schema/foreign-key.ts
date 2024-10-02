@@ -1,14 +1,17 @@
-import { SchemaValidationErrors } from './errors';
-import { Table } from './utils';
+import { SchemaValidationErrors, ValidationError } from './errors';
+import { entityName, fmtValue, Table } from './utils';
 
 export class ValidateForeignKey {
-  constructor(private errors: string[], private errorCodes: Set<number>, private schema: string | undefined, private name: string) {}
+  constructor(private errors: ValidationError[], private errorCodes: Set<number>, private schema: string | undefined, private name: string) {}
 
   mismatchingColumnCount(foreignKey: Table['foreignKeys'][number]) {
     const { columns, foreignColumns }  = foreignKey.reference;
 
     if (columns.length !== foreignColumns.length) {
-      this.errors.push(`Foreign key ${this.schema ? `"${this.schema}".` : ''}"${this.name}" has ${columns.length.toString()} column${columns.length === 1 ? '' : 's'} but references ${foreignColumns.length.toString()}`);
+      this.errors.push({
+        message: `Foreign key ${entityName(this.schema, this.name, true)} has ${fmtValue(columns.length.toString(), false)} column${columns.length === 1 ? '' : 's'} but references ${fmtValue(foreignColumns.length.toString(), false)}`,
+        hint: 'The amount of columns in the foreign key must match the amount of referenced columns'
+      });
       this.errorCodes.add(SchemaValidationErrors.ForeignKeyMismatchingColumnCount);
     }
 
@@ -22,7 +25,10 @@ export class ValidateForeignKey {
     const foreignTypes = `(${foreignColumns.map((c) => c.getSQLType()).join(', ')})`;
 
     if (types !== foreignTypes) {
-      this.errors.push(`Column data types in foreign key ${this.schema ? `"${this.schema}".` : ''}"${this.name}" do not match. Types ${types} are different from ${foreignTypes}`);
+      this.errors.push({
+        message: `Column data types in foreign key ${entityName(this.schema, this.name, true)} do not match`,
+        hint: `Type${columns.length > 1 ? 's' : ''} ${fmtValue(types, false)} ${columns.length > 1 ? 'are' : 'is'} different from ${fmtValue(foreignTypes, false)}. The data types must be the same`
+      });
       this.errorCodes.add(SchemaValidationErrors.ForeignKeyMismatchingDataTypes);
     }
 
@@ -45,7 +51,10 @@ export class ValidateForeignKey {
     }
 
     if (acc.size > 1) {
-      this.errors.push(`Composite foreign key ${this.schema ? `"${this.schema}".` : ''}"${this.name}" has columns from multiple tables`);
+      this.errors.push({
+        message: `Composite foreign key ${entityName(this.schema, this.name, true)} has columns from multiple tables`,
+        hint: 'Each column in a foreign key must be from the same table'
+      });
       this.errorCodes.add(SchemaValidationErrors.ForeignKeyColumnsMixingTables);
     }
 
@@ -57,7 +66,10 @@ export class ValidateForeignKey {
     }
 
     if (acc.size > 1) {
-      this.errors.push(`Composite foreign key ${this.schema ? `"${this.schema}".` : ''}"${this.name}" references columns from multiple tables`);
+      this.errors.push({
+        message: `Composite foreign key ${entityName(this.schema, this.name, true)} references columns from multiple tables`,
+        hint: 'Each reference column in a foreign key must be from the same table'
+      });
       this.errorCodes.add(SchemaValidationErrors.ForeignKeyForeignColumnsMixingTables);
     }
 

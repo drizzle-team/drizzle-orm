@@ -1,8 +1,8 @@
-import { SchemaValidationErrors } from './errors';
-import { Table } from './utils';
+import { SchemaValidationErrors, ValidationError } from './errors';
+import { entityName, Table } from './utils';
 
 export class ValidatePrimaryKey {
-  constructor(private errors: string[], private errorCodes: Set<number>, private schema: string | undefined, private name: string) {}
+  constructor(private errors: ValidationError[], private errorCodes: Set<number>, private schema: string | undefined, private name: string) {}
 
   /** Only applies to composite primary keys */
   columnsMixingTables(primaryKey: Table['primaryKeys'][number]) {
@@ -12,13 +12,15 @@ export class ValidatePrimaryKey {
 
     const acc = new Set<string>();
     for (const column of primaryKey.columns) {
-      const table = column.table;
-      const name = `${table.schema ? `"${table.schema}".` : ''}"${table.name}"`;
+      const name = entityName(column.table.schema, column.table.name);
       acc.add(name);
     }
 
     if (acc.size > 1) {
-      this.errors.push(`Composite primary key ${this.schema ? `"${this.schema}".` : ''}"${this.name}" has columns from multiple tables`);
+      this.errors.push({
+        message: `Composite primary key ${entityName(this.schema, this.name, true)} has columns from multiple tables`,
+        hint: 'Each column in a primary key must be from the same table'
+      });
       this.errorCodes.add(SchemaValidationErrors.PrimaryKeyColumnsMixingTables);
     }
 

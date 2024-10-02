@@ -1,14 +1,14 @@
 import { ValidateIndex } from '.';
 import { ValidateEnum } from './enum';
-import { SchemaValidationErrors } from './errors';
+import { SchemaValidationErrors, ValidationError } from './errors';
 import { ValidateForeignKey } from './foreign-key';
 import { ValidatePrimaryKey } from './primary-key';
 import { ValidateSequence } from './sequence';
 import { ValidateTable } from './table';
-import { Enum, getCollisions, listStr, MaterializedView, Sequence, Table, View } from './utils';
+import { entityName, Enum, fmtValue, getCollisions, listStr, MaterializedView, Sequence, Table, View } from './utils';
 
 export class ValidateSchema {
-  constructor(private errors: string[], private errorCodes: Set<number>, private schema: string | undefined) {}
+  constructor(private errors: ValidationError[], private errorCodes: Set<number>, private schema: string | undefined) {}
 
   validateEnum(enumName: string) {
     return new ValidateEnum(this.errors, this.errorCodes, this.schema, enumName);
@@ -52,7 +52,7 @@ export class ValidateSchema {
     const collisions = getCollisions(names);
 
     if (collisions.length > 0) {
-      const messages = collisions.map((name) => {
+      const messages: ValidationError[] = collisions.map((name) => {
         const inTables = tables.filter((t) => t.name === name).length;
         const inViews = views.filter((v) => v.name === name).length;
         const inMaterializedViews = materializedViews.filter((mv) => mv.name === name).length;
@@ -67,7 +67,10 @@ export class ValidateSchema {
           [inSequences, 'sequence', 'sequences'],
         );
   
-        return `${this.schema ? `In schema "${this.schema}", ` : ''}${list} have the same name, "${name}"`;
+        return {
+          message: `${this.schema ? `In schema ${entityName(undefined, this.schema, true)}, ` : ''}${list} have the same name, ${fmtValue(name, true)}`,
+          hint: 'Each entity (table, view, materialized view, enum and sequence) in a schema must have a unique name. Rename any of the conflicting entities',
+        };
       });
   
       this.errors.push(...messages);
@@ -95,7 +98,7 @@ export class ValidateSchema {
     const collisions = getCollisions(names);
 
     if (collisions.length > 0) {
-      const messages = collisions.map((name) => {
+      const messages: ValidationError[] = collisions.map((name) => {
         const inIndexes = indexes.filter((i) => i.name === name).length;
         const inForeignKeys = foreignKeys.filter((f) => f.name === name).length;
         const inChecks = checks.filter((c) => c.name === name).length;
@@ -110,7 +113,10 @@ export class ValidateSchema {
           [inUniqueConstraints, 'unique constraint', 'unique constraints'],
         );
   
-        return `${this.schema ? `In schema "${this.schema}", ` : ''}${list} have the same name, "${name}"`;
+        return {
+          message: `${this.schema ? `In schema ${entityName(undefined, this.schema, true)}, ` : ''}${list} have the same name, ${fmtValue(name, true)}`,
+          hint: 'Each constraint (primary key, foreign key, check and unique) and index in a schema must have a unique name. Rename any of the conflicting constraints/indexes',
+        };
       });
   
       this.errors.push(...messages);

@@ -1,4 +1,4 @@
-import { getTableConfig as getPgTableConfig, getViewConfig as getPgViewConfig, getMaterializedViewConfig as getPgMaterializedViewConfig, PgEnum, PgMaterializedView, pgSchema, PgSchema, PgSequence, PgTable, PgView, IndexedColumn, uniqueKeyName as pgUniqueKeyName, PgColumn, PgDialect } from 'drizzle-orm/pg-core';
+import { getTableConfig as getPgTableConfig, getViewConfig as getPgViewConfig, getMaterializedViewConfig as getPgMaterializedViewConfig, PgEnum, PgMaterializedView, PgSchema, PgSequence, PgTable, PgView, IndexedColumn, uniqueKeyName as pgUniqueKeyName, PgColumn, PgDialect } from 'drizzle-orm/pg-core';
 import { Sequence as SequenceCommon, Table as TableCommon } from './utils';
 import { MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
@@ -7,6 +7,25 @@ import { ValidateDatabase } from './db';
 import { CasingType } from 'src/cli/validations/common';
 import { getColumnCasing, getForeignKeyName, getIdentitySequenceName } from 'src/utils';
 import { indexName as pgIndexName } from 'src/serializer/pgSerializer';
+import chalk from 'chalk';
+import { render } from 'hanji';
+import { ValidationError } from './errors';
+
+export function printValidationErrors(errors: ValidationError[], exitOnError: boolean) {
+  for (const { message, hint } of errors) {
+    console.log(`${chalk.bgRed.bold(' Error ')} ${chalk.red(`${message}.`)}\n${chalk.underline.dim('Hint')}${chalk.dim(': ')}${chalk.dim(`${hint}.`)}\n`);
+  }
+
+  if (errors.length === 0) {
+    render(`[${chalk.green('✓')}] Schema is valid`);
+  } else {
+    render(`[${chalk.red('x')}] Found ${errors.length} error${errors.length > 1 ? 's' : ''} in your schema`);
+  }
+
+  if (exitOnError && errors.length > 0) {
+    process.exit(1);
+  }
+}
 
 export function validatePgSchema(
   casing: CasingType | undefined,
@@ -214,7 +233,7 @@ export function validatePgSchema(
     }
 
     for (const table of schema.tables) {
-      v.validateTable(table.name).columnNameCollisions(table.columns);
+      v.validateTable(table.name).columnNameCollisions(table.columns, casing);
     }
 
     for (const foreignKey of schema.foreignKeys) {

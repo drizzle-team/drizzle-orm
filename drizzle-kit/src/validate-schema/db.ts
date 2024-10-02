@@ -1,9 +1,9 @@
-import { getCollisionsByKey, Schema } from './utils';
+import { fmtValue, getCollisionsByKey, Schema } from './utils';
 import { ValidateSchema } from './schema';
-import { SchemaValidationErrors } from './errors';
+import { SchemaValidationErrors, ValidationError } from './errors';
 
 export class ValidateDatabase {
-  errors: string[] = [];
+  errors: ValidationError[] = [];
   /** Mainly used for testing */
   errorCodes: Set<number> = new Set();
 
@@ -15,10 +15,13 @@ export class ValidateDatabase {
     const collisions = getCollisionsByKey(schemas, 'schemaName');
     
     if (collisions.length > 0) {
-      const messages = collisions.map(
-        (schema) => `Database has duplicate schema "${schema}"`
+      const errors: ValidationError[] = collisions.map(
+        (schema) => ({
+          message: `Database has duplicate schema ${fmtValue(schema, true)}`,
+          hint: 'Each schema must have a unique name. Rename any of the conflicting schemas',
+        })
       );
-      this.errors.push(...messages);
+      this.errors.push(...errors);
       this.errorCodes.add(SchemaValidationErrors.SchemaNameCollisions);
     }
 
