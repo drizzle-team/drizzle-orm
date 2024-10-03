@@ -2451,7 +2451,7 @@ export const applySqliteSnapshotsDiff = async (
 	for (const alteredView of alteredViews) {
 		const { definition } = json2.views[alteredView.name];
 
-		if (alteredView.alteredDefinition && action !== 'push') {
+		if (alteredView.alteredExisting || (alteredView.alteredDefinition && action !== 'push')) {
 			dropViews.push(prepareDropViewJson(alteredView.name));
 
 			createViews.push(
@@ -2957,7 +2957,7 @@ export const applyLibSQLSnapshotsDiff = async (
 	for (const alteredView of alteredViews) {
 		const { definition } = json2.views[alteredView.name];
 
-		if (alteredView.alteredDefinition && action !== 'push') {
+		if (alteredView.alteredExisting || (alteredView.alteredDefinition && action !== 'push')) {
 			dropViews.push(prepareDropViewJson(alteredView.name));
 
 			createViews.push(
