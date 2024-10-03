@@ -1,6 +1,8 @@
 import { is } from 'drizzle-orm';
 import { AnyPgTable, isPgEnum, isPgSequence, PgEnum, PgMaterializedView, PgSchema, PgSequence, PgTable, PgView } from 'drizzle-orm/pg-core';
 import { safeRegister } from '../cli/commands/utils';
+import { printValidationErrors, validatePgSchema } from 'src/validate-schema/validate';
+import { CasingType } from 'src/cli/validations/common';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyPgTable[] = [];
@@ -40,11 +42,13 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 	return { tables, enums, schemas, sequences, views, materializedViews };
 };
 
-export const prepareFromPgImports = async (imports: string[]) => {
+export const prepareFromPgImports = async (imports: string[], casing: CasingType | undefined,) => {
 	let tables: AnyPgTable[] = [];
 	let enums: PgEnum<any>[] = [];
 	let schemas: PgSchema[] = [];
 	let sequences: PgSequence[] = [];
+	let views: PgView[] = [];
+	let materializedViews: PgMaterializedView[] = [];
 
 	const { unregister } = await safeRegister();
 	for (let i = 0; i < imports.length; i++) {
@@ -57,8 +61,16 @@ export const prepareFromPgImports = async (imports: string[]) => {
 		enums.push(...prepared.enums);
 		schemas.push(...prepared.schemas);
 		sequences.push(...prepared.sequences);
+		views.push(...prepared.views);
+		materializedViews.push(...prepared.materializedViews);
 	}
 	unregister();
+
+	const errors = validatePgSchema(casing, schemas, tables, views, materializedViews, enums, sequences);
+	if (errors.messages.length > 0) {
+		printValidationErrors(errors.messages);
+		process.exit(1);
+	}
 
 	return { tables: Array.from(new Set(tables)), enums, schemas, sequences };
 };

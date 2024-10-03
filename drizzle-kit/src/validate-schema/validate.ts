@@ -12,20 +12,12 @@ import { indexName as mysqlIndexName } from 'src/serializer/mysqlSerializer';
 import { render } from 'hanji';
 import { ValidationError } from './errors';
 
-export function printValidationErrors(errors: ValidationError[], exitOnError: boolean) {
+export function printValidationErrors(errors: ValidationError[]) {
   for (const { message, hint } of errors) {
     console.log(`${chalk.bgRed.bold(' Error ')} ${chalk.red(`${message}.`)}\n${chalk.underline.dim('Hint')}${chalk.dim(': ')}${chalk.dim(`${hint}.`)}\n`);
   }
 
-  if (errors.length === 0) {
-    render(`[${chalk.green('✓')}] Schema is valid`);
-  } else {
-    render(`[${chalk.red('x')}] Found ${errors.length} error${errors.length > 1 ? 's' : ''} in your schema`);
-  }
-
-  if (exitOnError && errors.length > 0) {
-    process.exit(1);
-  }
+  render(`[${chalk.red('x')}] Found ${errors.length} error${errors.length > 1 ? 's' : ''} in your schema`);
 }
 
 export function validatePgSchema(
