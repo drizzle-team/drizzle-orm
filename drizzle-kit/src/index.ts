@@ -117,7 +117,7 @@ export type Config =
 		schema?: string | string[];
 		verbose?: boolean;
 		strict?: boolean;
-		casing?: 'camel' | 'snake';
+		casing?: 'camelCase' | 'snake_case';
 		migrations?: {
 			table?: string;
 			schema?: string;
