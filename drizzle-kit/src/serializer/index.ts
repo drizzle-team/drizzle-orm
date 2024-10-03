@@ -68,7 +68,7 @@ export const serializePg = async (
 
 	const { tables, enums, schemas, sequences } = await prepareFromPgImports(
 		filenames,
-		casing
+		casing,
 	);
 
 	return generatePgSnapshot(tables, enums, schemas, sequences, casing, schemaFilter);

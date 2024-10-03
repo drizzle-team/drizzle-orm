@@ -29,7 +29,14 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/pgSchema';
-import { type DB, getColumnCasing, getIdentitySequenceName, getForeignKeyName, getPrimaryKeyName, isPgArrayType } from '../utils';
+import {
+	type DB,
+	getColumnCasing,
+	getForeignKeyName,
+	getIdentitySequenceName,
+	getPrimaryKeyName,
+	isPgArrayType,
+} from '../utils';
 import { sqlToStr } from '.';
 
 export const indexName = (tableName: string, columns: string[]) => {

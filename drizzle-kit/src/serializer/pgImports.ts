@@ -1,8 +1,18 @@
 import { is } from 'drizzle-orm';
-import { AnyPgTable, isPgEnum, isPgSequence, PgEnum, PgMaterializedView, PgSchema, PgSequence, PgTable, PgView } from 'drizzle-orm/pg-core';
-import { safeRegister } from '../cli/commands/utils';
-import { printValidationErrors, validatePgSchema } from 'src/validate-schema/validate';
+import {
+	AnyPgTable,
+	isPgEnum,
+	isPgSequence,
+	PgEnum,
+	PgMaterializedView,
+	PgSchema,
+	PgSequence,
+	PgTable,
+	PgView,
+} from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
+import { printValidationErrors, validatePgSchema } from 'src/validate-schema/validate';
+import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyPgTable[] = [];
@@ -42,7 +52,7 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 	return { tables, enums, schemas, sequences, views, materializedViews };
 };
 
-export const prepareFromPgImports = async (imports: string[], casing: CasingType | undefined,) => {
+export const prepareFromPgImports = async (imports: string[], casing: CasingType | undefined) => {
 	let tables: AnyPgTable[] = [];
 	let enums: PgEnum<any>[] = [];
 	let schemas: PgSchema[] = [];

@@ -1,5 +1,6 @@
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
+import type { Column } from 'drizzle-orm';
 import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -13,7 +14,6 @@ import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';
 import { backwardCompatibleSqliteSchema } from './serializer/sqliteSchema';
 import type { ProxyParams } from './serializer/studio';
-import type { Column } from 'drizzle-orm';
 
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
 
@@ -372,10 +372,13 @@ export function getColumnCasing(
 		: toSnakeCase(column.name);
 }
 
-export function getForeignKeyName(fk: { getName: () => string; reference: () => {
-	columns: Column[];
-	foreignColumns: Column[];
-} }, casing: CasingType | undefined) {
+export function getForeignKeyName(fk: {
+	getName: () => string;
+	reference: () => {
+		columns: Column[];
+		foreignColumns: Column[];
+	};
+}, casing: CasingType | undefined) {
 	let name = fk.getName();
 	const reference = fk.reference();
 	const originalColumnsFrom = reference.columns.map((it) => it.name);

@@ -1,8 +1,8 @@
 import { is } from 'drizzle-orm';
 import { AnyMySqlTable, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
-import { safeRegister } from '../cli/commands/utils';
-import { printValidationErrors, validateMySqlSchema } from 'src/validate-schema/validate';
 import { CasingType } from 'src/cli/validations/common';
+import { printValidationErrors, validateMySqlSchema } from 'src/validate-schema/validate';
+import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyMySqlTable[] = [];
