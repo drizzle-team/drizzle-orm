@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { validateMySqlSchema } from 'src/validate-schema/validate';
-import { foreignKey, index, int, mysqlTable, mysqlView, primaryKey, serial, text, unique } from 'drizzle-orm/mysql-core';
+import { bigint, foreignKey, index, int, mysqlTable, mysqlView, primaryKey, serial, text, unique } from 'drizzle-orm/mysql-core';
 import { prepareFromExports } from 'src/serializer/mysqlImports';
 import { SchemaValidationErrors as Err } from 'src/validate-schema/errors';
 import { sql } from 'drizzle-orm';
@@ -301,6 +301,31 @@ test('foreign key mismatching data types #2', () => {
       columns: [table.c1, table.c2]
     })
   }));
+  const schema = {
+    table1,
+    table2
+  };
+
+  const { tables, views } = prepareFromExports(schema);
+
+  const { messages, codes } = validateMySqlSchema(
+    undefined,
+    tables,
+    views,
+  );
+
+  expect(messages).length(0);
+  expect(codes).not.contains(Err.ForeignKeyMismatchingDataTypes);
+});
+
+test('foreign key mismatching data types #3', () => {
+  const table1 = mysqlTable('test1', {
+    id: serial().primaryKey(),
+  });
+  const table2 = mysqlTable('test2', {
+    id: serial().primaryKey(),
+    table1Id: bigint({ mode: 'number', unsigned: true }).notNull().references(() => table1.id),
+  });
   const schema = {
     table1,
     table2

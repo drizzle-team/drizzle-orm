@@ -689,6 +689,35 @@ test('foreign key mismatching data types #2', () => {
   expect(codes).not.contains(Err.ForeignKeyMismatchingDataTypes);
 });
 
+test('foreign key mismatching data types #3', () => {
+  const table1 = pgTable('test1', {
+    id: serial().primaryKey(),
+  });
+  const table2 = pgTable('test2', {
+    id: serial().primaryKey(),
+    table1Id: integer().notNull().references(() => table1.id),
+  });
+  const schema = {
+    table1,
+    table2
+  };
+
+  const { schemas, enums, tables, sequences, views, materializedViews } = prepareFromExports(schema);
+
+  const { messages, codes } = validatePgSchema(
+    undefined,
+    schemas,
+    tables,
+    views,
+    materializedViews,
+    enums,
+    sequences
+  );
+
+  expect(messages).length(0);
+  expect(codes).not.contains(Err.ForeignKeyMismatchingDataTypes);
+});
+
 test('foreign key columns mixing tables #1', () => {
   const table1 = pgTable('test1', {
     id: serial().primaryKey(),

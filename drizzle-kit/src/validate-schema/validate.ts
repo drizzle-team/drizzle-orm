@@ -242,7 +242,7 @@ export function validatePgSchema(
         .validateForeignKey(foreignKey.name)
         .columnsMixingTables(foreignKey)
         .mismatchingColumnCount(foreignKey)
-        .mismatchingDataTypes(foreignKey);
+        .mismatchingDataTypes(foreignKey, 'pg');
     }
 
     for (const primaryKey of schema.primaryKeys) {
@@ -434,7 +434,7 @@ export function validateMySqlSchema(
       .validateForeignKey(foreignKey.name)
       .columnsMixingTables(foreignKey)
       .mismatchingColumnCount(foreignKey)
-      .mismatchingDataTypes(foreignKey);
+      .mismatchingDataTypes(foreignKey, 'mysql');
   }
 
   for (const primaryKey of group.primaryKeys) {
