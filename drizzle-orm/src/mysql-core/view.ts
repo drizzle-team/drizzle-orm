@@ -14,7 +14,6 @@ import { MySqlViewConfig } from './view-common.ts';
 
 export interface ViewBuilderConfig {
 	algorithm?: 'undefined' | 'merge' | 'temptable';
-	definer?: string;
 	sqlSecurity?: 'definer' | 'invoker';
 	withCheckOption?: 'cascaded' | 'local';
 }
@@ -38,13 +37,6 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 		algorithm: Exclude<ViewBuilderConfig['algorithm'], undefined>,
 	): this {
 		this.config.algorithm = algorithm;
-		return this;
-	}
-
-	definer(
-		definer: Exclude<ViewBuilderConfig['definer'], undefined>,
-	): this {
-		this.config.definer = definer;
 		return this;
 	}
 

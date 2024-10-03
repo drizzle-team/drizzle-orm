@@ -111,6 +111,20 @@ export const schemaToTypeScript = (
 		{ sqlite: [] as string[] },
 	);
 
+	Object.values(schema.views).forEach((it) => {
+		imports.sqlite.push('sqliteView');
+
+		const columnImports = Object.values(it.columns)
+			.map((col) => {
+				return col.type;
+			})
+			.filter((type) => {
+				return sqliteImportsList.has(type);
+			});
+
+		imports.sqlite.push(...columnImports);
+	});
+
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const func = 'sqliteTable';
 		let statement = '';
@@ -166,6 +180,30 @@ export const schemaToTypeScript = (
 		return statement;
 	});
 
+	const viewsStatements = Object.values(schema.views).map((view) => {
+		const func = 'sqliteView';
+
+		let statement = '';
+		if (imports.sqlite.includes(withCasing(view.name, casing))) {
+			statement = `// Table name is in conflict with ${
+				withCasing(
+					view.name,
+					casing,
+				)
+			} import.\n// Please change to any other name, that is not in imports list\n`;
+		}
+		statement += `export const ${withCasing(view.name, casing)} = ${func}("${view.name}", {\n`;
+		statement += createTableColumns(
+			Object.values(view.columns),
+			[],
+			casing,
+		);
+		statement += '})';
+		statement += `.as(sql\`${view.definition?.replaceAll('`', '\\`')}\`);`;
+
+		return statement;
+	});
+
 	const uniqueSqliteImports = [
 		'sqliteTable',
 		'AnySQLiteColumn',
@@ -179,7 +217,9 @@ export const schemaToTypeScript = (
 	} } from "drizzle-orm/sqlite-core"
   import { sql } from "drizzle-orm"\n\n`;
 
-	const decalrations = tableStatements.join('\n\n');
+	let decalrations = tableStatements.join('\n\n');
+	decalrations += '\n\n';
+	decalrations += viewsStatements.join('\n\n');
 
 	const file = importsTs + decalrations;
 

@@ -220,6 +220,48 @@ const uniqueConstraint = object({
 	nullsNotDistinct: boolean(),
 }).strict();
 
+const viewWithOption = object({
+	checkOption: enumType(['local', 'cascaded']).optional(),
+	securityBarrier: boolean().optional(),
+	securityInvoker: boolean().optional(),
+}).strict();
+
+const matViewWithOption = object({
+	fillfactor: number().optional(),
+	toastTupleTarget: number().optional(),
+	parallelWorkers: number().optional(),
+	autovacuumEnabled: boolean().optional(),
+	vacuumIndexCleanup: enumType(['auto', 'off', 'on']).optional(),
+	vacuumTruncate: boolean().optional(),
+	autovacuumVacuumThreshold: number().optional(),
+	autovacuumVacuumScaleFactor: number().optional(),
+	autovacuumVacuumCostDelay: number().optional(),
+	autovacuumVacuumCostLimit: number().optional(),
+	autovacuumFreezeMinAge: number().optional(),
+	autovacuumFreezeMaxAge: number().optional(),
+	autovacuumFreezeTableAge: number().optional(),
+	autovacuumMultixactFreezeMinAge: number().optional(),
+	autovacuumMultixactFreezeMaxAge: number().optional(),
+	autovacuumMultixactFreezeTableAge: number().optional(),
+	logAutovacuumMinDuration: number().optional(),
+	userCatalogTable: boolean().optional(),
+}).strict();
+
+export const mergedViewWithOption = viewWithOption.merge(matViewWithOption).strict();
+
+export const view = object({
+	name: string(),
+	schema: string(),
+	columns: record(string(), column),
+	definition: string().optional(),
+	materialized: boolean(),
+	with: mergedViewWithOption.optional(),
+	isExisting: boolean(),
+	withNoData: boolean().optional(),
+	using: string().optional(),
+	tablespace: string().optional(),
+}).strict();
+
 const tableV4 = object({
 	name: string(),
 	schema: string(),
@@ -368,6 +410,7 @@ export const pgSchemaInternal = object({
 	tables: record(string(), table),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
+	views: record(string(), view).default({}),
 	sequences: record(string(), sequenceSchema).default({}),
 	_meta: object({
 		schemas: record(string(), string()),
@@ -417,6 +460,7 @@ export const pgSchemaSquashed = object({
 	tables: record(string(), tableSquashed),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
+	views: record(string(), view),
 	sequences: record(string(), sequenceSquashed),
 }).strict();
 
@@ -445,6 +489,10 @@ export type Index = TypeOf<typeof index>;
 export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
+export type View = TypeOf<typeof view>;
+export type MatViewWithOption = TypeOf<typeof matViewWithOption>;
+export type ViewWithOption = TypeOf<typeof viewWithOption>;
+
 export type PgKitInternals = TypeOf<typeof kitInternals>;
 
 export type PgSchemaV1 = TypeOf<typeof pgSchemaV1>;
@@ -705,6 +753,7 @@ export const squashPgScheme = (
 		tables: mappedTables,
 		enums: json.enums,
 		schemas: json.schemas,
+		views: json.views,
 		sequences: mappedSequences,
 	};
 };

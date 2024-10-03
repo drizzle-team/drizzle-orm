@@ -1,14 +1,16 @@
 import { randomUUID } from 'crypto';
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import {
 	columnsResolver,
 	enumsResolver,
+	mySqlViewsResolver,
 	schemasResolver,
 	sequencesResolver,
+	sqliteViewsResolver,
 	tablesResolver,
+	viewsResolver,
 } from './cli/commands/migrate';
 import { pgPushIntrospect } from './cli/commands/pgIntrospect';
 import { pgSuggestions } from './cli/commands/pgPushUtils';
@@ -43,6 +45,8 @@ export const generateDrizzleJson = (
 		prepared.enums,
 		prepared.schemas,
 		prepared.sequences,
+		prepared.views,
+		prepared.matViews,
 		schemaFilters,
 	);
 
@@ -73,6 +77,7 @@ export const generateMigration = async (
 		sequencesResolver,
 		tablesResolver,
 		columnsResolver,
+		viewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -116,6 +121,7 @@ export const pushSchema = async (
 		sequencesResolver,
 		tablesResolver,
 		columnsResolver,
+		viewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -147,7 +153,7 @@ export const generateSQLiteDrizzleJson = async (
 
 	const id = randomUUID();
 
-	const snapshot = generateSqliteSnapshot(prepared.tables);
+	const snapshot = generateSqliteSnapshot(prepared.tables, prepared.views);
 
 	return {
 		...snapshot,
@@ -173,6 +179,7 @@ export const generateSQLiteMigration = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -213,6 +220,7 @@ export const pushSQLiteSchema = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -250,7 +258,7 @@ export const generateMySQLDrizzleJson = async (
 
 	const id = randomUUID();
 
-	const snapshot = generateMySqlSnapshot(prepared.tables);
+	const snapshot = generateMySqlSnapshot(prepared.tables, prepared.views);
 
 	return {
 		...snapshot,
@@ -276,6 +284,7 @@ export const generateMySQLMigration = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		mySqlViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -317,6 +326,7 @@ export const pushMySQLSchema = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		mySqlViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',

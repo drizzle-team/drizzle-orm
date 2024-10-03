@@ -13,9 +13,11 @@ import {
 	jsonb,
 	numeric,
 	pgEnum,
+	pgMaterializedView,
 	pgSchema,
 	pgSequence,
 	pgTable,
+	pgView,
 	real,
 	serial,
 	smallint,
@@ -28,10 +30,10 @@ import {
 	vector,
 } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/pglite';
-import { SQL, sql } from 'drizzle-orm/sql';
+import { eq, SQL, sql } from 'drizzle-orm/sql';
 import { pgSuggestions } from 'src/cli/commands/pgPushUtils';
 import { diffTestSchemasPush } from 'tests/schemaDiffer';
-import { afterEach, expect, test } from 'vitest';
+import { expect, test } from 'vitest';
 import { DialectSuite, run } from './common';
 
 const pgSuite: DialectSuite = {
@@ -2235,4 +2237,336 @@ test('add array column - default', async () => {
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
 	]);
+});
+
+test('create view', async () => {
+	const client = new PGlite();
+
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			definition: 'select distinct "id" from "test"',
+			name: 'view',
+			schema: 'public',
+			type: 'create_view',
+			with: undefined,
+			materialized: false,
+			tablespace: undefined,
+			using: undefined,
+			withNoData: false,
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE VIEW "public"."view" AS (select distinct "id" from "test");',
+	]);
+});
+
+test('create materialized view', async () => {
+	const client = new PGlite();
+
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgMaterializedView('view').withNoData().using('heap').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			definition: 'select distinct "id" from "test"',
+			name: 'view',
+			schema: 'public',
+			type: 'create_view',
+			with: undefined,
+			materialized: true,
+			tablespace: undefined,
+			using: 'heap',
+			withNoData: true,
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE MATERIALIZED VIEW "public"."view" USING "heap" AS (select distinct "id" from "test") WITH NO DATA;',
+	]);
+});
+
+test('drop view', async () => {
+	const client = new PGlite();
+
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			name: 'view',
+			schema: 'public',
+			type: 'drop_view',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'DROP VIEW "public"."view";',
+	]);
+});
+
+test('drop materialized view', async () => {
+	const client = new PGlite();
+
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			name: 'view',
+			schema: 'public',
+			type: 'drop_view',
+			materialized: true,
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'DROP MATERIALIZED VIEW "public"."view";',
+	]);
+});
+
+test('push view with same name', async () => {
+	const client = new PGlite();
+
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgView('view').as((qb) => qb.selectDistinct().from(table).where(eq(table.id, 1))),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('push materialized view with same name', async () => {
+	const client = new PGlite();
+
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table).where(eq(table.id, 1))),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('add with options for materialized view', async () => {
+	const client = new PGlite();
+
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgMaterializedView('view').with({ autovacuumFreezeTableAge: 1, autovacuumEnabled: false }).as((qb) =>
+			qb.selectDistinct().from(table)
+		),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		name: 'view',
+		schema: 'public',
+		type: 'alter_view_add_with_option',
+		with: {
+			autovacuumFreezeTableAge: 1,
+			autovacuumEnabled: false,
+		},
+		materialized: true,
+	});
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER MATERIALIZED VIEW "public"."view" SET (autovacuum_enabled = false, autovacuum_freeze_table_age = 1);`,
+	);
+});
+
+test('add with options to materialized', async () => {
+	const client = new PGlite();
+
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgMaterializedView('view').with({ autovacuumVacuumCostDelay: 100, vacuumTruncate: false }).as((qb) =>
+			qb.selectDistinct().from(table)
+		),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		name: 'view',
+		schema: 'public',
+		type: 'alter_view_add_with_option',
+		with: {
+			autovacuumVacuumCostDelay: 100,
+			vacuumTruncate: false,
+		},
+		materialized: true,
+	});
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER MATERIALIZED VIEW "public"."view" SET (vacuum_truncate = false, autovacuum_vacuum_cost_delay = 100);`,
+	);
+});
+
+test('add with options to materialized with existing flag', async () => {
+	const client = new PGlite();
+
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view', {}).as(sql`SELECT '123'`),
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgMaterializedView('view', {}).with({ autovacuumVacuumCostDelay: 100, vacuumTruncate: false }).existing(),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
 });
