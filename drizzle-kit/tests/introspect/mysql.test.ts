@@ -192,7 +192,7 @@ test('view #1', async () => {
 });
 
 test('view #2', async () => {
-	const users = mysqlTable('users', { id: int('id') });
+	const users = mysqlTable('some_users', { id: int('id') });
 	const testView = mysqlView('some_view', { id: int('id') }).algorithm('temptable').sqlSecurity('definer').as(
 		sql`SELECT * FROM ${users}`,
 	);
@@ -213,5 +213,5 @@ test('view #2', async () => {
 	expect(sqlStatements.length).toBe(0);
 
 	await client.query(`drop view some_view;`);
-	await client.query(`drop table users;`);
+	await client.query(`drop table some_users;`);
 });

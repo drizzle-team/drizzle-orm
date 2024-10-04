@@ -4,6 +4,7 @@ import { Database } from 'better-sqlite3';
 import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import {
+	getMaterializedViewConfig,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
@@ -30,6 +31,7 @@ import {
 	tablesResolver,
 	viewsResolver,
 } from 'src/cli/commands/migrate';
+import { pgSuggestions } from 'src/cli/commands/pgPushUtils';
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
@@ -71,11 +73,7 @@ export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
 export const testSchemasResolver =
 	(renames: Set<string>) => async (input: ResolverInput<Named>): Promise<ResolverOutput<Named>> => {
 		try {
-			if (
-				input.created.length === 0
-				|| input.deleted.length === 0
-				|| renames.size === 0
-			) {
+			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
 				return {
 					created: input.created,
 					renamed: [],
@@ -127,517 +125,476 @@ export const testSchemasResolver =
 		}
 	};
 
-export const testSequencesResolver = (renames: Set<string>) =>
-async (
-	input: ResolverInput<Sequence>,
-): Promise<ResolverOutputWithMoved<Sequence>> => {
-	try {
-		if (
-			input.created.length === 0
-			|| input.deleted.length === 0
-			|| renames.size === 0
-		) {
-			return {
-				created: input.created,
-				moved: [],
-				renamed: [],
-				deleted: input.deleted,
-			};
-		}
+export const testSequencesResolver =
+	(renames: Set<string>) => async (input: ResolverInput<Sequence>): Promise<ResolverOutputWithMoved<Sequence>> => {
+		try {
+			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
+				return {
+					created: input.created,
+					moved: [],
+					renamed: [],
+					deleted: input.deleted,
+				};
+			}
 
-		let createdSequences = [...input.created];
-		let deletedSequences = [...input.deleted];
+			let createdSequences = [...input.created];
+			let deletedSequences = [...input.deleted];
 
-		const result: {
-			created: Sequence[];
-			moved: { name: string; schemaFrom: string; schemaTo: string }[];
-			renamed: { from: Sequence; to: Sequence }[];
-			deleted: Sequence[];
-		} = { created: [], renamed: [], deleted: [], moved: [] };
+			const result: {
+				created: Sequence[];
+				moved: { name: string; schemaFrom: string; schemaTo: string }[];
+				renamed: { from: Sequence; to: Sequence }[];
+				deleted: Sequence[];
+			} = { created: [], renamed: [], deleted: [], moved: [] };
 
-		for (let rename of renames) {
-			const [from, to] = rename.split('->');
+			for (let rename of renames) {
+				const [from, to] = rename.split('->');
 
-			const idxFrom = deletedSequences.findIndex((it) => {
-				return `${it.schema || 'public'}.${it.name}` === from;
-			});
-
-			if (idxFrom >= 0) {
-				const idxTo = createdSequences.findIndex((it) => {
-					return `${it.schema || 'public'}.${it.name}` === to;
+				const idxFrom = deletedSequences.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === from;
 				});
 
-				const tableFrom = deletedSequences[idxFrom];
-				const tableTo = createdSequences[idxFrom];
-
-				if (tableFrom.schema !== tableTo.schema) {
-					result.moved.push({
-						name: tableFrom.name,
-						schemaFrom: tableFrom.schema,
-						schemaTo: tableTo.schema,
+				if (idxFrom >= 0) {
+					const idxTo = createdSequences.findIndex((it) => {
+						return `${it.schema || 'public'}.${it.name}` === to;
 					});
+
+					const tableFrom = deletedSequences[idxFrom];
+					const tableTo = createdSequences[idxFrom];
+
+					if (tableFrom.schema !== tableTo.schema) {
+						result.moved.push({
+							name: tableFrom.name,
+							schemaFrom: tableFrom.schema,
+							schemaTo: tableTo.schema,
+						});
+					}
+
+					if (tableFrom.name !== tableTo.name) {
+						result.renamed.push({
+							from: deletedSequences[idxFrom],
+							to: createdSequences[idxTo],
+						});
+					}
+
+					delete createdSequences[idxTo];
+					delete deletedSequences[idxFrom];
+
+					createdSequences = createdSequences.filter(Boolean);
+					deletedSequences = deletedSequences.filter(Boolean);
 				}
-
-				if (tableFrom.name !== tableTo.name) {
-					result.renamed.push({
-						from: deletedSequences[idxFrom],
-						to: createdSequences[idxTo],
-					});
-				}
-
-				delete createdSequences[idxTo];
-				delete deletedSequences[idxFrom];
-
-				createdSequences = createdSequences.filter(Boolean);
-				deletedSequences = deletedSequences.filter(Boolean);
 			}
+
+			result.created = createdSequences;
+			result.deleted = deletedSequences;
+
+			return result;
+		} catch (e) {
+			console.error(e);
+			throw e;
 		}
+	};
 
-		result.created = createdSequences;
-		result.deleted = deletedSequences;
+export const testEnumsResolver =
+	(renames: Set<string>) => async (input: ResolverInput<Enum>): Promise<ResolverOutputWithMoved<Enum>> => {
+		try {
+			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
+				return {
+					created: input.created,
+					moved: [],
+					renamed: [],
+					deleted: input.deleted,
+				};
+			}
 
-		return result;
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-};
+			let createdEnums = [...input.created];
+			let deletedEnums = [...input.deleted];
 
-export const testEnumsResolver = (renames: Set<string>) =>
-async (
-	input: ResolverInput<Enum>,
-): Promise<ResolverOutputWithMoved<Enum>> => {
-	try {
-		if (
-			input.created.length === 0
-			|| input.deleted.length === 0
-			|| renames.size === 0
-		) {
-			return {
-				created: input.created,
-				moved: [],
-				renamed: [],
-				deleted: input.deleted,
-			};
-		}
+			const result: {
+				created: Enum[];
+				moved: { name: string; schemaFrom: string; schemaTo: string }[];
+				renamed: { from: Enum; to: Enum }[];
+				deleted: Enum[];
+			} = { created: [], renamed: [], deleted: [], moved: [] };
 
-		let createdEnums = [...input.created];
-		let deletedEnums = [...input.deleted];
+			for (let rename of renames) {
+				const [from, to] = rename.split('->');
 
-		const result: {
-			created: Enum[];
-			moved: { name: string; schemaFrom: string; schemaTo: string }[];
-			renamed: { from: Enum; to: Enum }[];
-			deleted: Enum[];
-		} = { created: [], renamed: [], deleted: [], moved: [] };
-
-		for (let rename of renames) {
-			const [from, to] = rename.split('->');
-
-			const idxFrom = deletedEnums.findIndex((it) => {
-				return `${it.schema || 'public'}.${it.name}` === from;
-			});
-
-			if (idxFrom >= 0) {
-				const idxTo = createdEnums.findIndex((it) => {
-					return `${it.schema || 'public'}.${it.name}` === to;
+				const idxFrom = deletedEnums.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === from;
 				});
 
-				const tableFrom = deletedEnums[idxFrom];
-				const tableTo = createdEnums[idxFrom];
-
-				if (tableFrom.schema !== tableTo.schema) {
-					result.moved.push({
-						name: tableFrom.name,
-						schemaFrom: tableFrom.schema,
-						schemaTo: tableTo.schema,
+				if (idxFrom >= 0) {
+					const idxTo = createdEnums.findIndex((it) => {
+						return `${it.schema || 'public'}.${it.name}` === to;
 					});
+
+					const tableFrom = deletedEnums[idxFrom];
+					const tableTo = createdEnums[idxFrom];
+
+					if (tableFrom.schema !== tableTo.schema) {
+						result.moved.push({
+							name: tableFrom.name,
+							schemaFrom: tableFrom.schema,
+							schemaTo: tableTo.schema,
+						});
+					}
+
+					if (tableFrom.name !== tableTo.name) {
+						result.renamed.push({
+							from: deletedEnums[idxFrom],
+							to: createdEnums[idxTo],
+						});
+					}
+
+					delete createdEnums[idxTo];
+					delete deletedEnums[idxFrom];
+
+					createdEnums = createdEnums.filter(Boolean);
+					deletedEnums = deletedEnums.filter(Boolean);
 				}
-
-				if (tableFrom.name !== tableTo.name) {
-					result.renamed.push({
-						from: deletedEnums[idxFrom],
-						to: createdEnums[idxTo],
-					});
-				}
-
-				delete createdEnums[idxTo];
-				delete deletedEnums[idxFrom];
-
-				createdEnums = createdEnums.filter(Boolean);
-				deletedEnums = deletedEnums.filter(Boolean);
 			}
+
+			result.created = createdEnums;
+			result.deleted = deletedEnums;
+
+			return result;
+		} catch (e) {
+			console.error(e);
+			throw e;
 		}
+	};
 
-		result.created = createdEnums;
-		result.deleted = deletedEnums;
+export const testTablesResolver =
+	(renames: Set<string>) => async (input: ResolverInput<Table>): Promise<ResolverOutputWithMoved<Table>> => {
+		try {
+			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
+				return {
+					created: input.created,
+					moved: [],
+					renamed: [],
+					deleted: input.deleted,
+				};
+			}
 
-		return result;
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-};
+			let createdTables = [...input.created];
+			let deletedTables = [...input.deleted];
 
-export const testTablesResolver = (renames: Set<string>) =>
-async (
-	input: ResolverInput<Table>,
-): Promise<ResolverOutputWithMoved<Table>> => {
-	try {
-		if (
-			input.created.length === 0
-			|| input.deleted.length === 0
-			|| renames.size === 0
-		) {
-			return {
-				created: input.created,
-				moved: [],
-				renamed: [],
-				deleted: input.deleted,
-			};
-		}
+			const result: {
+				created: Table[];
+				moved: { name: string; schemaFrom: string; schemaTo: string }[];
+				renamed: { from: Table; to: Table }[];
+				deleted: Table[];
+			} = { created: [], renamed: [], deleted: [], moved: [] };
 
-		let createdTables = [...input.created];
-		let deletedTables = [...input.deleted];
+			for (let rename of renames) {
+				const [from, to] = rename.split('->');
 
-		const result: {
-			created: Table[];
-			moved: { name: string; schemaFrom: string; schemaTo: string }[];
-			renamed: { from: Table; to: Table }[];
-			deleted: Table[];
-		} = { created: [], renamed: [], deleted: [], moved: [] };
-
-		for (let rename of renames) {
-			const [from, to] = rename.split('->');
-
-			const idxFrom = deletedTables.findIndex((it) => {
-				return `${it.schema || 'public'}.${it.name}` === from;
-			});
-
-			if (idxFrom >= 0) {
-				const idxTo = createdTables.findIndex((it) => {
-					return `${it.schema || 'public'}.${it.name}` === to;
+				const idxFrom = deletedTables.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === from;
 				});
 
-				const tableFrom = deletedTables[idxFrom];
-				const tableTo = createdTables[idxFrom];
-
-				if (tableFrom.schema !== tableTo.schema) {
-					result.moved.push({
-						name: tableFrom.name,
-						schemaFrom: tableFrom.schema,
-						schemaTo: tableTo.schema,
+				if (idxFrom >= 0) {
+					const idxTo = createdTables.findIndex((it) => {
+						return `${it.schema || 'public'}.${it.name}` === to;
 					});
+
+					const tableFrom = deletedTables[idxFrom];
+					const tableTo = createdTables[idxFrom];
+
+					if (tableFrom.schema !== tableTo.schema) {
+						result.moved.push({
+							name: tableFrom.name,
+							schemaFrom: tableFrom.schema,
+							schemaTo: tableTo.schema,
+						});
+					}
+
+					if (tableFrom.name !== tableTo.name) {
+						result.renamed.push({
+							from: deletedTables[idxFrom],
+							to: createdTables[idxTo],
+						});
+					}
+
+					delete createdTables[idxTo];
+					delete deletedTables[idxFrom];
+
+					createdTables = createdTables.filter(Boolean);
+					deletedTables = deletedTables.filter(Boolean);
 				}
-
-				if (tableFrom.name !== tableTo.name) {
-					result.renamed.push({
-						from: deletedTables[idxFrom],
-						to: createdTables[idxTo],
-					});
-				}
-
-				delete createdTables[idxTo];
-				delete deletedTables[idxFrom];
-
-				createdTables = createdTables.filter(Boolean);
-				deletedTables = deletedTables.filter(Boolean);
 			}
+
+			result.created = createdTables;
+			result.deleted = deletedTables;
+
+			return result;
+		} catch (e) {
+			console.error(e);
+			throw e;
 		}
+	};
 
-		result.created = createdTables;
-		result.deleted = deletedTables;
+export const testColumnsResolver =
+	(renames: Set<string>) => async (input: ColumnsResolverInput<Column>): Promise<ColumnsResolverOutput<Column>> => {
+		try {
+			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
+				return {
+					tableName: input.tableName,
+					schema: input.schema,
+					created: input.created,
+					renamed: [],
+					deleted: input.deleted,
+				};
+			}
 
-		return result;
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-};
+			let createdColumns = [...input.created];
+			let deletedColumns = [...input.deleted];
 
-export const testColumnsResolver = (renames: Set<string>) =>
-async (
-	input: ColumnsResolverInput<Column>,
-): Promise<ColumnsResolverOutput<Column>> => {
-	try {
-		if (
-			input.created.length === 0
-			|| input.deleted.length === 0
-			|| renames.size === 0
-		) {
+			const renamed: { from: Column; to: Column }[] = [];
+
+			const schema = input.schema || 'public';
+
+			for (let rename of renames) {
+				const [from, to] = rename.split('->');
+
+				const idxFrom = deletedColumns.findIndex((it) => {
+					return `${schema}.${input.tableName}.${it.name}` === from;
+				});
+
+				if (idxFrom >= 0) {
+					const idxTo = createdColumns.findIndex((it) => {
+						return `${schema}.${input.tableName}.${it.name}` === to;
+					});
+
+					renamed.push({
+						from: deletedColumns[idxFrom],
+						to: createdColumns[idxTo],
+					});
+
+					delete createdColumns[idxTo];
+					delete deletedColumns[idxFrom];
+
+					createdColumns = createdColumns.filter(Boolean);
+					deletedColumns = deletedColumns.filter(Boolean);
+				}
+			}
+
 			return {
 				tableName: input.tableName,
 				schema: input.schema,
-				created: input.created,
-				renamed: [],
-				deleted: input.deleted,
+				created: createdColumns,
+				deleted: deletedColumns,
+				renamed,
 			};
+		} catch (e) {
+			console.error(e);
+			throw e;
 		}
+	};
 
-		let createdColumns = [...input.created];
-		let deletedColumns = [...input.deleted];
-
-		const renamed: { from: Column; to: Column }[] = [];
-
-		const schema = input.schema || 'public';
-
-		for (let rename of renames) {
-			const [from, to] = rename.split('->');
-
-			const idxFrom = deletedColumns.findIndex((it) => {
-				return `${schema}.${input.tableName}.${it.name}` === from;
-			});
-
-			if (idxFrom >= 0) {
-				const idxTo = createdColumns.findIndex((it) => {
-					return `${schema}.${input.tableName}.${it.name}` === to;
-				});
-
-				renamed.push({
-					from: deletedColumns[idxFrom],
-					to: createdColumns[idxTo],
-				});
-
-				delete createdColumns[idxTo];
-				delete deletedColumns[idxFrom];
-
-				createdColumns = createdColumns.filter(Boolean);
-				deletedColumns = deletedColumns.filter(Boolean);
+export const testViewsResolver =
+	(renames: Set<string>) => async (input: ResolverInput<View>): Promise<ResolverOutputWithMoved<View>> => {
+		try {
+			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
+				return {
+					created: input.created,
+					moved: [],
+					renamed: [],
+					deleted: input.deleted,
+				};
 			}
-		}
 
-		return {
-			tableName: input.tableName,
-			schema: input.schema,
-			created: createdColumns,
-			deleted: deletedColumns,
-			renamed,
-		};
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-};
+			let createdViews = [...input.created];
+			let deletedViews = [...input.deleted];
 
-export const testViewsResolver = (renames: Set<string>) =>
-async (
-	input: ResolverInput<View>,
-): Promise<ResolverOutputWithMoved<View>> => {
-	try {
-		if (
-			input.created.length === 0
-			|| input.deleted.length === 0
-			|| renames.size === 0
-		) {
-			return {
-				created: input.created,
-				moved: [],
-				renamed: [],
-				deleted: input.deleted,
-			};
-		}
+			const result: {
+				created: View[];
+				moved: { name: string; schemaFrom: string; schemaTo: string }[];
+				renamed: { from: View; to: View }[];
+				deleted: View[];
+			} = { created: [], renamed: [], deleted: [], moved: [] };
 
-		let createdViews = [...input.created];
-		let deletedViews = [...input.deleted];
+			for (let rename of renames) {
+				const [from, to] = rename.split('->');
 
-		const result: {
-			created: View[];
-			moved: { name: string; schemaFrom: string; schemaTo: string }[];
-			renamed: { from: View; to: View }[];
-			deleted: View[];
-		} = { created: [], renamed: [], deleted: [], moved: [] };
-
-		for (let rename of renames) {
-			const [from, to] = rename.split('->');
-
-			const idxFrom = deletedViews.findIndex((it) => {
-				return `${it.schema || 'public'}.${it.name}` === from;
-			});
-
-			if (idxFrom >= 0) {
-				const idxTo = createdViews.findIndex((it) => {
-					return `${it.schema || 'public'}.${it.name}` === to;
+				const idxFrom = deletedViews.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === from;
 				});
 
-				const viewFrom = deletedViews[idxFrom];
-				const viewTo = createdViews[idxFrom];
-
-				if (viewFrom.schema !== viewTo.schema) {
-					result.moved.push({
-						name: viewFrom.name,
-						schemaFrom: viewFrom.schema,
-						schemaTo: viewTo.schema,
+				if (idxFrom >= 0) {
+					const idxTo = createdViews.findIndex((it) => {
+						return `${it.schema || 'public'}.${it.name}` === to;
 					});
+
+					const viewFrom = deletedViews[idxFrom];
+					const viewTo = createdViews[idxFrom];
+
+					if (viewFrom.schema !== viewTo.schema) {
+						result.moved.push({
+							name: viewFrom.name,
+							schemaFrom: viewFrom.schema,
+							schemaTo: viewTo.schema,
+						});
+					}
+
+					if (viewFrom.name !== viewTo.name) {
+						result.renamed.push({
+							from: deletedViews[idxFrom],
+							to: createdViews[idxTo],
+						});
+					}
+
+					delete createdViews[idxTo];
+					delete deletedViews[idxFrom];
+
+					createdViews = createdViews.filter(Boolean);
+					deletedViews = deletedViews.filter(Boolean);
 				}
-
-				if (viewFrom.name !== viewTo.name) {
-					result.renamed.push({
-						from: deletedViews[idxFrom],
-						to: createdViews[idxTo],
-					});
-				}
-
-				delete createdViews[idxTo];
-				delete deletedViews[idxFrom];
-
-				createdViews = createdViews.filter(Boolean);
-				deletedViews = deletedViews.filter(Boolean);
 			}
+
+			result.created = createdViews;
+			result.deleted = deletedViews;
+
+			return result;
+		} catch (e) {
+			console.error(e);
+			throw e;
 		}
+	};
 
-		result.created = createdViews;
-		result.deleted = deletedViews;
+export const testViewsResolverMySql =
+	(renames: Set<string>) =>
+	async (input: ResolverInput<ViewSquashed & { schema: '' }>): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+		try {
+			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
+				return {
+					created: input.created,
+					moved: [],
+					renamed: [],
+					deleted: input.deleted,
+				};
+			}
 
-		return result;
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-};
+			let createdViews = [...input.created];
+			let deletedViews = [...input.deleted];
 
-export const testViewsResolverMySql = (renames: Set<string>) =>
-async (
-	input: ResolverInput<ViewSquashed & { schema: '' }>,
-): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
-	try {
-		if (
-			input.created.length === 0
-			|| input.deleted.length === 0
-			|| renames.size === 0
-		) {
-			return {
-				created: input.created,
-				moved: [],
-				renamed: [],
-				deleted: input.deleted,
-			};
-		}
+			const result: {
+				created: ViewSquashed[];
+				moved: { name: string; schemaFrom: string; schemaTo: string }[];
+				renamed: { from: ViewSquashed; to: ViewSquashed }[];
+				deleted: ViewSquashed[];
+			} = { created: [], renamed: [], deleted: [], moved: [] };
 
-		let createdViews = [...input.created];
-		let deletedViews = [...input.deleted];
+			for (let rename of renames) {
+				const [from, to] = rename.split('->');
 
-		const result: {
-			created: ViewSquashed[];
-			moved: { name: string; schemaFrom: string; schemaTo: string }[];
-			renamed: { from: ViewSquashed; to: ViewSquashed }[];
-			deleted: ViewSquashed[];
-		} = { created: [], renamed: [], deleted: [], moved: [] };
-
-		for (let rename of renames) {
-			const [from, to] = rename.split('->');
-
-			const idxFrom = deletedViews.findIndex((it) => {
-				return `${it.schema || 'public'}.${it.name}` === from;
-			});
-
-			if (idxFrom >= 0) {
-				const idxTo = createdViews.findIndex((it) => {
-					return `${it.schema || 'public'}.${it.name}` === to;
+				const idxFrom = deletedViews.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === from;
 				});
 
-				const viewFrom = deletedViews[idxFrom];
-				const viewTo = createdViews[idxFrom];
-
-				if (viewFrom.schema !== viewTo.schema) {
-					result.moved.push({
-						name: viewFrom.name,
-						schemaFrom: viewFrom.schema,
-						schemaTo: viewTo.schema,
+				if (idxFrom >= 0) {
+					const idxTo = createdViews.findIndex((it) => {
+						return `${it.schema || 'public'}.${it.name}` === to;
 					});
+
+					const viewFrom = deletedViews[idxFrom];
+					const viewTo = createdViews[idxFrom];
+
+					if (viewFrom.schema !== viewTo.schema) {
+						result.moved.push({
+							name: viewFrom.name,
+							schemaFrom: viewFrom.schema,
+							schemaTo: viewTo.schema,
+						});
+					}
+
+					if (viewFrom.name !== viewTo.name) {
+						result.renamed.push({
+							from: deletedViews[idxFrom],
+							to: createdViews[idxTo],
+						});
+					}
+
+					delete createdViews[idxTo];
+					delete deletedViews[idxFrom];
+
+					createdViews = createdViews.filter(Boolean);
+					deletedViews = deletedViews.filter(Boolean);
 				}
-
-				if (viewFrom.name !== viewTo.name) {
-					result.renamed.push({
-						from: deletedViews[idxFrom],
-						to: createdViews[idxTo],
-					});
-				}
-
-				delete createdViews[idxTo];
-				delete deletedViews[idxFrom];
-
-				createdViews = createdViews.filter(Boolean);
-				deletedViews = deletedViews.filter(Boolean);
 			}
+
+			result.created = createdViews;
+			result.deleted = deletedViews;
+
+			return result;
+		} catch (e) {
+			console.error(e);
+			throw e;
 		}
+	};
 
-		result.created = createdViews;
-		result.deleted = deletedViews;
+export const testViewsResolverSqlite =
+	(renames: Set<string>) => async (input: ResolverInput<SqliteView>): Promise<ResolverOutputWithMoved<SqliteView>> => {
+		try {
+			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
+				return {
+					created: input.created,
+					moved: [],
+					renamed: [],
+					deleted: input.deleted,
+				};
+			}
 
-		return result;
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-};
+			let createdViews = [...input.created];
+			let deletedViews = [...input.deleted];
 
-export const testViewsResolverSqlite = (renames: Set<string>) =>
-async (
-	input: ResolverInput<SqliteView>,
-): Promise<ResolverOutputWithMoved<SqliteView>> => {
-	try {
-		if (
-			input.created.length === 0
-			|| input.deleted.length === 0
-			|| renames.size === 0
-		) {
-			return {
-				created: input.created,
-				moved: [],
-				renamed: [],
-				deleted: input.deleted,
-			};
-		}
+			const result: {
+				created: SqliteView[];
+				moved: { name: string; schemaFrom: string; schemaTo: string }[];
+				renamed: { from: SqliteView; to: SqliteView }[];
+				deleted: SqliteView[];
+			} = { created: [], renamed: [], deleted: [], moved: [] };
 
-		let createdViews = [...input.created];
-		let deletedViews = [...input.deleted];
+			for (let rename of renames) {
+				const [from, to] = rename.split('->');
 
-		const result: {
-			created: SqliteView[];
-			moved: { name: string; schemaFrom: string; schemaTo: string }[];
-			renamed: { from: SqliteView; to: SqliteView }[];
-			deleted: SqliteView[];
-		} = { created: [], renamed: [], deleted: [], moved: [] };
-
-		for (let rename of renames) {
-			const [from, to] = rename.split('->');
-
-			const idxFrom = deletedViews.findIndex((it) => {
-				return it.name === from;
-			});
-
-			if (idxFrom >= 0) {
-				const idxTo = createdViews.findIndex((it) => {
-					return it.name === to;
+				const idxFrom = deletedViews.findIndex((it) => {
+					return it.name === from;
 				});
 
-				const viewFrom = deletedViews[idxFrom];
-				const viewTo = createdViews[idxFrom];
-
-				if (viewFrom.name !== viewTo.name) {
-					result.renamed.push({
-						from: deletedViews[idxFrom],
-						to: createdViews[idxTo],
+				if (idxFrom >= 0) {
+					const idxTo = createdViews.findIndex((it) => {
+						return it.name === to;
 					});
+
+					const viewFrom = deletedViews[idxFrom];
+					const viewTo = createdViews[idxFrom];
+
+					if (viewFrom.name !== viewTo.name) {
+						result.renamed.push({
+							from: deletedViews[idxFrom],
+							to: createdViews[idxTo],
+						});
+					}
+
+					delete createdViews[idxTo];
+					delete deletedViews[idxFrom];
+
+					createdViews = createdViews.filter(Boolean);
+					deletedViews = deletedViews.filter(Boolean);
 				}
-
-				delete createdViews[idxTo];
-				delete deletedViews[idxFrom];
-
-				createdViews = createdViews.filter(Boolean);
-				deletedViews = deletedViews.filter(Boolean);
 			}
+
+			result.created = createdViews;
+			result.deleted = deletedViews;
+
+			return result;
+		} catch (e) {
+			console.error(e);
+			throw e;
 		}
-
-		result.created = createdViews;
-		result.deleted = deletedViews;
-
-		return result;
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-};
+	};
 
 export const diffTestSchemasPush = async (
 	client: PGlite,
@@ -646,10 +603,31 @@ export const diffTestSchemasPush = async (
 	renamesArr: string[],
 	cli: boolean = false,
 	schemas: string[] = ['public'],
+	seedStatements: string[] = [],
 ) => {
 	const { sqlStatements } = await applyPgDiffs(left);
 	for (const st of sqlStatements) {
 		await client.query(st);
+	}
+
+	for (const st of seedStatements) {
+		await client.exec(st);
+	}
+
+	const materializedViewsForRefresh = Object.values(left).filter((it) =>
+		isPgMaterializedView(it)
+	) as PgMaterializedView[];
+
+	// refresh all mat views
+	for (const view of materializedViewsForRefresh) {
+		const viewConf = getMaterializedViewConfig(view);
+		if (viewConf.isExisting) continue;
+
+		await client.exec(
+			`REFRESH MATERIALIZED VIEW "${viewConf.schema ?? 'public'}"."${viewConf.name}"${
+				viewConf.withNoData ? ' WITH NO DATA;' : ';'
+			}`,
+		);
 	}
 
 	// do introspect into PgSchemaInternal
@@ -726,7 +704,36 @@ export const diffTestSchemasPush = async (
 			validatedCur,
 			'push',
 		);
-		return { sqlStatements, statements };
+
+		const {
+			shouldAskForApprove,
+			statementsToExecute,
+			columnsToRemove,
+			tablesToRemove,
+			tablesToTruncate,
+			infoToPrint,
+			schemasToRemove,
+			matViewsToRemove,
+		} = await pgSuggestions(
+			{
+				query: async <T>(sql: string, params: any[] = []) => {
+					return (await client.query(sql, params)).rows as T[];
+				},
+			},
+			statements,
+		);
+
+		return {
+			sqlStatements: statementsToExecute,
+			statements,
+			shouldAskForApprove,
+			columnsToRemove,
+			tablesToRemove,
+			tablesToTruncate,
+			infoToPrint,
+			schemasToRemove,
+			matViewsToRemove,
+		};
 	} else {
 		const { sqlStatements, statements } = await applyPgSnapshotsDiff(
 			sn1,
@@ -1308,28 +1315,22 @@ export async function diffTestSchemasPushLibSQL(
 			'push',
 		);
 
-		const {
-			statementsToExecute,
-			columnsToRemove,
-			infoToPrint,
-			shouldAskForApprove,
-			tablesToRemove,
-			tablesToTruncate,
-		} = await libSqlLogSuggestionsAndReturn(
-			{
-				query: async <T>(sql: string, params?: any[]) => {
-					const res = await client.execute({ sql, args: params || [] });
-					return res.rows as T[];
+		const { statementsToExecute, columnsToRemove, infoToPrint, shouldAskForApprove, tablesToRemove, tablesToTruncate } =
+			await libSqlLogSuggestionsAndReturn(
+				{
+					query: async <T>(sql: string, params?: any[]) => {
+						const res = await client.execute({ sql, args: params || [] });
+						return res.rows as T[];
+					},
+					run: async (query: string) => {
+						await client.execute(query);
+					},
 				},
-				run: async (query: string) => {
-					await client.execute(query);
-				},
-			},
-			statements,
-			sn1,
-			sn2,
-			_meta!,
-		);
+				statements,
+				sn1,
+				sn2,
+				_meta!,
+			);
 
 		return {
 			sqlStatements: statementsToExecute,
@@ -1355,10 +1356,7 @@ export async function diffTestSchemasPushLibSQL(
 	}
 }
 
-export const applySqliteDiffs = async (
-	sn: SqliteSchema,
-	action?: 'push' | undefined,
-) => {
+export const applySqliteDiffs = async (sn: SqliteSchema, action?: 'push' | undefined) => {
 	const dryRun = {
 		version: '6',
 		dialect: 'sqlite',
@@ -1407,10 +1405,7 @@ export const applySqliteDiffs = async (
 	return { sqlStatements, statements };
 };
 
-export const applyLibSQLDiffs = async (
-	sn: SqliteSchema,
-	action?: 'push' | undefined,
-) => {
+export const applyLibSQLDiffs = async (sn: SqliteSchema, action?: 'push' | undefined) => {
 	const dryRun = {
 		version: '6',
 		dialect: 'sqlite',
@@ -1636,9 +1631,7 @@ export const introspectPgToFile = async (
 	fs.writeFileSync(`tests/introspect/postgres/${testName}.ts`, file.file);
 
 	// generate snapshot from ts file
-	const response = await prepareFromPgImports([
-		`tests/introspect/postgres/${testName}.ts`,
-	]);
+	const response = await prepareFromPgImports([`tests/introspect/postgres/${testName}.ts`]);
 
 	const afterFileImports = generatePgSnapshot(
 		response.tables,
@@ -1662,10 +1655,7 @@ export const introspectPgToFile = async (
 	const sn2AfterIm = squashPgScheme(sch2);
 	const validatedCurAfterImport = pgSchema.parse(sch2);
 
-	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
-	} = await applyPgSnapshotsDiff(
+	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await applyPgSnapshotsDiff(
 		initSn,
 		sn2AfterIm,
 		testSchemasResolver(new Set()),
@@ -1726,9 +1716,7 @@ export const introspectMySQLToFile = async (
 
 	fs.writeFileSync(`tests/introspect/mysql/${testName}.ts`, file.file);
 
-	const response = await prepareFromMySqlImports([
-		`tests/introspect/mysql/${testName}.ts`,
-	]);
+	const response = await prepareFromMySqlImports([`tests/introspect/mysql/${testName}.ts`]);
 
 	const afterFileImports = generateMySqlSnapshot(response.tables, response.views);
 
@@ -1745,10 +1733,7 @@ export const introspectMySQLToFile = async (
 	const sn2AfterIm = squashMysqlScheme(sch2);
 	const validatedCurAfterImport = mysqlSchema.parse(sch2);
 
-	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
-	} = await applyMysqlSnapshotsDiff(
+	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await applyMysqlSnapshotsDiff(
 		sn2AfterIm,
 		initSn,
 		testTablesResolver(new Set()),
@@ -1766,11 +1751,7 @@ export const introspectMySQLToFile = async (
 	};
 };
 
-export const introspectSQLiteToFile = async (
-	client: Database,
-	initSchema: SqliteSchema,
-	testName: string,
-) => {
+export const introspectSQLiteToFile = async (client: Database, initSchema: SqliteSchema, testName: string) => {
 	// put in db
 	const { sqlStatements } = await applySqliteDiffs(initSchema);
 	for (const st of sqlStatements) {
@@ -1808,9 +1789,7 @@ export const introspectSQLiteToFile = async (
 
 	fs.writeFileSync(`tests/introspect/sqlite/${testName}.ts`, file.file);
 
-	const response = await prepareFromSqliteImports([
-		`tests/introspect/sqlite/${testName}.ts`,
-	]);
+	const response = await prepareFromSqliteImports([`tests/introspect/sqlite/${testName}.ts`]);
 
 	const afterFileImports = generateSqliteSnapshot(response.tables, response.views);
 
@@ -1827,10 +1806,7 @@ export const introspectSQLiteToFile = async (
 	const sn2AfterIm = squashSqliteScheme(sch2);
 	const validatedCurAfterImport = sqliteSchema.parse(sch2);
 
-	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
-	} = await applySqliteSnapshotsDiff(
+	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await applySqliteSnapshotsDiff(
 		sn2AfterIm,
 		initSn,
 		testTablesResolver(new Set()),
@@ -1848,11 +1824,7 @@ export const introspectSQLiteToFile = async (
 	};
 };
 
-export const introspectLibSQLToFile = async (
-	client: Client,
-	initSchema: SqliteSchema,
-	testName: string,
-) => {
+export const introspectLibSQLToFile = async (client: Client, initSchema: SqliteSchema, testName: string) => {
 	// put in db
 	const { sqlStatements } = await applyLibSQLDiffs(initSchema);
 	for (const st of sqlStatements) {
@@ -1890,9 +1862,7 @@ export const introspectLibSQLToFile = async (
 
 	fs.writeFileSync(`tests/introspect/libsql/${testName}.ts`, file.file);
 
-	const response = await prepareFromSqliteImports([
-		`tests/introspect/libsql/${testName}.ts`,
-	]);
+	const response = await prepareFromSqliteImports([`tests/introspect/libsql/${testName}.ts`]);
 
 	const afterFileImports = generateSqliteSnapshot(response.tables, response.views);
 
@@ -1909,10 +1879,7 @@ export const introspectLibSQLToFile = async (
 	const sn2AfterIm = squashSqliteScheme(sch2);
 	const validatedCurAfterImport = sqliteSchema.parse(sch2);
 
-	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
-	} = await applyLibSQLSnapshotsDiff(
+	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await applyLibSQLSnapshotsDiff(
 		sn2AfterIm,
 		initSn,
 		testTablesResolver(new Set()),

@@ -455,11 +455,12 @@ export const fromDatabase = async (
 		seq: number;
 		hidden: number;
 		sql: string;
+		type: 'view' | 'table';
 	}>(
 		`SELECT 
-    m.name as "tableName", p.name as "columnName", p.type as "columnType", p."notnull" as "notNull", p.dflt_value as "defaultValue", p.pk as pk, p.hidden as hidden, m.sql
+    m.name as "tableName", p.name as "columnName", p.type as "columnType", p."notnull" as "notNull", p.dflt_value as "defaultValue", p.pk as pk, p.hidden as hidden, m.sql, m.type as type
     FROM sqlite_master AS m JOIN pragma_table_xinfo(m.name) AS p
-    WHERE m.type = 'table'
+    WHERE (m.type = 'table' OR m.type = 'view')
     and m.tbl_name != 'sqlite_sequence' 
     and m.tbl_name != 'sqlite_stat1' 
     and m.tbl_name != '_litestream_seq' 
@@ -503,7 +504,10 @@ export const fromDatabase = async (
 	for (const column of columns) {
 		if (!tablesFilter(column.tableName)) continue;
 
-		columnsCount += 1;
+		// TODO
+		if (column.type !== 'view') {
+			columnsCount += 1;
+		}
 		if (progressCallback) {
 			progressCallback('columns', columnsCount, 'fetching');
 		}
@@ -770,15 +774,8 @@ WHERE
 
 		const viewDefinition = match[1] as string;
 
-		// CREATE VIEW test_view AS SELECT * FROM users;
-		// CREATE VIEW test_view1 AS SELECT * FROM `users`;
-		// CREATE VIEW test_view2 AS SELECT * FROM "users";
-		const viewOriginalTableRegex = sql.match(/FROM\s+([^\s;]+)/i); // Matches the table name after 'FROM'
-		let sourceTable = viewOriginalTableRegex
-			? (viewOriginalTableRegex[1] as string).replaceAll('"', '').replaceAll('`', '').replaceAll("'", '')
-			: undefined;
-
-		const columns = sourceTable ? result[sourceTable] ? result[sourceTable].columns : {} : {};
+		const columns = result[viewName].columns;
+		delete result[viewName];
 
 		resultViews[viewName] = {
 			columns: columns,
