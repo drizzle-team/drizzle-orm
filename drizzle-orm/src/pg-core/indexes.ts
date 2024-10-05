@@ -119,7 +119,7 @@ export class IndexBuilderOn {
 				}
 				it = it as ExtraConfigColumn;
 				const clonedIndexedColumn = new IndexedColumn(it.name, it.columnType!, it.indexConfig!);
-				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+				it.indexConfig = it.defaultConfig === undefined ? undefined : JSON.parse(JSON.stringify(it.defaultConfig));
 				return clonedIndexedColumn;
 			}),
 			this.unique,
