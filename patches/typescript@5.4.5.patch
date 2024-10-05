@@ -1,0 +1,13 @@
+diff --git a/lib/tsserver.js b/lib/tsserver.js
+index 3f1ce62663e3c32aa487f0fc7dcb3dd940e7cd24..559f2f70531180c5d54d98b18ae54a67eab54e1d 100644
+--- a/lib/tsserver.js
++++ b/lib/tsserver.js
+@@ -15203,7 +15203,7 @@ function isInternalDeclaration(node, sourceFile) {
+ // src/compiler/utilities.ts
+ var resolvingEmptyArray = [];
+ var externalHelpersModuleNameText = "tslib";
+-var defaultMaximumTruncationLength = 160;
++var defaultMaximumTruncationLength = 1e6;
+ var noTruncationMaximumTruncationLength = 1e6;
+ function getDeclarationOfKind(symbol, kind) {
+   const declarations = symbol.declarations;
