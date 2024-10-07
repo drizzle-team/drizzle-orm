@@ -33,7 +33,7 @@ import {
 } from '../../snapshotsDiffer';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
-import { Prefix } from '../validations/common';
+import { CasingType, Prefix } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import {
 	isRenamePromptItem,
@@ -156,6 +156,7 @@ export const columnsResolver = async (
 export const prepareAndMigratePg = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
+	const casing = config.casing;
 
 	try {
 		assertV1OutFolder(outFolder);
@@ -168,6 +169,7 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await preparePgMigrationSnapshot(
 			snapshots,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = pgSchema.parse(prev);
@@ -220,10 +222,12 @@ export const preparePgPush = async (
 	schemaPath: string | string[],
 	snapshot: PgSchema,
 	schemaFilter: string[],
+	casing: CasingType | undefined,
 ) => {
 	const { prev, cur } = await preparePgDbPushSnapshot(
 		snapshot,
 		schemaPath,
+		casing,
 		schemaFilter,
 	);
 
@@ -304,11 +308,13 @@ function mysqlSchemaSuggestions(
 export const prepareMySQLPush = async (
 	schemaPath: string | string[],
 	snapshot: MySqlSchema,
+	casing: CasingType | undefined,
 ) => {
 	try {
 		const { prev, cur } = await prepareMySqlDbPushSnapshot(
 			snapshot,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = mysqlSchema.parse(prev);
@@ -337,6 +343,7 @@ export const prepareMySQLPush = async (
 export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
+	const casing = config.casing;
 
 	try {
 		// TODO: remove
@@ -346,6 +353,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await prepareMySqlMigrationSnapshot(
 			snapshots,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = mysqlSchema.parse(prev);
@@ -395,6 +403,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
+	const casing = config.casing;
 
 	try {
 		assertV1OutFolder(outFolder);
@@ -403,6 +412,7 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
 			snapshots,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = sqliteSchema.parse(prev);
@@ -454,6 +464,7 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
+	const casing = config.casing;
 
 	try {
 		assertV1OutFolder(outFolder);
@@ -462,6 +473,7 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
 			snapshots,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = sqliteSchema.parse(prev);
@@ -513,8 +525,9 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 export const prepareSQLitePush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
+	casing: CasingType | undefined,
 ) => {
-	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath);
+	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath, casing);
 
 	const validatedPrev = sqliteSchema.parse(prev);
 	const validatedCur = sqliteSchema.parse(cur);
@@ -544,8 +557,9 @@ export const prepareSQLitePush = async (
 export const prepareLibSQLPush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
+	casing: CasingType | undefined,
 ) => {
-	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath);
+	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath, casing);
 
 	const validatedPrev = sqliteSchema.parse(prev);
 	const validatedCur = sqliteSchema.parse(cur);

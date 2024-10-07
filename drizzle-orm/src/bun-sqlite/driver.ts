@@ -23,8 +23,10 @@ export class BunSQLiteDatabase<
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Database,
 	config: DrizzleConfig<TSchema> = {},
-): BunSQLiteDatabase<TSchema> {
-	const dialect = new SQLiteSyncDialect();
+): BunSQLiteDatabase<TSchema> & {
+	$client: Database;
+} {
+	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -46,5 +48,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new SQLiteBunSession(client, dialect, schema, { logger });
-	return new BunSQLiteDatabase('sync', dialect, session, schema) as BunSQLiteDatabase<TSchema>;
+	const db = new BunSQLiteDatabase('sync', dialect, session, schema) as BunSQLiteDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

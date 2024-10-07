@@ -201,8 +201,8 @@ importers:
         specifier: ^16.0.3
         version: 16.4.5
       drizzle-kit:
-        specifier: 0.21.2
-        version: 0.21.2
+        specifier: 0.25.0-b1faa33
+        version: 0.25.0-b1faa33
       drizzle-orm:
         specifier: workspace:./drizzle-orm/dist
         version: link:drizzle-orm/dist
@@ -308,6 +308,9 @@ importers:
       '@libsql/client':
         specifier: ^0.10.0
         version: 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      '@miniflare/d1':
+        specifier: ^2.14.2
+        version: 2.14.2
       '@neondatabase/serverless':
         specifier: ^0.9.0
         version: 0.9.0
@@ -5419,8 +5422,8 @@ packages:
     resolution: {integrity: sha512-Rba5VW1O2JfJlwVBeZ8Zwt2E2us5oZ08PQBDiVSGlug53TOc8hzXjblZFuF+dnll9/RQEHrkzBmJFgqTvn5Rxg==}
     hasBin: true
 
-  drizzle-kit@0.21.2:
-    resolution: {integrity: sha512-U87IhZyCt/9d0ZT/Na3KFJVY31tSxtTx/n9UMcWFpW/5c2Ede39xiCG5efNV/0iimsv97UIRtDI0ldLBW5lbcg==}
+  drizzle-kit@0.25.0-b1faa33:
+    resolution: {integrity: sha512-WMRuEgxt1oTc62EPVQhGD+pGs6LiqzT8UqxuI6mKfA5SCeCEIt87nFzzJ5WlwsqbuoSgXBXc5zhsHvqXRD03DA==}
     hasBin: true
 
   drizzle-orm@0.27.2:
@@ -16269,17 +16272,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-kit@0.21.2:
+  drizzle-kit@0.25.0-b1faa33:
     dependencies:
+      '@drizzle-team/brocli': 0.10.1
       '@esbuild-kit/esm-loader': 2.5.5
-      commander: 9.5.0
-      env-paths: 3.0.0
       esbuild: 0.19.12
       esbuild-register: 3.5.0(esbuild@0.19.12)
-      glob: 8.1.0
-      hanji: 0.0.5
-      json-diff: 0.9.0
-      zod: 3.23.7
     transitivePeerDependencies:
       - supports-color
 

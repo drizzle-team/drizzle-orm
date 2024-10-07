@@ -4,7 +4,7 @@ import type { BunSQLiteDatabase } from './driver.ts';
 
 export function migrate<TSchema extends Record<string, unknown>>(
 	db: BunSQLiteDatabase<TSchema>,
-	config: string | MigrationConfig,
+	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
 	db.dialect.migrate(migrations, db.session, config);

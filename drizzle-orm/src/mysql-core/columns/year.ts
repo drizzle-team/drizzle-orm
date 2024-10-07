@@ -39,6 +39,8 @@ export class MySqlYear<
 	}
 }
 
-export function year<TName extends string>(name: TName): MySqlYearBuilderInitial<TName> {
-	return new MySqlYearBuilder(name);
+export function year(): MySqlYearBuilderInitial<''>;
+export function year<TName extends string>(name: TName): MySqlYearBuilderInitial<TName>;
+export function year(name?: string) {
+	return new MySqlYearBuilder(name ?? '');
 }
