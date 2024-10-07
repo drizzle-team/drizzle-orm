@@ -26,11 +26,20 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	$client: Sql;
 } {
 	const transparentParser = (val: any) => val;
+	const dateSerializer = (val: any): any => {
+		if (val instanceof Date) { // eslint-disable-line no-instanceof/no-instanceof
+			return val.toISOString();
+		}
+		if (Array.isArray(val)) {
+			return val.map((d) => dateSerializer(d));
+		}
+		return val;
+	};
 
 	// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
 	for (const type of ['1184', '1082', '1083', '1114']) {
 		client.options.parsers[type as any] = transparentParser;
-		client.options.serializers[type as any] = transparentParser;
+		client.options.serializers[type as any] = dateSerializer;
 	}
 	client.options.serializers['114'] = transparentParser;
 	client.options.serializers['3802'] = transparentParser;
