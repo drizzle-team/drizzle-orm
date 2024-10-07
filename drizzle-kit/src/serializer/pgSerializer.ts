@@ -1064,7 +1064,7 @@ export const fromDatabase = async (
 							: undefined,
 					};
 
-					if (identityName) {
+					if (identityName && typeof identityName === 'string') {
 						// remove "" from sequence name
 						delete sequencesToReturn[
 							`${tableSchema}.${
