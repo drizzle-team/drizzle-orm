@@ -17,7 +17,7 @@ export type DurableObjectSQLiteDatabase<
 > = BaseSQLiteDatabase<'sync', void, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: SqlStorage,
+	client: DurableObjectStorage,
 	config: DrizzleConfig<TSchema> = {},
 ): DurableObjectSQLiteDatabase<TSchema> {
 	const dialect = new SQLiteSyncDialect();
