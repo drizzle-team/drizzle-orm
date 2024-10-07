@@ -514,6 +514,7 @@ export const fromDatabase = async (
 	let tablesCount = new Set();
 	let indexesCount = 0;
 	let foreignKeysCount = 0;
+	let viewsCount = 0;
 
 	const idxs = await db.query(
 		`select * from INFORMATION_SCHEMA.STATISTICS
@@ -836,6 +837,10 @@ export const fromDatabase = async (
 
 	const resultViews: Record<string, View> = {};
 
+	viewsCount = views.length;
+	if (progressCallback) {
+		progressCallback('views', viewsCount, 'fetching');
+	}
 	for await (const view of views) {
 		const viewName = view['TABLE_NAME'];
 		const definition = view['VIEW_DEFINITION'];
@@ -865,6 +870,7 @@ export const fromDatabase = async (
 		progressCallback('indexes', indexesCount, 'done');
 		// progressCallback("enums", 0, "fetching");
 		progressCallback('enums', 0, 'done');
+		progressCallback('views', viewsCount, 'done');
 	}
 
 	return {

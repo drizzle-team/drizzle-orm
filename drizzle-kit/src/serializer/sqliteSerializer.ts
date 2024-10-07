@@ -492,6 +492,7 @@ export const fromDatabase = async (
 	let tablesCount = new Set();
 	let indexesCount = 0;
 	let foreignKeysCount = 0;
+	let viewsCount = 0;
 
 	// append primaryKeys by table
 	const tableToPk: { [tname: string]: string[] } = {};
@@ -760,6 +761,11 @@ WHERE
 		`SELECT name AS view_name, sql AS sql FROM sqlite_master WHERE type = 'view';`,
 	);
 
+	viewsCount = views.length;
+
+	if (progressCallback) {
+		progressCallback('views', viewsCount, 'fetching');
+	}
 	for (const view of views) {
 		const viewName = view['view_name'];
 		const sql = view['sql'];
@@ -783,6 +789,9 @@ WHERE
 			name: viewName,
 			definition: viewDefinition,
 		};
+	}
+	if (progressCallback) {
+		progressCallback('views', viewsCount, 'done');
 	}
 
 	return {

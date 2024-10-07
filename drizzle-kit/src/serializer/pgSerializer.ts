@@ -716,6 +716,7 @@ WHERE
 	let indexesCount = 0;
 	let foreignKeysCount = 0;
 	let tableCount = 0;
+	let viewsCount = 0;
 
 	const sequencesToReturn: Record<string, Sequence> = {};
 
@@ -916,7 +917,7 @@ WHERE
 					}
 
 					for (const columnResponse of tableResponse) {
-						const columnName = columnResponse.attname;
+						const columnName = columnResponse.column_name;
 						const columnAdditionalDT = columnResponse.additional_dt;
 						const columnDimensions = columnResponse.array_dimensions;
 						const enumType: string = columnResponse.enum_name;
@@ -1439,6 +1440,8 @@ WHERE
 			});
 		});
 
+	viewsCount = allViews.length;
+
 	for await (const _ of allViews) {
 	}
 
@@ -1446,6 +1449,7 @@ WHERE
 		progressCallback('columns', columnsCount, 'done');
 		progressCallback('indexes', indexesCount, 'done');
 		progressCallback('fks', foreignKeysCount, 'done');
+		progressCallback('views', viewsCount, 'done');
 	}
 
 	const schemasObject = Object.fromEntries([...schemas].map((it) => [it, it]));
@@ -1557,39 +1561,65 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 
 const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: string; db: DB }) => {
 	return db.query(
-		`SELECT a.attrelid::regclass::text, a.attname, is_nullable, a.attndims as array_dimensions
-	, CASE WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[])
-		 AND EXISTS (
-			SELECT FROM pg_attrdef ad
-			WHERE  ad.adrelid = a.attrelid
-			AND    ad.adnum   = a.attnum
-			AND    pg_get_expr(ad.adbin, ad.adrelid)
-				 = 'nextval('''
-				|| (pg_get_serial_sequence (a.attrelid::regclass::text
-										 , a.attname))::regclass
-				|| '''::regclass)'
-			)
-	   THEN CASE a.atttypid
-			   WHEN 'int'::regtype  THEN 'serial'
-			   WHEN 'int8'::regtype THEN 'bigserial'
-			   WHEN 'int2'::regtype THEN 'smallserial'
-			END
-	   ELSE format_type(a.atttypid, a.atttypmod)
-	   END AS data_type, INFORMATION_SCHEMA.COLUMNS.table_name, ns.nspname as type_schema,
-	   pg_get_serial_sequence('"${schema}"."${table}"', a.attname)::regclass as seq_name, INFORMATION_SCHEMA.COLUMNS.column_name, 
-	   INFORMATION_SCHEMA.COLUMNS.column_default, INFORMATION_SCHEMA.COLUMNS.data_type as additional_dt, 
-	   INFORMATION_SCHEMA.COLUMNS.udt_name as enum_name,
-	   INFORMATION_SCHEMA.COLUMNS.is_generated, generation_expression, 
-	   INFORMATION_SCHEMA.COLUMNS.is_identity,INFORMATION_SCHEMA.COLUMNS.identity_generation, 
-	   INFORMATION_SCHEMA.COLUMNS.identity_start, INFORMATION_SCHEMA.COLUMNS.identity_increment, 
-	   INFORMATION_SCHEMA.COLUMNS.identity_maximum, INFORMATION_SCHEMA.COLUMNS.identity_minimum, 
-	   INFORMATION_SCHEMA.COLUMNS.identity_cycle
-FROM  pg_attribute  a
-JOIN INFORMATION_SCHEMA.COLUMNS ON INFORMATION_SCHEMA.COLUMNS.column_name = a.attname
-JOIN pg_type t ON t.oid = a.atttypid LEFT JOIN pg_namespace ns ON ns.oid = t.typnamespace
-WHERE  a.attrelid = '"${schema}"."${table}"'::regclass and INFORMATION_SCHEMA.COLUMNS.table_name = '${table}' and INFORMATION_SCHEMA.COLUMNS.table_schema = '${schema}'
-AND    a.attnum > 0
-AND    NOT a.attisdropped
-ORDER  BY a.attnum;`,
+		`SELECT 
+    a.attrelid::regclass::text AS table_name,  -- Table, view, or materialized view name
+    a.attname AS column_name,   -- Column name
+    CASE 
+        WHEN NOT a.attisdropped THEN 
+            CASE 
+                WHEN a.attnotnull THEN 'NO'
+                ELSE 'YES'
+            END 
+        ELSE NULL 
+    END AS is_nullable,  -- NULL or NOT NULL constraint
+    a.attndims AS array_dimensions,  -- Array dimensions
+    CASE 
+        WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[]) 
+        AND EXISTS (
+            SELECT FROM pg_attrdef ad
+            WHERE ad.adrelid = a.attrelid 
+            AND ad.adnum = a.attnum 
+            AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval(''' 
+                || pg_get_serial_sequence(a.attrelid::regclass::text, a.attname)::regclass || '''::regclass)'
+        )
+        THEN CASE a.atttypid
+            WHEN 'int'::regtype THEN 'serial'
+            WHEN 'int8'::regtype THEN 'bigserial'
+            WHEN 'int2'::regtype THEN 'smallserial'
+        END
+        ELSE format_type(a.atttypid, a.atttypmod)
+    END AS data_type,  -- Column data type
+    ns.nspname AS type_schema,  -- Schema name
+    pg_get_serial_sequence('"${schema}"."${table}"', a.attname)::regclass AS seq_name,  -- Serial sequence (if any)
+    c.column_default,  -- Column default value
+    c.data_type AS additional_data_type,  -- Data type from information_schema
+    c.udt_name AS enum_name,  -- Enum type (if applicable)
+    c.is_generated,  -- Is it a generated column?
+    c.generation_expression,  -- Generation expression (if generated)
+    c.is_identity,  -- Is it an identity column?
+    c.identity_generation,  -- Identity generation strategy (ALWAYS or BY DEFAULT)
+    c.identity_start,  -- Start value of identity column
+    c.identity_increment,  -- Increment for identity column
+    c.identity_maximum,  -- Maximum value for identity column
+    c.identity_minimum,  -- Minimum value for identity column
+    c.identity_cycle  -- Does the identity column cycle?
+FROM 
+    pg_attribute a
+JOIN 
+    pg_class cls ON cls.oid = a.attrelid  -- Join pg_class to get table/view/materialized view info
+JOIN 
+    pg_namespace ns ON ns.oid = cls.relnamespace  -- Join namespace to get schema info
+LEFT JOIN 
+    information_schema.columns c ON c.column_name = a.attname 
+        AND c.table_schema = ns.nspname 
+        AND c.table_name = cls.relname  -- Match schema and table/view name
+WHERE 
+    a.attnum > 0  -- Valid column numbers only
+    AND NOT a.attisdropped  -- Skip dropped columns
+    AND cls.relkind IN ('r', 'v', 'm')  -- Include regular tables ('r'), views ('v'), and materialized views ('m')
+    AND ns.nspname = '${schema}'  -- Filter by schema
+    AND cls.relname = '${table}'  -- Filter by table name
+ORDER BY 
+    a.attnum;  -- Order by column number`,
 	);
 };
