@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
 	AnyPgTable,
 	ExtraConfigColumn,
@@ -14,6 +15,7 @@ import {
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
 import { getTableConfig } from 'drizzle-orm/pg-core';
+import { CasingType } from 'src/cli/validations/common';
 import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
@@ -30,10 +32,8 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/pgSchema';
-import { type DB, isPgArrayType } from '../utils';
+import { type DB, getColumnCasing, isPgArrayType } from '../utils';
 import { sqlToStr } from '.';
-
-const dialect = new PgDialect();
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -117,8 +117,10 @@ export const generatePgSnapshot = (
 	enums: PgEnum<any>[],
 	schemas: PgSchema[],
 	sequences: PgSequence[],
+	casing: CasingType | undefined,
 	schemaFilter?: string[],
 ): PgSchemaInternal => {
+	const dialect = new PgDialect({ casing });
 	const result: Record<string, Table> = {};
 	const sequencesToReturn: Record<string, Sequence> = {};
 
@@ -149,6 +151,7 @@ export const generatePgSnapshot = (
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
 
 		columns.forEach((column) => {
+			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
 			const primaryKey: boolean = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
@@ -173,7 +176,7 @@ export const generatePgSnapshot = (
 			const cache = stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? '1';
 
 			const columnToSet: Column = {
-				name: column.name,
+				name,
 				type: column.getSQLType(),
 				typeSchema: typeSchema,
 				primaryKey,
@@ -191,7 +194,7 @@ export const generatePgSnapshot = (
 				identity: identity
 					? {
 						type: identity.type,
-						name: identity.sequenceName ?? `${tableName}_${column.name}_seq`,
+						name: identity.sequenceName ?? `${tableName}_${name}_seq`,
 						schema: schema ?? 'public',
 						increment,
 						startWith,
@@ -219,7 +222,7 @@ export const generatePgSnapshot = (
 								)
 							} on the ${
 								chalk.underline.blue(
-									column.name,
+									name,
 								)
 							} column is confilcting with a unique constraint name already defined for ${
 								chalk.underline.blue(
@@ -239,7 +242,7 @@ export const generatePgSnapshot = (
 
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
-					columnToSet.default = sqlToStr(column.default);
+					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					if (typeof column.default === 'string') {
 						columnToSet.default = `'${column.default}'`;
@@ -269,7 +272,7 @@ export const generatePgSnapshot = (
 									column.default,
 									sqlTypeLowered,
 								)
-							}'::${sqlTypeLowered}`;
+							}'`;
 						} else {
 							// Should do for all types
 							// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
@@ -278,19 +281,28 @@ export const generatePgSnapshot = (
 					}
 				}
 			}
-			columnsObject[column.name] = columnToSet;
+			columnsObject[name] = columnToSet;
 		});
 
 		primaryKeys.map((pk) => {
-			const columnNames = pk.columns.map((c) => c.name);
-			primaryKeysObject[pk.getName()] = {
-				name: pk.getName(),
+			const originalColumnNames = pk.columns.map((c) => c.name);
+			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
+
+			let name = pk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnNames.length; i++) {
+					name = name.replace(originalColumnNames[i], columnNames[i]);
+				}
+			}
+
+			primaryKeysObject[name] = {
+				name,
 				columns: columnNames,
 			};
 		});
 
 		uniqueConstraints?.map((unq) => {
-			const columnNames = unq.columns.map((c) => c.name);
+			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
 
 			const name = unq.name ?? uniqueKeyName(table, columnNames);
 
@@ -329,7 +341,6 @@ export const generatePgSnapshot = (
 		});
 
 		const fks: ForeignKey[] = foreignKeys.map((fk) => {
-			const name = fk.getName();
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete;
 			const onUpdate = fk.onUpdate;
@@ -340,8 +351,20 @@ export const generatePgSnapshot = (
 			// getTableConfig(reference.foreignTable).schema || "public";
 			const schemaTo = getTableConfig(reference.foreignTable).schema;
 
-			const columnsFrom = reference.columns.map((it) => it.name);
-			const columnsTo = reference.foreignColumns.map((it) => it.name);
+			const originalColumnsFrom = reference.columns.map((it) => it.name);
+			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
+			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+
+			let name = fk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnsFrom.length; i++) {
+					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+				}
+				for (let i = 0; i < originalColumnsTo.length; i++) {
+					name = name.replace(originalColumnsTo[i], columnsTo[i]);
+				}
+			}
 
 			return {
 				name,
@@ -383,6 +406,7 @@ export const generatePgSnapshot = (
 					}
 				}
 				it = it as IndexedColumn;
+				const name = getColumnCasing(it as IndexedColumn, casing);
 				if (
 					!is(it, SQL)
 					&& it.type! === 'PgVector'
@@ -393,7 +417,7 @@ export const generatePgSnapshot = (
 							withStyle.errorWarning(
 								`You are specifying an index on the ${
 									chalk.blueBright(
-										it.name,
+										name,
 									)
 								} column inside the ${
 									chalk.blueBright(
@@ -411,7 +435,7 @@ export const generatePgSnapshot = (
 										)
 								}].\n\nYou can specify it using current syntax: ${
 									chalk.underline(
-										`index("${value.config.name}").using("${value.config.method}", table.${it.name}.op("${
+										`index("${value.config.name}").using("${value.config.method}", table.${name}.op("${
 											vectorOps[0]
 										}"))`,
 									)
@@ -421,7 +445,7 @@ export const generatePgSnapshot = (
 					);
 					process.exit(1);
 				}
-				indexColumnNames.push((it as ExtraConfigColumn).name);
+				indexColumnNames.push(name);
 			});
 
 			const name = value.config.name
@@ -440,7 +464,7 @@ export const generatePgSnapshot = (
 					} else {
 						it = it as IndexedColumn;
 						return {
-							expression: it.name!,
+							expression: getColumnCasing(it as IndexedColumn, casing),
 							isExpression: false,
 							asc: it.indexConfig?.order === 'asc',
 							nulls: it.indexConfig?.nulls
@@ -739,7 +763,7 @@ export const fromDatabase = async (
                    WHEN 'int2'::regtype THEN 'smallserial'
                 END
            ELSE format_type(a.atttypid, a.atttypmod)
-           END AS data_type, INFORMATION_SCHEMA.COLUMNS.table_name, 
+           END AS data_type, INFORMATION_SCHEMA.COLUMNS.table_name, ns.nspname as type_schema,
            pg_get_serial_sequence('"${tableSchema}"."${tableName}"', a.attname)::regclass as seq_name, INFORMATION_SCHEMA.COLUMNS.column_name, 
            INFORMATION_SCHEMA.COLUMNS.column_default, INFORMATION_SCHEMA.COLUMNS.data_type as additional_dt, 
            INFORMATION_SCHEMA.COLUMNS.udt_name as enum_name,
@@ -750,6 +774,7 @@ export const fromDatabase = async (
            INFORMATION_SCHEMA.COLUMNS.identity_cycle
    FROM  pg_attribute  a
    JOIN INFORMATION_SCHEMA.COLUMNS ON INFORMATION_SCHEMA.COLUMNS.column_name = a.attname
+   JOIN pg_type t ON t.oid = a.atttypid LEFT JOIN pg_namespace ns ON ns.oid = t.typnamespace
    WHERE  a.attrelid = '"${tableSchema}"."${tableName}"'::regclass and INFORMATION_SCHEMA.COLUMNS.table_name = '${tableName}' and INFORMATION_SCHEMA.COLUMNS.table_schema = '${tableSchema}'
    AND    a.attnum > 0
    AND    NOT a.attisdropped
@@ -772,30 +797,42 @@ export const fromDatabase = async (
 
 				const tableForeignKeys = await db.query(
 					`SELECT
-          tc.table_schema,
-          tc.constraint_name,
-          tc.table_name,
-          kcu.column_name,
-          (
-              SELECT ccu.table_schema
-              FROM information_schema.constraint_column_usage ccu
-              WHERE ccu.constraint_name = tc.constraint_name
-              LIMIT 1
-          ) AS foreign_table_schema,
-          ccu.table_name AS foreign_table_name,
-          ccu.column_name AS foreign_column_name,
-          rc.delete_rule, 
-          rc.update_rule
-      FROM
-          information_schema.table_constraints AS tc
-          JOIN information_schema.key_column_usage AS kcu
-            ON tc.constraint_name = kcu.constraint_name
-            AND tc.table_schema = kcu.table_schema
-          JOIN information_schema.constraint_column_usage AS ccu
-            ON ccu.constraint_name = tc.constraint_name
-          JOIN information_schema.referential_constraints AS rc
-            ON ccu.constraint_name = rc.constraint_name
-    WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name='${tableName}' and tc.table_schema='${tableSchema}';`,
+            con.contype AS constraint_type,
+            nsp.nspname AS constraint_schema,
+            con.conname AS constraint_name,
+            rel.relname AS table_name,
+            att.attname AS column_name,
+            fnsp.nspname AS foreign_table_schema,
+            frel.relname AS foreign_table_name,
+            fatt.attname AS foreign_column_name,
+            CASE con.confupdtype
+              WHEN 'a' THEN 'NO ACTION'
+              WHEN 'r' THEN 'RESTRICT'
+              WHEN 'n' THEN 'SET NULL'
+              WHEN 'c' THEN 'CASCADE'
+              WHEN 'd' THEN 'SET DEFAULT'
+            END AS update_rule,
+            CASE con.confdeltype
+              WHEN 'a' THEN 'NO ACTION'
+              WHEN 'r' THEN 'RESTRICT'
+              WHEN 'n' THEN 'SET NULL'
+              WHEN 'c' THEN 'CASCADE'
+              WHEN 'd' THEN 'SET DEFAULT'
+            END AS delete_rule
+          FROM
+            pg_catalog.pg_constraint con
+            JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
+            JOIN pg_catalog.pg_namespace nsp ON nsp.oid = con.connamespace
+            LEFT JOIN pg_catalog.pg_attribute att ON att.attnum = ANY (con.conkey)
+              AND att.attrelid = con.conrelid
+            LEFT JOIN pg_catalog.pg_class frel ON frel.oid = con.confrelid
+            LEFT JOIN pg_catalog.pg_namespace fnsp ON fnsp.oid = frel.relnamespace
+            LEFT JOIN pg_catalog.pg_attribute fatt ON fatt.attnum = ANY (con.confkey)
+              AND fatt.attrelid = con.confrelid
+          WHERE
+            nsp.nspname = '${tableSchema}'
+            AND rel.relname = '${tableName}'
+            AND con.contype IN ('f');`,
 				);
 
 				foreignKeysCount += tableForeignKeys.length;
@@ -809,8 +846,8 @@ export const fromDatabase = async (
 					const columnTo: string = fk.foreign_column_name;
 					const schemaTo: string = fk.foreign_table_schema;
 					const foreignKeyName = fk.constraint_name;
-					const onUpdate = fk.update_rule.toLowerCase();
-					const onDelete = fk.delete_rule.toLowerCase();
+					const onUpdate = fk.update_rule?.toLowerCase();
+					const onDelete = fk.delete_rule?.toLowerCase();
 
 					if (typeof foreignKeysToReturn[foreignKeyName] !== 'undefined') {
 						foreignKeysToReturn[foreignKeyName].columnsFrom.push(columnFrom);
@@ -863,6 +900,8 @@ export const fromDatabase = async (
 					const columnDimensions = columnResponse.array_dimensions;
 					const enumType: string = columnResponse.enum_name;
 					let columnType: string = columnResponse.data_type;
+					const typeSchema = columnResponse.type_schema;
+					const defaultValueRes: string = columnResponse.column_default;
 
 					const isGenerated = columnResponse.is_generated === 'ALWAYS';
 					const generationExpression = columnResponse.generation_expression;
@@ -902,15 +941,7 @@ export const fromDatabase = async (
 						};
 					}
 
-					const defaultValue = defaultForColumn(columnResponse);
-
-					const isSerial = columnType === 'serial';
-
 					let columnTypeMapped = columnType;
-
-					if (columnTypeMapped.startsWith('numeric(')) {
-						columnTypeMapped = columnTypeMapped.replace(',', ', ');
-					}
 
 					// Set default to internal object
 					if (columnAdditionalDT === 'ARRAY') {
@@ -944,6 +975,45 @@ export const fromDatabase = async (
 						}
 					}
 
+					const defaultValue = defaultForColumn(
+						columnResponse,
+						internals,
+						tableName,
+					);
+					if (
+						defaultValue === 'NULL'
+						|| (defaultValueRes && defaultValueRes.startsWith('(') && defaultValueRes.endsWith(')'))
+					) {
+						if (typeof internals!.tables![tableName] === 'undefined') {
+							internals!.tables![tableName] = {
+								columns: {
+									[columnName]: {
+										isDefaultAnExpression: true,
+									},
+								},
+							};
+						} else {
+							if (
+								typeof internals!.tables![tableName]!.columns[columnName]
+									=== 'undefined'
+							) {
+								internals!.tables![tableName]!.columns[columnName] = {
+									isDefaultAnExpression: true,
+								};
+							} else {
+								internals!.tables![tableName]!.columns[
+									columnName
+								]!.isDefaultAnExpression = true;
+							}
+						}
+					}
+
+					const isSerial = columnType === 'serial';
+
+					if (columnTypeMapped.startsWith('numeric(')) {
+						columnTypeMapped = columnTypeMapped.replace(',', ', ');
+					}
+
 					if (columnAdditionalDT === 'ARRAY') {
 						for (let i = 1; i < Number(columnDimensions); i++) {
 							columnTypeMapped += '[]';
@@ -966,8 +1036,8 @@ export const fromDatabase = async (
 								&& !['vector', 'geometry'].includes(enumType)
 								? enumType
 								: columnTypeMapped,
-						typeSchema: enumsToReturn[`${tableSchema}.${enumType}`] !== undefined
-							? enumsToReturn[`${tableSchema}.${enumType}`].schema
+						typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
+							? enumsToReturn[`${typeSchema}.${enumType}`].schema
 							: undefined,
 						primaryKey: primaryKey.length === 1 && cprimaryKey.length < 2,
 						// default: isSerial ? undefined : defaultValue,
@@ -994,8 +1064,13 @@ export const fromDatabase = async (
 							: undefined,
 					};
 
-					if (identityName) {
-						delete sequencesToReturn[`${tableSchema}.${identityName}`];
+					if (identityName && typeof identityName === 'string') {
+						// remove "" from sequence name
+						delete sequencesToReturn[
+							`${tableSchema}.${
+								identityName.startsWith('"') && identityName.endsWith('"') ? identityName.slice(1, -1) : identityName
+							}`
+						];
 						delete sequencesToReturn[identityName];
 					}
 
@@ -1170,29 +1245,10 @@ export const fromDatabase = async (
 	};
 };
 
-const columnToDefault: Record<string, string> = {
-	'numeric(': '::numeric',
-	// text: "::text",
-	// "character varying": "::character varying",
-	// "double precision": "::double precision",
-	// "time with time zone": "::time with time zone",
-	'time without time zone': '::time without time zone',
-	// "timestamp with time zone": "::timestamp with time zone",
-	'timestamp without time zone': '::timestamp without time zone',
-	'timestamp(': '::timestamp without time zone',
-	// date: "::date",
-	// interval: "::interval",
-	// character: "::bpchar",
-	// macaddr8: "::macaddr8",
-	// macaddr: "::macaddr",
-	// inet: "::inet",
-	// cidr: "::cidr",
-	// jsonb: "::jsonb",
-	// json: "::json",
-	'character(': '::bpchar',
-};
+const defaultForColumn = (column: any, internals: PgKitInternals, tableName: string) => {
+	const columnName = column.attname;
+	const isArray = internals?.tables[tableName]?.columns[columnName]?.isArray ?? false;
 
-const defaultForColumn = (column: any) => {
 	if (column.column_default === null) {
 		return undefined;
 	}
@@ -1205,54 +1261,81 @@ const defaultForColumn = (column: any) => {
 		return undefined;
 	}
 
-	const hasDifferentDefaultCast = Object.keys(columnToDefault).find((it) => column.data_type.startsWith(it));
+	if (column.column_default.endsWith('[]')) {
+		column.column_default = column.column_default.slice(0, -2);
+	}
+
+	// if (
+	// 	!['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type)
+	// ) {
+	column.column_default = column.column_default.replace(/::(.*?)(?<![^\w"])(?=$)/, '');
+	// }
 
 	const columnDefaultAsString: string = column.column_default.toString();
 
+	if (isArray) {
+		return `'{${
+			columnDefaultAsString.slice(2, -2)
+				.split(/\s*,\s*/g)
+				.map((value) => {
+					if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
+						return value;
+					} else if (column.data_type.startsWith('timestamp')) {
+						return `${value}`;
+					} else if (column.data_type.slice(0, -2) === 'interval') {
+						return value.replaceAll('"', `\"`);
+					} else if (column.data_type.slice(0, -2) === 'boolean') {
+						return value === 't' ? 'true' : 'false';
+					} else if (['json', 'jsonb'].includes(column.data_type.slice(0, -2))) {
+						return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
+					} else {
+						return `\"${value}\"`;
+					}
+				})
+				.join(',')
+		}}'`;
+	}
+
 	if (
-		columnDefaultAsString.endsWith(
-			hasDifferentDefaultCast
-				? columnToDefault[hasDifferentDefaultCast]
-				: (column.data_type as string),
-		)
+		['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type)
 	) {
-		const nonPrefixPart = column.column_default.length
-			- (hasDifferentDefaultCast
-				? columnToDefault[hasDifferentDefaultCast]
-				: `::${column.data_type as string}`).length
-			- 1;
-
-		const rt = column.column_default
-			.toString()
-			.substring(1, nonPrefixPart) as string;
-
-		if (
-			/^-?[\d.]+(?:e-?\d+)?$/.test(rt)
-			&& !column.data_type.startsWith('numeric')
-		) {
-			return Number(rt);
-		} else if (column.data_type === 'json' || column.data_type === 'jsonb') {
-			const jsonWithoutSpaces = JSON.stringify(JSON.parse(rt));
-			return `'${jsonWithoutSpaces}'${
-				hasDifferentDefaultCast
-					? columnToDefault[hasDifferentDefaultCast]
-					: `::${column.data_type as string}`
-			}`;
-		} else if (column.data_type === 'boolean') {
-			return column.column_default === 'true';
-		} else {
-			return `'${rt}'`;
-		}
-	} else {
-		if (
-			/^-?[\d.]+(?:e-?\d+)?$/.test(columnDefaultAsString)
-			&& !column.data_type.startsWith('numeric')
-		) {
+		if (/^-?[\d.]+(?:e-?\d+)?$/.test(columnDefaultAsString)) {
 			return Number(columnDefaultAsString);
-		} else if (column.data_type === 'boolean') {
-			return column.column_default === 'true';
 		} else {
-			return `${columnDefaultAsString}`;
+			if (typeof internals!.tables![tableName] === 'undefined') {
+				internals!.tables![tableName] = {
+					columns: {
+						[columnName]: {
+							isDefaultAnExpression: true,
+						},
+					},
+				};
+			} else {
+				if (
+					typeof internals!.tables![tableName]!.columns[columnName]
+						=== 'undefined'
+				) {
+					internals!.tables![tableName]!.columns[columnName] = {
+						isDefaultAnExpression: true,
+					};
+				} else {
+					internals!.tables![tableName]!.columns[
+						columnName
+					]!.isDefaultAnExpression = true;
+				}
+			}
+			return columnDefaultAsString;
 		}
+	} else if (column.data_type === 'json' || column.data_type === 'jsonb') {
+		const jsonWithoutSpaces = JSON.stringify(JSON.parse(columnDefaultAsString.slice(1, -1)));
+		return `'${jsonWithoutSpaces}'::${column.data_type}`;
+	} else if (column.data_type === 'boolean') {
+		return column.column_default === 'true';
+	} else if (columnDefaultAsString === 'NULL') {
+		return `NULL`;
+	} else if (columnDefaultAsString.startsWith("'") && columnDefaultAsString.endsWith("'")) {
+		return columnDefaultAsString;
+	} else {
+		return `${columnDefaultAsString.replace(/\\/g, '\`\\')}`;
 	}
 };

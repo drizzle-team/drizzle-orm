@@ -270,6 +270,38 @@ test('AWS Data API #8', () => {
 	}).toThrowError();
 });
 
+test('PGlite #1', () => {
+	expect(
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'pglite',
+			url: './my.db',
+		}),
+	).toStrictEqual({
+		driver: 'pglite',
+		url: './my.db',
+	});
+});
+
+test('PGlite #2', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'pglite',
+			url: '',
+		});
+	}).toThrowError();
+});
+
+test('PGlite #3', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'pglite',
+		});
+	}).toThrowError();
+});
+
 test('postgres #1', () => {
 	expect(
 		postgresCredentials.parse({

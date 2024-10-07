@@ -43,15 +43,22 @@ export class NeonDriver {
 	}
 }
 
-export type NeonDatabase<
+export class NeonDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<NeonQueryResultHKT, TSchema>;
+> extends PgDatabase<NeonQueryResultHKT, TSchema> {
+	static readonly [entityKind]: string = 'NeonServerlessDatabase';
+}
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: NeonClient,
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends NeonClient = NeonClient,
+>(
+	client: TClient,
 	config: DrizzleConfig<TSchema> = {},
-): NeonDatabase<TSchema> {
-	const dialect = new PgDialect();
+): NeonDatabase<TSchema> & {
+	$client: TClient;
+} {
+	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -74,5 +81,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const driver = new NeonDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new PgDatabase(dialect, session, schema) as NeonDatabase<TSchema>;
+	const db = new NeonDatabase(dialect, session, schema as any) as NeonDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

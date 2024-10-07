@@ -139,7 +139,7 @@ let db: DrizzleD1Database<typeof schema>;
 beforeAll(async () => {
 	const sqliteDb = await createSQLiteDB(':memory:');
 	const d1db = new D1Database(new D1DatabaseAPI(sqliteDb));
-	db = drizzle(d1db as any, { logger: ENABLE_LOGGING, schema });
+	db = drizzle(d1db, { logger: ENABLE_LOGGING, schema });
 });
 
 beforeEach(async () => {

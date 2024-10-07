@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Builder<{
@@ -98,16 +99,20 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MySqlBigInt64'>
 	}
 }
 
-interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
 	mode: T;
 	unsigned?: boolean;
 }
 
+export function bigint<TMode extends MySqlBigIntConfig['mode']>(
+	config: MySqlBigIntConfig<TMode>,
+): TMode extends 'number' ? MySqlBigInt53BuilderInitial<''> : MySqlBigInt64BuilderInitial<''>;
 export function bigint<TName extends string, TMode extends MySqlBigIntConfig['mode']>(
 	name: TName,
 	config: MySqlBigIntConfig<TMode>,
 ): TMode extends 'number' ? MySqlBigInt53BuilderInitial<TName> : MySqlBigInt64BuilderInitial<TName>;
-export function bigint(name: string, config: MySqlBigIntConfig) {
+export function bigint(a?: string | MySqlBigIntConfig, b?: MySqlBigIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlBigIntConfig>(a, b);
 	if (config.mode === 'number') {
 		return new MySqlBigInt53Builder(name, config.unsigned);
 	}

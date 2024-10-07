@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
+import { toCamelCase } from 'drizzle-orm/casing';
 import './@types/utils';
 import type { Casing } from './cli/validations/common';
+import { assertUnreachable } from './global';
 import type {
 	Column,
 	ForeignKey,
@@ -38,15 +40,33 @@ const objToStatement2 = (json: any) => {
 
 const relations = new Set<string>();
 
+const escapeColumnKey = (value: string) => {
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
+		return `"${value}"`;
+	}
+	return value;
+};
+
 const withCasing = (value: string, casing?: Casing) => {
-	if (typeof casing === 'undefined') {
-		return value;
+	if (casing === 'preserve') {
+		return escapeColumnKey(value);
 	}
 	if (casing === 'camel') {
-		return value.camelCase();
+		return escapeColumnKey(value.camelCase());
 	}
 
 	return value;
+};
+
+const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
+	if (casing === 'preserve') {
+		return '';
+	}
+	if (casing === 'camel') {
+		return toCamelCase(name) === name ? '' : withMode ? `"${name}", ` : `"${name}"`;
+	}
+
+	assertUnreachable(casing);
 };
 
 export const schemaToTypeScript = (
@@ -219,9 +239,10 @@ const column = (
 	casing?: Casing,
 ) => {
 	let lowered = type;
+	casing = casing!;
 
 	if (lowered === 'integer') {
-		let out = `${withCasing(name, casing)}: integer("${name}")`;
+		let out = `${withCasing(name, casing)}: integer(${dbColumnName({ name, casing })})`;
 		// out += autoincrement ? `.autoincrement()` : "";
 		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue)})`
@@ -230,7 +251,7 @@ const column = (
 	}
 
 	if (lowered === 'real') {
-		let out = `${withCasing(name, casing)}: real("${name}")`;
+		let out = `${withCasing(name, casing)}: real(${dbColumnName({ name, casing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
@@ -240,9 +261,11 @@ const column = (
 		let out: string;
 
 		if (match) {
-			out = `${withCasing(name, casing)}: text("${name}", { length: ${match[0]} })`;
+			out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing, withMode: true })}{ length: ${
+				match[0]
+			} })`;
 		} else {
-			out = `${withCasing(name, casing)}: text("${name}")`;
+			out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing })})`;
 		}
 
 		out += defaultValue ? `.default("${mapColumnDefault(defaultValue)}")` : '';
@@ -250,13 +273,13 @@ const column = (
 	}
 
 	if (lowered === 'blob') {
-		let out = `${withCasing(name, casing)}: blob("${name}")`;
+		let out = `${withCasing(name, casing)}: blob(${dbColumnName({ name, casing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 
 	if (lowered === 'numeric') {
-		let out = `${withCasing(name, casing)}: numeric("${name}")`;
+		let out = `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}

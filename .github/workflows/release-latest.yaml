@@ -139,12 +139,6 @@ jobs:
             cd drizzle-orm
             pnpm prisma generate --schema src/prisma/schema.prisma
           )
-          (
-            cd integration-tests
-            pnpm prisma generate --schema tests/prisma/pg/schema.prisma
-            pnpm prisma generate --schema tests/prisma/mysql/schema.prisma
-            pnpm prisma generate --schema tests/prisma/sqlite/schema.prisma
-          )
           pnpm build
 
       - name: Run tests
