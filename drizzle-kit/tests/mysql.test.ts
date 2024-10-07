@@ -1,10 +1,10 @@
 import { sql } from 'drizzle-orm';
 import {
+	foreignKey,
 	index,
 	int,
 	json,
 	mysqlEnum,
-	foreignKey,
 	mysqlSchema,
 	mysqlTable,
 	primaryKey,

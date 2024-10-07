@@ -18,7 +18,7 @@ import {
 	Table,
 	UniqueConstraint,
 } from '../serializer/mysqlSchema';
-import { type DB, escapeSingleQuotes, unescapeSingleQuotes, getColumnCasing } from '../utils';
+import { type DB, escapeSingleQuotes, getColumnCasing, unescapeSingleQuotes } from '../utils';
 import { sqlToStr } from '.';
 // import { MySqlColumnWithAutoIncrement } from "drizzle-orm/mysql-core";
 // import { MySqlDateBaseColumn } from "drizzle-orm/mysql-core";

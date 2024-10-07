@@ -22,7 +22,7 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/sqliteSchema';
-import { escapeSingleQuotes, type SQLiteDB, unescapeSingleQuotes, getColumnCasing } from '../utils';
+import { escapeSingleQuotes, getColumnCasing, type SQLiteDB, unescapeSingleQuotes } from '../utils';
 import { sqlToStr } from '.';
 
 export const generateSqliteSnapshot = (

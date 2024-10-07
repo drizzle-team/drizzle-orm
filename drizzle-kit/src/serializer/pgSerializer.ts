@@ -32,7 +32,7 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/pgSchema';
-import { type DB, escapeSingleQuotes, isPgArrayType, unescapeSingleQuotes, getColumnCasing } from '../utils';
+import { type DB, escapeSingleQuotes, getColumnCasing, isPgArrayType, unescapeSingleQuotes } from '../utils';
 import { sqlToStr } from '.';
 
 export const indexName = (tableName: string, columns: string[]) => {
