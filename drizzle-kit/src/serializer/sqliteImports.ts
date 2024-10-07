@@ -21,7 +21,7 @@ export const prepareFromSqliteImports = async (imports: string[]) => {
 	for (let i = 0; i < imports.length; i++) {
 		const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
+		const i0: Record<string, unknown> = await import(`${it}`);
 		const prepared = prepareFromExports(i0);
 
 		tables.push(...prepared.tables);
