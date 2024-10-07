@@ -760,9 +760,9 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash text NOT NULL,
-				created_at numeric
+				id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+				hash TEXT NOT NULL,
+				created_at INTEGER
 			)
 		`;
 		session.run(migrationTableCreate);
@@ -812,9 +812,9 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash text NOT NULL,
-				created_at numeric
+				id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+				hash TEXT NOT NULL,
+				created_at INTEGER
 			)
 		`;
 		await session.run(migrationTableCreate);
