@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 
 import type { Database } from 'bun:sqlite';
+import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
@@ -13,15 +14,19 @@ import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { SQLiteBunSession } from './session.ts';
 
-export type BunSQLiteDatabase<
+export class BunSQLiteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = BaseSQLiteDatabase<'sync', void, TSchema>;
+> extends BaseSQLiteDatabase<'sync', void, TSchema> {
+	static readonly [entityKind]: string = 'BunSQLiteDatabase';
+}
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Database,
 	config: DrizzleConfig<TSchema> = {},
-): BunSQLiteDatabase<TSchema> {
-	const dialect = new SQLiteSyncDialect();
+): BunSQLiteDatabase<TSchema> & {
+	$client: Database;
+} {
+	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -43,5 +48,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new SQLiteBunSession(client, dialect, schema, { logger });
-	return new BaseSQLiteDatabase('sync', dialect, session, schema) as BunSQLiteDatabase<TSchema>;
+	const db = new BunSQLiteDatabase('sync', dialect, session, schema) as BunSQLiteDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

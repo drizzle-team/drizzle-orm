@@ -76,6 +76,21 @@ export class LibSQLSession<
 		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
+	async migrate<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
+		const preparedQueries: PreparedQuery[] = [];
+		const builtQueries: InStatement[] = [];
+
+		for (const query of queries) {
+			const preparedQuery = query._prepare();
+			const builtQuery = preparedQuery.getQuery();
+			preparedQueries.push(preparedQuery);
+			builtQueries.push({ sql: builtQuery.sql, args: builtQuery.params as InArgs });
+		}
+
+		const batchResults = await this.client.migrate(builtQueries);
+		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
+	}
+
 	override async transaction<T>(
 		transaction: (db: LibSQLTransaction<TFullSchema, TSchema>) => T | Promise<T>,
 		_config?: SQLiteTransactionConfig,
