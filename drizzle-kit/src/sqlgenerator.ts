@@ -51,6 +51,7 @@ import {
 	JsonSqliteAddColumnStatement,
 	JsonSqliteCreateTableStatement,
 	JsonStatement,
+	SqliteJsonDropColumnStatement,
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
@@ -876,10 +877,10 @@ class MySqlAlterTableDropColumnConvertor extends Convertor {
 
 class SQLiteAlterTableDropColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'alter_table_drop_column' && (dialect === 'sqlite' || dialect === 'turso');
+		return statement.type === 'sqlite_alter_table_drop_column' && (dialect === 'sqlite' || dialect === 'turso');
 	}
 
-	convert(statement: JsonDropColumnStatement) {
+	convert(statement: SqliteJsonDropColumnStatement) {
 		const { tableName, columnName } = statement;
 		return `ALTER TABLE \`${tableName}\` DROP COLUMN \`${columnName}\`;`;
 	}
@@ -1228,8 +1229,17 @@ class SqliteAlterTableAlterColumnDropGeneratedConvertor extends Convertor {
 		const dropColumnStatement = new SQLiteAlterTableDropColumnConvertor().convert({
 			tableName,
 			columnName,
-			schema,
-			type: 'alter_table_drop_column',
+			column: {
+				name: columnName,
+				type: statement.newDataType,
+				notNull: columnNotNull,
+				default: columnDefault,
+				onUpdate: columnOnUpdate,
+				autoincrement: columnAutoIncrement,
+				primaryKey: columnPk,
+				generated: columnGenerated,
+			},
+			type: 'sqlite_alter_table_drop_column',
 		});
 
 		return [dropColumnStatement, addColumnStatement];
@@ -1277,8 +1287,17 @@ class SqliteAlterTableAlterColumnSetExpressionConvertor extends Convertor {
 		const dropColumnStatement = new SQLiteAlterTableDropColumnConvertor().convert({
 			tableName,
 			columnName,
-			schema,
-			type: 'alter_table_drop_column',
+			column: {
+				name: columnName,
+				type: statement.newDataType,
+				notNull,
+				default: columnDefault,
+				onUpdate: columnOnUpdate,
+				autoincrement: columnAutoIncrement,
+				primaryKey: columnPk,
+				generated: columnGenerated,
+			},
+			type: 'sqlite_alter_table_drop_column',
 		});
 
 		return [dropColumnStatement, addColumnStatement];
@@ -1326,8 +1345,17 @@ class SqliteAlterTableAlterColumnAlterGeneratedConvertor extends Convertor {
 		const dropColumnStatement = new SQLiteAlterTableDropColumnConvertor().convert({
 			tableName,
 			columnName,
-			schema,
-			type: 'alter_table_drop_column',
+			column: {
+				name: columnName,
+				type: statement.newDataType,
+				notNull: columnNotNull,
+				default: columnDefault,
+				onUpdate: columnOnUpdate,
+				autoincrement: columnAutoIncrement,
+				primaryKey: columnPk,
+				generated: columnGenerated,
+			},
+			type: 'sqlite_alter_table_drop_column',
 		});
 
 		return [dropColumnStatement, addColumnStatement];

@@ -161,6 +161,13 @@ export interface JsonDropColumnStatement {
 	schema: string;
 }
 
+export interface SqliteJsonDropColumnStatement {
+	type: 'sqlite_alter_table_drop_column';
+	tableName: string;
+	columnName: string;
+	column: Column;
+}
+
 export interface JsonAddColumnStatement {
 	type: 'alter_table_add_column';
 	tableName: string;
@@ -582,7 +589,8 @@ export type JsonStatement =
 	| JsonDropSequenceStatement
 	| JsonCreateSequenceStatement
 	| JsonMoveSequenceStatement
-	| JsonRenameSequenceStatement;
+	| JsonRenameSequenceStatement
+	| SqliteJsonDropColumnStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -883,6 +891,20 @@ export const _prepareDropColumns = (
 			tableName: taleName,
 			columnName: it.name,
 			schema,
+		};
+	});
+};
+
+export const _prepareSqliteDropColumns = (
+	taleName: string,
+	columns: Column[],
+): SqliteJsonDropColumnStatement[] => {
+	return columns.map((it) => {
+		return {
+			type: 'sqlite_alter_table_drop_column',
+			tableName: taleName,
+			columnName: it.name,
+			column: it,
 		};
 	});
 };
