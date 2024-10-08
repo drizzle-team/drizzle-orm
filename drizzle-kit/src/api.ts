@@ -17,6 +17,7 @@ import { pgSuggestions } from './cli/commands/pgPushUtils';
 import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/pgUp';
 import { sqlitePushIntrospect } from './cli/commands/sqliteIntrospect';
 import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
+import type { CasingType } from './cli/validations/common';
 import { originUUID } from './global';
 import { fillPgSnapshot } from './migrationPreparator';
 import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
@@ -35,6 +36,7 @@ export const generateDrizzleJson = (
 	imports: Record<string, unknown>,
 	prevId?: string,
 	schemaFilters?: string[],
+	casing?: CasingType,
 ): PgSchemaKit => {
 	const prepared = prepareFromExports(imports);
 
@@ -46,6 +48,7 @@ export const generateDrizzleJson = (
 		prepared.schemas,
 		prepared.sequences,
 		prepared.roles,
+		casing,
 		schemaFilters,
 	);
 
@@ -147,6 +150,7 @@ export const pushSchema = async (
 export const generateSQLiteDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string,
+	casing?: CasingType,
 ): Promise<SQLiteSchemaKit> => {
 	const { prepareFromExports } = await import('./serializer/sqliteImports');
 
@@ -154,7 +158,7 @@ export const generateSQLiteDrizzleJson = async (
 
 	const id = randomUUID();
 
-	const snapshot = generateSqliteSnapshot(prepared.tables);
+	const snapshot = generateSqliteSnapshot(prepared.tables, casing);
 
 	return {
 		...snapshot,
@@ -250,6 +254,7 @@ export const pushSQLiteSchema = async (
 export const generateMySQLDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string,
+	casing?: CasingType,
 ): Promise<MySQLSchemaKit> => {
 	const { prepareFromExports } = await import('./serializer/mysqlImports');
 
@@ -257,7 +262,7 @@ export const generateMySQLDrizzleJson = async (
 
 	const id = randomUUID();
 
-	const snapshot = generateMySqlSnapshot(prepared.tables);
+	const snapshot = generateMySqlSnapshot(prepared.tables, casing);
 
 	return {
 		...snapshot,

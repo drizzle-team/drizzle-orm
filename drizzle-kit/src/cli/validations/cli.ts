@@ -1,6 +1,6 @@
 import { array, boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
-import { casing, prefix } from './common';
+import { casing, casingType, prefix } from './common';
 
 export const cliConfigGenerate = object({
 	dialect: dialect.optional(),
@@ -17,6 +17,7 @@ export type CliConfigGenerate = TypeOf<typeof cliConfigGenerate>;
 
 export const pushParams = object({
 	dialect: dialect,
+	casing: casingType.optional(),
 	schema: union([string(), string().array()]),
 	tablesFilter: union([string(), string().array()]).optional(),
 	schemaFilter: union([string(), string().array()])

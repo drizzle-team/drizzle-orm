@@ -80,7 +80,7 @@
 		"commander": "^12.1.0",
 		"dockerode": "^3.3.4",
 		"dotenv": "^16.0.3",
-		"drizzle-kit": "0.21.2",
+		"drizzle-kit": "0.25.0-b1faa33",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"env-paths": "^3.0.0",
 		"esbuild-node-externals": "^1.9.0",

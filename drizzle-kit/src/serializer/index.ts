@@ -1,14 +1,16 @@
 import chalk from 'chalk';
-import type { SQL } from 'drizzle-orm';
+import { SQL, Table } from 'drizzle-orm';
+import { CasingCache } from 'drizzle-orm/casing';
 import fs from 'fs';
 import * as glob from 'glob';
 import Path from 'path';
+import { CasingType } from 'src/cli/validations/common';
 import { error } from '../cli/views';
 import type { MySqlSchemaInternal } from './mysqlSchema';
 import type { PgSchemaInternal } from './pgSchema';
 import type { SQLiteSchemaInternal } from './sqliteSchema';
 
-export const sqlToStr = (sql: SQL) => {
+export const sqlToStr = (sql: SQL, casing: CasingType | undefined) => {
 	return sql.toQuery({
 		escapeName: () => {
 			throw new Error("we don't support params for `sql` default values");
@@ -19,10 +21,11 @@ export const sqlToStr = (sql: SQL) => {
 		escapeString: () => {
 			throw new Error("we don't support params for `sql` default values");
 		},
+		casing: new CasingCache(casing),
 	}).sql;
 };
 
-export const sqlToStrGenerated = (sql: SQL) => {
+export const sqlToStrGenerated = (sql: SQL, casing: CasingType | undefined) => {
 	return sql.toQuery({
 		escapeName: () => {
 			throw new Error("we don't support params for `sql` default values");
@@ -33,11 +36,13 @@ export const sqlToStrGenerated = (sql: SQL) => {
 		escapeString: () => {
 			throw new Error("we don't support params for `sql` default values");
 		},
+		casing: new CasingCache(casing),
 	}).sql;
 };
 
 export const serializeMySql = async (
 	path: string | string[],
+	casing: CasingType | undefined,
 ): Promise<MySqlSchemaInternal> => {
 	const filenames = prepareFilenames(path);
 
@@ -48,11 +53,12 @@ export const serializeMySql = async (
 
 	const { tables } = await prepareFromMySqlImports(filenames);
 
-	return generateMySqlSnapshot(tables);
+	return generateMySqlSnapshot(tables, casing);
 };
 
 export const serializePg = async (
 	path: string | string[],
+	casing: CasingType | undefined,
 	schemaFilter?: string[],
 ): Promise<PgSchemaInternal> => {
 	const filenames = prepareFilenames(path);
@@ -64,18 +70,19 @@ export const serializePg = async (
 		filenames,
 	);
 
-	return generatePgSnapshot(tables, enums, schemas, sequences, roles, schemaFilter);
+	return generatePgSnapshot(tables, enums, schemas, sequences, roles, casing, schemaFilter);
 };
 
 export const serializeSQLite = async (
 	path: string | string[],
+	casing: CasingType | undefined,
 ): Promise<SQLiteSchemaInternal> => {
 	const filenames = prepareFilenames(path);
 
 	const { prepareFromSqliteImports } = await import('./sqliteImports');
 	const { generateSqliteSnapshot } = await import('./sqliteSerializer');
 	const { tables } = await prepareFromSqliteImports(filenames);
-	return generateSqliteSnapshot(tables);
+	return generateSqliteSnapshot(tables, casing);
 };
 
 export const prepareFilenames = (path: string | string[]) => {

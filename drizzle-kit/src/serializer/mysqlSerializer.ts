@@ -1,9 +1,11 @@
 import chalk from 'chalk';
 import { getTableName, is } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import { AnyMySqlTable, MySqlDialect, type PrimaryKey as PrimaryKeyORM, uniqueKeyName } from 'drizzle-orm/mysql-core';
 import { getTableConfig } from 'drizzle-orm/mysql-core';
 import { RowDataPacket } from 'mysql2/promise';
+import { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../cli/validations/outputs';
 import { IntrospectStage, IntrospectStatus } from '../cli/views';
 import {
@@ -16,12 +18,10 @@ import {
 	Table,
 	UniqueConstraint,
 } from '../serializer/mysqlSchema';
-import type { DB } from '../utils';
+import { type DB, getColumnCasing } from '../utils';
 import { sqlToStr } from '.';
 // import { MySqlColumnWithAutoIncrement } from "drizzle-orm/mysql-core";
 // import { MySqlDateBaseColumn } from "drizzle-orm/mysql-core";
-
-const dialect = new MySqlDialect();
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -29,7 +29,9 @@ export const indexName = (tableName: string, columns: string[]) => {
 
 export const generateMySqlSnapshot = (
 	tables: AnyMySqlTable[],
+	casing: CasingType | undefined,
 ): MySqlSchemaInternal => {
+	const dialect = new MySqlDialect({ casing });
 	const result: Record<string, Table> = {};
 	const internal: MySqlKitInternals = { tables: {}, indexes: {} };
 	for (const table of tables) {
@@ -49,6 +51,7 @@ export const generateMySqlSnapshot = (
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
 
 		columns.forEach((column) => {
+			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 			const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
@@ -58,7 +61,7 @@ export const generateMySqlSnapshot = (
 			const generated = column.generated;
 
 			const columnToSet: Column = {
-				name: column.name,
+				name,
 				type: column.getSQLType(),
 				primaryKey: false,
 				// If field is autoincrement it's notNull by default
@@ -79,9 +82,9 @@ export const generateMySqlSnapshot = (
 			};
 
 			if (column.primary) {
-				primaryKeysObject[`${tableName}_${column.name}`] = {
-					name: `${tableName}_${column.name}`,
-					columns: [column.name],
+				primaryKeysObject[`${tableName}_${name}`] = {
+					name: `${tableName}_${name}`,
+					columns: [name],
 				};
 			}
 
@@ -101,7 +104,7 @@ export const generateMySqlSnapshot = (
 								)
 							} on the ${
 								chalk.underline.blue(
-									column.name,
+									name,
 								)
 							} column is confilcting with a unique constraint name already defined for ${
 								chalk.underline.blue(
@@ -120,7 +123,7 @@ export const generateMySqlSnapshot = (
 
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
-					columnToSet.default = sqlToStr(column.default);
+					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					if (typeof column.default === 'string') {
 						columnToSet.default = `'${column.default}'`;
@@ -150,24 +153,33 @@ export const generateMySqlSnapshot = (
 					}
 				}
 			}
-			columnsObject[column.name] = columnToSet;
+			columnsObject[name] = columnToSet;
 		});
 
 		primaryKeys.map((pk: PrimaryKeyORM) => {
-			const columnNames = pk.columns.map((c: any) => c.name);
-			primaryKeysObject[pk.getName()] = {
-				name: pk.getName(),
+			const originalColumnNames = pk.columns.map((c) => c.name);
+			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
+
+			let name = pk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnNames.length; i++) {
+					name = name.replace(originalColumnNames[i], columnNames[i]);
+				}
+			}
+
+			primaryKeysObject[name] = {
+				name,
 				columns: columnNames,
 			};
 
 			// all composite pk's should be treated as notNull
 			for (const column of pk.columns) {
-				columnsObject[column.name].notNull = true;
+				columnsObject[getColumnCasing(column, casing)].notNull = true;
 			}
 		});
 
 		uniqueConstraints?.map((unq) => {
-			const columnNames = unq.columns.map((c) => c.name);
+			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
 
 			const name = unq.name ?? uniqueKeyName(table, columnNames);
 
@@ -206,7 +218,6 @@ export const generateMySqlSnapshot = (
 		});
 
 		const fks: ForeignKey[] = foreignKeys.map((fk) => {
-			const name = fk.getName();
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete ?? 'no action';
 			const onUpdate = fk.onUpdate ?? 'no action';
@@ -216,8 +227,22 @@ export const generateMySqlSnapshot = (
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
-			const columnsFrom = reference.columns.map((it) => it.name);
-			const columnsTo = reference.foreignColumns.map((it) => it.name);
+
+			const originalColumnsFrom = reference.columns.map((it) => it.name);
+			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
+			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+
+			let name = fk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnsFrom.length; i++) {
+					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+				}
+				for (let i = 0; i < originalColumnsTo.length; i++) {
+					name = name.replace(originalColumnsTo[i], columnsTo[i]);
+				}
+			}
+
 			return {
 				name,
 				tableFrom,
@@ -259,7 +284,7 @@ export const generateMySqlSnapshot = (
 					}
 					return sql;
 				} else {
-					return `${it.name}`;
+					return `${getColumnCasing(it, casing)}`;
 				}
 			});
 

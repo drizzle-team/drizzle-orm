@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
 	AnyPgColumn,
+	foreignKey,
 	geometry,
 	index,
 	integer,
@@ -12,6 +13,8 @@ import {
 	primaryKey,
 	serial,
 	text,
+	unique,
+	uniqueIndex,
 	vector,
 } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
@@ -651,4 +654,200 @@ test('create table with tsvector', async () => {
 		'CREATE TABLE IF NOT EXISTS "posts" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"title" text NOT NULL,\n\t"description" text NOT NULL\n);\n',
 		`CREATE INDEX IF NOT EXISTS "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
 	]);
+});
+
+test('optional db aliases (snake case)', async () => {
+	const from = {};
+
+	const t1 = pgTable(
+		't1',
+		{
+			t1Id1: integer().notNull().primaryKey(),
+			t1Col2: integer().notNull(),
+			t1Col3: integer().notNull(),
+			t2Ref: integer().notNull().references(() => t2.t2Id),
+			t1Uni: integer().notNull(),
+			t1UniIdx: integer().notNull(),
+			t1Idx: integer().notNull(),
+		},
+		(table) => ({
+			uni: unique('t1_uni').on(table.t1Uni),
+			uniIdx: uniqueIndex('t1_uni_idx').on(table.t1UniIdx),
+			idx: index('t1_idx').on(table.t1Idx).where(sql`${table.t1Idx} > 0`),
+			fk: foreignKey({
+				columns: [table.t1Col2, table.t1Col3],
+				foreignColumns: [t3.t3Id1, t3.t3Id2],
+			}),
+		}),
+	);
+
+	const t2 = pgTable(
+		't2',
+		{
+			t2Id: serial().primaryKey(),
+		},
+	);
+
+	const t3 = pgTable(
+		't3',
+		{
+			t3Id1: integer(),
+			t3Id2: integer(),
+		},
+		(table) => ({
+			pk: primaryKey({
+				columns: [table.t3Id1, table.t3Id2],
+			}),
+		}),
+	);
+
+	const to = {
+		t1,
+		t2,
+		t3,
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'snake_case');
+
+	const st1 = `CREATE TABLE IF NOT EXISTS "t1" (
+	"t1_id1" integer PRIMARY KEY NOT NULL,
+	"t1_col2" integer NOT NULL,
+	"t1_col3" integer NOT NULL,
+	"t2_ref" integer NOT NULL,
+	"t1_uni" integer NOT NULL,
+	"t1_uni_idx" integer NOT NULL,
+	"t1_idx" integer NOT NULL,
+	CONSTRAINT "t1_uni" UNIQUE("t1_uni")
+);
+`;
+
+	const st2 = `CREATE TABLE IF NOT EXISTS "t2" (
+	"t2_id" serial PRIMARY KEY NOT NULL
+);
+`;
+
+	const st3 = `CREATE TABLE IF NOT EXISTS "t3" (
+	"t3_id1" integer,
+	"t3_id2" integer,
+	CONSTRAINT "t3_t3_id1_t3_id2_pk" PRIMARY KEY("t3_id1","t3_id2")
+);
+`;
+
+	const st4 = `DO $$ BEGIN
+ ALTER TABLE "t1" ADD CONSTRAINT "t1_t2_ref_t2_t2_id_fk" FOREIGN KEY ("t2_ref") REFERENCES "public"."t2"("t2_id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+`;
+
+	const st5 = `DO $$ BEGIN
+ ALTER TABLE "t1" ADD CONSTRAINT "t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk" FOREIGN KEY ("t1_col2","t1_col3") REFERENCES "public"."t3"("t3_id1","t3_id2") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+`;
+
+	const st6 = `CREATE UNIQUE INDEX IF NOT EXISTS "t1_uni_idx" ON "t1" USING btree ("t1_uni_idx");`;
+
+	const st7 = `CREATE INDEX IF NOT EXISTS "t1_idx" ON "t1" USING btree ("t1_idx") WHERE "t1"."t1_idx" > 0;`;
+
+	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+});
+
+test('optional db aliases (camel case)', async () => {
+	const from = {};
+
+	const t1 = pgTable(
+		't1',
+		{
+			t1_id1: integer().notNull().primaryKey(),
+			t1_col2: integer().notNull(),
+			t1_col3: integer().notNull(),
+			t2_ref: integer().notNull().references(() => t2.t2_id),
+			t1_uni: integer().notNull(),
+			t1_uni_idx: integer().notNull(),
+			t1_idx: integer().notNull(),
+		},
+		(table) => ({
+			uni: unique('t1Uni').on(table.t1_uni),
+			uni_idx: uniqueIndex('t1UniIdx').on(table.t1_uni_idx),
+			idx: index('t1Idx').on(table.t1_idx).where(sql`${table.t1_idx} > 0`),
+			fk: foreignKey({
+				columns: [table.t1_col2, table.t1_col3],
+				foreignColumns: [t3.t3_id1, t3.t3_id2],
+			}),
+		}),
+	);
+
+	const t2 = pgTable(
+		't2',
+		{
+			t2_id: serial().primaryKey(),
+		},
+	);
+
+	const t3 = pgTable(
+		't3',
+		{
+			t3_id1: integer(),
+			t3_id2: integer(),
+		},
+		(table) => ({
+			pk: primaryKey({
+				columns: [table.t3_id1, table.t3_id2],
+			}),
+		}),
+	);
+
+	const to = {
+		t1,
+		t2,
+		t3,
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'camelCase');
+
+	const st1 = `CREATE TABLE IF NOT EXISTS "t1" (
+	"t1Id1" integer PRIMARY KEY NOT NULL,
+	"t1Col2" integer NOT NULL,
+	"t1Col3" integer NOT NULL,
+	"t2Ref" integer NOT NULL,
+	"t1Uni" integer NOT NULL,
+	"t1UniIdx" integer NOT NULL,
+	"t1Idx" integer NOT NULL,
+	CONSTRAINT "t1Uni" UNIQUE("t1Uni")
+);
+`;
+
+	const st2 = `CREATE TABLE IF NOT EXISTS "t2" (
+	"t2Id" serial PRIMARY KEY NOT NULL
+);
+`;
+
+	const st3 = `CREATE TABLE IF NOT EXISTS "t3" (
+	"t3Id1" integer,
+	"t3Id2" integer,
+	CONSTRAINT "t3_t3Id1_t3Id2_pk" PRIMARY KEY("t3Id1","t3Id2")
+);
+`;
+
+	const st4 = `DO $$ BEGIN
+ ALTER TABLE "t1" ADD CONSTRAINT "t1_t2Ref_t2_t2Id_fk" FOREIGN KEY ("t2Ref") REFERENCES "public"."t2"("t2Id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+`;
+
+	const st5 = `DO $$ BEGIN
+ ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "public"."t3"("t3Id1","t3Id2") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+`;
+
+	const st6 = `CREATE UNIQUE INDEX IF NOT EXISTS "t1UniIdx" ON "t1" USING btree ("t1UniIdx");`;
+
+	const st7 = `CREATE INDEX IF NOT EXISTS "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
+
+	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
