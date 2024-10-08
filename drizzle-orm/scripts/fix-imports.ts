@@ -54,6 +54,12 @@ await Promise.all(cjsFiles.map(async (file) => {
 			path.value.argument.value = resolvePathAlias(path.value.argument.value, file);
 			this.traverse(path);
 		},
+		visitAwaitExpression(path) {
+			if (print(path.value).code.startsWith(`await import("./`)) {
+				path.value.argument.arguments[0].value = fixImportPath(path.value.argument.arguments[0].value, file, '.cjs');
+			}
+			this.traverse(path);
+		},
 	});
 
 	await fs.writeFile(file, print(code).code);
@@ -81,6 +87,12 @@ await Promise.all(esmFiles.map(async (file) => {
 		},
 		visitTSImportType(path) {
 			path.value.argument.value = fixImportPath(path.value.argument.value, file, '.js');
+			this.traverse(path);
+		},
+		visitAwaitExpression(path) {
+			if (print(path.value).code.startsWith(`await import("./`)) {
+				path.value.argument.arguments[0].value = fixImportPath(path.value.argument.arguments[0].value, file, '.js');
+			}
 			this.traverse(path);
 		},
 	});
