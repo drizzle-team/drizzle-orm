@@ -22,7 +22,7 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/sqliteSchema';
-import { getColumnCasing, type SQLiteDB } from '../utils';
+import { escapeSingleQuotes, getColumnCasing, type SQLiteDB, unescapeSingleQuotes } from '../utils';
 import { sqlToStr } from '.';
 
 export const generateSqliteSnapshot = (
@@ -80,7 +80,7 @@ export const generateSqliteSnapshot = (
 					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					columnToSet.default = typeof column.default === 'string'
-						? `'${column.default}'`
+						? `'${escapeSingleQuotes(column.default)}'`
 						: typeof column.default === 'object'
 								|| Array.isArray(column.default)
 						? `'${JSON.stringify(column.default)}'`
@@ -499,7 +499,7 @@ export const fromDatabase = async (
 				: columnDefault === 'true'
 				? true
 				: columnDefault.startsWith("'") && columnDefault.endsWith("'")
-				? columnDefault
+				? unescapeSingleQuotes(columnDefault, true)
 				// ? columnDefault.substring(1, columnDefault.length - 1)
 				: `(${columnDefault})`,
 			autoincrement: isAutoincrement,

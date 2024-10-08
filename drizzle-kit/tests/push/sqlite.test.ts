@@ -7,6 +7,7 @@ import {
 	int,
 	integer,
 	numeric,
+	primaryKey,
 	real,
 	sqliteTable,
 	text,
@@ -1287,4 +1288,79 @@ test('recreate table with added column not null and without default with data', 
 	expect(shouldAskForApprove).toBe(false);
 	expect(tablesToRemove!.length).toBe(0);
 	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('create composite primary key', async (t) => {
+	const client = new Database(':memory:');
+
+	const schema1 = {};
+
+	const schema2 = {
+		table: sqliteTable('table', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.col1, t.col2],
+			}),
+		})),
+	};
+
+	const {
+		statements,
+		sqlStatements,
+	} = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements).toStrictEqual([{
+		type: 'sqlite_create_table',
+		tableName: 'table',
+		compositePKs: [['col1', 'col2']],
+		uniqueConstraints: [],
+		referenceData: [],
+		columns: [
+			{ name: 'col1', type: 'integer', primaryKey: false, notNull: true, autoincrement: false },
+			{ name: 'col2', type: 'integer', primaryKey: false, notNull: true, autoincrement: false },
+		],
+	}]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `table` (\n\t`col1` integer NOT NULL,\n\t`col2` integer NOT NULL,\n\tPRIMARY KEY(`col1`, `col2`)\n);\n',
+	]);
+});
+
+test('rename table with composite primary key', async () => {
+	const client = new Database(':memory:');
+
+	const productsCategoriesTable = (tableName: string) => {
+		return sqliteTable(tableName, {
+			productId: text('product_id').notNull(),
+			categoryId: text('category_id').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.productId, t.categoryId],
+			}),
+		}));
+	};
+
+	const schema1 = {
+		table: productsCategoriesTable('products_categories'),
+	};
+	const schema2 = {
+		test: productsCategoriesTable('products_to_categories'),
+	};
+
+	const { sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		['public.products_categories->public.products_to_categories'],
+		false,
+	);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE `products_categories` RENAME TO `products_to_categories`;',
+	]);
 });

@@ -11,7 +11,6 @@ import {
 import './@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from './cli/validations/common';
-import { vectorOps } from './extensions/vector';
 import { assertUnreachable } from './global';
 import {
 	Column,
@@ -23,6 +22,7 @@ import {
 	UniqueConstraint,
 } from './serializer/pgSchema';
 import { indexName } from './serializer/pgSerializer';
+import { unescapeSingleQuotes } from './utils';
 
 const pgImportsList = new Set([
 	'pgTable',
@@ -424,7 +424,7 @@ export const schemaToTypeScript = (
 			const func = enumSchema ? `${enumSchema}.enum` : 'pgEnum';
 
 			const values = Object.values(it.values)
-				.map((it) => `'${it}'`)
+				.map((it) => `'${unescapeSingleQuotes(it, false)}'`)
 				.join(', ');
 			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
 		})
@@ -662,18 +662,20 @@ const mapDefault = (
 	if (lowered.startsWith('timestamp')) {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue === 'CURRENT_TIMESTAMP'
-			? '.default(sql\`CURRENT_TIMESTAMP\`)'
-			: defaultValue
+			: /^'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?'$/.test(defaultValue) // Matches 'YYYY-MM-DD HH:MI:SS', 'YYYY-MM-DD HH:MI:SS.FFFFFF', 'YYYY-MM-DD HH:MI:SS+TZ', 'YYYY-MM-DD HH:MI:SS.FFFFFF+TZ' and 'YYYY-MM-DD HH:MI:SS+HH:MI'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
 	if (lowered.startsWith('time')) {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue
+			: /^'\d{2}:\d{2}(:\d{2})?(\.\d+)?'$/.test(defaultValue) // Matches 'HH:MI', 'HH:MI:SS' and 'HH:MI:SS.FFFFFF'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
@@ -684,10 +686,10 @@ const mapDefault = (
 	if (lowered === 'date') {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue === 'CURRENT_DATE'
-			? `.default(sql\`${defaultValue}\`)`
-			: defaultValue
+			: /^'\d{4}-\d{2}-\d{2}'$/.test(defaultValue) // Matches 'YYYY-MM-DD'
 			? `.default(${defaultValue})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
@@ -1207,7 +1209,7 @@ const createTableIndexes = (
 						return `table.${withCasing(it.expression, casing)}${it.asc ? '.asc()' : '.desc()'}${
 							it.nulls === 'first' ? '.nullsFirst()' : '.nullsLast()'
 						}${
-							it.opclass && vectorOps.includes(it.opclass)
+							it.opclass
 								? `.op("${it.opclass}")`
 								: ''
 						}`;

@@ -16,6 +16,7 @@ import {
 	pgSchema,
 	pgSequence,
 	pgTable,
+	primaryKey,
 	real,
 	serial,
 	smallint,
@@ -1063,6 +1064,86 @@ const pgSuite: DialectSuite = {
 		]);
 
 		expect(shouldAskForApprove).toBeFalsy();
+	},
+
+	async createCompositePrimaryKey() {
+		const client = new PGlite();
+
+		const schema1 = {};
+
+		const schema2 = {
+			table: pgTable('table', {
+				col1: integer('col1').notNull(),
+				col2: integer('col2').notNull(),
+			}, (t) => ({
+				pk: primaryKey({
+					columns: [t.col1, t.col2],
+				}),
+			})),
+		};
+
+		const { statements, sqlStatements } = await diffTestSchemasPush(
+			client,
+			schema1,
+			schema2,
+			[],
+			false,
+			['public'],
+		);
+
+		expect(statements).toStrictEqual([
+			{
+				type: 'create_table',
+				tableName: 'table',
+				schema: '',
+				compositePKs: ['col1,col2;table_col1_col2_pk'],
+				compositePkName: 'table_col1_col2_pk',
+				uniqueConstraints: [],
+				columns: [
+					{ name: 'col1', type: 'integer', primaryKey: false, notNull: true },
+					{ name: 'col2', type: 'integer', primaryKey: false, notNull: true },
+				],
+			},
+		]);
+		expect(sqlStatements).toStrictEqual([
+			'CREATE TABLE IF NOT EXISTS "table" (\n\t"col1" integer NOT NULL,\n\t"col2" integer NOT NULL,\n\tCONSTRAINT "table_col1_col2_pk" PRIMARY KEY("col1","col2")\n);\n',
+		]);
+	},
+
+	async renameTableWithCompositePrimaryKey() {
+		const client = new PGlite();
+
+		const productsCategoriesTable = (tableName: string) => {
+			return pgTable(tableName, {
+				productId: text('product_id').notNull(),
+				categoryId: text('category_id').notNull(),
+			}, (t) => ({
+				pk: primaryKey({
+					columns: [t.productId, t.categoryId],
+				}),
+			}));
+		};
+
+		const schema1 = {
+			table: productsCategoriesTable('products_categories'),
+		};
+		const schema2 = {
+			test: productsCategoriesTable('products_to_categories'),
+		};
+
+		const { sqlStatements } = await diffTestSchemasPush(
+			client,
+			schema1,
+			schema2,
+			['public.products_categories->public.products_to_categories'],
+			false,
+			['public'],
+		);
+		expect(sqlStatements).toStrictEqual([
+			'ALTER TABLE "products_categories" RENAME TO "products_to_categories";',
+			'ALTER TABLE "products_to_categories" DROP CONSTRAINT "products_categories_product_id_category_id_pk";',
+			'ALTER TABLE "products_to_categories" ADD CONSTRAINT "products_to_categories_product_id_category_id_pk" PRIMARY KEY("product_id","category_id");',
+		]);
 	},
 
 	// async addVectorIndexes() {
@@ -2234,5 +2315,77 @@ test('add array column - default', async () => {
 	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
+	]);
+});
+
+test('Column with same name as enum', async () => {
+	const client = new PGlite();
+	const statusEnum = pgEnum('status', ['inactive', 'active', 'banned']);
+
+	const schema1 = {
+		statusEnum,
+		table1: pgTable('table1', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		statusEnum,
+		table1: pgTable('table1', {
+			id: serial('id').primaryKey(),
+			status: statusEnum('status').default('inactive'),
+		}),
+		table2: pgTable('table2', {
+			id: serial('id').primaryKey(),
+			status: statusEnum('status').default('inactive'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'create_table',
+			tableName: 'table2',
+			schema: '',
+			compositePKs: [],
+			compositePkName: '',
+			uniqueConstraints: [],
+			columns: [
+				{ name: 'id', type: 'serial', primaryKey: true, notNull: true },
+				{
+					name: 'status',
+					type: 'status',
+					typeSchema: 'public',
+					primaryKey: false,
+					notNull: false,
+					default: "'inactive'",
+				},
+			],
+		},
+		{
+			type: 'alter_table_add_column',
+			tableName: 'table1',
+			schema: '',
+			column: {
+				name: 'status',
+				type: 'status',
+				typeSchema: 'public',
+				primaryKey: false,
+				notNull: false,
+				default: "'inactive'",
+			},
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE IF NOT EXISTS "table2" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"status" "status" DEFAULT \'inactive\'\n);\n',
+		'ALTER TABLE "table1" ADD COLUMN "status" "status" DEFAULT \'inactive\';',
 	]);
 });

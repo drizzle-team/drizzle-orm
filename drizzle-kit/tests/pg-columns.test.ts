@@ -1,4 +1,4 @@
-import { integer, pgTable, primaryKey, serial, text, uuid } from 'drizzle-orm/pg-core';
+import { integer, pgTable, primaryKey, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
@@ -455,4 +455,30 @@ test('add multiple constraints #3', async (t) => {
 	const { statements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(statements.length).toBe(6);
+});
+
+test('varchar and text default values escape single quotes', async (t) => {
+	const schema1 = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const schem2 = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			text: text('text').default("escape's quotes"),
+			varchar: varchar('varchar').default("escape's quotes"),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(schema1, schem2, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toStrictEqual(
+		'ALTER TABLE "table" ADD COLUMN "text" text DEFAULT \'escape\'\'s quotes\';',
+	);
+	expect(sqlStatements[1]).toStrictEqual(
+		'ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT \'escape\'\'s quotes\';',
+	);
 });

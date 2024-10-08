@@ -13,6 +13,7 @@ import {
 	UniqueConstraint,
 } from './serializer/mysqlSchema';
 import { indexName } from './serializer/mysqlSerializer';
+import { unescapeSingleQuotes } from './utils';
 
 // time precision to fsp
 // {mode: "string"} for timestamp by default
@@ -680,7 +681,11 @@ const column = (
 	}
 
 	if (lowered.startsWith('enum')) {
-		const values = lowered.substring('enum'.length + 1, lowered.length - 1);
+		const values = lowered
+			.substring('enum'.length + 1, lowered.length - 1)
+			.split(',')
+			.map((v) => unescapeSingleQuotes(v, true))
+			.join(',');
 		let out = `${casing(name)}: mysqlEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
