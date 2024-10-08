@@ -1472,7 +1472,7 @@ WHERE
 };
 
 const defaultForColumn = (column: any, internals: PgKitInternals, tableName: string) => {
-	const columnName = column.attname;
+	const columnName = column.column_name;
 	const isArray = internals?.tables[tableName]?.columns[columnName]?.isArray ?? false;
 
 	if (column.column_default === null) {
@@ -1589,10 +1589,10 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
         END
         ELSE format_type(a.atttypid, a.atttypmod)
     END AS data_type,  -- Column data type
-    ns.nspname AS type_schema,  -- Schema name
+--    ns.nspname AS type_schema,  -- Schema name
     pg_get_serial_sequence('"${schema}"."${table}"', a.attname)::regclass AS seq_name,  -- Serial sequence (if any)
     c.column_default,  -- Column default value
-    c.data_type AS additional_data_type,  -- Data type from information_schema
+    c.data_type AS additional_dt,  -- Data type from information_schema
     c.udt_name AS enum_name,  -- Enum type (if applicable)
     c.is_generated,  -- Is it a generated column?
     c.generation_expression,  -- Generation expression (if generated)
@@ -1602,7 +1602,8 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
     c.identity_increment,  -- Increment for identity column
     c.identity_maximum,  -- Maximum value for identity column
     c.identity_minimum,  -- Minimum value for identity column
-    c.identity_cycle  -- Does the identity column cycle?
+    c.identity_cycle,  -- Does the identity column cycle?
+    enum_ns.nspname AS type_schema  -- Schema of the enum type
 FROM 
     pg_attribute a
 JOIN 
@@ -1613,6 +1614,10 @@ LEFT JOIN
     information_schema.columns c ON c.column_name = a.attname 
         AND c.table_schema = ns.nspname 
         AND c.table_name = cls.relname  -- Match schema and table/view name
+LEFT JOIN 
+    pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
+LEFT JOIN 
+    pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
 WHERE 
     a.attnum > 0  -- Valid column numbers only
     AND NOT a.attisdropped  -- Skip dropped columns
