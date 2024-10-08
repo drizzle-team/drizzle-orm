@@ -257,7 +257,10 @@ export const libSQLCombineStatements = (
 			continue;
 		}
 
-		if (statement.type === 'sqlite_alter_table_add_column' && statement.column.primaryKey) {
+		if (
+			(statement.type === 'sqlite_alter_table_add_column' || statement.type === 'sqlite_alter_table_drop_column')
+			&& statement.column.primaryKey
+		) {
 			const tableName = statement.tableName;
 
 			const statementsForTable = newStatements[tableName];
@@ -358,7 +361,10 @@ export const sqliteCombineStatements = (
 			continue;
 		}
 
-		if (statement.type === 'sqlite_alter_table_add_column' && statement.column.primaryKey) {
+		if (
+			(statement.type === 'sqlite_alter_table_add_column' || statement.type === 'sqlite_alter_table_drop_column')
+			&& statement.column.primaryKey
+		) {
 			const tableName = statement.tableName;
 
 			const statementsForTable = newStatements[tableName];
