@@ -30,7 +30,7 @@ import {
 import { drizzle } from 'drizzle-orm/pglite';
 import { SQL, sql } from 'drizzle-orm/sql';
 import { pgSuggestions } from 'src/cli/commands/pgPushUtils';
-import { diffTestSchemasPush } from 'tests/schemaDiffer';
+import { diffTestSchemas, diffTestSchemasPush } from 'tests/schemaDiffer';
 import { afterEach, expect, test } from 'vitest';
 import { DialectSuite, run } from './common';
 
@@ -2235,4 +2235,84 @@ test('add array column - default', async () => {
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
 	]);
+});
+
+test('enums ordering', async () => {
+	const enum1 = pgEnum('enum_users_customer_and_ship_to_settings_roles', [
+		'custAll',
+		'custAdmin',
+		'custClerk',
+		'custInvoiceManager',
+		'custMgf',
+		'custApprover',
+		'custOrderWriter',
+		'custBuyer',
+	]);
+	const schema1 = {};
+
+	const schema2 = {
+		enum1,
+	};
+
+	const { sqlStatements: createEnum } = await diffTestSchemas(schema1, schema2, []);
+
+	const enum2 = pgEnum('enum_users_customer_and_ship_to_settings_roles', [
+		'addedToTop',
+		'custAll',
+		'custAdmin',
+		'custClerk',
+		'custInvoiceManager',
+		'custMgf',
+		'custApprover',
+		'custOrderWriter',
+		'custBuyer',
+	]);
+	const schema3 = {
+		enum2,
+	};
+
+	const { sqlStatements: addedValueSql } = await diffTestSchemas(schema2, schema3, []);
+
+	const enum3 = pgEnum('enum_users_customer_and_ship_to_settings_roles', [
+		'addedToTop',
+		'custAll',
+		'custAdmin',
+		'custClerk',
+		'custInvoiceManager',
+		'addedToMiddle',
+		'custMgf',
+		'custApprover',
+		'custOrderWriter',
+		'custBuyer',
+	]);
+	const schema4 = {
+		enum3,
+	};
+
+	const client = new PGlite();
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema3,
+		schema4,
+		[],
+		false,
+		['public'],
+		undefined,
+		[...createEnum, ...addedValueSql],
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		before: 'custMgf',
+		name: 'enum_users_customer_and_ship_to_settings_roles',
+		schema: 'public',
+		type: 'alter_type_add_value',
+		value: 'addedToMiddle',
+	});
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TYPE "public"."enum_users_customer_and_ship_to_settings_roles" ADD VALUE 'addedToMiddle' BEFORE 'custMgf';`,
+	);
 });
