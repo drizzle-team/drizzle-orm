@@ -660,17 +660,35 @@ export class MySqlDialect {
 						)
 					),
 				);
+				let queryConfig = is(relation, One)
+					? (selectedRelationConfigValue === true
+						? { limit: 1 }
+						: { ...selectedRelationConfigValue, limit: 1 })
+					: selectedRelationConfigValue;
+				if (relation.getConfig()?.where) {
+					queryConfig = queryConfig === true
+						? { where: relation.getConfig()?.where }
+						: {
+							...queryConfig,
+							where: queryConfig.where
+								? and(
+									sql`${
+										typeof queryConfig.where === 'function'
+											? queryConfig.where(aliasedColumns, getOperators())
+											: queryConfig.where
+									}`,
+									relation.getConfig()?.where,
+								)
+								: relation.getConfig()?.where,
+						};
+				}
 				const builtRelation = this.buildRelationalQuery({
 					fullSchema,
 					schema,
 					tableNamesMap,
 					table: fullSchema[relationTableTsName] as MySqlTable,
 					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, One)
-						? (selectedRelationConfigValue === true
-							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 })
-						: selectedRelationConfigValue,
+					queryConfig,
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
@@ -957,17 +975,35 @@ export class MySqlDialect {
 						)
 					),
 				);
+				let queryConfig = is(relation, One)
+					? (selectedRelationConfigValue === true
+						? { limit: 1 }
+						: { ...selectedRelationConfigValue, limit: 1 })
+					: selectedRelationConfigValue;
+				if (relation.getConfig()?.where) {
+					queryConfig = queryConfig === true
+						? { where: relation.getConfig()?.where }
+						: {
+							...queryConfig,
+							where: queryConfig.where
+								? and(
+									sql`${
+										typeof queryConfig.where === 'function'
+											? queryConfig.where(aliasedColumns, getOperators())
+											: queryConfig.where
+									}`,
+									relation.getConfig()?.where,
+								)
+								: relation.getConfig()?.where,
+						};
+				}
 				const builtRelation = this.buildRelationalQueryWithoutLateralSubqueries({
 					fullSchema,
 					schema,
 					tableNamesMap,
 					table: fullSchema[relationTableTsName] as MySqlTable,
 					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, One)
-						? (selectedRelationConfigValue === true
-							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 })
-						: selectedRelationConfigValue,
+					queryConfig,
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
