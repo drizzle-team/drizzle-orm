@@ -56,6 +56,7 @@ import {
 	prepareDeleteSchemasJson as prepareDropSchemasJson,
 	prepareDeleteUniqueConstraintPg as prepareDeleteUniqueConstraint,
 	prepareDropEnumJson,
+	prepareDropEnumValues,
 	prepareDropIndexesJson,
 	prepareDropReferencesJson,
 	prepareDropSequenceJson,
@@ -1002,30 +1003,6 @@ export const applyPgSnapshotsDiff = async (
 	// - create table with generated
 	// - alter - should be not triggered, but should get warning
 
-	// TODO:
-	// let hasEnumValuesDeletions = false;
-	// let enumValuesDeletions: { name: string; schema: string; values: string[] }[] =
-	//   [];
-	// for (let alteredEnum of typedResult.alteredEnums) {
-	//   if (alteredEnum.deletedValues.length > 0) {
-	//     hasEnumValuesDeletions = true;
-	//     enumValuesDeletions.push({
-	//       name: alteredEnum.name,
-	//       schema: alteredEnum.schema,
-	//       values: alteredEnum.deletedValues,
-	//     });
-	//   }
-	// }
-	// if (hasEnumValuesDeletions) {
-	//   console.log(error("Deletion of enum values is prohibited in Postgres - see here"));
-	//   for(let entry of enumValuesDeletions){
-	//     console.log(error(`You're trying to delete ${chalk.blue(`[${entry.values.join(", ")}]`)} values from ${chalk.blue(`${entry.schema}.${entry.name}`)}`))
-	//   }
-	// }
-	// if (hasEnumValuesDeletions && action === "push") {
-	//   process.exit(1);
-	// }
-
 	const createEnums = createdEnums.map((it) => {
 		return prepareCreateEnumJson(it.name, it.schema, it.values);
 	}) ?? [];
@@ -1042,14 +1019,17 @@ export const applyPgSnapshotsDiff = async (
 		return prepareRenameEnumJson(it.from.name, it.to.name, it.to.schema);
 	});
 
-	// todo: block enum rename, enum value rename and enun deletion for now
 	const jsonAlterEnumsWithAddedValues = typedResult.alteredEnums
 		.map((it) => {
 			return prepareAddValuesToEnumJson(it.name, it.schema, it.addedValues);
 		})
 		.flat() ?? [];
 
-	///////////
+	const jsonAlterEnumsWithDroppedValues = typedResult.alteredEnums
+		.map((it) => {
+			return prepareDropEnumValues(it.name, it.schema, it.deletedValues, curFull);
+		})
+		.flat() ?? [];
 
 	const createSequences = createdSequences.map((it) => {
 		return prepareCreateSequenceJson(it);
@@ -1135,6 +1115,7 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+	jsonStatements.push(...jsonAlterEnumsWithDroppedValues);
 
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);
