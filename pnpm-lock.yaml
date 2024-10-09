@@ -644,6 +644,9 @@ importers:
       vitest:
         specifier: ^1.6.0
         version: 1.6.0(@types/node@20.12.12)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.31.0)
+      ws:
+        specifier: ^8.16.0
+        version: 8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       zod:
         specifier: ^3.20.2
         version: 3.23.7
@@ -687,6 +690,9 @@ importers:
       '@types/uuid':
         specifier: ^9.0.1
         version: 9.0.8
+      '@types/ws':
+        specifier: ^8.5.10
+        version: 8.5.11
       '@vitest/ui':
         specifier: ^1.6.0
         version: 1.6.0(vitest@1.6.0)
