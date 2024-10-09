@@ -1,6 +1,18 @@
 import { Type } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
-import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+	char,
+	date,
+	geometry,
+	integer,
+	pgEnum,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+	varchar,
+	vector,
+} from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { createInsertSchema, createSelectSchema, Nullable } from '../src';
 import { expectSchemaShape } from './utils.ts';
@@ -9,6 +21,7 @@ export const roleEnum = pgEnum('role', ['admin', 'user']);
 
 const users = pgTable('users', {
 	a: integer('a').array(),
+	strArr: text('str_arr').array(),
 	id: serial('id').primaryKey(),
 	name: text('name'),
 	email: text('email').notNull(),
@@ -22,10 +35,18 @@ const users = pgTable('users', {
 		.default('user'),
 	profession: varchar('profession', { length: 20 }).notNull(),
 	initials: char('initials', { length: 2 }).notNull(),
+	vector: vector('vector', { dimensions: 2 }),
+	geoXy: geometry('geometry_xy', {
+		mode: 'xy',
+	}),
+	geoTuple: geometry('geometry_tuple', {
+		mode: 'tuple',
+	}),
 });
 
 const testUser = {
 	a: [1, 2, 3],
+	strArr: ['one', 'two', 'three'],
 	id: 1,
 	name: 'John Doe',
 	email: 'john.doe@example.com',
@@ -37,6 +58,12 @@ const testUser = {
 	roleText2: 'admin',
 	profession: 'Software Engineer',
 	initials: 'JD',
+	vector: [1, 2],
+	geoXy: {
+		x: 10,
+		y: 20.3,
+	},
+	geoTuple: [10, 20.3],
 };
 
 test('users insert valid user', () => {
@@ -89,6 +116,7 @@ test('users insert schema', (t) => {
 
 	const expected = Type.Object({
 		a: Type.Optional(Nullable(Type.Array(Type.Number()))),
+		strArr: Type.Optional(Nullable(Type.Array(Type.String()))),
 		id: Type.Optional(Type.Number({ minimum: 0 })),
 		name: Type.Optional(Nullable(Type.String())),
 		email: Type.String(),
@@ -106,6 +134,12 @@ test('users insert schema', (t) => {
 		),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),
 		initials: Type.String({ maxLength: 2, minLength: 1 }),
+		vector: Type.Optional(Nullable(Type.Array(Type.Number()))),
+		geoXy: Type.Optional(Nullable(Type.Object({
+			x: Type.Number(),
+			y: Type.Number(),
+		}))),
+		geoTuple: Type.Optional(Nullable(Type.Tuple([Type.Number(), Type.Number()]))),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -116,6 +150,7 @@ test('users insert schema w/ defaults', (t) => {
 
 	const expected = Type.Object({
 		a: Type.Optional(Nullable(Type.Array(Type.Number()))),
+		strArr: Type.Optional(Nullable(Type.Array(Type.String()))),
 		id: Type.Optional(Type.Number()),
 		name: Type.Optional(Nullable(Type.String())),
 		email: Type.String(),
@@ -129,6 +164,12 @@ test('users insert schema w/ defaults', (t) => {
 		),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),
 		initials: Type.String({ maxLength: 2, minLength: 1 }),
+		vector: Type.Optional(Nullable(Type.Array(Type.Number()))),
+		geoXy: Type.Optional(Nullable(Type.Object({
+			x: Type.Number(),
+			y: Type.Number(),
+		}))),
+		geoTuple: Type.Optional(Nullable(Type.Tuple([Type.Number(), Type.Number()]))),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -147,6 +188,7 @@ test('users select schema', (t) => {
 
 	const expected = Type.Object({
 		a: Nullable(Type.Array(Type.Number())),
+		strArr: Nullable(Type.Array(Type.String())),
 		id: Type.Number({ minimum: 0 }),
 		name: Nullable(Type.String()),
 		email: Type.String(),
@@ -162,6 +204,12 @@ test('users select schema', (t) => {
 		roleText2: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),
 		initials: Type.String({ maxLength: 2, minLength: 1 }),
+		vector: Nullable(Type.Array(Type.Number())),
+		geoXy: Nullable(Type.Object({
+			x: Type.Number(),
+			y: Type.Number(),
+		})),
+		geoTuple: Nullable(Type.Tuple([Type.Number(), Type.Number()])),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -172,6 +220,7 @@ test('users select schema w/ defaults', (t) => {
 
 	const expected = Type.Object({
 		a: Nullable(Type.Array(Type.Number())),
+		strArr: Nullable(Type.Array(Type.String())),
 		id: Type.Number(),
 		name: Nullable(Type.String()),
 		email: Type.String(),
@@ -183,6 +232,12 @@ test('users select schema w/ defaults', (t) => {
 		roleText2: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),
 		initials: Type.String({ maxLength: 2, minLength: 1 }),
+		vector: Nullable(Type.Array(Type.Number())),
+		geoXy: Nullable(Type.Object({
+			x: Type.Number(),
+			y: Type.Number(),
+		})),
+		geoTuple: Nullable(Type.Tuple([Type.Number(), Type.Number()])),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
