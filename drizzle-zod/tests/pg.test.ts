@@ -1,4 +1,4 @@
-import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { char, date, integer, pgEnum, pgTable, point, serial, text, timestamp, varchar, doublePrecision, vector } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema } from '../src';
@@ -160,4 +160,30 @@ test('users select schema w/ defaults', (t) => {
 	});
 
 	expectSchemaShape(t, expected).from(actual);
+});
+
+
+const arrayTypes = pgTable('special', {
+	vector: vector("vector", { dimensions: 3 }),
+	point: point("point").notNull(),
+	names: text("names").array(),
+	numbers: integer("numbers").array(),
+	doubles: doublePrecision("doubles").array(),
+});
+
+
+test('arrayTypes insert schema', (t) => {
+	const actual = createInsertSchema(arrayTypes);
+
+	const expected = z.object({
+		vector: z.array(z.number()).nullable().optional(),
+		point: z.tuple([z.number(), z.number()]),
+		names: z.array(z.string()).nullable().optional(),
+		numbers: z.array(z.number()).nullable().optional(),
+		doubles: z.array(z.number()).nullable().optional(),
+	});
+
+
+	expectSchemaShape(t, expected).from(actual);
+
 });
