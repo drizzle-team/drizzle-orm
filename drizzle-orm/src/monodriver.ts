@@ -308,7 +308,7 @@ export async function drizzle<
 	switch (client) {
 		case 'node-postgres': {
 			const defpg = await import('pg').catch(() => importError('pg'));
-			const { drizzle } = await import('./node-postgres');
+			const { drizzleAsync } = await import('./node-postgres/driver.async');
 
 			if (typeof params[0] === 'object') {
 				const { connection, ...drizzleConfig } = params[0] as
@@ -320,7 +320,7 @@ export async function drizzle<
 						connectionString: connection,
 					})
 					: new defpg.default.Pool(connection);
-				const db = drizzle(instance, drizzleConfig);
+				const db = await drizzleAsync(instance, drizzleConfig);
 
 				return db as any;
 			}
@@ -330,7 +330,7 @@ export async function drizzle<
 					connectionString: params[0],
 				})
 				: new defpg.default.Pool(params[0]);
-			const db = drizzle(instance);
+			const db = await drizzleAsync(instance);
 
 			return db as any;
 		}
@@ -466,7 +466,7 @@ export async function drizzle<
 		}
 		case 'neon-http': {
 			const { neon } = await import('@neondatabase/serverless').catch(() => importError('@neondatabase/serverless'));
-			const { drizzle } = await import('./neon-http');
+			const { drizzleAsync } = await import('./neon-http/driver.async');
 
 			if (typeof params[0] === 'object') {
 				const { connection, ...drizzleConfig } = params[0] as { connection: MonodriverNeonHttpConfig } & DrizzleConfig;
@@ -475,19 +475,19 @@ export async function drizzle<
 					const { connectionString, ...options } = connection;
 
 					const instance = neon(connectionString, options);
-					const db = drizzle(instance, drizzleConfig);
+					const db = await drizzleAsync(instance, drizzleConfig);
 
 					return db as any;
 				}
 
 				const instance = neon(connection);
-				const db = drizzle(instance, drizzleConfig);
+				const db = await drizzleAsync(instance, drizzleConfig);
 
 				return db as any;
 			}
 
 			const instance = neon(params[0]!);
-			const db = drizzle(instance);
+			const db = await drizzleAsync(instance);
 
 			return db as any;
 		}
@@ -495,13 +495,13 @@ export async function drizzle<
 			const { Pool, neonConfig } = await import('@neondatabase/serverless').catch(() =>
 				importError('@neondatabase/serverless')
 			);
-			const { drizzle } = await import('./neon-serverless');
+			const { drizzleAsync } = await import('./neon-serverless/driver.async');
 			if (typeof params[0] === 'string') {
 				const instance = new Pool({
 					connectionString: params[0],
 				});
 
-				const db = drizzle(instance);
+				const db = await drizzleAsync(instance);
 
 				return db as any;
 			}
@@ -522,13 +522,13 @@ export async function drizzle<
 					})
 					: new Pool(connection);
 
-				const db = drizzle(instance, drizzleConfig);
+				const db = await drizzleAsync(instance, drizzleConfig);
 
 				return db as any;
 			}
 
 			const instance = new Pool();
-			const db = drizzle(instance);
+			const db = await drizzleAsync(instance);
 
 			return db as any;
 		}
@@ -617,9 +617,9 @@ export async function drizzle<
 		case 'vercel-postgres': {
 			const drizzleConfig = params[0] as DrizzleConfig | undefined;
 			const { sql } = await import('@vercel/postgres').catch(() => importError('@vercel/postgres'));
-			const { drizzle } = await import('./vercel-postgres');
+			const { drizzleAsync } = await import('./vercel-postgres/driver.async');
 
-			const db = drizzle(sql, drizzleConfig);
+			const db = await drizzleAsync(sql, drizzleConfig);
 
 			return db as any;
 		}

@@ -1,4 +1,5 @@
 import type { PGlite, QueryOptions, Results, Row, Transaction } from '@electric-sql/pglite';
+import type { types } from '@electric-sql/pglite';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -9,8 +10,6 @@ import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
-
-import { types } from '@electric-sql/pglite';
 
 export type PgliteClient = PGlite;
 
@@ -31,22 +30,26 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
+		const timestamp: typeof types.TIMESTAMP = 1114;
+		const timestmaptz: typeof types.TIMESTAMPTZ = 1184;
+		const interval: typeof types.INTERVAL = 1186;
+		const date: typeof types.DATE = 1082;
 		this.rawQueryConfig = {
 			rowMode: 'object',
 			parsers: {
-				[types.TIMESTAMP]: (value) => value,
-				[types.TIMESTAMPTZ]: (value) => value,
-				[types.INTERVAL]: (value) => value,
-				[types.DATE]: (value) => value,
+				[timestamp]: (value) => value,
+				[timestmaptz]: (value) => value,
+				[interval]: (value) => value,
+				[date]: (value) => value,
 			},
 		};
 		this.queryConfig = {
 			rowMode: 'array',
 			parsers: {
-				[types.TIMESTAMP]: (value) => value,
-				[types.TIMESTAMPTZ]: (value) => value,
-				[types.INTERVAL]: (value) => value,
-				[types.DATE]: (value) => value,
+				[timestamp]: (value) => value,
+				[timestmaptz]: (value) => value,
+				[interval]: (value) => value,
+				[date]: (value) => value,
 			},
 		};
 	}

@@ -1,4 +1,4 @@
-import { types } from '@neondatabase/serverless';
+import type { types as pgTypes } from '@neondatabase/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -25,21 +25,12 @@ export class NeonDriver {
 		private client: NeonClient,
 		private dialect: PgDialect,
 		private options: NeonDriverOptions = {},
-	) {
-		this.initMappers();
-	}
+	) {}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): NeonSession<Record<string, unknown>, TablesRelationalConfig> {
 		return new NeonSession(this.client, this.dialect, schema, { logger: this.options.logger });
-	}
-
-	initMappers() {
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
 	}
 }
 
@@ -49,7 +40,8 @@ export class NeonDatabase<
 	static readonly [entityKind]: string = 'NeonServerlessDatabase';
 }
 
-export function drizzle<
+/** @internal */
+export function drizzleSync<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends NeonClient = NeonClient,
 >(
@@ -85,4 +77,12 @@ export function drizzle<
 	(<any> db).$client = client;
 
 	return db as any;
+}
+
+/** @internal */
+export function initMappers(types: typeof pgTypes) {
+	types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
+	types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
+	types.setTypeParser(types.builtins.DATE, (val) => val);
+	types.setTypeParser(types.builtins.INTERVAL, (val) => val);
 }

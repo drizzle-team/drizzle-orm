@@ -1,5 +1,5 @@
 import type { Field } from '@aws-sdk/client-rds-data';
-import { TypeHint } from '@aws-sdk/client-rds-data';
+import type { TypeHint } from '@aws-sdk/client-rds-data';
 import type { QueryTypingsValue } from '~/sql/sql.ts';
 
 export function getValueFromDataApi(field: Field) {
@@ -41,17 +41,17 @@ export function getValueFromDataApi(field: Field) {
 
 export function typingsToAwsTypeHint(typings?: QueryTypingsValue): TypeHint | undefined {
 	if (typings === 'date') {
-		return TypeHint.DATE;
+		return 'DATE';
 	} else if (typings === 'decimal') {
-		return TypeHint.DECIMAL;
+		return 'DECIMAL';
 	} else if (typings === 'json') {
-		return TypeHint.JSON;
+		return 'JSON';
 	} else if (typings === 'time') {
-		return TypeHint.TIME;
+		return 'TIME';
 	} else if (typings === 'timestamp') {
-		return TypeHint.TIMESTAMP;
+		return 'TIMESTAMP';
 	} else if (typings === 'uuid') {
-		return TypeHint.UUID;
+		return 'UUID';
 	} else {
 		return undefined;
 	}
@@ -67,11 +67,11 @@ export function toValueParam(value: any, typings?: QueryTypingsValue): { value: 
 		response.value = { isNull: true };
 	} else if (typeof value === 'string') {
 		switch (response.typeHint) {
-			case TypeHint.DATE: {
+			case 'DATE': {
 				response.value = { stringValue: value.split('T')[0]! };
 				break;
 			}
-			case TypeHint.TIMESTAMP: {
+			case 'TIMESTAMP': {
 				response.value = { stringValue: value.replace('T', ' ').replace('Z', '') };
 				break;
 			}

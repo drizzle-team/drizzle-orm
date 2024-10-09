@@ -24,8 +24,7 @@ export class PgliteDriver {
 		private client: PgliteClient,
 		private dialect: PgDialect,
 		private options: PgDriverOptions = {},
-	) {
-	}
+	) {}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,

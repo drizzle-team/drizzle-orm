@@ -1,5 +1,11 @@
-import type { ColumnMetadata, ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
-import {
+import type {
+	ColumnMetadata,
+	ExecuteStatementCommandInput,
+	ExecuteStatementCommandOutput,
+	Field,
+	RDSDataClient,
+} from '@aws-sdk/client-rds-data';
+import type {
 	BeginTransactionCommand,
 	CommitTransactionCommand,
 	ExecuteStatementCommand,
@@ -19,17 +25,49 @@ import {
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
-import { mapResultRow } from '~/utils.ts';
+import { applyMixins, mapResultRow } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
+
+class AwsDataApiLazyImport {
+	static readonly [entityKind]: string = 'AwsDataApiLazyImport';
+
+	private imports?: {
+		BeginTransactionCommand: typeof BeginTransactionCommand;
+		CommitTransactionCommand: typeof CommitTransactionCommand;
+		RollbackTransactionCommand: typeof RollbackTransactionCommand;
+		ExecuteStatementCommand: typeof ExecuteStatementCommand;
+	};
+
+	protected async lazyImport() {
+		if (!this.imports) {
+			const {
+				BeginTransactionCommand,
+				CommitTransactionCommand,
+				RollbackTransactionCommand,
+				ExecuteStatementCommand,
+			} = await import('@aws-sdk/client-rds-data');
+			this.imports = {
+				BeginTransactionCommand,
+				CommitTransactionCommand,
+				RollbackTransactionCommand,
+				ExecuteStatementCommand,
+			};
+		}
+		return this.imports;
+	}
+}
 
 export type AwsDataApiClient = RDSDataClient;
 
+export interface AwsDataApiPreparedQuery<
+	T extends PreparedQueryConfig & { values: AwsDataApiPgQueryResult<unknown[]> },
+> extends PgPreparedQuery<T>, AwsDataApiLazyImport {}
 export class AwsDataApiPreparedQuery<
 	T extends PreparedQueryConfig & { values: AwsDataApiPgQueryResult<unknown[]> },
 > extends PgPreparedQuery<T> {
 	static readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
 
-	private rawQuery: ExecuteStatementCommand;
+	private rawQueryConfig: ExecuteStatementCommandInput;
 
 	constructor(
 		private client: AwsDataApiClient,
@@ -44,7 +82,7 @@ export class AwsDataApiPreparedQuery<
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
-		this.rawQuery = new ExecuteStatementCommand({
+		this.rawQueryConfig = {
 			sql: queryString,
 			parameters: [],
 			secretArn: options.secretArn,
@@ -52,7 +90,7 @@ export class AwsDataApiPreparedQuery<
 			database: options.database,
 			transactionId,
 			includeResultMetadata: !fields && !customResultMapper,
-		});
+		};
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -99,16 +137,18 @@ export class AwsDataApiPreparedQuery<
 	}
 
 	async values(placeholderValues: Record<string, unknown> = {}): Promise<T['values']> {
+		const { ExecuteStatementCommand } = await this.lazyImport();
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		const rawQuery = new ExecuteStatementCommand(this.rawQueryConfig);
 
-		this.rawQuery.input.parameters = params.map((param, index) => ({
+		rawQuery.input.parameters = params.map((param, index) => ({
 			name: `${index + 1}`,
 			...toValueParam(param, this.typings[index]),
 		}));
 
-		this.options.logger?.logQuery(this.rawQuery.input.sql!, this.rawQuery.input.parameters);
+		this.options.logger?.logQuery(rawQuery.input.sql!, rawQuery.input.parameters);
 
-		const result = await this.client.send(this.rawQuery);
+		const result = await this.client.send(rawQuery);
 		const rows = result.records?.map((row) => {
 			return row.map((field) => getValueFromDataApi(field));
 		}) ?? [];
@@ -137,6 +177,8 @@ export class AwsDataApiPreparedQuery<
 	}
 }
 
+applyMixins(AwsDataApiPreparedQuery, [AwsDataApiLazyImport]);
+
 export interface AwsDataApiSessionOptions {
 	logger?: Logger;
 	database: string;
@@ -150,6 +192,10 @@ interface AwsDataApiQueryBase {
 	database: string;
 }
 
+export interface AwsDataApiSession<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema>, AwsDataApiLazyImport {}
 export class AwsDataApiSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
@@ -218,6 +264,11 @@ export class AwsDataApiSession<
 		transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
+		const {
+			BeginTransactionCommand,
+			CommitTransactionCommand,
+			RollbackTransactionCommand,
+		} = await this.lazyImport();
 		const { transactionId } = await this.client.send(new BeginTransactionCommand(this.rawQuery));
 		const session = new AwsDataApiSession(this.client, this.dialect, this.schema, this.options, transactionId);
 		const tx = new AwsDataApiTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
@@ -234,6 +285,8 @@ export class AwsDataApiSession<
 		}
 	}
 }
+
+applyMixins(AwsDataApiSession, [AwsDataApiLazyImport]);
 
 export class AwsDataApiTransaction<
 	TFullSchema extends Record<string, unknown>,
