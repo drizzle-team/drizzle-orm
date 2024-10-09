@@ -2316,3 +2316,109 @@ test('enums ordering', async () => {
 		`ALTER TYPE "public"."enum_users_customer_and_ship_to_settings_roles" ADD VALUE 'addedToMiddle' BEFORE 'custMgf';`,
 	);
 });
+
+test('drop enum values', async () => {
+	const newSchema = pgSchema('mySchema');
+	const enum3 = pgEnum('enum_users_customer_and_ship_to_settings_roles', [
+		'addedToTop',
+		'custAll',
+		'custAdmin',
+		'custClerk',
+		'custInvoiceManager',
+		'addedToMiddle',
+		'custMgf',
+		'custApprover',
+		'custOrderWriter',
+		'custBuyer',
+	]);
+	const schema1 = {
+		enum3,
+		table: pgTable('enum_table', {
+			id: enum3(),
+		}),
+		newSchema,
+		table1: newSchema.table('enum_table', {
+			id: enum3(),
+		}),
+	};
+
+	const enum4 = pgEnum('enum_users_customer_and_ship_to_settings_roles', [
+		'addedToTop',
+		'custAll',
+		'custAdmin',
+		'custClerk',
+		'custInvoiceManager',
+		'custApprover',
+		'custOrderWriter',
+		'custBuyer',
+	]);
+	const schema2 = {
+		enum4,
+		table: pgTable('enum_table', {
+			id: enum4(),
+		}),
+		newSchema,
+		table1: newSchema.table('enum_table', {
+			id: enum4(),
+		}),
+	};
+
+	const client = new PGlite();
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public', 'mySchema'],
+		undefined,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		name: 'enum_users_customer_and_ship_to_settings_roles',
+		schema: 'public',
+		type: 'alter_type_drop_value',
+		newValues: [
+			'addedToTop',
+			'custAll',
+			'custAdmin',
+			'custClerk',
+			'custInvoiceManager',
+			'custApprover',
+			'custOrderWriter',
+			'custBuyer',
+		],
+		deletedValues: ['addedToMiddle', 'custMgf'],
+		columnsWithEnum: [{
+			column: 'id',
+			schema: 'public',
+			table: 'enum_table',
+		}, {
+			column: 'id',
+			schema: 'mySchema',
+			table: 'enum_table',
+		}],
+	});
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "public"."enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "mySchema"."enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
+	);
+	expect(sqlStatements[2]).toBe(
+		`DROP TYPE "public"."enum_users_customer_and_ship_to_settings_roles";`,
+	);
+	expect(sqlStatements[3]).toBe(
+		`CREATE TYPE "public"."enum_users_customer_and_ship_to_settings_roles" AS ENUM('addedToTop', 'custAll', 'custAdmin', 'custClerk', 'custInvoiceManager', 'custApprover', 'custOrderWriter', 'custBuyer');`,
+	);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "public"."enum_table" ALTER COLUMN "id" SET DATA TYPE "public"."enum_users_customer_and_ship_to_settings_roles" USING "id"::"public"."enum_users_customer_and_ship_to_settings_roles";`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "mySchema"."enum_table" ALTER COLUMN "id" SET DATA TYPE "public"."enum_users_customer_and_ship_to_settings_roles" USING "id"::"public"."enum_users_customer_and_ship_to_settings_roles";`,
+	);
+});

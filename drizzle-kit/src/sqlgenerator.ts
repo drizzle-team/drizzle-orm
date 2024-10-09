@@ -729,7 +729,7 @@ class DropTypeEnumConvertor extends Convertor {
 
 		const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 
-		let statement = `DROP TYPE ${enumNameWithSchema} CASCADE;`;
+		let statement = `DROP TYPE ${enumNameWithSchema};`;
 
 		return statement;
 	}

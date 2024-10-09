@@ -47,7 +47,7 @@ test('enums #3', async () => {
 	const { statements, sqlStatements } = await diffTestSchemas(from, {}, []);
 
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`DROP TYPE "public"."enum" CASCADE;`);
+	expect(sqlStatements[0]).toBe(`DROP TYPE "public"."enum";`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'drop_type_enum',
@@ -66,7 +66,7 @@ test('enums #4', async () => {
 	const { statements, sqlStatements } = await diffTestSchemas(from, {}, []);
 
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`DROP TYPE "folder"."enum" CASCADE;`);
+	expect(sqlStatements[0]).toBe(`DROP TYPE "folder"."enum";`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'drop_type_enum',
@@ -521,7 +521,7 @@ test('drop enum value', async () => {
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`DROP TYPE "public"."enum" CASCADE;`);
+	expect(sqlStatements[0]).toBe(`DROP TYPE "public"."enum";`);
 	expect(sqlStatements[1]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3');`);
 
 	expect(statements.length).toBe(1);
@@ -573,7 +573,7 @@ test('drop enum value. enum is columns data type', async () => {
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements[0]).toBe(`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
 	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum" CASCADE;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
 	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3');`);
 	expect(sqlStatements[4]).toBe(
 		`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
@@ -603,6 +603,77 @@ test('drop enum value. enum is columns data type', async () => {
 		newValues: [
 			'value1',
 			'value3',
+		],
+		schema: 'public',
+		type: 'alter_type_drop_value',
+	});
+});
+
+test('shuffle enum values', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const schema = pgSchema('new_schema');
+
+	const from = {
+		schema,
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+		table2: schema.table('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		schema,
+		enum2,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+		table2: schema.table('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+	);
+
+	console.log('statements: ', statements);
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				schema: 'public',
+				table: 'table',
+			},
+			{
+				column: 'column',
+				schema: 'new_schema',
+				table: 'table',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
 		],
 		schema: 'public',
 		type: 'alter_type_drop_value',

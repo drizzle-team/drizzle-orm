@@ -1150,7 +1150,25 @@ export const applyPgSnapshotsDiff = async (
 		return true;
 	});
 
-	const sqlStatements = fromJson(filteredJsonStatements, 'postgresql');
+	// enum filters
+	// Need to find add and drop enum values in same enum and remove add values
+	const filteredEnumsJsonStatements = filteredJsonStatements.filter((st) => {
+		if (st.type === 'alter_type_add_value') {
+			if (
+				jsonStatements.find(
+					(it) =>
+						it.type === 'alter_type_drop_value'
+						&& it.name === st.name
+						&& it.schema === st.schema,
+				)
+			) {
+				return false;
+			}
+		}
+		return true;
+	});
+
+	const sqlStatements = fromJson(filteredEnumsJsonStatements, 'postgresql');
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {
@@ -1171,7 +1189,7 @@ export const applyPgSnapshotsDiff = async (
 	const _meta = prepareMigrationMeta(rSchemas, rTables, rColumns);
 
 	return {
-		statements: filteredJsonStatements,
+		statements: filteredEnumsJsonStatements,
 		sqlStatements: uniqueSqlStatements,
 		_meta,
 	};
