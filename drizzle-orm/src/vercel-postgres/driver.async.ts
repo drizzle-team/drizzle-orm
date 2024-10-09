@@ -12,7 +12,7 @@ export async function drizzleAsync<TSchema extends Record<string, unknown> = Rec
 	}
 > {
 	const db = drizzleSync(client, config);
-	const { types } = await import('@vercel/postgres');
+	const { types } = await import('@vercel/postgres').catch(() => undefined as never);
 	initMappers(types);
 	return db;
 }

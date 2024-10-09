@@ -15,7 +15,7 @@ export async function drizzleAsync<
 	}
 > {
 	const db = drizzleSync(client, config);
-	const { types } = await import('@neondatabase/serverless');
+	const { types } = await import('@neondatabase/serverless').catch(() => undefined as never);
 	initMappers(types);
 	return db;
 }

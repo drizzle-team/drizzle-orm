@@ -1,11 +1,11 @@
-import {
-	type QueryArrayConfig,
-	type QueryConfig,
-	type QueryResult,
-	type QueryResultRow,
-	type VercelClient,
+import type {
+	QueryArrayConfig,
+	QueryConfig,
+	QueryResult,
+	QueryResultRow,
+	VercelClient,
 	VercelPool,
-	type VercelPoolClient,
+	VercelPoolClient,
 } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
@@ -95,6 +95,9 @@ export class VercelPgSession<
 	static readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;
+	private imports?: {
+		VercelPool: typeof VercelPool;
+	};
 
 	constructor(
 		private client: VercelPgClient,
@@ -104,6 +107,14 @@ export class VercelPgSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+	}
+
+	protected async lazyImport() {
+		if (!this.imports) {
+			const { VercelPool } = await import('@vercel/postgres').catch(() => undefined as never);
+			this.imports = { VercelPool };
+		}
+		return this.imports;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -146,6 +157,7 @@ export class VercelPgSession<
 		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
+		const { VercelPool } = await this.lazyImport();
 		const session = this.client instanceof VercelPool // eslint-disable-line no-instanceof/no-instanceof
 			? new VercelPgSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;

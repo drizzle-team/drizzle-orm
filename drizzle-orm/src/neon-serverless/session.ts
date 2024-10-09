@@ -1,11 +1,11 @@
-import {
-	type Client,
+import type {
+	Client,
 	Pool,
-	type PoolClient,
-	type QueryArrayConfig,
-	type QueryConfig,
-	type QueryResult,
-	type QueryResultRow,
+	PoolClient,
+	QueryArrayConfig,
+	QueryConfig,
+	QueryResult,
+	QueryResultRow,
 } from '@neondatabase/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -96,6 +96,9 @@ export class NeonSession<
 	static readonly [entityKind]: string = 'NeonSession';
 
 	private logger: Logger;
+	private imports?: {
+		Pool: typeof Pool;
+	};
 
 	constructor(
 		private client: NeonClient,
@@ -105,6 +108,14 @@ export class NeonSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+	}
+
+	protected async lazyImport() {
+		if (!this.imports) {
+			const { Pool } = await import('@neondatabase/serverless').catch(() => undefined as never);
+			this.imports = { Pool };
+		}
+		return this.imports;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -147,6 +158,7 @@ export class NeonSession<
 		transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config: PgTransactionConfig = {},
 	): Promise<T> {
+		const { Pool } = await this.lazyImport();
 		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
 			? new NeonSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;

@@ -15,7 +15,7 @@ export async function drizzleAsync<
 	}
 > {
 	const db = drizzleSync(client, config);
-	const pg = await import('pg');
+	const pg = await import('pg').catch(() => undefined as never);
 	initMappers(pg.pgTypes);
 	return db;
 }

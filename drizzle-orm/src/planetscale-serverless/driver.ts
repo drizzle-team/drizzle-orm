@@ -68,7 +68,7 @@ export function drizzle<
 	Starting from version 0.30.0, you will encounter an error if you attempt to use anything other than a Client instance.\nPlease make the necessary changes now to prevent any runtime errors in the future
 			`);
 		}
-	});
+	}).catch(() => {});
 
 	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;

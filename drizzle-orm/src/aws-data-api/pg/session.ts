@@ -45,7 +45,7 @@ class AwsDataApiLazyImport {
 				CommitTransactionCommand,
 				RollbackTransactionCommand,
 				ExecuteStatementCommand,
-			} = await import('@aws-sdk/client-rds-data');
+			} = await import('@aws-sdk/client-rds-data').catch(() => undefined as never);
 			this.imports = {
 				BeginTransactionCommand,
 				CommitTransactionCommand,
