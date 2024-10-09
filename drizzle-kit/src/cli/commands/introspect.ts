@@ -129,14 +129,14 @@ export const introspectPostgres = async (
 			chalk.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
 	render(
 		`[${
 			chalk.green(
 				'✓',
 			)
-		}] You relations file is ready ➜ ${
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)
@@ -239,14 +239,14 @@ export const introspectMysql = async (
 			chalk.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
 	render(
 		`[${
 			chalk.green(
 				'✓',
 			)
-		}] You relations file is ready ➜ ${
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)
@@ -461,14 +461,14 @@ export const introspectLibSQL = async (
 			chalk.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
 	render(
 		`[${
 			chalk.green(
 				'✓',
 			)
-		}] You relations file is ready ➜ ${
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)
