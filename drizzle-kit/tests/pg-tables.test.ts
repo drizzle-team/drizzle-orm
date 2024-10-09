@@ -654,6 +654,7 @@ test('optional db aliases (snake case)', async () => {
 			t1Col3: integer().notNull(),
 			t2Ref: integer().notNull().references(() => t2.t2Id),
 			t1Uni: integer().notNull(),
+			t1NamelessUnique: integer().notNull().unique(),
 			t1UniIdx: integer().notNull(),
 			t1Idx: integer().notNull(),
 		},
@@ -702,8 +703,10 @@ test('optional db aliases (snake case)', async () => {
 	"t1_col3" integer NOT NULL,
 	"t2_ref" integer NOT NULL,
 	"t1_uni" integer NOT NULL,
+	"t1_nameless_unique" integer NOT NULL,
 	"t1_uni_idx" integer NOT NULL,
 	"t1_idx" integer NOT NULL,
+	CONSTRAINT "t1_t1_nameless_unique_unique" UNIQUE("t1_nameless_unique"),
 	CONSTRAINT "t1_uni" UNIQUE("t1_uni")
 );
 `;
@@ -752,6 +755,7 @@ test('optional db aliases (camel case)', async () => {
 			t1_col3: integer().notNull(),
 			t2_ref: integer().notNull().references(() => t2.t2_id),
 			t1_uni: integer().notNull(),
+			t1_nameless_unique: integer().notNull().unique(),
 			t1_uni_idx: integer().notNull(),
 			t1_idx: integer().notNull(),
 		},
@@ -800,8 +804,10 @@ test('optional db aliases (camel case)', async () => {
 	"t1Col3" integer NOT NULL,
 	"t2Ref" integer NOT NULL,
 	"t1Uni" integer NOT NULL,
+	"t1NamelessUnique" integer NOT NULL,
 	"t1UniIdx" integer NOT NULL,
 	"t1Idx" integer NOT NULL,
+	CONSTRAINT "t1_t1NamelessUnique_unique" UNIQUE("t1NamelessUnique"),
 	CONSTRAINT "t1Uni" UNIQUE("t1Uni")
 );
 `;
