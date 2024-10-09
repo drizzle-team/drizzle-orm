@@ -988,13 +988,15 @@ export const applyPgSnapshotsDiff = async (
 
 	const jsonSetTableSchemas: JsonAlterTableSetSchema[] = [];
 
-	for (let it of movedTables) {
-		jsonSetTableSchemas.push({
-			type: 'alter_table_set_schema',
-			tableName: it.name,
-			schemaFrom: it.schemaFrom || 'public',
-			schemaTo: it.schemaTo || 'public',
-		});
+	if (movedTables) {
+		for (let it of movedTables) {
+			jsonSetTableSchemas.push({
+				type: 'alter_table_set_schema',
+				tableName: it.name,
+				schemaFrom: it.schemaFrom || 'public',
+				schemaTo: it.schemaTo || 'public',
+			});
+		}
 	}
 
 	for (let it of alteredTables) {

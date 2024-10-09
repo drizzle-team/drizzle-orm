@@ -909,6 +909,16 @@ export const fromDatabase = async (
 		}
 	}
 
+	if (progressCallback) {
+		progressCallback(
+			'policies',
+			Object.values(policiesByTable).reduce((total, innerRecord) => {
+				return total + Object.keys(innerRecord).length;
+			}, 0),
+			'done',
+		);
+	}
+
 	const sequencesInColumns: string[] = [];
 
 	const all = allTables.map((row) => {
