@@ -1,5 +1,4 @@
 import { is } from '~/entity.ts';
-import type { PgTableExtraConfig } from '~/pg-core/table.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import { Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -13,23 +12,6 @@ import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import { PgViewConfig } from './view-common.ts';
 import { type PgMaterializedView, PgMaterializedViewConfig, type PgView } from './view.ts';
-
-function flattenValues(obj: Record<string, any>): PgTableExtraConfig[string][] {
-	const values = [];
-	for (const key in obj) {
-		if (typeof obj[key] === 'object' && obj[key] !== null) {
-			const internalNestedKeys = Object.keys(obj[key]).filter((it) => it.startsWith('_drizzle_internal'));
-			if (internalNestedKeys.length > 0) {
-				for (const nestedKey of internalNestedKeys) {
-					values.push(obj[key][nestedKey]);
-				}
-			} else {
-				values.push(obj[key]);
-			}
-		}
-	}
-	return values;
-}
 
 export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	const columns = Object.values(table[Table.Symbol.Columns]);
@@ -46,7 +28,8 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[Table.Symbol.ExtraConfigColumns]);
-		for (const builder of flattenValues(extraConfig)) {
+		const extraValues = Array.isArray(extraConfig) ? extraConfig as any[] : Object.values(extraConfig);
+		for (const builder of extraValues) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
