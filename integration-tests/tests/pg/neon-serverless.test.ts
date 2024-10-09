@@ -3,12 +3,12 @@ import retry from 'async-retry';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
-import { boolean, jsonb, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { tests, usersMigratorTable, usersTable } from './pg-common';
+import { tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
@@ -425,6 +425,8 @@ test('select all fields', async (ctx) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
 
+	await db.delete(usersTable);
+
 	expect(result[0]!.createdAt).toBeInstanceOf(Date);
 	expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(3000);
 	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
@@ -441,6 +443,8 @@ test('update with returning all fields', async (ctx) => {
 		.set({ name: 'Jane' })
 		.where(eq(usersTable.name, 'John'))
 		.returning();
+
+	await db.delete(usersTable);
 
 	expect(users[0]!.createdAt).toBeInstanceOf(Date);
 	expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(3000);
@@ -464,16 +468,6 @@ test('delete with returning all fields', async (ctx) => {
 	]);
 });
 
-const mySchema = pgSchema('mySchema');
-
-const usersMySchemaTable = mySchema.table('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	jsonb: jsonb('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
-
 test('mySchema :: select all fields', async (ctx) => {
 	const { db } = ctx.pg;
 
@@ -481,6 +475,8 @@ test('mySchema :: select all fields', async (ctx) => {
 
 	await db.insert(usersMySchemaTable).values({ name: 'John' });
 	const result = await db.select().from(usersMySchemaTable);
+
+	await db.delete(usersMySchemaTable);
 
 	expect(result[0]!.createdAt).toBeInstanceOf(Date);
 	expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(3000);

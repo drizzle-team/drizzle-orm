@@ -181,7 +181,7 @@ const aggregateTable = pgTable('aggregate_table', {
 // To test another schema and multischema
 const mySchema = pgSchema('mySchema');
 
-const usersMySchemaTable = mySchema.table('users', {
+export const usersMySchemaTable = mySchema.table('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
