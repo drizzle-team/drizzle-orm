@@ -678,7 +678,7 @@ export class RelationsBuilderColumn<TTableName extends string = string, TData = 
 	}
 }
 
-export type RelationsFieldFilter<T> = T | {
+export type RelationFieldsFilterInternals<T> = {
 	eq?: T;
 	ne?: T;
 	gt?: T;
@@ -696,6 +696,8 @@ export type RelationsFieldFilter<T> = T | {
 	$not?: RelationsFieldFilter<T>;
 	$or?: RelationsFieldFilter<T>[];
 };
+
+export type RelationsFieldFilter<T> = T | RelationFieldsFilterInternals<T>;
 
 export type RelationsFilter<TColumns extends Record<string, Column>> =
 	& {
@@ -911,45 +913,122 @@ export function defineRelations<
 	);
 }
 
-// function processFilterFn(
-// 	baseTable: RelationsBuilderTable,
-// 	filterName: string,
-// 	filterData: RelationsFieldFilter<Record<string, Column>>,
-// ): SQL {
-// 	const entries = Object.entries(filterData);
-// }
+function relationsFieldFilterToSQL(column: Column, filter: RelationsFieldFilter<unknown>): SQL | undefined {
+	// Potential issues with class & object-mapped colums (dates, geometry)
+	// likely would have to remove this possibility from the api
+	if (typeof filter !== 'object') return eq(column, filter);
 
-// export function relationFilterToSQL(
-// 	baseTable: RelationsBuilderTable,
-// 	filter: RelationsFilter<Record<string, Column>>,
-// ): SQL {
-// 	const entries = Object.entries(filter);
-// 	if (!entries.length) return sql``;
+	const entries = Object.entries(filter as RelationFieldsFilterInternals<unknown>);
+	if (!entries.length) return undefined;
 
-// 	const parts: SQLWrapper[] = [];
-// 	for (const [target, value] of entries) {
-// 		switch (target) {
-// 			case '$raw':
-// 			case '$or':
-// 			case '$not': {
-// 				continue;
-// 			}
-// 			default: {
-// 				parts.push(processFilterFn(baseTable, target, value as RelationsFieldFilter<Record<string, Column>>));
-// 			}
-// 		}
-// 	}
+	const parts: (SQL)[] = [];
+	for (const [target, value] of entries) {
+		if (value === undefined) continue;
 
-// 	if (filter.$raw) parts.push(filter.$raw(operators));
-// 	if (filter.$not?.length) {
-// 		parts.push(not(and(...filter.$not.map((n) => relationFilterToSQL(n)))!));
-// 	}
-// 	const or = filter.$or ? operators.or(...filter.$or.map((o) => relationFilterToSQL(o))) : undefined;
+		switch (target) {
+			case '$not': {
+				const res = relationsFieldFilterToSQL(column, value as RelationsFieldFilter<unknown>);
+				if (!res) continue;
 
-// 	if (chunks.length > 1) {
-// 		chunks.unshift('(');
-// 		chunks.push(`)`);
-// 	}
+				parts.push(not(res));
 
-// 	return sql.join(chunks);
-// }
+				continue;
+			}
+			case '$or': {
+				if (!(value as RelationsFieldFilter<unknown>[]).length) continue;
+
+				parts.push(
+					or(
+						...(value as RelationsFilter<any>[]).map((subFilter) => relationsFieldFilterToSQL(column, subFilter)),
+					)!,
+				);
+
+				continue;
+			}
+
+			default: {
+				if (Array.isArray(value)) {
+					parts.push(
+						(operators[target as keyof typeof operators] as ((col: Column, ...data: any[]) => SQL | undefined))(
+							column,
+							...value,
+						)!,
+					);
+				} else {
+					parts.push(
+						(operators[target as keyof typeof operators] as ((col: Column, data: any) => SQL | undefined))(
+							column,
+							value,
+						)!,
+					);
+				}
+
+				continue;
+			}
+		}
+	}
+
+	if (!parts.length) return undefined;
+
+	return and(...parts);
+}
+
+export function relationFilterToSQL(
+	baseTable: RelationsBuilderTable,
+	filter: RelationsFilter<Record<string, Column>>,
+): SQL | undefined {
+	const entries = Object.entries(filter);
+	if (!entries.length) return undefined;
+
+	const parts: SQL[] = [];
+	for (const [target, value] of entries) {
+		if (value === undefined) continue;
+
+		switch (target) {
+			case '$raw': {
+				if (value) parts.push(value as SQL);
+
+				continue;
+			}
+			case '$or': {
+				if (!(value as RelationsFilter<Record<string, Column>>[] | undefined)?.length) continue;
+
+				parts.push(
+					or(
+						...(value as RelationsFilter<Record<string, Column>>[]).map((subFilter) =>
+							relationFilterToSQL(baseTable, subFilter)
+						),
+					)!,
+				);
+
+				continue;
+			}
+			case '$not': {
+				if (!(value as RelationsFilter<Record<string, Column>>[] | undefined)?.length) continue;
+
+				parts.push(
+					not(
+						and(
+							...(value as RelationsFilter<Record<string, Column>>[]).map((subFilter) =>
+								relationFilterToSQL(baseTable, subFilter)
+							),
+						)!,
+					),
+				);
+
+				continue;
+			}
+			default: {
+				const colFilter = relationsFieldFilterToSQL(
+					baseTable[target as keyof typeof baseTable] as Column,
+					value as RelationsFieldFilter<unknown>,
+				);
+				if (colFilter) parts.push(colFilter);
+
+				continue;
+			}
+		}
+	}
+
+	return and(...parts)!;
+}
