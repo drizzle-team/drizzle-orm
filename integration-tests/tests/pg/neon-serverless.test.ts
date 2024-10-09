@@ -8,7 +8,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
+import { mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
@@ -425,8 +425,6 @@ test('select all fields', async (ctx) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
 
-	await db.delete(usersTable);
-
 	expect(result[0]!.createdAt).toBeInstanceOf(Date);
 	expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(3000);
 	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
@@ -443,8 +441,6 @@ test('update with returning all fields', async (ctx) => {
 		.set({ name: 'Jane' })
 		.where(eq(usersTable.name, 'John'))
 		.returning();
-
-	await db.delete(usersTable);
 
 	expect(users[0]!.createdAt).toBeInstanceOf(Date);
 	expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(3000);
@@ -475,8 +471,6 @@ test('mySchema :: select all fields', async (ctx) => {
 
 	await db.insert(usersMySchemaTable).values({ name: 'John' });
 	const result = await db.select().from(usersMySchemaTable);
-
-	await db.delete(usersMySchemaTable);
 
 	expect(result[0]!.createdAt).toBeInstanceOf(Date);
 	expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(3000);
@@ -525,13 +519,29 @@ tests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);
+	await db.execute(sql`drop schema if exists ${mySchema} cascade`);
+
 	await db.execute(sql`create schema public`);
+	await db.execute(sql`create schema ${mySchema}`);
+
 	await db.execute(
 		sql`
 			create table users (
 				id serial primary key,
 				name text not null,
 				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
+	);
+
+	await db.execute(
+		sql`
+			create table ${usersMySchemaTable} (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false,
 				jsonb jsonb,
 				created_at timestamptz not null default now()
 			)
