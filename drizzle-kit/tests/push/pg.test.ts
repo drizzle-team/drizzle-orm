@@ -3167,6 +3167,7 @@ test('create role', async (t) => {
 		[],
 		false,
 		['public'],
+		undefined,
 		{ roles: { include: ['manager'] } },
 	);
 
@@ -3204,6 +3205,7 @@ test('create role with properties', async (t) => {
 		[],
 		false,
 		['public'],
+		undefined,
 		{ roles: { include: ['manager'] } },
 	);
 
@@ -3241,6 +3243,7 @@ test('create role with some properties', async (t) => {
 		[],
 		false,
 		['public'],
+		undefined,
 		{ roles: { include: ['manager'] } },
 	);
 
@@ -3276,6 +3279,7 @@ test('drop role', async (t) => {
 		[],
 		false,
 		['public'],
+		undefined,
 		{ roles: { include: ['manager'] } },
 	);
 
@@ -3310,6 +3314,7 @@ test('create and drop role', async (t) => {
 		[],
 		false,
 		['public'],
+		undefined,
 		{ roles: { include: ['manager', 'admin'] } },
 	);
 
@@ -3353,6 +3358,7 @@ test('rename role', async (t) => {
 		['manager->admin'],
 		false,
 		['public'],
+		undefined,
 		{ roles: { include: ['manager', 'admin'] } },
 	);
 
@@ -3384,6 +3390,7 @@ test('alter all role field', async (t) => {
 		[],
 		false,
 		['public'],
+		undefined,
 		{ roles: { include: ['manager'] } },
 	);
 
@@ -3423,6 +3430,7 @@ test('alter createdb in role', async (t) => {
 		[],
 		false,
 		['public'],
+		undefined,
 		{ roles: { include: ['manager'] } },
 	);
 
@@ -3462,6 +3470,7 @@ test('alter createrole in role', async (t) => {
 		[],
 		false,
 		['public'],
+		undefined,
 		{ roles: { include: ['manager'] } },
 	);
 
@@ -3501,6 +3510,7 @@ test('alter inherit in role', async (t) => {
 		[],
 		false,
 		['public'],
+		undefined,
 		{ roles: { include: ['manager'] } },
 	);
 
