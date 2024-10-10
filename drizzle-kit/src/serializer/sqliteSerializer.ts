@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
@@ -22,7 +21,7 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/sqliteSchema';
-import { getColumnCasing, type SQLiteDB } from '../utils';
+import { getColumnCasing, getForeignKeyName, getPrimaryKeyName, type SQLiteDB } from '../utils';
 import { sqlToStr } from '.';
 
 export const generateSqliteSnapshot = (
@@ -90,32 +89,6 @@ export const generateSqliteSnapshot = (
 			columnsObject[name] = columnToSet;
 
 			if (column.isUnique) {
-				const existingUnique = indexesObject[column.uniqueName!];
-				if (typeof existingUnique !== 'undefined') {
-					console.log(
-						`\n${
-							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
-									tableName,
-								)
-							} table. 
-          The unique constraint ${
-								chalk.underline.blue(
-									column.uniqueName,
-								)
-							} on the ${
-								chalk.underline.blue(
-									name,
-								)
-							} column is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
-									existingUnique.columns.join(','),
-								)
-							} columns\n`)
-						}`,
-					);
-					process.exit(1);
-				}
 				indexesObject[column.uniqueName!] = {
 					name: column.uniqueName!,
 					columns: [columnToSet.name],
@@ -125,6 +98,7 @@ export const generateSqliteSnapshot = (
 		});
 
 		const foreignKeys: ForeignKey[] = tableForeignKeys.map((fk) => {
+			const name = getForeignKeyName(fk, casing);
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete ?? 'no action';
 			const onUpdate = fk.onUpdate ?? 'no action';
@@ -134,21 +108,8 @@ export const generateSqliteSnapshot = (
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
-
-			const originalColumnsFrom = reference.columns.map((it) => it.name);
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
-
-			let name = fk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnsFrom.length; i++) {
-					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
-				}
-				for (let i = 0; i < originalColumnsTo.length; i++) {
-					name = name.replace(originalColumnsTo[i], columnsTo[i]);
-				}
-			}
 
 			return {
 				name,
@@ -212,36 +173,7 @@ export const generateSqliteSnapshot = (
 
 		uniqueConstraints?.map((unq) => {
 			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
-
 			const name = unq.name ?? uniqueKeyName(table, columnNames);
-
-			const existingUnique = indexesObject[name];
-			if (typeof existingUnique !== 'undefined') {
-				console.log(
-					`\n${
-						withStyle.errorWarning(
-							`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
-									tableName,
-								)
-							} table. \nThe unique constraint ${
-								chalk.underline.blue(
-									name,
-								)
-							} on the ${
-								chalk.underline.blue(
-									columnNames.join(','),
-								)
-							} columns is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
-									existingUnique.columns.join(','),
-								)
-							} columns\n`,
-						)
-					}`,
-				);
-				process.exit(1);
-			}
 
 			indexesObject[name] = {
 				name: unq.name!,
@@ -252,15 +184,8 @@ export const generateSqliteSnapshot = (
 
 		primaryKeys.forEach((it) => {
 			if (it.columns.length > 1) {
-				const originalColumnNames = it.columns.map((c) => c.name);
+				const name = getPrimaryKeyName(it, casing);
 				const columnNames = it.columns.map((c) => getColumnCasing(c, casing));
-
-				let name = it.getName();
-				if (casing !== undefined) {
-					for (let i = 0; i < originalColumnNames.length; i++) {
-						name = name.replace(originalColumnNames[i], columnNames[i]);
-					}
-				}
 
 				primaryKeysObject[name] = {
 					columns: columnNames,

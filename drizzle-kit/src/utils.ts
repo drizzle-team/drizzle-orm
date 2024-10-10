@@ -1,5 +1,6 @@
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
+import type { Column } from 'drizzle-orm';
 import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -369,4 +370,51 @@ export function getColumnCasing(
 		: casing === 'camelCase'
 		? toCamelCase(column.name)
 		: toSnakeCase(column.name);
+}
+
+export function getForeignKeyName(fk: {
+	getName: () => string;
+	reference: () => {
+		columns: Column[];
+		foreignColumns: Column[];
+	};
+}, casing: CasingType | undefined) {
+	let name = fk.getName();
+	const reference = fk.reference();
+	const originalColumnsFrom = reference.columns.map((it) => it.name);
+	const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+	const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
+	const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+
+	if (casing !== undefined) {
+		for (let i = 0; i < originalColumnsFrom.length; i++) {
+			name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+		}
+		for (let i = 0; i < originalColumnsTo.length; i++) {
+			name = name.replace(originalColumnsTo[i], columnsTo[i]);
+		}
+	}
+
+	return name;
+}
+
+export function getPrimaryKeyName(pk: {
+	getName: () => string;
+	columns: Column[];
+}, casing: CasingType | undefined) {
+	const originalColumnNames = pk.columns.map((c) => c.name);
+	const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
+
+	let name = pk.getName();
+	if (casing !== undefined) {
+		for (let i = 0; i < originalColumnNames.length; i++) {
+			name = name.replace(originalColumnNames[i], columnNames[i]);
+		}
+	}
+
+	return name;
+}
+
+export function getIdentitySequenceName(sequenceName: string | undefined, tableName: string, columnName: string) {
+	return sequenceName ?? `${tableName}_${columnName}_seq`;
 }
