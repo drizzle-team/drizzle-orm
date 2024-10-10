@@ -6,3 +6,4 @@ packages:
   - drizzle-valibot
   - integration-tests
   - eslint-plugin-drizzle
+  - drizzle-seed
