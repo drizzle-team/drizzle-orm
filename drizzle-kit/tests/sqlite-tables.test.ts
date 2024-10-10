@@ -420,6 +420,7 @@ test('optional db aliases (snake case)', async () => {
 			t2Ref: int().notNull().references(() => t2.t2Id),
 			t1Uni: int().notNull(),
 			t1UniIdx: int().notNull(),
+			t1NamelessUnique: int().notNull().unique(),
 			t1Idx: int().notNull(),
 		},
 		(table) => ({
@@ -468,31 +469,34 @@ test('optional db aliases (snake case)', async () => {
 	\`t2_ref\` integer NOT NULL,
 	\`t1_uni\` integer NOT NULL,
 	\`t1_uni_idx\` integer NOT NULL,
+	\`t1_nameless_unique\` integer NOT NULL,
 	\`t1_idx\` integer NOT NULL,
 	FOREIGN KEY (\`t2_ref\`) REFERENCES \`t2\`(\`t2_id\`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (\`t1_col2\`,\`t1_col3\`) REFERENCES \`t3\`(\`t3_id1\`,\`t3_id2\`) ON UPDATE no action ON DELETE no action
 );
 `;
 
-	const st2 = `CREATE UNIQUE INDEX \`t1_uni_idx\` ON \`t1\` (\`t1_uni_idx\`);`;
+	const st2 = `CREATE UNIQUE INDEX \`t1_t1_nameless_unique_unique\` ON \`t1\` (\`t1_nameless_unique\`);`;
 
-	const st3 = `CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`;
+	const st3 = `CREATE UNIQUE INDEX \`t1_uni_idx\` ON \`t1\` (\`t1_uni_idx\`);`;
 
-	const st4 = `CREATE UNIQUE INDEX \`t1_uni\` ON \`t1\` (\`t1_uni\`);`;
+	const st4 = `CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`;
 
-	const st5 = `CREATE TABLE \`t2\` (
+	const st5 = `CREATE UNIQUE INDEX \`t1_uni\` ON \`t1\` (\`t1_uni\`);`;
+
+	const st6 = `CREATE TABLE \`t2\` (
 	\`t2_id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL
 );
 `;
 
-	const st6 = `CREATE TABLE \`t3\` (
+	const st7 = `CREATE TABLE \`t3\` (
 	\`t3_id1\` integer,
 	\`t3_id2\` integer,
 	PRIMARY KEY(\`t3_id1\`, \`t3_id2\`)
 );
 `;
 
-	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
+	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
 
 test('optional db aliases (camel case)', async () => {
@@ -506,6 +510,7 @@ test('optional db aliases (camel case)', async () => {
 			t1_col3: int().notNull(),
 			t2_ref: int().notNull().references(() => t2.t2_id),
 			t1_uni: int().notNull(),
+			t1_nameless_unique: int().notNull().unique(),
 			t1_uni_idx: int().notNull(),
 			t1_idx: int().notNull(),
 		},
@@ -554,6 +559,7 @@ test('optional db aliases (camel case)', async () => {
 	\`t1Col3\` integer NOT NULL,
 	\`t2Ref\` integer NOT NULL,
 	\`t1Uni\` integer NOT NULL,
+	\`t1NamelessUnique\` integer NOT NULL,
 	\`t1UniIdx\` integer NOT NULL,
 	\`t1Idx\` integer NOT NULL,
 	FOREIGN KEY (\`t2Ref\`) REFERENCES \`t2\`(\`t2Id\`) ON UPDATE no action ON DELETE no action,
@@ -561,23 +567,25 @@ test('optional db aliases (camel case)', async () => {
 );
 `;
 
-	const st2 = `CREATE UNIQUE INDEX \`t1UniIdx\` ON \`t1\` (\`t1UniIdx\`);`;
+	const st2 = `CREATE UNIQUE INDEX \`t1_t1NamelessUnique_unique\` ON \`t1\` (\`t1NamelessUnique\`);`;
 
-	const st3 = `CREATE INDEX \`t1Idx\` ON \`t1\` (\`t1Idx\`);`;
+	const st3 = `CREATE UNIQUE INDEX \`t1UniIdx\` ON \`t1\` (\`t1UniIdx\`);`;
 
-	const st4 = `CREATE UNIQUE INDEX \`t1Uni\` ON \`t1\` (\`t1Uni\`);`;
+	const st4 = `CREATE INDEX \`t1Idx\` ON \`t1\` (\`t1Idx\`);`;
 
-	const st5 = `CREATE TABLE \`t2\` (
+	const st5 = `CREATE UNIQUE INDEX \`t1Uni\` ON \`t1\` (\`t1Uni\`);`;
+
+	const st6 = `CREATE TABLE \`t2\` (
 	\`t2Id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL
 );
 `;
 
-	const st6 = `CREATE TABLE \`t3\` (
+	const st7 = `CREATE TABLE \`t3\` (
 	\`t3Id1\` integer,
 	\`t3Id2\` integer,
 	PRIMARY KEY(\`t3Id1\`, \`t3Id2\`)
 );
 `;
 
-	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
+	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });

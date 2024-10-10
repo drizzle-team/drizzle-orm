@@ -207,7 +207,9 @@ export const generatePgSnapshot = (
 			};
 
 			if (column.isUnique) {
-				const existingUnique = uniqueConstraintObject[column.uniqueName!];
+				const originalColumnName = getColumnCasing(column, undefined);
+				const uniqueName = column.uniqueName!.replace(originalColumnName, name);
+				const existingUnique = uniqueConstraintObject[uniqueName];
 				if (typeof existingUnique !== 'undefined') {
 					console.log(
 						`\n${
@@ -233,8 +235,8 @@ export const generatePgSnapshot = (
 					);
 					process.exit(1);
 				}
-				uniqueConstraintObject[column.uniqueName!] = {
-					name: column.uniqueName!,
+				uniqueConstraintObject[uniqueName] = {
+					name: uniqueName,
 					nullsNotDistinct: column.uniqueType === 'not distinct',
 					columns: [columnToSet.name],
 				};
