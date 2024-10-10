@@ -500,13 +500,19 @@ export const connectToSQLite = async (
 				params,
 				method,
 			) => {
+				let body:string;
+				if (params.length > 0) {
+					body = JSON.stringify({ sql, params });
+				} else {
+					body = JSON.stringify({ sql });
+				}
 				const res = await fetch(
 					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/${
 						method === 'values' ? 'raw' : 'query'
 					}`,
 					{
 						method: 'POST',
-						body: JSON.stringify({ sql, params }),
+						body,
 						headers: {
 							'Content-Type': 'application/json',
 							Authorization: `Bearer ${credentials.token}`,

@@ -377,6 +377,8 @@ export const sqlitePush = async (
 					await db.query('rollback');
 					process.exit(1);
 				}
+			} else if (credentials.driver === "d1-http") {
+				await db.run(statementsToExecute.join(''));
 			}
 			render(`[${chalk.green('✓')}] Changes applied`);
 		}
