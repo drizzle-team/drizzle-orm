@@ -20,7 +20,7 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
 export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'VercelPgPreparedQuery';
+	static override readonly [entityKind]: string = 'VercelPgPreparedQuery';
 
 	private rawQuery: QueryConfig;
 	private queryConfig: QueryArrayConfig;
@@ -92,7 +92,7 @@ export class VercelPgSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<VercelPgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'VercelPgSession';
+	static override readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;
 
@@ -170,7 +170,7 @@ export class VercelPgTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<VercelPgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'VercelPgTransaction';
+	static override readonly [entityKind]: string = 'VercelPgTransaction';
 
 	override async transaction<T>(
 		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,

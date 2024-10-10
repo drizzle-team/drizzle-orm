@@ -46,7 +46,7 @@ export class NeonDriver {
 export class NeonDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<NeonQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'NeonServerlessDatabase';
+	static override readonly [entityKind]: string = 'NeonServerlessDatabase';
 }
 
 export function drizzle<

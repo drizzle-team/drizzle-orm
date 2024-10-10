@@ -18,7 +18,7 @@ type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
 export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInteger'>>
 	extends PgIntColumnBaseBuilder<T>
 {
-	static readonly [entityKind]: string = 'PgIntegerBuilder';
+	static override readonly [entityKind]: string = 'PgIntegerBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'PgInteger');
@@ -33,7 +33,7 @@ export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInt
 }
 
 export class PgInteger<T extends ColumnBaseConfig<'number', 'PgInteger'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgInteger';
+	static override readonly [entityKind]: string = 'PgInteger';
 
 	getSQLType(): string {
 		return 'integer';

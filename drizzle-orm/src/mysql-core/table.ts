@@ -24,7 +24,7 @@ export type TableConfig = TableConfigBase<MySqlColumn>;
 export const InlineForeignKeys = Symbol.for('drizzle:MySqlInlineForeignKeys');
 
 export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
-	static readonly [entityKind]: string = 'MySqlTable';
+	static override readonly [entityKind]: string = 'MySqlTable';
 
 	declare protected $columns: T['columns'];
 

@@ -18,7 +18,7 @@ export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Bui
 export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'MySqlBigInt53'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static readonly [entityKind]: string = 'MySqlBigInt53Builder';
+	static override readonly [entityKind]: string = 'MySqlBigInt53Builder';
 
 	constructor(name: T['name'], unsigned: boolean = false) {
 		super(name, 'number', 'MySqlBigInt53');
@@ -39,7 +39,7 @@ export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'M
 export class MySqlBigInt53<T extends ColumnBaseConfig<'number', 'MySqlBigInt53'>>
 	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static readonly [entityKind]: string = 'MySqlBigInt53';
+	static override readonly [entityKind]: string = 'MySqlBigInt53';
 
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -66,7 +66,7 @@ export type MySqlBigInt64BuilderInitial<TName extends string> = MySqlBigInt64Bui
 export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'MySqlBigInt64'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static readonly [entityKind]: string = 'MySqlBigInt64Builder';
+	static override readonly [entityKind]: string = 'MySqlBigInt64Builder';
 
 	constructor(name: T['name'], unsigned: boolean = false) {
 		super(name, 'bigint', 'MySqlBigInt64');
@@ -87,7 +87,7 @@ export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'M
 export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MySqlBigInt64'>>
 	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static readonly [entityKind]: string = 'MySqlBigInt64';
+	static override readonly [entityKind]: string = 'MySqlBigInt64';
 
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;

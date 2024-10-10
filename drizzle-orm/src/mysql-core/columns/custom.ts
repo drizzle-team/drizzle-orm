@@ -35,7 +35,7 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'
 		}
 	>
 {
-	static readonly [entityKind]: string = 'MySqlCustomColumnBuilder';
+	static override readonly [entityKind]: string = 'MySqlCustomColumnBuilder';
 
 	constructor(
 		name: T['name'],
@@ -59,7 +59,7 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'
 }
 
 export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustomColumn'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlCustomColumn';
+	static override readonly [entityKind]: string = 'MySqlCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];

@@ -19,7 +19,7 @@ export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends [s
 export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlEnumColumn'>>
 	extends MySqlColumnBuilder<T, { enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'MySqlEnumColumnBuilder';
+	static override readonly [entityKind]: string = 'MySqlEnumColumnBuilder';
 
 	constructor(name: T['name'], values: T['enumValues']) {
 		super(name, 'string', 'MySqlEnumColumn');
@@ -40,7 +40,7 @@ export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 
 export class MySqlEnumColumn<T extends ColumnBaseConfig<'string', 'MySqlEnumColumn'>>
 	extends MySqlColumn<T, { enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'MySqlEnumColumn';
+	static override readonly [entityKind]: string = 'MySqlEnumColumn';
 
 	override readonly enumValues = this.config.enumValues;
 

@@ -48,7 +48,7 @@ export class NodePgDriver {
 export class NodePgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<NodePgQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'NodePgDatabase';
+	static override readonly [entityKind]: string = 'NodePgDatabase';
 }
 
 export function drizzle<

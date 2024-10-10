@@ -17,7 +17,7 @@ const { Pool } = pg;
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
 export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'NodePgPreparedQuery';
+	static override readonly [entityKind]: string = 'NodePgPreparedQuery';
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
@@ -109,7 +109,7 @@ export class NodePgSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<NodePgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NodePgSession';
+	static override readonly [entityKind]: string = 'NodePgSession';
 
 	private logger: Logger;
 
@@ -177,7 +177,7 @@ export class NodePgTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<NodePgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NodePgTransaction';
+	static override readonly [entityKind]: string = 'NodePgTransaction';
 
 	override async transaction<T>(transaction: (tx: NodePgTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;

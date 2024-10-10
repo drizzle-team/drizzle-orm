@@ -166,7 +166,7 @@ export class PgInsertBase<
 		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgInsert';
+	static override readonly [entityKind]: string = 'PgInsert';
 
 	private config: PgInsertConfig<TTable>;
 

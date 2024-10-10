@@ -21,7 +21,7 @@ export interface TiDBServerlessSDriverOptions {
 export class TiDBServerlessDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends MySqlDatabase<TiDBServerlessQueryResultHKT, TiDBServerlessPreparedQueryHKT, TSchema> {
-	static readonly [entityKind]: string = 'TiDBServerlessDatabase';
+	static override readonly [entityKind]: string = 'TiDBServerlessDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(

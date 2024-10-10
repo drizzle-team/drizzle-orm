@@ -45,7 +45,7 @@ export class VercelPgDriver {
 export class VercelPgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<VercelPgQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'VercelPgDatabase';
+	static override readonly [entityKind]: string = 'VercelPgDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
