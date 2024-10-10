@@ -43,7 +43,7 @@ export { MySqlDatabase } from '~/mysql-core/db.ts';
 export class MySql2Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema> {
-	static readonly [entityKind]: string = 'MySql2Database';
+	static override readonly [entityKind]: string = 'MySql2Database';
 }
 
 export type MySql2DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =

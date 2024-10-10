@@ -21,7 +21,7 @@ export class PgBinaryVectorBuilder<T extends ColumnBuilderBaseConfig<'string', '
 		{ dimensions: number | undefined }
 	>
 {
-	static readonly [entityKind]: string = 'PgBinaryVectorBuilder';
+	static override readonly [entityKind]: string = 'PgBinaryVectorBuilder';
 
 	constructor(name: string, config: PgBinaryVectorConfig) {
 		super(name, 'string', 'PgBinaryVector');
@@ -42,7 +42,7 @@ export class PgBinaryVectorBuilder<T extends ColumnBuilderBaseConfig<'string', '
 export class PgBinaryVector<T extends ColumnBaseConfig<'string', 'PgBinaryVector'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
-	static readonly [entityKind]: string = 'PgBinaryVector';
+	static override readonly [entityKind]: string = 'PgBinaryVector';
 
 	readonly dimensions = this.config.dimensions;
 

@@ -18,7 +18,7 @@ export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder
 export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlDouble'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDoubleConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDoubleBuilder';
+	static override readonly [entityKind]: string = 'MySqlDoubleBuilder';
 
 	constructor(name: T['name'], config: MySqlDoubleConfig | undefined) {
 		super(name, 'number', 'MySqlDouble');
@@ -37,7 +37,7 @@ export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 export class MySqlDouble<T extends ColumnBaseConfig<'number', 'MySqlDouble'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDoubleConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDouble';
+	static override readonly [entityKind]: string = 'MySqlDouble';
 
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;

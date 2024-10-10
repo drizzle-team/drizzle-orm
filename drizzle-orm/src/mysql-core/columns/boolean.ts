@@ -17,7 +17,7 @@ export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuild
 export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MySqlBoolean'>>
 	extends MySqlColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'MySqlBooleanBuilder';
+	static override readonly [entityKind]: string = 'MySqlBooleanBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'boolean', 'MySqlBoolean');
@@ -35,7 +35,7 @@ export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'M
 }
 
 export class MySqlBoolean<T extends ColumnBaseConfig<'boolean', 'MySqlBoolean'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlBoolean';
+	static override readonly [entityKind]: string = 'MySqlBoolean';
 
 	getSQLType(): string {
 		return 'boolean';
