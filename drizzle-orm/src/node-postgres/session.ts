@@ -1,5 +1,5 @@
 import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
-import pg, { types } from 'pg';
+import pg from 'pg';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -12,7 +12,7 @@ import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-const { Pool } = pg;
+const { Pool, types } = pg;
 
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
