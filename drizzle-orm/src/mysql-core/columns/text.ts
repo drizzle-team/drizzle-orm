@@ -21,7 +21,7 @@ export class MySqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 	T,
 	{ textType: MySqlTextColumnType; enumValues: T['enumValues'] }
 > {
-	static readonly [entityKind]: string = 'MySqlTextBuilder';
+	static override readonly [entityKind]: string = 'MySqlTextBuilder';
 
 	constructor(name: T['name'], textType: MySqlTextColumnType, config: MySqlTextConfig<T['enumValues']>) {
 		super(name, 'string', 'MySqlText');
@@ -40,7 +40,7 @@ export class MySqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 export class MySqlText<T extends ColumnBaseConfig<'string', 'MySqlText'>>
 	extends MySqlColumn<T, { textType: MySqlTextColumnType; enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'MySqlText';
+	static override readonly [entityKind]: string = 'MySqlText';
 
 	private textType: MySqlTextColumnType = this.config.textType;
 

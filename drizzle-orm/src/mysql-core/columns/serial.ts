@@ -33,7 +33,7 @@ export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
 export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSerial'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T>
 {
-	static readonly [entityKind]: string = 'MySqlSerialBuilder';
+	static override readonly [entityKind]: string = 'MySqlSerialBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'MySqlSerial');
@@ -52,7 +52,7 @@ export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 export class MySqlSerial<
 	T extends ColumnBaseConfig<'number', 'MySqlSerial'>,
 > extends MySqlColumnWithAutoIncrement<T> {
-	static readonly [entityKind]: string = 'MySqlSerial';
+	static override readonly [entityKind]: string = 'MySqlSerial';
 
 	getSQLType(): string {
 		return 'serial';

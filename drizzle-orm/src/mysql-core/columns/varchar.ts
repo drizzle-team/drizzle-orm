@@ -20,7 +20,7 @@ export type MySqlVarCharBuilderInitial<TName extends string, TEnum extends [stri
 export class MySqlVarCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarChar'>>
 	extends MySqlColumnBuilder<T, MySqlVarCharConfig<T['enumValues']>>
 {
-	static readonly [entityKind]: string = 'MySqlVarCharBuilder';
+	static override readonly [entityKind]: string = 'MySqlVarCharBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: MySqlVarCharConfig<T['enumValues']>) {
@@ -43,7 +43,7 @@ export class MySqlVarCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'My
 export class MySqlVarChar<T extends ColumnBaseConfig<'string', 'MySqlVarChar'>>
 	extends MySqlColumn<T, MySqlVarCharConfig<T['enumValues']>>
 {
-	static readonly [entityKind]: string = 'MySqlVarChar';
+	static override readonly [entityKind]: string = 'MySqlVarChar';
 
 	readonly length: number | undefined = this.config.length;
 

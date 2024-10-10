@@ -18,7 +18,7 @@ export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryB
 export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarBinary'>>
 	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>
 {
-	static readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
+	static override readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: MySqlVarbinaryOptions) {
@@ -40,7 +40,7 @@ export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', '
 export class MySqlVarBinary<
 	T extends ColumnBaseConfig<'string', 'MySqlVarBinary'>,
 > extends MySqlColumn<T, MySqlVarbinaryOptions> {
-	static readonly [entityKind]: string = 'MySqlVarBinary';
+	static override readonly [entityKind]: string = 'MySqlVarBinary';
 
 	length: number | undefined = this.config.length;
 

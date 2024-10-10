@@ -25,7 +25,7 @@ export class SQLJsSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLJsSession';
+	static override readonly [entityKind]: string = 'SQLJsSession';
 
 	private logger: Logger;
 
@@ -90,7 +90,7 @@ export class SQLJsTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLJsTransaction';
+	static override readonly [entityKind]: string = 'SQLJsTransaction';
 
 	override transaction<T>(transaction: (tx: SQLJsTransaction<TFullSchema, TSchema>) => T): T {
 		const savepointName = `sp${this.nestedIndex + 1}`;
@@ -110,7 +110,7 @@ export class SQLJsTransaction<
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'SQLJsPreparedQuery';
+	static override readonly [entityKind]: string = 'SQLJsPreparedQuery';
 
 	constructor(
 		private stmt: Statement,

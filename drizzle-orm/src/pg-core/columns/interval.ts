@@ -19,7 +19,7 @@ export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
 export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInterval'>>
 	extends PgColumnBuilder<T, { intervalConfig: IntervalConfig }>
 {
-	static readonly [entityKind]: string = 'PgIntervalBuilder';
+	static override readonly [entityKind]: string = 'PgIntervalBuilder';
 
 	constructor(
 		name: T['name'],
@@ -40,7 +40,7 @@ export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgIn
 export class PgInterval<T extends ColumnBaseConfig<'string', 'PgInterval'>>
 	extends PgColumn<T, { intervalConfig: IntervalConfig }>
 {
-	static readonly [entityKind]: string = 'PgInterval';
+	static override readonly [entityKind]: string = 'PgInterval';
 
 	readonly fields: IntervalConfig['fields'] = this.config.intervalConfig.fields;
 	readonly precision: IntervalConfig['precision'] = this.config.intervalConfig.precision;
