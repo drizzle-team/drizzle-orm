@@ -1,4 +1,3 @@
-import { types } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -25,20 +24,12 @@ export class VercelPgDriver {
 		private dialect: PgDialect,
 		private options: VercelPgDriverOptions = {},
 	) {
-		this.initMappers();
 	}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): VercelPgSession<Record<string, unknown>, TablesRelationalConfig> {
 		return new VercelPgSession(this.client, this.dialect, schema, { logger: this.options.logger });
-	}
-
-	initMappers() {
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
 	}
 }
 

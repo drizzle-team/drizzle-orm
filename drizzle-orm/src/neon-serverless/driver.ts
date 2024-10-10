@@ -1,4 +1,3 @@
-import { types } from '@neondatabase/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -26,20 +25,12 @@ export class NeonDriver {
 		private dialect: PgDialect,
 		private options: NeonDriverOptions = {},
 	) {
-		this.initMappers();
 	}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): NeonSession<Record<string, unknown>, TablesRelationalConfig> {
 		return new NeonSession(this.client, this.dialect, schema, { logger: this.options.logger });
-	}
-
-	initMappers() {
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
 	}
 }
 

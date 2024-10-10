@@ -1,4 +1,3 @@
-import pg from 'pg';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -14,8 +13,6 @@ import type { DrizzleConfig } from '~/utils.ts';
 import type { NodePgClient, NodePgQueryResultHKT } from './session.ts';
 import { NodePgSession } from './session.ts';
 
-const { types } = pg;
-
 export interface PgDriverOptions {
 	logger?: Logger;
 }
@@ -28,20 +25,12 @@ export class NodePgDriver {
 		private dialect: PgDialect,
 		private options: PgDriverOptions = {},
 	) {
-		this.initMappers();
 	}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): NodePgSession<Record<string, unknown>, TablesRelationalConfig> {
 		return new NodePgSession(this.client, this.dialect, schema, { logger: this.options.logger });
-	}
-
-	initMappers() {
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
 	}
 }
 

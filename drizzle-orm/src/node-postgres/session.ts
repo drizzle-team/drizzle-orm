@@ -1,5 +1,5 @@
 import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
-import pg from 'pg';
+import pg, { types } from 'pg';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -36,11 +36,49 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 		this.queryConfig = {
 			name,
 			text: queryString,
 			rowMode: 'array',
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 	}
 
