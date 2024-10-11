@@ -130,7 +130,7 @@ export abstract class MySqlTransaction<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > extends MySqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySqlTransaction';
+	static override readonly [entityKind]: string = 'MySqlTransaction';
 
 	constructor(
 		dialect: MySqlDialect,

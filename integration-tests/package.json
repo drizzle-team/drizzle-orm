@@ -15,6 +15,7 @@
 	"license": "Apache-2.0",
 	"private": true,
 	"devDependencies": {
+		"@cloudflare/workers-types": "^4.20241004.0",
 		"@libsql/client": "^0.10.0",
 		"@neondatabase/serverless": "0.9.0",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
@@ -43,8 +44,8 @@
 		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@aws-sdk/credential-providers": "^3.549.0",
 		"@electric-sql/pglite": "^0.1.1",
-		"@miniflare/d1": "^2.14.2",
-		"@miniflare/shared": "^2.14.2",
+		"@miniflare/d1": "^2.14.4",
+		"@miniflare/shared": "^2.14.4",
 		"@planetscale/database": "^1.16.0",
 		"@prisma/client": "5.14.0",
 		"@tidbcloud/serverless": "^0.1.1",
@@ -71,7 +72,7 @@
 		"sst": "^3.0.4",
 		"uuid": "^9.0.0",
 		"uvu": "^0.5.6",
-		"vitest": "^1.6.0",
+		"vitest": "^2.1.2",
 		"ws": "^8.16.0",
 		"zod": "^3.20.2"
 	}

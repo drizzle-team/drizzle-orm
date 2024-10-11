@@ -120,7 +120,7 @@ export class MySqlUpdateBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
 > extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> implements SQLWrapper {
-	static readonly [entityKind]: string = 'MySqlUpdate';
+	static override readonly [entityKind]: string = 'MySqlUpdate';
 
 	private config: MySqlUpdateConfig;
 

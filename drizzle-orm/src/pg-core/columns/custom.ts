@@ -35,7 +35,7 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', '
 		}
 	>
 {
-	static readonly [entityKind]: string = 'PgCustomColumnBuilder';
+	static override readonly [entityKind]: string = 'PgCustomColumnBuilder';
 
 	constructor(
 		name: T['name'],
@@ -59,7 +59,7 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', '
 }
 
 export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgCustomColumn';
+	static override readonly [entityKind]: string = 'PgCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];

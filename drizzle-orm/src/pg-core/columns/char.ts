@@ -19,7 +19,7 @@ export class PgCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgChar'>
 	T,
 	{ length: number | undefined; enumValues: T['enumValues'] }
 > {
-	static readonly [entityKind]: string = 'PgCharBuilder';
+	static override readonly [entityKind]: string = 'PgCharBuilder';
 
 	constructor(name: T['name'], config: PgCharConfig<T['enumValues']>) {
 		super(name, 'string', 'PgChar');
@@ -38,7 +38,7 @@ export class PgCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgChar'>
 export class PgChar<T extends ColumnBaseConfig<'string', 'PgChar'>>
 	extends PgColumn<T, { length: number | undefined; enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'PgChar';
+	static override readonly [entityKind]: string = 'PgChar';
 
 	readonly length = this.config.length;
 	override readonly enumValues = this.config.enumValues;

@@ -11,7 +11,7 @@ export class DrizzleError extends Error {
 }
 
 export class TransactionRollbackError extends DrizzleError {
-	static readonly [entityKind]: string = 'TransactionRollbackError';
+	static override readonly [entityKind]: string = 'TransactionRollbackError';
 
 	constructor() {
 		super({ message: 'Rollback' });
