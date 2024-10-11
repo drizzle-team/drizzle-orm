@@ -2,7 +2,6 @@ import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 
 import { int, mysqlTable, mysqlView } from 'drizzle-orm/mysql-core';
-import fs from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { diffTestSchemasPushMysql } from 'tests/schemaDiffer';
@@ -41,7 +40,7 @@ async function createDockerDB(): Promise<string> {
 }
 
 beforeAll(async () => {
-	const connectionString = process.env.MYSQL_CONNECTION_STRING ?? await createDockerDB();
+	const connectionString = process.env.MYSQL_LOCAL_CONNECTION_STRING ?? await createDockerDB();
 
 	const sleep = 1000;
 	let timeLeft = 20000;
