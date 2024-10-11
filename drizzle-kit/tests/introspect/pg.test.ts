@@ -515,7 +515,7 @@ test('introspect materialized view in other schema', async () => {
 	const { statements, sqlStatements } = await introspectPgToFile(
 		client,
 		schema,
-		'introspect-view-in-other-schema',
+		'introspect-mat-view-in-other-schema',
 		['new_schema'],
 	);
 
