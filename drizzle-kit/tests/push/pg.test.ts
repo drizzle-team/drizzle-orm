@@ -2349,6 +2349,18 @@ test('db has checks. Push with same names', async () => {
 			checkConstraint: check('some_check', sql`some new value`),
 		})),
 	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('enums ordering', async () => {
