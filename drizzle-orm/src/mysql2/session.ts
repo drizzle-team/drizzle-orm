@@ -41,7 +41,7 @@ export type MySqlQueryResult<
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
 export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlPreparedQuery<T> {
-	static readonly [entityKind]: string = 'MySql2PreparedQuery';
+	static override readonly [entityKind]: string = 'MySql2PreparedQuery';
 
 	private rawQuery: QueryOptions;
 	private query: QueryOptions;
@@ -190,7 +190,7 @@ export class MySql2Session<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlSession<MySqlQueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySql2Session';
+	static override readonly [entityKind]: string = 'MySql2Session';
 
 	private logger: Logger;
 	private mode: Mode;
@@ -301,7 +301,7 @@ export class MySql2Transaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlTransaction<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySql2Transaction';
+	static override readonly [entityKind]: string = 'MySql2Transaction';
 
 	override async transaction<T>(transaction: (tx: MySql2Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;

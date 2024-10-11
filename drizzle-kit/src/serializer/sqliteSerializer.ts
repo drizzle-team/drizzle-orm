@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
 	// AnySQLiteColumnBuilder,
 	AnySQLiteTable,
@@ -11,6 +12,7 @@ import {
 	SQLiteView,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
+import { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
@@ -24,15 +26,15 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/sqliteSchema';
-import type { SQLiteDB } from '../utils';
+import { getColumnCasing, type SQLiteDB } from '../utils';
 import { sqlToStr } from '.';
-
-const dialect = new SQLiteSyncDialect();
 
 export const generateSqliteSnapshot = (
 	tables: AnySQLiteTable[],
 	views: SQLiteView[],
+	casing: CasingType | undefined,
 ): SQLiteSchemaInternal => {
+	const dialect = new SQLiteSyncDialect({ casing });
 	const result: Record<string, Table> = {};
 	const resultViews: Record<string, View> = {};
 
@@ -55,12 +57,13 @@ export const generateSqliteSnapshot = (
 		} = getTableConfig(table);
 
 		columns.forEach((column) => {
+			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
 			const primaryKey: boolean = column.primary;
 			const generated = column.generated;
 
 			const columnToSet: Column = {
-				name: column.name,
+				name,
 				type: column.getSQLType(),
 				primaryKey,
 				notNull,
@@ -81,7 +84,7 @@ export const generateSqliteSnapshot = (
 
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
-					columnToSet.default = sqlToStr(column.default);
+					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					columnToSet.default = typeof column.default === 'string'
 						? `'${column.default}'`
@@ -91,7 +94,7 @@ export const generateSqliteSnapshot = (
 						: column.default;
 				}
 			}
-			columnsObject[column.name] = columnToSet;
+			columnsObject[name] = columnToSet;
 
 			if (column.isUnique) {
 				const existingUnique = indexesObject[column.uniqueName!];
@@ -109,7 +112,7 @@ export const generateSqliteSnapshot = (
 								)
 							} on the ${
 								chalk.underline.blue(
-									column.name,
+									name,
 								)
 							} column is confilcting with a unique constraint name already defined for ${
 								chalk.underline.blue(
@@ -129,7 +132,6 @@ export const generateSqliteSnapshot = (
 		});
 
 		const foreignKeys: ForeignKey[] = tableForeignKeys.map((fk) => {
-			const name = fk.getName();
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete ?? 'no action';
 			const onUpdate = fk.onUpdate ?? 'no action';
@@ -139,8 +141,22 @@ export const generateSqliteSnapshot = (
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
-			const columnsFrom = reference.columns.map((it) => it.name);
-			const columnsTo = reference.foreignColumns.map((it) => it.name);
+
+			const originalColumnsFrom = reference.columns.map((it) => it.name);
+			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
+			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+
+			let name = fk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnsFrom.length; i++) {
+					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+				}
+				for (let i = 0; i < originalColumnsTo.length; i++) {
+					name = name.replace(originalColumnsTo[i], columnsTo[i]);
+				}
+			}
+
 			return {
 				name,
 				tableFrom,
@@ -182,7 +198,7 @@ export const generateSqliteSnapshot = (
 					}
 					return sql;
 				} else {
-					return it.name;
+					return getColumnCasing(it, casing);
 				}
 			});
 
@@ -202,7 +218,7 @@ export const generateSqliteSnapshot = (
 		});
 
 		uniqueConstraints?.map((unq) => {
-			const columnNames = unq.columns.map((c) => c.name);
+			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
 
 			const name = unq.name ?? uniqueKeyName(table, columnNames);
 
@@ -243,12 +259,22 @@ export const generateSqliteSnapshot = (
 
 		primaryKeys.forEach((it) => {
 			if (it.columns.length > 1) {
-				primaryKeysObject[it.getName()] = {
-					columns: it.columns.map((it) => it.name),
-					name: it.getName(),
+				const originalColumnNames = it.columns.map((c) => c.name);
+				const columnNames = it.columns.map((c) => getColumnCasing(c, casing));
+
+				let name = it.getName();
+				if (casing !== undefined) {
+					for (let i = 0; i < originalColumnNames.length; i++) {
+						name = name.replace(originalColumnNames[i], columnNames[i]);
+					}
+				}
+
+				primaryKeysObject[name] = {
+					columns: columnNames,
+					name,
 				};
 			} else {
-				columnsObject[it.columns[0].name].primaryKey = true;
+				columnsObject[getColumnCasing(it.columns[0], casing)].primaryKey = true;
 			}
 		});
 
@@ -312,7 +338,7 @@ export const generateSqliteSnapshot = (
 
 				if (column.default !== undefined) {
 					if (is(column.default, SQL)) {
-						columnToSet.default = sqlToStr(column.default);
+						columnToSet.default = sqlToStr(column.default, casing);
 					} else {
 						columnToSet.default = typeof column.default === 'string'
 							? `'${column.default}'`

@@ -22,7 +22,7 @@ export interface PlanetscaleSDriverOptions {
 export class PlanetScaleDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends MySqlDatabase<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TSchema> {
-	static readonly [entityKind]: string = 'PlanetScaleDatabase';
+	static override readonly [entityKind]: string = 'PlanetScaleDatabase';
 }
 
 export function drizzle<

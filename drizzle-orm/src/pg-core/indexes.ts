@@ -118,7 +118,7 @@ export class IndexBuilderOn {
 					return it;
 				}
 				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, it.columnType!, it.indexConfig!);
+				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
 				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
 				return clonedIndexedColumn;
 			}),
@@ -135,7 +135,7 @@ export class IndexBuilderOn {
 					return it;
 				}
 				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, it.columnType!, it.indexConfig!);
+				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
 				it.indexConfig = it.defaultConfig;
 				return clonedIndexedColumn;
 			}),
@@ -166,7 +166,7 @@ export class IndexBuilderOn {
 					return it;
 				}
 				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, it.columnType!, it.indexConfig!);
+				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
 				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
 				return clonedIndexedColumn;
 			}),

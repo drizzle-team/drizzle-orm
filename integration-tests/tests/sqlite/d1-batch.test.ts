@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 import 'dotenv/config';
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { createSQLiteDB } from '@miniflare/shared';

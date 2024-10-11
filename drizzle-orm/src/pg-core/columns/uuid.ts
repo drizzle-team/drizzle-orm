@@ -16,7 +16,7 @@ export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<{
 }>;
 
 export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgUUIDBuilder';
+	static override readonly [entityKind]: string = 'PgUUIDBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'string', 'PgUUID');
@@ -38,7 +38,7 @@ export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>
 }
 
 export class PgUUID<T extends ColumnBaseConfig<'string', 'PgUUID'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgUUID';
+	static override readonly [entityKind]: string = 'PgUUID';
 
 	getSQLType(): string {
 		return 'uuid';

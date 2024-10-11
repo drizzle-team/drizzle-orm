@@ -12,12 +12,12 @@ import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-const { Pool } = pg;
+const { Pool, types } = pg;
 
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
 export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'NodePgPreparedQuery';
+	static override readonly [entityKind]: string = 'NodePgPreparedQuery';
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
@@ -36,11 +36,49 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 		this.queryConfig = {
 			name,
 			text: queryString,
 			rowMode: 'array',
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 	}
 
@@ -109,7 +147,7 @@ export class NodePgSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<NodePgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NodePgSession';
+	static override readonly [entityKind]: string = 'NodePgSession';
 
 	private logger: Logger;
 
@@ -177,7 +215,7 @@ export class NodePgTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<NodePgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NodePgTransaction';
+	static override readonly [entityKind]: string = 'NodePgTransaction';
 
 	override async transaction<T>(transaction: (tx: NodePgTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;

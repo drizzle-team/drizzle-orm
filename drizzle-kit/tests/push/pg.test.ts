@@ -32,7 +32,7 @@ import {
 import { drizzle } from 'drizzle-orm/pglite';
 import { eq, SQL, sql } from 'drizzle-orm/sql';
 import { pgSuggestions } from 'src/cli/commands/pgPushUtils';
-import { diffTestSchemasPush } from 'tests/schemaDiffer';
+import { diffTestSchemas, diffTestSchemasPush } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 import { DialectSuite, run } from './common';
 
@@ -2237,7 +2237,8 @@ test('drop mat view with data', async () => {
 		[],
 		false,
 		['public'],
-		seedStatements,
+		undefined,
+		{ after: seedStatements },
 	);
 
 	expect(statements.length).toBe(1);
@@ -2290,7 +2291,6 @@ test('drop mat view without data', async () => {
 		[],
 		false,
 		['public'],
-		[],
 	);
 
 	expect(statements.length).toBe(1);
@@ -2344,7 +2344,8 @@ test('drop view with data', async () => {
 		[],
 		false,
 		['public'],
-		seedStatements,
+		undefined,
+		{ after: seedStatements },
 	);
 
 	expect(statements.length).toBe(1);
@@ -2361,4 +2362,189 @@ test('drop view with data', async () => {
 	expect(shouldAskForApprove).toBe(false);
 	expect(tablesToRemove!.length).toBe(0);
 	expect(matViewsToRemove!.length).toBe(0);
+});
+test('enums ordering', async () => {
+	const enum1 = pgEnum('enum_users_customer_and_ship_to_settings_roles', [
+		'custAll',
+		'custAdmin',
+		'custClerk',
+		'custInvoiceManager',
+		'custMgf',
+		'custApprover',
+		'custOrderWriter',
+		'custBuyer',
+	]);
+	const schema1 = {};
+
+	const schema2 = {
+		enum1,
+	};
+
+	const { sqlStatements: createEnum } = await diffTestSchemas(schema1, schema2, []);
+
+	const enum2 = pgEnum('enum_users_customer_and_ship_to_settings_roles', [
+		'addedToTop',
+		'custAll',
+		'custAdmin',
+		'custClerk',
+		'custInvoiceManager',
+		'custMgf',
+		'custApprover',
+		'custOrderWriter',
+		'custBuyer',
+	]);
+	const schema3 = {
+		enum2,
+	};
+
+	const { sqlStatements: addedValueSql } = await diffTestSchemas(schema2, schema3, []);
+
+	const enum3 = pgEnum('enum_users_customer_and_ship_to_settings_roles', [
+		'addedToTop',
+		'custAll',
+		'custAdmin',
+		'custClerk',
+		'custInvoiceManager',
+		'addedToMiddle',
+		'custMgf',
+		'custApprover',
+		'custOrderWriter',
+		'custBuyer',
+	]);
+	const schema4 = {
+		enum3,
+	};
+
+	const client = new PGlite();
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema3,
+		schema4,
+		[],
+		false,
+		['public'],
+		undefined,
+		{ before: [...createEnum, ...addedValueSql], runApply: false },
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		before: 'custMgf',
+		name: 'enum_users_customer_and_ship_to_settings_roles',
+		schema: 'public',
+		type: 'alter_type_add_value',
+		value: 'addedToMiddle',
+	});
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TYPE "public"."enum_users_customer_and_ship_to_settings_roles" ADD VALUE 'addedToMiddle' BEFORE 'custMgf';`,
+	);
+});
+
+test('drop enum values', async () => {
+	const newSchema = pgSchema('mySchema');
+	const enum3 = pgEnum('enum_users_customer_and_ship_to_settings_roles', [
+		'addedToTop',
+		'custAll',
+		'custAdmin',
+		'custClerk',
+		'custInvoiceManager',
+		'addedToMiddle',
+		'custMgf',
+		'custApprover',
+		'custOrderWriter',
+		'custBuyer',
+	]);
+	const schema1 = {
+		enum3,
+		table: pgTable('enum_table', {
+			id: enum3(),
+		}),
+		newSchema,
+		table1: newSchema.table('enum_table', {
+			id: enum3(),
+		}),
+	};
+
+	const enum4 = pgEnum('enum_users_customer_and_ship_to_settings_roles', [
+		'addedToTop',
+		'custAll',
+		'custAdmin',
+		'custClerk',
+		'custInvoiceManager',
+		'custApprover',
+		'custOrderWriter',
+		'custBuyer',
+	]);
+	const schema2 = {
+		enum4,
+		table: pgTable('enum_table', {
+			id: enum4(),
+		}),
+		newSchema,
+		table1: newSchema.table('enum_table', {
+			id: enum4(),
+		}),
+	};
+
+	const client = new PGlite();
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public', 'mySchema'],
+		undefined,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		name: 'enum_users_customer_and_ship_to_settings_roles',
+		schema: 'public',
+		type: 'alter_type_drop_value',
+		newValues: [
+			'addedToTop',
+			'custAll',
+			'custAdmin',
+			'custClerk',
+			'custInvoiceManager',
+			'custApprover',
+			'custOrderWriter',
+			'custBuyer',
+		],
+		deletedValues: ['addedToMiddle', 'custMgf'],
+		columnsWithEnum: [{
+			column: 'id',
+			schema: 'public',
+			table: 'enum_table',
+		}, {
+			column: 'id',
+			schema: 'mySchema',
+			table: 'enum_table',
+		}],
+	});
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "public"."enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "mySchema"."enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
+	);
+	expect(sqlStatements[2]).toBe(
+		`DROP TYPE "public"."enum_users_customer_and_ship_to_settings_roles";`,
+	);
+	expect(sqlStatements[3]).toBe(
+		`CREATE TYPE "public"."enum_users_customer_and_ship_to_settings_roles" AS ENUM('addedToTop', 'custAll', 'custAdmin', 'custClerk', 'custInvoiceManager', 'custApprover', 'custOrderWriter', 'custBuyer');`,
+	);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "public"."enum_table" ALTER COLUMN "id" SET DATA TYPE "public"."enum_users_customer_and_ship_to_settings_roles" USING "id"::"public"."enum_users_customer_and_ship_to_settings_roles";`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "mySchema"."enum_table" ALTER COLUMN "id" SET DATA TYPE "public"."enum_users_customer_and_ship_to_settings_roles" USING "id"::"public"."enum_users_customer_and_ship_to_settings_roles";`,
+	);
 });

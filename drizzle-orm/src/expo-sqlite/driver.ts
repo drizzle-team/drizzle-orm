@@ -15,7 +15,7 @@ import { ExpoSQLiteSession } from './session.ts';
 export class ExpoSQLiteDatabase<TSchema extends Record<string, unknown> = Record<string, never>>
 	extends BaseSQLiteDatabase<'sync', SQLiteRunResult, TSchema>
 {
-	static readonly [entityKind]: string = 'ExpoSQLiteDatabase';
+	static override readonly [entityKind]: string = 'ExpoSQLiteDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(

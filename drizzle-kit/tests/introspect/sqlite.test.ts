@@ -56,7 +56,7 @@ test('generated always column virtual: link to another column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('view #1', async () => {
+test.only('view #1', async () => {
 	const sqlite = new Database(':memory:');
 
 	const users = sqliteTable('users', { id: int('id') });

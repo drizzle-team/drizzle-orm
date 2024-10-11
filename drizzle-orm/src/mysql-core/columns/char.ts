@@ -19,7 +19,7 @@ export class MySqlCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 	T,
 	MySqlCharConfig<T['enumValues']>
 > {
-	static readonly [entityKind]: string = 'MySqlCharBuilder';
+	static override readonly [entityKind]: string = 'MySqlCharBuilder';
 
 	constructor(name: T['name'], config: MySqlCharConfig<T['enumValues']>) {
 		super(name, 'string', 'MySqlChar');
@@ -41,7 +41,7 @@ export class MySqlCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 export class MySqlChar<T extends ColumnBaseConfig<'string', 'MySqlChar'>>
 	extends MySqlColumn<T, MySqlCharConfig<T['enumValues']>>
 {
-	static readonly [entityKind]: string = 'MySqlChar';
+	static override readonly [entityKind]: string = 'MySqlChar';
 
 	readonly length: number | undefined = this.config.length;
 	override readonly enumValues = this.config.enum;

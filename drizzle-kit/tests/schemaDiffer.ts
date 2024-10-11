@@ -33,6 +33,7 @@ import {
 } from 'src/cli/commands/migrate';
 import { pgSuggestions } from 'src/cli/commands/pgPushUtils';
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
+import { CasingType } from 'src/cli/validations/common';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
 import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/introspect-sqlite';
@@ -603,15 +604,31 @@ export const diffTestSchemasPush = async (
 	renamesArr: string[],
 	cli: boolean = false,
 	schemas: string[] = ['public'],
-	seedStatements: string[] = [],
+	casing?: CasingType | undefined,
+	sqlStatementsToRun: { before?: string[]; after?: string[]; runApply?: boolean } = {
+		before: [],
+		after: [],
+		runApply: true,
+	},
 ) => {
-	const { sqlStatements } = await applyPgDiffs(left);
-	for (const st of sqlStatements) {
+	const shouldRunApply = sqlStatementsToRun.runApply === undefined ? true : sqlStatementsToRun.runApply;
+
+	for (const st of sqlStatementsToRun.before ?? []) {
+		console.log(st);
 		await client.query(st);
 	}
+	console.log('here');
 
-	for (const st of seedStatements) {
-		await client.exec(st);
+	if (shouldRunApply) {
+		const res = await applyPgDiffs(left, casing);
+		for (const st of res.sqlStatements) {
+			console.log(st);
+			await client.query(st);
+		}
+	}
+
+	for (const st of sqlStatementsToRun.after ?? []) {
+		await client.query(st);
 	}
 
 	const materializedViewsForRefresh = Object.values(left).filter((it) =>
@@ -661,6 +678,7 @@ export const diffTestSchemasPush = async (
 		leftSequences,
 		leftViews,
 		leftMaterializedViews,
+		casing,
 	);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
@@ -752,7 +770,7 @@ export const diffTestSchemasPush = async (
 	}
 };
 
-export const applyPgDiffs = async (sn: PostgresSchema) => {
+export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | undefined) => {
 	const dryRun = {
 		version: '7',
 		dialect: 'postgresql',
@@ -782,7 +800,7 @@ export const applyPgDiffs = async (sn: PostgresSchema) => {
 
 	const materializedViews = Object.values(sn).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
-	const serialized1 = generatePgSnapshot(tables, enums, schemas, sequences, views, materializedViews);
+	const serialized1 = generatePgSnapshot(tables, enums, schemas, sequences, views, materializedViews, casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -819,6 +837,7 @@ export const diffTestSchemas = async (
 	right: PostgresSchema,
 	renamesArr: string[],
 	cli: boolean = false,
+	casing?: CasingType | undefined,
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, PgTable)) as PgTable[];
 
@@ -851,6 +870,7 @@ export const diffTestSchemas = async (
 		leftSequences,
 		leftViews,
 		leftMaterializedViews,
+		casing,
 	);
 	const serialized2 = generatePgSnapshot(
 		rightTables,
@@ -859,6 +879,7 @@ export const diffTestSchemas = async (
 		rightSequences,
 		rightViews,
 		rightMaterializedViews,
+		casing,
 	);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
@@ -926,8 +947,9 @@ export const diffTestSchemasPushMysql = async (
 	renamesArr: string[],
 	schema: string,
 	cli: boolean = false,
+	casing?: CasingType | undefined,
 ) => {
-	const { sqlStatements } = await applyMySqlDiffs(left);
+	const { sqlStatements } = await applyMySqlDiffs(left, casing);
 	for (const st of sqlStatements) {
 		await client.query(st);
 	}
@@ -946,7 +968,7 @@ export const diffTestSchemasPushMysql = async (
 
 	const leftViews = Object.values(right).filter((it) => is(it, MySqlView)) as MySqlView[];
 
-	const serialized2 = generateMySqlSnapshot(leftTables, leftViews);
+	const serialized2 = generateMySqlSnapshot(leftTables, leftViews, casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1002,7 +1024,7 @@ export const diffTestSchemasPushMysql = async (
 	}
 };
 
-export const applyMySqlDiffs = async (sn: MysqlSchema) => {
+export const applyMySqlDiffs = async (sn: MysqlSchema, casing: CasingType | undefined) => {
 	const dryRun = {
 		version: '5',
 		dialect: 'mysql',
@@ -1023,7 +1045,7 @@ export const applyMySqlDiffs = async (sn: MysqlSchema) => {
 
 	const views = Object.values(sn).filter((it) => is(it, MySqlView)) as MySqlView[];
 
-	const serialized1 = generateMySqlSnapshot(tables, views);
+	const serialized1 = generateMySqlSnapshot(tables, views, casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -1057,6 +1079,7 @@ export const diffTestSchemasMysql = async (
 	right: MysqlSchema,
 	renamesArr: string[],
 	cli: boolean = false,
+	casing?: CasingType | undefined,
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 
@@ -1066,8 +1089,8 @@ export const diffTestSchemasMysql = async (
 
 	const rightViews = Object.values(right).filter((it) => is(it, MySqlView)) as MySqlView[];
 
-	const serialized1 = generateMySqlSnapshot(leftTables, leftViews);
-	const serialized2 = generateMySqlSnapshot(rightTables, rightViews);
+	const serialized1 = generateMySqlSnapshot(leftTables, leftViews, casing);
+	const serialized2 = generateMySqlSnapshot(rightTables, rightViews, casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1128,6 +1151,7 @@ export const diffTestSchemasPushSqlite = async (
 	renamesArr: string[],
 	cli: boolean = false,
 	seedStatements: string[] = [],
+	casing?: CasingType | undefined,
 ) => {
 	const { sqlStatements } = await applySqliteDiffs(left, 'push');
 
@@ -1156,7 +1180,7 @@ export const diffTestSchemasPushSqlite = async (
 
 	const rightViews = Object.values(right).filter((it) => is(it, SQLiteView)) as SQLiteView[];
 
-	const serialized2 = generateSqliteSnapshot(rightTables, rightViews);
+	const serialized2 = generateSqliteSnapshot(rightTables, rightViews, casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1249,6 +1273,7 @@ export async function diffTestSchemasPushLibSQL(
 	renamesArr: string[],
 	cli: boolean = false,
 	seedStatements: string[] = [],
+	casing?: CasingType | undefined,
 ) {
 	const { sqlStatements } = await applyLibSQLDiffs(left, 'push');
 
@@ -1277,7 +1302,7 @@ export async function diffTestSchemasPushLibSQL(
 
 	const leftViews = Object.values(right).filter((it) => is(it, SQLiteView)) as SQLiteView[];
 
-	const serialized2 = generateSqliteSnapshot(leftTables, leftViews);
+	const serialized2 = generateSqliteSnapshot(leftTables, leftViews, casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1356,7 +1381,11 @@ export async function diffTestSchemasPushLibSQL(
 	}
 }
 
-export const applySqliteDiffs = async (sn: SqliteSchema, action?: 'push' | undefined) => {
+export const applySqliteDiffs = async (
+	sn: SqliteSchema,
+	action?: 'push' | undefined,
+	casing?: CasingType | undefined,
+) => {
 	const dryRun = {
 		version: '6',
 		dialect: 'sqlite',
@@ -1377,7 +1406,7 @@ export const applySqliteDiffs = async (sn: SqliteSchema, action?: 'push' | undef
 
 	const views = Object.values(sn).filter((it) => is(it, SQLiteView)) as SQLiteView[];
 
-	const serialized1 = generateSqliteSnapshot(tables, views);
+	const serialized1 = generateSqliteSnapshot(tables, views, casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -1405,7 +1434,11 @@ export const applySqliteDiffs = async (sn: SqliteSchema, action?: 'push' | undef
 	return { sqlStatements, statements };
 };
 
-export const applyLibSQLDiffs = async (sn: SqliteSchema, action?: 'push' | undefined) => {
+export const applyLibSQLDiffs = async (
+	sn: SqliteSchema,
+	action?: 'push' | undefined,
+	casing?: CasingType | undefined,
+) => {
 	const dryRun = {
 		version: '6',
 		dialect: 'sqlite',
@@ -1426,7 +1459,7 @@ export const applyLibSQLDiffs = async (sn: SqliteSchema, action?: 'push' | undef
 
 	const views = Object.values(sn).filter((it) => is(it, SQLiteView)) as SQLiteView[];
 
-	const serialized1 = generateSqliteSnapshot(tables, views);
+	const serialized1 = generateSqliteSnapshot(tables, views, casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -1459,6 +1492,7 @@ export const diffTestSchemasSqlite = async (
 	right: SqliteSchema,
 	renamesArr: string[],
 	cli: boolean = false,
+	casing?: CasingType | undefined,
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
@@ -1468,8 +1502,8 @@ export const diffTestSchemasSqlite = async (
 
 	const rightViews = Object.values(right).filter((it) => is(it, SQLiteView)) as SQLiteView[];
 
-	const serialized1 = generateSqliteSnapshot(leftTables, leftViews);
-	const serialized2 = generateSqliteSnapshot(rightTables, rightViews);
+	const serialized1 = generateSqliteSnapshot(leftTables, leftViews, casing);
+	const serialized2 = generateSqliteSnapshot(rightTables, rightViews, casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1525,6 +1559,7 @@ export const diffTestSchemasLibSQL = async (
 	right: SqliteSchema,
 	renamesArr: string[],
 	cli: boolean = false,
+	casing?: CasingType | undefined,
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 
@@ -1534,8 +1569,8 @@ export const diffTestSchemasLibSQL = async (
 
 	const rightViews = Object.values(right).filter((it) => is(it, SQLiteView)) as SQLiteView[];
 
-	const serialized1 = generateSqliteSnapshot(leftTables, leftViews);
-	const serialized2 = generateSqliteSnapshot(rightTables, rightViews);
+	const serialized1 = generateSqliteSnapshot(leftTables, leftViews, casing);
+	const serialized2 = generateSqliteSnapshot(rightTables, rightViews, casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
@@ -1593,9 +1628,10 @@ export const introspectPgToFile = async (
 	initSchema: PostgresSchema,
 	testName: string,
 	schemas: string[] = ['public'],
+	casing?: CasingType | undefined,
 ) => {
 	// put in db
-	const { sqlStatements } = await applyPgDiffs(initSchema);
+	const { sqlStatements } = await applyPgDiffs(initSchema, casing);
 	for (const st of sqlStatements) {
 		await client.query(st);
 	}
@@ -1640,6 +1676,7 @@ export const introspectPgToFile = async (
 		response.sequences,
 		response.views,
 		response.matViews,
+		casing,
 	);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
@@ -1681,9 +1718,10 @@ export const introspectMySQLToFile = async (
 	initSchema: MysqlSchema,
 	testName: string,
 	schema: string,
+	casing?: CasingType | undefined,
 ) => {
 	// put in db
-	const { sqlStatements } = await applyMySqlDiffs(initSchema);
+	const { sqlStatements } = await applyMySqlDiffs(initSchema, casing);
 	for (const st of sqlStatements) {
 		await client.query(st);
 	}
@@ -1718,7 +1756,7 @@ export const introspectMySQLToFile = async (
 
 	const response = await prepareFromMySqlImports([`tests/introspect/mysql/${testName}.ts`]);
 
-	const afterFileImports = generateMySqlSnapshot(response.tables, response.views);
+	const afterFileImports = generateMySqlSnapshot(response.tables, response.views, casing);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 
@@ -1751,7 +1789,12 @@ export const introspectMySQLToFile = async (
 	};
 };
 
-export const introspectSQLiteToFile = async (client: Database, initSchema: SqliteSchema, testName: string) => {
+export const introspectSQLiteToFile = async (
+	client: Database,
+	initSchema: SqliteSchema,
+	testName: string,
+	casing?: CasingType | undefined,
+) => {
 	// put in db
 	const { sqlStatements } = await applySqliteDiffs(initSchema);
 	for (const st of sqlStatements) {
@@ -1791,7 +1834,7 @@ export const introspectSQLiteToFile = async (client: Database, initSchema: Sqlit
 
 	const response = await prepareFromSqliteImports([`tests/introspect/sqlite/${testName}.ts`]);
 
-	const afterFileImports = generateSqliteSnapshot(response.tables, response.views);
+	const afterFileImports = generateSqliteSnapshot(response.tables, response.views, casing);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 
@@ -1824,7 +1867,12 @@ export const introspectSQLiteToFile = async (client: Database, initSchema: Sqlit
 	};
 };
 
-export const introspectLibSQLToFile = async (client: Client, initSchema: SqliteSchema, testName: string) => {
+export const introspectLibSQLToFile = async (
+	client: Client,
+	initSchema: SqliteSchema,
+	testName: string,
+	casing?: CasingType | undefined,
+) => {
 	// put in db
 	const { sqlStatements } = await applyLibSQLDiffs(initSchema);
 	for (const st of sqlStatements) {
@@ -1864,7 +1912,7 @@ export const introspectLibSQLToFile = async (client: Client, initSchema: SqliteS
 
 	const response = await prepareFromSqliteImports([`tests/introspect/libsql/${testName}.ts`]);
 
-	const afterFileImports = generateSqliteSnapshot(response.tables, response.views);
+	const afterFileImports = generateSqliteSnapshot(response.tables, response.views, casing);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 

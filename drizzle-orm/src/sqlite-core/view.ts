@@ -36,7 +36,7 @@ export class ViewBuilderCore<
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
-	static readonly [entityKind]: string = 'SQLiteViewBuilder';
+	static override readonly [entityKind]: string = 'SQLiteViewBuilder';
 
 	as<TSelection extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
@@ -73,7 +73,7 @@ export class ManualViewBuilder<
 > extends ViewBuilderCore<
 	{ name: TName; columns: TColumns }
 > {
-	static readonly [entityKind]: string = 'SQLiteManualViewBuilder';
+	static override readonly [entityKind]: string = 'SQLiteManualViewBuilder';
 
 	private columns: Record<string, SQLiteColumn>;
 
@@ -129,7 +129,7 @@ export class SQLiteView<
 	TExisting extends boolean = boolean,
 	TSelection extends ColumnsSelection = ColumnsSelection,
 > extends SQLiteViewBase<TName, TExisting, TSelection> {
-	static readonly [entityKind]: string = 'SQLiteView';
+	static override readonly [entityKind]: string = 'SQLiteView';
 
 	constructor({ config }: {
 		config: {

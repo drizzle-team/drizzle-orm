@@ -46,14 +46,18 @@ import {
 	JsonDeleteReferenceStatement,
 	JsonDeleteUniqueConstraint,
 	JsonDropColumnStatement,
+	JsonDropEnumStatement,
 	JsonDropIndexStatement,
 	JsonDropSequenceStatement,
 	JsonDropTableStatement,
+	JsonDropValueFromEnumStatement,
 	JsonDropViewStatement,
+	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
 	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
+	JsonRenameEnumStatement,
 	JsonRenameSchema,
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
@@ -954,22 +958,39 @@ class CreateTypeEnumConvertor extends Convertor {
 	convert(st: JsonCreateEnumStatement) {
 		const { name, values, schema } = st;
 
-		const tableNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+		const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 
 		let valuesStatement = '(';
 		valuesStatement += values.map((it) => `'${it}'`).join(', ');
 		valuesStatement += ')';
 
-		let statement = 'DO $$ BEGIN';
-		statement += '\n';
-		statement += ` CREATE TYPE ${tableNameWithSchema} AS ENUM${valuesStatement};`;
-		statement += '\n';
-		statement += 'EXCEPTION';
-		statement += '\n';
-		statement += ' WHEN duplicate_object THEN null;';
-		statement += '\n';
-		statement += 'END $$;';
-		statement += '\n';
+		// TODO do we need this?
+		// let statement = 'DO $$ BEGIN';
+		// statement += '\n';
+		let statement = `CREATE TYPE ${enumNameWithSchema} AS ENUM${valuesStatement};`;
+		// statement += '\n';
+		// statement += 'EXCEPTION';
+		// statement += '\n';
+		// statement += ' WHEN duplicate_object THEN null;';
+		// statement += '\n';
+		// statement += 'END $$;';
+		// statement += '\n';
+		return statement;
+	}
+}
+
+class DropTypeEnumConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'drop_type_enum';
+	}
+
+	convert(st: JsonDropEnumStatement) {
+		const { name, schema } = st;
+
+		const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+
+		let statement = `DROP TYPE ${enumNameWithSchema};`;
+
 		return statement;
 	}
 }
@@ -980,9 +1001,74 @@ class AlterTypeAddValueConvertor extends Convertor {
 	}
 
 	convert(st: JsonAddValueToEnumStatement) {
-		const { name, schema, value } = st;
-		const schemaPrefix = schema && schema !== 'public' ? `"${schema}".` : '';
-		return `ALTER TYPE ${schemaPrefix}"${name}" ADD VALUE '${value}';`;
+		const { name, schema, value, before } = st;
+
+		const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+
+		return `ALTER TYPE ${enumNameWithSchema} ADD VALUE '${value}'${before.length ? ` BEFORE '${before}'` : ''};`;
+	}
+}
+
+class AlterTypeSetSchemaConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'move_type_enum';
+	}
+
+	convert(st: JsonMoveEnumStatement) {
+		const { name, schemaFrom, schemaTo } = st;
+
+		const enumNameWithSchema = schemaFrom ? `"${schemaFrom}"."${name}"` : `"${name}"`;
+
+		return `ALTER TYPE ${enumNameWithSchema} SET SCHEMA "${schemaTo}";`;
+	}
+}
+
+class AlterRenameTypeConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'rename_type_enum';
+	}
+
+	convert(st: JsonRenameEnumStatement) {
+		const { nameTo, nameFrom, schema } = st;
+
+		const enumNameWithSchema = schema ? `"${schema}"."${nameFrom}"` : `"${nameFrom}"`;
+
+		return `ALTER TYPE ${enumNameWithSchema} RENAME TO "${nameTo}";`;
+	}
+}
+
+class AlterTypeDropValueConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'alter_type_drop_value';
+	}
+
+	convert(st: JsonDropValueFromEnumStatement) {
+		const { columnsWithEnum, name, newValues, schema } = st;
+
+		const statements: string[] = [];
+
+		for (const withEnum of columnsWithEnum) {
+			statements.push(
+				`ALTER TABLE "${withEnum.schema}"."${withEnum.table}" ALTER COLUMN "${withEnum.column}" SET DATA TYPE text;`,
+			);
+		}
+
+		statements.push(new DropTypeEnumConvertor().convert({ name: name, schema, type: 'drop_type_enum' }));
+
+		statements.push(new CreateTypeEnumConvertor().convert({
+			name: name,
+			schema: schema,
+			values: newValues,
+			type: 'create_type_enum',
+		}));
+
+		for (const withEnum of columnsWithEnum) {
+			statements.push(
+				`ALTER TABLE "${withEnum.schema}"."${withEnum.table}" ALTER COLUMN "${withEnum.column}" SET DATA TYPE "${schema}"."${name}" USING "${withEnum.column}"::"${schema}"."${name}";`,
+			);
+		}
+
+		return statements;
 	}
 }
 
@@ -2764,6 +2850,11 @@ convertors.push(new SqliteCreateViewConvertor());
 convertors.push(new SqliteDropViewConvertor());
 
 convertors.push(new CreateTypeEnumConvertor());
+convertors.push(new DropTypeEnumConvertor());
+convertors.push(new AlterTypeAddValueConvertor());
+convertors.push(new AlterTypeSetSchemaConvertor());
+convertors.push(new AlterRenameTypeConvertor());
+convertors.push(new AlterTypeDropValueConvertor());
 
 convertors.push(new CreatePgSequenceConvertor());
 convertors.push(new DropPgSequenceConvertor());
@@ -2806,8 +2897,6 @@ convertors.push(new CreateSqliteIndexConvertor());
 convertors.push(new PgDropIndexConvertor());
 convertors.push(new SqliteDropIndexConvertor());
 convertors.push(new MySqlDropIndexConvertor());
-
-convertors.push(new AlterTypeAddValueConvertor());
 
 convertors.push(new PgAlterTableAlterColumnSetPrimaryKeyConvertor());
 convertors.push(new PgAlterTableAlterColumnDropPrimaryKeyConvertor());

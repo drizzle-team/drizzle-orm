@@ -17,7 +17,7 @@ import { SQLiteBunSession } from './session.ts';
 export class BunSQLiteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends BaseSQLiteDatabase<'sync', void, TSchema> {
-	static readonly [entityKind]: string = 'BunSQLiteDatabase';
+	static override readonly [entityKind]: string = 'BunSQLiteDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
