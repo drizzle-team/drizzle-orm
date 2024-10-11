@@ -28,7 +28,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[Table.Symbol.ExtraConfigColumns]);
-		const extraValues = Array.isArray(extraConfig) ? extraConfig as any[] : Object.values(extraConfig);
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
 		for (const builder of extraValues) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));

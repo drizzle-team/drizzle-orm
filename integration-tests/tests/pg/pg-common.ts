@@ -4788,23 +4788,23 @@ export function tests() {
 				for (const it of Object.values(policy)) {
 					expect(is(it, PgPolicy)).toBe(true);
 					expect(it.to).toStrictEqual(authenticatedRole);
-					expect(it.using).toStrictEqual(sql`select true`);
-					it.withCheck ? expect(it.withCheck).toStrictEqual(sql`select true`) : '';
+					expect(it.using).toStrictEqual(sql`true`);
+					it.withCheck ? expect(it.withCheck).toStrictEqual(sql`true`) : '';
 				}
 			}
 
 			{
 				const table = pgTable('name', {
 					id: integer('id'),
-				}, (t) => ({
-					in: index('name').on(t.id),
-					neonPolicy: crudPolicy({
+				}, (t) => [
+					index('name').on(t.id),
+					crudPolicy({
 						read: true,
 						modify: true,
 						role: authenticatedRole,
 					}),
-					pk: primaryKey({ columns: [t.id], name: 'custom' }),
-				}));
+					primaryKey({ columns: [t.id], name: 'custom' }),
+				]);
 
 				const { policies, indexes, primaryKeys } = getTableConfig(table);
 
@@ -4812,8 +4812,8 @@ export function tests() {
 				expect(indexes.length).toBe(1);
 				expect(primaryKeys.length).toBe(1);
 
-				expect(policies[0]?.name === 'crud-policy-modify');
-				expect(policies[1]?.name === 'crud-policy-read');
+				expect(policies[0]?.name === 'crud-custom-policy-modify');
+				expect(policies[1]?.name === 'crud-custom-policy-read');
 			}
 		});
 

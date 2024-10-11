@@ -880,7 +880,7 @@ export const fromDatabase = async (
 			tablename: string;
 			name: string;
 			as: string;
-			to: string;
+			to: string[];
 			for: string;
 			using: string;
 			withCheck: string;
@@ -893,9 +893,7 @@ export const fromDatabase = async (
 		const { tablename, schemaname, to, withCheck, using, ...rest } = dbPolicy;
 		const tableForPolicy = policiesByTable[`${schemaname}.${tablename}`];
 
-		const parsedTo = to === '{}'
-			? []
-			: to.substring(1, to.length - 1).split(/\s*,\s*/g).sort();
+		const parsedTo = to;
 
 		const parsedWithCheck = withCheck === null ? undefined : withCheck;
 		const parsedUsing = using === null ? undefined : using;
