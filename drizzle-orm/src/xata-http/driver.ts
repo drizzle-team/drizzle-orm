@@ -40,7 +40,7 @@ export class XataHttpDriver {
 export class XataHttpDatabase<TSchema extends Record<string, unknown> = Record<string, never>>
 	extends PgDatabase<XataHttpQueryResultHKT, TSchema>
 {
-	static readonly [entityKind]: string = 'XataHttpDatabase';
+	static override readonly [entityKind]: string = 'XataHttpDatabase';
 
 	/** @internal */
 	declare readonly session: XataHttpSession<TSchema, ExtractTablesWithRelations<TSchema>>;

@@ -19,7 +19,7 @@ export class PgVarcharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgVar
 	T,
 	{ length: number | undefined; enumValues: T['enumValues'] }
 > {
-	static readonly [entityKind]: string = 'PgVarcharBuilder';
+	static override readonly [entityKind]: string = 'PgVarcharBuilder';
 
 	constructor(name: T['name'], config: PgVarcharConfig<T['enumValues']>) {
 		super(name, 'string', 'PgVarchar');
@@ -38,7 +38,7 @@ export class PgVarcharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgVar
 export class PgVarchar<T extends ColumnBaseConfig<'string', 'PgVarchar'>>
 	extends PgColumn<T, { length: number | undefined; enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'PgVarchar';
+	static override readonly [entityKind]: string = 'PgVarchar';
 
 	readonly length = this.config.length;
 	override readonly enumValues = this.config.enumValues;

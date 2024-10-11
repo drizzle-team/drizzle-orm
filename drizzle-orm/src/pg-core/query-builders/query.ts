@@ -65,7 +65,7 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'pg'>, SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgRelationalQuery';
+	static override readonly [entityKind]: string = 'PgRelationalQuery';
 
 	declare readonly _: {
 		readonly dialect: 'pg';

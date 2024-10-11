@@ -745,7 +745,7 @@ export abstract class SQLiteDialect {
 }
 
 export class SQLiteSyncDialect extends SQLiteDialect {
-	static readonly [entityKind]: string = 'SQLiteSyncDialect';
+	static override readonly [entityKind]: string = 'SQLiteSyncDialect';
 
 	migrate(
 		migrations: MigrationMeta[],
@@ -797,7 +797,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 }
 
 export class SQLiteAsyncDialect extends SQLiteDialect {
-	static readonly [entityKind]: string = 'SQLiteAsyncDialect';
+	static override readonly [entityKind]: string = 'SQLiteAsyncDialect';
 
 	async migrate(
 		migrations: MigrationMeta[],

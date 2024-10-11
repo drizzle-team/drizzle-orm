@@ -19,7 +19,7 @@ export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 	T,
 	TimeConfig
 > {
-	static readonly [entityKind]: string = 'MySqlTimeBuilder';
+	static override readonly [entityKind]: string = 'MySqlTimeBuilder';
 
 	constructor(
 		name: T['name'],
@@ -40,7 +40,7 @@ export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 export class MySqlTime<
 	T extends ColumnBaseConfig<'string', 'MySqlTime'>,
 > extends MySqlColumn<T, TimeConfig> {
-	static readonly [entityKind]: string = 'MySqlTime';
+	static override readonly [entityKind]: string = 'MySqlTime';
 
 	readonly fsp: number | undefined = this.config.fsp;
 

@@ -64,7 +64,7 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
-	static readonly [entityKind]: string = 'MySqlViewBuilder';
+	static override readonly [entityKind]: string = 'MySqlViewBuilder';
 
 	as<TSelectedFields extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
@@ -98,7 +98,7 @@ export class ManualViewBuilder<
 	TName extends string = string,
 	TColumns extends Record<string, MySqlColumnBuilderBase> = Record<string, MySqlColumnBuilderBase>,
 > extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
-	static readonly [entityKind]: string = 'MySqlManualViewBuilder';
+	static override readonly [entityKind]: string = 'MySqlManualViewBuilder';
 
 	private columns: Record<string, MySqlColumn>;
 
@@ -157,7 +157,7 @@ export class MySqlView<
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends MySqlViewBase<TName, TExisting, TSelectedFields> {
-	static readonly [entityKind]: string = 'MySqlView';
+	static override readonly [entityKind]: string = 'MySqlView';
 
 	declare protected $MySqlViewBrand: 'MySqlView';
 

@@ -159,7 +159,7 @@ export class PgUpdateBase<
 		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgUpdate';
+	static override readonly [entityKind]: string = 'PgUpdate';
 
 	private config: PgUpdateConfig;
 

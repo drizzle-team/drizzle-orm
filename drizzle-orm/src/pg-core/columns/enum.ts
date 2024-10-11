@@ -36,7 +36,7 @@ export function isPgEnum(obj: unknown): obj is PgEnum<[string, ...string[]]> {
 export class PgEnumColumnBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'PgEnumColumn'> & { enumValues: [string, ...string[]] },
 > extends PgColumnBuilder<T, { enum: PgEnum<T['enumValues']> }> {
-	static readonly [entityKind]: string = 'PgEnumColumnBuilder';
+	static override readonly [entityKind]: string = 'PgEnumColumnBuilder';
 
 	constructor(name: T['name'], enumInstance: PgEnum<T['enumValues']>) {
 		super(name, 'string', 'PgEnumColumn');
@@ -57,7 +57,7 @@ export class PgEnumColumnBuilder<
 export class PgEnumColumn<T extends ColumnBaseConfig<'string', 'PgEnumColumn'> & { enumValues: [string, ...string[]] }>
 	extends PgColumn<T, { enum: PgEnum<T['enumValues']> }>
 {
-	static readonly [entityKind]: string = 'PgEnumColumn';
+	static override readonly [entityKind]: string = 'PgEnumColumn';
 
 	readonly enum = this.config.enum;
 	override readonly enumValues = this.config.enum.enumValues;
