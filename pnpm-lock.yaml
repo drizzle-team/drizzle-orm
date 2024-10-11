@@ -298,8 +298,8 @@ importers:
         specifier: ^4.20230904.0
         version: 4.20240512.0
       '@electric-sql/pglite':
-        specifier: ^0.2.5
-        version: 0.2.11
+        specifier: 0.2.5
+        version: 0.2.5
       '@libsql/client':
         specifier: ^0.10.0
         version: 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
