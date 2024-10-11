@@ -51,7 +51,7 @@ export const serializeMySql = async (
 	const { prepareFromMySqlImports } = await import('./mysqlImports');
 	const { generateMySqlSnapshot } = await import('./mysqlSerializer');
 
-	const { tables } = await prepareFromMySqlImports(filenames);
+	const { tables } = await prepareFromMySqlImports(filenames, casing);
 
 	return generateMySqlSnapshot(tables, casing);
 };
@@ -68,6 +68,7 @@ export const serializePg = async (
 
 	const { tables, enums, schemas, sequences } = await prepareFromPgImports(
 		filenames,
+		casing,
 	);
 
 	return generatePgSnapshot(tables, enums, schemas, sequences, casing, schemaFilter);
@@ -81,7 +82,7 @@ export const serializeSQLite = async (
 
 	const { prepareFromSqliteImports } = await import('./sqliteImports');
 	const { generateSqliteSnapshot } = await import('./sqliteSerializer');
-	const { tables } = await prepareFromSqliteImports(filenames);
+	const { tables } = await prepareFromSqliteImports(filenames, casing);
 	return generateSqliteSnapshot(tables, casing);
 };
 

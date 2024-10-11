@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import { getTableName, is } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm';
 import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
@@ -18,7 +17,7 @@ import {
 	Table,
 	UniqueConstraint,
 } from '../serializer/mysqlSchema';
-import { type DB, getColumnCasing } from '../utils';
+import { type DB, getColumnCasing, getForeignKeyName, getPrimaryKeyName } from '../utils';
 import { sqlToStr } from '.';
 // import { MySqlColumnWithAutoIncrement } from "drizzle-orm/mysql-core";
 // import { MySqlDateBaseColumn } from "drizzle-orm/mysql-core";
@@ -89,32 +88,6 @@ export const generateMySqlSnapshot = (
 			}
 
 			if (column.isUnique) {
-				const existingUnique = uniqueConstraintObject[column.uniqueName!];
-				if (typeof existingUnique !== 'undefined') {
-					console.log(
-						`\n${
-							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
-									tableName,
-								)
-							} table. 
-          The unique constraint ${
-								chalk.underline.blue(
-									column.uniqueName,
-								)
-							} on the ${
-								chalk.underline.blue(
-									name,
-								)
-							} column is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
-									existingUnique.columns.join(','),
-								)
-							} columns\n`)
-						}`,
-					);
-					process.exit(1);
-				}
 				uniqueConstraintObject[column.uniqueName!] = {
 					name: column.uniqueName!,
 					columns: [columnToSet.name],
@@ -157,15 +130,8 @@ export const generateMySqlSnapshot = (
 		});
 
 		primaryKeys.map((pk: PrimaryKeyORM) => {
-			const originalColumnNames = pk.columns.map((c) => c.name);
+			const name = getPrimaryKeyName(pk, casing);
 			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
-
-			let name = pk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnNames.length; i++) {
-					name = name.replace(originalColumnNames[i], columnNames[i]);
-				}
-			}
 
 			primaryKeysObject[name] = {
 				name,
@@ -180,36 +146,7 @@ export const generateMySqlSnapshot = (
 
 		uniqueConstraints?.map((unq) => {
 			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
-
 			const name = unq.name ?? uniqueKeyName(table, columnNames);
-
-			const existingUnique = uniqueConstraintObject[name];
-			if (typeof existingUnique !== 'undefined') {
-				console.log(
-					`\n${
-						withStyle.errorWarning(
-							`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
-									tableName,
-								)
-							} table. \nThe unique constraint ${
-								chalk.underline.blue(
-									name,
-								)
-							} on the ${
-								chalk.underline.blue(
-									columnNames.join(','),
-								)
-							} columns is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
-									existingUnique.columns.join(','),
-								)
-							} columns\n`,
-						)
-					}`,
-				);
-				process.exit(1);
-			}
 
 			uniqueConstraintObject[name] = {
 				name: unq.name!,
@@ -218,6 +155,7 @@ export const generateMySqlSnapshot = (
 		});
 
 		const fks: ForeignKey[] = foreignKeys.map((fk) => {
+			const name = getForeignKeyName(fk, casing);
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete ?? 'no action';
 			const onUpdate = fk.onUpdate ?? 'no action';
@@ -227,21 +165,8 @@ export const generateMySqlSnapshot = (
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
-
-			const originalColumnsFrom = reference.columns.map((it) => it.name);
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
-
-			let name = fk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnsFrom.length; i++) {
-					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
-				}
-				for (let i = 0; i < originalColumnsTo.length; i++) {
-					name = name.replace(originalColumnsTo[i], columnsTo[i]);
-				}
-			}
 
 			return {
 				name,
@@ -287,55 +212,6 @@ export const generateMySqlSnapshot = (
 					return `${getColumnCasing(it, casing)}`;
 				}
 			});
-
-			if (value.config.unique) {
-				if (typeof uniqueConstraintObject[name] !== 'undefined') {
-					console.log(
-						`\n${
-							withStyle.errorWarning(
-								`We\'ve found duplicated unique constraint names in ${
-									chalk.underline.blue(
-										tableName,
-									)
-								} table. \nThe unique index ${
-									chalk.underline.blue(
-										name,
-									)
-								} on the ${
-									chalk.underline.blue(
-										indexColumns.join(','),
-									)
-								} columns is confilcting with a unique constraint name already defined for ${
-									chalk.underline.blue(
-										uniqueConstraintObject[name].columns.join(','),
-									)
-								} columns\n`,
-							)
-						}`,
-					);
-					process.exit(1);
-				}
-			} else {
-				if (typeof foreignKeysObject[name] !== 'undefined') {
-					console.log(
-						`\n${
-							withStyle.errorWarning(
-								`In MySQL, when creating a foreign key, an index is automatically generated with the same name as the foreign key constraint.\n\nWe have encountered a collision between the index name on columns ${
-									chalk.underline.blue(
-										indexColumns.join(','),
-									)
-								} and the foreign key on columns ${
-									chalk.underline.blue(
-										foreignKeysObject[name].columnsFrom.join(','),
-									)
-								}. Please change either the index name or the foreign key name. For more information, please refer to https://dev.mysql.com/doc/refman/8.0/en/constraint-foreign-key.html\n
-            `,
-							)
-						}`,
-					);
-					process.exit(1);
-				}
-			}
 
 			indexesObject[name] = {
 				name,

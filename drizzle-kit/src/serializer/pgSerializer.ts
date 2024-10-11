@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
@@ -16,8 +15,6 @@ import {
 } from 'drizzle-orm/pg-core';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
-import { vectorOps } from 'src/extensions/vector';
-import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
 	Column as Column,
@@ -32,7 +29,14 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/pgSchema';
-import { type DB, getColumnCasing, isPgArrayType } from '../utils';
+import {
+	type DB,
+	getColumnCasing,
+	getForeignKeyName,
+	getIdentitySequenceName,
+	getPrimaryKeyName,
+	isPgArrayType,
+} from '../utils';
 import { sqlToStr } from '.';
 
 export const indexName = (tableName: string, columns: string[]) => {
@@ -194,7 +198,7 @@ export const generatePgSnapshot = (
 				identity: identity
 					? {
 						type: identity.type,
-						name: identity.sequenceName ?? `${tableName}_${name}_seq`,
+						name: getIdentitySequenceName(identity.sequenceName, tableName, name),
 						schema: schema ?? 'public',
 						increment,
 						startWith,
@@ -205,40 +209,6 @@ export const generatePgSnapshot = (
 					}
 					: undefined,
 			};
-
-			if (column.isUnique) {
-				const existingUnique = uniqueConstraintObject[column.uniqueName!];
-				if (typeof existingUnique !== 'undefined') {
-					console.log(
-						`\n${
-							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
-									tableName,
-								)
-							} table. 
-          The unique constraint ${
-								chalk.underline.blue(
-									column.uniqueName,
-								)
-							} on the ${
-								chalk.underline.blue(
-									name,
-								)
-							} column is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
-									existingUnique.columns.join(','),
-								)
-							} columns\n`)
-						}`,
-					);
-					process.exit(1);
-				}
-				uniqueConstraintObject[column.uniqueName!] = {
-					name: column.uniqueName!,
-					nullsNotDistinct: column.uniqueType === 'not distinct',
-					columns: [columnToSet.name],
-				};
-			}
 
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
@@ -285,15 +255,8 @@ export const generatePgSnapshot = (
 		});
 
 		primaryKeys.map((pk) => {
-			const originalColumnNames = pk.columns.map((c) => c.name);
+			const name = getPrimaryKeyName(pk, casing);
 			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
-
-			let name = pk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnNames.length; i++) {
-					name = name.replace(originalColumnNames[i], columnNames[i]);
-				}
-			}
 
 			primaryKeysObject[name] = {
 				name,
@@ -303,35 +266,7 @@ export const generatePgSnapshot = (
 
 		uniqueConstraints?.map((unq) => {
 			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
-
 			const name = unq.name ?? uniqueKeyName(table, columnNames);
-
-			const existingUnique = uniqueConstraintObject[name];
-			if (typeof existingUnique !== 'undefined') {
-				console.log(
-					`\n${
-						withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-							chalk.underline.blue(
-								tableName,
-							)
-						} table. 
-        The unique constraint ${
-							chalk.underline.blue(
-								name,
-							)
-						} on the ${
-							chalk.underline.blue(
-								columnNames.join(','),
-							)
-						} columns is confilcting with a unique constraint name already defined for ${
-							chalk.underline.blue(
-								existingUnique.columns.join(','),
-							)
-						} columns\n`)
-					}`,
-				);
-				process.exit(1);
-			}
 
 			uniqueConstraintObject[name] = {
 				name: unq.name!,
@@ -341,6 +276,7 @@ export const generatePgSnapshot = (
 		});
 
 		const fks: ForeignKey[] = foreignKeys.map((fk) => {
+			const name = getForeignKeyName(fk, casing);
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete;
 			const onUpdate = fk.onUpdate;
@@ -351,20 +287,8 @@ export const generatePgSnapshot = (
 			// getTableConfig(reference.foreignTable).schema || "public";
 			const schemaTo = getTableConfig(reference.foreignTable).schema;
 
-			const originalColumnsFrom = reference.columns.map((it) => it.name);
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
-
-			let name = fk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnsFrom.length; i++) {
-					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
-				}
-				for (let i = 0; i < originalColumnsTo.length; i++) {
-					name = name.replace(originalColumnsTo[i], columnsTo[i]);
-				}
-			}
 
 			return {
 				name,
@@ -387,64 +311,8 @@ export const generatePgSnapshot = (
 
 			let indexColumnNames: string[] = [];
 			columns.forEach((it) => {
-				if (is(it, SQL)) {
-					if (typeof value.config.name === 'undefined') {
-						console.log(
-							`\n${
-								withStyle.errorWarning(
-									`Please specify an index name in ${
-										getTableName(
-											value.config.table,
-										)
-									} table that has "${
-										dialect.sqlToQuery(it).sql
-									}" expression. We can generate index names for indexes on columns only; for expressions in indexes, you need to specify the name yourself.`,
-								)
-							}`,
-						);
-						process.exit(1);
-					}
-				}
-				it = it as IndexedColumn;
+				if (is(it, SQL)) return;
 				const name = getColumnCasing(it as IndexedColumn, casing);
-				if (
-					!is(it, SQL)
-					&& it.type! === 'PgVector'
-					&& typeof it.indexConfig!.opClass === 'undefined'
-				) {
-					console.log(
-						`\n${
-							withStyle.errorWarning(
-								`You are specifying an index on the ${
-									chalk.blueBright(
-										name,
-									)
-								} column inside the ${
-									chalk.blueBright(
-										tableName,
-									)
-								} table with the ${
-									chalk.blueBright(
-										'vector',
-									)
-								} type without specifying an operator class. Vector extension doesn't have a default operator class, so you need to specify one of the available options. Here is a list of available op classes for the vector extension: [${
-									vectorOps
-										.map((it) => `${chalk.underline(`${it}`)}`)
-										.join(
-											', ',
-										)
-								}].\n\nYou can specify it using current syntax: ${
-									chalk.underline(
-										`index("${value.config.name}").using("${value.config.method}", table.${name}.op("${
-											vectorOps[0]
-										}"))`,
-									)
-								}\n\nYou can check the "pg_vector" docs for more info: https://github.com/pgvector/pgvector?tab=readme-ov-file#indexing\n`,
-							)
-						}`,
-					);
-					process.exit(1);
-				}
 				indexColumnNames.push(name);
 			});
 
@@ -478,31 +346,6 @@ export const generatePgSnapshot = (
 				},
 			);
 
-			// check for index names duplicates
-			if (typeof indexesInSchema[schema ?? 'public'] !== 'undefined') {
-				if (indexesInSchema[schema ?? 'public'].includes(name)) {
-					console.log(
-						`\n${
-							withStyle.errorWarning(
-								`We\'ve found duplicated index name across ${
-									chalk.underline.blue(
-										schema ?? 'public',
-									)
-								} schema. Please rename your index in either the ${
-									chalk.underline.blue(
-										tableName,
-									)
-								} table or the table with the duplicated index name`,
-							)
-						}`,
-					);
-					process.exit(1);
-				}
-				indexesInSchema[schema ?? 'public'].push(name);
-			} else {
-				indexesInSchema[schema ?? 'public'] = [name];
-			}
-
 			indexesObject[name] = {
 				name,
 				columns: indexColumns,
@@ -531,32 +374,25 @@ export const generatePgSnapshot = (
 
 	for (const sequence of sequences) {
 		const name = sequence.seqName!;
-		if (
-			typeof sequencesToReturn[`${sequence.schema ?? 'public'}.${name}`]
-				=== 'undefined'
-		) {
-			const increment = stringFromIdentityProperty(sequence?.seqOptions?.increment) ?? '1';
-			const minValue = stringFromIdentityProperty(sequence?.seqOptions?.minValue)
-				?? (parseFloat(increment) < 0 ? '-9223372036854775808' : '1');
-			const maxValue = stringFromIdentityProperty(sequence?.seqOptions?.maxValue)
-				?? (parseFloat(increment) < 0 ? '-1' : '9223372036854775807');
-			const startWith = stringFromIdentityProperty(sequence?.seqOptions?.startWith)
-				?? (parseFloat(increment) < 0 ? maxValue : minValue);
-			const cache = stringFromIdentityProperty(sequence?.seqOptions?.cache) ?? '1';
+		const increment = stringFromIdentityProperty(sequence?.seqOptions?.increment) ?? '1';
+		const minValue = stringFromIdentityProperty(sequence?.seqOptions?.minValue)
+			?? (parseFloat(increment) < 0 ? '-9223372036854775808' : '1');
+		const maxValue = stringFromIdentityProperty(sequence?.seqOptions?.maxValue)
+			?? (parseFloat(increment) < 0 ? '-1' : '9223372036854775807');
+		const startWith = stringFromIdentityProperty(sequence?.seqOptions?.startWith)
+			?? (parseFloat(increment) < 0 ? maxValue : minValue);
+		const cache = stringFromIdentityProperty(sequence?.seqOptions?.cache) ?? '1';
 
-			sequencesToReturn[`${sequence.schema ?? 'public'}.${name}`] = {
-				name,
-				schema: sequence.schema ?? 'public',
-				increment,
-				startWith,
-				minValue,
-				maxValue,
-				cache,
-				cycle: sequence.seqOptions?.cycle ?? false,
-			};
-		} else {
-			// duplicate seq error
-		}
+		sequencesToReturn[`${sequence.schema ?? 'public'}.${name}`] = {
+			name,
+			schema: sequence.schema ?? 'public',
+			increment,
+			startWith,
+			minValue,
+			maxValue,
+			cache,
+			cycle: sequence.seqOptions?.cycle ?? false,
+		};
 	}
 
 	const enumsToReturn: Record<string, Enum> = enums.reduce<{
