@@ -550,8 +550,8 @@ importers:
         specifier: ^3.549.0
         version: 3.569.0(@aws-sdk/client-sso-oidc@3.583.0)
       '@electric-sql/pglite':
-        specifier: ^0.2.5
-        version: 0.2.11
+        specifier: 0.2.5
+        version: 0.2.5
       '@libsql/client':
         specifier: ^0.10.0
         version: 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -1995,6 +1995,9 @@ packages:
 
   '@electric-sql/pglite@0.2.11':
     resolution: {integrity: sha512-CeCsbtVqccz0MDlEeT6p4xfgKMpq3GvGTKkswuZ2Vv4r40ZQlE0byl3QNpXcpiTxfye+VFt9RZ+lSL+Wq+jhLQ==}
+
+  '@electric-sql/pglite@0.2.5':
+    resolution: {integrity: sha512-LrMX2kX0mCVN4xkhIDv1KBVukWtoOI/+P9MDQgHX5QEeZCi5S60LZOa0VWXjufPEz7mJtbuXWJRujD++t0gsHA==}
 
   '@esbuild-kit/core-utils@3.1.0':
     resolution: {integrity: sha512-Uuk8RpCg/7fdHSceR1M6XbSZFSuMrxcePFuGgyvsBn+u339dk5OeL4jv2EojwTN2st/unJGsVm4qHWjWNmJ/tw==}
@@ -12494,6 +12497,8 @@ snapshots:
   '@drizzle-team/studio@0.0.5': {}
 
   '@electric-sql/pglite@0.2.11': {}
+
+  '@electric-sql/pglite@0.2.5': {}
 
   '@esbuild-kit/core-utils@3.1.0':
     dependencies:
