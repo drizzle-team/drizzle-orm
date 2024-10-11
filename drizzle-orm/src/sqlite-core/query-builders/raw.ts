@@ -15,7 +15,7 @@ export interface SQLiteRaw<TResult> extends QueryPromise<TResult>, RunnableQuery
 export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
 {
-	static readonly [entityKind]: string = 'SQLiteRaw';
+	static override readonly [entityKind]: string = 'SQLiteRaw';
 
 	declare readonly _: {
 		readonly dialect: 'sqlite';

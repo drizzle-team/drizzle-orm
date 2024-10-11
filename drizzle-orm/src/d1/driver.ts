@@ -24,7 +24,7 @@ export type AnyD1Database = IfNotImported<
 export class DrizzleD1Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends BaseSQLiteDatabase<'async', D1Result, TSchema> {
-	static readonly [entityKind]: string = 'D1Database';
+	static override readonly [entityKind]: string = 'D1Database';
 
 	/** @internal */
 	declare readonly session: SQLiteD1Session<TSchema, ExtractTablesWithRelations<TSchema>>;

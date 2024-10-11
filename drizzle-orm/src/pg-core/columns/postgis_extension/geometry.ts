@@ -18,7 +18,7 @@ export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
 }>;
 
 export class PgGeometryBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGeometry'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgGeometryBuilder';
+	static override readonly [entityKind]: string = 'PgGeometryBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'array', 'PgGeometry');
@@ -36,7 +36,7 @@ export class PgGeometryBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGeo
 }
 
 export class PgGeometry<T extends ColumnBaseConfig<'array', 'PgGeometry'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgGeometry';
+	static override readonly [entityKind]: string = 'PgGeometry';
 
 	getSQLType(): string {
 		return 'geometry(point)';
@@ -64,7 +64,7 @@ export type PgGeometryObjectBuilderInitial<TName extends string> = PgGeometryObj
 export class PgGeometryObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgGeometryObject'>>
 	extends PgColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'PgGeometryObjectBuilder';
+	static override readonly [entityKind]: string = 'PgGeometryObjectBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'json', 'PgGeometryObject');
@@ -82,7 +82,7 @@ export class PgGeometryObjectBuilder<T extends ColumnBuilderBaseConfig<'json', '
 }
 
 export class PgGeometryObject<T extends ColumnBaseConfig<'json', 'PgGeometryObject'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgGeometryObject';
+	static override readonly [entityKind]: string = 'PgGeometryObject';
 
 	getSQLType(): string {
 		return 'geometry(point)';

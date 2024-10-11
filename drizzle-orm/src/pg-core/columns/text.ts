@@ -18,7 +18,7 @@ type PgTextBuilderInitial<TName extends string, TEnum extends [string, ...string
 export class PgTextBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'PgText'>,
 > extends PgColumnBuilder<T, { enumValues: T['enumValues'] }> {
-	static readonly [entityKind]: string = 'PgTextBuilder';
+	static override readonly [entityKind]: string = 'PgTextBuilder';
 
 	constructor(
 		name: T['name'],
@@ -39,7 +39,7 @@ export class PgTextBuilder<
 export class PgText<T extends ColumnBaseConfig<'string', 'PgText'>>
 	extends PgColumn<T, { enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'PgText';
+	static override readonly [entityKind]: string = 'PgText';
 
 	override readonly enumValues = this.config.enumValues;
 

@@ -43,7 +43,7 @@ export class NeonHttpDriver {
 export class NeonHttpDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<NeonHttpQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'NeonHttpDatabase';
+	static override readonly [entityKind]: string = 'NeonHttpDatabase';
 
 	/** @internal */
 	declare readonly session: NeonHttpSession<TSchema, ExtractTablesWithRelations<TSchema>>;

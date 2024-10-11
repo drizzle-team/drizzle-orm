@@ -21,7 +21,7 @@ export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySql
 		MySqlRealConfig
 	>
 {
-	static readonly [entityKind]: string = 'MySqlRealBuilder';
+	static override readonly [entityKind]: string = 'MySqlRealBuilder';
 
 	constructor(name: T['name'], config: MySqlRealConfig | undefined) {
 		super(name, 'number', 'MySqlReal');
@@ -41,7 +41,7 @@ export class MySqlReal<T extends ColumnBaseConfig<'number', 'MySqlReal'>> extend
 	T,
 	MySqlRealConfig
 > {
-	static readonly [entityKind]: string = 'MySqlReal';
+	static override readonly [entityKind]: string = 'MySqlReal';
 
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;

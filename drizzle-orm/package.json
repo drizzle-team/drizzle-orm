@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.34.0",
+	"version": "0.34.1",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -162,7 +162,7 @@
 		"@cloudflare/workers-types": "^4.20230904.0",
 		"@electric-sql/pglite": "^0.1.1",
 		"@libsql/client": "^0.10.0",
-		"@miniflare/d1": "^2.14.2",
+		"@miniflare/d1": "^2.14.4",
 		"@neondatabase/serverless": "^0.9.0",
 		"@op-engineering/op-sqlite": "^2.0.16",
 		"@opentelemetry/api": "^1.4.1",

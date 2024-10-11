@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
 	AnyPgTable,
 	ExtraConfigColumn,
@@ -12,6 +13,7 @@ import {
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
 import { getTableConfig } from 'drizzle-orm/pg-core';
+import { CasingType } from 'src/cli/validations/common';
 import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
@@ -29,10 +31,8 @@ import type {
 	Table,
 	UniqueConstraint,
 } from '../serializer/pgSchema';
-import { type DB, isPgArrayType } from '../utils';
+import { type DB, getColumnCasing, isPgArrayType } from '../utils';
 import { sqlToStr } from '.';
-
-const dialect = new PgDialect();
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -116,8 +116,10 @@ export const generatePgSnapshot = (
 	enums: PgEnum<any>[],
 	schemas: PgSchema[],
 	sequences: PgSequence[],
+	casing: CasingType | undefined,
 	schemaFilter?: string[],
 ): PgSchemaInternal => {
+	const dialect = new PgDialect({ casing });
 	const result: Record<string, Table> = {};
 	const sequencesToReturn: Record<string, Sequence> = {};
 
@@ -153,6 +155,7 @@ export const generatePgSnapshot = (
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
 
 		columns.forEach((column) => {
+			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
 			const primaryKey: boolean = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
@@ -177,7 +180,7 @@ export const generatePgSnapshot = (
 			const cache = stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? '1';
 
 			const columnToSet: Column = {
-				name: column.name,
+				name,
 				type: column.getSQLType(),
 				typeSchema: typeSchema,
 				primaryKey,
@@ -195,7 +198,7 @@ export const generatePgSnapshot = (
 				identity: identity
 					? {
 						type: identity.type,
-						name: identity.sequenceName ?? `${tableName}_${column.name}_seq`,
+						name: identity.sequenceName ?? `${tableName}_${name}_seq`,
 						schema: schema ?? 'public',
 						increment,
 						startWith,
@@ -223,7 +226,7 @@ export const generatePgSnapshot = (
 								)
 							} on the ${
 								chalk.underline.blue(
-									column.name,
+									name,
 								)
 							} column is confilcting with a unique constraint name already defined for ${
 								chalk.underline.blue(
@@ -243,7 +246,7 @@ export const generatePgSnapshot = (
 
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
-					columnToSet.default = sqlToStr(column.default);
+					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					if (typeof column.default === 'string') {
 						columnToSet.default = `'${column.default}'`;
@@ -282,19 +285,28 @@ export const generatePgSnapshot = (
 					}
 				}
 			}
-			columnsObject[column.name] = columnToSet;
+			columnsObject[name] = columnToSet;
 		});
 
 		primaryKeys.map((pk) => {
-			const columnNames = pk.columns.map((c) => c.name);
-			primaryKeysObject[pk.getName()] = {
-				name: pk.getName(),
+			const originalColumnNames = pk.columns.map((c) => c.name);
+			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
+
+			let name = pk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnNames.length; i++) {
+					name = name.replace(originalColumnNames[i], columnNames[i]);
+				}
+			}
+
+			primaryKeysObject[name] = {
+				name,
 				columns: columnNames,
 			};
 		});
 
 		uniqueConstraints?.map((unq) => {
-			const columnNames = unq.columns.map((c) => c.name);
+			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
 
 			const name = unq.name ?? uniqueKeyName(table, columnNames);
 
@@ -333,7 +345,6 @@ export const generatePgSnapshot = (
 		});
 
 		const fks: ForeignKey[] = foreignKeys.map((fk) => {
-			const name = fk.getName();
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete;
 			const onUpdate = fk.onUpdate;
@@ -344,8 +355,20 @@ export const generatePgSnapshot = (
 			// getTableConfig(reference.foreignTable).schema || "public";
 			const schemaTo = getTableConfig(reference.foreignTable).schema;
 
-			const columnsFrom = reference.columns.map((it) => it.name);
-			const columnsTo = reference.foreignColumns.map((it) => it.name);
+			const originalColumnsFrom = reference.columns.map((it) => it.name);
+			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
+			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+
+			let name = fk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnsFrom.length; i++) {
+					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+				}
+				for (let i = 0; i < originalColumnsTo.length; i++) {
+					name = name.replace(originalColumnsTo[i], columnsTo[i]);
+				}
+			}
 
 			return {
 				name,
@@ -387,6 +410,7 @@ export const generatePgSnapshot = (
 					}
 				}
 				it = it as IndexedColumn;
+				const name = getColumnCasing(it as IndexedColumn, casing);
 				if (
 					!is(it, SQL)
 					&& it.type! === 'PgVector'
@@ -397,7 +421,7 @@ export const generatePgSnapshot = (
 							withStyle.errorWarning(
 								`You are specifying an index on the ${
 									chalk.blueBright(
-										it.name,
+										name,
 									)
 								} column inside the ${
 									chalk.blueBright(
@@ -415,7 +439,7 @@ export const generatePgSnapshot = (
 										)
 								}].\n\nYou can specify it using current syntax: ${
 									chalk.underline(
-										`index("${value.config.name}").using("${value.config.method}", table.${it.name}.op("${
+										`index("${value.config.name}").using("${value.config.method}", table.${name}.op("${
 											vectorOps[0]
 										}"))`,
 									)
@@ -425,7 +449,7 @@ export const generatePgSnapshot = (
 					);
 					process.exit(1);
 				}
-				indexColumnNames.push((it as ExtraConfigColumn).name);
+				indexColumnNames.push(name);
 			});
 
 			const name = value.config.name
@@ -444,7 +468,7 @@ export const generatePgSnapshot = (
 					} else {
 						it = it as IndexedColumn;
 						return {
-							expression: it.name!,
+							expression: getColumnCasing(it as IndexedColumn, casing),
 							isExpression: false,
 							asc: it.indexConfig?.order === 'asc',
 							nulls: it.indexConfig?.nulls
@@ -1145,7 +1169,7 @@ export const fromDatabase = async (
 							: undefined,
 					};
 
-					if (identityName) {
+					if (identityName && typeof identityName === 'string') {
 						// remove "" from sequence name
 						delete sequencesToReturn[
 							`${tableSchema}.${
