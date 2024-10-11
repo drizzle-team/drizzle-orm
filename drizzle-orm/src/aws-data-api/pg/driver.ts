@@ -36,7 +36,7 @@ export interface DrizzleAwsDataApiPgConfig<
 export class AwsDataApiPgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<AwsDataApiPgQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'AwsDataApiPgDatabase';
+	static override readonly [entityKind]: string = 'AwsDataApiPgDatabase';
 
 	override execute<
 		TRow extends Record<string, unknown> = Record<string, unknown>,
@@ -46,7 +46,7 @@ export class AwsDataApiPgDatabase<
 }
 
 export class AwsPgDialect extends PgDialect {
-	static readonly [entityKind]: string = 'AwsPgDialect';
+	static override readonly [entityKind]: string = 'AwsPgDialect';
 
 	override escapeParam(num: number): string {
 		return `:${num + 1}`;

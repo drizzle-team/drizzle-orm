@@ -18,7 +18,7 @@ export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
 export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlInt'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlIntBuilder';
+	static override readonly [entityKind]: string = 'MySqlIntBuilder';
 
 	constructor(name: T['name'], config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlInt');
@@ -36,7 +36,7 @@ export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlI
 export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlInt';
+	static override readonly [entityKind]: string = 'MySqlInt';
 
 	getSQLType(): string {
 		return `int${this.config.unsigned ? ' unsigned' : ''}`;

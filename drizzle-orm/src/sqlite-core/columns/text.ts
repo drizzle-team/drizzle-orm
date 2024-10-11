@@ -19,7 +19,7 @@ export class SQLiteTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'SQLi
 	T,
 	{ length: number | undefined; enumValues: T['enumValues'] }
 > {
-	static readonly [entityKind]: string = 'SQLiteTextBuilder';
+	static override readonly [entityKind]: string = 'SQLiteTextBuilder';
 
 	constructor(name: T['name'], config: SQLiteTextConfig<'text', T['enumValues']>) {
 		super(name, 'string', 'SQLiteText');
@@ -38,7 +38,7 @@ export class SQLiteTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'SQLi
 export class SQLiteText<T extends ColumnBaseConfig<'string', 'SQLiteText'>>
 	extends SQLiteColumn<T, { length: number | undefined; enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'SQLiteText';
+	static override readonly [entityKind]: string = 'SQLiteText';
 
 	override readonly enumValues = this.config.enumValues;
 
@@ -69,7 +69,7 @@ export type SQLiteTextJsonBuilderInitial<TName extends string> = SQLiteTextJsonB
 export class SQLiteTextJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteTextJson'>>
 	extends SQLiteColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'SQLiteTextJsonBuilder';
+	static override readonly [entityKind]: string = 'SQLiteTextJsonBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'json', 'SQLiteTextJson');
@@ -89,7 +89,7 @@ export class SQLiteTextJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQ
 export class SQLiteTextJson<T extends ColumnBaseConfig<'json', 'SQLiteTextJson'>>
 	extends SQLiteColumn<T, { length: number | undefined; enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'SQLiteTextJson';
+	static override readonly [entityKind]: string = 'SQLiteTextJson';
 
 	getSQLType(): string {
 		return 'text';

@@ -29,7 +29,7 @@ export type TableConfig = TableConfigBase<PgColumn>;
 export const InlineForeignKeys = Symbol.for('drizzle:PgInlineForeignKeys');
 
 export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
-	static readonly [entityKind]: string = 'PgTable';
+	static override readonly [entityKind]: string = 'PgTable';
 
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {

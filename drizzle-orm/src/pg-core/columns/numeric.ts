@@ -22,7 +22,7 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 		scale: number | undefined;
 	}
 > {
-	static readonly [entityKind]: string = 'PgNumericBuilder';
+	static override readonly [entityKind]: string = 'PgNumericBuilder';
 
 	constructor(name: T['name'], precision?: number, scale?: number) {
 		super(name, 'string', 'PgNumeric');
@@ -39,7 +39,7 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 }
 
 export class PgNumeric<T extends ColumnBaseConfig<'string', 'PgNumeric'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgNumeric';
+	static override readonly [entityKind]: string = 'PgNumeric';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;

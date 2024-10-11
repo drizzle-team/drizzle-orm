@@ -24,7 +24,7 @@ export type TableConfig = TableConfigBase<SQLiteColumn<any>>;
 export const InlineForeignKeys = Symbol.for('drizzle:SQLiteInlineForeignKeys');
 
 export class SQLiteTable<T extends TableConfig = TableConfig> extends Table<T> {
-	static readonly [entityKind]: string = 'SQLiteTable';
+	static override readonly [entityKind]: string = 'SQLiteTable';
 
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {

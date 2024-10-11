@@ -19,7 +19,7 @@ export type MySqlSmallIntBuilderInitial<TName extends string> = MySqlSmallIntBui
 export class MySqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSmallInt'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlSmallIntBuilder';
+	static override readonly [entityKind]: string = 'MySqlSmallIntBuilder';
 
 	constructor(name: T['name'], config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlSmallInt');
@@ -40,7 +40,7 @@ export class MySqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'M
 export class MySqlSmallInt<T extends ColumnBaseConfig<'number', 'MySqlSmallInt'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlSmallInt';
+	static override readonly [entityKind]: string = 'MySqlSmallInt';
 
 	getSQLType(): string {
 		return `smallint${this.config.unsigned ? ' unsigned' : ''}`;

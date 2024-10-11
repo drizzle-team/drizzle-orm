@@ -15,7 +15,7 @@ import { BetterSQLiteSession } from './session.ts';
 export class BetterSQLite3Database<TSchema extends Record<string, unknown> = Record<string, never>>
 	extends BaseSQLiteDatabase<'sync', RunResult, TSchema>
 {
-	static readonly [entityKind]: string = 'BetterSQLite3Database';
+	static override readonly [entityKind]: string = 'BetterSQLite3Database';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(

@@ -8,7 +8,7 @@ export class PgCountBuilder<
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
 
-	static readonly [entityKind] = 'PgCountBuilder';
+	static override readonly [entityKind] = 'PgCountBuilder';
 	[Symbol.toStringTag] = 'PgCountBuilder';
 
 	private session: TSession;

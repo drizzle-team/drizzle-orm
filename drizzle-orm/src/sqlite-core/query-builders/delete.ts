@@ -136,7 +136,7 @@ export class SQLiteDeleteBase<
 > extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
 	implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper
 {
-	static readonly [entityKind]: string = 'SQLiteDelete';
+	static override readonly [entityKind]: string = 'SQLiteDelete';
 
 	/** @internal */
 	config: SQLiteDeleteConfig;

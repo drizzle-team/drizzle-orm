@@ -30,7 +30,7 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 	extends QueryPromise<PgQueryResultKind<TQueryResult, never>>
 	implements RunnableQuery<PgQueryResultKind<TQueryResult, never>, 'pg'>, SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgRefreshMaterializedView';
+	static override readonly [entityKind]: string = 'PgRefreshMaterializedView';
 
 	private config: {
 		view: PgMaterializedView;

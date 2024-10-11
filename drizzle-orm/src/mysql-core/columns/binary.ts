@@ -19,7 +19,7 @@ export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MyS
 	T,
 	MySqlBinaryConfig
 > {
-	static readonly [entityKind]: string = 'MySqlBinaryBuilder';
+	static override readonly [entityKind]: string = 'MySqlBinaryBuilder';
 
 	constructor(name: T['name'], length: number | undefined) {
 		super(name, 'string', 'MySqlBinary');
@@ -38,7 +38,7 @@ export class MySqlBinary<T extends ColumnBaseConfig<'string', 'MySqlBinary'>> ex
 	T,
 	MySqlBinaryConfig
 > {
-	static readonly [entityKind]: string = 'MySqlBinary';
+	static override readonly [entityKind]: string = 'MySqlBinary';
 
 	length: number | undefined = this.config.length;
 

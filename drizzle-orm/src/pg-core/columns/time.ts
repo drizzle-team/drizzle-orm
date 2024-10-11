@@ -21,7 +21,7 @@ export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTime'>
 	T,
 	{ withTimezone: boolean; precision: number | undefined }
 > {
-	static readonly [entityKind]: string = 'PgTimeBuilder';
+	static override readonly [entityKind]: string = 'PgTimeBuilder';
 
 	constructor(
 		name: T['name'],
@@ -42,7 +42,7 @@ export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTime'>
 }
 
 export class PgTime<T extends ColumnBaseConfig<'string', 'PgTime'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgTime';
+	static override readonly [entityKind]: string = 'PgTime';
 
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;

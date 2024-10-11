@@ -142,6 +142,15 @@ export interface JsonAlterRoleStatement {
 
 //////
 
+export interface JsonDropValueFromEnumStatement {
+	type: 'alter_type_drop_value';
+	name: string;
+	schema: string;
+	deletedValues: string[];
+	newValues: string[];
+	columnsWithEnum: { schema: string; table: string; column: string }[];
+}
+
 export interface JsonCreateSequenceStatement {
 	type: 'create_sequence';
 	name: string;
@@ -670,7 +679,8 @@ export type JsonStatement =
 	| JsonRenameRoleStatement
 	| JsonCreateRoleStatement
 	| JsonDropRoleStatement
-	| JsonAlterRoleStatement;
+	| JsonAlterRoleStatement
+	| JsonDropValueFromEnumStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -805,6 +815,36 @@ export const prepareAddValuesToEnumJson = (
 			before: it.before,
 		};
 	});
+};
+
+export const prepareDropEnumValues = (
+	name: string,
+	schema: string,
+	removedValues: string[],
+	json2: PgSchema,
+): JsonDropValueFromEnumStatement[] => {
+	if (!removedValues.length) return [];
+
+	const affectedColumns: { schema: string; table: string; column: string }[] = [];
+
+	for (const tableKey in json2.tables) {
+		const table = json2.tables[tableKey];
+		for (const columnKey in table.columns) {
+			const column = table.columns[columnKey];
+			if (column.type === name && column.typeSchema === schema) {
+				affectedColumns.push({ schema: table.schema || 'public', table: table.name, column: column.name });
+			}
+		}
+	}
+
+	return [{
+		type: 'alter_type_drop_value',
+		name: name,
+		schema: schema,
+		deletedValues: removedValues,
+		newValues: json2.enums[`${schema}.${name}`].values,
+		columnsWithEnum: affectedColumns,
+	}];
 };
 
 export const prepareDropEnumJson = (

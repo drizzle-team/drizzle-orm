@@ -542,9 +542,14 @@ export const diffTestSchemasPush = async (
 	schemas: string[] = ['public'],
 	casing?: CasingType | undefined,
 	entities?: Entities,
+	sqlStatementsToRun: string[] = [],
 ) => {
-	const { sqlStatements } = await applyPgDiffs(left, casing);
-	for (const st of sqlStatements) {
+	if (!sqlStatementsToRun.length) {
+		const res = await applyPgDiffs(left, casing);
+		sqlStatementsToRun = res.sqlStatements;
+	}
+
+	for (const st of sqlStatementsToRun) {
 		await client.query(st);
 	}
 
@@ -1143,13 +1148,6 @@ export async function diffTestSchemasPushLibSQL(
 			run: async (query: string) => {
 				await client.execute(query);
 			},
-			batch: async (
-				queries: { query: string; values?: any[] | undefined }[],
-			) => {
-				await client.batch(
-					queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
-				);
-			},
 		},
 		undefined,
 	);
@@ -1208,13 +1206,6 @@ export async function diffTestSchemasPushLibSQL(
 				},
 				run: async (query: string) => {
 					await client.execute(query);
-				},
-				batch: async (
-					queries: { query: string; values?: any[] | undefined }[],
-				) => {
-					await client.batch(
-						queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
-					);
 				},
 			},
 			statements,
