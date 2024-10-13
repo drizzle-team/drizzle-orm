@@ -9,3 +9,9 @@ export abstract class PrimaryKey {
 
 	constructor(readonly table: Table, readonly columns: AnyColumn[]) {}
 }
+
+export abstract class PrimaryKeyBuilder {
+	static readonly [entityKind]: string = 'PrimaryKeyBuilder';
+
+	abstract columns: AnyColumn[];
+}

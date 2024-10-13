@@ -26,16 +26,14 @@ export function is<T extends DrizzleEntityClass<any>>(value: any, type: T): valu
 		);
 	}
 
-	let cls = value.constructor;
-	if (cls) {
-		// Traverse the prototype chain to find the entityKind
-		while (cls) {
-			if (entityKind in cls && cls[entityKind] === type[entityKind]) {
-				return true;
-			}
-
-			cls = Object.getPrototypeOf(cls);
+	let proto = Object.getPrototypeOf(value);
+	// Traverse the prototype chain to find the entityKind
+	while (proto) {
+		if (entityKind in proto.constructor && proto.constructor[entityKind] === type[entityKind]) {
+			return true;
 		}
+
+		proto = Object.getPrototypeOf(proto);
 	}
 
 	return false;
