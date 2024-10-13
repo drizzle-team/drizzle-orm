@@ -5,8 +5,17 @@ import fetch from 'node-fetch';
 import ws from 'ws';
 import { assertUnreachable } from '../global';
 import type { ProxyParams } from '../serializer/studio';
-import { type DB, normalisePGliteUrl, normaliseSQLiteUrl, type Proxy, type SQLiteDB, type SqliteProxy } from '../utils';
+import {
+	type DB,
+	LibSQLDB,
+	normalisePGliteUrl,
+	normaliseSQLiteUrl,
+	type Proxy,
+	type SQLiteDB,
+	type SqliteProxy,
+} from '../utils';
 import { assertPackages, checkPackage } from './utils';
+import { LibSQLCredentials } from './validations/libsql';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
@@ -482,56 +491,7 @@ export const connectToSQLite = async (
 > => {
 	if ('driver' in credentials) {
 		const { driver } = credentials;
-		if (driver === 'turso') {
-			assertPackages('@libsql/client');
-			const { createClient } = await import('@libsql/client');
-			const { drizzle } = await import('drizzle-orm/libsql');
-			const { migrate } = await import('drizzle-orm/libsql/migrator');
-
-			const client = createClient({
-				url: credentials.url,
-				authToken: credentials.authToken,
-			});
-
-			const drzl = drizzle(client);
-			const migrateFn = async (config: MigrationConfig) => {
-				return migrate(drzl, config);
-			};
-
-			const db: SQLiteDB = {
-				query: async <T>(sql: string, params?: any[]) => {
-					const res = await client.execute({ sql, args: params || [] });
-					return res.rows as T[];
-				},
-				run: async (query: string) => {
-					await client.execute(query);
-				},
-				batch: async (
-					queries: { query: string; values?: any[] | undefined }[],
-				) => {
-					await client.batch(
-						queries.map((it) => ({ sql: it.query, args: it.values ?? [] })),
-					);
-				},
-			};
-			const proxy: SqliteProxy = {
-				proxy: async (params: ProxyParams) => {
-					const preparedParams = prepareSqliteParams(params.params);
-					const result = await client.execute({
-						sql: params.sql,
-						args: preparedParams,
-					});
-
-					if (params.mode === 'array') {
-						return result.rows.map((row) => Object.values(row));
-					} else {
-						return result.rows;
-					}
-				},
-			};
-
-			return { ...db, ...proxy, migrate: migrateFn };
-		} else if (driver === 'd1-http') {
+		if (driver === 'd1-http') {
 			const { drizzle } = await import('drizzle-orm/sqlite-proxy');
 			const { migrate } = await import('drizzle-orm/sqlite-proxy/migrator');
 
@@ -708,8 +668,66 @@ export const connectToSQLite = async (
 		};
 		return { ...db, ...proxy, migrate: migrateFn };
 	}
+
 	console.log(
 		"Please install either 'better-sqlite3' or '@libsql/client' for Drizzle Kit to connect to SQLite databases",
+	);
+	process.exit(1);
+};
+
+export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
+	& LibSQLDB
+	& SqliteProxy
+	& { migrate: (config: MigrationConfig) => Promise<void> }
+> => {
+	if (await checkPackage('@libsql/client')) {
+		const { createClient } = await import('@libsql/client');
+		const { drizzle } = await import('drizzle-orm/libsql');
+		const { migrate } = await import('drizzle-orm/libsql/migrator');
+
+		const client = createClient({
+			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
+			authToken: credentials.authToken,
+		});
+		const drzl = drizzle(client);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(drzl, config);
+		};
+
+		const db: LibSQLDB = {
+			query: async <T>(sql: string, params?: any[]) => {
+				const res = await client.execute({ sql, args: params || [] });
+				return res.rows as T[];
+			},
+			run: async (query: string) => {
+				await client.execute(query);
+			},
+			batchWithPragma: async (queries: string[]) => {
+				await client.migrate(queries);
+			},
+		};
+
+		const proxy: SqliteProxy = {
+			proxy: async (params: ProxyParams) => {
+				const preparedParams = prepareSqliteParams(params.params);
+				const result = await client.execute({
+					sql: params.sql,
+					args: preparedParams,
+				});
+
+				if (params.mode === 'array') {
+					return result.rows.map((row) => Object.values(row));
+				} else {
+					return result.rows;
+				}
+			},
+		};
+
+		return { ...db, ...proxy, migrate: migrateFn };
+	}
+
+	console.log(
+		"Please install '@libsql/client' for Drizzle Kit to connect to LibSQL databases",
 	);
 	process.exit(1);
 };

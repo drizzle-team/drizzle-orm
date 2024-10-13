@@ -37,6 +37,8 @@ export class PgMacaddr<T extends ColumnBaseConfig<'string', 'PgMacaddr'>> extend
 	}
 }
 
-export function macaddr<TName extends string>(name: TName): PgMacaddrBuilderInitial<TName> {
-	return new PgMacaddrBuilder(name);
+export function macaddr(): PgMacaddrBuilderInitial<''>;
+export function macaddr<TName extends string>(name: TName): PgMacaddrBuilderInitial<TName>;
+export function macaddr(name?: string) {
+	return new PgMacaddrBuilder(name ?? '');
 }

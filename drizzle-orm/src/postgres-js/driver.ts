@@ -1,4 +1,5 @@
 import type { Sql } from 'postgres';
+import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -12,14 +13,18 @@ import type { DrizzleConfig } from '~/utils.ts';
 import type { PostgresJsQueryResultHKT } from './session.ts';
 import { PostgresJsSession } from './session.ts';
 
-export type PostgresJsDatabase<
+export class PostgresJsDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<PostgresJsQueryResultHKT, TSchema>;
+> extends PgDatabase<PostgresJsQueryResultHKT, TSchema> {
+	static readonly [entityKind]: string = 'PostgresJsDatabase';
+}
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Sql,
 	config: DrizzleConfig<TSchema> = {},
-): PostgresJsDatabase<TSchema> {
+): PostgresJsDatabase<TSchema> & {
+	$client: Sql;
+} {
 	const transparentParser = (val: any) => val;
 
 	// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
@@ -30,7 +35,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client.options.serializers['114'] = transparentParser;
 	client.options.serializers['3802'] = transparentParser;
 
-	const dialect = new PgDialect();
+	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -52,5 +57,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new PostgresJsSession(client, dialect, schema, { logger });
-	return new PgDatabase(dialect, session, schema) as PostgresJsDatabase<TSchema>;
+	const db = new PostgresJsDatabase(dialect, session, schema as any) as PostgresJsDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }

@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.33.0",
+	"version": "0.34.1",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -46,7 +46,7 @@
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=3",
 		"@electric-sql/pglite": ">=0.1.1",
-		"@libsql/client": "*",
+		"@libsql/client": ">=0.10.0",
 		"@neondatabase/serverless": ">=0.1",
 		"@op-engineering/op-sqlite": ">=2",
 		"@opentelemetry/api": "^1.4.1",
@@ -161,7 +161,8 @@
 		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@cloudflare/workers-types": "^4.20230904.0",
 		"@electric-sql/pglite": "^0.1.1",
-		"@libsql/client": "^0.5.6",
+		"@libsql/client": "^0.10.0",
+		"@miniflare/d1": "^2.14.2",
 		"@neondatabase/serverless": "^0.9.0",
 		"@op-engineering/op-sqlite": "^2.0.16",
 		"@opentelemetry/api": "^1.4.1",

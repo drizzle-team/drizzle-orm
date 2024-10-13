@@ -1,4 +1,5 @@
 import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite/next';
+import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
@@ -11,15 +12,19 @@ import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ExpoSQLiteSession } from './session.ts';
 
-export type ExpoSQLiteDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> = BaseSQLiteDatabase<'sync', SQLiteRunResult, TSchema>;
+export class ExpoSQLiteDatabase<TSchema extends Record<string, unknown> = Record<string, never>>
+	extends BaseSQLiteDatabase<'sync', SQLiteRunResult, TSchema>
+{
+	static readonly [entityKind]: string = 'ExpoSQLiteDatabase';
+}
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: SQLiteDatabase,
 	config: DrizzleConfig<TSchema> = {},
-): ExpoSQLiteDatabase<TSchema> {
-	const dialect = new SQLiteSyncDialect();
+): ExpoSQLiteDatabase<TSchema> & {
+	$client: SQLiteDatabase;
+} {
+	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -41,5 +46,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new ExpoSQLiteSession(client, dialect, schema, { logger });
-	return new BaseSQLiteDatabase('sync', dialect, session, schema) as ExpoSQLiteDatabase<TSchema>;
+	const db = new ExpoSQLiteDatabase('sync', dialect, session, schema) as ExpoSQLiteDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }
