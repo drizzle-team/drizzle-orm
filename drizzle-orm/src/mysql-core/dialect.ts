@@ -18,7 +18,7 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import { Param, SQL, sql, View } from '~/sql/sql.ts';
-import type { Name, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
+import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
@@ -112,7 +112,7 @@ export class MySqlDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList }: MySqlDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: MySqlDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -121,7 +121,11 @@ export class MySqlDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
+		const orderBySql = this.buildOrderBy(orderBy);
+
+		const limitSql = this.buildLimit(limit);
+
+		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
@@ -145,7 +149,7 @@ export class MySqlDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList }: MySqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: MySqlUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
@@ -156,7 +160,11 @@ export class MySqlDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
+		const orderBySql = this.buildOrderBy(orderBy);
+
+		const limitSql = this.buildLimit(limit);
+
+		return sql`${withSql}update ${table} set ${setSql}${whereSql}${orderBySql}${limitSql}${returningSql}`;
 	}
 
 	/**
@@ -219,6 +227,16 @@ export class MySqlDialect {
 			});
 
 		return sql.join(chunks);
+	}
+
+	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
+		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
+	}
+
+	private buildOrderBy(orderBy: (MySqlColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
+		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
 	}
 
 	buildSelectQuery(
@@ -328,19 +346,11 @@ export class MySqlDialect {
 
 		const havingSql = having ? sql` having ${having}` : undefined;
 
-		let orderBySql;
-		if (orderBy && orderBy.length > 0) {
-			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
-		}
+		const orderBySql = this.buildOrderBy(orderBy);
 
-		let groupBySql;
-		if (groupBy && groupBy.length > 0) {
-			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
-		}
+		const groupBySql = groupBy && groupBy.length > 0 ? sql` group by ${sql.join(groupBy, sql`, `)}` : undefined;
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitSql = this.buildLimit(limit);
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 

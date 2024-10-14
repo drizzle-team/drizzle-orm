@@ -75,6 +75,20 @@ const table = object({
 	checkConstraint: record(string(), checkConstraint).default({}),
 }).strict();
 
+const viewMeta = object({
+	algorithm: enumType(['undefined', 'merge', 'temptable']),
+	sqlSecurity: enumType(['definer', 'invoker']),
+	withCheckOption: enumType(['local', 'cascaded']).optional(),
+}).strict();
+
+export const view = object({
+	name: string(),
+	columns: record(string(), column),
+	definition: string().optional(),
+	isExisting: boolean(),
+}).strict().merge(viewMeta);
+type SquasherViewMeta = Omit<TypeOf<typeof viewMeta>, 'definer'>;
+
 export const kitInternals = object({
 	tables: record(
 		string(),
@@ -134,6 +148,7 @@ export const schemaInternal = object({
 	version: literal('5'),
 	dialect: dialect,
 	tables: record(string(), table),
+	views: record(string(), view),
 	_meta: object({
 		tables: record(string(), string()),
 		columns: record(string(), string()),
@@ -164,10 +179,17 @@ const tableSquashed = object({
 	checkConstraints: record(string(), string()).default({}),
 }).strict();
 
+const viewSquashed = view.omit({
+	algorithm: true,
+	sqlSecurity: true,
+	withCheckOption: true,
+}).extend({ meta: string() });
+
 export const schemaSquashed = object({
 	version: literal('5'),
 	dialect: dialect,
 	tables: record(string(), tableSquashed),
+	views: record(string(), viewSquashed),
 }).strict();
 
 export const schemaSquashedV4 = object({
@@ -194,6 +216,8 @@ export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
 export type CheckConstraint = TypeOf<typeof checkConstraint>;
+export type View = TypeOf<typeof view>;
+export type ViewSquashed = TypeOf<typeof viewSquashed>;
 
 export const MySqlSquasher = {
 	squashIdx: (idx: Index) => {
@@ -262,6 +286,19 @@ export const MySqlSquasher = {
 		const [name, value] = input.split(';');
 
 		return { name, value };
+	},
+	squashView: (view: View): string => {
+		return `${view.algorithm};${view.sqlSecurity};${view.withCheckOption}`;
+	},
+	unsquashView: (meta: string): SquasherViewMeta => {
+		const [algorithm, sqlSecurity, withCheckOption] = meta.split(';');
+		const toReturn = {
+			algorithm: algorithm,
+			sqlSecurity: sqlSecurity,
+			withCheckOption: withCheckOption !== 'undefined' ? withCheckOption : undefined,
+		};
+
+		return viewMeta.parse(toReturn);
 	},
 };
 
@@ -338,10 +375,26 @@ export const squashMysqlScheme = (json: MySqlSchema): MySqlSchemaSquashed => {
 			];
 		}),
 	);
+
+	const mappedViews = Object.fromEntries(
+		Object.entries(json.views).map(([key, value]) => {
+			const meta = MySqlSquasher.squashView(value);
+
+			return [key, {
+				name: value.name,
+				isExisting: value.isExisting,
+				columns: value.columns,
+				definition: value.definition,
+				meta,
+			}];
+		}),
+	);
+
 	return {
 		version: '5',
 		dialect: json.dialect,
 		tables: mappedTables,
+		views: mappedViews,
 	};
 };
 
@@ -361,6 +414,7 @@ export const dryMySql = mysqlSchema.parse({
 	prevId: '',
 	tables: {},
 	schemas: {},
+	views: {},
 	_meta: {
 		schemas: {},
 		tables: {},

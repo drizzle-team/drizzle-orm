@@ -1,14 +1,15 @@
 import chalk from 'chalk';
-import { getNewTableName, getOldTableName } from './cli/commands/sqlitePushUtils';
+import { getNewTableName } from './cli/commands/sqlitePushUtils';
 import { warning } from './cli/views';
-import { CommonSquashedSchema, Dialect } from './schemaValidator';
-import { MySqlKitInternals, MySqlSchema, MySqlSquasher } from './serializer/mysqlSchema';
-import { Index, PgSchema, PgSquasher } from './serializer/pgSchema';
+import { CommonSquashedSchema } from './schemaValidator';
+import { MySqlKitInternals, MySqlSchema, MySqlSquasher, View as MySqlView } from './serializer/mysqlSchema';
+import { Index, MatViewWithOption, PgSchema, PgSquasher, View as PgView, ViewWithOption } from './serializer/pgSchema';
 import {
 	SQLiteKitInternals,
 	SQLiteSchemaInternal,
 	SQLiteSchemaSquashed,
 	SQLiteSquasher,
+	View as SqliteView,
 } from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
 
@@ -550,6 +551,105 @@ export interface JsonRenameSchema {
 	to: string;
 }
 
+export type JsonCreatePgViewStatement = {
+	type: 'create_view';
+} & Omit<PgView, 'columns' | 'isExisting'>;
+
+export type JsonCreateMySqlViewStatement = {
+	type: 'mysql_create_view';
+	replace: boolean;
+} & Omit<MySqlView, 'columns' | 'isExisting'>;
+
+export type JsonCreateSqliteViewStatement = {
+	type: 'sqlite_create_view';
+} & Omit<SqliteView, 'columns' | 'isExisting'>;
+
+export interface JsonDropViewStatement {
+	type: 'drop_view';
+	name: string;
+	schema?: string;
+	materialized?: boolean;
+}
+
+export interface JsonRenameViewStatement {
+	type: 'rename_view';
+	nameTo: string;
+	nameFrom: string;
+	schema: string;
+	materialized?: boolean;
+}
+
+export interface JsonRenameMySqlViewStatement {
+	type: 'rename_view';
+	nameTo: string;
+	nameFrom: string;
+	schema: string;
+	materialized?: boolean;
+}
+
+export interface JsonAlterViewAlterSchemaStatement {
+	type: 'alter_view_alter_schema';
+	fromSchema: string;
+	toSchema: string;
+	name: string;
+	materialized?: boolean;
+}
+
+export type JsonAlterViewAddWithOptionStatement =
+	& {
+		type: 'alter_view_add_with_option';
+		schema: string;
+		name: string;
+	}
+	& ({
+		materialized: true;
+		with: MatViewWithOption;
+	} | {
+		materialized: false;
+		with: ViewWithOption;
+	});
+
+export type JsonAlterViewDropWithOptionStatement =
+	& {
+		type: 'alter_view_drop_with_option';
+		schema: string;
+		name: string;
+	}
+	& ({
+		materialized: true;
+		with: MatViewWithOption;
+	} | {
+		materialized: false;
+		with: ViewWithOption;
+	});
+
+export interface JsonAlterViewAlterTablespaceStatement {
+	type: 'alter_view_alter_tablespace';
+	toTablespace: string;
+	name: string;
+	schema: string;
+	materialized: true;
+}
+
+export interface JsonAlterViewAlterUsingStatement {
+	type: 'alter_view_alter_using';
+	toUsing: string;
+	name: string;
+	schema: string;
+	materialized: true;
+}
+
+export type JsonAlterMySqlViewStatement = {
+	type: 'alter_mysql_view';
+} & Omit<MySqlView, 'isExisting'>;
+
+export type JsonAlterViewStatement =
+	| JsonAlterViewAlterSchemaStatement
+	| JsonAlterViewAddWithOptionStatement
+	| JsonAlterViewDropWithOptionStatement
+	| JsonAlterViewAlterTablespaceStatement
+	| JsonAlterViewAlterUsingStatement;
+
 export type JsonAlterColumnStatement =
 	| JsonRenameColumnStatement
 	| JsonAlterColumnTypeStatement
@@ -609,6 +709,13 @@ export type JsonStatement =
 	| JsonCreateSequenceStatement
 	| JsonMoveSequenceStatement
 	| JsonRenameSequenceStatement
+	| JsonCreatePgViewStatement
+	| JsonDropViewStatement
+	| JsonRenameViewStatement
+	| JsonAlterViewStatement
+	| JsonCreateMySqlViewStatement
+	| JsonAlterMySqlViewStatement
+	| JsonCreateSqliteViewStatement
 	| JsonCreateCheckConstraint
 	| JsonDeleteCheckConstraint
 	| JsonDropValueFromEnumStatement;
@@ -2516,4 +2623,171 @@ export const prepareAlterCompositePrimaryKeyMySql = (
 			].name,
 		} as JsonAlterCompositePK;
 	});
+};
+
+export const preparePgCreateViewJson = (
+	name: string,
+	schema: string,
+	definition: string,
+	materialized: boolean,
+	withNoData: boolean = false,
+	withOption?: any,
+	using?: string,
+	tablespace?: string,
+): JsonCreatePgViewStatement => {
+	return {
+		type: 'create_view',
+		name: name,
+		schema: schema,
+		definition: definition,
+		with: withOption,
+		materialized: materialized,
+		withNoData,
+		using,
+		tablespace,
+	};
+};
+
+export const prepareMySqlCreateViewJson = (
+	name: string,
+	definition: string,
+	meta: string,
+	replace: boolean = false,
+): JsonCreateMySqlViewStatement => {
+	const { algorithm, sqlSecurity, withCheckOption } = MySqlSquasher.unsquashView(meta);
+	return {
+		type: 'mysql_create_view',
+		name: name,
+		definition: definition,
+		algorithm,
+		sqlSecurity,
+		withCheckOption,
+		replace,
+	};
+};
+
+export const prepareSqliteCreateViewJson = (
+	name: string,
+	definition: string,
+): JsonCreateSqliteViewStatement => {
+	return {
+		type: 'sqlite_create_view',
+		name: name,
+		definition: definition,
+	};
+};
+
+export const prepareDropViewJson = (
+	name: string,
+	schema?: string,
+	materialized?: boolean,
+): JsonDropViewStatement => {
+	const resObject: JsonDropViewStatement = <JsonDropViewStatement> { name, type: 'drop_view' };
+
+	if (schema) resObject['schema'] = schema;
+
+	if (materialized) resObject['materialized'] = materialized;
+
+	return resObject;
+};
+
+export const prepareRenameViewJson = (
+	to: string,
+	from: string,
+	schema?: string,
+	materialized?: boolean,
+): JsonRenameViewStatement => {
+	const resObject: JsonRenameViewStatement = <JsonRenameViewStatement> {
+		type: 'rename_view',
+		nameTo: to,
+		nameFrom: from,
+	};
+
+	if (schema) resObject['schema'] = schema;
+	if (materialized) resObject['materialized'] = materialized;
+
+	return resObject;
+};
+
+export const preparePgAlterViewAlterSchemaJson = (
+	to: string,
+	from: string,
+	name: string,
+	materialized?: boolean,
+): JsonAlterViewAlterSchemaStatement => {
+	const returnObject: JsonAlterViewAlterSchemaStatement = {
+		type: 'alter_view_alter_schema',
+		fromSchema: from,
+		toSchema: to,
+		name,
+	};
+
+	if (materialized) returnObject['materialized'] = materialized;
+	return returnObject;
+};
+
+export const preparePgAlterViewAddWithOptionJson = (
+	name: string,
+	schema: string,
+	materialized: boolean,
+	withOption: MatViewWithOption | ViewWithOption,
+): JsonAlterViewAddWithOptionStatement => {
+	return {
+		type: 'alter_view_add_with_option',
+		name,
+		schema,
+		materialized: materialized,
+		with: withOption,
+	} as JsonAlterViewAddWithOptionStatement;
+};
+
+export const preparePgAlterViewDropWithOptionJson = (
+	name: string,
+	schema: string,
+	materialized: boolean,
+	withOption: MatViewWithOption | ViewWithOption,
+): JsonAlterViewDropWithOptionStatement => {
+	return {
+		type: 'alter_view_drop_with_option',
+		name,
+		schema,
+		materialized: materialized,
+		with: withOption,
+	} as JsonAlterViewDropWithOptionStatement;
+};
+
+export const preparePgAlterViewAlterTablespaceJson = (
+	name: string,
+	schema: string,
+	materialized: boolean,
+	to: string,
+): JsonAlterViewAlterTablespaceStatement => {
+	return {
+		type: 'alter_view_alter_tablespace',
+		name,
+		schema,
+		materialized: materialized,
+		toTablespace: to,
+	} as JsonAlterViewAlterTablespaceStatement;
+};
+
+export const preparePgAlterViewAlterUsingJson = (
+	name: string,
+	schema: string,
+	materialized: boolean,
+	to: string,
+): JsonAlterViewAlterUsingStatement => {
+	return {
+		type: 'alter_view_alter_using',
+		name,
+		schema,
+		materialized: materialized,
+		toUsing: to,
+	} as JsonAlterViewAlterUsingStatement;
+};
+
+export const prepareMySqlAlterView = (
+	view: Omit<MySqlView, 'isExisting'>,
+): JsonAlterMySqlViewStatement => {
+	return { type: 'alter_mysql_view', ...view };
 };

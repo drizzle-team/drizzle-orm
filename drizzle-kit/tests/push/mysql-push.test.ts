@@ -1,6 +1,6 @@
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-import { check, int, mysqlTable } from 'drizzle-orm/mysql-core';
+import { check, int, mysqlTable, mysqlView } from 'drizzle-orm/mysql-core';
 import fs from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
@@ -199,6 +199,147 @@ test('db has checks. Push with same names', async () => {
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
+
+	await client.query(`DROP TABLE \`test\`;`);
+});
+
+test('create view', async () => {
+	const table = mysqlTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+	};
+
+	const schema2 = {
+		test: table,
+		view: mysqlView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
+		client,
+		schema1,
+		schema2,
+		[],
+		'drizzle',
+		false,
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			definition: 'select \`id\` from \`test\`',
+			name: 'view',
+			type: 'mysql_create_view',
+			replace: false,
+			sqlSecurity: 'definer',
+			withCheckOption: undefined,
+			algorithm: 'undefined',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE ALGORITHM = undefined
+SQL SECURITY definer
+VIEW \`view\` AS (select \`id\` from \`test\`);`,
+	]);
+
+	await client.query(`DROP TABLE \`test\`;`);
+});
+
+test('drop view', async () => {
+	const table = mysqlTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: mysqlView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
+		client,
+		schema1,
+		schema2,
+		[],
+		'drizzle',
+		false,
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			name: 'view',
+			type: 'drop_view',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'DROP VIEW \`view\`;',
+	]);
+	await client.query(`DROP TABLE \`test\`;`);
+	await client.query(`DROP VIEW \`view\`;`);
+});
+
+test('alter view ".as"', async () => {
+	const table = mysqlTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: mysqlView('view').as((qb) => qb.select().from(table).where(sql`${table.id} = 1`)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: mysqlView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
+		client,
+		schema1,
+		schema2,
+		[],
+		'drizzle',
+		false,
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	await client.query(`DROP TABLE \`test\`;`);
+	await client.query(`DROP VIEW \`view\`;`);
+});
+
+test('alter meta options with distinct in definition', async () => {
+	const table = mysqlTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: mysqlView('view').withCheckOption('cascaded').sqlSecurity('definer').algorithm('merge').as((
+			qb,
+		) => qb.selectDistinct().from(table).where(sql`${table.id} = 1`)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: mysqlView('view').withCheckOption('cascaded').sqlSecurity('definer').algorithm('undefined').as((qb) =>
+			qb.selectDistinct().from(table)
+		),
+	};
+
+	await expect(diffTestSchemasPushMysql(
+		client,
+		schema1,
+		schema2,
+		[],
+		'drizzle',
+		false,
+	)).rejects.toThrowError();
 
 	await client.query(`DROP TABLE \`test\`;`);
 });

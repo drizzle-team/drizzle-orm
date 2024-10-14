@@ -237,3 +237,7 @@ export function getColumnNameAndConfig<
 	};
 }
 export type IfNotImported<T, Y, N> = unknown extends T ? Y : N;
+
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends any
+	? Required<Pick<T, Keys>> & Partial<Omit<T, Keys>>
+	: never;

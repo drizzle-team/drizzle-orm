@@ -12,6 +12,7 @@ import {
 	numeric,
 	real,
 	sqliteTable,
+	sqliteView,
 	text,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
@@ -1292,4 +1293,107 @@ test('db has checks. Push with same names', async () => {
 	expect(shouldAskForApprove).toBe(false);
 	expect(tablesToRemove!.length).toBe(0);
 	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('create view', async () => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+	};
+
+	const schema2 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			definition: 'select "id" from "test"',
+			name: 'view',
+			type: 'sqlite_create_view',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE VIEW \`view\` AS select "id" from "test";`,
+	]);
+});
+
+test('drop view', async () => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			name: 'view',
+			type: 'drop_view',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'DROP VIEW \`view\`;',
+	]);
+});
+
+test('alter view ".as"', async () => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table).where(sql`${table.id} = 1`)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
 });
