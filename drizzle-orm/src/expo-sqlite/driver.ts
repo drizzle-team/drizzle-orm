@@ -15,7 +15,7 @@ import { ExpoSQLiteSession } from './session.ts';
 export class ExpoSQLiteDatabase<TSchema extends Record<string, unknown> = Record<string, never>>
 	extends BaseSQLiteDatabase<'sync', SQLiteRunResult, TSchema>
 {
-	static readonly [entityKind]: string = 'ExpoSQLiteDatabase';
+	static override readonly [entityKind]: string = 'ExpoSQLiteDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
@@ -24,7 +24,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 ): ExpoSQLiteDatabase<TSchema> & {
 	$client: SQLiteDatabase;
 } {
-	const dialect = new SQLiteSyncDialect();
+	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import chalk from 'chalk';
+import { sql } from 'drizzle-orm';
 import {
 	blob,
 	foreignKey,
@@ -9,10 +10,11 @@ import {
 	numeric,
 	real,
 	sqliteTable,
+	sqliteView,
 	text,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
-import { diffTestSchemasPushSqlite } from 'tests/schemaDiffer';
+import { diffTestSchemasPushSqlite, introspectSQLiteToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
 test('nothing changed in schema', async (t) => {
@@ -1287,4 +1289,101 @@ test('recreate table with added column not null and without default with data', 
 	expect(shouldAskForApprove).toBe(false);
 	expect(tablesToRemove!.length).toBe(0);
 	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('create view', async () => {
+	const client = new Database(':memory:');
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+	};
+
+	const schema2 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			definition: 'select "id" from "test"',
+			name: 'view',
+			type: 'sqlite_create_view',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE VIEW \`view\` AS select "id" from "test";`,
+	]);
+});
+
+test('drop view', async () => {
+	const client = new Database(':memory:');
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			name: 'view',
+			type: 'drop_view',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'DROP VIEW \`view\`;',
+	]);
+});
+
+test('alter view ".as"', async () => {
+	const client = new Database(':memory:');
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table).where(sql`${table.id} = 1`)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
 });

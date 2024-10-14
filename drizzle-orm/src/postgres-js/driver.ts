@@ -16,7 +16,7 @@ import { PostgresJsSession } from './session.ts';
 export class PostgresJsDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<PostgresJsQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'PostgresJsDatabase';
+	static override readonly [entityKind]: string = 'PostgresJsDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
@@ -35,7 +35,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client.options.serializers['114'] = transparentParser;
 	client.options.serializers['3802'] = transparentParser;
 
-	const dialect = new PgDialect();
+	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

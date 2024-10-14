@@ -92,7 +92,7 @@ export class MySqlDeleteBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
 > extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> implements SQLWrapper {
-	static readonly [entityKind]: string = 'MySqlDelete';
+	static override readonly [entityKind]: string = 'MySqlDelete';
 
 	private config: MySqlDeleteConfig;
 

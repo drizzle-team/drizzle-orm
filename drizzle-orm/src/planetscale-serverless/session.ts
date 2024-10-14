@@ -18,7 +18,7 @@ import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlPreparedQuery<T> {
-	static readonly [entityKind]: string = 'PlanetScalePreparedQuery';
+	static override readonly [entityKind]: string = 'PlanetScalePreparedQuery';
 
 	private rawQuery = { as: 'object' } as const;
 	private query = { as: 'array' } as const;
@@ -106,7 +106,7 @@ export class PlanetscaleSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlSession<MySqlQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PlanetscaleSession';
+	static override readonly [entityKind]: string = 'PlanetscaleSession';
 
 	private logger: Logger;
 	private client: Client | Transaction | Connection;
@@ -191,7 +191,7 @@ export class PlanetScaleTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlTransaction<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PlanetScaleTransaction';
+	static override readonly [entityKind]: string = 'PlanetScaleTransaction';
 
 	constructor(
 		dialect: MySqlDialect,

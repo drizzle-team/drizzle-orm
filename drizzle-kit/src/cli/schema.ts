@@ -41,12 +41,15 @@ const optionDriver = string()
 	.enum(...drivers)
 	.desc('Database driver');
 
+const optionCasing = string().enum('camelCase', 'snake_case').desc('Casing for serialization');
+
 export const generate = command({
 	name: 'generate',
 	options: {
 		config: optionConfig,
 		dialect: optionDialect,
 		driver: optionDriver,
+		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
 		out: optionOut,
 		name: string().desc('Migration file name'),
@@ -63,7 +66,7 @@ export const generate = command({
 			'generate',
 			opts,
 			['prefix', 'name', 'custom'],
-			['driver', 'breakpoints', 'schema', 'out', 'dialect'],
+			['driver', 'breakpoints', 'schema', 'out', 'dialect', 'casing'],
 		);
 		return prepareGenerateConfig(opts, from);
 	},
@@ -212,6 +215,7 @@ export const push = command({
 	options: {
 		config: optionConfig,
 		dialect: optionDialect,
+		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
 		...optionsFilters,
 		...optionsDatabaseCredentials,
@@ -245,6 +249,7 @@ export const push = command({
 				'schemaFilters',
 				'extensionsFilters',
 				'tablesFilter',
+				'casing',
 			],
 		);
 
@@ -263,6 +268,7 @@ export const push = command({
 			tablesFilter,
 			schemasFilter,
 			force,
+			casing,
 		} = config;
 
 		try {
@@ -275,6 +281,7 @@ export const push = command({
 					strict,
 					verbose,
 					force,
+					casing,
 				);
 			} else if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
@@ -307,6 +314,7 @@ export const push = command({
 					tablesFilter,
 					schemasFilter,
 					force,
+					casing,
 				);
 			} else if (dialect === 'sqlite') {
 				const { sqlitePush } = await import('./commands/push');
@@ -317,6 +325,7 @@ export const push = command({
 					credentials,
 					tablesFilter,
 					force,
+					casing,
 				);
 			} else if (dialect === 'turso') {
 				const { libSQLPush } = await import('./commands/push');
@@ -327,6 +336,7 @@ export const push = command({
 					credentials,
 					tablesFilter,
 					force,
+					casing,
 				);
 			} else {
 				assertUnreachable(dialect);

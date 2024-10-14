@@ -1,13 +1,18 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
 	// AnySQLiteColumnBuilder,
 	AnySQLiteTable,
 	getTableConfig,
+	getViewConfig,
 	SQLiteBaseInteger,
+	SQLiteColumn,
 	SQLiteSyncDialect,
+	SQLiteView,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
+import { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
@@ -19,16 +24,20 @@ import type {
 	SQLiteSchemaInternal,
 	Table,
 	UniqueConstraint,
+	View,
 } from '../serializer/sqliteSchema';
-import type { SQLiteDB } from '../utils';
+import { getColumnCasing, type SQLiteDB } from '../utils';
 import { sqlToStr } from '.';
-
-const dialect = new SQLiteSyncDialect();
 
 export const generateSqliteSnapshot = (
 	tables: AnySQLiteTable[],
+	views: SQLiteView[],
+	casing: CasingType | undefined,
 ): SQLiteSchemaInternal => {
+	const dialect = new SQLiteSyncDialect({ casing });
 	const result: Record<string, Table> = {};
+	const resultViews: Record<string, View> = {};
+
 	const internal: SQLiteKitInternals = { indexes: {} };
 	for (const table of tables) {
 		// const tableName = getTableName(table);
@@ -48,12 +57,13 @@ export const generateSqliteSnapshot = (
 		} = getTableConfig(table);
 
 		columns.forEach((column) => {
+			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
 			const primaryKey: boolean = column.primary;
 			const generated = column.generated;
 
 			const columnToSet: Column = {
-				name: column.name,
+				name,
 				type: column.getSQLType(),
 				primaryKey,
 				notNull,
@@ -74,7 +84,7 @@ export const generateSqliteSnapshot = (
 
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
-					columnToSet.default = sqlToStr(column.default);
+					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					columnToSet.default = typeof column.default === 'string'
 						? `'${column.default}'`
@@ -84,7 +94,7 @@ export const generateSqliteSnapshot = (
 						: column.default;
 				}
 			}
-			columnsObject[column.name] = columnToSet;
+			columnsObject[name] = columnToSet;
 
 			if (column.isUnique) {
 				const existingUnique = indexesObject[column.uniqueName!];
@@ -102,7 +112,7 @@ export const generateSqliteSnapshot = (
 								)
 							} on the ${
 								chalk.underline.blue(
-									column.name,
+									name,
 								)
 							} column is confilcting with a unique constraint name already defined for ${
 								chalk.underline.blue(
@@ -122,7 +132,6 @@ export const generateSqliteSnapshot = (
 		});
 
 		const foreignKeys: ForeignKey[] = tableForeignKeys.map((fk) => {
-			const name = fk.getName();
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete ?? 'no action';
 			const onUpdate = fk.onUpdate ?? 'no action';
@@ -132,8 +141,22 @@ export const generateSqliteSnapshot = (
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
-			const columnsFrom = reference.columns.map((it) => it.name);
-			const columnsTo = reference.foreignColumns.map((it) => it.name);
+
+			const originalColumnsFrom = reference.columns.map((it) => it.name);
+			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
+			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+
+			let name = fk.getName();
+			if (casing !== undefined) {
+				for (let i = 0; i < originalColumnsFrom.length; i++) {
+					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+				}
+				for (let i = 0; i < originalColumnsTo.length; i++) {
+					name = name.replace(originalColumnsTo[i], columnsTo[i]);
+				}
+			}
+
 			return {
 				name,
 				tableFrom,
@@ -175,7 +198,7 @@ export const generateSqliteSnapshot = (
 					}
 					return sql;
 				} else {
-					return it.name;
+					return getColumnCasing(it, casing);
 				}
 			});
 
@@ -195,7 +218,7 @@ export const generateSqliteSnapshot = (
 		});
 
 		uniqueConstraints?.map((unq) => {
-			const columnNames = unq.columns.map((c) => c.name);
+			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
 
 			const name = unq.name ?? uniqueKeyName(table, columnNames);
 
@@ -236,12 +259,22 @@ export const generateSqliteSnapshot = (
 
 		primaryKeys.forEach((it) => {
 			if (it.columns.length > 1) {
-				primaryKeysObject[it.getName()] = {
-					columns: it.columns.map((it) => it.name),
-					name: it.getName(),
+				const originalColumnNames = it.columns.map((c) => c.name);
+				const columnNames = it.columns.map((c) => getColumnCasing(c, casing));
+
+				let name = it.getName();
+				if (casing !== undefined) {
+					for (let i = 0; i < originalColumnNames.length; i++) {
+						name = name.replace(originalColumnNames[i], columnNames[i]);
+					}
+				}
+
+				primaryKeysObject[name] = {
+					columns: columnNames,
+					name,
 				};
 			} else {
-				columnsObject[it.columns[0].name].primaryKey = true;
+				columnsObject[getColumnCasing(it.columns[0], casing)].primaryKey = true;
 			}
 		});
 
@@ -255,10 +288,83 @@ export const generateSqliteSnapshot = (
 		};
 	}
 
+	for (const view of views) {
+		const { name, isExisting, selectedFields, query, schema } = getViewConfig(view);
+
+		const columnsObject: Record<string, Column> = {};
+
+		const existingView = resultViews[name];
+		if (typeof existingView !== 'undefined') {
+			console.log(
+				`\n${
+					withStyle.errorWarning(
+						`We\'ve found duplicated view name across ${
+							chalk.underline.blue(
+								schema ?? 'public',
+							)
+						} schema. Please rename your view`,
+					)
+				}`,
+			);
+			process.exit(1);
+		}
+
+		for (const key in selectedFields) {
+			if (is(selectedFields[key], SQLiteColumn)) {
+				const column = selectedFields[key];
+				const notNull: boolean = column.notNull;
+				const primaryKey: boolean = column.primary;
+				const generated = column.generated;
+
+				const columnToSet: Column = {
+					name: column.name,
+					type: column.getSQLType(),
+					primaryKey,
+					notNull,
+					autoincrement: is(column, SQLiteBaseInteger)
+						? column.autoIncrement
+						: false,
+					generated: generated
+						? {
+							as: is(generated.as, SQL)
+								? `(${dialect.sqlToQuery(generated.as as SQL, 'indexes').sql})`
+								: typeof generated.as === 'function'
+								? `(${dialect.sqlToQuery(generated.as() as SQL, 'indexes').sql})`
+								: `(${generated.as as any})`,
+							type: generated.mode ?? 'virtual',
+						}
+						: undefined,
+				};
+
+				if (column.default !== undefined) {
+					if (is(column.default, SQL)) {
+						columnToSet.default = sqlToStr(column.default, casing);
+					} else {
+						columnToSet.default = typeof column.default === 'string'
+							? `'${column.default}'`
+							: typeof column.default === 'object'
+									|| Array.isArray(column.default)
+							? `'${JSON.stringify(column.default)}'`
+							: column.default;
+					}
+				}
+				columnsObject[column.name] = columnToSet;
+			}
+		}
+
+		resultViews[name] = {
+			columns: columnsObject,
+			name,
+			isExisting,
+			definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
+		};
+	}
+
 	return {
 		version: '6',
 		dialect: 'sqlite',
 		tables: result,
+		views: resultViews,
 		enums: {},
 		_meta: {
 			tables: {},
@@ -363,6 +469,8 @@ export const fromDatabase = async (
 	) => void,
 ): Promise<SQLiteSchemaInternal> => {
 	const result: Record<string, Table> = {};
+	const resultViews: Record<string, View> = {};
+
 	const columns = await db.query<{
 		tableName: string;
 		columnName: string;
@@ -373,11 +481,12 @@ export const fromDatabase = async (
 		seq: number;
 		hidden: number;
 		sql: string;
+		type: 'view' | 'table';
 	}>(
 		`SELECT 
-    m.name as "tableName", p.name as "columnName", p.type as "columnType", p."notnull" as "notNull", p.dflt_value as "defaultValue", p.pk as pk, p.hidden as hidden, m.sql
+    m.name as "tableName", p.name as "columnName", p.type as "columnType", p."notnull" as "notNull", p.dflt_value as "defaultValue", p.pk as pk, p.hidden as hidden, m.sql, m.type as type
     FROM sqlite_master AS m JOIN pragma_table_xinfo(m.name) AS p
-    WHERE m.type = 'table' 
+    WHERE (m.type = 'table' OR m.type = 'view')
     and m.tbl_name != 'sqlite_sequence' 
     and m.tbl_name != 'sqlite_stat1' 
     and m.tbl_name != '_litestream_seq' 
@@ -409,6 +518,7 @@ export const fromDatabase = async (
 	let tablesCount = new Set();
 	let indexesCount = 0;
 	let foreignKeysCount = 0;
+	let viewsCount = 0;
 
 	// append primaryKeys by table
 	const tableToPk: { [tname: string]: string[] } = {};
@@ -421,7 +531,10 @@ export const fromDatabase = async (
 	for (const column of columns) {
 		if (!tablesFilter(column.tableName)) continue;
 
-		columnsCount += 1;
+		// TODO
+		if (column.type !== 'view') {
+			columnsCount += 1;
+		}
 		if (progressCallback) {
 			progressCallback('columns', columnsCount, 'fetching');
 		}
@@ -670,10 +783,48 @@ WHERE
 		progressCallback('enums', 0, 'done');
 	}
 
+	const views = await db.query(
+		`SELECT name AS view_name, sql AS sql FROM sqlite_master WHERE type = 'view';`,
+	);
+
+	viewsCount = views.length;
+
+	if (progressCallback) {
+		progressCallback('views', viewsCount, 'fetching');
+	}
+	for (const view of views) {
+		const viewName = view['view_name'];
+		const sql = view['sql'];
+
+		const regex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'i');
+		const match = sql.match(regex);
+
+		if (!match) {
+			console.log('Could not process view');
+			process.exit(1);
+		}
+
+		const viewDefinition = match[1] as string;
+
+		const columns = result[viewName].columns;
+		delete result[viewName];
+
+		resultViews[viewName] = {
+			columns: columns,
+			isExisting: false,
+			name: viewName,
+			definition: viewDefinition,
+		};
+	}
+	if (progressCallback) {
+		progressCallback('views', viewsCount, 'done');
+	}
+
 	return {
 		version: '6',
 		dialect: 'sqlite',
 		tables: result,
+		views: resultViews,
 		enums: {},
 		_meta: {
 			tables: {},

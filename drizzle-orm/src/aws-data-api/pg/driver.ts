@@ -1,6 +1,4 @@
 import { entityKind, is } from '~/entity.ts';
-import type { SQL, SQLWrapper } from '~/index.ts';
-import { Param, sql, Table } from '~/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -14,6 +12,8 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { Table } from '~/table.ts';
 import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
@@ -36,7 +36,7 @@ export interface DrizzleAwsDataApiPgConfig<
 export class AwsDataApiPgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<AwsDataApiPgQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'AwsDataApiPgDatabase';
+	static override readonly [entityKind]: string = 'AwsDataApiPgDatabase';
 
 	override execute<
 		TRow extends Record<string, unknown> = Record<string, unknown>,
@@ -46,7 +46,7 @@ export class AwsDataApiPgDatabase<
 }
 
 export class AwsPgDialect extends PgDialect {
-	static readonly [entityKind]: string = 'AwsPgDialect';
+	static override readonly [entityKind]: string = 'AwsPgDialect';
 
 	override escapeParam(num: number): string {
 		return `:${num + 1}`;
@@ -93,7 +93,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 ): AwsDataApiPgDatabase<TSchema> & {
 	$client: AwsDataApiClient;
 } {
-	const dialect = new AwsPgDialect();
+	const dialect = new AwsPgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

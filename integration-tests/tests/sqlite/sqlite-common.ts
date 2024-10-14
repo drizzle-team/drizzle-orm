@@ -2972,4 +2972,44 @@ export function tests() {
 
 		expect(users.length).toBeGreaterThan(0);
 	});
+
+	test('Object keys as column names', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		// Tests the following:
+		// Column with optional config without providing a value
+		// Column with optional config providing a value
+		// Column without config
+		const users = sqliteTable('users', {
+			id: integer().primaryKey({ autoIncrement: true }),
+			createdAt: integer({ mode: 'timestamp' }),
+			name: text(),
+		});
+
+		await db.run(sql`drop table if exists users`);
+		await db.run(
+			sql`
+				create table users (
+					\`id\` integer primary key autoincrement,
+					\`createdAt\` integer,
+					\`name\` text
+				)
+			`,
+		);
+
+		await db.insert(users).values([
+			{ createdAt: new Date(Date.now() - 2592000000), name: 'John' },
+			{ createdAt: new Date(Date.now() - 86400000), name: 'Jane' },
+		]);
+		const result = await db
+			.select({ id: users.id, name: users.name })
+			.from(users)
+			.where(gt(users.createdAt, new Date(Date.now() - 2592000000)));
+
+		expect(result).toEqual([
+			{ id: 2, name: 'Jane' },
+		]);
+
+		await db.run(sql`drop table users`);
+	});
 }

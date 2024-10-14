@@ -19,7 +19,7 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class PrismaSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
 	{ type: 'async'; run: []; all: T['all']; get: T['get']; values: never; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'PrismaSQLitePreparedQuery';
+	static override readonly [entityKind]: string = 'PrismaSQLitePreparedQuery';
 
 	constructor(
 		private readonly prisma: PrismaClient,
@@ -60,7 +60,7 @@ export interface PrismaSQLiteSessionOptions {
 }
 
 export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<string, never>, Record<string, never>> {
-	static readonly [entityKind]: string = 'PrismaSQLiteSession';
+	static override readonly [entityKind]: string = 'PrismaSQLiteSession';
 
 	private readonly logger: Logger;
 

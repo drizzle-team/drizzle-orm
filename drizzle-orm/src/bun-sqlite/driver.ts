@@ -17,7 +17,7 @@ import { SQLiteBunSession } from './session.ts';
 export class BunSQLiteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends BaseSQLiteDatabase<'sync', void, TSchema> {
-	static readonly [entityKind]: string = 'BunSQLiteDatabase';
+	static override readonly [entityKind]: string = 'BunSQLiteDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
@@ -26,7 +26,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 ): BunSQLiteDatabase<TSchema> & {
 	$client: Database;
 } {
-	const dialect = new SQLiteSyncDialect();
+	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

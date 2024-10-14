@@ -21,7 +21,7 @@ export interface TiDBServerlessSDriverOptions {
 export class TiDBServerlessDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends MySqlDatabase<TiDBServerlessQueryResultHKT, TiDBServerlessPreparedQueryHKT, TSchema> {
-	static readonly [entityKind]: string = 'TiDBServerlessDatabase';
+	static override readonly [entityKind]: string = 'TiDBServerlessDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
@@ -30,7 +30,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 ): TiDBServerlessDatabase<TSchema> & {
 	$client: Connection;
 } {
-	const dialect = new MySqlDialect();
+	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

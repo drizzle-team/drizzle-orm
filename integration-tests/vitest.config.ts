@@ -20,6 +20,7 @@ export default defineConfig({
 				? [
 					'tests/relational/mysql.planetscale.test.ts',
 					'tests/neon-http-batch.test.ts',
+					'tests/neon-serverless.test.ts',
 					'tests/mysql/tidb-serverless.test.ts',
 					'tests/mysql/mysql-planetscale.test.ts',
 					'tests/sqlite/libsql.test.ts',

@@ -7,6 +7,7 @@ import type {
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import type { AnyPgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
@@ -27,7 +28,7 @@ export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
 export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBigSerial53'>>
 	extends PgColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'PgBigSerial53Builder';
+	static override readonly [entityKind]: string = 'PgBigSerial53Builder';
 
 	constructor(name: string) {
 		super(name, 'number', 'PgBigSerial53');
@@ -47,7 +48,7 @@ export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number', 'P
 }
 
 export class PgBigSerial53<T extends ColumnBaseConfig<'number', 'PgBigSerial53'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgBigSerial53';
+	static override readonly [entityKind]: string = 'PgBigSerial53';
 
 	getSQLType(): string {
 		return 'bigserial';
@@ -78,7 +79,7 @@ export type PgBigSerial64BuilderInitial<TName extends string> = NotNull<
 export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBigSerial64'>>
 	extends PgColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'PgBigSerial64Builder';
+	static override readonly [entityKind]: string = 'PgBigSerial64Builder';
 
 	constructor(name: string) {
 		super(name, 'bigint', 'PgBigSerial64');
@@ -97,7 +98,7 @@ export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'P
 }
 
 export class PgBigSerial64<T extends ColumnBaseConfig<'bigint', 'PgBigSerial64'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgBigSerial64';
+	static override readonly [entityKind]: string = 'PgBigSerial64';
 
 	getSQLType(): string {
 		return 'bigserial';
@@ -109,16 +110,20 @@ export class PgBigSerial64<T extends ColumnBaseConfig<'bigint', 'PgBigSerial64'>
 	}
 }
 
-interface PgBigSerialConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export interface PgBigSerialConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
 	mode: T;
 }
 
+export function bigserial<TMode extends PgBigSerialConfig['mode']>(
+	config: PgBigSerialConfig<TMode>,
+): TMode extends 'number' ? PgBigSerial53BuilderInitial<''> : PgBigSerial64BuilderInitial<''>;
 export function bigserial<TName extends string, TMode extends PgBigSerialConfig['mode']>(
 	name: TName,
 	config: PgBigSerialConfig<TMode>,
 ): TMode extends 'number' ? PgBigSerial53BuilderInitial<TName> : PgBigSerial64BuilderInitial<TName>;
-export function bigserial(name: string, { mode }: PgBigSerialConfig) {
-	if (mode === 'number') {
+export function bigserial(a: string | PgBigSerialConfig, b?: PgBigSerialConfig) {
+	const { name, config } = getColumnNameAndConfig<PgBigSerialConfig>(a, b);
+	if (config.mode === 'number') {
 		return new PgBigSerial53Builder(name);
 	}
 	return new PgBigSerial64Builder(name);

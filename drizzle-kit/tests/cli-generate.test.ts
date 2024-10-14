@@ -38,6 +38,7 @@ test('generate #1', async (t) => {
 		schema: 'schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
 	});
 });
 
@@ -57,6 +58,7 @@ test('generate #2', async (t) => {
 		schema: 'schema.ts',
 		out: 'out',
 		bundle: false,
+		casing: undefined,
 	});
 });
 
@@ -73,6 +75,7 @@ test('generate #3', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
 	});
 });
 
@@ -90,6 +93,7 @@ test('generate #4', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
 	});
 });
 
@@ -106,6 +110,7 @@ test('generate #5', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
 	});
 });
 
@@ -122,6 +127,7 @@ test('generate #6', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
 	});
 });
 
@@ -141,6 +147,7 @@ test('generate #7', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
 	});
 });
 
@@ -158,6 +165,7 @@ test('generate #8', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: true, // expo driver
+		casing: undefined,
 	});
 });
 
@@ -178,6 +186,7 @@ test('generate #9', async (t) => {
 		schema: 'schema.ts',
 		out: 'out',
 		bundle: false,
+		casing: undefined,
 	});
 });
 

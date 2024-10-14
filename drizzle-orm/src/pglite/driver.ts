@@ -37,7 +37,7 @@ export class PgliteDriver {
 export class PgliteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<PgliteQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'PgliteDatabase';
+	static override readonly [entityKind]: string = 'PgliteDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
@@ -46,7 +46,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 ): PgliteDatabase<TSchema> & {
 	$client: PgliteClient;
 } {
-	const dialect = new PgDialect();
+	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

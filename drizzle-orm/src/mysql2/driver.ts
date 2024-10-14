@@ -12,7 +12,7 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { DrizzleError } from '../index.ts';
+import { DrizzleError } from '../errors.ts';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
 import { MySql2Session } from './session.ts';
 
@@ -43,7 +43,7 @@ export { MySqlDatabase } from '~/mysql-core/db.ts';
 export class MySql2Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema> {
-	static readonly [entityKind]: string = 'MySql2Database';
+	static override readonly [entityKind]: string = 'MySql2Database';
 }
 
 export type MySql2DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
@@ -59,7 +59,7 @@ export function drizzle<
 ): MySql2Database<TSchema> & {
 	$client: TClient;
 } {
-	const dialect = new MySqlDialect();
+	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

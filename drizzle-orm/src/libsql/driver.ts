@@ -17,7 +17,7 @@ import { LibSQLSession } from './session.ts';
 export class LibSQLDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends BaseSQLiteDatabase<'async', ResultSet, TSchema> {
-	static readonly [entityKind]: string = 'LibSQLDatabase';
+	static override readonly [entityKind]: string = 'LibSQLDatabase';
 
 	/** @internal */
 	declare readonly session: LibSQLSession<TSchema, ExtractTablesWithRelations<TSchema>>;
@@ -34,7 +34,7 @@ export function drizzle<
 >(client: Client, config: DrizzleConfig<TSchema> = {}): LibSQLDatabase<TSchema> & {
 	$client: Client;
 } {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

@@ -22,7 +22,7 @@ export interface PlanetscaleSDriverOptions {
 export class PlanetScaleDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends MySqlDatabase<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TSchema> {
-	static readonly [entityKind]: string = 'PlanetScaleDatabase';
+	static override readonly [entityKind]: string = 'PlanetScaleDatabase';
 }
 
 export function drizzle<
@@ -68,7 +68,7 @@ Starting from version 0.30.0, you will encounter an error if you attempt to use 
 		`);
 	}
 
-	const dialect = new MySqlDialect();
+	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

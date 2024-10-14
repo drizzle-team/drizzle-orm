@@ -179,7 +179,7 @@ export class SQLiteUpdateBase<
 > extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
 	implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper
 {
-	static readonly [entityKind]: string = 'SQLiteUpdate';
+	static override readonly [entityKind]: string = 'SQLiteUpdate';
 
 	/** @internal */
 	config: SQLiteUpdateConfig;
