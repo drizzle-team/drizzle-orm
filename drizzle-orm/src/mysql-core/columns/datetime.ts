@@ -18,7 +18,7 @@ export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBui
 export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDateTime'>>
 	extends MySqlColumnBuilder<T, MySqlDatetimeConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDateTimeBuilder';
+	static override readonly [entityKind]: string = 'MySqlDateTimeBuilder';
 
 	constructor(name: T['name'], config: MySqlDatetimeConfig | undefined) {
 		super(name, 'date', 'MySqlDateTime');
@@ -37,7 +37,7 @@ export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MyS
 }
 
 export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlDateTime';
+	static override readonly [entityKind]: string = 'MySqlDateTime';
 
 	readonly fsp: number | undefined;
 
@@ -76,7 +76,7 @@ export type MySqlDateTimeStringBuilderInitial<TName extends string> = MySqlDateT
 export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlDateTimeString'>>
 	extends MySqlColumnBuilder<T, MySqlDatetimeConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDateTimeStringBuilder';
+	static override readonly [entityKind]: string = 'MySqlDateTimeStringBuilder';
 
 	constructor(name: T['name'], config: MySqlDatetimeConfig | undefined) {
 		super(name, 'string', 'MySqlDateTimeString');
@@ -95,7 +95,7 @@ export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'strin
 }
 
 export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDateTimeString'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlDateTimeString';
+	static override readonly [entityKind]: string = 'MySqlDateTimeString';
 
 	readonly fsp: number | undefined;
 

@@ -1,4 +1,3 @@
-import { types } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -25,7 +24,6 @@ export class VercelPgDriver {
 		private dialect: PgDialect,
 		private options: VercelPgDriverOptions = {},
 	) {
-		this.initMappers();
 	}
 
 	createSession(
@@ -33,19 +31,12 @@ export class VercelPgDriver {
 	): VercelPgSession<Record<string, unknown>, TablesRelationalConfig> {
 		return new VercelPgSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
-
-	initMappers() {
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
-	}
 }
 
 export class VercelPgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<VercelPgQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'VercelPgDatabase';
+	static override readonly [entityKind]: string = 'VercelPgDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(

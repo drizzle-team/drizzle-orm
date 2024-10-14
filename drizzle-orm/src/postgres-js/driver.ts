@@ -16,7 +16,7 @@ import { PostgresJsSession } from './session.ts';
 export class PostgresJsDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<PostgresJsQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'PostgresJsDatabase';
+	static override readonly [entityKind]: string = 'PostgresJsDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(

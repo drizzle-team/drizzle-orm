@@ -15,7 +15,7 @@ export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<{
 }>;
 
 export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgInetBuilder';
+	static override readonly [entityKind]: string = 'PgInetBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'string', 'PgInet');
@@ -30,7 +30,7 @@ export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>
 }
 
 export class PgInet<T extends ColumnBaseConfig<'string', 'PgInet'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgInet';
+	static override readonly [entityKind]: string = 'PgInet';
 
 	getSQLType(): string {
 		return 'inet';

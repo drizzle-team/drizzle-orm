@@ -86,6 +86,7 @@ test(`rename table and drop index`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 	const json2: SQLiteSchemaSquashed = {
 		version: '6',
@@ -125,6 +126,7 @@ test(`rename table and drop index`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 
 	const newJsonStatements = [
@@ -277,6 +279,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 	const json2: SQLiteSchemaSquashed = {
 		version: '6',
@@ -332,6 +335,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 
 	const newJsonStatements = [
@@ -549,6 +553,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 	const json2: SQLiteSchemaSquashed = {
 		version: '6',
@@ -623,6 +628,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 
 	const newJsonStatements = [
@@ -810,6 +816,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 	const json2: SQLiteSchemaSquashed = {
 		version: '6',
@@ -889,6 +896,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 
 	const newJsonStatements = [
@@ -1091,6 +1099,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 	const json2: SQLiteSchemaSquashed = {
 		version: '6',
@@ -1148,6 +1157,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 
 	const newJsonStatements = [
@@ -1287,6 +1297,7 @@ test(`add columns. set fk`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 	const json2: SQLiteSchemaSquashed = {
 		version: '6',
@@ -1356,6 +1367,7 @@ test(`add columns. set fk`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 
 	const newJsonStatements = [
@@ -1483,6 +1495,7 @@ test(`add column and fk`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 	const json2: SQLiteSchemaSquashed = {
 		version: '6',
@@ -1552,6 +1565,7 @@ test(`add column and fk`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 
 	const newJsonStatements = [
@@ -1658,6 +1672,7 @@ test(`add column and fk`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 	const json2: SQLiteSchemaSquashed = {
 		version: '6',
@@ -1727,6 +1742,7 @@ test(`add column and fk`, async (t) => {
 			},
 		},
 		enums: {},
+		views: {},
 	};
 
 	const newJsonStatements = [
