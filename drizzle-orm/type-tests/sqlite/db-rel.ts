@@ -1,37 +1,39 @@
-import pg from 'pg';
-import { type Equal, Expect } from 'type-tests/utils.ts';
-import { drizzle } from '~/node-postgres/index.ts';
-import { placeholder, sql } from '~/sql/sql.ts';
-import * as schema from './tables-rel.ts';
+import Database from 'better-sqlite3';
+import { type Equal, Expect } from 'type-tests/utils';
+import { drizzle } from '~/better-sqlite3';
+import { sql } from '~/index';
+import * as schema from './tables-rel';
 
-const { Pool } = pg;
+const client = new Database(':memory:');
 
-const pdb = new Pool({ connectionString: process.env['PG_CONNECTION_STRING'] });
-const db = drizzle(pdb, { schema });
+const db = drizzle(client, { schema });
 
 {
 	const result = await db.query.users.findMany({
 		where: (users, { sql }) => sql`char_length(${users.name} > 1)`,
-		limit: placeholder('l'),
+		limit: sql.placeholder('l'),
 		orderBy: (users, { asc, desc }) => [asc(users.name), desc(users.id)],
 		with: {
 			posts: {
 				where: (posts, { sql }) => sql`char_length(${posts.title} > 1)`,
-				limit: placeholder('l'),
+				limit: sql.placeholder('l'),
 				columns: {
 					id: false,
+					title: undefined,
 				},
 				with: {
 					author: true,
 					comments: {
 						where: (comments, { sql }) => sql`char_length(${comments.text} > 1)`,
-						limit: placeholder('l'),
+						limit: sql.placeholder('l'),
 						columns: {
 							text: true,
 						},
 						with: {
 							author: {
-								columns: {},
+								columns: {
+									id: undefined,
+								},
 								with: {
 									city: {
 										with: {
