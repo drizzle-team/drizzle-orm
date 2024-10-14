@@ -651,7 +651,6 @@ test('shuffle enum values', async () => {
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
 	);
 
-	console.log('statements: ', statements);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		columnsWithEnum: [

@@ -614,15 +614,12 @@ export const diffTestSchemasPush = async (
 	const shouldRunApply = sqlStatementsToRun.runApply === undefined ? true : sqlStatementsToRun.runApply;
 
 	for (const st of sqlStatementsToRun.before ?? []) {
-		console.log(st);
 		await client.query(st);
 	}
-	console.log('here');
 
 	if (shouldRunApply) {
 		const res = await applyPgDiffs(left, casing);
 		for (const st of res.sqlStatements) {
-			console.log(st);
 			await client.query(st);
 		}
 	}
