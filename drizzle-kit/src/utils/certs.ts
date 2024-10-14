@@ -1,19 +1,25 @@
 import envPaths from 'env-paths';
 import { mkdirSync } from 'fs';
 import { access, readFile } from 'fs/promises';
+import { exec, ExecOptions } from 'node:child_process';
 import { join } from 'path';
-import { $ } from 'zx';
 
 const p = envPaths('drizzle-studio', {
 	suffix: '',
 });
 
-$.verbose = false;
-$.cwd = p.data;
 mkdirSync(p.data, { recursive: true });
 
+export function runCommand(command: string, options: ExecOptions = {}) {
+	return new Promise<{ exitCode: number }>((resolve, reject) => {
+		exec(command, options, (error, stdout, stderr) => {
+			return resolve({ exitCode: error?.code ?? 0 });
+		});
+	});
+}
+
 export const certs = async () => {
-	const res = await $`mkcert --help`.nothrow();
+	const res = await runCommand(`mkcert --help`, { cwd: p.data });
 
 	// ~/.local/share/drizzle-studio
 	const keyPath = join(p.data, 'localhost-key.pem');
@@ -23,7 +29,7 @@ export const certs = async () => {
 		try {
 			await Promise.all([access(keyPath), access(certPath)]);
 		} catch (e) {
-			await $`mkcert localhost`.nothrow();
+			await runCommand(`mkcert localhost`, { cwd: p.data });
 		}
 		const [key, cert] = await Promise.all([
 			readFile(keyPath, { encoding: 'utf-8' }),
