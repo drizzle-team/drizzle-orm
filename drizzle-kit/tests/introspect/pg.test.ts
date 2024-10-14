@@ -5,6 +5,7 @@ import {
 	bigserial,
 	boolean,
 	char,
+	check,
 	cidr,
 	date,
 	doublePrecision,
@@ -17,8 +18,10 @@ import {
 	macaddr8,
 	numeric,
 	pgEnum,
+	pgMaterializedView,
 	pgSchema,
 	pgTable,
+	pgView,
 	real,
 	serial,
 	smallint,
@@ -29,8 +32,13 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
+import fs from 'fs';
 import { introspectPgToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
+
+if (!fs.existsSync('tests/introspect/postgres')) {
+	fs.mkdirSync('tests/introspect/postgres');
+}
 
 test('basic introspect test', async () => {
 	const client = new PGlite();
@@ -227,6 +235,8 @@ test('instrospect all column types', async () => {
 			smallint: smallint('smallint').default(10),
 			integer: integer('integer').default(10),
 			numeric: numeric('numeric', { precision: 3, scale: 1 }).default('99.9'),
+			numeric2: numeric('numeric2', { precision: 1, scale: 1 }).default('99.9'),
+			numeric3: numeric('numeric3').default('99.9'),
 			bigint: bigint('bigint', { mode: 'number' }).default(100),
 			boolean: boolean('boolean').default(true),
 			text: text('test').default('abc'),
@@ -400,6 +410,220 @@ test('introspect enum with similar name to native type', async () => {
 		client,
 		schema,
 		'introspect-enum-with-similar-name-to-native-type',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect checks', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: serial('id'),
+			name: varchar('name'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-checks',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect checks from different schemas with same names', async () => {
+	const client = new PGlite();
+
+	const mySchema = pgSchema('schema2');
+	const schema = {
+		mySchema,
+		users: pgTable('users', {
+			id: serial('id'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+		usersInMySchema: mySchema.table('users', {
+			id: serial('id'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} < 1`),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-checks-diff-schema-same-names',
+		['public', 'schema2'],
+	);
+
+	console.log('statements: ', statements);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect view #1', async () => {
+	const client = new PGlite();
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey().notNull(),
+		name: varchar('users'),
+	});
+
+	const view = pgView('some_view').as((qb) => qb.select().from(users));
+	const schema = {
+		view,
+		users,
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-view',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect view #2', async () => {
+	const client = new PGlite();
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey().notNull(),
+		name: varchar('users'),
+	});
+
+	const view = pgView('some_view', { id: integer('asd') }).with({ checkOption: 'cascaded' }).as(
+		sql`SELECT * FROM ${users}`,
+	);
+	const schema = {
+		view,
+		users,
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-view-2',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect view in other schema', async () => {
+	const client = new PGlite();
+
+	const newSchema = pgSchema('new_schema');
+	const users = pgTable('users', {
+		id: serial('id').primaryKey().notNull(),
+		name: varchar('users'),
+	});
+
+	const view = newSchema.view('some_view', { id: integer('asd') }).with({ checkOption: 'cascaded' }).as(
+		sql`SELECT * FROM ${users}`,
+	);
+	const schema = {
+		view,
+		users,
+		newSchema,
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-view-in-other-schema',
+		['new_schema'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect materialized view in other schema', async () => {
+	const client = new PGlite();
+
+	const newSchema = pgSchema('new_schema');
+	const users = pgTable('users', {
+		id: serial('id').primaryKey().notNull(),
+		name: varchar('users'),
+	});
+
+	const view = newSchema.materializedView('some_view', { id: integer('asd') }).with({ autovacuumEnabled: true }).as(
+		sql`SELECT * FROM ${users}`,
+	);
+	const schema = {
+		view,
+		users,
+		newSchema,
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-mat-view-in-other-schema',
+		['new_schema'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect materialized view #1', async () => {
+	const client = new PGlite();
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey().notNull(),
+		name: varchar('users'),
+	});
+
+	const view = pgMaterializedView('some_view').using('heap').withNoData().as((qb) => qb.select().from(users));
+	const schema = {
+		view,
+		users,
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-materialized-view',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect materialized view #2', async () => {
+	const client = new PGlite();
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey().notNull(),
+		name: varchar('users'),
+	});
+
+	const view = pgMaterializedView('some_view', { id: integer('asd') }).with({ autovacuumFreezeMinAge: 1 }).as(
+		sql`SELECT * FROM ${users}`,
+	);
+	const schema = {
+		view,
+		users,
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-materialized-view-2',
 	);
 
 	expect(statements.length).toBe(0);

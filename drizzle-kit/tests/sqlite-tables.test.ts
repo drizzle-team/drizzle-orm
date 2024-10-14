@@ -28,6 +28,7 @@ test('add table #1', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -56,6 +57,7 @@ test('add table #2', async () => {
 		compositePKs: [],
 		referenceData: [],
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 });
 
@@ -95,6 +97,7 @@ test('add table #3', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -114,6 +117,7 @@ test('add table #4', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'sqlite_create_table',
@@ -122,6 +126,7 @@ test('add table #4', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -148,6 +153,7 @@ test('add table #6', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
@@ -185,6 +191,7 @@ test('add table #7', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -222,6 +229,7 @@ test('add table #8', async () => {
 		],
 		compositePKs: [],
 		uniqueConstraints: [],
+		checkConstraints: [],
 		referenceData: [
 			{
 				columnsFrom: ['reportee_id'],
@@ -277,6 +285,7 @@ test('add table #9', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 
 	expect(statements[1]).toStrictEqual({
