@@ -1,3 +1,4 @@
+import { neonConfig, Pool, type PoolConfig } from '@neondatabase/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -9,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
 import type { NeonClient, NeonQueryResultHKT } from './session.ts';
 import { NeonSession } from './session.ts';
 
@@ -40,7 +41,7 @@ export class NeonDatabase<
 	static override readonly [entityKind]: string = 'NeonServerlessDatabase';
 }
 
-export function drizzle<
+function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends NeonClient = NeonClient,
 >(
@@ -76,4 +77,68 @@ export function drizzle<
 	(<any> db).$client = client;
 
 	return db as any;
+}
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends NeonClient = Pool,
+>(
+	...params: IfNotImported<
+		Pool,
+		[ImportTypeError<'@neondatabase/serverless'>],
+		[
+			TClient | string,
+		] | [
+			TClient | string,
+			DrizzleConfig<TSchema>,
+		] | [
+			(
+				& DrizzleConfig<TSchema>
+				& ({
+					connection: string | PoolConfig;
+				})
+				& {
+					ws?: any;
+				}
+			),
+		]
+	>
+): NeonDatabase<TSchema> & {
+	$client: TClient;
+} {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof Pool) {
+		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	}
+
+	if (typeof params[0] === 'string') {
+		const instance = new Pool({
+			connectionString: params[0],
+		});
+
+		construct(instance);
+	}
+
+	if (typeof params[0] === 'object') {
+		const { connection, ws, ...drizzleConfig } = params[0] as {
+			connection?: PoolConfig | string;
+			ws?: any;
+		} & DrizzleConfig<TSchema>;
+
+		if (ws) {
+			neonConfig.webSocketConstructor = ws;
+		}
+
+		const instance = typeof connection === 'string'
+			? new Pool({
+				connectionString: connection,
+			})
+			: new Pool(connection);
+
+		return construct(instance, drizzleConfig) as any;
+	}
+
+	const instance = new Pool();
+
+	return construct(instance, params[1]) as any;
 }

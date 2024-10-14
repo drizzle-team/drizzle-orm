@@ -1,4 +1,5 @@
-import type { Connection as CallbackConnection, Pool as CallbackPool } from 'mysql2';
+import { EventEmitter } from 'events';
+import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -11,7 +12,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
 import { DrizzleError } from '../errors.ts';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
 import { MySql2Session } from './session.ts';
@@ -50,7 +51,7 @@ export type MySql2DrizzleConfig<TSchema extends Record<string, unknown> = Record
 	& Omit<DrizzleConfig<TSchema>, 'schema'>
 	& ({ schema: TSchema; mode: Mode } | { schema?: undefined; mode?: Mode });
 
-export function drizzle<
+function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends MySql2Client | CallbackConnection | CallbackPool = MySql2Client | CallbackConnection | CallbackPool,
 >(
@@ -105,4 +106,52 @@ interface CallbackClient {
 
 function isCallbackClient(client: any): client is CallbackClient {
 	return typeof client.promise === 'function';
+}
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends MySql2Client | CallbackPool | CallbackConnection = CallbackPool,
+>(
+	...params: IfNotImported<
+		CallbackPool,
+		[ImportTypeError<'mysql2'>],
+		[
+			TClient | string,
+		] | [
+			TClient | string,
+			MySql2DrizzleConfig<TSchema>,
+		] | [
+			(
+				& MySql2DrizzleConfig<TSchema>
+				& ({
+					connection: string | PoolOptions;
+				})
+			),
+		]
+	>
+): MySql2Database<TSchema> & {
+	$client: TClient;
+} {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof EventEmitter) {
+		return construct(params[0] as TClient, params[1] as MySql2DrizzleConfig<TSchema> | undefined) as any;
+	}
+
+	if (typeof params[0] === 'object') {
+		const { connection, ...drizzleConfig } = params[0] as
+			& { connection: PoolOptions | string }
+			& MySql2DrizzleConfig<TSchema>;
+
+		const instance = createPool(connection as PoolOptions);
+		const db = construct(instance, drizzleConfig);
+
+		return db as any;
+	}
+
+	const connectionString = params[0]!;
+	const instance = createPool({
+		uri: connectionString,
+	});
+
+	return construct(instance, params[1]) as any;
 }

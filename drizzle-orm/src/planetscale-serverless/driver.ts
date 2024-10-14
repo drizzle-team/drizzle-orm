@@ -1,4 +1,4 @@
-import type { Connection } from '@planetscale/database';
+import type { Config, Connection } from '@planetscale/database';
 import { Client } from '@planetscale/database';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -11,7 +11,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
 import type { PlanetScalePreparedQueryHKT, PlanetscaleQueryResultHKT } from './session.ts';
 import { PlanetscaleSession } from './session.ts';
 
@@ -25,7 +25,7 @@ export class PlanetScaleDatabase<
 	static override readonly [entityKind]: string = 'PlanetScaleDatabase';
 }
 
-export function drizzle<
+function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends Client | Connection = Client | Connection,
 >(
@@ -94,4 +94,56 @@ Starting from version 0.30.0, you will encounter an error if you attempt to use 
 	(<any> db).$client = client;
 
 	return db as any;
+}
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends Client = Client,
+>(
+	...params: IfNotImported<
+		Config,
+		[ImportTypeError<'@planetscale/database'>],
+		[
+			TClient | string,
+		] | [
+			TClient | string,
+			DrizzleConfig<TSchema>,
+		] | [
+			(
+				& DrizzleConfig<TSchema>
+				& ({
+					connection: string | Config;
+				})
+			),
+		]
+	>
+): PlanetScaleDatabase<TSchema> & {
+	$client: TClient;
+} {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof Client) {
+		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	}
+
+	if (typeof params[0] === 'object') {
+		const { connection, ...drizzleConfig } = params[0] as
+			& { connection: Config | string }
+			& DrizzleConfig;
+
+		const instance = typeof connection === 'string'
+			? new Client({
+				url: connection,
+			})
+			: new Client(
+				connection,
+			);
+
+		return construct(instance, drizzleConfig) as any;
+	}
+
+	const instance = new Client({
+		url: params[0],
+	});
+
+	return construct(instance, params[1]) as any;
 }

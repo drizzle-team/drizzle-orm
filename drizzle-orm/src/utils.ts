@@ -236,4 +236,8 @@ export function getColumnNameAndConfig<
 		config: typeof a === 'object' ? a : b as TConfig,
 	};
 }
+
 export type IfNotImported<T, Y, N> = unknown extends T ? Y : N;
+
+export type ImportTypeError<TPackageName extends string> =
+	`Please install \`${TPackageName}\`to allow Drizzle ORM to connect to the database`;

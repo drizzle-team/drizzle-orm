@@ -1,3 +1,4 @@
+import { PGlite, type PGliteOptions } from '@electric-sql/pglite';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -9,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
 
@@ -40,7 +41,7 @@ export class PgliteDatabase<
 	static override readonly [entityKind]: string = 'PgliteDatabase';
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: PgliteClient,
 	config: DrizzleConfig<TSchema> = {},
 ): PgliteDatabase<TSchema> & {
@@ -73,4 +74,58 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	(<any> db).$client = client;
 
 	return db as any;
+}
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends PGlite = PGlite,
+>(
+	...params: IfNotImported<
+		PGlite,
+		[ImportTypeError<'@electric-sql/pglite'>],
+		| []
+		| [
+			TClient | string,
+		]
+		| [
+			TClient | string,
+			DrizzleConfig<TSchema>,
+		]
+		| [
+			(
+				& DrizzleConfig<TSchema>
+				& ({
+					connection?: (PGliteOptions & { dataDir?: string }) | string;
+				})
+			),
+		]
+	>
+): PgliteDatabase<TSchema> & {
+	$client: TClient;
+} {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof PGlite) {
+		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	}
+
+	if (typeof params[0] === 'object') {
+		const { connection, ...drizzleConfig } = params[0] as {
+			connection: PGliteOptions & { dataDir: string };
+		} & DrizzleConfig;
+
+		if (typeof connection === 'object') {
+			const { dataDir, ...options } = connection;
+
+			const instance = new PGlite(dataDir, options);
+
+			return construct(instance, drizzleConfig) as any;
+		}
+
+		const instance = new PGlite(connection);
+
+		return construct(instance, drizzleConfig) as any;
+	}
+
+	const instance = new PGlite(params[0]);
+	return construct(instance, params[1]) as any;
 }
