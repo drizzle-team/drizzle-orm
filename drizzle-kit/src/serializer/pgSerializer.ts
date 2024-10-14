@@ -1030,12 +1030,7 @@ export const fromDatabase = async (
 
 					columnToReturn[columnName] = {
 						name: columnName,
-						type:
-							// filter vectors, but in future we should filter any extension that was installed by user
-							columnAdditionalDT === 'USER-DEFINED'
-								&& !['vector', 'geometry'].includes(enumType)
-								? enumType
-								: columnTypeMapped,
+						type: columnTypeMapped,
 						typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
 							? enumsToReturn[`${typeSchema}.${enumType}`].schema
 							: undefined,
