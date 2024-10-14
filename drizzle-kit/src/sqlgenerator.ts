@@ -1,5 +1,4 @@
 import { BREAKPOINT } from './cli/commands/migrate';
-import { Driver } from './cli/validations/common';
 import {
 	JsonAddColumnStatement,
 	JsonAddValueToEnumStatement,
@@ -21,17 +20,26 @@ import {
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
+	JsonAlterMySqlViewStatement,
 	JsonAlterReferenceStatement,
 	JsonAlterSequenceStatement,
 	JsonAlterTableRemoveFromSchema,
 	JsonAlterTableSetNewSchema,
 	JsonAlterTableSetSchema,
+	JsonAlterViewAddWithOptionStatement,
+	JsonAlterViewAlterSchemaStatement,
+	JsonAlterViewAlterTablespaceStatement,
+	JsonAlterViewAlterUsingStatement,
+	JsonAlterViewDropWithOptionStatement,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
+	JsonCreateMySqlViewStatement,
+	JsonCreatePgViewStatement,
 	JsonCreateReferenceStatement,
 	JsonCreateSchema,
 	JsonCreateSequenceStatement,
+	JsonCreateSqliteViewStatement,
 	JsonCreateTableStatement,
 	JsonCreateUniqueConstraint,
 	JsonDeleteCompositePK,
@@ -43,6 +51,7 @@ import {
 	JsonDropSequenceStatement,
 	JsonDropTableStatement,
 	JsonDropValueFromEnumStatement,
+	JsonDropViewStatement,
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
@@ -52,6 +61,7 @@ import {
 	JsonRenameSchema,
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
+	JsonRenameViewStatement,
 	JsonSqliteAddColumnStatement,
 	JsonSqliteCreateTableStatement,
 	JsonStatement,
@@ -396,6 +406,256 @@ export class SQLiteCreateTableConvertor extends Convertor {
 		statement += `\n`;
 		statement += `);`;
 		statement += `\n`;
+		return statement;
+	}
+}
+
+class PgCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_view' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonCreatePgViewStatement) {
+		const { definition, name: viewName, schema, with: withOption, materialized, withNoData, tablespace, using } = st;
+
+		const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
+
+		let statement = materialized ? `CREATE MATERIALIZED VIEW ${name}` : `CREATE VIEW ${name}`;
+
+		if (using) statement += ` USING "${using}"`;
+
+		const options: string[] = [];
+		if (withOption) {
+			statement += ` WITH (`;
+
+			Object.entries(withOption).forEach(([key, value]) => {
+				if (typeof value === 'undefined') return;
+
+				options.push(`${key.snake_case()} = ${value}`);
+			});
+
+			statement += options.join(', ');
+
+			statement += `)`;
+		}
+
+		if (tablespace) statement += ` TABLESPACE ${tablespace}`;
+
+		statement += ` AS (${definition})`;
+
+		if (withNoData) statement += ` WITH NO DATA`;
+
+		statement += `;`;
+
+		return statement;
+	}
+}
+
+class MySqlCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'mysql_create_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonCreateMySqlViewStatement) {
+		const { definition, name, algorithm, sqlSecurity, withCheckOption, replace } = st;
+
+		let statement = `CREATE `;
+		statement += replace ? `OR REPLACE ` : '';
+		statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
+		statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
+		statement += `VIEW \`${name}\` AS (${definition})`;
+		statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';
+
+		statement += ';';
+
+		return statement;
+	}
+}
+
+class SqliteCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'sqlite_create_view' && (dialect === 'sqlite' || dialect === 'turso');
+	}
+
+	convert(st: JsonCreateSqliteViewStatement) {
+		const { definition, name } = st;
+
+		return `CREATE VIEW \`${name}\` AS ${definition};`;
+	}
+}
+
+class PgDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name: viewName, schema, materialized } = st;
+
+		const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
+
+		return `DROP${materialized ? ' MATERIALIZED' : ''} VIEW ${name};`;
+	}
+}
+
+class MySqlDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name } = st;
+
+		return `DROP VIEW \`${name}\`;`;
+	}
+}
+
+class SqliteDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && (dialect === 'sqlite' || dialect === 'turso');
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name } = st;
+
+		return `DROP VIEW \`${name}\`;`;
+	}
+}
+
+class MySqlAlterViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_mysql_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonAlterMySqlViewStatement) {
+		const { name, algorithm, definition, sqlSecurity, withCheckOption } = st;
+
+		let statement = `ALTER `;
+		statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
+		statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
+		statement += `VIEW \`${name}\` AS ${definition}`;
+		statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';
+
+		statement += ';';
+
+		return statement;
+	}
+}
+
+class PgRenameViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_view' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonRenameViewStatement) {
+		const { nameFrom: from, nameTo: to, schema, materialized } = st;
+
+		const nameFrom = `"${schema}"."${from}"`;
+
+		return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO "${to}";`;
+	}
+}
+
+class MySqlRenameViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonRenameViewStatement) {
+		const { nameFrom: from, nameTo: to } = st;
+
+		return `RENAME TABLE \`${from}\` RENAME TO \`${to}\`;`;
+	}
+}
+
+class PgAlterViewSchemaConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_alter_schema' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAlterSchemaStatement) {
+		const { fromSchema, toSchema, name, materialized } = st;
+
+		const statement = `ALTER${
+			materialized ? ' MATERIALIZED' : ''
+		} VIEW "${fromSchema}"."${name}" SET SCHEMA "${toSchema}";`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewAddWithOptionConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_add_with_option' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAddWithOptionStatement) {
+		const { schema, with: withOption, name, materialized } = st;
+
+		let statement = `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW "${schema}"."${name}" SET (`;
+
+		const options: string[] = [];
+
+		Object.entries(withOption).forEach(([key, value]) => {
+			options.push(`${key.snake_case()} = ${value}`);
+		});
+
+		statement += options.join(', ');
+
+		statement += `);`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewDropWithOptionConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_drop_with_option' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewDropWithOptionStatement) {
+		const { schema, name, materialized, with: withOptions } = st;
+
+		let statement = `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW "${schema}"."${name}" RESET (`;
+
+		const options: string[] = [];
+
+		Object.entries(withOptions).forEach(([key, value]) => {
+			options.push(`${key.snake_case()}`);
+		});
+
+		statement += options.join(', ');
+
+		statement += ');';
+
+		return statement;
+	}
+}
+
+class PgAlterViewAlterTablespaceConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_alter_tablespace' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAlterTablespaceStatement) {
+		const { schema, name, toTablespace } = st;
+
+		const statement = `ALTER MATERIALIZED VIEW "${schema}"."${name}" SET TABLESPACE ${toTablespace};`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewAlterUsingConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_alter_using' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAlterUsingStatement) {
+		const { schema, name, toUsing } = st;
+
+		const statement = `ALTER MATERIALIZED VIEW "${schema}"."${name}" SET ACCESS METHOD "${toUsing}";`;
+
 		return statement;
 	}
 }
@@ -2571,6 +2831,23 @@ convertors.push(new MySqlCreateTableConvertor());
 convertors.push(new SQLiteCreateTableConvertor());
 convertors.push(new SQLiteRecreateTableConvertor());
 convertors.push(new LibSQLRecreateTableConvertor());
+
+convertors.push(new PgCreateViewConvertor());
+convertors.push(new PgDropViewConvertor());
+convertors.push(new PgRenameViewConvertor());
+convertors.push(new PgAlterViewSchemaConvertor());
+convertors.push(new PgAlterViewAddWithOptionConvertor());
+convertors.push(new PgAlterViewDropWithOptionConvertor());
+convertors.push(new PgAlterViewAlterTablespaceConvertor());
+convertors.push(new PgAlterViewAlterUsingConvertor());
+
+convertors.push(new MySqlCreateViewConvertor());
+convertors.push(new MySqlDropViewConvertor());
+convertors.push(new MySqlRenameViewConvertor());
+convertors.push(new MySqlAlterViewConvertor());
+
+convertors.push(new SqliteCreateViewConvertor());
+convertors.push(new SqliteDropViewConvertor());
 
 convertors.push(new CreateTypeEnumConvertor());
 convertors.push(new DropTypeEnumConvertor());

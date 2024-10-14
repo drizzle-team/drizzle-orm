@@ -1,6 +1,6 @@
 import Docker from 'dockerode';
 import { SQL, sql } from 'drizzle-orm';
-import { char, int, mysqlTable, text, varchar } from 'drizzle-orm/mysql-core';
+import { char, int, mysqlTable, mysqlView, text, varchar } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
@@ -164,4 +164,55 @@ test('Default value of character type column: varchar', async () => {
 	expect(sqlStatements.length).toBe(0);
 
 	await client.query(`drop table users;`);
+});
+
+test('view #1', async () => {
+	const users = mysqlTable('users', { id: int('id') });
+	const testView = mysqlView('some_view', { id: int('id') }).as(
+		sql`select \`drizzle\`.\`users\`.\`id\` AS \`id\` from \`drizzle\`.\`users\``,
+	);
+
+	const schema = {
+		users: users,
+		testView,
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'view-1',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	await client.query(`drop view some_view;`);
+	await client.query(`drop table users;`);
+});
+
+test('view #2', async () => {
+	// await client.query(`drop view some_view;`);
+
+	const users = mysqlTable('some_users', { id: int('id') });
+	const testView = mysqlView('some_view', { id: int('id') }).algorithm('temptable').sqlSecurity('definer').as(
+		sql`SELECT * FROM ${users}`,
+	);
+
+	const schema = {
+		users: users,
+		testView,
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'view-2',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	await client.query(`drop table some_users;`);
 });
