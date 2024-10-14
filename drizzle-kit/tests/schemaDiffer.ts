@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { Client } from '@libsql/client/.';
 import { Database } from 'better-sqlite3';
+import { randomUUID } from 'crypto';
 import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import {

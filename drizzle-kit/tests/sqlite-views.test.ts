@@ -28,6 +28,7 @@ test('create view', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'sqlite_create_view',

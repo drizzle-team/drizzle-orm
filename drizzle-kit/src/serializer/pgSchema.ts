@@ -185,6 +185,11 @@ const column = object({
 		.optional(),
 }).strict();
 
+const checkConstraint = object({
+	name: string(),
+	value: string(),
+}).strict();
+
 const columnSquashed = object({
 	name: string(),
 	type: string(),
@@ -308,6 +313,7 @@ const table = object({
 	foreignKeys: record(string(), fk),
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
+	checkConstraints: record(string(), checkConstraint).default({}),
 }).strict();
 
 const schemaHash = object({
@@ -428,6 +434,7 @@ const tableSquashed = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()),
+	checkConstraints: record(string(), string()),
 }).strict();
 
 const tableSquashedV4 = object({
@@ -494,6 +501,7 @@ export type MatViewWithOption = TypeOf<typeof matViewWithOption>;
 export type ViewWithOption = TypeOf<typeof viewWithOption>;
 
 export type PgKitInternals = TypeOf<typeof kitInternals>;
+export type CheckConstraint = TypeOf<typeof checkConstraint>;
 
 export type PgSchemaV1 = TypeOf<typeof pgSchemaV1>;
 export type PgSchemaV2 = TypeOf<typeof pgSchemaV2>;
@@ -675,6 +683,17 @@ export const PgSquasher = {
 			cycle: splitted[7] === 'true',
 		};
 	},
+	squashCheck: (check: CheckConstraint) => {
+		return `${check.name};${check.value}`;
+	},
+	unsquashCheck: (input: string): CheckConstraint => {
+		const [
+			name,
+			value,
+		] = input.split(';');
+
+		return { name, value };
+	},
 };
 
 export const squashPgScheme = (
@@ -719,6 +738,13 @@ export const squashPgScheme = (
 				},
 			);
 
+			const squashedChecksContraints = mapValues(
+				it[1].checkConstraints,
+				(check) => {
+					return PgSquasher.squashCheck(check);
+				},
+			);
+
 			return [
 				it[0],
 				{
@@ -729,6 +755,7 @@ export const squashPgScheme = (
 					foreignKeys: squashedFKs,
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
+					checkConstraints: squashedChecksContraints,
 				},
 			];
 		}),

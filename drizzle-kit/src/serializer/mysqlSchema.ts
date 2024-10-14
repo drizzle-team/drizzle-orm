@@ -1,5 +1,5 @@
 import { any, boolean, enum as enumType, literal, object, record, string, TypeOf, union } from 'zod';
-import { mapValues, originUUID, snapshotVersion } from '../global';
+import { mapValues, originUUID } from '../global';
 
 // ------- V3 --------
 const index = object({
@@ -52,6 +52,11 @@ const uniqueConstraint = object({
 	columns: string().array(),
 }).strict();
 
+const checkConstraint = object({
+	name: string(),
+	value: string(),
+}).strict();
+
 const tableV4 = object({
 	name: string(),
 	schema: string().optional(),
@@ -67,6 +72,7 @@ const table = object({
 	foreignKeys: record(string(), fk),
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
+	checkConstraint: record(string(), checkConstraint).default({}),
 }).strict();
 
 const viewMeta = object({
@@ -170,6 +176,7 @@ const tableSquashed = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()).default({}),
+	checkConstraints: record(string(), string()).default({}),
 }).strict();
 
 const viewSquashed = view.omit({
@@ -208,6 +215,7 @@ export type Index = TypeOf<typeof index>;
 export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
+export type CheckConstraint = TypeOf<typeof checkConstraint>;
 export type View = TypeOf<typeof view>;
 export type ViewSquashed = TypeOf<typeof viewSquashed>;
 
@@ -270,6 +278,14 @@ export const MySqlSquasher = {
 			onDelete,
 		});
 		return result;
+	},
+	squashCheck: (input: CheckConstraint): string => {
+		return `${input.name};${input.value}`;
+	},
+	unsquashCheck: (input: string): CheckConstraint => {
+		const [name, value] = input.split(';');
+
+		return { name, value };
 	},
 	squashView: (view: View): string => {
 		return `${view.algorithm};${view.sqlSecurity};${view.withCheckOption}`;
@@ -341,6 +357,10 @@ export const squashMysqlScheme = (json: MySqlSchema): MySqlSchemaSquashed => {
 				},
 			);
 
+			const squashedCheckConstraints = mapValues(it[1].checkConstraint, (check) => {
+				return MySqlSquasher.squashCheck(check);
+			});
+
 			return [
 				it[0],
 				{
@@ -350,6 +370,7 @@ export const squashMysqlScheme = (json: MySqlSchema): MySqlSchemaSquashed => {
 					foreignKeys: squashedFKs,
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
+					checkConstraints: squashedCheckConstraints,
 				},
 			];
 		}),

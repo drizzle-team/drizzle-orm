@@ -83,6 +83,7 @@ test(`rename table and drop index`, async (t) => {
 					user_id_iq_pk: 'id,iq',
 				},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -123,6 +124,7 @@ test(`rename table and drop index`, async (t) => {
 					new_user_id_iq_pk: 'id,iq',
 				},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -244,6 +246,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			autoincrement2: {
 				name: 'autoincrement2',
@@ -260,6 +263,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			dropNotNull: {
 				name: 'dropNotNull',
@@ -276,6 +280,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -300,6 +305,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			autoincrement2: {
 				name: 'autoincrement2',
@@ -316,6 +322,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			dropNotNull: {
 				name: 'dropNotNull',
@@ -332,6 +339,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -354,6 +362,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 		{
 			type: 'recreate_table',
@@ -370,6 +379,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 		{
 			type: 'alter_table_alter_column_drop_notnull',
@@ -502,6 +512,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			pk1: {
 				name: 'pk1',
@@ -518,6 +529,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			pk2: {
 				name: 'pk2',
@@ -534,6 +546,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			ref_table: {
 				name: 'ref_table',
@@ -550,6 +563,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -577,6 +591,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			pk1: {
 				name: 'pk1',
@@ -593,6 +608,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			pk2: {
 				name: 'pk2',
@@ -609,6 +625,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			ref_table: {
 				name: 'ref_table',
@@ -625,6 +642,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -647,6 +665,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 		{
 			type: 'recreate_table',
@@ -663,6 +682,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 		{
 			type: 'create_reference',
@@ -767,6 +787,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			fk2: {
 				name: 'fk2',
@@ -790,6 +811,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			ref_table: {
 				name: 'ref_table',
@@ -813,6 +835,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -844,6 +867,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			fk2: {
 				name: 'fk2',
@@ -870,6 +894,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			ref_table: {
 				name: 'ref_table',
@@ -893,6 +918,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -922,6 +948,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 		{
 			type: 'recreate_table',
@@ -955,6 +982,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 				},
 			],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	];
 	expect(libSQLCombineStatements(statements, json2)).toStrictEqual(
@@ -1062,6 +1090,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			simple: {
 				name: 'simple',
@@ -1078,6 +1107,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			unique: {
 				name: 'unique',
@@ -1096,6 +1126,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -1120,6 +1151,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			simple: {
 				name: 'simple',
@@ -1136,6 +1168,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			unique: {
 				name: 'unique',
@@ -1154,6 +1187,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -1176,6 +1210,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 		{
 			type: 'alter_table_alter_column_set_type',
@@ -1271,6 +1306,7 @@ test(`add columns. set fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -1294,6 +1330,7 @@ test(`add columns. set fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -1341,6 +1378,7 @@ test(`add columns. set fk`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -1364,6 +1402,7 @@ test(`add columns. set fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -1469,6 +1508,7 @@ test(`add column and fk`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -1492,6 +1532,7 @@ test(`add column and fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -1539,6 +1580,7 @@ test(`add column and fk`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -1562,6 +1604,7 @@ test(`add column and fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -1646,6 +1689,7 @@ test(`add column and fk`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -1669,6 +1713,7 @@ test(`add column and fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -1716,6 +1761,7 @@ test(`add column and fk`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -1739,6 +1785,7 @@ test(`add column and fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},

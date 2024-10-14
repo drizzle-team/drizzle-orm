@@ -31,6 +31,7 @@ import {
 	JsonAlterViewAlterTablespaceStatement,
 	JsonAlterViewAlterUsingStatement,
 	JsonAlterViewDropWithOptionStatement,
+	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
@@ -42,6 +43,7 @@ import {
 	JsonCreateSqliteViewStatement,
 	JsonCreateTableStatement,
 	JsonCreateUniqueConstraint,
+	JsonDeleteCheckConstraint,
 	JsonDeleteCompositePK,
 	JsonDeleteReferenceStatement,
 	JsonDeleteUniqueConstraint,
@@ -159,7 +161,7 @@ class PgCreateTableConvertor extends Convertor {
 	}
 
 	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints } = st;
+		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints } = st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
@@ -244,6 +246,15 @@ class PgCreateTableConvertor extends Convertor {
 				// statement += `\n`;
 			}
 		}
+
+		if (typeof checkConstraints !== 'undefined' && checkConstraints.length > 0) {
+			for (const checkConstraint of checkConstraints) {
+				statement += ',\n';
+				const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
+				statement += `\tCONSTRAINT "${unsquashedCheck.name}" CHECK (${unsquashedCheck.value})`;
+			}
+		}
+
 		statement += `\n);`;
 		statement += `\n`;
 
@@ -261,6 +272,7 @@ class MySqlCreateTableConvertor extends Convertor {
 			tableName,
 			columns,
 			schema,
+			checkConstraints,
 			compositePKs,
 			uniqueConstraints,
 			internals,
@@ -321,6 +333,15 @@ class MySqlCreateTableConvertor extends Convertor {
 			}
 		}
 
+		if (typeof checkConstraints !== 'undefined' && checkConstraints.length > 0) {
+			for (const checkConstraint of checkConstraints) {
+				statement += ',\n';
+				const unsquashedCheck = MySqlSquasher.unsquashCheck(checkConstraint);
+
+				statement += `\tCONSTRAINT \`${unsquashedCheck.name}\` CHECK(${unsquashedCheck.value})`;
+			}
+		}
+
 		statement += `\n);`;
 		statement += `\n`;
 		return statement;
@@ -339,6 +360,7 @@ export class SQLiteCreateTableConvertor extends Convertor {
 			referenceData,
 			compositePKs,
 			uniqueConstraints,
+			checkConstraints,
 		} = st;
 
 		let statement = '';
@@ -398,8 +420,19 @@ export class SQLiteCreateTableConvertor extends Convertor {
 		) {
 			for (const uniqueConstraint of uniqueConstraints) {
 				statement += ',\n';
-				const unsquashedUnique = MySqlSquasher.unsquashUnique(uniqueConstraint);
+				const unsquashedUnique = SQLiteSquasher.unsquashUnique(uniqueConstraint);
 				statement += `\tCONSTRAINT ${unsquashedUnique.name} UNIQUE(\`${unsquashedUnique.columns.join(`\`,\``)}\`)`;
+			}
+		}
+
+		if (
+			typeof checkConstraints !== 'undefined'
+			&& checkConstraints.length > 0
+		) {
+			for (const check of checkConstraints) {
+				statement += ',\n';
+				const { value, name } = SQLiteSquasher.unsquashCheck(check);
+				statement += `\tCONSTRAINT "${name}" CHECK(${value})`;
 			}
 		}
 
@@ -837,6 +870,38 @@ class PgAlterTableDropUniqueConstraintConvertor extends Convertor {
 	}
 }
 
+class PgAlterTableAddCheckConstraintConvertor extends Convertor {
+	can(statement: JsonCreateCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'create_check_constraint' && dialect === 'postgresql'
+		);
+	}
+	convert(statement: JsonCreateCheckConstraint): string {
+		const unsquashed = PgSquasher.unsquashCheck(statement.data);
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unsquashed.name}" CHECK (${unsquashed.value});`;
+	}
+}
+
+class PgAlterTableDeleteCheckConstraintConvertor extends Convertor {
+	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'delete_check_constraint' && dialect === 'postgresql'
+		);
+	}
+	convert(statement: JsonDeleteCheckConstraint): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.constraintName}";`;
+	}
+}
+
 class MySQLAlterTableAddUniqueConstraintConvertor extends Convertor {
 	can(statement: JsonCreateUniqueConstraint, dialect: Dialect): boolean {
 		return statement.type === 'create_unique_constraint' && dialect === 'mysql';
@@ -858,6 +923,33 @@ class MySQLAlterTableDropUniqueConstraintConvertor extends Convertor {
 		const unsquashed = MySqlSquasher.unsquashUnique(statement.data);
 
 		return `ALTER TABLE \`${statement.tableName}\` DROP INDEX \`${unsquashed.name}\`;`;
+	}
+}
+
+class MySqlAlterTableAddCheckConstraintConvertor extends Convertor {
+	can(statement: JsonCreateCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'create_check_constraint' && dialect === 'mysql'
+		);
+	}
+	convert(statement: JsonCreateCheckConstraint): string {
+		const unsquashed = MySqlSquasher.unsquashCheck(statement.data);
+		const { tableName } = statement;
+
+		return `ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` CHECK (${unsquashed.value});`;
+	}
+}
+
+class MySqlAlterTableDeleteCheckConstraintConvertor extends Convertor {
+	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'delete_check_constraint' && dialect === 'mysql'
+		);
+	}
+	convert(statement: JsonDeleteCheckConstraint): string {
+		const { tableName } = statement;
+
+		return `ALTER TABLE \`${tableName}\` DROP CONSTRAINT \`${statement.constraintName}\`;`;
 	}
 }
 
@@ -1796,7 +1888,9 @@ export class LibSQLModifyColumn extends Convertor {
 				|| statement.type === 'alter_table_alter_column_drop_notnull'
 				|| statement.type === 'alter_table_alter_column_set_notnull'
 				|| statement.type === 'alter_table_alter_column_set_default'
-				|| statement.type === 'alter_table_alter_column_drop_default')
+				|| statement.type === 'alter_table_alter_column_drop_default'
+				|| statement.type === 'create_check_constraint'
+				|| statement.type === 'delete_check_constraint')
 			&& dialect === 'turso'
 		);
 	}
@@ -2714,7 +2808,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string | string[] {
-		const { tableName, columns, compositePKs, referenceData } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
@@ -2722,6 +2816,12 @@ class SQLiteRecreateTableConvertor extends Convertor {
 		const sqlStatements: string[] = [];
 
 		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
+
+		// map all possible variants
+		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
+			it.replaceAll(`"${tableName}".`, `"${newTableName}".`).replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
+				.replaceAll(`${tableName}.`, `${newTableName}.`).replaceAll(`'${tableName}'.`, `'${newTableName}'.`)
+		);
 
 		// create new table
 		sqlStatements.push(
@@ -2731,6 +2831,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 				columns,
 				referenceData,
 				compositePKs,
+				checkConstraints: mappedCheckConstraints,
 			}),
 		);
 
@@ -2774,12 +2875,17 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string[] {
-		const { tableName, columns, compositePKs, referenceData } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
+
+		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
+			it.replaceAll(`"${tableName}".`, `"${newTableName}".`).replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
+				.replaceAll(`${tableName}.`, `${newTableName}.`).replaceAll(`'${tableName}'.`, `\`${newTableName}\`.`)
+		);
 
 		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
 
@@ -2791,6 +2897,7 @@ class LibSQLRecreateTableConvertor extends Convertor {
 				columns,
 				referenceData,
 				compositePKs,
+				checkConstraints: mappedCheckConstraints,
 			}),
 		);
 
@@ -2886,6 +2993,11 @@ convertors.push(new PgAlterTableAlterColumnSetTypeConvertor());
 
 convertors.push(new PgAlterTableAddUniqueConstraintConvertor());
 convertors.push(new PgAlterTableDropUniqueConstraintConvertor());
+
+convertors.push(new PgAlterTableAddCheckConstraintConvertor());
+convertors.push(new PgAlterTableDeleteCheckConstraintConvertor());
+convertors.push(new MySqlAlterTableAddCheckConstraintConvertor());
+convertors.push(new MySqlAlterTableDeleteCheckConstraintConvertor());
 
 convertors.push(new MySQLAlterTableAddUniqueConstraintConvertor());
 convertors.push(new MySQLAlterTableDropUniqueConstraintConvertor());

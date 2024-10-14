@@ -28,6 +28,7 @@ test('create table and view #1', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_view',
@@ -73,6 +74,7 @@ test('create table and view #2', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_view',
@@ -127,6 +129,7 @@ test('create table and view #3', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_view',
@@ -212,6 +215,7 @@ test('create table and view #4', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 	expect(statements[2]).toStrictEqual({
 		type: 'create_view',
@@ -297,6 +301,7 @@ test('create table and view #6', async () => {
 		tableName: 'users',
 		type: 'create_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		definition: 'SELECT * FROM "users"',
@@ -366,6 +371,7 @@ test('create table and materialized view #1', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_view',
@@ -411,6 +417,7 @@ test('create table and materialized view #2', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_view',
@@ -476,6 +483,7 @@ test('create table and materialized view #3', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_view',
@@ -574,6 +582,7 @@ test('create table and materialized view #5', async () => {
 		tableName: 'users',
 		type: 'create_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 	expect(statements[1]).toEqual({
 		definition: 'SELECT * FROM "users"',

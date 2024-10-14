@@ -16,6 +16,7 @@ import { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
+	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
@@ -46,11 +47,15 @@ export const generateSqliteSnapshot = (
 		const foreignKeysObject: Record<string, ForeignKey> = {};
 		const primaryKeysObject: Record<string, PrimaryKey> = {};
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
+		const checkConstraintObject: Record<string, CheckConstraint> = {};
+
+		const checksInTable: Record<string, string[]> = {};
 
 		const {
 			name: tableName,
 			columns,
 			indexes,
+			checks,
 			foreignKeys: tableForeignKeys,
 			primaryKeys,
 			uniqueConstraints,
@@ -278,6 +283,38 @@ export const generateSqliteSnapshot = (
 			}
 		});
 
+		checks.forEach((check) => {
+			const checkName = check.name;
+			if (typeof checksInTable[tableName] !== 'undefined') {
+				if (checksInTable[tableName].includes(check.name)) {
+					console.log(
+						`\n${
+							withStyle.errorWarning(
+								`We\'ve found duplicated check constraint name in ${
+									chalk.underline.blue(
+										tableName,
+									)
+								}. Please rename your check constraint in the ${
+									chalk.underline.blue(
+										tableName,
+									)
+								} table`,
+							)
+						}`,
+					);
+					process.exit(1);
+				}
+				checksInTable[tableName].push(checkName);
+			} else {
+				checksInTable[tableName] = [check.name];
+			}
+
+			checkConstraintObject[checkName] = {
+				name: checkName,
+				value: dialect.sqlToQuery(check.value).sql,
+			};
+		});
+
 		result[tableName] = {
 			name: tableName,
 			columns: columnsObject,
@@ -285,6 +322,7 @@ export const generateSqliteSnapshot = (
 			foreignKeys: foreignKeysObject,
 			compositePrimaryKeys: primaryKeysObject,
 			uniqueConstraints: uniqueConstraintObject,
+			checkConstraints: checkConstraintObject,
 		};
 	}
 
@@ -518,6 +556,7 @@ export const fromDatabase = async (
 	let tablesCount = new Set();
 	let indexesCount = 0;
 	let foreignKeysCount = 0;
+	let checksCount = 0;
 	let viewsCount = 0;
 
 	// append primaryKeys by table
@@ -613,6 +652,7 @@ export const fromDatabase = async (
 				indexes: {},
 				foreignKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			};
 		} else {
 			result[tableName]!.columns[columnName] = newColumn;
@@ -818,6 +858,65 @@ WHERE
 	}
 	if (progressCallback) {
 		progressCallback('views', viewsCount, 'done');
+	}
+
+	const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
+	const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
+	let checkCounter = 0;
+	const checkConstraints: Record<string, CheckConstraint> = {};
+	const checks = await db.query<{ tableName: string; sql: string }>(`SELECT name as "tableName", sql as "sql"
+		FROM sqlite_master 
+		WHERE type = 'table' AND name != 'sqlite_sequence';`);
+	for (const check of checks) {
+		if (!tablesFilter(check.tableName)) continue;
+
+		const { tableName, sql } = check;
+
+		// Find named CHECK constraints
+		let namedChecks = [...sql.matchAll(namedCheckPattern)];
+		if (namedChecks.length > 0) {
+			namedChecks.forEach(([_, checkName, checkValue]) => {
+				checkConstraints[checkName] = {
+					name: checkName,
+					value: checkValue.trim(),
+				};
+			});
+		} else {
+			// If no named constraints, find unnamed CHECK constraints and assign names
+			let unnamedChecks = [...sql.matchAll(unnamedCheckPattern)];
+			unnamedChecks.forEach(([_, checkValue]) => {
+				let checkName = `${tableName}_check_${++checkCounter}`;
+				checkConstraints[checkName] = {
+					name: checkName,
+					value: checkValue.trim(),
+				};
+			});
+		}
+
+		checksCount += Object.values(checkConstraints).length;
+		if (progressCallback) {
+			progressCallback('checks', checksCount, 'fetching');
+		}
+
+		const table = result[tableName];
+
+		if (!table) {
+			result[tableName] = {
+				name: tableName,
+				columns: {},
+				compositePrimaryKeys: {},
+				indexes: {},
+				foreignKeys: {},
+				uniqueConstraints: {},
+				checkConstraints: checkConstraints,
+			};
+		} else {
+			result[tableName]!.checkConstraints = checkConstraints;
+		}
+	}
+
+	if (progressCallback) {
+		progressCallback('checks', checksCount, 'done');
 	}
 
 	return {

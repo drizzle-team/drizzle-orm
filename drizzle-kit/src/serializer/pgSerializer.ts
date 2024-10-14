@@ -23,6 +23,7 @@ import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
+	CheckConstraint,
 	Column as Column,
 	Enum,
 	ForeignKey,
@@ -114,6 +115,10 @@ export const generatePgSnapshot = (
 	const indexesInSchema: Record<string, string[]> = {};
 
 	for (const table of tables) {
+		// This object stores unique names for checks and will be used to detect if you have the same names for checks
+		// within the same PostgreSQL table
+		const checksInTable: Record<string, string[]> = {};
+
 		const { name: tableName, columns, indexes, foreignKeys, checks, schema, primaryKeys, uniqueConstraints } =
 			getTableConfig(table);
 
@@ -123,6 +128,7 @@ export const generatePgSnapshot = (
 
 		const columnsObject: Record<string, Column> = {};
 		const indexesObject: Record<string, Index> = {};
+		const checksObject: Record<string, CheckConstraint> = {};
 		const foreignKeysObject: Record<string, ForeignKey> = {};
 		const primaryKeysObject: Record<string, PrimaryKey> = {};
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
@@ -453,6 +459,43 @@ export const generatePgSnapshot = (
 			};
 		});
 
+		checks.forEach((check) => {
+			const checkName = check.name;
+
+			if (typeof checksInTable[`"${schema ?? 'public'}"."${tableName}"`] !== 'undefined') {
+				if (checksInTable[`"${schema ?? 'public'}"."${tableName}"`].includes(check.name)) {
+					console.log(
+						`\n${
+							withStyle.errorWarning(
+								`We\'ve found duplicated check constraint name across ${
+									chalk.underline.blue(
+										schema ?? 'public',
+									)
+								} schema in ${
+									chalk.underline.blue(
+										tableName,
+									)
+								}. Please rename your check constraint in either the ${
+									chalk.underline.blue(
+										tableName,
+									)
+								} table or the table with the duplicated check contraint name`,
+							)
+						}`,
+					);
+					process.exit(1);
+				}
+				checksInTable[`"${schema ?? 'public'}"."${tableName}"`].push(checkName);
+			} else {
+				checksInTable[`"${schema ?? 'public'}"."${tableName}"`] = [check.name];
+			}
+
+			checksObject[checkName] = {
+				name: checkName,
+				value: dialect.sqlToQuery(check.value).sql,
+			};
+		});
+
 		const tableKey = `${schema ?? 'public'}.${tableName}`;
 
 		result[tableKey] = {
@@ -463,6 +506,7 @@ export const generatePgSnapshot = (
 			foreignKeys: foreignKeysObject,
 			compositePrimaryKeys: primaryKeysObject,
 			uniqueConstraints: uniqueConstraintObject,
+			checkConstraints: checksObject,
 		};
 	}
 
@@ -764,6 +808,7 @@ WHERE
 	let indexesCount = 0;
 	let foreignKeysCount = 0;
 	let tableCount = 0;
+	let checksCount = 0;
 	let viewsCount = 0;
 
 	const sequencesToReturn: Record<string, Sequence> = {};
@@ -852,6 +897,7 @@ WHERE
 					const foreignKeysToReturn: Record<string, ForeignKey> = {};
 					const primaryKeys: Record<string, PrimaryKey> = {};
 					const uniqueConstrains: Record<string, UniqueConstraint> = {};
+					const checkConstraints: Record<string, CheckConstraint> = {};
 
 					const tableResponse = await getColumnsInfoQuery({ schema: tableSchema, table: tableName, db });
 
@@ -863,6 +909,29 @@ WHERE
         AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
       WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}';`,
 					);
+
+					const tableChecks = await db.query(`SELECT 
+						tc.constraint_name,
+						tc.constraint_type,
+						pg_get_constraintdef(con.oid) AS constraint_definition
+					FROM 
+						information_schema.table_constraints AS tc
+						JOIN pg_constraint AS con 
+							ON tc.constraint_name = con.conname
+							AND con.conrelid = (
+								SELECT oid 
+								FROM pg_class 
+								WHERE relname = tc.table_name 
+								AND relnamespace = (
+									SELECT oid 
+									FROM pg_namespace 
+									WHERE nspname = tc.constraint_schema
+								)
+							)
+					WHERE 
+						tc.table_name = '${tableName}'
+						AND tc.constraint_schema = '${tableSchema}'
+						AND tc.constraint_type = 'CHECK';`);
 
 					columnsCount += tableResponse.length;
 					if (progressCallback) {
@@ -962,6 +1031,24 @@ WHERE
 								name: constraintName,
 							};
 						}
+					}
+
+					checksCount += tableChecks.length;
+					if (progressCallback) {
+						progressCallback('checks', checksCount, 'fetching');
+					}
+					for (const checks of tableChecks) {
+						// CHECK (((email)::text <> 'test@gmail.com'::text))
+						// Where (email) is column in table
+						let checkValue: string = checks.constraint_definition;
+						const constraintName: string = checks.constraint_name;
+
+						checkValue = checkValue.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
+
+						checkConstraints[constraintName] = {
+							name: constraintName,
+							value: checkValue,
+						};
 					}
 
 					for (const columnResponse of tableResponse) {
@@ -1251,6 +1338,7 @@ WHERE
 						foreignKeys: foreignKeysToReturn,
 						compositePrimaryKeys: primaryKeys,
 						uniqueConstraints: uniqueConstrains,
+						checkConstraints: checkConstraints,
 					};
 				} catch (e) {
 					rej(e);
@@ -1500,6 +1588,7 @@ WHERE
 		progressCallback('columns', columnsCount, 'done');
 		progressCallback('indexes', indexesCount, 'done');
 		progressCallback('fks', foreignKeysCount, 'done');
+		progressCallback('checks', checksCount, 'done');
 		progressCallback('views', viewsCount, 'done');
 	}
 

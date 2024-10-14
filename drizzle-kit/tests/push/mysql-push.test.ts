@@ -1,7 +1,7 @@
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-
-import { int, mysqlTable, mysqlView } from 'drizzle-orm/mysql-core';
+import { check, int, mysqlTable, mysqlView } from 'drizzle-orm/mysql-core';
+import fs from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { diffTestSchemasPushMysql } from 'tests/schemaDiffer';
@@ -40,7 +40,7 @@ async function createDockerDB(): Promise<string> {
 }
 
 beforeAll(async () => {
-	const connectionString = process.env.MYSQL_LOCAL_CONNECTION_STRING ?? await createDockerDB();
+	const connectionString = process.env.MYSQL_CONNECTION_STRING ?? await createDockerDB();
 
 	const sleep = 1000;
 	let timeLeft = 20000;
@@ -69,6 +69,138 @@ beforeAll(async () => {
 afterAll(async () => {
 	await client?.end().catch(console.error);
 	await mysqlContainer?.stop().catch(console.error);
+});
+
+if (!fs.existsSync('tests/push/mysql')) {
+	fs.mkdirSync('tests/push/mysql');
+}
+
+test('add check constraint to table', async () => {
+	const schema1 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values'),
+		}),
+	};
+	const schema2 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values'),
+		}, (table) => ({
+			checkConstraint1: check('some_check1', sql`${table.values} < 100`),
+			checkConstraint2: check('some_check2', sql`'test' < 100`),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
+		client,
+		schema1,
+		schema2,
+		[],
+		'drizzle',
+		false,
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'create_check_constraint',
+			tableName: 'test',
+			schema: '',
+			data: 'some_check1;\`test\`.\`values\` < 100',
+		},
+		{
+			data: "some_check2;'test' < 100",
+			schema: '',
+			tableName: 'test',
+			type: 'create_check_constraint',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE \`test\` ADD CONSTRAINT \`some_check1\` CHECK (\`test\`.\`values\` < 100);',
+		`ALTER TABLE \`test\` ADD CONSTRAINT \`some_check2\` CHECK ('test' < 100);`,
+	]);
+
+	await client.query(`DROP TABLE \`test\`;`);
+});
+
+test('drop check constraint to table', async () => {
+	const schema1 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values'),
+		}, (table) => ({
+			checkConstraint1: check('some_check1', sql`${table.values} < 100`),
+			checkConstraint2: check('some_check2', sql`'test' < 100`),
+		})),
+	};
+	const schema2 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
+		client,
+		schema1,
+		schema2,
+		[],
+		'drizzle',
+		false,
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'delete_check_constraint',
+			tableName: 'test',
+			schema: '',
+			constraintName: 'some_check1',
+		},
+		{
+			constraintName: 'some_check2',
+			schema: '',
+			tableName: 'test',
+			type: 'delete_check_constraint',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE \`test\` DROP CONSTRAINT \`some_check1\`;',
+		`ALTER TABLE \`test\` DROP CONSTRAINT \`some_check2\`;`,
+	]);
+
+	await client.query(`DROP TABLE \`test\`;`);
+});
+
+test('db has checks. Push with same names', async () => {
+	const schema1 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values').default(1),
+		}, (table) => ({
+			checkConstraint: check('some_check', sql`${table.values} < 100`),
+		})),
+	};
+	const schema2 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values').default(1),
+		}, (table) => ({
+			checkConstraint: check('some_check', sql`some new value`),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
+		client,
+		schema1,
+		schema2,
+		[],
+		'drizzle',
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+
+	await client.query(`DROP TABLE \`test\`;`);
 });
 
 test('create view', async () => {

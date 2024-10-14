@@ -25,12 +25,14 @@ import {
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
 	JsonAlterViewStatement,
+	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
 	JsonCreateMySqlViewStatement,
 	JsonCreatePgViewStatement,
 	JsonCreateReferenceStatement,
 	JsonCreateSqliteViewStatement,
 	JsonCreateUniqueConstraint,
+	JsonDeleteCheckConstraint,
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
 	JsonDropColumnStatement,
@@ -40,6 +42,7 @@ import {
 	JsonRenameViewStatement,
 	JsonSqliteAddColumnStatement,
 	JsonStatement,
+	prepareAddCheckConstraint,
 	prepareAddCompositePrimaryKeyMySql,
 	prepareAddCompositePrimaryKeyPg,
 	prepareAddCompositePrimaryKeySqlite,
@@ -56,6 +59,7 @@ import {
 	prepareCreateReferencesJson,
 	prepareCreateSchemasJson,
 	prepareCreateSequenceJson,
+	prepareDeleteCheckConstraint,
 	prepareDeleteCompositePrimaryKeyMySql,
 	prepareDeleteCompositePrimaryKeyPg,
 	prepareDeleteCompositePrimaryKeySqlite,
@@ -225,6 +229,7 @@ const tableScheme = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()).default({}),
 	uniqueConstraints: record(string(), string()).default({}),
+	checkConstraints: record(string(), string()).default({}),
 }).strict();
 
 export const alteredTableScheme = object({
@@ -261,6 +266,21 @@ export const alteredTableScheme = object({
 	addedUniqueConstraints: record(string(), string()),
 	deletedUniqueConstraints: record(string(), string()),
 	alteredUniqueConstraints: record(
+		string(),
+		object({
+			__new: string(),
+			__old: string(),
+		}),
+	),
+	addedCheckConstraints: record(
+		string(),
+		string(),
+	),
+	deletedCheckConstraints: record(
+		string(),
+		string(),
+	),
+	alteredCheckConstraints: record(
 		string(),
 		object({
 			__new: string(),
@@ -897,6 +917,9 @@ export const applyPgSnapshotsDiff = async (
 		});
 	}
 
+	const jsonDeletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+	const jsonCreatedCheckConstraints: JsonCreateCheckConstraint[] = [];
+
 	for (let it of alteredTables) {
 		// This part is needed to make sure that same columns in a table are not triggered for change
 		// there is a case where orm and kit are responsible for pk name generation and one of them is not sorting name
@@ -947,6 +970,8 @@ export const applyPgSnapshotsDiff = async (
 		let addedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
 		let deletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 		let alteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
+		let createCheckConstraints: JsonCreateCheckConstraint[] = [];
+		let deleteCheckConstraints: JsonDeleteCheckConstraint[] = [];
 
 		addedUniqueConstraints = prepareAddUniqueConstraint(
 			it.name,
@@ -972,6 +997,28 @@ export const applyPgSnapshotsDiff = async (
 				...prepareDeleteUniqueConstraint(it.name, it.schema, deleted),
 			);
 		}
+
+		createCheckConstraints = prepareAddCheckConstraint(it.name, it.schema, it.addedCheckConstraints);
+		deleteCheckConstraints = prepareDeleteCheckConstraint(
+			it.name,
+			it.schema,
+			it.deletedCheckConstraints,
+		);
+
+		if (it.alteredCheckConstraints && action !== 'push') {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+
+			for (const k of Object.keys(it.alteredCheckConstraints)) {
+				added[k] = it.alteredCheckConstraints[k].__new;
+				deleted[k] = it.alteredCheckConstraints[k].__old;
+			}
+			createCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
+			deleteCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+		}
+
+		jsonCreatedCheckConstraints.push(...createCheckConstraints);
+		jsonDeletedCheckConstraints.push(...deleteCheckConstraints);
 
 		jsonAddedCompositePKs.push(...addedCompositePKs);
 		jsonDeletedCompositePKs.push(...deletedCompositePKs);
@@ -1350,6 +1397,7 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
+	jsonStatements.push(...jsonDeletedCheckConstraints);
 
 	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
 
@@ -1372,6 +1420,7 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlteredCompositePKs);
 
 	jsonStatements.push(...jsonAddedUniqueConstraints);
+	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 	jsonStatements.push(...jsonAlterEnumsWithDroppedValues);
@@ -1681,6 +1730,9 @@ export const applyMysqlSnapshotsDiff = async (
 	const jsonDeletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 	const jsonAlteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
 
+	const jsonCreatedCheckConstraints: JsonCreateCheckConstraint[] = [];
+	const jsonDeletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+
 	const jsonRenameColumnsStatements: JsonRenameColumnStatement[] = columnRenames
 		.map((it) => prepareRenameColumns(it.table, '', it.renames))
 		.flat();
@@ -1742,6 +1794,9 @@ export const applyMysqlSnapshotsDiff = async (
 		let deletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 		let alteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
 
+		let createdCheckConstraints: JsonCreateCheckConstraint[] = [];
+		let deletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+
 		addedUniqueConstraints = prepareAddUniqueConstraint(
 			it.name,
 			it.schema,
@@ -1767,6 +1822,26 @@ export const applyMysqlSnapshotsDiff = async (
 			);
 		}
 
+		createdCheckConstraints = prepareAddCheckConstraint(it.name, it.schema, it.addedCheckConstraints);
+		deletedCheckConstraints = prepareDeleteCheckConstraint(
+			it.name,
+			it.schema,
+			it.deletedCheckConstraints,
+		);
+
+		// skip for push
+		if (it.alteredCheckConstraints && action !== 'push') {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+
+			for (const k of Object.keys(it.alteredCheckConstraints)) {
+				added[k] = it.alteredCheckConstraints[k].__new;
+				deleted[k] = it.alteredCheckConstraints[k].__old;
+			}
+			createdCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
+			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+		}
+
 		jsonAddedCompositePKs.push(...addedCompositePKs);
 		jsonDeletedCompositePKs.push(...deletedCompositePKs);
 		jsonAlteredCompositePKs.push(...alteredCompositePKs);
@@ -1774,6 +1849,9 @@ export const applyMysqlSnapshotsDiff = async (
 		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
 		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
 		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+
+		jsonCreatedCheckConstraints.push(...createdCheckConstraints);
+		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);
 	});
 
 	const rColumns = jsonRenameColumnsStatements.map((it) => {
@@ -1965,6 +2043,7 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...alterViews);
 
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
+	jsonStatements.push(...jsonDeletedCheckConstraints);
 
 	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
 
@@ -1983,6 +2062,7 @@ export const applyMysqlSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
+	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
 	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
@@ -1992,8 +2072,6 @@ export const applyMysqlSnapshotsDiff = async (
 	// jsonStatements.push(...jsonDeletedCompositePKs);
 	// jsonStatements.push(...jsonAddedCompositePKs);
 	jsonStatements.push(...jsonAlteredCompositePKs);
-
-	jsonStatements.push(...jsonAddedUniqueConstraints);
 
 	jsonStatements.push(...createViews);
 
@@ -2241,6 +2319,9 @@ export const applySqliteSnapshotsDiff = async (
 	const jsonDeletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 	const jsonAlteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
 
+	const jsonDeletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+	const jsonCreatedCheckConstraints: JsonCreateCheckConstraint[] = [];
+
 	allAltered.forEach((it) => {
 		// This part is needed to make sure that same columns in a table are not triggered for change
 		// there is a case where orm and kit are responsible for pk name generation and one of them is not sorting name
@@ -2311,6 +2392,54 @@ export const applySqliteSnapshotsDiff = async (
 			);
 		}
 
+		let createdCheckConstraints: JsonCreateCheckConstraint[] = [];
+		let deletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+
+		addedUniqueConstraints = prepareAddUniqueConstraint(
+			it.name,
+			it.schema,
+			it.addedUniqueConstraints,
+		);
+		deletedUniqueConstraints = prepareDeleteUniqueConstraint(
+			it.name,
+			it.schema,
+			it.deletedUniqueConstraints,
+		);
+		if (it.alteredUniqueConstraints) {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+			for (const k of Object.keys(it.alteredUniqueConstraints)) {
+				added[k] = it.alteredUniqueConstraints[k].__new;
+				deleted[k] = it.alteredUniqueConstraints[k].__old;
+			}
+			addedUniqueConstraints.push(
+				...prepareAddUniqueConstraint(it.name, it.schema, added),
+			);
+			deletedUniqueConstraints.push(
+				...prepareDeleteUniqueConstraint(it.name, it.schema, deleted),
+			);
+		}
+
+		createdCheckConstraints = prepareAddCheckConstraint(it.name, it.schema, it.addedCheckConstraints);
+		deletedCheckConstraints = prepareDeleteCheckConstraint(
+			it.name,
+			it.schema,
+			it.deletedCheckConstraints,
+		);
+
+		// skip for push
+		if (it.alteredCheckConstraints && action !== 'push') {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+
+			for (const k of Object.keys(it.alteredCheckConstraints)) {
+				added[k] = it.alteredCheckConstraints[k].__new;
+				deleted[k] = it.alteredCheckConstraints[k].__old;
+			}
+			createdCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
+			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+		}
+
 		jsonAddedCompositePKs.push(...addedCompositePKs);
 		jsonDeletedCompositePKs.push(...deletedCompositePKs);
 		jsonAlteredCompositePKs.push(...alteredCompositePKs);
@@ -2318,6 +2447,9 @@ export const applySqliteSnapshotsDiff = async (
 		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
 		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
 		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+
+		jsonCreatedCheckConstraints.push(...createdCheckConstraints);
+		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);
 	});
 
 	const rColumns = jsonRenameColumnsStatements.map((it) => {
@@ -2470,6 +2602,7 @@ export const applySqliteSnapshotsDiff = async (
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
+	jsonStatements.push(...jsonDeletedCheckConstraints);
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
@@ -2482,6 +2615,8 @@ export const applySqliteSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
+
+	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
 
@@ -2753,6 +2888,9 @@ export const applyLibSQLSnapshotsDiff = async (
 	const jsonDeletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 	const jsonAlteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
 
+	const jsonDeletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+	const jsonCreatedCheckConstraints: JsonCreateCheckConstraint[] = [];
+
 	allAltered.forEach((it) => {
 		// This part is needed to make sure that same columns in a table are not triggered for change
 		// there is a case where orm and kit are responsible for pk name generation and one of them is not sorting name
@@ -2798,6 +2936,9 @@ export const applyLibSQLSnapshotsDiff = async (
 		let deletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 		let alteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
 
+		let createdCheckConstraints: JsonCreateCheckConstraint[] = [];
+		let deletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+
 		addedUniqueConstraints = prepareAddUniqueConstraint(
 			it.name,
 			it.schema,
@@ -2824,6 +2965,26 @@ export const applyLibSQLSnapshotsDiff = async (
 			);
 		}
 
+		createdCheckConstraints = prepareAddCheckConstraint(it.name, it.schema, it.addedCheckConstraints);
+		deletedCheckConstraints = prepareDeleteCheckConstraint(
+			it.name,
+			it.schema,
+			it.deletedCheckConstraints,
+		);
+
+		// skip for push
+		if (it.alteredCheckConstraints && action !== 'push') {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+
+			for (const k of Object.keys(it.alteredCheckConstraints)) {
+				added[k] = it.alteredCheckConstraints[k].__new;
+				deleted[k] = it.alteredCheckConstraints[k].__old;
+			}
+			createdCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
+			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+		}
+
 		jsonAddedCompositePKs.push(...addedCompositePKs);
 		jsonDeletedCompositePKs.push(...deletedCompositePKs);
 		jsonAlteredCompositePKs.push(...alteredCompositePKs);
@@ -2831,6 +2992,9 @@ export const applyLibSQLSnapshotsDiff = async (
 		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
 		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
 		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+
+		jsonCreatedCheckConstraints.push(...createdCheckConstraints);
+		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);
 	});
 
 	const jsonTableAlternations = allAltered
@@ -2977,6 +3141,8 @@ export const applyLibSQLSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
 
+	jsonStatements.push(...jsonDeletedCheckConstraints);
+
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
 	jsonStatements.push(...jsonDropIndexesForAllAlteredTables);
@@ -2988,6 +3154,7 @@ export const applyLibSQLSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
+	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...dropViews);
 	jsonStatements.push(...createViews);

@@ -14,6 +14,7 @@ import { Casing } from './cli/validations/common';
 import { vectorOps } from './extensions/vector';
 import { assertUnreachable } from './global';
 import {
+	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
@@ -334,6 +335,10 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			const pkImports = Object.values(it.compositePrimaryKeys).map((it) => 'primaryKey');
 			const uniqueImports = Object.values(it.uniqueConstraints).map((it) => 'unique');
 
+			const checkImports = Object.values(it.checkConstraints).map(
+				(it) => 'check',
+			);
+
 			if (it.schema && it.schema !== 'public' && it.schema !== '') {
 				res.pg.push('pgSchema');
 			}
@@ -342,6 +347,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			res.pg.push(...fkImpots);
 			res.pg.push(...pkImports);
 			res.pg.push(...uniqueImports);
+			res.pg.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -495,16 +501,29 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		// });
 
 		if (
-			Object.keys(table.indexes).length > 0 || Object.values(table.foreignKeys).length > 0
-			|| Object.keys(table.compositePrimaryKeys).length > 0 || Object.keys(table.uniqueConstraints).length > 0
+			Object.keys(table.indexes).length > 0
+			|| Object.values(table.foreignKeys).length > 0
+			|| Object.keys(table.compositePrimaryKeys).length > 0
+			|| Object.keys(table.uniqueConstraints).length > 0
+			|| Object.keys(table.checkConstraints).length > 0
 		) {
 			statement += ',\n';
 			statement += '(table) => {\n';
 			statement += '\treturn {\n';
 			statement += createTableIndexes(table.name, Object.values(table.indexes), casing);
 			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing);
-			statement += createTablePKs(Object.values(table.compositePrimaryKeys), casing);
-			statement += createTableUniques(Object.values(table.uniqueConstraints), casing);
+			statement += createTablePKs(
+				Object.values(table.compositePrimaryKeys),
+				casing,
+			);
+			statement += createTableUniques(
+				Object.values(table.uniqueConstraints),
+				casing,
+			);
+			statement += createTableChecks(
+				Object.values(table.checkConstraints),
+				casing,
+			);
 			statement += '\t}\n';
 			statement += '}';
 		}
@@ -1219,6 +1238,24 @@ const createTableUniques = (unqs: UniqueConstraint[], casing: Casing): string =>
 		statement += `"${it.name}")`;
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
 		statement += it.nullsNotDistinct ? `.nullsNotDistinct()` : '';
+		statement += `,\n`;
+	});
+
+	return statement;
+};
+
+const createTableChecks = (
+	checkConstraints: CheckConstraint[],
+	casing: Casing,
+) => {
+	let statement = '';
+
+	checkConstraints.forEach((it) => {
+		const checkKey = withCasing(it.name, casing);
+		statement += `\t\t${checkKey}: `;
+		statement += 'check(';
+		statement += `"${it.name}", `;
+		statement += `sql\`${it.value}\`)`;
 		statement += `,\n`;
 	});
 

@@ -3,6 +3,7 @@ import { toCamelCase } from 'drizzle-orm/casing';
 import './@types/utils';
 import type { Casing } from './cli/validations/common';
 import { assertUnreachable } from './global';
+import { CheckConstraint } from './serializer/mysqlSchema';
 import type {
 	Column,
 	ForeignKey,
@@ -91,11 +92,15 @@ export const schemaToTypeScript = (
 			const uniqueImports = Object.values(it.uniqueConstraints).map(
 				(it) => 'unique',
 			);
+			const checkImports = Object.values(it.checkConstraints).map(
+				(it) => 'check',
+			);
 
 			res.sqlite.push(...idxImports);
 			res.sqlite.push(...fkImpots);
 			res.sqlite.push(...pkImports);
 			res.sqlite.push(...uniqueImports);
+			res.sqlite.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -154,6 +159,7 @@ export const schemaToTypeScript = (
 			|| filteredFKs.length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
+			|| Object.keys(table.checkConstraints).length > 0
 		) {
 			statement += ',\n';
 			statement += '(table) => {\n';
@@ -170,6 +176,10 @@ export const schemaToTypeScript = (
 			);
 			statement += createTableUniques(
 				Object.values(table.uniqueConstraints),
+				casing,
+			);
+			statement += createTableChecks(
+				Object.values(table.checkConstraints),
 				casing,
 			);
 			statement += '\t}\n';
@@ -453,6 +463,24 @@ const createTableUniques = (
 				.join(', ')
 		}),`;
 		statement += `\n`;
+	});
+
+	return statement;
+};
+const createTableChecks = (
+	checks: CheckConstraint[],
+	casing: Casing,
+): string => {
+	let statement = '';
+
+	checks.forEach((it) => {
+		const checkKey = withCasing(it.name, casing);
+
+		statement += `\t\t${checkKey}: `;
+		statement += 'check(';
+		statement += `"${it.name}", `;
+		statement += `sql\`${it.value}\`)`;
+		statement += `,\n`;
 	});
 
 	return statement;

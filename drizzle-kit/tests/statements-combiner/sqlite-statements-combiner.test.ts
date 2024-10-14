@@ -60,6 +60,7 @@ test(`renamed column and altered this column type`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -98,6 +99,7 @@ test(`renamed column and altered this column type`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -134,6 +136,7 @@ test(`renamed column and altered this column type`, async (t) => {
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	];
 	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
@@ -190,6 +193,7 @@ test(`renamed column and droped column "test"`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -228,6 +232,7 @@ test(`renamed column and droped column "test"`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -305,6 +310,7 @@ test(`droped column that is part of composite pk`, async (t) => {
 					user_id_iq_pk: 'id,iq',
 				},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -336,6 +342,7 @@ test(`droped column that is part of composite pk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -365,6 +372,7 @@ test(`droped column that is part of composite pk`, async (t) => {
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	];
 	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
@@ -472,6 +480,7 @@ test(`drop column "ref"."name", rename column "ref"."age". dropped primary key "
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -502,6 +511,7 @@ test(`drop column "ref"."name", rename column "ref"."age". dropped primary key "
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -542,6 +552,7 @@ test(`drop column "ref"."name", rename column "ref"."age". dropped primary key "
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -572,6 +583,7 @@ test(`drop column "ref"."name", rename column "ref"."age". dropped primary key "
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -621,6 +633,7 @@ test(`drop column "ref"."name", rename column "ref"."age". dropped primary key "
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	];
 
@@ -657,6 +670,7 @@ test(`create reference on exising column (table includes unique index). expect t
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			unique: {
 				name: 'unique',
@@ -682,6 +696,7 @@ test(`create reference on exising column (table includes unique index). expect t
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -706,6 +721,7 @@ test(`create reference on exising column (table includes unique index). expect t
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			unique: {
 				name: 'unique',
@@ -733,6 +749,7 @@ test(`create reference on exising column (table includes unique index). expect t
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -772,6 +789,7 @@ test(`create reference on exising column (table includes unique index). expect t
 				},
 			],
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 		{
 			data: 'unique_unique_unique;unique;true;',
@@ -849,6 +867,7 @@ test(`add columns. set fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -872,6 +891,7 @@ test(`add columns. set fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -919,6 +939,7 @@ test(`add columns. set fk`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -942,6 +963,7 @@ test(`add columns. set fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -999,6 +1021,7 @@ test(`add columns. set fk`, async (t) => {
 			tableName: 'ref',
 			type: 'recreate_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	];
 	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
@@ -1065,6 +1088,7 @@ test(`add column and fk`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -1088,6 +1112,7 @@ test(`add column and fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
@@ -1135,6 +1160,7 @@ test(`add column and fk`, async (t) => {
 				},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 			user: {
 				name: 'user',
@@ -1158,6 +1184,7 @@ test(`add column and fk`, async (t) => {
 				foreignKeys: {},
 				compositePrimaryKeys: {},
 				uniqueConstraints: {},
+				checkConstraints: {},
 			},
 		},
 		enums: {},
