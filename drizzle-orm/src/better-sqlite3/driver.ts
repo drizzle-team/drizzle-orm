@@ -88,7 +88,7 @@ export function drizzle<
 	$client: Database;
 } {
 	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params instanceof Client) {
+	if (params[0] instanceof Client) {
 		return construct(params[0] as Database, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
