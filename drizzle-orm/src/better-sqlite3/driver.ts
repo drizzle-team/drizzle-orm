@@ -63,17 +63,16 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TClient extends Database = Database,
 >(
 	...params: IfNotImported<
 		Database,
 		[ImportTypeError<'better-sqlite3'>],
 		| []
 		| [
-			TClient | string,
+			Database | string,
 		]
 		| [
-			TClient | string,
+			Database | string,
 			DrizzleConfig<TSchema>,
 		]
 		| [
@@ -86,11 +85,11 @@ export function drizzle<
 		]
 	>
 ): BetterSQLite3Database<TSchema> & {
-	$client: TClient;
+	$client: Database;
 } {
 	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params instanceof Client) {
-		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+		return construct(params[0] as Database, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
 	if (typeof params[0] === 'object') {
