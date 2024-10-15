@@ -15,7 +15,7 @@ import { types } from '@electric-sql/pglite';
 export type PgliteClient = PGlite;
 
 export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'PglitePreparedQuery';
+	static override readonly [entityKind]: string = 'PglitePreparedQuery';
 
 	private rawQueryConfig: QueryOptions;
 	private queryConfig: QueryOptions;
@@ -89,7 +89,7 @@ export class PgliteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<PgliteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgliteSession';
+	static override readonly [entityKind]: string = 'PgliteSession';
 
 	private logger: Logger;
 
@@ -153,7 +153,7 @@ export class PgliteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<PgliteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgliteTransaction';
+	static override readonly [entityKind]: string = 'PgliteTransaction';
 
 	override async transaction<T>(transaction: (tx: PgliteTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;

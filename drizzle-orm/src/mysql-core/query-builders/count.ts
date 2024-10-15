@@ -1,6 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import type { SQLWrapper } from '~/sql/sql.ts';
-import { SQL, sql } from '~/sql/sql.ts';
+import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { MySqlSession } from '../session.ts';
 import type { MySqlTable } from '../table.ts';
 import type { MySqlViewBase } from '../view-base.ts';
@@ -10,7 +9,7 @@ export class MySqlCountBuilder<
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
 
-	static readonly [entityKind] = 'MySqlCountBuilder';
+	static override readonly [entityKind] = 'MySqlCountBuilder';
 	[Symbol.toStringTag] = 'MySqlCountBuilder';
 
 	private session: TSession;

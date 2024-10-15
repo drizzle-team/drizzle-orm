@@ -14,7 +14,7 @@ import { type MySqlRemotePreparedQueryHKT, type MySqlRemoteQueryResultHKT, MySql
 export class MySqlRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends MySqlDatabase<MySqlRemoteQueryResultHKT, MySqlRemotePreparedQueryHKT, TSchema> {
-	static readonly [entityKind]: string = 'MySqlRemoteDatabase';
+	static override readonly [entityKind]: string = 'MySqlRemoteDatabase';
 }
 
 export type RemoteCallback = (

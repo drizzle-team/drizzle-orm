@@ -1,6 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
+import type { BuildColumn } from '~/column-builder.ts';
 import { eq, gt } from '~/expressions.ts';
-import type { BuildColumn, InferSelectModel, Simplify } from '~/index.ts';
 import {
 	bigint,
 	binary,
@@ -41,6 +41,8 @@ import {
 import { mysqlSchema } from '~/mysql-core/schema.ts';
 import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view.ts';
 import { sql } from '~/sql/sql.ts';
+import type { InferSelectModel } from '~/table.ts';
+import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const users = mysqlTable(
@@ -184,7 +186,6 @@ export const classes = mysqlTable('classes_table', ({ serial, text }) => ({
 
 export const newYorkers = mysqlView('new_yorkers')
 	.algorithm('merge')
-	.definer('root@localhost')
 	.sqlSecurity('definer')
 	.as((qb) => {
 		const sq = qb
@@ -241,7 +242,6 @@ Expect<
 {
 	const newYorkers = customSchema.view('new_yorkers')
 		.algorithm('merge')
-		.definer('root@localhost')
 		.sqlSecurity('definer')
 		.as((qb) => {
 			const sq = qb
@@ -302,7 +302,6 @@ Expect<
 		cityId: int('city_id'),
 	})
 		.algorithm('merge')
-		.definer('root@localhost')
 		.sqlSecurity('definer')
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
@@ -357,7 +356,6 @@ Expect<
 		cityId: int('city_id'),
 	})
 		.algorithm('merge')
-		.definer('root@localhost')
 		.sqlSecurity('definer')
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${

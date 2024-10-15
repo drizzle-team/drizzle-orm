@@ -14,7 +14,7 @@ import { type PgRemoteQueryResultHKT, PgRemoteSession } from './session.ts';
 export class PgRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<PgRemoteQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'PgRemoteDatabase';
+	static override readonly [entityKind]: string = 'PgRemoteDatabase';
 }
 
 export type RemoteCallback = (

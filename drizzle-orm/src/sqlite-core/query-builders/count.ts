@@ -1,6 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import type { SQLWrapper } from '~/sql/sql.ts';
-import { SQL, sql } from '~/sql/sql.ts';
+import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
 import type { SQLiteView } from '../view.ts';
@@ -10,7 +9,7 @@ export class SQLiteCountBuilder<
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
 
-	static readonly [entityKind] = 'SQLiteCountBuilderAsync';
+	static override readonly [entityKind] = 'SQLiteCountBuilderAsync';
 	[Symbol.toStringTag] = 'SQLiteCountBuilderAsync';
 
 	private session: TSession;

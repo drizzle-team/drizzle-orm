@@ -308,7 +308,7 @@ export async function drizzle<
 	switch (client) {
 		case 'node-postgres': {
 			const defpg = await import('pg').catch(() => importError('pg'));
-			const { drizzle } = await import('./node-postgres');
+			const { drizzle } = await import('./node-postgres/index.ts');
 
 			if (typeof params[0] === 'object') {
 				const { connection, ...drizzleConfig } = params[0] as
@@ -343,7 +343,7 @@ export async function drizzle<
 			const { RDSDataClient } = await import('@aws-sdk/client-rds-data').catch(() =>
 				importError('@aws-sdk/client-rds-data')
 			);
-			const { drizzle } = await import('./aws-data-api/pg');
+			const { drizzle } = await import('./aws-data-api/pg/index.ts');
 
 			const instance = new RDSDataClient(rdsConfig);
 			const db = drizzle(instance, { resourceArn, database, secretArn, ...drizzleConfig });
@@ -352,7 +352,7 @@ export async function drizzle<
 		}
 		case 'better-sqlite3': {
 			const { default: Client } = await import('better-sqlite3').catch(() => importError('better-sqlite3'));
-			const { drizzle } = await import('./better-sqlite3');
+			const { drizzle } = await import('./better-sqlite3/index.ts');
 
 			if (typeof params[0] === 'object') {
 				const { connection, ...drizzleConfig } = params[0] as {
@@ -383,7 +383,7 @@ export async function drizzle<
 			const { Database: Client } = await import('bun:sqlite').catch(() => {
 				throw new Error(`Please use bun to use 'bun:sqlite' for Drizzle ORM to connect to database`);
 			});
-			const { drizzle } = await import('./bun-sqlite');
+			const { drizzle } = await import('./bun-sqlite/index.ts');
 
 			if (typeof params[0] === 'object') {
 				const { connection, ...drizzleConfig } = params[0] as {
@@ -415,7 +415,7 @@ export async function drizzle<
 		case 'd1': {
 			const { connection, ...drizzleConfig } = params[0] as { connection: AnyD1Database } & DrizzleConfig;
 
-			const { drizzle } = await import('./d1');
+			const { drizzle } = await import('./d1/index.ts');
 
 			const db = drizzle(connection, drizzleConfig);
 
@@ -424,7 +424,7 @@ export async function drizzle<
 		case 'libsql':
 		case 'turso': {
 			const { createClient } = await import('@libsql/client').catch(() => importError('@libsql/client'));
-			const { drizzle } = await import('./libsql');
+			const { drizzle } = await import('./libsql/index.ts');
 
 			if (typeof params[0] === 'string') {
 				const instance = createClient({
@@ -444,7 +444,7 @@ export async function drizzle<
 		}
 		case 'mysql2': {
 			const { createPool } = await import('mysql2/promise').catch(() => importError('mysql2'));
-			const { drizzle } = await import('./mysql2');
+			const { drizzle } = await import('./mysql2/index.ts');
 
 			if (typeof params[0] === 'object') {
 				const { connection, ...drizzleConfig } = params[0] as
@@ -466,7 +466,7 @@ export async function drizzle<
 		}
 		case 'neon-http': {
 			const { neon } = await import('@neondatabase/serverless').catch(() => importError('@neondatabase/serverless'));
-			const { drizzle } = await import('./neon-http');
+			const { drizzle } = await import('./neon-http/index.ts');
 
 			if (typeof params[0] === 'object') {
 				const { connection, ...drizzleConfig } = params[0] as { connection: MonodriverNeonHttpConfig } & DrizzleConfig;
@@ -495,7 +495,7 @@ export async function drizzle<
 			const { Pool, neonConfig } = await import('@neondatabase/serverless').catch(() =>
 				importError('@neondatabase/serverless')
 			);
-			const { drizzle } = await import('./neon-serverless');
+			const { drizzle } = await import('./neon-serverless/index.ts');
 			if (typeof params[0] === 'string') {
 				const instance = new Pool({
 					connectionString: params[0],
@@ -534,7 +534,7 @@ export async function drizzle<
 		}
 		case 'planetscale': {
 			const { Client } = await import('@planetscale/database').catch(() => importError('@planetscale/database'));
-			const { drizzle } = await import('./planetscale-serverless');
+			const { drizzle } = await import('./planetscale-serverless/index.ts');
 
 			if (typeof params[0] === 'object') {
 				const { connection, ...drizzleConfig } = params[0] as
@@ -561,7 +561,7 @@ export async function drizzle<
 		}
 		case 'postgres-js': {
 			const { default: client } = await import('postgres').catch(() => importError('postgres'));
-			const { drizzle } = await import('./postgres-js');
+			const { drizzle } = await import('./postgres-js/index.ts');
 
 			if (typeof params[0] === 'object') {
 				const { connection, ...drizzleConfig } = params[0] as {
@@ -590,7 +590,7 @@ export async function drizzle<
 		}
 		case 'tidb-serverless': {
 			const { connect } = await import('@tidbcloud/serverless').catch(() => importError('@tidbcloud/serverless'));
-			const { drizzle } = await import('./tidb-serverless');
+			const { drizzle } = await import('./tidb-serverless/index.ts');
 
 			if (typeof params[0] === 'string') {
 				const instance = connect({
@@ -617,7 +617,7 @@ export async function drizzle<
 		case 'vercel-postgres': {
 			const drizzleConfig = params[0] as DrizzleConfig | undefined;
 			const { sql } = await import('@vercel/postgres').catch(() => importError('@vercel/postgres'));
-			const { drizzle } = await import('./vercel-postgres');
+			const { drizzle } = await import('./vercel-postgres/index.ts');
 
 			const db = drizzle(sql, drizzleConfig);
 
@@ -626,7 +626,7 @@ export async function drizzle<
 
 		case 'pglite': {
 			const { PGlite } = await import('@electric-sql/pglite').catch(() => importError('@electric-sql/pglite'));
-			const { drizzle } = await import('./pglite');
+			const { drizzle } = await import('./pglite/index.ts');
 
 			if (typeof params[0] === 'object') {
 				const { connection, ...drizzleConfig } = params[0] as {

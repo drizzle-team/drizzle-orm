@@ -14,7 +14,7 @@ export abstract class PgIntColumnBaseBuilder<
 	T,
 	{ generatedIdentity: GeneratedIdentityConfig }
 > {
-	static readonly [entityKind]: string = 'PgIntColumnBaseBuilder';
+	static override readonly [entityKind]: string = 'PgIntColumnBaseBuilder';
 
 	generatedAlwaysAsIdentity(
 		sequence?: PgSequenceOptions & { name?: string },

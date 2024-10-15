@@ -27,7 +27,7 @@ export type PgSmallSerialBuilderInitial<TName extends string> = NotNull<
 export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallSerial'>>
 	extends PgColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'PgSmallSerialBuilder';
+	static override readonly [entityKind]: string = 'PgSmallSerialBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'PgSmallSerial');
@@ -47,7 +47,7 @@ export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'P
 }
 
 export class PgSmallSerial<T extends ColumnBaseConfig<'number', 'PgSmallSerial'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgSmallSerial';
+	static override readonly [entityKind]: string = 'PgSmallSerial';
 
 	getSQLType(): string {
 		return 'smallserial';

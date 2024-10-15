@@ -1,5 +1,15 @@
 import { sql } from 'drizzle-orm';
-import { AnySQLiteColumn, index, int, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+	AnySQLiteColumn,
+	foreignKey,
+	index,
+	int,
+	primaryKey,
+	sqliteTable,
+	text,
+	unique,
+	uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasSqlite } from './schemaDiffer';
 
@@ -18,6 +28,7 @@ test('add table #1', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -46,6 +57,7 @@ test('add table #2', async () => {
 		compositePKs: [],
 		referenceData: [],
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 });
 
@@ -85,6 +97,7 @@ test('add table #3', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -104,6 +117,7 @@ test('add table #4', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'sqlite_create_table',
@@ -112,6 +126,7 @@ test('add table #4', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -138,6 +153,7 @@ test('add table #6', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
@@ -175,6 +191,7 @@ test('add table #7', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -212,6 +229,7 @@ test('add table #8', async () => {
 		],
 		compositePKs: [],
 		uniqueConstraints: [],
+		checkConstraints: [],
 		referenceData: [
 			{
 				columnsFrom: ['reportee_id'],
@@ -267,6 +285,7 @@ test('add table #9', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 
 	expect(statements[1]).toStrictEqual({
@@ -396,4 +415,178 @@ test('add table with indexes', async () => {
 		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`email`);',
 		'CREATE INDEX `indexColExpr` ON `users` ((lower("email")),`email`);',
 	]);
+});
+
+test('optional db aliases (snake case)', async () => {
+	const from = {};
+
+	const t1 = sqliteTable(
+		't1',
+		{
+			t1Id1: int().notNull().primaryKey(),
+			t1Col2: int().notNull(),
+			t1Col3: int().notNull(),
+			t2Ref: int().notNull().references(() => t2.t2Id),
+			t1Uni: int().notNull(),
+			t1UniIdx: int().notNull(),
+			t1Idx: int().notNull(),
+		},
+		(table) => ({
+			uni: unique('t1_uni').on(table.t1Uni),
+			uniIdx: uniqueIndex('t1_uni_idx').on(table.t1UniIdx),
+			idx: index('t1_idx').on(table.t1Idx),
+			fk: foreignKey({
+				columns: [table.t1Col2, table.t1Col3],
+				foreignColumns: [t3.t3Id1, t3.t3Id2],
+			}),
+		}),
+	);
+
+	const t2 = sqliteTable(
+		't2',
+		{
+			t2Id: int().primaryKey({ autoIncrement: true }),
+		},
+	);
+
+	const t3 = sqliteTable(
+		't3',
+		{
+			t3Id1: int(),
+			t3Id2: int(),
+		},
+		(table) => ({
+			pk: primaryKey({
+				columns: [table.t3Id1, table.t3Id2],
+			}),
+		}),
+	);
+
+	const to = {
+		t1,
+		t2,
+		t3,
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, [], false, 'snake_case');
+
+	const st1 = `CREATE TABLE \`t1\` (
+	\`t1_id1\` integer PRIMARY KEY NOT NULL,
+	\`t1_col2\` integer NOT NULL,
+	\`t1_col3\` integer NOT NULL,
+	\`t2_ref\` integer NOT NULL,
+	\`t1_uni\` integer NOT NULL,
+	\`t1_uni_idx\` integer NOT NULL,
+	\`t1_idx\` integer NOT NULL,
+	FOREIGN KEY (\`t2_ref\`) REFERENCES \`t2\`(\`t2_id\`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (\`t1_col2\`,\`t1_col3\`) REFERENCES \`t3\`(\`t3_id1\`,\`t3_id2\`) ON UPDATE no action ON DELETE no action
+);
+`;
+
+	const st2 = `CREATE UNIQUE INDEX \`t1_uni_idx\` ON \`t1\` (\`t1_uni_idx\`);`;
+
+	const st3 = `CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`;
+
+	const st4 = `CREATE UNIQUE INDEX \`t1_uni\` ON \`t1\` (\`t1_uni\`);`;
+
+	const st5 = `CREATE TABLE \`t2\` (
+	\`t2_id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL
+);
+`;
+
+	const st6 = `CREATE TABLE \`t3\` (
+	\`t3_id1\` integer,
+	\`t3_id2\` integer,
+	PRIMARY KEY(\`t3_id1\`, \`t3_id2\`)
+);
+`;
+
+	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
+});
+
+test('optional db aliases (camel case)', async () => {
+	const from = {};
+
+	const t1 = sqliteTable(
+		't1',
+		{
+			t1_id1: int().notNull().primaryKey(),
+			t1_col2: int().notNull(),
+			t1_col3: int().notNull(),
+			t2_ref: int().notNull().references(() => t2.t2_id),
+			t1_uni: int().notNull(),
+			t1_uni_idx: int().notNull(),
+			t1_idx: int().notNull(),
+		},
+		(table) => ({
+			uni: unique('t1Uni').on(table.t1_uni),
+			uni_idx: uniqueIndex('t1UniIdx').on(table.t1_uni_idx),
+			idx: index('t1Idx').on(table.t1_idx),
+			fk: foreignKey({
+				columns: [table.t1_col2, table.t1_col3],
+				foreignColumns: [t3.t3_id1, t3.t3_id2],
+			}),
+		}),
+	);
+
+	const t2 = sqliteTable(
+		't2',
+		{
+			t2_id: int().primaryKey({ autoIncrement: true }),
+		},
+	);
+
+	const t3 = sqliteTable(
+		't3',
+		{
+			t3_id1: int(),
+			t3_id2: int(),
+		},
+		(table) => ({
+			pk: primaryKey({
+				columns: [table.t3_id1, table.t3_id2],
+			}),
+		}),
+	);
+
+	const to = {
+		t1,
+		t2,
+		t3,
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, [], false, 'camelCase');
+
+	const st1 = `CREATE TABLE \`t1\` (
+	\`t1Id1\` integer PRIMARY KEY NOT NULL,
+	\`t1Col2\` integer NOT NULL,
+	\`t1Col3\` integer NOT NULL,
+	\`t2Ref\` integer NOT NULL,
+	\`t1Uni\` integer NOT NULL,
+	\`t1UniIdx\` integer NOT NULL,
+	\`t1Idx\` integer NOT NULL,
+	FOREIGN KEY (\`t2Ref\`) REFERENCES \`t2\`(\`t2Id\`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (\`t1Col2\`,\`t1Col3\`) REFERENCES \`t3\`(\`t3Id1\`,\`t3Id2\`) ON UPDATE no action ON DELETE no action
+);
+`;
+
+	const st2 = `CREATE UNIQUE INDEX \`t1UniIdx\` ON \`t1\` (\`t1UniIdx\`);`;
+
+	const st3 = `CREATE INDEX \`t1Idx\` ON \`t1\` (\`t1Idx\`);`;
+
+	const st4 = `CREATE UNIQUE INDEX \`t1Uni\` ON \`t1\` (\`t1Uni\`);`;
+
+	const st5 = `CREATE TABLE \`t2\` (
+	\`t2Id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL
+);
+`;
+
+	const st6 = `CREATE TABLE \`t3\` (
+	\`t3Id1\` integer,
+	\`t3Id2\` integer,
+	PRIMARY KEY(\`t3Id1\`, \`t3Id2\`)
+);
+`;
+
+	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
 });

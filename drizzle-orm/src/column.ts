@@ -68,9 +68,8 @@ export abstract class Column<
 
 	declare readonly _: ColumnTypeConfig<T, TTypeConfig>;
 
-	/** @internal */
-	readonly keyAsName: boolean;
 	readonly name: string;
+	readonly keyAsName: boolean;
 	readonly primary: boolean;
 	readonly notNull: boolean;
 	readonly default: T['data'] | SQL | undefined;
