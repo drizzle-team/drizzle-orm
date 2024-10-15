@@ -1,6 +1,7 @@
 import Client, { type Database, type Options, type RunResult } from 'better-sqlite3';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { MockDriver } from '~/mock.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -79,23 +80,42 @@ export function drizzle<
 			(
 				& DrizzleConfig<TSchema>
 				& ({
-					connection: DrizzleBetterSQLite3DatabaseConfig;
+					connection?: DrizzleBetterSQLite3DatabaseConfig;
+				} | {
+					client: Database;
 				})
 			),
+		]
+		| [
+			MockDriver,
+		]
+		| [
+			MockDriver,
+			DrizzleConfig<TSchema>,
 		]
 	>
 ): BetterSQLite3Database<TSchema> & {
 	$client: Database;
 } {
 	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof MockDriver) {
+		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
+	}
+
+	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0] instanceof Client) {
 		return construct(params[0] as Database, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
 	if (typeof params[0] === 'object') {
-		const { connection, ...drizzleConfig } = params[0] as {
-			connection: DrizzleBetterSQLite3DatabaseConfig;
-		} & DrizzleConfig;
+		const { connection, client, ...drizzleConfig } = params[0] as
+			& {
+				connection?: DrizzleBetterSQLite3DatabaseConfig;
+				client?: Database;
+			}
+			& DrizzleConfig<TSchema>;
+
+		if (client) return construct(client, drizzleConfig) as any;
 
 		if (typeof connection === 'object') {
 			const { source, ...options } = connection;

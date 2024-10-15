@@ -4,6 +4,7 @@ import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { MockDriver } from '~/mock.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/relations.ts';
@@ -115,27 +116,42 @@ export function drizzle<
 				& DrizzleConfig<TSchema>
 				& ({
 					connection: string | HTTPTransactionOptions<boolean, boolean>;
+				} | {
+					client: TClient;
 				})
 			),
+		] | [
+			MockDriver,
+		] | [
+			MockDriver,
+			DrizzleConfig<TSchema>,
 		]
 	>
 ): NeonHttpDatabase<TSchema> & {
 	$client: TClient;
 } {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof MockDriver) {
+		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
+	}
+
 	if ((params[0] as any)[Symbol.toStringTag] === 'NeonQueryPromise') {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
 	if (typeof params[0] === 'object') {
-		const { connection, ...drizzleConfig } = params[0] as
+		const { connection, client, ...drizzleConfig } = params[0] as
 			& {
 				connection?:
 					| ({
 						connectionString: string;
 					} & HTTPTransactionOptions<boolean, boolean>)
 					| string;
+				client?: TClient;
 			}
 			& DrizzleConfig<TSchema>;
+
+		if (client) return construct(client, drizzleConfig);
 
 		if (typeof connection === 'object') {
 			const { connectionString, ...options } = connection;

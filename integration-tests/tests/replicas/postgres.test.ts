@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { mock } from 'drizzle-orm/mock';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { boolean, jsonb, pgTable, serial, text, timestamp, withReplicas } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi } from 'vitest';
@@ -17,9 +18,9 @@ const users = pgTable('users', {
 
 describe('[select] read replicas postgres', () => {
 	it('primary select', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -37,9 +38,9 @@ describe('[select] read replicas postgres', () => {
 	});
 
 	it('random replica select', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -66,8 +67,8 @@ describe('[select] read replicas postgres', () => {
 	});
 
 	it('single read replica select', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -86,8 +87,8 @@ describe('[select] read replicas postgres', () => {
 	});
 
 	it('single read replica select + primary select', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -107,9 +108,9 @@ describe('[select] read replicas postgres', () => {
 	});
 
 	it('always first read select', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
@@ -136,9 +137,9 @@ describe('[select] read replicas postgres', () => {
 
 describe('[selectDistinct] read replicas postgres', () => {
 	it('primary selectDistinct', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -155,9 +156,9 @@ describe('[selectDistinct] read replicas postgres', () => {
 	});
 
 	it('random replica selectDistinct', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -183,8 +184,8 @@ describe('[selectDistinct] read replicas postgres', () => {
 	});
 
 	it('single read replica selectDistinct', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -203,8 +204,8 @@ describe('[selectDistinct] read replicas postgres', () => {
 	});
 
 	it('single read replica selectDistinct + primary selectDistinct', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -224,9 +225,9 @@ describe('[selectDistinct] read replicas postgres', () => {
 	});
 
 	it('always first read selectDistinct', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
@@ -252,9 +253,9 @@ describe('[selectDistinct] read replicas postgres', () => {
 
 describe('[with] read replicas postgres', () => {
 	it('primary with', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -275,9 +276,9 @@ describe('[with] read replicas postgres', () => {
 	});
 
 	it('random replica with', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -301,8 +302,8 @@ describe('[with] read replicas postgres', () => {
 	});
 
 	it('single read replica with', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -319,8 +320,8 @@ describe('[with] read replicas postgres', () => {
 	});
 
 	it('single read replica with + primary with', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -338,9 +339,9 @@ describe('[with] read replicas postgres', () => {
 	});
 
 	it('always first read with', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
@@ -369,9 +370,9 @@ describe('[with] read replicas postgres', () => {
 
 describe('[update] replicas postgres', () => {
 	it('primary update', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -404,9 +405,9 @@ describe('[update] replicas postgres', () => {
 
 describe('[delete] replicas postgres', () => {
 	it('primary delete', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -440,9 +441,9 @@ describe('[delete] replicas postgres', () => {
 
 describe('[insert] replicas postgres', () => {
 	it('primary insert', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -475,9 +476,9 @@ describe('[insert] replicas postgres', () => {
 
 describe('[execute] replicas postgres', () => {
 	it('primary execute', async () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -517,9 +518,9 @@ describe('[execute] replicas postgres', () => {
 
 describe('[transaction] replicas postgres', () => {
 	it('primary transaction', async () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
+		const primaryDb = drizzle(mock);
+		const read1 = drizzle(mock);
+		const read2 = drizzle(mock);
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -560,9 +561,9 @@ describe('[transaction] replicas postgres', () => {
 
 describe('[findFirst] read replicas postgres', () => {
 	it('primary findFirst', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle(mock, { schema: { usersTable } });
+		const read1 = drizzle(mock, { schema: { usersTable } });
+		const read2 = drizzle(mock, { schema: { usersTable } });
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -580,9 +581,9 @@ describe('[findFirst] read replicas postgres', () => {
 	});
 
 	it('random replica findFirst', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle(mock, { schema: { usersTable } });
+		const read1 = drizzle(mock, { schema: { usersTable } });
+		const read2 = drizzle(mock, { schema: { usersTable } });
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -611,8 +612,8 @@ describe('[findFirst] read replicas postgres', () => {
 	});
 
 	it('single read replica findFirst', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle(mock, { schema: { usersTable } });
+		const read1 = drizzle(mock, { schema: { usersTable } });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -629,8 +630,8 @@ describe('[findFirst] read replicas postgres', () => {
 	});
 
 	it('single read replica findFirst + primary findFirst', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle(mock, { schema: { usersTable } });
+		const read1 = drizzle(mock, { schema: { usersTable } });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -648,9 +649,9 @@ describe('[findFirst] read replicas postgres', () => {
 	});
 
 	it('always first read findFirst', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle(mock, { schema: { usersTable } });
+		const read1 = drizzle(mock, { schema: { usersTable } });
+		const read2 = drizzle(mock, { schema: { usersTable } });
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
@@ -674,9 +675,9 @@ describe('[findFirst] read replicas postgres', () => {
 
 describe('[findMany] read replicas postgres', () => {
 	it('primary findMany', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle(mock, { schema: { usersTable } });
+		const read1 = drizzle(mock, { schema: { usersTable } });
+		const read2 = drizzle(mock, { schema: { usersTable } });
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -697,9 +698,9 @@ describe('[findMany] read replicas postgres', () => {
 	});
 
 	it('random replica findMany', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle(mock, { schema: { usersTable } });
+		const read1 = drizzle(mock, { schema: { usersTable } });
+		const read2 = drizzle(mock, { schema: { usersTable } });
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -734,8 +735,8 @@ describe('[findMany] read replicas postgres', () => {
 	});
 
 	it('single read replica findMany', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle(mock, { schema: { usersTable } });
+		const read1 = drizzle(mock, { schema: { usersTable } });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -762,8 +763,8 @@ describe('[findMany] read replicas postgres', () => {
 	});
 
 	it('single read replica findMany + primary findMany', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle(mock, { schema: { usersTable } });
+		const read1 = drizzle(mock, { schema: { usersTable } });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -792,9 +793,9 @@ describe('[findMany] read replicas postgres', () => {
 	});
 
 	it('always first read findMany', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle(mock, { schema: { usersTable } });
+		const read1 = drizzle(mock, { schema: { usersTable } });
+		const read2 = drizzle(mock, { schema: { usersTable } });
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;

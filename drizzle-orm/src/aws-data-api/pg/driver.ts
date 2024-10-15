@@ -2,6 +2,7 @@ import { RDSDataClient, type RDSDataClientConfig } from '@aws-sdk/client-rds-dat
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { MockDriver } from '~/mock.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
@@ -134,19 +135,45 @@ export function drizzle<
 			DrizzleAwsDataApiPgConfig<TSchema>,
 		] | [
 			(
-				& DrizzleConfig<TSchema>
-				& ({
-					connection: RDSDataClientConfig & Omit<DrizzleAwsDataApiPgConfig, keyof DrizzleConfig>;
-				})
+				| (
+					& DrizzleConfig<TSchema>
+					& {
+						connection: RDSDataClientConfig & Omit<DrizzleAwsDataApiPgConfig, keyof DrizzleConfig>;
+					}
+				)
+				| (
+					& DrizzleAwsDataApiPgConfig<TSchema>
+					& {
+						client: TClient;
+					}
+				)
 			),
+		] | [
+			MockDriver,
+		] | [
+			MockDriver,
+			DrizzleAwsDataApiPgConfig<TSchema>,
 		]
 	>
 ): AwsDataApiPgDatabase<TSchema> & {
 	$client: TClient;
 } {
 	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof MockDriver) {
+		return construct(params[0] as any, params[1] as DrizzleAwsDataApiPgConfig<TSchema>) as any;
+	}
+
+	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0] instanceof RDSDataClient) {
 		return construct(params[0] as TClient, params[1] as DrizzleAwsDataApiPgConfig<TSchema>) as any;
+	}
+
+	if ((params[0] as { client?: TClient }).client) {
+		const { client, ...drizzleConfig } = params[0] as {
+			client: TClient;
+		} & DrizzleAwsDataApiPgConfig<TSchema>;
+
+		return construct(client, drizzleConfig) as any;
 	}
 
 	const { connection, ...drizzleConfig } = params[0] as {
@@ -155,7 +182,5 @@ export function drizzle<
 	const { resourceArn, database, secretArn, ...rdsConfig } = connection;
 
 	const instance = new RDSDataClient(rdsConfig);
-	const db = construct(instance, { resourceArn, database, secretArn, ...drizzleConfig });
-
-	return db as any;
+	return construct(instance, { resourceArn, database, secretArn, ...drizzleConfig }) as any;
 }

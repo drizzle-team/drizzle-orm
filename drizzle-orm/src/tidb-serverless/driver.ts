@@ -2,6 +2,7 @@ import { type Config, connect, Connection } from '@tidbcloud/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { MockDriver } from '~/mock.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import {
@@ -75,13 +76,25 @@ export function drizzle<
 				& DrizzleConfig<TSchema>
 				& ({
 					connection: string | Config;
+				} | {
+					client: TClient;
 				})
 			),
+		] | [
+			MockDriver,
+		] | [
+			MockDriver,
+			TSchema,
 		]
 	>
 ): TiDBServerlessDatabase<TSchema> & {
 	$client: TClient;
 } {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof MockDriver) {
+		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
+	}
+
 	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0] instanceof Connection) {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
@@ -95,15 +108,17 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	const { connection, ...drizzleConfig } = params[0] as
-		& { connection: Config | string }
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& { connection?: Config | string; client?: TClient }
 		& DrizzleConfig<TSchema>;
+
+	if (client) return construct(client, drizzleConfig) as any;
 
 	const instance = typeof connection === 'string'
 		? connect({
 			url: connection,
 		})
-		: connect(connection);
+		: connect(connection!);
 
 	return construct(instance, drizzleConfig) as any;
 }

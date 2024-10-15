@@ -3,6 +3,7 @@ import { type Connection as CallbackConnection, createPool, type Pool as Callbac
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { MockDriver } from '~/mock.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { Mode } from '~/mysql-core/session.ts';
@@ -125,22 +126,33 @@ export function drizzle<
 				& MySql2DrizzleConfig<TSchema>
 				& ({
 					connection: string | PoolOptions;
+				} | {
+					client: TClient;
 				})
 			),
-		]
+		] | [
+			MockDriver,
+		] | [MockDriver, MySql2DrizzleConfig<TSchema>]
 	>
 ): MySql2Database<TSchema> & {
 	$client: TClient;
 } {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof MockDriver) {
+		return construct(params[0] as any, params[1] as MySql2DrizzleConfig<TSchema>) as any;
+	}
+
 	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0] instanceof EventEmitter) {
 		return construct(params[0] as TClient, params[1] as MySql2DrizzleConfig<TSchema> | undefined) as any;
 	}
 
 	if (typeof params[0] === 'object') {
-		const { connection, ...drizzleConfig } = params[0] as
-			& { connection: PoolOptions | string }
+		const { connection, client, ...drizzleConfig } = params[0] as
+			& { connection?: PoolOptions | string; client?: TClient }
 			& MySql2DrizzleConfig<TSchema>;
+
+		if (client) return construct(client, drizzleConfig) as any;
 
 		const instance = createPool(connection as PoolOptions);
 		const db = construct(instance, drizzleConfig);

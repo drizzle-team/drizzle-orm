@@ -5,6 +5,7 @@ import { WsClient } from '@libsql/client/ws';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { MockDriver } from '~/mock.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -82,13 +83,25 @@ export function drizzle<
 				& DrizzleConfig<TSchema>
 				& ({
 					connection: string | Config;
+				} | {
+					client: TClient;
 				})
 			),
+		] | [
+			MockDriver,
+		] | [
+			MockDriver,
+			DrizzleConfig<TSchema>,
 		]
 	>
 ): LibSQLDatabase<TSchema> & {
 	$client: TClient;
 } {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof MockDriver) {
+		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
+	}
+
 	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0] instanceof WsClient || params[0] instanceof HttpClient || params[0] instanceof Sqlite3Client) {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
@@ -102,9 +115,13 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	const { connection, ...drizzleConfig } = params[0] as any as { connection: Config } & DrizzleConfig;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& { connection?: Config; client?: TClient }
+		& DrizzleConfig<TSchema>;
 
-	const instance = typeof connection === 'string' ? createClient({ url: connection }) : createClient(connection);
+	if (client) return construct(client, drizzleConfig) as any;
+
+	const instance = typeof connection === 'string' ? createClient({ url: connection }) : createClient(connection!);
 
 	return construct(instance, drizzleConfig) as any;
 }

@@ -1,6 +1,7 @@
-import client, { type Options, type PostgresType, type Sql } from 'postgres';
+import pgClient, { type Options, type PostgresType, type Sql } from 'postgres';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { MockDriver } from '~/mock.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import {
@@ -80,36 +81,46 @@ export function drizzle<
 				& DrizzleConfig<TSchema>
 				& ({
 					connection: string | ({ url?: string } & Options<Record<string, PostgresType>>);
+				} | {
+					client: TClient;
 				})
 			),
-		]
+		] | [
+			MockDriver,
+		] | [MockDriver, DrizzleConfig<TSchema>]
 	>
 ): PostgresJsDatabase<TSchema> & {
 	$client: TClient;
 } {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof MockDriver) {
+		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
+	}
+
 	if (typeof params[0] === 'function') {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
 	if (typeof params[0] === 'object') {
-		const { connection, ...drizzleConfig } = params[0] as {
-			connection: { url?: string } & Options<Record<string, PostgresType>>;
-		} & DrizzleConfig;
+		const { connection, client, ...drizzleConfig } = params[0] as {
+			connection?: { url?: string } & Options<Record<string, PostgresType>>;
+			client?: TClient;
+		} & DrizzleConfig<TSchema>;
+
+		if (client) return construct(client, drizzleConfig) as any;
 
 		if (typeof connection === 'object' && connection.url !== undefined) {
 			const { url, ...config } = connection;
 
-			const instance = client(url, config);
+			const instance = pgClient(url, config);
 			return construct(instance, drizzleConfig) as any;
 		}
 
-		const instance = client(connection);
+		const instance = pgClient(connection);
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	const instance = client(params[0] as string);
+	const instance = pgClient(params[0] as string);
 
-	const db = construct(instance, params[1]);
-
-	return db as any;
+	return construct(instance, params[1]) as any;
 }

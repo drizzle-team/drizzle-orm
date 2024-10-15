@@ -1,7 +1,9 @@
+import { EventEmitter } from 'events';
 import pg, { type Pool, type PoolConfig } from 'pg';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { MockDriver } from '~/mock.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import {
@@ -98,23 +100,39 @@ export function drizzle<
 				& DrizzleConfig<TSchema>
 				& ({
 					connection: string | PoolConfig;
+				} | {
+					client: TClient;
 				})
 			),
+		]
+		| [
+			MockDriver,
+		]
+		| [
+			MockDriver,
+			DrizzleConfig<TSchema>,
 		]
 	>
 ): NodePgDatabase<TSchema> & {
 	$client: TClient;
 } {
 	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof pg.Pool || params[0] instanceof pg.ClientBase) {
+	if (params[0] instanceof MockDriver) {
+		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
+	}
+
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof EventEmitter) {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
 	if (typeof params[0] === 'object') {
-		const { connection, ...drizzleConfig } = params[0] as (
-			& ({ connection?: PoolConfig | string; driver?: TClient })
+		const { connection, client, ...drizzleConfig } = params[0] as (
+			& ({ connection?: PoolConfig | string; client?: TClient })
 			& DrizzleConfig<TSchema>
 		);
+
+		if (client) return construct(client, drizzleConfig);
 
 		const instance = typeof connection === 'string'
 			? new pg.Pool({
@@ -131,5 +149,3 @@ export function drizzle<
 
 	return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 }
-
-drizzle('', {});

@@ -2,6 +2,7 @@ import { neonConfig, Pool, type PoolConfig } from '@neondatabase/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { MockDriver } from '~/mock.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import {
@@ -96,16 +97,28 @@ export function drizzle<
 				& DrizzleConfig<TSchema>
 				& ({
 					connection: string | PoolConfig;
+				} | {
+					client: TClient;
 				})
 				& {
 					ws?: any;
 				}
 			),
+		] | [
+			MockDriver,
+		] | [
+			MockDriver,
+			DrizzleConfig<TSchema>,
 		]
 	>
 ): NeonDatabase<TSchema> & {
 	$client: TClient;
 } {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof MockDriver) {
+		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
+	}
+
 	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0] instanceof Pool) {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
@@ -120,14 +133,17 @@ export function drizzle<
 	}
 
 	if (typeof params[0] === 'object') {
-		const { connection, ws, ...drizzleConfig } = params[0] as {
+		const { connection, client, ws, ...drizzleConfig } = params[0] as {
 			connection?: PoolConfig | string;
 			ws?: any;
+			client?: TClient;
 		} & DrizzleConfig<TSchema>;
 
 		if (ws) {
 			neonConfig.webSocketConstructor = ws;
 		}
+
+		if (client) return construct(client, drizzleConfig);
 
 		const instance = typeof connection === 'string'
 			? new Pool({

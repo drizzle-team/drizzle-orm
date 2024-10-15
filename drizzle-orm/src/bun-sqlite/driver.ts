@@ -3,6 +3,7 @@
 import { Database } from 'bun:sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { MockDriver } from '~/mock.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -101,23 +102,42 @@ export function drizzle<
 			(
 				& DrizzleConfig<TSchema>
 				& ({
-					connection: DrizzleBunSqliteDatabaseConfig;
+					connection?: DrizzleBunSqliteDatabaseConfig;
+				} | {
+					client: TClient;
 				})
 			),
+		]
+		| [
+			MockDriver,
+		]
+		| [
+			MockDriver,
+			DrizzleConfig<TSchema>,
 		]
 	>
 ): BunSQLiteDatabase<TSchema> & {
 	$client: TClient;
 } {
 	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof MockDriver) {
+		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
+	}
+
+	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0] instanceof Database) {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
 	if (typeof params[0] === 'object') {
-		const { connection, ...drizzleConfig } = params[0] as {
-			connection: DrizzleBunSqliteDatabaseConfig | string | undefined;
-		} & DrizzleConfig;
+		const { connection, client, ...drizzleConfig } = params[0] as
+			& ({
+				connection?: DrizzleBunSqliteDatabaseConfig | string;
+				client?: TClient;
+			})
+			& DrizzleConfig<TSchema>;
+
+		if (client) return construct(client, drizzleConfig) as any;
 
 		if (typeof connection === 'object') {
 			const { source, ...opts } = connection;
