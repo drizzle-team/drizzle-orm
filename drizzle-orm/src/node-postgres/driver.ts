@@ -3,7 +3,6 @@ import pg, { type Pool, type PoolConfig } from 'pg';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MockDriver } from '~/mock.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import {
@@ -105,22 +104,10 @@ export function drizzle<
 				})
 			),
 		]
-		| [
-			MockDriver,
-		]
-		| [
-			MockDriver,
-			DrizzleConfig<TSchema>,
-		]
 	>
 ): NodePgDatabase<TSchema> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof MockDriver) {
-		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
-	}
-
 	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0] instanceof EventEmitter) {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
@@ -148,4 +135,14 @@ export function drizzle<
 	});
 
 	return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: DrizzleConfig<TSchema>,
+	): NodePgDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }

@@ -3,7 +3,6 @@ import { type Connection as CallbackConnection, createPool, type Pool as Callbac
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MockDriver } from '~/mock.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { Mode } from '~/mysql-core/session.ts';
@@ -130,18 +129,11 @@ export function drizzle<
 					client: TClient;
 				})
 			),
-		] | [
-			MockDriver,
-		] | [MockDriver, MySql2DrizzleConfig<TSchema>]
+		]
 	>
 ): MySql2Database<TSchema> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof MockDriver) {
-		return construct(params[0] as any, params[1] as MySql2DrizzleConfig<TSchema>) as any;
-	}
-
 	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0] instanceof EventEmitter) {
 		return construct(params[0] as TClient, params[1] as MySql2DrizzleConfig<TSchema> | undefined) as any;
@@ -166,4 +158,14 @@ export function drizzle<
 	});
 
 	return construct(instance, params[1]) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: MySql2DrizzleConfig<TSchema>,
+	): MySql2Database<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }

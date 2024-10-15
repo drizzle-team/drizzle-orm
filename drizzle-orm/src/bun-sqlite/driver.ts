@@ -3,7 +3,6 @@
 import { Database } from 'bun:sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MockDriver } from '~/mock.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -108,22 +107,10 @@ export function drizzle<
 				})
 			),
 		]
-		| [
-			MockDriver,
-		]
-		| [
-			MockDriver,
-			DrizzleConfig<TSchema>,
-		]
 	>
 ): BunSQLiteDatabase<TSchema> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof MockDriver) {
-		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
-	}
-
 	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0] instanceof Database) {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
@@ -157,4 +144,14 @@ export function drizzle<
 	const instance = new Database(params[0]);
 
 	return construct(instance, params[1]) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: DrizzleConfig<TSchema>,
+	): BunSQLiteDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }

@@ -1,5 +1,4 @@
 import { sql } from 'drizzle-orm';
-import { mock } from 'drizzle-orm/mock';
 import { boolean, mysqlTable, serial, text, withReplicas } from 'drizzle-orm/mysql-core';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { describe, expect, it, vi } from 'vitest';
@@ -16,9 +15,9 @@ const users = mysqlTable('users', {
 
 describe('[select] read replicas mysql', () => {
 	it('primary select', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -36,9 +35,9 @@ describe('[select] read replicas mysql', () => {
 	});
 
 	it('random replica select', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -65,8 +64,8 @@ describe('[select] read replicas mysql', () => {
 	});
 
 	it('single read replica select', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -85,8 +84,8 @@ describe('[select] read replicas mysql', () => {
 	});
 
 	it('single read replica select + primary select', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -106,9 +105,9 @@ describe('[select] read replicas mysql', () => {
 	});
 
 	it('always first read select', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
@@ -135,9 +134,9 @@ describe('[select] read replicas mysql', () => {
 
 describe('[selectDistinct] read replicas mysql', () => {
 	it('primary selectDistinct', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -154,9 +153,9 @@ describe('[selectDistinct] read replicas mysql', () => {
 	});
 
 	it('random replica selectDistinct', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -182,8 +181,8 @@ describe('[selectDistinct] read replicas mysql', () => {
 	});
 
 	it('single read replica selectDistinct', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -202,8 +201,8 @@ describe('[selectDistinct] read replicas mysql', () => {
 	});
 
 	it('single read replica selectDistinct + primary selectDistinct', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -223,9 +222,9 @@ describe('[selectDistinct] read replicas mysql', () => {
 	});
 
 	it('always first read selectDistinct', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
@@ -251,9 +250,9 @@ describe('[selectDistinct] read replicas mysql', () => {
 
 describe('[with] read replicas mysql', () => {
 	it('primary with', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -274,9 +273,9 @@ describe('[with] read replicas mysql', () => {
 	});
 
 	it('random replica with', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -300,8 +299,8 @@ describe('[with] read replicas mysql', () => {
 	});
 
 	it('single read replica with', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -318,8 +317,8 @@ describe('[with] read replicas mysql', () => {
 	});
 
 	it('single read replica with + primary with', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -337,9 +336,9 @@ describe('[with] read replicas mysql', () => {
 	});
 
 	it('always first read with', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
@@ -368,9 +367,9 @@ describe('[with] read replicas mysql', () => {
 
 describe('[update] replicas mysql', () => {
 	it('primary update', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -403,9 +402,9 @@ describe('[update] replicas mysql', () => {
 
 describe('[delete] replicas mysql', () => {
 	it('primary delete', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -439,9 +438,9 @@ describe('[delete] replicas mysql', () => {
 
 describe('[insert] replicas mysql', () => {
 	it('primary insert', () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -474,9 +473,9 @@ describe('[insert] replicas mysql', () => {
 
 describe('[execute] replicas mysql', () => {
 	it('primary execute', async () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -516,9 +515,9 @@ describe('[execute] replicas mysql', () => {
 
 describe('[transaction] replicas mysql', () => {
 	it('primary transaction', async () => {
-		const primaryDb = drizzle(mock);
-		const read1 = drizzle(mock);
-		const read2 = drizzle(mock);
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -559,9 +558,9 @@ describe('[transaction] replicas mysql', () => {
 
 describe('[findFirst] read replicas mysql', () => {
 	it('primary findFirst', () => {
-		const primaryDb = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read1 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read2 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
+		const primaryDb = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -579,9 +578,9 @@ describe('[findFirst] read replicas mysql', () => {
 	});
 
 	it('random replica findFirst', () => {
-		const primaryDb = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read1 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read2 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
+		const primaryDb = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -608,8 +607,8 @@ describe('[findFirst] read replicas mysql', () => {
 	});
 
 	it('single read replica findFirst', () => {
-		const primaryDb = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read1 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
+		const primaryDb = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -626,8 +625,8 @@ describe('[findFirst] read replicas mysql', () => {
 	});
 
 	it('single read replica findFirst + primary findFirst', () => {
-		const primaryDb = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read1 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
+		const primaryDb = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -645,9 +644,9 @@ describe('[findFirst] read replicas mysql', () => {
 	});
 
 	it('always first read findFirst', () => {
-		const primaryDb = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read1 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read2 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
+		const primaryDb = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
@@ -671,9 +670,9 @@ describe('[findFirst] read replicas mysql', () => {
 
 describe('[findMany] read replicas mysql', () => {
 	it('primary findMany', () => {
-		const primaryDb = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read1 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read2 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
+		const primaryDb = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -692,9 +691,9 @@ describe('[findMany] read replicas mysql', () => {
 	});
 
 	it('random replica findMany', () => {
-		const primaryDb = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read1 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read2 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
+		const primaryDb = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -725,8 +724,8 @@ describe('[findMany] read replicas mysql', () => {
 	});
 
 	it('single read replica findMany', () => {
-		const primaryDb = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read1 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
+		const primaryDb = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -749,8 +748,8 @@ describe('[findMany] read replicas mysql', () => {
 	});
 
 	it('single read replica findMany + primary findMany', () => {
-		const primaryDb = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read1 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
+		const primaryDb = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -775,9 +774,9 @@ describe('[findMany] read replicas mysql', () => {
 	});
 
 	it('always first read findMany', () => {
-		const primaryDb = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read1 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
-		const read2 = drizzle(mock, { schema: { usersTable }, mode: 'default' });
+		const primaryDb = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle.mock({ schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;

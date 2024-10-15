@@ -2,7 +2,6 @@ import { type QueryResult, type QueryResultRow, sql, type VercelPool } from '@ve
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MockDriver } from '~/mock.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/index.ts';
 import {
@@ -99,21 +98,11 @@ export function drizzle<
 					client?: TClient;
 				})
 			),
-		] | [
-			MockDriver,
-		] | [
-			MockDriver,
-			DrizzleConfig<TSchema>,
 		]
 	>
 ): VercelPgDatabase<TSchema> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof MockDriver) {
-		return construct(params[0] as any, params[1] as DrizzleConfig<TSchema>) as any;
-	}
-
 	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (typeof params[0] === 'function') {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
@@ -125,4 +114,14 @@ export function drizzle<
 
 	const { client, ...drizzleConfig } = params[0] as ({ client?: TClient } & DrizzleConfig<TSchema>);
 	return construct(client ?? sql, drizzleConfig) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: DrizzleConfig<TSchema>,
+	): VercelPgDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }

@@ -147,3 +147,13 @@ export function drizzle<
 
 	return construct(instance, params[1]) as any;
 }
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: DrizzleConfig<TSchema>,
+	): PlanetScaleDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
+}
