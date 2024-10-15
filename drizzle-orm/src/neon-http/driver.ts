@@ -124,7 +124,8 @@ export function drizzle<
 ): NeonHttpDatabase<TSchema> & {
 	$client: TClient;
 } {
-	if ((params[0] as any)[Symbol.toStringTag] === 'NeonQueryPromise') {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (typeof params[0] === 'function') {
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
