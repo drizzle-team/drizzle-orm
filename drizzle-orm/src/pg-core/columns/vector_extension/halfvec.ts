@@ -19,7 +19,7 @@ export class PgHalfVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgH
 	T,
 	{ dimensions: number | undefined }
 > {
-	static readonly [entityKind]: string = 'PgHalfVectorBuilder';
+	static override readonly [entityKind]: string = 'PgHalfVectorBuilder';
 
 	constructor(name: string, config: PgHalfVectorConfig) {
 		super(name, 'array', 'PgHalfVector');
@@ -40,7 +40,7 @@ export class PgHalfVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgH
 export class PgHalfVector<T extends ColumnBaseConfig<'array', 'PgHalfVector'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
-	static readonly [entityKind]: string = 'PgHalfVector';
+	static override readonly [entityKind]: string = 'PgHalfVector';
 
 	readonly dimensions = this.config.dimensions;
 

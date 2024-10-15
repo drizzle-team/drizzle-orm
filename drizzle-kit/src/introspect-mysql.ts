@@ -4,6 +4,7 @@ import './@types/utils';
 import type { Casing } from './cli/validations/common';
 import { assertUnreachable } from './global';
 import {
+	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
@@ -155,11 +156,15 @@ export const schemaToTypeScript = (
 			const uniqueImports = Object.values(it.uniqueConstraints).map(
 				(it) => 'unique',
 			);
+			const checkImports = Object.values(it.checkConstraint).map(
+				(it) => 'check',
+			);
 
 			res.mysql.push(...idxImports);
 			res.mysql.push(...fkImpots);
 			res.mysql.push(...pkImports);
 			res.mysql.push(...uniqueImports);
+			res.mysql.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -185,6 +190,31 @@ export const schemaToTypeScript = (
 		},
 		{ mysql: [] as string[] },
 	);
+
+	Object.values(schema.views).forEach((it) => {
+		imports.mysql.push('mysqlView');
+
+		const columnImports = Object.values(it.columns)
+			.map((col) => {
+				let patched = importsPatch[col.type] ?? col.type;
+				patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+				patched = patched.startsWith('char(') ? 'char' : patched;
+				patched = patched.startsWith('binary(') ? 'binary' : patched;
+				patched = patched.startsWith('decimal(') ? 'decimal' : patched;
+				patched = patched.startsWith('smallint(') ? 'smallint' : patched;
+				patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
+				patched = patched.startsWith('datetime(') ? 'datetime' : patched;
+				patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
+				patched = patched.startsWith('int(') ? 'int' : patched;
+				patched = patched.startsWith('double(') ? 'double' : patched;
+				return patched;
+			})
+			.filter((type) => {
+				return mysqlImportsList.has(type);
+			});
+
+		imports.mysql.push(...columnImports);
+	});
 
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const func = 'mysqlTable';
@@ -217,6 +247,7 @@ export const schemaToTypeScript = (
 			|| filteredFKs.length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
+			|| Object.keys(table.checkConstraint).length > 0
 		) {
 			statement += ',\n';
 			statement += '(table) => {\n';
@@ -235,11 +266,46 @@ export const schemaToTypeScript = (
 				Object.values(table.uniqueConstraints),
 				withCasing,
 			);
+			statement += createTableChecks(
+				Object.values(table.checkConstraint),
+				withCasing,
+			);
 			statement += '\t}\n';
 			statement += '}';
 		}
 
 		statement += ');';
+		return statement;
+	});
+
+	const viewsStatements = Object.values(schema.views).map((view) => {
+		const { columns, name, algorithm, definition, sqlSecurity, withCheckOption } = view;
+		const func = 'mysqlView';
+		let statement = '';
+
+		if (imports.mysql.includes(withCasing(name))) {
+			statement = `// Table name is in conflict with ${
+				withCasing(
+					view.name,
+				)
+			} import.\n// Please change to any other name, that is not in imports list\n`;
+		}
+		statement += `export const ${withCasing(name)} = ${func}("${name}", {\n`;
+		statement += createTableColumns(
+			Object.values(columns),
+			[],
+			withCasing,
+			casing,
+			name,
+			schema,
+		);
+		statement += '})';
+
+		statement += algorithm ? `.algorithm("${algorithm}")` : '';
+		statement += sqlSecurity ? `.sqlSecurity("${sqlSecurity}")` : '';
+		statement += withCheckOption ? `.withCheckOption("${withCheckOption}")` : '';
+		statement += `.as(sql\`${definition?.replaceAll('`', '\\`')}\`);`;
+
 		return statement;
 	});
 
@@ -257,6 +323,8 @@ export const schemaToTypeScript = (
 
 	let decalrations = '';
 	decalrations += tableStatements.join('\n\n');
+	decalrations += '\n';
+	decalrations += viewsStatements.join('\n\n');
 
 	const file = importsTs + decalrations;
 
@@ -850,6 +918,25 @@ const createTableUniques = (
 				.join(', ')
 		}),`;
 		statement += `\n`;
+	});
+
+	return statement;
+};
+
+const createTableChecks = (
+	checks: CheckConstraint[],
+	casing: (value: string) => string,
+): string => {
+	let statement = '';
+
+	checks.forEach((it) => {
+		const checkKey = casing(it.name);
+
+		statement += `\t\t${checkKey}: `;
+		statement += 'check(';
+		statement += `"${it.name}", `;
+		statement += `sql\`${it.value.replace(/`/g, '\\`')}\`)`;
+		statement += `,\n`;
 	});
 
 	return statement;

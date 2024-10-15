@@ -30,7 +30,7 @@ export class MySqlRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlSession<MySqlRemoteQueryResultHKT, MySqlRemotePreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySqlRemoteSession';
+	static override readonly [entityKind]: string = 'MySqlRemoteSession';
 
 	private logger: Logger;
 
@@ -81,7 +81,7 @@ export class MySqlProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlTransaction<MySqlRemoteQueryResultHKT, MySqlRemotePreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySqlProxyTransaction';
+	static override readonly [entityKind]: string = 'MySqlProxyTransaction';
 
 	override async transaction<T>(
 		_transaction: (tx: MySqlProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
@@ -91,7 +91,7 @@ export class MySqlProxyTransaction<
 }
 
 export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQueryBase<T> {
-	static readonly [entityKind]: string = 'MySqlProxyPreparedQuery';
+	static override readonly [entityKind]: string = 'MySqlProxyPreparedQuery';
 
 	constructor(
 		private client: RemoteCallback,

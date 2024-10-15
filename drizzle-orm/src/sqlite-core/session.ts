@@ -20,7 +20,7 @@ export interface PreparedQueryConfig {
 }
 
 export class ExecuteResultSync<T> extends QueryPromise<T> {
-	static readonly [entityKind]: string = 'ExecuteResultSync';
+	static override readonly [entityKind]: string = 'ExecuteResultSync';
 
 	constructor(private resultCb: () => T) {
 		super();
@@ -209,7 +209,7 @@ export abstract class SQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends BaseSQLiteDatabase<TResultType, TRunResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteTransaction';
+	static override readonly [entityKind]: string = 'SQLiteTransaction';
 
 	constructor(
 		resultType: TResultType,

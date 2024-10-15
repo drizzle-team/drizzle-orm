@@ -18,7 +18,7 @@ export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuild
 export class MySqlDecimalBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'MySqlDecimal'>,
 > extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
-	static readonly [entityKind]: string = 'MySqlDecimalBuilder';
+	static override readonly [entityKind]: string = 'MySqlDecimalBuilder';
 
 	constructor(name: T['name'], precision?: number, scale?: number) {
 		super(name, 'string', 'MySqlDecimal');
@@ -40,7 +40,7 @@ export class MySqlDecimalBuilder<
 export class MySqlDecimal<T extends ColumnBaseConfig<'string', 'MySqlDecimal'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDecimal';
+	static override readonly [entityKind]: string = 'MySqlDecimal';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;

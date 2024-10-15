@@ -19,7 +19,7 @@ export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVecto
 	T,
 	{ dimensions: number | undefined }
 > {
-	static readonly [entityKind]: string = 'PgVectorBuilder';
+	static override readonly [entityKind]: string = 'PgVectorBuilder';
 
 	constructor(name: string, config: PgVectorConfig) {
 		super(name, 'array', 'PgVector');
@@ -37,7 +37,7 @@ export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVecto
 export class PgVector<T extends ColumnBaseConfig<'array', 'PgVector'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
-	static readonly [entityKind]: string = 'PgVector';
+	static override readonly [entityKind]: string = 'PgVector';
 
 	readonly dimensions = this.config.dimensions;
 

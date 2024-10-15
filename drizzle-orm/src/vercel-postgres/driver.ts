@@ -1,4 +1,4 @@
-import { types } from '@vercel/postgres';
+import { type QueryResult, type QueryResultRow, sql, type VercelPool } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
 import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
 
 export interface VercelPgDriverOptions {
@@ -25,7 +25,6 @@ export class VercelPgDriver {
 		private dialect: PgDialect,
 		private options: VercelPgDriverOptions = {},
 	) {
-		this.initMappers();
 	}
 
 	createSession(
@@ -33,22 +32,15 @@ export class VercelPgDriver {
 	): VercelPgSession<Record<string, unknown>, TablesRelationalConfig> {
 		return new VercelPgSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
-
-	initMappers() {
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
-	}
 }
 
 export class VercelPgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<VercelPgQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'VercelPgDatabase';
+	static override readonly [entityKind]: string = 'VercelPgDatabase';
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: VercelPgClient,
 	config: DrizzleConfig<TSchema> = {},
 ): VercelPgDatabase<TSchema> & {
@@ -81,4 +73,55 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	(<any> db).$client = client;
 
 	return db as any;
+}
+
+type Primitive = string | number | boolean | undefined | null;
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends VercelPgClient =
+		& VercelPool
+		& (<O extends QueryResultRow>(strings: TemplateStringsArray, ...values: Primitive[]) => Promise<QueryResult<O>>),
+>(
+	...params: IfNotImported<
+		VercelPool,
+		[ImportTypeError<'@vercel/postgres'>],
+		[] | [
+			TClient,
+		] | [
+			TClient,
+			DrizzleConfig<TSchema>,
+		] | [
+			(
+				& DrizzleConfig<TSchema>
+				& ({
+					client?: TClient;
+				})
+			),
+		]
+	>
+): VercelPgDatabase<TSchema> & {
+	$client: TClient;
+} {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (typeof params[0] === 'function') {
+		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	}
+
+	if (!params[0] || !(params[0] as { client?: TClient }).client) {
+		return construct(sql, params[0] as DrizzleConfig<TSchema> | undefined) as any;
+	}
+
+	const { client, ...drizzleConfig } = params[0] as ({ client?: TClient } & DrizzleConfig<TSchema>);
+	return construct(client ?? sql, drizzleConfig) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: DrizzleConfig<TSchema>,
+	): VercelPgDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }

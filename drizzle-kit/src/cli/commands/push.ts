@@ -183,6 +183,7 @@ export const pgPush = async (
 				statementsToExecute,
 				columnsToRemove,
 				tablesToRemove,
+				matViewsToRemove,
 				tablesToTruncate,
 				infoToPrint,
 				schemasToRemove,
@@ -238,6 +239,12 @@ export const pgPush = async (
 							tablesToTruncate.length > 0
 								? ` truncate ${tablesToTruncate.length} ${tablesToTruncate.length > 1 ? 'tables' : 'table'}`
 								: ''
+						}${
+							matViewsToRemove.length > 0
+								? ` remove ${matViewsToRemove.length} ${
+									matViewsToRemove.length > 1 ? 'materialized views' : 'materialize view'
+								},`
+								: ' '
 						}`
 							.replace(/(^,)|(,$)/g, '')
 							.replace(/ +(?= )/g, ''),
