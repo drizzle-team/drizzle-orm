@@ -466,8 +466,6 @@ test('introspect checks from different schemas with same names', async () => {
 		['public', 'schema2'],
 	);
 
-	console.log('statements: ', statements);
-
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });

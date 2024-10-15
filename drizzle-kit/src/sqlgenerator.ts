@@ -597,7 +597,7 @@ class MySqlRenameViewConvertor extends Convertor {
 	convert(st: JsonRenameViewStatement) {
 		const { nameFrom: from, nameTo: to } = st;
 
-		return `RENAME TABLE \`${from}\` RENAME TO \`${to}\`;`;
+		return `RENAME TABLE \`${from}\` TO \`${to}\`;`;
 	}
 }
 

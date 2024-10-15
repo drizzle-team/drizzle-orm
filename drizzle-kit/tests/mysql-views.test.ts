@@ -161,7 +161,7 @@ test('rename view', async () => {
 		nameTo: 'new_some_view',
 	});
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`RENAME TABLE \`some_view\` RENAME TO \`new_some_view\`;`);
+	expect(sqlStatements[0]).toBe(`RENAME TABLE \`some_view\` TO \`new_some_view\`;`);
 });
 
 test('rename view and alter meta options', async () => {
@@ -201,7 +201,7 @@ test('rename view and alter meta options', async () => {
 		withCheckOption: 'cascaded',
 	});
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`RENAME TABLE \`some_view\` RENAME TO \`new_some_view\`;`);
+	expect(sqlStatements[0]).toBe(`RENAME TABLE \`some_view\` TO \`new_some_view\`;`);
 	expect(sqlStatements[1]).toBe(`ALTER ALGORITHM = undefined
 SQL SECURITY definer
 VIEW \`new_some_view\` AS SELECT * FROM \`users\`
@@ -478,7 +478,7 @@ test('rename and alter view ".as" value', async () => {
 	});
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`RENAME TABLE \`some_view\` RENAME TO \`new_some_view\`;`);
+	expect(sqlStatements[0]).toBe(`RENAME TABLE \`some_view\` TO \`new_some_view\`;`);
 	expect(sqlStatements[1]).toBe(`CREATE OR REPLACE ALGORITHM = temptable
 SQL SECURITY invoker
 VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1)
