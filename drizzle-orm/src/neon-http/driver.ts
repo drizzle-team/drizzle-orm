@@ -114,7 +114,7 @@ export function drizzle<
 			(
 				& DrizzleConfig<TSchema>
 				& ({
-					connection: string | HTTPTransactionOptions<boolean, boolean>;
+					connection: string | ({ connectionString: string } & HTTPTransactionOptions<boolean, boolean>);
 				} | {
 					client: TClient;
 				})
