@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
+import type { Connection, Pool } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -53,7 +54,7 @@ export type MySql2DrizzleConfig<TSchema extends Record<string, unknown> = Record
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TClient extends MySql2Client | CallbackConnection | CallbackPool = MySql2Client | CallbackConnection | CallbackPool,
+	TClient extends Pool | Connection | CallbackPool | CallbackConnection = CallbackPool,
 >(
 	client: TClient,
 	config: MySql2DrizzleConfig<TSchema> = {},
@@ -108,9 +109,11 @@ function isCallbackClient(client: any): client is CallbackClient {
 	return typeof client.promise === 'function';
 }
 
+export type AnyMySql2Connection = Pool | Connection | CallbackPool | CallbackConnection;
+
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TClient extends MySql2Client | CallbackPool | CallbackConnection = CallbackPool,
+	TClient extends AnyMySql2Connection = CallbackPool,
 >(
 	...params: IfNotImported<
 		CallbackPool,
@@ -146,7 +149,11 @@ export function drizzle<
 
 		if (client) return construct(client, drizzleConfig) as any;
 
-		const instance = createPool(connection as PoolOptions);
+		const instance = typeof connection === 'string'
+			? createPool({
+				uri: connection,
+			})
+			: createPool(connection!);
 		const db = construct(instance, drizzleConfig);
 
 		return db as any;

@@ -113,14 +113,6 @@ export function drizzle<
 		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
-	if (typeof params[0] === 'string') {
-		const instance = new Pool({
-			connectionString: params[0],
-		});
-
-		construct(instance);
-	}
-
 	if (typeof params[0] === 'object') {
 		const { connection, client, ws, ...drizzleConfig } = params[0] as {
 			connection?: PoolConfig | string;
@@ -143,7 +135,9 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	const instance = new Pool();
+	const instance = new Pool({
+		connectionString: params[0],
+	});
 
 	return construct(instance, params[1]) as any;
 }

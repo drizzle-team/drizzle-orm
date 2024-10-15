@@ -113,6 +113,8 @@ export function drizzle<
 				& DrizzleConfig<TSchema>
 				& ({
 					connection: string | Config;
+				} | {
+					client: TClient;
 				})
 			),
 		]
@@ -126,16 +128,18 @@ export function drizzle<
 	}
 
 	if (typeof params[0] === 'object') {
-		const { connection, ...drizzleConfig } = params[0] as
-			& { connection: Config | string }
+		const { connection, client, ...drizzleConfig } = params[0] as
+			& { connection?: Config | string; client?: TClient }
 			& DrizzleConfig;
+
+		if (client) return construct(client, drizzleConfig) as any;
 
 		const instance = typeof connection === 'string'
 			? new Client({
 				url: connection,
 			})
 			: new Client(
-				connection,
+				connection!,
 			);
 
 		return construct(instance, drizzleConfig) as any;
