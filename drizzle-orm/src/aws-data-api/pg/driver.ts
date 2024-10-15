@@ -1,3 +1,4 @@
+import { RDSDataClient, type RDSDataClientConfig } from '@aws-sdk/client-rds-data';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -14,7 +15,7 @@ import {
 } from '~/relations.ts';
 import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
-import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
+import type { DrizzleConfig, IfNotImported, ImportTypeError, UpdateSet } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
 
@@ -87,7 +88,7 @@ export class AwsPgDialect extends PgDialect {
 	}
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: AwsDataApiClient,
 	config: DrizzleAwsDataApiPgConfig<TSchema>,
 ): AwsDataApiPgDatabase<TSchema> & {
@@ -119,4 +120,66 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	(<any> db).$client = client;
 
 	return db as any;
+}
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends AwsDataApiClient = RDSDataClient,
+>(
+	...params: IfNotImported<
+		RDSDataClientConfig,
+		[ImportTypeError<'@aws-sdk/client-rds-data'>],
+		[
+			TClient,
+			DrizzleAwsDataApiPgConfig<TSchema>,
+		] | [
+			(
+				| (
+					& DrizzleConfig<TSchema>
+					& {
+						connection: RDSDataClientConfig & Omit<DrizzleAwsDataApiPgConfig, keyof DrizzleConfig>;
+					}
+				)
+				| (
+					& DrizzleAwsDataApiPgConfig<TSchema>
+					& {
+						client: TClient;
+					}
+				)
+			),
+		]
+	>
+): AwsDataApiPgDatabase<TSchema> & {
+	$client: TClient;
+} {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof RDSDataClient) {
+		return construct(params[0] as TClient, params[1] as DrizzleAwsDataApiPgConfig<TSchema>) as any;
+	}
+
+	if ((params[0] as { client?: TClient }).client) {
+		const { client, ...drizzleConfig } = params[0] as {
+			client: TClient;
+		} & DrizzleAwsDataApiPgConfig<TSchema>;
+
+		return construct(client, drizzleConfig) as any;
+	}
+
+	const { connection, ...drizzleConfig } = params[0] as {
+		connection: RDSDataClientConfig & Omit<DrizzleAwsDataApiPgConfig, keyof DrizzleConfig>;
+	} & DrizzleConfig<TSchema>;
+	const { resourceArn, database, secretArn, ...rdsConfig } = connection;
+
+	const instance = new RDSDataClient(rdsConfig);
+	return construct(instance, { resourceArn, database, secretArn, ...drizzleConfig }) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config: DrizzleAwsDataApiPgConfig<TSchema>,
+	): AwsDataApiPgDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }
