@@ -90,7 +90,7 @@ export const schemaInternalV4 = object({
 	version: literal('4'),
 	dialect: dialect,
 	tables: record(string(), table),
-	views: record(string(), view),
+	views: record(string(), view).default({}),
 	enums: object({}),
 }).strict();
 
