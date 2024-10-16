@@ -54,6 +54,7 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView } from './view.ts';
+import { hash } from './utils/string.ts';
 
 export interface PgDialectConfig {
 	casing?: Casing;
@@ -1240,7 +1241,7 @@ export class PgDialect {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
 				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
-				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
+				const relationTableAlias = hash(`${tableAlias}_${selectedRelationTsKey}`);
 				const joinOn = and(
 					...normalizedRelation.fields.map((field, i) =>
 						eq(
@@ -1296,7 +1297,7 @@ export class PgDialect {
 				sql.join(
 					selection.map(({ field, tsKey, isJson }) =>
 						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
+							? sql`${sql.identifier(hash(`${tableAlias}_${tsKey}`))}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
 							: field
