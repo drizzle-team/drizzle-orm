@@ -37,6 +37,7 @@ import {
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error, grey } from '../views';
+import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions'
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {
@@ -273,16 +274,7 @@ export const preparePushConfig = async (
 			: schemasFilterConfig
 		: [];
 
-	if (config.extensionsFilters) {
-		if (
-			config.extensionsFilters.includes('postgis')
-			&& config.dialect === 'postgresql'
-		) {
-			tablesFilter.push(
-				...['!geography_columns', '!geometry_columns', '!spatial_ref_sys'],
-			);
-		}
-	}
+	tablesFilter.push(...getTablesFilterByExtensions(config));
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
