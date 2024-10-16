@@ -289,7 +289,7 @@ function isWithEnum(
 
 const uuidPattern = /^[\dA-Fa-f]{8}(?:-[\dA-Fa-f]{4}){3}-[\dA-Fa-f]{12}$/;
 
-function mapColumnToSchema(column: Column): TSchema {
+export function mapColumnToSchema(column: Column): TSchema {
 	let type: TSchema | undefined;
 
 	if (isWithEnum(column)) {
