@@ -19,6 +19,7 @@ import {
 	_prepareAddColumns,
 	_prepareDropColumns,
 	_prepareSqliteAddColumns,
+	_prepareSqliteDropColumns,
 	JsonAddColumnStatement,
 	JsonAlterCompositePK,
 	JsonAlterMySqlViewStatement,
@@ -97,6 +98,7 @@ import {
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
 	prepareSqliteCreateViewJson,
+	SqliteJsonDropColumnStatement,
 } from './jsonStatements';
 
 import { Named, NamedWithSchema } from './cli/commands/migrate';
@@ -2293,8 +2295,8 @@ export const applySqliteSnapshotsDiff = async (
 		.map((it) => prepareRenameColumns(it.table, '', it.renames))
 		.flat();
 
-	const jsonDropColumnsStatemets: JsonDropColumnStatement[] = columnDeletes
-		.map((it) => _prepareDropColumns(it.table, '', it.columns))
+	const jsonDropColumnsStatemets: SqliteJsonDropColumnStatement[] = columnDeletes
+		.map((it) => _prepareSqliteDropColumns(it.table, it.columns))
 		.flat();
 
 	const jsonAddColumnsStatemets: JsonSqliteAddColumnStatement[] = columnCreates
@@ -2847,8 +2849,8 @@ export const applyLibSQLSnapshotsDiff = async (
 		.map((it) => prepareRenameColumns(it.table, '', it.renames))
 		.flat();
 
-	const jsonDropColumnsStatemets: JsonDropColumnStatement[] = columnDeletes
-		.map((it) => _prepareDropColumns(it.table, '', it.columns))
+	const jsonDropColumnsStatemets: SqliteJsonDropColumnStatement[] = columnDeletes
+		.map((it) => _prepareSqliteDropColumns(it.table, it.columns))
 		.flat();
 
 	const jsonAddColumnsStatemets: JsonSqliteAddColumnStatement[] = columnCreates

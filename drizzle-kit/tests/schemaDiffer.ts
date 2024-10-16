@@ -1338,22 +1338,28 @@ export async function diffTestSchemasPushLibSQL(
 			'push',
 		);
 
-		const { statementsToExecute, columnsToRemove, infoToPrint, shouldAskForApprove, tablesToRemove, tablesToTruncate } =
-			await libSqlLogSuggestionsAndReturn(
-				{
-					query: async <T>(sql: string, params?: any[]) => {
-						const res = await client.execute({ sql, args: params || [] });
-						return res.rows as T[];
-					},
-					run: async (query: string) => {
-						await client.execute(query);
-					},
+		const {
+			statementsToExecute,
+			columnsToRemove,
+			infoToPrint,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		} = await libSqlLogSuggestionsAndReturn(
+			{
+				query: async <T>(sql: string, params?: any[]) => {
+					const res = await client.execute({ sql, args: params || [] });
+					return res.rows as T[];
 				},
-				statements,
-				sn1,
-				sn2,
-				_meta!,
-			);
+				run: async (query: string) => {
+					await client.execute(query);
+				},
+			},
+			statements,
+			sn1,
+			sn2,
+			_meta!,
+		);
 
 		return {
 			sqlStatements: statementsToExecute,
