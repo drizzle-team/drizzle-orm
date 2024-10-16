@@ -1,12 +1,15 @@
 import {
+	type AnyColumn,
 	type Assume,
 	type Column,
 	type DrizzleTypeError,
 	type Equal,
 	getTableColumns,
+	getViewColumns,
 	is,
 	type Simplify,
 	type Table,
+	type View,
 } from 'drizzle-orm';
 import { MySqlChar, MySqlVarBinary, MySqlVarChar } from 'drizzle-orm/mysql-core';
 import { type PgArray, PgChar, PgUUID, PgVarchar } from 'drizzle-orm/pg-core';
@@ -65,6 +68,17 @@ export type Refine<TTable extends Table, TMode extends 'select' | 'insert'> = {
 	>;
 };
 
+export type RefineView<
+	TName extends string,
+	TExisting extends boolean,
+	TSelection extends Record<string, Column>,
+	TView extends View<TName, TExisting, TSelection>> = {
+  [K in keyof TView["_"]["selectedFields"]]?: ValueOrUpdater<
+    z.ZodTypeAny,
+    BuildViewSelectSchema<TName, TExisting, TSelection, TView, {}, true>
+  >;
+};
+
 export type BuildInsertSchema<
 	TTable extends Table,
 	TRefine extends Refine<TTable, 'insert'> | {},
@@ -95,6 +109,24 @@ export type BuildSelectSchema<
 		>;
 	}
 >;
+
+export type BuildViewSelectSchema<
+  TName extends string,
+  TExisting extends boolean,
+  TSelection extends Record<string, Column>,
+  TView extends View<TName, TExisting, TSelection>,
+  TRefine extends RefineView<TName, TExisting, TSelection, TView>,
+  TNoOptional extends boolean = false
+> = Simplify<{
+  [K in keyof TView["_"]["selectedFields"]]: MaybeOptional<
+    TView["_"]["selectedFields"][K],
+    K extends keyof TRefine
+      ? Assume<UnwrapValueOrUpdater<TRefine[K]>, z.ZodTypeAny>
+      : GetZodType<TView["_"]["selectedFields"][K]>,
+    "select",
+    TNoOptional
+  >;
+}>;
 
 export function createInsertSchema<
 	TTable extends Table,
@@ -186,6 +218,73 @@ export function createSelectSchema<
 	}
 
 	return z.object(schemaEntries) as any;
+}
+
+export function createExistingViewSchema<
+  TName extends string,
+  TExisting extends boolean,
+  TSelection extends Record<string, Column>,
+  TView extends View<TName, TExisting, TSelection>,
+  TRefine extends RefineView<TName, TExisting, TSelection, TView>
+>(
+  view: TView,
+  refine?: {
+    [K in keyof TRefine]: K extends keyof TView["_"]["selectedFields"]
+      ? TRefine[K]
+      : DrizzleTypeError<`Column '${K & string}' does not exist in table '${TView["_"]["name"]}'`>;
+  }
+): z.ZodObject<
+  BuildViewSelectSchema<
+    TName,
+    TExisting,
+    TSelection,
+    TView,
+    Equal<TRefine, RefineView<TName, TExisting, TSelection, TView>> extends true ? {} : TRefine
+  >
+> {
+  const columns = getViewColumns(view);
+
+  const columnEntries = Object.entries(columns);
+
+  let schemaEntries = Object.fromEntries(
+    columnEntries.map(([name, column]) => {
+      return [name, mapColumnToSchema(column as any)];
+    })
+  );
+
+  if (refine) {
+    schemaEntries = Object.assign(
+      schemaEntries,
+      Object.fromEntries(
+        Object.entries(refine).map(([name, refineColumn]) => {
+          return [
+            name,
+            typeof refineColumn === "function"
+              ? refineColumn(
+                  schemaEntries as BuildViewSelectSchema<
+                    TName,
+                    TExisting,
+                    TSelection,
+                    TView,
+                    {},
+                    true
+                  >
+                )
+              : refineColumn,
+          ];
+        })
+      )
+    );
+  }
+
+  for (const [name, column] of columnEntries) {
+	//-- Triple equal and type assertion is necessary here incase property is undefined.
+    if (false === (column as AnyColumn).notNull) {
+      schemaEntries[name] = schemaEntries[name]!.nullable();
+    }
+  }
+
+  return z.object(schemaEntries) as any;
 }
 
 function isWithEnum(column: Column): column is typeof column & { enumValues: [string, ...string[]] } {
