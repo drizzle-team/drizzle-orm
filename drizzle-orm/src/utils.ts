@@ -188,6 +188,36 @@ export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
 
+type ColumnSelector<C extends Record<string, AnyColumn>> = {
+	select: <K extends keyof C>(...columns: K[]) => ColumnSelector<Pick<C, K>>;
+	omit: <K extends keyof C>(...columns: K[]) => ColumnSelector<Omit<C, K>>;
+	columns: C;
+};
+
+export function columnSelector<T extends Table>(table: T): ColumnSelector<T['_']['columns']> {
+	const createColumnSelector = <C extends Record<string, AnyColumn>>(
+		currentColumns: C,
+	): ColumnSelector<C> => ({
+		select: <K extends keyof C>(...columns: K[]) =>
+			createColumnSelector(
+				Object.fromEntries(
+					Object.entries(currentColumns).filter(([key]) => columns.includes(key as K)),
+				) as Pick<C, K>,
+			),
+		omit: <K extends keyof C>(...columns: K[]) =>
+			createColumnSelector(
+				Object.fromEntries(
+					Object.entries(currentColumns).filter(
+						([key]) => !columns.includes(key as K),
+					),
+				) as Omit<C, K>,
+			),
+		columns: currentColumns,
+	});
+
+	return createColumnSelector<T['_']['columns']>(getTableColumns(table));
+}
+
 /** @internal */
 export function getTableLikeName(table: TableLike): string | undefined {
 	return is(table, Subquery)
