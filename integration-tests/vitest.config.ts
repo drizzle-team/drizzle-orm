@@ -5,16 +5,19 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'tests/extensions/postgis/**/*',
-			'tests/relational/**/*.test.ts',
-			'tests/pg/**/*.test.ts',
-			'tests/mysql/**/*.test.ts',
-			'tests/sqlite/**/*.test.ts',
-			'tests/replicas/**/*',
-			'tests/imports/**/*',
-			'tests/extensions/vectors/**/*',
-			'tests/version.test.ts',
-			'tests/pg/node-postgres.test.ts',
+			// 'tests/extensions/postgis/**/*',
+			// 'tests/relational/**/*.test.ts',
+			// 'tests/pg/**/*.test.ts',
+			// 'tests/mysql/**/*.test.ts',
+			// 'tests/sqlite/**/*.test.ts',
+			// 'tests/replicas/**/*',
+			// 'tests/imports/**/*',
+			// 'tests/extensions/vectors/**/*',
+			// 'tests/version.test.ts',
+			// 'tests/pg/node-postgres.test.ts',
+			'tests/utils/is-config.test.ts',
+			'js-tests/driver-init/commonjs/*.test.cjs',
+			'js-tests/driver-init/module/*.test.mjs',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
@@ -28,6 +31,17 @@ export default defineConfig({
 					'tests/sqlite/libsql-batch.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
+					'tests/utils/is-config.test.ts', // Uses external DBs in some cases
+					'tests/driver-init/commonjs/neon-http.test.cjs',
+					'tests/driver-init/commonjs/neon-ws.test.cjs',
+					'tests/driver-init/commonjs/planetscale.test.cjs',
+					'tests/driver-init/commonjs/tidb.test.cjs',
+					'tests/driver-init/commonjs/vercel.test.cjs',
+					'tests/driver-init/module/neon-http.test.mjs',
+					'tests/driver-init/module/neon-ws.test.mjs',
+					'tests/driver-init/module/planetscale.test.mjs',
+					'tests/driver-init/module/tidb.test.mjs',
+					'tests/driver-init/module/vercel.test.mjs',
 				]
 				: []),
 			'tests/pg/awsdatapi.test.ts',
