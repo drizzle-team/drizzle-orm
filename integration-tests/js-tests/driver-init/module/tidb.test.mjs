@@ -5,7 +5,7 @@ import { describe, expect } from 'vitest';
 import { mysql as schema } from './schema.mjs';
 
 if (!process.env['TIDB_CONNECTION_STRING']) {
-	new Error('TIDB_CONNECTION_STRING is not defined');
+	throw new Error('TIDB_CONNECTION_STRING is not defined');
 }
 
 describe('tidb', async (it) => {

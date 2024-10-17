@@ -9,9 +9,13 @@ const Pool = vc.VercelPool;
 const Client = vc.VercelClient;
 
 if (!process.env['VERCEL_CONNECTION_STRING']) {
-	new Error('VERCEL_CONNECTION_STRING is not defined');
+	throw new Error('VERCEL_CONNECTION_STRING is not defined');
 }
 
+// Used for non-pooled connection
+if (!process.env['NEON_CONNECTION_STRING']) {
+	throw new Error('NEON_CONNECTION_STRING is not defined');
+}
 process.env['POSTGRES_URL'] = process.env['VERCEL_CONNECTION_STRING'];
 
 describe('vercel:sql', async (it) => {

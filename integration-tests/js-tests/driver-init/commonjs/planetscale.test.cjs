@@ -5,7 +5,7 @@ const { mysql: schema } = require('./schema.cjs');
 import { describe, expect } from 'vitest';
 
 if (!process.env['PLANETSCALE_CONNECTION_STRING']) {
-	new Error('PLANETSCALE_CONNECTION_STRING is not defined');
+	throw new Error('PLANETSCALE_CONNECTION_STRING is not defined');
 }
 
 describe('planetscale', async (it) => {

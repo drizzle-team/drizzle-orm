@@ -5,7 +5,7 @@ import { describe, expect } from 'vitest';
 import { pg as schema } from './schema.mjs';
 
 if (!process.env['PG_CONNECTION_STRING']) {
-	new Error('PG_CONNECTION_STRING is not defined');
+	throw new Error('PG_CONNECTION_STRING is not defined');
 }
 
 describe('postgres-js', async (it) => {
