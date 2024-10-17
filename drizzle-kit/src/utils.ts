@@ -1,9 +1,11 @@
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';
 import type { NamedWithSchema } from './cli/commands/migrate';
+import { CasingType } from './cli/validations/common';
 import { info } from './cli/views';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
@@ -25,9 +27,12 @@ export type DB = {
 export type SQLiteDB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
 	run(query: string): Promise<void>;
-	batch?(
-		queries: { query: string; values?: any[] | undefined }[],
-	): Promise<void>;
+};
+
+export type LibSQLDB = {
+	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
+	run(query: string): Promise<void>;
+	batchWithPragma?(queries: string[]): Promise<void>;
 };
 
 export const copy = <T>(it: T): T => {
@@ -114,6 +119,8 @@ const validatorForDialect = (dialect: Dialect) => {
 		case 'postgresql':
 			return { validator: backwardCompatiblePgSchema, version: 7 };
 		case 'sqlite':
+			return { validator: backwardCompatibleSqliteSchema, version: 6 };
+		case 'turso':
 			return { validator: backwardCompatibleSqliteSchema, version: 6 };
 		case 'mysql':
 			return { validator: backwardCompatibleMysqlSchema, version: 5 };
@@ -340,4 +347,26 @@ export const normalisePGliteUrl = (
 
 export function isPgArrayType(sqlType: string) {
 	return sqlType.match(/.*\[\d*\].*|.*\[\].*/g) !== null;
+}
+
+export function findAddedAndRemoved(columnNames1: string[], columnNames2: string[]) {
+	const set1 = new Set(columnNames1);
+	const set2 = new Set(columnNames2);
+
+	const addedColumns = columnNames2.filter((it) => !set1.has(it));
+	const removedColumns = columnNames1.filter((it) => !set2.has(it));
+
+	return { addedColumns, removedColumns };
+}
+
+export function getColumnCasing(
+	column: { keyAsName: boolean; name: string | undefined },
+	casing: CasingType | undefined,
+) {
+	if (!column.name) return '';
+	return !column.keyAsName || casing === undefined
+		? column.name
+		: casing === 'camelCase'
+		? toCamelCase(column.name)
+		: toSnakeCase(column.name);
 }

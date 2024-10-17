@@ -9,6 +9,7 @@ export * from './date.ts';
 export * from './double-precision.ts';
 export * from './enum.ts';
 export * from './inet.ts';
+export * from './int.common.ts';
 export * from './integer.ts';
 export * from './interval.ts';
 export * from './json.ts';

@@ -1,9 +1,10 @@
 import { entityKind } from '~/entity.ts';
+import { TableName } from '~/table.utils.ts';
 import type { SQLiteColumn } from './columns/common.ts';
-import { SQLiteTable } from './table.ts';
+import type { SQLiteTable } from './table.ts';
 
 export function uniqueKeyName(table: SQLiteTable, columns: string[]) {
-	return `${table[SQLiteTable.Symbol.Name]}_${columns.join('_')}_unique`;
+	return `${table[TableName]}_${columns.join('_')}_unique`;
 }
 
 export function unique(name?: string): UniqueOnConstraintBuilder {

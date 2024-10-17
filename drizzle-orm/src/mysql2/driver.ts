@@ -1,4 +1,6 @@
-import type { Connection as CallbackConnection, Pool as CallbackPool } from 'mysql2';
+import { EventEmitter } from 'events';
+import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
+import type { Connection, Pool } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -11,8 +13,8 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
-import { DrizzleError } from '../index.ts';
+import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
+import { DrizzleError } from '../errors.ts';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
 import { MySql2Session } from './session.ts';
 
@@ -40,28 +42,34 @@ export class MySql2Driver {
 
 export { MySqlDatabase } from '~/mysql-core/db.ts';
 
-export type MySql2Database<
+export class MySql2Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema>;
+> extends MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema> {
+	static override readonly [entityKind]: string = 'MySql2Database';
+}
 
 export type MySql2DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
 	& Omit<DrizzleConfig<TSchema>, 'schema'>
 	& ({ schema: TSchema; mode: Mode } | { schema?: undefined; mode?: Mode });
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: MySql2Client | CallbackConnection | CallbackPool,
+function construct<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends Pool | Connection | CallbackPool | CallbackConnection = CallbackPool,
+>(
+	client: TClient,
 	config: MySql2DrizzleConfig<TSchema> = {},
-): MySql2Database<TSchema> {
-	const dialect = new MySqlDialect();
+): MySql2Database<TSchema> & {
+	$client: TClient;
+} {
+	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
 	} else if (config.logger !== false) {
 		logger = config.logger;
 	}
-	if (isCallbackClient(client)) {
-		client = client.promise();
-	}
+
+	const clientForInstance = isCallbackClient(client) ? client.promise() : client;
 
 	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
 	if (config.schema) {
@@ -85,9 +93,12 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const mode = config.mode ?? 'default';
 
-	const driver = new MySql2Driver(client as MySql2Client, dialect, { logger });
+	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger });
 	const session = driver.createSession(schema, mode);
-	return new MySqlDatabase(dialect, session, schema, mode) as MySql2Database<TSchema>;
+	const db = new MySql2Database(dialect, session, schema as any, mode) as MySql2Database<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }
 
 interface CallbackClient {
@@ -96,4 +107,72 @@ interface CallbackClient {
 
 function isCallbackClient(client: any): client is CallbackClient {
 	return typeof client.promise === 'function';
+}
+
+export type AnyMySql2Connection = Pool | Connection | CallbackPool | CallbackConnection;
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends AnyMySql2Connection = CallbackPool,
+>(
+	...params: IfNotImported<
+		CallbackPool,
+		[ImportTypeError<'mysql2'>],
+		[
+			TClient | string,
+		] | [
+			TClient | string,
+			MySql2DrizzleConfig<TSchema>,
+		] | [
+			(
+				& MySql2DrizzleConfig<TSchema>
+				& ({
+					connection: string | PoolOptions;
+				} | {
+					client: TClient;
+				})
+			),
+		]
+	>
+): MySql2Database<TSchema> & {
+	$client: TClient;
+} {
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (params[0] instanceof EventEmitter) {
+		return construct(params[0] as TClient, params[1] as MySql2DrizzleConfig<TSchema> | undefined) as any;
+	}
+
+	if (typeof params[0] === 'object') {
+		const { connection, client, ...drizzleConfig } = params[0] as
+			& { connection?: PoolOptions | string; client?: TClient }
+			& MySql2DrizzleConfig<TSchema>;
+
+		if (client) return construct(client, drizzleConfig) as any;
+
+		const instance = typeof connection === 'string'
+			? createPool({
+				uri: connection,
+			})
+			: createPool(connection!);
+		const db = construct(instance, drizzleConfig);
+
+		return db as any;
+	}
+
+	const connectionString = params[0]!;
+	const instance = createPool({
+		uri: connectionString,
+	});
+
+	return construct(instance, params[1]) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: MySql2DrizzleConfig<TSchema>,
+	): MySql2Database<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }

@@ -74,7 +74,7 @@ export const assertEitherPackage = async (
 	process.exit(1);
 };
 
-const requiredApiVersion = 7;
+const requiredApiVersion = 9;
 export const assertOrmCoreVersion = async () => {
 	try {
 		const { compatibilityVersion } = await import('drizzle-orm/version');

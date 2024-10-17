@@ -21,6 +21,7 @@ export type OptionalKeyOnly<
 	: T['_']['generated'] extends object ? T['_']['generated']['type'] extends 'byDefault' ? TKey : never
 	: never;
 
+// TODO: SQL -> SQLWrapper
 export type SelectedFieldsFlat<TColumn extends Column> = Record<
 	string,
 	TColumn | SQL | SQL.Aliased
