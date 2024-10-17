@@ -11,7 +11,7 @@ import {
 } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
+import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
 import { SQLiteBunSession } from './session.ts';
 
 export class BunSQLiteDatabase<
@@ -111,12 +111,13 @@ export function drizzle<
 ): BunSQLiteDatabase<TSchema> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof Database) {
-		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	if (params[0] === undefined || typeof params[0] === 'string') {
+		const instance = params[0] === undefined ? new Database() : new Database(params[0]);
+
+		return construct(instance, params[1]) as any;
 	}
 
-	if (typeof params[0] === 'object') {
+	if (isConfig(params[0])) {
 		const { connection, client, ...drizzleConfig } = params[0] as
 			& ({
 				connection?: DrizzleBunSqliteDatabaseConfig | string;
@@ -141,9 +142,7 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	const instance = new Database(params[0]);
-
-	return construct(instance, params[1]) as any;
+	return construct(params[0] as Database, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 }
 
 export namespace drizzle {

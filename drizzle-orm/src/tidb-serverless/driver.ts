@@ -1,4 +1,4 @@
-import { type Config, connect, Connection } from '@tidbcloud/serverless';
+import { type Config, connect, type Connection } from '@tidbcloud/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
+import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
 import type { TiDBServerlessPreparedQueryHKT, TiDBServerlessQueryResultHKT } from './session.ts';
 import { TiDBServerlessSession } from './session.ts';
 
@@ -82,11 +82,6 @@ export function drizzle<
 ): TiDBServerlessDatabase<TSchema> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof Connection) {
-		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
-	}
-
 	if (typeof params[0] === 'string') {
 		const instance = connect({
 			url: params[0],
@@ -95,19 +90,23 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	const { connection, client, ...drizzleConfig } = params[0] as
-		& { connection?: Config | string; client?: TClient }
-		& DrizzleConfig<TSchema>;
+	if (isConfig(params[0])) {
+		const { connection, client, ...drizzleConfig } = params[0] as
+			& { connection?: Config | string; client?: TClient }
+			& DrizzleConfig<TSchema>;
 
-	if (client) return construct(client, drizzleConfig) as any;
+		if (client) return construct(client, drizzleConfig) as any;
 
-	const instance = typeof connection === 'string'
-		? connect({
-			url: connection,
-		})
-		: connect(connection!);
+		const instance = typeof connection === 'string'
+			? connect({
+				url: connection,
+			})
+			: connect(connection!);
 
-	return construct(instance, drizzleConfig) as any;
+		return construct(instance, drizzleConfig) as any;
+	}
+
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 }
 
 export namespace drizzle {
