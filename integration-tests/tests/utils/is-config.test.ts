@@ -4,7 +4,7 @@ import { createClient as libsql } from '@libsql/client';
 import { Client as neonClient, neon, neonConfig, Pool as neonPool } from '@neondatabase/serverless';
 import { connect as planetscale } from '@planetscale/database';
 import { connect as tidb } from '@tidbcloud/serverless';
-import { createClient as vcClient, createPool as vcPool, sql as vcSql } from '@vercel/postgres';
+import { createClient as vcClient, sql as vcSql } from '@vercel/postgres';
 import betterSqlite3 from 'better-sqlite3';
 import { type DrizzleConfig, isConfig } from 'drizzle-orm';
 import { createConnection as ms2Connection, createPool as ms2Pool } from 'mysql2';
@@ -19,12 +19,14 @@ neonConfig.webSocketConstructor = ws;
 if (
 	!process.env['PG_CONNECTION_STRING'] || !process.env['MYSQL_CONNECTION_STRING']
 	|| !process.env['PLANETSCALE_CONNECTION_STRING'] || !process.env['TIDB_CONNECTION_STRING']
-	|| !process.env['NEON_CONNECTION_STRING'] || !process.env['VERCEL_CONNECTION_STRING']
+	|| !process.env['NEON_CONNECTION_STRING']
+	// todo get back after we will have a pool for vercel
+	// || !process.env['VERCEL_CONNECTION_STRING']
 ) {
 	throw new Error('process.env is missing some connection strings!');
 }
 
-process.env['POSTGRES_URL'] = process.env['VERCEL_CONNECTION_STRING'];
+// process.env['POSTGRES_URL'] = process.env['VERCEL_CONNECTION_STRING'];
 
 describe('Objects', (it) => {
 	it('Passes configs', () => {
@@ -168,13 +170,13 @@ describe('Rejects drivers', (it) => {
 		expect(isConfig(vcSql)).toEqual(false);
 	});
 
-	it('vercel:Pool', () => {
-		const cl = vcPool({
-			connectionString: process.env['VERCEL_CONNECTION_STRING'],
-		});
+	// it('vercel:Pool', () => {
+	// 	const cl = vcPool({
+	// 		connectionString: process.env['VERCEL_CONNECTION_STRING'],
+	// 	});
 
-		expect(isConfig(cl)).toEqual(false);
-	});
+	// 	expect(isConfig(cl)).toEqual(false);
+	// });
 
 	it('vercel:Client', async () => {
 		const cl = vcClient({
@@ -186,19 +188,19 @@ describe('Rejects drivers', (it) => {
 		expect(res).toEqual(false);
 	});
 
-	it('vercel:PoolClient', async () => {
-		const cl = vcPool({
-			connectionString: process.env['VERCEL_CONNECTION_STRING'],
-		});
+	// it('vercel:PoolClient', async () => {
+	// 	const cl = vcPool({
+	// 		connectionString: process.env['VERCEL_CONNECTION_STRING'],
+	// 	});
 
-		const con = await cl.connect();
+	// 	const con = await cl.connect();
 
-		const res = isConfig(con);
+	// 	const res = isConfig(con);
 
-		con.release();
+	// 	con.release();
 
-		expect(res).toEqual(false);
-	});
+	// 	expect(res).toEqual(false);
+	// });
 
 	it('neon-serverless:Pool', async () => {
 		const cl = new neonPool({
