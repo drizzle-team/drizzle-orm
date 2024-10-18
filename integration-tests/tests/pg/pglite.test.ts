@@ -86,9 +86,10 @@ skipTests([
 	'subquery with view',
 	'mySchema :: materialized view',
 	'select count()',
-	'mySchema :: select with group by as column + sql',
-	'select with group by as column + sql',
+	// not working in 0.2.12
 	'select with group by as sql + column',
+	'select with group by as column + sql',
+	'mySchema :: select with group by as column + sql',
 ]);
 tests();
 
