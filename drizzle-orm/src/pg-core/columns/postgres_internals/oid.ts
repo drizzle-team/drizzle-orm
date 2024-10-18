@@ -4,39 +4,41 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
-export type PgStateAggBuilderInitial<TName extends string> = PgStateAggBuilder<{
+export type PgOidInternalBuilderInitial<TName extends string> = PgOidInternalBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgStateAgg';
+	columnType: 'PgOidInternal';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class PgStateAggBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgStateAgg'>> extends PgColumnBuilder<T> {
-	static override readonly [entityKind]: string = 'PgStateAggBuilder';
+export class PgOidInternalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgOidInternal'>>
+	extends PgColumnBuilder<T>
+{
+	static override readonly [entityKind]: string = 'PgOidInternalBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'string', 'PgStateAgg');
+		super(name, 'string', 'PgOidInternal');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgStateAgg<MakeColumnConfig<T, TTableName>> {
-		return new PgStateAgg<MakeColumnConfig<T, TTableName>>(
+	): PgOidInternal<MakeColumnConfig<T, TTableName>> {
+		return new PgOidInternal<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class PgStateAgg<T extends ColumnBaseConfig<'string', 'PgStateAgg'>> extends PgColumn<T> {
-	static override readonly [entityKind]: string = 'PgStateAgg';
+export class PgOidInternal<T extends ColumnBaseConfig<'string', 'PgOidInternal'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgOidInternal';
 
 	getSQLType(): string {
-		return `stateagg`;
+		return `oid`;
 	}
 
 	override mapFromDriverValue(value: string): string {
@@ -48,8 +50,8 @@ export class PgStateAgg<T extends ColumnBaseConfig<'string', 'PgStateAgg'>> exte
 	}
 }
 
-export function stateAgg<TName extends string>(
+export function oid<TName extends string>(
 	name: TName,
-): PgStateAggBuilderInitial<TName> {
-	return new PgStateAggBuilder(name);
+): PgOidInternalBuilderInitial<TName> {
+	return new PgOidInternalBuilder(name);
 }
