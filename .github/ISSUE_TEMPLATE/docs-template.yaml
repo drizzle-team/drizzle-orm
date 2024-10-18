@@ -12,7 +12,7 @@ body:
 
   - type: textarea
     attributes:
-      label: Describe the enhancement
+      label: Describe the enhancement you want to request
       description: What do you want to change or add to the documentation?
     validations:
       required: true
