@@ -49,10 +49,10 @@ body:
           - What is the desired result?
 
         If the issue is more specific, consider answering the following questions if you think they may be relevant:
-          - What database engine are you using? Are you using a specific cloud provider? Whic one?
+          - What database engine are you using? Are you using a specific cloud provider? Which one?
           - Do you think this bug pertains to a specific database driver? Which one?
           - Are you working in a monorepo?
-          - If this is a bug related to types: What Typescript version are you using? What's your tsconfig.json?
-          - If you're using a runtime that isn't Node.js: Which one? What version? Have you verified this isn't an issue with the runtime itself?
+          - If this is a bug related to types: What Typescript version are you using? What's the content of your tsconfig.json file?
+          - If you're using a runtime that isn't Node.js: Which one? What version? Have you verified that this isn't an issue with the runtime itself?
     validations:
       required: true
