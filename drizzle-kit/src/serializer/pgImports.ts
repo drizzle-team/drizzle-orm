@@ -1,5 +1,18 @@
 import { is } from 'drizzle-orm';
-import { AnyPgTable, isPgEnum, isPgSequence, PgEnum, PgRole, PgSchema, PgSequence, PgTable } from 'drizzle-orm/pg-core';
+import {
+	AnyPgTable,
+	isPgEnum,
+	isPgMaterializedView,
+	isPgSequence,
+	isPgView,
+	PgEnum,
+	PgMaterializedView,
+	PgRole,
+	PgSchema,
+	PgSequence,
+	PgTable,
+	PgView,
+} from 'drizzle-orm/pg-core';
 import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
@@ -8,6 +21,8 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
 	const roles: PgRole[] = [];
+	const views: PgView[] = [];
+	const matViews: PgMaterializedView[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -23,6 +38,14 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 			schemas.push(t);
 		}
 
+		if (isPgView(t)) {
+			views.push(t);
+		}
+
+		if (isPgMaterializedView(t)) {
+			matViews.push(t);
+		}
+
 		if (isPgSequence(t)) {
 			sequences.push(t);
 		}
@@ -32,15 +55,17 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 		}
 	});
 
-	return { tables, enums, schemas, sequences, roles };
+	return { tables, enums, schemas, sequences, views, matViews, roles };
 };
 
 export const prepareFromPgImports = async (imports: string[]) => {
-	let tables: AnyPgTable[] = [];
-	let enums: PgEnum<any>[] = [];
-	let schemas: PgSchema[] = [];
-	let sequences: PgSequence[] = [];
+	const tables: AnyPgTable[] = [];
+	const enums: PgEnum<any>[] = [];
+	const schemas: PgSchema[] = [];
+	const sequences: PgSequence[] = [];
+	const views: PgView[] = [];
 	let roles: PgRole[] = [];
+	const matViews: PgMaterializedView[] = [];
 
 	const { unregister } = await safeRegister();
 	for (let i = 0; i < imports.length; i++) {
@@ -53,9 +78,11 @@ export const prepareFromPgImports = async (imports: string[]) => {
 		enums.push(...prepared.enums);
 		schemas.push(...prepared.schemas);
 		sequences.push(...prepared.sequences);
+		views.push(...prepared.views);
+		matViews.push(...prepared.matViews);
 		roles.push(...prepared.roles);
 	}
 	unregister();
 
-	return { tables: Array.from(new Set(tables)), enums, schemas, sequences, roles };
+	return { tables: Array.from(new Set(tables)), enums, schemas, sequences, views, matViews, roles };
 };

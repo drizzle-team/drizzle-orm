@@ -12,13 +12,18 @@ import type {
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { mapUpdateSet, type UpdateSet } from '~/utils.ts';
+import { Table } from '~/table.ts';
+import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
+import type { MySqlColumn } from '../columns/common.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;
+	limit?: number | Placeholder;
+	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	set: UpdateSet;
 	table: MySqlTable;
 	returning?: SelectedFieldsOrdered;
@@ -170,6 +175,37 @@ export class MySqlUpdateBase<
 	 */
 	where(where: SQL | undefined): MySqlUpdateWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
+		return this as any;
+	}
+
+	orderBy(
+		builder: (updateTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
+	): MySqlUpdateWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): MySqlUpdateWithout<this, TDynamic, 'orderBy'>;
+	orderBy(
+		...columns:
+			| [(updateTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
+			| (MySqlColumn | SQL | SQL.Aliased)[]
+	): MySqlUpdateWithout<this, TDynamic, 'orderBy'> {
+		if (typeof columns[0] === 'function') {
+			const orderBy = columns[0](
+				new Proxy(
+					this.config.table[Table.Symbol.Columns],
+					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
+				) as any,
+			);
+
+			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
+			this.config.orderBy = orderByArray;
+		} else {
+			const orderByArray = columns as (MySqlColumn | SQL | SQL.Aliased)[];
+			this.config.orderBy = orderByArray;
+		}
+		return this as any;
+	}
+
+	limit(limit: number | Placeholder): MySqlUpdateWithout<this, TDynamic, 'limit'> {
+		this.config.limit = limit;
 		return this as any;
 	}
 

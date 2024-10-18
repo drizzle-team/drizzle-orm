@@ -13,9 +13,9 @@ import { render } from 'hanji';
 import path, { join } from 'path';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
-import { MySqlSchema, mysqlSchema, squashMysqlScheme } from '../../serializer/mysqlSchema';
-import { PgSchema, pgSchema, Policy, Role, squashPgScheme } from '../../serializer/pgSchema';
-import { SQLiteSchema, sqliteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
+import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
+import { PgSchema, pgSchema, Policy, Role, squashPgScheme, View } from '../../serializer/pgSchema';
+import { SQLiteSchema, sqliteSchema, squashSqliteScheme, View as SQLiteView } from '../../serializer/sqliteSchema';
 import {
 	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
@@ -81,6 +81,72 @@ export const tablesResolver = async (
 			input.created,
 			input.deleted,
 			'table',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const viewsResolver = async (
+	input: ResolverInput<View>,
+): Promise<ResolverOutputWithMoved<View>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const mySqlViewsResolver = async (
+	input: ResolverInput<ViewSquashed & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const sqliteViewsResolver = async (
+	input: ResolverInput<SQLiteView & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<SQLiteView>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
 		);
 
 		return {
@@ -237,6 +303,7 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			roleResolver,
 			tablesResolver,
 			columnsResolver,
+			viewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -284,6 +351,7 @@ export const preparePgPush = async (
 		roleResolver,
 		tablesResolver,
 		columnsResolver,
+		viewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -367,6 +435,7 @@ export const prepareMySQLPush = async (
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -420,6 +489,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -480,6 +550,7 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -541,6 +612,7 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -579,6 +651,7 @@ export const prepareSQLitePush = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -611,6 +684,7 @@ export const prepareLibSQLPush = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -776,7 +850,7 @@ export const promptNamedConflict = async <T extends Named>(
 export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 	newItems: T[],
 	missingItems: T[],
-	entity: 'table' | 'enum' | 'sequence',
+	entity: 'table' | 'enum' | 'sequence' | 'view',
 ): Promise<{
 	created: T[];
 	renamed: { from: T; to: T }[];

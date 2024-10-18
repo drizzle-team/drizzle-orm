@@ -35,6 +35,7 @@ test('add table #1', async () => {
 		},
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 });
 
@@ -64,6 +65,7 @@ test('add table #2', async () => {
 		compositePKs: ['users_id;id'],
 		compositePkName: 'users_id',
 		uniqueConstraints: [],
+		checkConstraints: [],
 		internals: {
 			tables: {},
 			indexes: {},
@@ -108,6 +110,7 @@ test('add table #3', async () => {
 		compositePKs: ['users_pk;id'],
 		uniqueConstraints: [],
 		compositePkName: 'users_pk',
+		checkConstraints: [],
 		internals: {
 			tables: {},
 			indexes: {},
@@ -136,6 +139,7 @@ test('add table #4', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_table',
@@ -149,6 +153,7 @@ test('add table #4', async () => {
 		},
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 });
 
@@ -192,6 +197,7 @@ test('add table #6', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
@@ -228,6 +234,7 @@ test('add table #7', async () => {
 			indexes: {},
 		},
 		compositePkName: '',
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'rename_table',
@@ -318,6 +325,7 @@ test('change table schema #2', async () => {
 		uniqueConstraints: [],
 		compositePkName: '',
 		compositePKs: [],
+		checkConstraints: [],
 		internals: {
 			tables: {},
 			indexes: {},

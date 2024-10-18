@@ -237,7 +237,7 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 	constructor(
 		private readonly base: T,
 		data: (RenamePropmtItem<T> | T)[],
-		private readonly entityType: 'table' | 'enum' | 'sequence' | 'role',
+		private readonly entityType: 'table' | 'enum' | 'sequence' | 'view' | 'role',
 	) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
@@ -401,8 +401,11 @@ export type IntrospectStage =
 	| 'columns'
 	| 'enums'
 	| 'indexes'
+	| 'policies'
+	| 'checks'
 	| 'fks'
-	| 'policies';
+	| 'views';
+
 type IntrospectState = {
 	[key in IntrospectStage]: {
 		count: number;
@@ -444,6 +447,16 @@ export class IntrospectProgress extends TaskView {
 		policies: {
 			count: 0,
 			name: 'policies',
+			status: 'fetching',
+		},
+		checks: {
+			count: 0,
+			name: 'check constraints',
+			status: 'fetching',
+		},
+		views: {
+			count: 0,
+			name: 'views',
 			status: 'fetching',
 		},
 	};
@@ -500,6 +513,9 @@ export class IntrospectProgress extends TaskView {
 		info += this.statusText(spin, this.state.indexes);
 		info += this.statusText(spin, this.state.fks);
 		info += this.statusText(spin, this.state.policies);
+		info += this.statusText(spin, this.state.checks);
+		info += this.statusText(spin, this.state.views);
+
 		return info;
 	}
 }
