@@ -7,36 +7,52 @@ body:
   - type: markdown
     attributes:
       value: |
-        ## Quick Bug Form
-        Thank you for taking the time to file a bug report! Please fill out this form as completely as possible.
+        Thank you for taking the time to file a bug report! Please provide as much information as possible.
+
+  - type: checkbox
+    attributes:
+      label: I have verified that the bug I'm about to report hasn't been filed before.
+    validations:
+      required: true
 
   - type: input
     attributes:
       label: What version of `drizzle-orm` are you using?
+      description: You can check the version by opening the `package.json` file in your project.
       placeholder: 0.0.0
     validations:
       required: true
+
   - type: input
     attributes:
       label: What version of `drizzle-kit` are you using?
+      description: You can check the version by opening the `package.json` file in your project.
       placeholder: 0.0.0
     validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Other packages
+      description: If this bug is related to one of the other first-party packages we maintain, please list them here alongside their version.
+      placeholder: drizzle-zod@0.0.0, drizzle-valibot@0.0.0
+    validations:
       required: false
+
   - type: textarea
     attributes:
       label: Describe the Bug
-      description: Steps to reproduce
+      description: |
+        To fill this field, please answer the following:
+          - What is the undesired behavior?
+          - What are the steps to reproduce it?
+          - What is the desired result?
+
+        If the issue is more specific, consider answering the following questions if you think they may be relevant:
+          - What database engine are you using? Are you using a specific cloud provider? Whic one?
+          - Do you think this bug pertains to a specific database driver? Which one?
+          - Are you working in a monorepo?
+          - If this is a bug related to types: What Typescript version are you using? What's your tsconfig.json?
+          - If you're using a runtime that isn't Node.js: Which one? What version? Have you verified this isn't an issue with the runtime itself?
     validations:
       required: true
-  - type: textarea
-    attributes:
-      label: Expected behavior
-      description: What you expect to happen
-    validations:
-      required: false
-  - type: textarea
-    attributes:
-      label: Environment & setup
-      description: In which environment does the problem occur?
-    validations:
-      required: false
