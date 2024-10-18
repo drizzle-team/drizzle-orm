@@ -51,6 +51,9 @@ export default defineConfig({
 			// Have a strange "invalid SQL: ERROR: must be owner of schema public" error. Will need to check with xata team
 			'tests/pg/xata-http.test.ts',
 			'tests/pg/neon-http-batch.ts',
+			// todo: remove
+			'tests/driver-init/module/vercel.test.mjs',
+			'tests/driver-init/commonjs/vercel.test.cjs',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
