@@ -158,6 +158,7 @@ export function applyJsonDiff(json1, json2) {
 	difference.tables = difference.tables || {};
 	difference.enums = difference.enums || {};
 	difference.sequences = difference.sequences || {};
+	difference.views = difference.views || {};
 
 	// remove added/deleted schemas
 	const schemaKeys = Object.keys(difference.schemas);
@@ -239,6 +240,85 @@ export function applyJsonDiff(json1, json2) {
 			return json2.sequences[it[0]];
 		});
 
+	const viewsEntries = Object.entries(difference.views);
+
+	const alteredViews = viewsEntries.filter((it) => !(it[0].includes('__added') || it[0].includes('__deleted'))).map(
+		([nameWithSchema, view]) => {
+			const deletedWithOption = view.with__deleted;
+
+			const addedWithOption = view.with__added;
+
+			const deletedWith = Object.fromEntries(
+				Object.entries(view.with || {}).filter((it) => it[0].endsWith('__deleted')).map(([key, value]) => {
+					return [key.replace('__deleted', ''), value];
+				}),
+			);
+
+			const addedWith = Object.fromEntries(
+				Object.entries(view.with || {}).filter((it) => it[0].endsWith('__added')).map(([key, value]) => {
+					return [key.replace('__added', ''), value];
+				}),
+			);
+
+			const alterWith = Object.fromEntries(
+				Object.entries(view.with || {}).filter((it) =>
+					typeof it[1].__old !== 'undefined' && typeof it[1].__new !== 'undefined'
+				).map(
+					(it) => {
+						return [it[0], it[1].__new];
+					},
+				),
+			);
+
+			const alteredSchema = view.schema;
+
+			const alteredDefinition = view.definition;
+
+			const alteredExisting = view.isExisting;
+
+			const addedTablespace = view.tablespace__added;
+			const droppedTablespace = view.tablespace__deleted;
+			const alterTablespaceTo = view.tablespace;
+
+			let alteredTablespace;
+			if (addedTablespace) alteredTablespace = { __new: addedTablespace, __old: 'pg_default' };
+			if (droppedTablespace) alteredTablespace = { __new: 'pg_default', __old: droppedTablespace };
+			if (alterTablespaceTo) alteredTablespace = alterTablespaceTo;
+
+			const addedUsing = view.using__added;
+			const droppedUsing = view.using__deleted;
+			const alterUsingTo = view.using;
+
+			let alteredUsing;
+			if (addedUsing) alteredUsing = { __new: addedUsing, __old: 'heap' };
+			if (droppedUsing) alteredUsing = { __new: 'heap', __old: droppedUsing };
+			if (alterUsingTo) alteredUsing = alterUsingTo;
+
+			const alteredMeta = view.meta;
+
+			return Object.fromEntries(
+				Object.entries({
+					name: json2.views[nameWithSchema].name,
+					schema: json2.views[nameWithSchema].schema,
+					// pg
+					deletedWithOption: deletedWithOption,
+					addedWithOption: addedWithOption,
+					deletedWith: Object.keys(deletedWith).length ? deletedWith : undefined,
+					addedWith: Object.keys(addedWith).length ? addedWith : undefined,
+					alteredWith: Object.keys(alterWith).length ? alterWith : undefined,
+					alteredSchema,
+					alteredTablespace,
+					alteredUsing,
+					// mysql
+					alteredMeta,
+					// common
+					alteredDefinition,
+					alteredExisting,
+				}).filter(([_, value]) => value !== undefined),
+			);
+		},
+	);
+
 	const alteredTablesWithColumns = Object.values(difference.tables).map(
 		(table) => {
 			return findAlternationsInTable(table);
@@ -249,6 +329,7 @@ export function applyJsonDiff(json1, json2) {
 		alteredTablesWithColumns,
 		alteredEnums,
 		alteredSequences,
+		alteredViews,
 	};
 }
 
@@ -346,6 +427,24 @@ const findAlternationsInTable = (table) => {
 		}),
 	);
 
+	const addedCheckConstraints = Object.fromEntries(
+		Object.entries(table.checkConstraints || {}).filter((it) => {
+			return it[0].endsWith('__added');
+		}),
+	);
+
+	const deletedCheckConstraints = Object.fromEntries(
+		Object.entries(table.checkConstraints || {}).filter((it) => {
+			return it[0].endsWith('__deleted');
+		}),
+	);
+
+	const alteredCheckConstraints = Object.fromEntries(
+		Object.entries(table.checkConstraints || {}).filter((it) => {
+			return !it[0].endsWith('__deleted') && !it[0].endsWith('__added');
+		}),
+	);
+
 	const mappedAltered = altered.map((it) => alternationsInColumn(it)).filter(Boolean);
 
 	return {
@@ -364,11 +463,15 @@ const findAlternationsInTable = (table) => {
 		addedUniqueConstraints,
 		deletedUniqueConstraints,
 		alteredUniqueConstraints,
+		addedCheckConstraints,
+		deletedCheckConstraints,
+		alteredCheckConstraints,
 	};
 };
 
 const alternationsInColumn = (column) => {
 	const altered = [column];
+
 	const result = altered
 		.filter((it) => {
 			if ('type' in it && it.type.__old.replace(' (', '(') === it.type.__new.replace(' (', '(')) {
@@ -607,6 +710,33 @@ const alternationsInColumn = (column) => {
 		})
 		.map((it) => {
 			if ('autoincrement' in it) {
+				return {
+					...it,
+					autoincrement: {
+						type: 'changed',
+						old: it.autoincrement.__old,
+						new: it.autoincrement.__new,
+					},
+				};
+			}
+			if ('autoincrement__added' in it) {
+				const { autoincrement__added, ...others } = it;
+				return {
+					...others,
+					autoincrement: { type: 'added', value: it.autoincrement__added },
+				};
+			}
+			if ('autoincrement__deleted' in it) {
+				const { autoincrement__deleted, ...others } = it;
+				return {
+					...others,
+					autoincrement: { type: 'deleted', value: it.autoincrement__deleted },
+				};
+			}
+			return it;
+		})
+		.map((it) => {
+			if ('' in it) {
 				return {
 					...it,
 					autoincrement: {

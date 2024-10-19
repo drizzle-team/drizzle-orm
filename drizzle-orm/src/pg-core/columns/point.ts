@@ -19,7 +19,7 @@ export type PgPointTupleBuilderInitial<TName extends string> = PgPointTupleBuild
 export class PgPointTupleBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgPointTuple'>>
 	extends PgColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'PgPointTupleBuilder';
+	static override readonly [entityKind]: string = 'PgPointTupleBuilder';
 
 	constructor(name: string) {
 		super(name, 'array', 'PgPointTuple');
@@ -37,7 +37,7 @@ export class PgPointTupleBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgP
 }
 
 export class PgPointTuple<T extends ColumnBaseConfig<'array', 'PgPointTuple'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgPointTuple';
+	static override readonly [entityKind]: string = 'PgPointTuple';
 
 	getSQLType(): string {
 		return 'point';
@@ -69,7 +69,7 @@ export type PgPointObjectBuilderInitial<TName extends string> = PgPointObjectBui
 export class PgPointObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgPointObject'>>
 	extends PgColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'PgPointObjectBuilder';
+	static override readonly [entityKind]: string = 'PgPointObjectBuilder';
 
 	constructor(name: string) {
 		super(name, 'json', 'PgPointObject');
@@ -87,7 +87,7 @@ export class PgPointObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgP
 }
 
 export class PgPointObject<T extends ColumnBaseConfig<'json', 'PgPointObject'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgPointObject';
+	static override readonly [entityKind]: string = 'PgPointObject';
 
 	getSQLType(): string {
 		return 'point';

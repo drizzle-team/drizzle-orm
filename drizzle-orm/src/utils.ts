@@ -236,4 +236,78 @@ export function getColumnNameAndConfig<
 		config: typeof a === 'object' ? a : b as TConfig,
 	};
 }
+
 export type IfNotImported<T, Y, N> = unknown extends T ? Y : N;
+
+export type ImportTypeError<TPackageName extends string> =
+	`Please install \`${TPackageName}\` to allow Drizzle ORM to connect to the database`;
+
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends any
+	? Required<Pick<T, Keys>> & Partial<Omit<T, Keys>>
+	: never;
+
+type ExpectedConfigShape = {
+	logger?: boolean | {
+		logQuery(query: string, params: unknown[]): void;
+	};
+	schema?: Record<string, never>;
+	casing?: 'snake_case' | 'camelCase';
+};
+
+// If this errors, you must update config shape checker function with new config specs
+const _: DrizzleConfig = {} as ExpectedConfigShape;
+const __: ExpectedConfigShape = {} as DrizzleConfig;
+
+export function isConfig(data: any): boolean {
+	if (typeof data !== 'object' || data === null) return false;
+
+	if (data.constructor.name !== 'Object') return false;
+
+	if ('logger' in data) {
+		const type = typeof data['logger'];
+		if (
+			type !== 'boolean' && (type !== 'object' || typeof data['logger']['logQuery'] !== 'function')
+			&& type !== 'undefined'
+		) return false;
+
+		return true;
+	}
+
+	if ('schema' in data) {
+		const type = typeof data['logger'];
+		if (type !== 'object' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('casing' in data) {
+		const type = typeof data['logger'];
+		if (type !== 'string' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('mode' in data) {
+		if (data['mode'] !== 'default' || data['mode'] !== 'planetscale' || data['mode'] !== undefined) return false;
+
+		return true;
+	}
+
+	if ('connection' in data) {
+		const type = typeof data['connection'];
+		if (type !== 'string' && type !== 'object' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('client' in data) {
+		const type = typeof data['client'];
+		if (type !== 'object' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if (Object.keys(data).length === 0) return true;
+
+	return false;
+}

@@ -1,7 +1,9 @@
 import Database from 'better-sqlite3';
 import chalk from 'chalk';
+import { sql } from 'drizzle-orm';
 import {
 	blob,
+	check,
 	foreignKey,
 	getTableConfig,
 	int,
@@ -9,10 +11,11 @@ import {
 	numeric,
 	real,
 	sqliteTable,
+	sqliteView,
 	text,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
-import { diffTestSchemasPushSqlite } from 'tests/schemaDiffer';
+import { diffTestSchemasPushSqlite, introspectSQLiteToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
 test('nothing changed in schema', async (t) => {
@@ -67,6 +70,7 @@ test('nothing changed in schema', async (t) => {
 		tablesToRemove,
 		tablesToTruncate,
 	} = await diffTestSchemasPushSqlite(client, schema1, schema1, [], false);
+
 	expect(sqlStatements.length).toBe(0);
 	expect(statements.length).toBe(0);
 	expect(columnsToRemove!.length).toBe(0);
@@ -378,6 +382,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 		compositePKs: [],
 		referenceData: [],
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements.length).toBe(4);
@@ -494,6 +499,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 			},
 		],
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements.length).toBe(4);
@@ -598,6 +604,7 @@ test('change autoincrement. other table references current', async (t) => {
 		compositePKs: [],
 		referenceData: [],
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements.length).toBe(6);
@@ -717,6 +724,7 @@ test('drop not null, add not null', async (t) => {
 
 	expect(statements!.length).toBe(2);
 	expect(statements![0]).toStrictEqual({
+		checkConstraints: [],
 		columns: [
 			{
 				autoincrement: true,
@@ -742,6 +750,7 @@ test('drop not null, add not null', async (t) => {
 		uniqueConstraints: [],
 	});
 	expect(statements![1]).toStrictEqual({
+		checkConstraints: [],
 		columns: [
 			{
 				autoincrement: true,
@@ -868,6 +877,7 @@ test('rename table and change data type', async (t) => {
 		tableName: 'new_users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements!.length).toBe(5);
@@ -946,6 +956,7 @@ test('rename column and change data type', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements!.length).toBe(4);
@@ -1053,6 +1064,7 @@ test('recreate table with nested references', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements!.length).toBe(6);
@@ -1161,6 +1173,7 @@ test('recreate table with added column not null and without default with data', 
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements!.length).toBe(4);
@@ -1189,12 +1202,12 @@ test('recreate table with added column not null and without default with data', 
 	expect(tablesToTruncate![0]).toBe('users');
 });
 
-test('recreate table with added column not null and without default with data', async (t) => {
+test('add check constraint to table', async (t) => {
 	const client = new Database(':memory:');
 
 	const schema1 = {
 		users: sqliteTable('users', {
-			id: int('id').primaryKey({ autoIncrement: true }),
+			id: int('id').primaryKey({ autoIncrement: false }),
 			name: text('name'),
 			age: integer('age'),
 		}),
@@ -1205,7 +1218,102 @@ test('recreate table with added column not null and without default with data', 
 			id: int('id').primaryKey({ autoIncrement: false }),
 			name: text('name'),
 			age: integer('age'),
-			newColumn: text('new_column').notNull(),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+	};
+
+	const {
+		statements,
+		sqlStatements,
+		columnsToRemove,
+		infoToPrint,
+		shouldAskForApprove,
+		tablesToRemove,
+		tablesToTruncate,
+	} = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements!.length).toBe(1);
+	expect(statements![0]).toStrictEqual({
+		columns: [
+			{
+				autoincrement: false,
+				name: 'id',
+				notNull: true,
+				generated: undefined,
+				primaryKey: true,
+				type: 'integer',
+			},
+			{
+				autoincrement: false,
+				name: 'name',
+				notNull: false,
+				generated: undefined,
+				primaryKey: false,
+				type: 'text',
+			},
+			{
+				autoincrement: false,
+				name: 'age',
+				notNull: false,
+				generated: undefined,
+				primaryKey: false,
+				type: 'integer',
+			},
+		],
+		compositePKs: [],
+		referenceData: [],
+		tableName: 'users',
+		type: 'recreate_table',
+		uniqueConstraints: [],
+		checkConstraints: ['some_check;"users"."age" > 21'],
+	});
+
+	expect(sqlStatements!.length).toBe(4);
+	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
+\t\`id\` integer PRIMARY KEY NOT NULL,
+\t\`name\` text,
+\t\`age\` integer,
+\tCONSTRAINT "some_check" CHECK("__new_users"."age" > 21)
+);\n`);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_users`("id", "name", "age") SELECT "id", "name", "age" FROM `users`;',
+	);
+	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements![3]).toBe(
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
+	);
+
+	expect(columnsToRemove!.length).toBe(0);
+	expect(infoToPrint!.length).toBe(0);
+	expect(shouldAskForApprove).toBe(false);
+	expect(tablesToRemove!.length).toBe(0);
+	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('drop check constraint', async (t) => {
+	const client = new Database(':memory:');
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
 		}),
 	};
 
@@ -1251,31 +1359,23 @@ test('recreate table with added column not null and without default with data', 
 				primaryKey: false,
 				type: 'integer',
 			},
-			{
-				autoincrement: false,
-				name: 'new_column',
-				notNull: true,
-				generated: undefined,
-				primaryKey: false,
-				type: 'text',
-			},
 		],
 		compositePKs: [],
 		referenceData: [],
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements!.length).toBe(4);
 	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
 \t\`id\` integer PRIMARY KEY NOT NULL,
 \t\`name\` text,
-\t\`age\` integer,
-\t\`new_column\` text NOT NULL
+\t\`age\` integer
 );\n`);
 	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_users`("id", "name", "age", "new_column") SELECT "id", "name", "age", "new_column" FROM `users`;',
+		'INSERT INTO `__new_users`("id", "name", "age") SELECT "id", "name", "age" FROM `users`;',
 	);
 	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
 	expect(sqlStatements![3]).toBe(
@@ -1287,4 +1387,150 @@ test('recreate table with added column not null and without default with data', 
 	expect(shouldAskForApprove).toBe(false);
 	expect(tablesToRemove!.length).toBe(0);
 	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('db has checks. Push with same names', async () => {
+	const client = new Database(':memory:');
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`some new value`),
+		})),
+	};
+
+	const {
+		statements,
+		sqlStatements,
+		columnsToRemove,
+		infoToPrint,
+		schemasToRemove,
+		shouldAskForApprove,
+		tablesToRemove,
+		tablesToTruncate,
+	} = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		[],
+	);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	expect(columnsToRemove!.length).toBe(0);
+	expect(infoToPrint!.length).toBe(0);
+	expect(shouldAskForApprove).toBe(false);
+	expect(tablesToRemove!.length).toBe(0);
+	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('create view', async () => {
+	const client = new Database(':memory:');
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+	};
+
+	const schema2 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			definition: 'select "id" from "test"',
+			name: 'view',
+			type: 'sqlite_create_view',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE VIEW \`view\` AS select "id" from "test";`,
+	]);
+});
+
+test('drop view', async () => {
+	const client = new Database(':memory:');
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			name: 'view',
+			type: 'drop_view',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'DROP VIEW \`view\`;',
+	]);
+});
+
+test('alter view ".as"', async () => {
+	const client = new Database(':memory:');
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table).where(sql`${table.id} = 1`)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
 });

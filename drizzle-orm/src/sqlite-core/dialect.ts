@@ -17,7 +17,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Name } from '~/sql/index.ts';
+import type { Name, Placeholder } from '~/sql/index.ts';
 import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
@@ -75,7 +75,7 @@ export abstract class SQLiteDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList }: SQLiteDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: SQLiteDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -84,7 +84,11 @@ export abstract class SQLiteDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
+		const orderBySql = this.buildOrderBy(orderBy);
+
+		const limitSql = this.buildLimit(limit);
+
+		return sql`${withSql}delete from ${table}${whereSql}${returningSql}${orderBySql}${limitSql}`;
 	}
 
 	buildUpdateSet(table: SQLiteTable, set: UpdateSet): SQL {
@@ -108,7 +112,7 @@ export abstract class SQLiteDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList }: SQLiteUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: SQLiteUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
@@ -119,7 +123,11 @@ export abstract class SQLiteDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
+		const orderBySql = this.buildOrderBy(orderBy);
+
+		const limitSql = this.buildLimit(limit);
+
+		return sql`${withSql}update ${table} set ${setSql}${whereSql}${returningSql}${orderBySql}${limitSql}`;
 	}
 
 	/**
@@ -183,6 +191,28 @@ export abstract class SQLiteDialect {
 			});
 
 		return sql.join(chunks);
+	}
+
+	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
+		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
+	}
+
+	private buildOrderBy(orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
+		const orderByList: (SQLiteColumn | SQL | SQL.Aliased)[] = [];
+
+		if (orderBy) {
+			for (const [index, orderByValue] of orderBy.entries()) {
+				orderByList.push(orderByValue);
+
+				if (index < orderBy.length - 1) {
+					orderByList.push(sql`, `);
+				}
+			}
+		}
+
+		return orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : undefined;
 	}
 
 	buildSelectQuery(
@@ -280,17 +310,6 @@ export abstract class SQLiteDialect {
 
 		const havingSql = having ? sql` having ${having}` : undefined;
 
-		const orderByList: (SQLiteColumn | SQL | SQL.Aliased)[] = [];
-		if (orderBy) {
-			for (const [index, orderByValue] of orderBy.entries()) {
-				orderByList.push(orderByValue);
-
-				if (index < orderBy.length - 1) {
-					orderByList.push(sql`, `);
-				}
-			}
-		}
-
 		const groupByList: (SQL | AnyColumn | SQL.Aliased)[] = [];
 		if (groupBy) {
 			for (const [index, groupByValue] of groupBy.entries()) {
@@ -304,11 +323,9 @@ export abstract class SQLiteDialect {
 
 		const groupBySql = groupByList.length > 0 ? sql` group by ${sql.join(groupByList)}` : undefined;
 
-		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : undefined;
+		const orderBySql = this.buildOrderBy(orderBy);
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitSql = this.buildLimit(limit);
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -745,7 +762,7 @@ export abstract class SQLiteDialect {
 }
 
 export class SQLiteSyncDialect extends SQLiteDialect {
-	static readonly [entityKind]: string = 'SQLiteSyncDialect';
+	static override readonly [entityKind]: string = 'SQLiteSyncDialect';
 
 	migrate(
 		migrations: MigrationMeta[],
@@ -797,7 +814,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 }
 
 export class SQLiteAsyncDialect extends SQLiteDialect {
-	static readonly [entityKind]: string = 'SQLiteAsyncDialect';
+	static override readonly [entityKind]: string = 'SQLiteAsyncDialect';
 
 	async migrate(
 		migrations: MigrationMeta[],

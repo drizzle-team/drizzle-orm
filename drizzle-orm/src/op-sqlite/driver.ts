@@ -15,7 +15,7 @@ import { OPSQLiteSession } from './session.ts';
 export class OPSQLiteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends BaseSQLiteDatabase<'async', QueryResult, TSchema> {
-	static readonly [entityKind]: string = 'OPSQLiteDatabase';
+	static override readonly [entityKind]: string = 'OPSQLiteDatabase';
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
