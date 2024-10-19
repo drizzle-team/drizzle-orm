@@ -1,6 +1,6 @@
 import { type AnySQLiteColumn, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-import { relations, sql } from 'drizzle-orm';
+import { eq, relations, sql } from 'drizzle-orm';
 
 export const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
@@ -15,6 +15,9 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	}),
 	usersToGroups: many(usersToGroupsTable),
 	posts: many(postsTable),
+	notes: many(notes, {
+		where: eq(notes.notableType, 'user'),
+	}),
 }));
 
 export const groupsTable = sqliteTable('groups', {
@@ -67,6 +70,9 @@ export const postsConfig = relations(postsTable, ({ one, many }) => ({
 		references: [usersTable.id],
 	}),
 	comments: many(commentsTable),
+	notes: many(notes, {
+		where: eq(notes.notableType, 'post'),
+	}),
 }));
 
 export const commentsTable = sqliteTable('comments', {
@@ -89,6 +95,9 @@ export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
 		references: [usersTable.id],
 	}),
 	likes: many(commentLikesTable),
+	notes: many(notes, {
+		where: eq(notes.notableType, 'comment'),
+	}),
 }));
 
 export const commentLikesTable = sqliteTable('comment_likes', {
@@ -110,5 +119,28 @@ export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 	author: one(usersTable, {
 		fields: [commentLikesTable.creator],
 		references: [usersTable.id],
+	}),
+}));
+
+export const notes = sqliteTable('notes', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	content: text('content').notNull(),
+	notableId: integer('notable_id', { mode: 'number' }).notNull(),
+	notableType: text('notable_type', { enum: ['user', 'post', 'comment'] }).notNull(),
+});
+
+export const notesConfig = relations(notes, ({ one }) => ({
+	user: one(usersTable, {
+		fields: [notes.notableId],
+		references: [usersTable.id],
+	}),
+	post: one(postsTable, {
+		fields: [notes.notableId],
+		references: [postsTable.id],
+	}),
+	comment: one(commentsTable, {
+		fields: [notes.notableId],
+		references: [commentsTable.id],
+		where: eq(commentsTable.content, 'comment'), // only a comment that says "comment" will work
 	}),
 }));
