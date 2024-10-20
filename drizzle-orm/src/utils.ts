@@ -188,6 +188,11 @@ export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
 
+export function getViewColumns<TName extends string, TExisting extends boolean, TSelection extends Record<string, Column>, TView extends View<TName, TExisting, TSelection>>(view: TView): TView["_"]["selectedFields"]  {
+	//-- Type assertion is required here
+	return view[ViewBaseConfig].selectedFields as TView["_"]["selectedFields"];
+}
+
 /** @internal */
 export function getTableLikeName(table: TableLike): string | undefined {
 	return is(table, Subquery)
