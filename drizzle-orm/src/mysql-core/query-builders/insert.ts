@@ -210,7 +210,7 @@ export class MySqlInsertBase<
 	/**
 	 * Adds an `on duplicate key update` clause to the query.
 	 *
-	 * Calling this method will update update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
+	 * Calling this method will update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-duplicate-key-update}
 	 *
