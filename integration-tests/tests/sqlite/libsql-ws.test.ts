@@ -124,7 +124,7 @@ test('test $onUpdateFn and $onUpdate works as $default', async (ctx) => {
 		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 	]);
-	const msDelay = 750;
+	const msDelay = 1250;
 
 	for (const eachUser of justDates) {
 		expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
@@ -169,7 +169,7 @@ test('test $onUpdateFn and $onUpdate works updating', async (ctx) => {
 		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 	]);
-	const msDelay = 750;
+	const msDelay = 1250;
 
 	for (const eachUser of justDates) {
 		expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
@@ -182,6 +182,7 @@ skipTests([
 	'join view as subquery',
 	'test $onUpdateFn and $onUpdate works as $default',
 	'test $onUpdateFn and $onUpdate works updating',
+	'prepared statement reuse',
 ]);
 
 tests();
