@@ -1,6 +1,6 @@
 require('dotenv/config');
 const { createClient } = require('@libsql/client');
-const { drizzle } = require('drizzle-orm/libsql');
+const { drizzle } = require('drizzle-orm/libsql/node');
 const { sqlite: schema } = require('./schema.cjs');
 import { describe, expect } from 'vitest';
 

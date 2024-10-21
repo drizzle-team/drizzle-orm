@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { createClient } from '@libsql/client';
-import { drizzle } from 'drizzle-orm/libsql';
+import { drizzle } from 'drizzle-orm/libsql/node';
 import { describe, expect } from 'vitest';
 import { sqlite as schema } from './schema.mjs';
 
