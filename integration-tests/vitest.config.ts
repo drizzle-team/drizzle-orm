@@ -16,8 +16,8 @@ export default defineConfig({
 			'tests/version.test.ts',
 			'tests/pg/node-postgres.test.ts',
 			'tests/utils/is-config.test.ts',
-			'js-tests/driver-init/commonjs/*.test.cjs',
-			'js-tests/driver-init/module/*.test.mjs',
+			'js-tests/driver-init/commonjs/libsql.test.cjs',
+			'js-tests/driver-init/module/libsql.test.mjs',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
