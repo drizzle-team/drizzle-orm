@@ -1,5 +1,5 @@
 require('dotenv/config');
-const { Client, connect, Connection } = require('@planetscale/database');
+const { Client } = require('@planetscale/database');
 const { drizzle } = require('drizzle-orm/planetscale-serverless');
 const { mysql: schema } = require('./schema.cjs');
 import { describe, expect } from 'vitest';
@@ -102,7 +102,7 @@ describe('planetscale', async (it) => {
 
 describe('planetscale:Connection', async (it) => {
 	it('drizzle(client)', async () => {
-		const client = connect({
+		const client = new Client({
 			url: process.env['PLANETSCALE_CONNECTION_STRING'],
 		});
 		const db = drizzle(client);
@@ -114,7 +114,7 @@ describe('planetscale:Connection', async (it) => {
 	});
 
 	it('drizzle(client, config)', async () => {
-		const client = connect({
+		const client = Client({
 			url: process.env['PLANETSCALE_CONNECTION_STRING'],
 		});
 		const db = drizzle(client, {
@@ -129,7 +129,7 @@ describe('planetscale:Connection', async (it) => {
 	});
 
 	it('drizzle({client, ...config})', async () => {
-		const client = connect({
+		const client = new Client({
 			url: process.env['PLANETSCALE_CONNECTION_STRING'],
 		});
 		const db = drizzle({
