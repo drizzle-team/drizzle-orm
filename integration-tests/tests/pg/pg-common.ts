@@ -4817,6 +4817,23 @@ export function tests() {
 			}
 		});
 
+		test('Enable RLS function', () => {
+			const usersWithRLS = pgTable('users', {
+				id: integer(),
+			}).enableRLS();
+
+			const config1 = getTableConfig(usersWithRLS);
+
+			const usersNoRLS = pgTable('users', {
+				id: integer(),
+			});
+
+			const config2 = getTableConfig(usersNoRLS);
+
+			expect(config1.enableRLS).toBeTruthy();
+			expect(config2.enableRLS).toBeFalsy();
+		});
+
 		test('$count separate', async (ctx) => {
 			const { db } = ctx.pg;
 

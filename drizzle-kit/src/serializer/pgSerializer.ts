@@ -124,8 +124,18 @@ export const generatePgSnapshot = (
 		// within the same PostgreSQL table
 		const checksInTable: Record<string, string[]> = {};
 
-		const { name: tableName, columns, indexes, foreignKeys, checks, schema, primaryKeys, uniqueConstraints, policies } =
-			getTableConfig(table);
+		const {
+			name: tableName,
+			columns,
+			indexes,
+			foreignKeys,
+			checks,
+			schema,
+			primaryKeys,
+			uniqueConstraints,
+			policies,
+			enableRLS,
+		} = getTableConfig(table);
 
 		if (schemaFilter && !schemaFilter.includes(schema ?? 'public')) {
 			continue;
@@ -545,6 +555,7 @@ export const generatePgSnapshot = (
 			uniqueConstraints: uniqueConstraintObject,
 			policies: policiesObject,
 			checkConstraints: checksObject,
+			isRLSEnabled: enableRLS,
 		};
 	}
 
@@ -869,7 +880,7 @@ export const fromDatabase = async (
 
 	const where = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
 
-	const allTables = await db.query<{ table_schema: string; table_name: string; type: string }>(
+	const allTables = await db.query<{ table_schema: string; table_name: string; type: string; rls_enabled: boolean }>(
 		`SELECT 
     n.nspname AS table_schema, 
     c.relname AS table_name, 
@@ -877,7 +888,8 @@ export const fromDatabase = async (
         WHEN c.relkind = 'r' THEN 'table'
         WHEN c.relkind = 'v' THEN 'view'
         WHEN c.relkind = 'm' THEN 'materialized_view'
-    END AS type
+    END AS type,
+	c.relrowsecurity AS rls_enabled
 FROM 
     pg_catalog.pg_class c
 JOIN 
@@ -1532,6 +1544,7 @@ WHERE
 						uniqueConstraints: uniqueConstrains,
 						checkConstraints: checkConstraints,
 						policies: policiesByTable[`${tableSchema}.${tableName}`] ?? {},
+						isRLSEnabled: row.rls_enabled,
 					};
 				} catch (e) {
 					rej(e);

@@ -11,6 +11,7 @@ import {
 	isPgView,
 	PgEnum,
 	PgMaterializedView,
+	PgRole,
 	PgSchema,
 	PgSequence,
 	PgTable,
@@ -794,6 +795,7 @@ export const diffTestSchemasPush = async (
 	const leftSequences = Object.values(right).filter((it) => isPgSequence(it)) as PgSequence[];
 
 	const leftRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
+
 	const leftViews = Object.values(right).filter((it) => isPgView(it)) as PgView[];
 
 	const leftMaterializedViews = Object.values(right).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];

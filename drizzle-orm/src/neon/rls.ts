@@ -3,13 +3,11 @@ import { pgPolicy, PgRole, pgRole } from '~/pg-core/index.ts';
 import type { AnyPgColumn, PgPolicyToOption } from '~/pg-core/index.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 
-export const crudPolicy = (
-	options: {
-		role: PgPolicyToOption;
-		read?: SQL | boolean;
-		modify?: SQL | boolean;
-	},
-) => {
+export const crudPolicy = (options: {
+	role: PgPolicyToOption;
+	read?: SQL | boolean;
+	modify?: SQL | boolean;
+}) => {
 	const read: SQL = options.read === true
 		? sql`true`
 		: options.read === false || options.read === undefined
@@ -24,18 +22,21 @@ export const crudPolicy = (
 
 	let rolesName = '';
 	if (Array.isArray(options.role)) {
-		rolesName = options.role.map((it) => {
-			return is(it, PgRole) ? it.name : it as string;
-		}).join('-');
+		rolesName = options.role
+			.map((it) => {
+				return is(it, PgRole) ? it.name : (it as string);
+			})
+			.join('-');
 	} else {
-		rolesName = is(options.role, PgRole) ? options.role.name : options.role as string;
+		rolesName = is(options.role, PgRole)
+			? options.role.name
+			: (options.role as string);
 	}
 
 	return [
 		pgPolicy(`crud-${rolesName}-policy-insert`, {
 			for: 'insert',
 			to: options.role,
-			using: modify,
 			withCheck: modify,
 		}),
 		pgPolicy(`crud-${rolesName}-policy-update`, {
@@ -48,7 +49,6 @@ export const crudPolicy = (
 			for: 'delete',
 			to: options.role,
 			using: modify,
-			withCheck: modify,
 		}),
 		pgPolicy(`crud-${rolesName}-policy-select`, {
 			for: 'select',
@@ -62,4 +62,4 @@ export const crudPolicy = (
 export const authenticatedRole = pgRole('authenticated').existing();
 export const anonymousRole = pgRole('anonymous').existing();
 
-export const authUid = (userIdColumn: AnyPgColumn) => sql`select auth.user_id() = ${userIdColumn}`;
+export const authUid = (userIdColumn: AnyPgColumn) => sql`(select auth.user_id() = ${userIdColumn})`;

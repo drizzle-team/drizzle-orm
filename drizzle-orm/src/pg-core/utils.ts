@@ -23,6 +23,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 	const policies: PgPolicy[] = [];
+	const enableRLS: boolean = table[PgTable.Symbol.EnableRLS];
 
 	const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
 
@@ -56,6 +57,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 		name,
 		schema,
 		policies,
+		enableRLS,
 	};
 }
 

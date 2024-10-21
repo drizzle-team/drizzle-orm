@@ -1355,7 +1355,7 @@ class PgDropTableConvertor extends Convertor {
 
 		return [
 			...droppedPolicies,
-			`DROP TABLE ${tableNameWithSchema};`,
+			`DROP TABLE ${tableNameWithSchema} CASCADE;`,
 		];
 	}
 }

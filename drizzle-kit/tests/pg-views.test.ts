@@ -29,6 +29,7 @@ test('create table and view #1', async () => {
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
+		policies: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_view',
@@ -74,6 +75,7 @@ test('create table and view #2', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		policies: [],
 		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
@@ -130,6 +132,7 @@ test('create table and view #3', async () => {
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
+		policies: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_view',
@@ -215,6 +218,7 @@ test('create table and view #4', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		policies: [],
 		checkConstraints: [],
 	});
 	expect(statements[2]).toStrictEqual({
@@ -302,6 +306,7 @@ test('create table and view #6', async () => {
 		type: 'create_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		policies: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		definition: 'SELECT * FROM "users"',
@@ -370,6 +375,7 @@ test('create table and materialized view #1', async () => {
 		}],
 		compositePKs: [],
 		uniqueConstraints: [],
+		policies: [],
 		compositePkName: '',
 		checkConstraints: [],
 	});
@@ -417,6 +423,7 @@ test('create table and materialized view #2', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		policies: [],
 		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
@@ -483,6 +490,7 @@ test('create table and materialized view #3', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		policies: [],
 		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
@@ -582,6 +590,7 @@ test('create table and materialized view #5', async () => {
 		tableName: 'users',
 		type: 'create_table',
 		uniqueConstraints: [],
+		policies: [],
 		checkConstraints: [],
 	});
 	expect(statements[1]).toEqual({

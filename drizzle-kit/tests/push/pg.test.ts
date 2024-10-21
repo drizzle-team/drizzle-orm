@@ -2363,6 +2363,7 @@ test('drop mat view with data', async () => {
 		false,
 		['public'],
 		undefined,
+		undefined,
 		{ after: seedStatements },
 	);
 
@@ -2470,6 +2471,7 @@ test('drop view with data', async () => {
 		false,
 		['public'],
 		undefined,
+		undefined,
 		{ after: seedStatements },
 	);
 
@@ -2550,6 +2552,7 @@ test('enums ordering', async () => {
 		[],
 		false,
 		['public'],
+		undefined,
 		undefined,
 		{ before: [...createEnum, ...addedValueSql], runApply: false },
 	);
@@ -3446,6 +3449,7 @@ test('create table with a policy', async (t) => {
 					type: 'integer',
 				},
 			],
+			checkConstraints: [],
 			compositePKs: [],
 			compositePkName: '',
 			policies: [
@@ -3502,7 +3506,7 @@ test('drop table with a policy', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'DROP POLICY "test" ON "users2" CASCADE;',
-		'DROP TABLE "users2";',
+		'DROP TABLE "users2" CASCADE;',
 	]);
 	expect(statements).toStrictEqual([
 		{

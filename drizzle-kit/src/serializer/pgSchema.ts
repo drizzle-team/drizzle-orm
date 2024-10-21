@@ -331,6 +331,7 @@ const table = object({
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
 	policies: record(string(), policy).default({}),
 	checkConstraints: record(string(), checkConstraint).default({}),
+	isRLSEnabled: boolean().default(false),
 }).strict();
 
 const schemaHash = object({

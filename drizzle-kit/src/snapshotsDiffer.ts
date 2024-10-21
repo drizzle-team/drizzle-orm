@@ -923,7 +923,7 @@ export const applyPgSnapshotsDiff = async (
 
 	//// Policies
 
-	const policyRes = diffPolicies(columnsPatchedSnap1.tables, json2.tables);
+	const policyRes = diffPolicies(tablesPatchedSnap1.tables, json2.tables);
 
 	const policyRenames = [] as {
 		table: string;
@@ -990,7 +990,7 @@ export const applyPgSnapshotsDiff = async (
 		>,
 	);
 
-	const policyPatchedSnap1 = copy(columnsPatchedSnap1);
+	const policyPatchedSnap1 = copy(tablesPatchedSnap1);
 	policyPatchedSnap1.tables = mapEntries(
 		policyPatchedSnap1.tables,
 		(tableKey, tableValue) => {
@@ -1015,7 +1015,7 @@ export const applyPgSnapshotsDiff = async (
 	);
 
 	////
-	const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
+	const viewsDiff = diffSchemasOrTables(policyPatchedSnap1.views, json2.views);
 
 	const {
 		created: createdViews,

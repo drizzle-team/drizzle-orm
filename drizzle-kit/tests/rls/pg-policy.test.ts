@@ -590,6 +590,7 @@ test('create table with a policy', async (t) => {
 				},
 			],
 			compositePKs: [],
+			checkConstraints: [],
 			compositePkName: '',
 			policies: [
 				'test--PERMISSIVE--ALL--public--undefined--undefined',
@@ -632,7 +633,7 @@ test('drop table with a policy', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'DROP POLICY "test" ON "users2" CASCADE;',
-		'DROP TABLE "users2";',
+		'DROP TABLE "users2" CASCADE;',
 	]);
 	expect(statements).toStrictEqual([
 		{
