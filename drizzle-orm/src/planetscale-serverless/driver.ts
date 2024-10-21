@@ -98,7 +98,7 @@ Starting from version 0.30.0, you will encounter an error if you attempt to use 
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TClient extends Client = Client,
+	TClient extends Client | Connection = Client,
 >(
 	...params: IfNotImported<
 		Config,

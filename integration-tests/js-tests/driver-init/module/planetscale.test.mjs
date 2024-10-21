@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Client, Connection } from '@planetscale/database';
+import { Client, connect, Connection } from '@planetscale/database';
 import { drizzle } from 'drizzle-orm/planetscale-serverless';
 import { describe, expect } from 'vitest';
 import { mysql as schema } from './schema.mjs';
@@ -102,7 +102,7 @@ describe('planetscale', async (it) => {
 
 describe('planetscale:Connection', async (it) => {
 	it('drizzle(client)', async () => {
-		const client = new Connection({
+		const client = connect({
 			url: process.env['PLANETSCALE_CONNECTION_STRING'],
 		});
 		const db = drizzle(client);
@@ -114,7 +114,7 @@ describe('planetscale:Connection', async (it) => {
 	});
 
 	it('drizzle(client, config)', async () => {
-		const client = new Connection({
+		const client = connect({
 			url: process.env['PLANETSCALE_CONNECTION_STRING'],
 		});
 		const db = drizzle(client, {
@@ -129,7 +129,7 @@ describe('planetscale:Connection', async (it) => {
 	});
 
 	it('drizzle({client, ...config})', async () => {
-		const client = new Connection({
+		const client = connect({
 			url: process.env['PLANETSCALE_CONNECTION_STRING'],
 		});
 		const db = drizzle({
