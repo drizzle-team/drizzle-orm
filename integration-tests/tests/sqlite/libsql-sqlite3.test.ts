@@ -3,7 +3,7 @@ import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
-import { drizzle } from 'drizzle-orm/libsql/ws';
+import { drizzle } from 'drizzle-orm/libsql/sqlite3';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';

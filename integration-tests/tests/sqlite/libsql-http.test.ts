@@ -1,4 +1,4 @@
-import { type Client, createClient } from '@libsql/client';
+import { type Client, createClient } from '@libsql/client/http';
 import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
