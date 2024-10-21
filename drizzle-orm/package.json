@@ -178,7 +178,7 @@
 		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
 		"better-sqlite3": "^8.4.0",
-		"bun-types": "^0.6.6",
+		"bun-types": "^1.1.31",
 		"cpy": "^10.1.0",
 		"expo-sqlite": "^13.2.0",
 		"knex": "^2.4.2",
