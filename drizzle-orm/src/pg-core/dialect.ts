@@ -4,18 +4,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import {
-	PgColumn,
-	PgDate,
-	PgDateString,
-	PgJson,
-	PgJsonb,
-	PgNumeric,
-	PgTime,
-	PgTimestamp,
-	PgTimestampString,
-	PgUUID,
-} from '~/pg-core/columns/index.ts';
+import { PgColumn } from '~/pg-core/columns/index.ts';
 import type {
 	PgDeleteConfig,
 	PgInsertConfig,
@@ -530,21 +519,32 @@ export class PgDialect {
 	}
 
 	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
-		if (is(encoder, PgJsonb) || is(encoder, PgJson)) {
-			return 'json';
-		} else if (is(encoder, PgNumeric)) {
-			return 'decimal';
-		} else if (is(encoder, PgTime)) {
-			return 'time';
-		} else if (is(encoder, PgTimestamp) || is(encoder, PgTimestampString)) {
-			return 'timestamp';
-		} else if (is(encoder, PgDate) || is(encoder, PgDateString)) {
-			return 'date';
-		} else if (is(encoder, PgUUID)) {
-			return 'uuid';
-		} else {
-			return 'none';
+		if (is(encoder, PgColumn)) {
+			const sqlType = encoder.getSQLType();
+
+			if (sqlType === 'json' || sqlType === 'jsonb') {
+				return 'json';
+			} else if (sqlType === 'uuid') {
+				return 'uuid';
+			} else if (sqlType === 'date') {
+				return 'date';
+			} else if (
+				sqlType.startsWith('numeric') && /^numeric(\(\d+(,\s*\d+)?\))?$/.test(sqlType)
+			) {
+				return 'decimal';
+			} else if (
+				sqlType.startsWith('time') && /^time(\s*\(\s*(\d+)\s*\))?(\s*(with|without)\s+time\s+zone)?$/.test(sqlType)
+			) {
+				return 'time';
+			} else if (
+				sqlType.startsWith('timestamp')
+				&& /^timestamp(\s*\(\s*(\d+)\s*\))?(\s*(with|without)\s+time\s+zone)?$/.test(sqlType)
+			) {
+				return 'timestamp';
+			}
 		}
+
+		return 'none';
 	}
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
