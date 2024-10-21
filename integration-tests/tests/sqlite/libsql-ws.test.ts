@@ -15,10 +15,10 @@ let db: LibSQLDatabase;
 let client: Client;
 
 beforeAll(async () => {
-	const url = process.env['LIBSQL_URL'];
-	const authToken = process.env['LIBSQL_AUTH_TOKEN'];
+	const url = process.env['LIBSQL_REMOTE_URL'];
+	const authToken = process.env['LIBSQL_REMOTE_TOKEN'];
 	if (!url) {
-		throw new Error('LIBSQL_URL is not set');
+		throw new Error('LIBSQL_REMOTE_URL is not set');
 	}
 	client = await retry(async () => {
 		client = createClient({ url, authToken });
