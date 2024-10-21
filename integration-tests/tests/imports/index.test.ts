@@ -20,7 +20,7 @@ it('dynamic imports check for CommonJS', async () => {
 		const o1 = path.join('drizzle-orm', key);
 		if (
 			o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/pglite')
-			|| o1.startsWith('drizzle-orm/expo-sqlite')
+			|| o1.startsWith('drizzle-orm/expo-sqlite') || o1.startsWith('drizzle-orm/libsql/wasm')
 		) {
 			continue;
 		}
