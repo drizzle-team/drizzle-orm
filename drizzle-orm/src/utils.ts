@@ -302,7 +302,7 @@ export function isConfig(data: any): boolean {
 
 	if ('client' in data) {
 		const type = typeof data['client'];
-		if (type !== 'object' && type !== 'undefined') return false;
+		if (type !== 'object' && type !== 'function' && type !== 'undefined') return false;
 
 		return true;
 	}
