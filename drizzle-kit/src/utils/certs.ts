@@ -11,7 +11,7 @@ mkdirSync(p.data, { recursive: true });
 
 /** Bun shell docs: https://bun.sh/docs/runtime/shell */
 async function bunShell() {
-	const $ = (await import('bun')).$;
+	const $ = (await import('bun').catch(() => undefined as never)).$;
 	$.cwd(p.data);
 	return $;
 }
