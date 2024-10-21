@@ -955,7 +955,7 @@ export const writeResult = ({
 
 	if (type === 'custom') {
 		console.log('Prepared empty file for your custom SQL migration!');
-		sql = '-- Custom SQL migration file, put you code below! --';
+		sql = '-- Custom SQL migration file, put your code below! --';
 	}
 
 	journal.entries.push({
