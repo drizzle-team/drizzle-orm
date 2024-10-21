@@ -1,13 +1,13 @@
 import { type Client, createClient } from '@libsql/client/ws';
 import retry from 'async-retry';
-import { sql } from 'drizzle-orm';
+import { asc, eq, getTableColumns, sql } from 'drizzle-orm';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { drizzle } from 'drizzle-orm/libsql/ws';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+import { anotherUsersMigratorTable, tests, usersMigratorTable, usersOnUpdate } from './sqlite-common';
 
 const ENABLE_LOGGING = false;
 
@@ -89,9 +89,99 @@ test('migrator : migrate with custom table', async () => {
 	await db.run(sql`drop table ${sql.identifier(customTable)}`);
 });
 
+test('test $onUpdateFn and $onUpdate works as $default', async (ctx) => {
+	const { db } = ctx.sqlite;
+
+	await db.run(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.run(
+		sql`
+			create table ${usersOnUpdate} (
+			id integer primary key autoincrement,
+			name text not null,
+			update_counter integer default 1 not null,
+			updated_at integer,
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	expect(response).toEqual([
+		{ name: 'John', id: 1, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
+	]);
+	const msDelay = 500;
+
+	for (const eachUser of justDates) {
+		expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
+	}
+});
+
+test('test $onUpdateFn and $onUpdate works updating', async (ctx) => {
+	const { db } = ctx.sqlite;
+
+	await db.run(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.run(
+		sql`
+			create table ${usersOnUpdate} (
+			id integer primary key autoincrement,
+			name text not null,
+			update_counter integer default 1,
+			updated_at integer,
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John', alwaysNull: 'this will be null after updating' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+
+	await db.update(usersOnUpdate).set({ name: 'Angel' }).where(eq(usersOnUpdate.id, 1));
+	await db.update(usersOnUpdate).set({ updateCounter: null }).where(eq(usersOnUpdate.id, 2));
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	expect(response).toEqual([
+		{ name: 'Angel', id: 1, updateCounter: 2, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: null, alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
+	]);
+	const msDelay = 500;
+
+	for (const eachUser of justDates) {
+		expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
+	}
+});
+
 skipTests([
 	'delete with limit and order by',
 	'update with limit and order by',
+	'join view as subquery',
+	'test $onUpdateFn and $onUpdate works as $default',
+	'test $onUpdateFn and $onUpdate works updating',
 ]);
 
 tests();
