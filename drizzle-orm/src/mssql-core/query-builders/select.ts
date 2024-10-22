@@ -19,7 +19,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
@@ -92,7 +92,7 @@ export class MsSqlSelectBuilder<
 		} else if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
-				Object.keys(source[SubqueryConfig].selection).map((
+				Object.keys(source._.selectedFields).map((
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
@@ -131,7 +131,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'MsSqlSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'MsSqlSelectQueryBuilder';
 
 	override readonly _: {
 		readonly hkt: THKT;
@@ -206,7 +206,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 				}
 				if (typeof tableName === 'string' && !is(table, SQL)) {
 					const selection = is(table, Subquery)
-						? table[SubqueryConfig].selection
+						? table._.selectedFields
 						: is(table, View)
 						? table[ViewBaseConfig].selectedFields
 						: table[Table.Symbol.Columns];
@@ -828,7 +828,7 @@ export class MsSqlSelectBase<
 	TResult,
 	TSelectedFields
 > {
-	static readonly [entityKind]: string = 'MsSqlSelect';
+	static override readonly [entityKind]: string = 'MsSqlSelect';
 
 	prepare(): MsSqlSelectPrepare<this> {
 		if (!this.session) {

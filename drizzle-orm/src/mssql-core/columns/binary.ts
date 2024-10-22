@@ -20,7 +20,7 @@ export class MsSqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MsS
 	T,
 	MsSqlBinaryConfig
 > {
-	static readonly [entityKind]: string = 'MsSqlBinaryBuilder';
+	static override readonly [entityKind]: string = 'MsSqlBinaryBuilder';
 
 	constructor(name: T['name'], length: number | undefined) {
 		super(name, 'buffer', 'MsSqlBinary');
@@ -39,7 +39,7 @@ export class MsSqlBinary<T extends ColumnBaseConfig<'buffer', 'MsSqlBinary'>> ex
 	T,
 	MsSqlBinaryConfig
 > {
-	static readonly [entityKind]: string = 'MsSqlBinary';
+	static override readonly [entityKind]: string = 'MsSqlBinary';
 
 	length: number | undefined = this.config.length;
 

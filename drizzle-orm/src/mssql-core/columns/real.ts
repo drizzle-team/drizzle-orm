@@ -19,7 +19,7 @@ export type MsSqlRealBuilderInitial<TName extends string> = MsSqlRealBuilder<
 export class MsSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlReal'>>
 	extends MsSqlColumnBuilderWithIdentity<T>
 {
-	static readonly [entityKind]: string = 'MsSqlRealBuilder';
+	static override readonly [entityKind]: string = 'MsSqlRealBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'MsSqlReal');
@@ -34,7 +34,7 @@ export class MsSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSql
 }
 
 export class MsSqlReal<T extends ColumnBaseConfig<'number', 'MsSqlReal'>> extends MsSqlColumnWithIdentity<T> {
-	static readonly [entityKind]: string = 'MsSqlReal';
+	static override readonly [entityKind]: string = 'MsSqlReal';
 
 	_getSQLType(): string {
 		return 'real';

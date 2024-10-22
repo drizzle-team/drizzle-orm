@@ -23,7 +23,7 @@ export type TableConfig = TableConfigBase<MsSqlColumn>;
 export const InlineForeignKeys = Symbol.for('drizzle:MsSqlInlineForeignKeys');
 
 export class MsSqlTable<T extends TableConfig = TableConfig> extends Table<T> {
-	static readonly [entityKind]: string = 'MsSqlTable';
+	static override readonly [entityKind]: string = 'MsSqlTable';
 
 	declare protected $columns: T['columns'];
 

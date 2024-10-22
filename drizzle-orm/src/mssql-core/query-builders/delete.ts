@@ -83,7 +83,7 @@ export class MsSqlDeleteBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
 > extends QueryPromise<QueryResultKind<TQueryResult, any>> implements SQLWrapper {
-	static readonly [entityKind]: string = 'MsSqlDelete';
+	static override readonly [entityKind]: string = 'MsSqlDelete';
 
 	private config: MsSqlDeleteConfig;
 

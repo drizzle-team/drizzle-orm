@@ -19,7 +19,7 @@ export type MsSqlFloatBuilderInitial<TName extends string> = MsSqlFloatBuilder<
 export class MsSqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlFloat'>>
 	extends MsSqlColumnBuilderWithIdentity<T, MsSqlFloatConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlFloatBuilder';
+	static override readonly [entityKind]: string = 'MsSqlFloatBuilder';
 
 	constructor(name: T['name'], config?: MsSqlFloatConfig) {
 		super(name, 'number', 'MsSqlFloat');
@@ -37,7 +37,7 @@ export class MsSqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSq
 export class MsSqlFloat<T extends ColumnBaseConfig<'number', 'MsSqlFloat'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlFloatConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlFloat';
+	static override readonly [entityKind]: string = 'MsSqlFloat';
 
 	readonly precision: number | undefined = this.config.precision;
 

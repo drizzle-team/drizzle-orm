@@ -19,7 +19,7 @@ export type MsSqlSmallIntBuilderInitial<TName extends string> = MsSqlSmallIntBui
 export class MsSqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlSmallInt'>>
 	extends MsSqlColumnBuilderWithIdentity<T>
 {
-	static readonly [entityKind]: string = 'MsSqlSmallIntBuilder';
+	static override readonly [entityKind]: string = 'MsSqlSmallIntBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'MsSqlSmallInt');
@@ -37,7 +37,7 @@ export class MsSqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'M
 }
 
 export class MsSqlSmallInt<T extends ColumnBaseConfig<'number', 'MsSqlSmallInt'>> extends MsSqlColumnWithIdentity<T> {
-	static readonly [entityKind]: string = 'MsSqlSmallInt';
+	static override readonly [entityKind]: string = 'MsSqlSmallInt';
 
 	_getSQLType(): string {
 		return `smallint`;

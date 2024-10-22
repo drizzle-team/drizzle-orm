@@ -15,9 +15,9 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
-import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MsSqlColumn } from './columns/common.ts';
 import type { MsSqlDeleteConfig } from './query-builders/delete.ts';
@@ -27,9 +27,20 @@ import type { MsSqlUpdateConfig } from './query-builders/update.ts';
 import type { MsSqlSession } from './session.ts';
 import { MsSqlTable } from './table.ts';
 import { MsSqlViewBase } from './view-base.ts';
+import { CasingCache } from '~/casing.ts';
 
+export interface MsSqlDialectConfig {
+	casing?: Casing;
+}
 export class MsSqlDialect {
 	static readonly [entityKind]: string = 'MsSqlDialect';
+
+  /** @internal */
+	readonly casing: CasingCache;
+
+  constructor(config?: MsSqlDialectConfig) {
+		this.casing = new CasingCache(config?.casing);
+	}
 
 	async migrate(migrations: MigrationMeta[], session: MsSqlSession, config: MigrationConfig): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
@@ -225,7 +236,7 @@ export class MsSqlDialect {
 				is(f.field, Column)
 				&& getTableName(f.field.table)
 					!== (is(table, Subquery)
-						? table[SubqueryConfig].alias
+						? table._.alias
 						: is(table, MsSqlViewBase)
 						? table[ViewBaseConfig].name
 						: is(table, SQL)
@@ -251,7 +262,7 @@ export class MsSqlDialect {
 		if (withList?.length) {
 			const withSqlChunks = [sql`with `];
 			for (const [i, w] of withList.entries()) {
-				withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+				withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
 				if (i < withList.length - 1) {
 					withSqlChunks.push(sql`, `);
 				}
@@ -466,6 +477,7 @@ export class MsSqlDialect {
 
 	sqlToQuery(sql: SQL): QueryWithTypings {
 		return sql.toQuery({
+      casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,

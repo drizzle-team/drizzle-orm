@@ -153,6 +153,14 @@ export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}
 	};
 };
 
+export type GeneratedNotNull<T extends ColumnBuilderBase, TGenerated extends {} = {}> = T & {
+	_: {
+		hasDefault: true;
+		notNull: true;
+		generated: TGenerated;
+	};
+};
+
 export type IsIdentityByDefault<
 	T extends ColumnBuilderBase,
 	TType extends 'always' | 'byDefault',

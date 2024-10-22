@@ -19,7 +19,7 @@ export class MsSqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSql
 	T,
 	{ length: number | undefined; enumValues: T['enumValues']; nonUnicode: boolean }
 > {
-	static readonly [entityKind]: string = 'MsSqlTextBuilder';
+	static override readonly [entityKind]: string = 'MsSqlTextBuilder';
 
 	constructor(name: T['name'], config: MsSqlTextConfig<T['enumValues']> & { nonUnicode: boolean }) {
 		super(name, 'string', 'MsSqlText');
@@ -39,7 +39,7 @@ export class MsSqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSql
 export class MsSqlText<T extends ColumnBaseConfig<'string', 'MsSqlText'>>
 	extends MsSqlColumn<T, { length: number | undefined; enumValues: T['enumValues']; nonUnicode: boolean }>
 {
-	static readonly [entityKind]: string = 'MsSqlText';
+	static override readonly [entityKind]: string = 'MsSqlText';
 
 	override readonly enumValues = this.config.enumValues;
 

@@ -20,7 +20,7 @@ export type MsSqlNumericBuilderInitial<TName extends string> = MsSqlNumericBuild
 export class MsSqlNumericBuilder<
 	T extends ColumnBuilderBaseConfig<'number', 'MsSqlNumeric'>,
 > extends MsSqlColumnBuilderWithIdentity<T, MsSqlNumericConfig> {
-	static readonly [entityKind]: string = 'MsSqlNumericBuilder';
+	static override readonly [entityKind]: string = 'MsSqlNumericBuilder';
 
 	constructor(name: T['name'], precision?: number, scale?: number) {
 		super(name, 'number', 'MsSqlNumeric');
@@ -42,7 +42,7 @@ export class MsSqlNumericBuilder<
 export class MsSqlNumeric<T extends ColumnBaseConfig<'number', 'MsSqlNumeric'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlNumericConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlNumeric';
+	static override readonly [entityKind]: string = 'MsSqlNumeric';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;

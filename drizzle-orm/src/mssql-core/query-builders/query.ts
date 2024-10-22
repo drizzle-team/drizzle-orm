@@ -68,7 +68,7 @@ export class MsSqlRelationalQuery<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TResult,
 > extends QueryPromise<TResult> {
-	static readonly [entityKind]: string = 'MsSqlRelationalQuery';
+	static override readonly [entityKind]: string = 'MsSqlRelationalQuery';
 
 	declare protected $brand: 'MsSqlRelationalQuery';
 

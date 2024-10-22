@@ -19,7 +19,7 @@ export type MsSqlDecimalBuilderInitial<TName extends string> = MsSqlDecimalBuild
 export class MsSqlDecimalBuilder<
 	T extends ColumnBuilderBaseConfig<'number', 'MsSqlDecimal'>,
 > extends MsSqlColumnBuilderWithIdentity<T, MsSqlDecimalConfig> {
-	static readonly [entityKind]: string = 'MsSqlDecimalBuilder';
+	static override readonly [entityKind]: string = 'MsSqlDecimalBuilder';
 
 	constructor(name: T['name'], precision?: number, scale?: number) {
 		super(name, 'number', 'MsSqlDecimal');
@@ -41,7 +41,7 @@ export class MsSqlDecimalBuilder<
 export class MsSqlDecimal<T extends ColumnBaseConfig<'number', 'MsSqlDecimal'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlDecimalConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlDecimal';
+	static override readonly [entityKind]: string = 'MsSqlDecimal';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;

@@ -128,10 +128,13 @@ Expect<
 				driverParam: number;
 				notNull: true;
 				hasDefault: true;
+        isPrimaryKey: true;
+        isAutoincrement: false;
+        hasRuntimeDefault: false;
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
-				generated: GeneratedColumnConfig<number> & object;
+				generated: GeneratedColumnConfig<number>;
 			}>;
 			cityId: MsSqlColumn<{
 				name: 'id';
@@ -141,10 +144,13 @@ Expect<
 				driverParam: number;
 				notNull: false;
 				hasDefault: true;
+        isPrimaryKey: true;
+        isAutoincrement: false;
+        hasRuntimeDefault: false;
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
-				generated: GeneratedColumnConfig<number> & object;
+				generated: GeneratedColumnConfig<number>;
 			}>;
 		}>,
 		typeof newYorkers
@@ -179,10 +185,13 @@ Expect<
 					driverParam: number;
 					notNull: true;
 					hasDefault: true;
+          isPrimaryKey: true;
+          isAutoincrement: false;
+          hasRuntimeDefault: false;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
-					generated: GeneratedColumnConfig<number> & object;
+					generated: GeneratedColumnConfig<number>;
 				}>;
 				cityId: MsSqlColumn<{
 					name: 'id';
@@ -192,10 +201,13 @@ Expect<
 					driverParam: number;
 					notNull: false;
 					hasDefault: true;
+          isPrimaryKey: true;
+          isAutoincrement: false;
+          hasRuntimeDefault: false;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
-					generated: GeneratedColumnConfig<number> & object;
+					generated: GeneratedColumnConfig<number>;
 				}>;
 			}>,
 			typeof newYorkers
@@ -228,6 +240,9 @@ Expect<
 					driverParam: number;
 					hasDefault: false;
 					notNull: true;
+          isPrimaryKey: false;
+          isAutoincrement: false;
+          hasRuntimeDefault: false;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
@@ -237,6 +252,9 @@ Expect<
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+          isPrimaryKey: false;
+          isAutoincrement: false;
+          hasRuntimeDefault: false;
 					dataType: 'number';
 					columnType: 'MsSqlInt';
 					data: number;
@@ -277,6 +295,9 @@ Expect<
 					driverParam: number;
 					hasDefault: false;
 					notNull: true;
+          isPrimaryKey: false;
+          isAutoincrement: false;
+          hasRuntimeDefault: false;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
@@ -286,6 +307,9 @@ Expect<
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+          isPrimaryKey: false;
+          isAutoincrement: false;
+          hasRuntimeDefault: false;
 					dataType: 'number';
 					columnType: 'MsSqlInt';
 					data: number;
@@ -318,6 +342,9 @@ Expect<
 					driverParam: number;
 					hasDefault: false;
 					notNull: true;
+          isPrimaryKey: false;
+          isAutoincrement: false;
+          hasRuntimeDefault: false;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
@@ -327,6 +354,9 @@ Expect<
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+          isPrimaryKey: false;
+          isAutoincrement: false;
+          hasRuntimeDefault: false;
 					dataType: 'number';
 					columnType: 'MsSqlInt';
 					data: number;
@@ -359,6 +389,9 @@ Expect<
 					driverParam: number;
 					hasDefault: false;
 					notNull: true;
+          isPrimaryKey: false;
+          isAutoincrement: false;
+          hasRuntimeDefault: false;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
@@ -368,6 +401,9 @@ Expect<
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+          isPrimaryKey: false;
+          isAutoincrement: false;
+          hasRuntimeDefault: false;
 					dataType: 'number';
 					columnType: 'MsSqlInt';
 					data: number;
@@ -403,6 +439,9 @@ Expect<
 				driverParam: unknown;
 				notNull: true;
 				hasDefault: false;
+        isPrimaryKey: false;
+        isAutoincrement: false;
+        hasRuntimeDefault: false;
 				enumValues: undefined;
 				baseColumn: never;
 				dialect: 'mssql';

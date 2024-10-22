@@ -64,7 +64,7 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
-	static readonly [entityKind]: string = 'MsSqlViewBuilder';
+	static override readonly [entityKind]: string = 'MsSqlViewBuilder';
 
 	as<TSelectedFields extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
@@ -98,7 +98,7 @@ export class ManualViewBuilder<
 	TName extends string = string,
 	TColumns extends Record<string, MsSqlColumnBuilderBase> = Record<string, MsSqlColumnBuilderBase>,
 > extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
-	static readonly [entityKind]: string = 'MsSqlManualViewBuilder';
+	static override readonly [entityKind]: string = 'MsSqlManualViewBuilder';
 
 	private columns: Record<string, MsSqlColumn>;
 
@@ -157,7 +157,7 @@ export class MsSqlView<
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends MsSqlViewBase<TName, TExisting, TSelectedFields> {
-	static readonly [entityKind]: string = 'MsSqlView';
+	static override readonly [entityKind]: string = 'MsSqlView';
 
 	declare protected $MsSqlViewBrand: 'MsSqlView';
 

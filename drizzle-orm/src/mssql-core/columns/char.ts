@@ -20,7 +20,7 @@ export type MsSqlCharBuilderInitial<TName extends string, TEnum extends [string,
 export class MsSqlCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlChar'>>
 	extends MsSqlColumnBuilder<T, MsSqlCharConfig<T['enumValues']>>
 {
-	static readonly [entityKind]: string = 'MsSqlCharBuilder';
+	static override readonly [entityKind]: string = 'MsSqlCharBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: MsSqlCharConfig<T['enumValues']>) {
@@ -44,7 +44,7 @@ export class MsSqlCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSql
 export class MsSqlChar<T extends ColumnBaseConfig<'string', 'MsSqlChar'>>
 	extends MsSqlColumn<T, MsSqlCharConfig<T['enumValues']>>
 {
-	static readonly [entityKind]: string = 'MsSqlChar';
+	static override readonly [entityKind]: string = 'MsSqlChar';
 
 	readonly length: number | undefined = this.config.length;
 

@@ -19,7 +19,7 @@ export type MsSqlVarBinaryBuilderInitial<TName extends string> = MsSqlVarBinaryB
 export class MsSqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MsSqlVarBinary'>>
 	extends MsSqlColumnBuilder<T, MsSqlVarbinaryOptions>
 {
-	static readonly [entityKind]: string = 'MsSqlVarBinaryBuilder';
+	static override readonly [entityKind]: string = 'MsSqlVarBinaryBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: MsSqlVarbinaryOptions) {
@@ -41,7 +41,7 @@ export class MsSqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', '
 export class MsSqlVarBinary<
 	T extends ColumnBaseConfig<'buffer', 'MsSqlVarBinary'>,
 > extends MsSqlColumn<T, MsSqlVarbinaryOptions> {
-	static readonly [entityKind]: string = 'MsSqlVarBinary';
+	static override readonly [entityKind]: string = 'MsSqlVarBinary';
 
 	length: number | 'max' | undefined = this.config.length;
 

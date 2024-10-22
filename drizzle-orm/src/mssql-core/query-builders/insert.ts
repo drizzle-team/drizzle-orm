@@ -125,7 +125,7 @@ export class MsSqlInsertBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
 > extends QueryPromise<QueryResultKind<TQueryResult, any>> implements SQLWrapper {
-	static readonly [entityKind]: string = 'MsSqlInsert';
+	static override readonly [entityKind]: string = 'MsSqlInsert';
 
 	declare protected $table: TTable;
 

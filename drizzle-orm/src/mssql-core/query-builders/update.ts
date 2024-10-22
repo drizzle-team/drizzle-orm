@@ -116,7 +116,7 @@ export class MsSqlUpdateBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
 > extends QueryPromise<QueryResultKind<TQueryResult, any>> implements SQLWrapper {
-	static readonly [entityKind]: string = 'MsSqlUpdate';
+	static override readonly [entityKind]: string = 'MsSqlUpdate';
 
 	private config: MsSqlUpdateConfig;
 
