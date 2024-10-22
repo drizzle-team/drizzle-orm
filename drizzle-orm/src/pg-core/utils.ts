@@ -5,7 +5,8 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
 import type { AnyPgColumn } from './columns/index.ts';
 import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
-import { type Index, IndexBuilder } from './indexes.ts';
+import type { Index } from './indexes.ts';
+import { IndexBuilder } from './indexes.ts';
 import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import { PgViewConfig } from './view-common.ts';
@@ -24,7 +25,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
 
 	if (extraConfigBuilder !== undefined) {
-		const extraConfig = extraConfigBuilder(table[Table.Symbol.Columns]);
+		const extraConfig = extraConfigBuilder(table[Table.Symbol.ExtraConfigColumns]);
 		for (const builder of Object.values(extraConfig)) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));

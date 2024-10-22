@@ -2,10 +2,10 @@ import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { MsSqlColumn } from './mssql-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
-import type { PgColumn } from './pg-core/index.ts';
+import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
-import type { Simplify } from './utils.ts';
+import type { Assume, Simplify } from './utils.ts';
 
 export type ColumnDataType =
 	| 'string'
@@ -30,6 +30,12 @@ export type GeneratedColumnConfig<TDataType> = {
 	mode?: GeneratedStorageMode;
 };
 
+export type GeneratedIdentityConfig = {
+	sequenceName?: string;
+	sequenceOptions?: PgSequenceOptions;
+	type: 'always' | 'byDefault';
+};
+
 export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColumnType extends string> {
 	name: string;
 	dataType: TDataType;
@@ -43,15 +49,19 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColu
 export type MakeColumnConfig<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTableName extends string,
+	TData = T extends { $type: infer U } ? U : T['data'],
 > = {
 	name: T['name'];
 	tableName: TTableName;
 	dataType: T['dataType'];
 	columnType: T['columnType'];
-	data: T extends { $type: infer U } ? U : T['data'];
+	data: TData;
 	driverParam: T['driverParam'];
 	notNull: T extends { notNull: true } ? true : false;
 	hasDefault: T extends { hasDefault: true } ? true : false;
+	isPrimaryKey: T extends { isPrimaryKey: true } ? true : false;
+	isAutoincrement: T extends { isAutoincrement: true } ? true : false;
+	hasRuntimeDefault: T extends { hasRuntimeDefault: true } ? true : false;
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
@@ -80,6 +90,7 @@ export type ColumnBuilderTypeConfig<
 
 export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = object> = {
 	name: string;
+	keyAsName: boolean;
 	notNull: boolean;
 	default: TData | SQL | undefined;
 	defaultFn: (() => TData | SQL) | undefined;
@@ -92,6 +103,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	dataType: string;
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
+	generatedIdentity: GeneratedIdentityConfig | undefined;
 } & TRuntimeConfig;
 
 export interface ColumnBuilderExtraConfig {
@@ -110,17 +122,45 @@ export type HasDefault<T extends ColumnBuilderBase> = T & {
 	};
 };
 
+export type IsPrimaryKey<T extends ColumnBuilderBase> = T & {
+	_: {
+		isPrimaryKey: true;
+	};
+};
+
+export type IsAutoincrement<T extends ColumnBuilderBase> = T & {
+	_: {
+		isAutoincrement: true;
+	};
+};
+
+export type HasRuntimeDefault<T extends ColumnBuilderBase> = T & {
+	_: {
+		hasRuntimeDefault: true;
+	};
+};
+
 export type $Type<T extends ColumnBuilderBase, TType> = T & {
 	_: {
 		$type: TType;
 	};
 };
 
-export type HasGenerated<T extends ColumnBuilderBase, TGenerated = object> = T & {
+export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}> = T & {
+	_: {
+		hasDefault: true;
+		generated: TGenerated;
+	};
+};
+
+export type IsIdentityByDefault<
+	T extends ColumnBuilderBase,
+	TType extends 'always' | 'byDefault',
+> = T & {
 	_: {
 		notNull: true;
 		hasDefault: true;
-		generated: TGenerated;
+		generated: { as: any; type: TType };
 	};
 };
 
@@ -147,6 +187,7 @@ export abstract class ColumnBuilder<
 	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
 		this.config = {
 			name,
+			keyAsName: name === '',
 			notNull: false,
 			default: undefined,
 			hasDefault: false,
@@ -156,6 +197,7 @@ export abstract class ColumnBuilder<
 			uniqueType: undefined,
 			dataType,
 			columnType,
+			generated: undefined,
 		} as ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
 	}
 
@@ -205,10 +247,10 @@ export abstract class ColumnBuilder<
 	 */
 	$defaultFn(
 		fn: () => (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL,
-	): HasDefault<this> {
+	): HasRuntimeDefault<HasDefault<this>> {
 		this.config.defaultFn = fn;
 		this.config.hasDefault = true;
-		return this as HasDefault<this>;
+		return this as HasRuntimeDefault<HasDefault<this>>;
 	}
 
 	/**
@@ -232,7 +274,7 @@ export abstract class ColumnBuilder<
 	}
 
 	/**
-	 * Alias for {@link $defaultFn}.
+	 * Alias for {@link $onUpdateFn}.
 	 */
 	$onUpdate = this.$onUpdateFn;
 
@@ -241,10 +283,24 @@ export abstract class ColumnBuilder<
 	 *
 	 * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
 	 */
-	primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? HasDefault<NotNull<this>> : NotNull<this> {
+	primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<NotNull<this>>>
+		: IsPrimaryKey<NotNull<this>>
+	{
 		this.config.primaryKey = true;
 		this.config.notNull = true;
-		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? HasDefault<NotNull<this>> : NotNull<this>;
+		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<NotNull<this>>>
+			: IsPrimaryKey<NotNull<this>>;
+	}
+
+	abstract generatedAlwaysAs(
+		as: SQL | T['data'] | (() => SQL),
+		config?: Partial<GeneratedColumnConfig<unknown>>,
+	): HasGenerated<this>;
+
+	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
+	setName(name: string) {
+		if (this.config.name !== '') return;
+		this.config.name = name;
 	}
 }
 
@@ -259,13 +315,38 @@ export type BuildColumn<
 	: TDialect extends 'common' ? Column<MakeColumnConfig<TBuilder['_'], TTableName>>
 	: never;
 
+export type BuildIndexColumn<
+	TDialect extends Dialect,
+> = TDialect extends 'pg' ? ExtraConfigColumn : never;
+
+// TODO
+// try to make sql as well + indexRaw
+
+// optional after everything will be working as expected
+// also try to leave only needed methods for extraConfig
+// make an error if I pass .asc() to fk and so on
+
 export type BuildColumns<
 	TTableName extends string,
 	TConfigMap extends Record<string, ColumnBuilderBase>,
 	TDialect extends Dialect,
 > =
 	& {
-		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key], TDialect>;
+		[Key in keyof TConfigMap]: BuildColumn<TTableName, {
+			_:
+				& Omit<TConfigMap[Key]['_'], 'name'>
+				& { name: TConfigMap[Key]['_']['name'] extends '' ? Assume<Key, string> : TConfigMap[Key]['_']['name'] };
+		}, TDialect>;
+	}
+	& {};
+
+export type BuildExtraConfigColumns<
+	_TTableName extends string,
+	TConfigMap extends Record<string, ColumnBuilderBase>,
+	TDialect extends Dialect,
+> =
+	& {
+		[Key in keyof TConfigMap]: BuildIndexColumn<TDialect>;
 	}
 	& {};
 

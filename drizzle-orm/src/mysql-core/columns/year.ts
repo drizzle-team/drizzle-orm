@@ -4,20 +4,18 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<
-	{
-		name: TName;
-		dataType: 'number';
-		columnType: 'MySqlYear';
-		data: number;
-		driverParam: number;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
+export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
+	name: TName;
+	dataType: 'number';
+	columnType: 'MySqlYear';
+	data: number;
+	driverParam: number;
+	enumValues: undefined;
+	generated: undefined;
+}>;
 
 export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlYear'>> extends MySqlColumnBuilder<T> {
-	static readonly [entityKind]: string = 'MySqlYearBuilder';
+	static override readonly [entityKind]: string = 'MySqlYearBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'MySqlYear');
@@ -34,13 +32,15 @@ export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySql
 export class MySqlYear<
 	T extends ColumnBaseConfig<'number', 'MySqlYear'>,
 > extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlYear';
+	static override readonly [entityKind]: string = 'MySqlYear';
 
 	getSQLType(): string {
 		return `year`;
 	}
 }
 
-export function year<TName extends string>(name: TName): MySqlYearBuilderInitial<TName> {
-	return new MySqlYearBuilder(name);
+export function year(): MySqlYearBuilderInitial<''>;
+export function year<TName extends string>(name: TName): MySqlYearBuilderInitial<TName>;
+export function year(name?: string) {
+	return new MySqlYearBuilder(name ?? '');
 }

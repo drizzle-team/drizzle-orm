@@ -2,24 +2,23 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<
-	{
-		name: TName;
-		dataType: 'string';
-		columnType: 'MySqlDecimal';
-		data: string;
-		driverParam: string;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
+export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<{
+	name: TName;
+	dataType: 'string';
+	columnType: 'MySqlDecimal';
+	data: string;
+	driverParam: string;
+	enumValues: undefined;
+	generated: undefined;
+}>;
 
 export class MySqlDecimalBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'MySqlDecimal'>,
 > extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
-	static readonly [entityKind]: string = 'MySqlDecimalBuilder';
+	static override readonly [entityKind]: string = 'MySqlDecimalBuilder';
 
 	constructor(name: T['name'], precision?: number, scale?: number) {
 		super(name, 'string', 'MySqlDecimal');
@@ -41,7 +40,7 @@ export class MySqlDecimalBuilder<
 export class MySqlDecimal<T extends ColumnBaseConfig<'string', 'MySqlDecimal'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDecimal';
+	static override readonly [entityKind]: string = 'MySqlDecimal';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
@@ -62,9 +61,15 @@ export interface MySqlDecimalConfig {
 	scale?: number;
 }
 
+export function decimal(): MySqlDecimalBuilderInitial<''>;
+export function decimal(
+	config: MySqlDecimalConfig,
+): MySqlDecimalBuilderInitial<''>;
 export function decimal<TName extends string>(
 	name: TName,
-	config: MySqlDecimalConfig = {},
-): MySqlDecimalBuilderInitial<TName> {
+	config?: MySqlDecimalConfig,
+): MySqlDecimalBuilderInitial<TName>;
+export function decimal(a?: string | MySqlDecimalConfig, b: MySqlDecimalConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<MySqlDecimalConfig>(a, b);
 	return new MySqlDecimalBuilder(name, config.precision, config.scale);
 }

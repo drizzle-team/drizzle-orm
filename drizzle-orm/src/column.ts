@@ -1,4 +1,10 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, ColumnDataType } from './column-builder.ts';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	ColumnDataType,
+	GeneratedColumnConfig,
+	GeneratedIdentityConfig,
+} from './column-builder.ts';
 import { entityKind } from './entity.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
@@ -11,6 +17,9 @@ export interface ColumnBaseConfig<
 	tableName: string;
 	notNull: boolean;
 	hasDefault: boolean;
+	isPrimaryKey: boolean;
+	isAutoincrement: boolean;
+	hasRuntimeDefault: boolean;
 }
 
 export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>, TTypeConfig extends object> = T & {
@@ -23,8 +32,12 @@ export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>,
 	driverParam: T['driverParam'];
 	notNull: T['notNull'];
 	hasDefault: T['hasDefault'];
+	isPrimaryKey: T['isPrimaryKey'];
+	isAutoincrement: T['isAutoincrement'];
+	hasRuntimeDefault: T['hasRuntimeDefault'];
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseColumn: infer U } ? U : unknown;
+	generated: GeneratedColumnConfig<T['data']> | undefined;
 } & TTypeConfig;
 
 export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBuilderRuntimeConfig<
@@ -56,6 +69,7 @@ export abstract class Column<
 	declare readonly _: ColumnTypeConfig<T, TTypeConfig>;
 
 	readonly name: string;
+	readonly keyAsName: boolean;
 	readonly primary: boolean;
 	readonly notNull: boolean;
 	readonly default: T['data'] | SQL | undefined;
@@ -68,6 +82,8 @@ export abstract class Column<
 	readonly dataType: T['dataType'];
 	readonly columnType: T['columnType'];
 	readonly enumValues: T['enumValues'] = undefined;
+	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
+	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
 
 	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
 
@@ -77,6 +93,7 @@ export abstract class Column<
 	) {
 		this.config = config;
 		this.name = config.name;
+		this.keyAsName = config.keyAsName;
 		this.notNull = config.notNull;
 		this.default = config.default;
 		this.defaultFn = config.defaultFn;
@@ -88,6 +105,8 @@ export abstract class Column<
 		this.uniqueType = config.uniqueType;
 		this.dataType = config.dataType as T['dataType'];
 		this.columnType = config.columnType;
+		this.generated = config.generated;
+		this.generatedIdentity = config.generatedIdentity;
 	}
 
 	abstract getSQLType(): string;
@@ -98,6 +117,11 @@ export abstract class Column<
 
 	mapToDriverValue(value: unknown): unknown {
 		return value;
+	}
+
+	// ** @internal */
+	shouldDisableInsert(): boolean {
+		return this.config.generated !== undefined && this.config.generated.type !== 'byDefault';
 	}
 }
 

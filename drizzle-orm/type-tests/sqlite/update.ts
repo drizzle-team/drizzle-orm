@@ -133,3 +133,7 @@ Expect<Equal<typeof users.$inferSelect, typeof updateGetReturningAllBun>>;
 		// @ts-expect-error method was already called
 		.where(sql``);
 }
+
+{
+	db.update(users).set({}).where(sql``).limit(1).orderBy(sql``);
+}

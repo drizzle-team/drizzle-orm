@@ -5,20 +5,18 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 import { sql } from '~/sql/sql.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<
-	{
-		name: TName;
-		dataType: 'string';
-		columnType: 'PgUUID';
-		data: string;
-		driverParam: string;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
+export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<{
+	name: TName;
+	dataType: 'string';
+	columnType: 'PgUUID';
+	data: string;
+	driverParam: string;
+	enumValues: undefined;
+	generated: undefined;
+}>;
 
 export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgUUIDBuilder';
+	static override readonly [entityKind]: string = 'PgUUIDBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'string', 'PgUUID');
@@ -40,13 +38,15 @@ export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>
 }
 
 export class PgUUID<T extends ColumnBaseConfig<'string', 'PgUUID'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgUUID';
+	static override readonly [entityKind]: string = 'PgUUID';
 
 	getSQLType(): string {
 		return 'uuid';
 	}
 }
 
-export function uuid<TName extends string>(name: TName): PgUUIDBuilderInitial<TName> {
-	return new PgUUIDBuilder(name);
+export function uuid(): PgUUIDBuilderInitial<''>;
+export function uuid<TName extends string>(name: TName): PgUUIDBuilderInitial<TName>;
+export function uuid(name?: string) {
+	return new PgUUIDBuilder(name ?? '');
 }
