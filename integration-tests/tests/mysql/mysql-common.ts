@@ -1184,7 +1184,7 @@ export function tests(driver?: string) {
 
 			const stmt = db.insert(usersTable).values({
 				verified: true,
-				name: placeholder('name'),
+				name: sql.placeholder('name'),
 			}).prepare();
 
 			for (let i = 0; i < 10; i++) {
@@ -1219,11 +1219,50 @@ export function tests(driver?: string) {
 				id: usersTable.id,
 				name: usersTable.name,
 			}).from(usersTable)
-				.where(eq(usersTable.id, placeholder('id')))
+				.where(eq(usersTable.id, sql.placeholder('id')))
 				.prepare();
 			const result = await stmt.execute({ id: 1 });
 
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
+		});
+
+		test('prepared statement with placeholder in .limit', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db.insert(usersTable).values({ name: 'John' });
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.where(eq(usersTable.id, sql.placeholder('id')))
+				.limit(sql.placeholder('limit'))
+				.prepare();
+
+			const result = await stmt.execute({ id: 1, limit: 1 });
+
+			expect(result).toEqual([{ id: 1, name: 'John' }]);
+			expect(result).toHaveLength(1);
+		});
+
+		test('prepared statement with placeholder in .offset', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.limit(sql.placeholder('limit'))
+				.offset(sql.placeholder('offset'))
+				.prepare();
+
+			const result = await stmt.execute({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
 		});
 
 		test('migrator', async (ctx) => {
