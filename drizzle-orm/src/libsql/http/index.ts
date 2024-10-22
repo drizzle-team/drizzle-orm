@@ -1,8 +1,6 @@
-import { type Client, type Config, createClient } from '@libsql/client';
+import { type Client, type Config, createClient } from '@libsql/client/http';
 import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
-import { construct as construct, type LibSQLDatabase } from './driver-core.ts';
-
-export { LibSQLDatabase } from './driver-core.ts';
+import { construct, type LibSQLDatabase } from '../driver-core.ts';
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
