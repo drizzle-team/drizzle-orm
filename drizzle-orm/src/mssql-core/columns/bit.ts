@@ -19,7 +19,7 @@ export type MsSqlBitBuilderInitial<TName extends string> = MsSqlBitBuilder<
 export class MsSqlBitBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MsSqlBit'>>
 	extends MsSqlColumnBuilderWithIdentity<T>
 {
-	static readonly [entityKind]: string = 'MsSqlBitBuilder';
+	static override readonly [entityKind]: string = 'MsSqlBitBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'boolean', 'MsSqlBit');
@@ -34,7 +34,7 @@ export class MsSqlBitBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MsSql
 }
 
 export class MsSqlBit<T extends ColumnBaseConfig<'boolean', 'MsSqlBit'>> extends MsSqlColumnWithIdentity<T> {
-	static readonly [entityKind]: string = 'MsSqlBit';
+	static override readonly [entityKind]: string = 'MsSqlBit';
 
 	_getSQLType(): string {
 		return `bit`;

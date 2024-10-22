@@ -19,7 +19,7 @@ export type MsSqlIntBuilderInitial<TName extends string> = MsSqlIntBuilder<
 export class MsSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlInt'>>
 	extends MsSqlColumnBuilderWithIdentity<T>
 {
-	static readonly [entityKind]: string = 'MsSqlIntBuilder';
+	static override readonly [entityKind]: string = 'MsSqlIntBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'MsSqlInt');
@@ -34,7 +34,7 @@ export class MsSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlI
 }
 
 export class MsSqlInt<T extends ColumnBaseConfig<'number', 'MsSqlInt'>> extends MsSqlColumnWithIdentity<T> {
-	static readonly [entityKind]: string = 'MsSqlInt';
+	static override readonly [entityKind]: string = 'MsSqlInt';
 
 	_getSQLType(): string {
 		return `int`;

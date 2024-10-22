@@ -35,7 +35,7 @@ export class MsSqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'
 		}
 	>
 {
-	static readonly [entityKind]: string = 'MsSqlCustomColumnBuilder';
+	static override readonly [entityKind]: string = 'MsSqlCustomColumnBuilder';
 
 	constructor(
 		name: T['name'],
@@ -59,7 +59,7 @@ export class MsSqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'
 }
 
 export class MsSqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MsSqlCustomColumn'>> extends MsSqlColumn<T> {
-	static readonly [entityKind]: string = 'MsSqlCustomColumn';
+	static override readonly [entityKind]: string = 'MsSqlCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];

@@ -32,7 +32,7 @@ export type MsSqlVarCharJsonBuilderInitial<TName extends string> = MsSqlVarCharJ
 export class MsSqlVarCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlVarChar'>>
 	extends MsSqlColumnBuilder<T, MsSqlVarCharConfig<'text', T['enumValues']>>
 {
-	static readonly [entityKind]: string = 'MsSqlVarCharBuilder';
+	static override readonly [entityKind]: string = 'MsSqlVarCharBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: MsSqlVarCharConfig<'text', T['enumValues']>) {
@@ -56,7 +56,7 @@ export class MsSqlVarCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'Ms
 export class MsSqlVarChar<T extends ColumnBaseConfig<'string', 'MsSqlVarChar'>>
 	extends MsSqlColumn<T, MsSqlVarCharConfig<'text', T['enumValues']>>
 {
-	static readonly [entityKind]: string = 'MsSqlVarChar';
+	static override readonly [entityKind]: string = 'MsSqlVarChar';
 
 	readonly length: number | 'max' | undefined = this.config.length;
 
@@ -76,7 +76,7 @@ export class MsSqlVarChar<T extends ColumnBaseConfig<'string', 'MsSqlVarChar'>>
 export class MsSqlVarCharJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MsSqlNVarCharJson'>>
 	extends MsSqlColumnBuilder<T, { length: number | 'max' | undefined; nonUnicode: boolean }>
 {
-	static readonly [entityKind]: string = 'MsSqlVarCharJsonBuilder';
+	static override readonly [entityKind]: string = 'MsSqlVarCharJsonBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: { length: number | 'max' | undefined }) {
@@ -99,7 +99,7 @@ export class MsSqlVarCharJsonBuilder<T extends ColumnBuilderBaseConfig<'json', '
 export class MsSqlVarCharJson<T extends ColumnBaseConfig<'json', 'MsSqlNVarCharJson'>>
 	extends MsSqlColumn<T, { length: number | undefined; nonUnicode: boolean }>
 {
-	static readonly [entityKind]: string = 'MsSqlVarCharJson';
+	static override readonly [entityKind]: string = 'MsSqlVarCharJson';
 
 	readonly length: number | 'max' | undefined = this.config.length;
 

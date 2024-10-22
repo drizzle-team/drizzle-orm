@@ -19,7 +19,7 @@ export type MsSqlMediumIntBuilderInitial<TName extends string> = MsSqlMediumIntB
 export class MsSqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlMediumInt'>>
 	extends MsSqlColumnBuilderWithIdentity<T>
 {
-	static readonly [entityKind]: string = 'MsSqlMediumIntBuilder';
+	static override readonly [entityKind]: string = 'MsSqlMediumIntBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'MsSqlMediumInt');
@@ -37,7 +37,7 @@ export class MsSqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', '
 }
 
 export class MsSqlMediumInt<T extends ColumnBaseConfig<'number', 'MsSqlMediumInt'>> extends MsSqlColumnWithIdentity<T> {
-	static readonly [entityKind]: string = 'MsSqlMediumInt';
+	static override readonly [entityKind]: string = 'MsSqlMediumInt';
 
 	_getSQLType(): string {
 		return `mediumint`;

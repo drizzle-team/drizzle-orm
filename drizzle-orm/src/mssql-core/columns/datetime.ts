@@ -21,7 +21,7 @@ export type MsSqlDateTimeBuilderInitial<TName extends string> = MsSqlDateTimeBui
 export class MsSqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDateTime'>>
 	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlDateTimeBuilder';
+	static override readonly [entityKind]: string = 'MsSqlDateTimeBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'date', 'MsSqlDateTime');
@@ -39,7 +39,7 @@ export class MsSqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsS
 }
 
 export class MsSqlDateTime<T extends ColumnBaseConfig<'date', 'MsSqlDateTime'>> extends MsSqlColumn<T> {
-	static readonly [entityKind]: string = 'MsSqlDateTime';
+	static override readonly [entityKind]: string = 'MsSqlDateTime';
 
 	constructor(
 		table: AnyMsSqlTable<{ name: T['tableName'] }>,
@@ -68,7 +68,7 @@ export type MsSqlDateTimeStringBuilderInitial<TName extends string> = MsSqlDateT
 export class MsSqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlDateTimeString'>>
 	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlDateTimeStringBuilder';
+	static override readonly [entityKind]: string = 'MsSqlDateTimeStringBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'string', 'MsSqlDateTimeString');
@@ -86,7 +86,7 @@ export class MsSqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'strin
 }
 
 export class MsSqlDateTimeString<T extends ColumnBaseConfig<'string', 'MsSqlDateTimeString'>> extends MsSqlColumn<T> {
-	static readonly [entityKind]: string = 'MsSqlDateTimeString';
+	static override readonly [entityKind]: string = 'MsSqlDateTimeString';
 
 	constructor(
 		table: AnyMsSqlTable<{ name: T['tableName'] }>,

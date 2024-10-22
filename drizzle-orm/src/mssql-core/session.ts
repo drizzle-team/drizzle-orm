@@ -105,7 +105,7 @@ export abstract class MsSqlTransaction<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > extends MsSqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MsSqlTransaction';
+	static override readonly [entityKind]: string = 'MsSqlTransaction';
 
 	constructor(
 		dialect: MsSqlDialect,

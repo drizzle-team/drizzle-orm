@@ -22,7 +22,7 @@ export type MsSqlDateTimeOffsetBuilderInitial<TName extends string> = MsSqlDateT
 export class MsSqlDateTimeOffsetBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDateTimeOffset'>>
 	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlDateTimeOffsetBuilder';
+	static override readonly [entityKind]: string = 'MsSqlDateTimeOffsetBuilder';
 
 	constructor(name: T['name'], config: MsSqlDatetimeConfig | undefined) {
 		super(name, 'date', 'MsSqlDateTimeOffset');
@@ -41,7 +41,7 @@ export class MsSqlDateTimeOffsetBuilder<T extends ColumnBuilderBaseConfig<'date'
 }
 
 export class MsSqlDateTimeOffset<T extends ColumnBaseConfig<'date', 'MsSqlDateTimeOffset'>> extends MsSqlColumn<T> {
-	static readonly [entityKind]: string = 'MsSqlDateTimeOffset';
+	static override readonly [entityKind]: string = 'MsSqlDateTimeOffset';
 
 	readonly precision: number | undefined;
 
@@ -74,7 +74,7 @@ export type MsSqlDateTimeOffsetStringBuilderInitial<TName extends string> = MsSq
 export class MsSqlDateTimeOffsetStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlDateTimeOffsetString'>>
 	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlDateTimeOffsetStringBuilder';
+	static override readonly [entityKind]: string = 'MsSqlDateTimeOffsetStringBuilder';
 
 	constructor(name: T['name'], config: MsSqlDatetimeConfig | undefined) {
 		super(name, 'string', 'MsSqlDateTimeOffsetString');
@@ -95,7 +95,7 @@ export class MsSqlDateTimeOffsetStringBuilder<T extends ColumnBuilderBaseConfig<
 export class MsSqlDateTimeOffsetString<T extends ColumnBaseConfig<'string', 'MsSqlDateTimeOffsetString'>>
 	extends MsSqlColumn<T>
 {
-	static readonly [entityKind]: string = 'MsSqlDateTimeOffsetString';
+	static override readonly [entityKind]: string = 'MsSqlDateTimeOffsetString';
 
 	readonly precision: number | undefined;
 

@@ -22,7 +22,7 @@ export class MsSqlTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 
 		TimeConfig
 	>
 {
-	static readonly [entityKind]: string = 'MsSqlTimeBuilder';
+	static override readonly [entityKind]: string = 'MsSqlTimeBuilder';
 
 	constructor(
 		name: T['name'],
@@ -46,7 +46,7 @@ export class MsSqlTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 
 export class MsSqlTimeString<
 	T extends ColumnBaseConfig<'string', 'MsSqlTime'>,
 > extends MsSqlColumn<T, TimeConfig> {
-	static readonly [entityKind]: string = 'MsSqlTime';
+	static override readonly [entityKind]: string = 'MsSqlTime';
 
 	readonly fsp: number | undefined = this.config.precision;
 
@@ -76,7 +76,7 @@ export class MsSqlTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlTi
 	T,
 	TimeConfig
 > {
-	static readonly [entityKind]: string = 'MsSqlTimeBuilder';
+	static override readonly [entityKind]: string = 'MsSqlTimeBuilder';
 
 	constructor(
 		name: T['name'],
@@ -97,7 +97,7 @@ export class MsSqlTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlTi
 export class MsSqlTime<
 	T extends ColumnBaseConfig<'date', 'MsSqlTime'>,
 > extends MsSqlColumn<T, TimeConfig> {
-	static readonly [entityKind]: string = 'MsSqlTime';
+	static override readonly [entityKind]: string = 'MsSqlTime';
 
 	readonly fsp: number | undefined = this.config.precision;
 

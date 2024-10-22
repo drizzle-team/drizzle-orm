@@ -20,7 +20,7 @@ export type MsSqlBigIntBuilderInitial<TMode extends 'number' | 'bigint' | 'strin
 export class MsSqlBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'MsSqlBigInt'>>
 	extends MsSqlColumnBuilderWithIdentity<T, MsSqlBigIntConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlBigIntBuilder';
+	static override readonly [entityKind]: string = 'MsSqlBigIntBuilder';
 
 	constructor(name: T['name'], config: MsSqlBigIntConfig) {
 		super(name, 'bigint', 'MsSqlBigInt');
@@ -41,7 +41,7 @@ export class MsSqlBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'MsS
 export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint', 'MsSqlBigInt'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlBigIntConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlBigInt';
+	static override readonly [entityKind]: string = 'MsSqlBigInt';
 
 	readonly mode: 'number' | 'bigint' | 'string' = this.config.mode;
 

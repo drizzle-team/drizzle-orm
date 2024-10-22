@@ -7,7 +7,7 @@ export abstract class MsSqlViewBase<
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends View<TName, TExisting, TSelectedFields> {
-	static readonly [entityKind]: string = 'MsSqlViewBase';
+	static override readonly [entityKind]: string = 'MsSqlViewBase';
 
 	declare readonly _: View<TName, TExisting, TSelectedFields>['_'] & {
 		readonly viewBrand: 'MsSqlViewBase';

@@ -5,6 +5,7 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
+	GeneratedNotNull,
 	HasGenerated,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
@@ -16,6 +17,7 @@ import { ForeignKeyBuilder } from '~/mssql-core/foreign-keys.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
+import type { SQL } from '~/sql/index.ts';
 
 export interface ReferenceConfig {
 	ref: () => MsSqlColumn;
@@ -30,6 +32,10 @@ export interface MsSqlColumnBuilderBase<
 	TTypeConfig extends object = object,
 > extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'mssql' }> {}
 
+export interface MsSqlGeneratedColumnConfig {
+	mode?: 'virtual' | 'stored';
+}
+
 export abstract class MsSqlColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
 		data: any;
@@ -40,7 +46,7 @@ export abstract class MsSqlColumnBuilder<
 > extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'mssql' }, TExtraConfig>
 	implements MsSqlColumnBuilderBase<T, TTypeConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlColumnBuilder';
+	static override readonly [entityKind]: string = 'MsSqlColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
@@ -53,6 +59,15 @@ export abstract class MsSqlColumnBuilder<
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		return this;
+	}
+
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: MsSqlGeneratedColumnConfig): HasGenerated<this> {
+		this.config.generated = {
+			as,
+			type: 'always',
+			mode: config?.mode ?? 'virtual',
+		};
+		return this as any;
 	}
 
 	/** @internal */
@@ -85,7 +100,7 @@ export abstract class MsSqlColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 > extends Column<T, TRuntimeConfig, { dialect: 'mssql' }> {
-	static readonly [entityKind]: string = 'MsSqlColumn';
+	static override readonly [entityKind]: string = 'MsSqlColumn';
 
 	constructor(
 		override readonly table: MsSqlTable,
@@ -98,7 +113,7 @@ export abstract class MsSqlColumn<
 	}
 
 	/** @internal */
-	shouldDisableInsert(): boolean {
+	override shouldDisableInsert(): boolean {
 		return false;
 	}
 }
@@ -119,19 +134,19 @@ export abstract class MsSqlColumnBuilderWithIdentity<
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends MsSqlColumnBuilder<T, TRuntimeConfig & MsSqlColumnWithIdentityConfig, TExtraConfig> {
-	static readonly [entityKind]: string = 'MsSqlColumnBuilderWithAutoIncrement';
+	static override readonly [entityKind]: string = 'MsSqlColumnBuilderWithAutoIncrement';
 
 	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
 		super(name, dataType, columnType);
 	}
 
-	identity(): HasGenerated<this>;
-	identity(seed: number, increment: number): HasGenerated<this>;
-	identity(seed?: number, increment?: number): HasGenerated<this> {
+	identity(): GeneratedNotNull<this>;
+	identity(seed: number, increment: number): GeneratedNotNull<this>;
+	identity(seed?: number, increment?: number): GeneratedNotNull<this> {
 		this.config.identity = seed !== undefined && increment !== undefined ? { seed, increment } : true;
 		this.config.hasDefault = true;
 		this.config.notNull = true;
-		return this as HasGenerated<this>;
+		return this as GeneratedNotNull<this>;
 	}
 }
 
@@ -142,7 +157,7 @@ export abstract class MsSqlColumnWithIdentity<
 	>,
 	TRuntimeConfig extends object = object,
 > extends MsSqlColumn<T, MsSqlColumnWithIdentityConfig & TRuntimeConfig> {
-	static readonly [entityKind]: string = 'MsSqlColumnWithAutoIncrement';
+	static override readonly [entityKind]: string = 'MsSqlColumnWithAutoIncrement';
 
 	readonly identity = this.config.identity;
 	private getIdentity() {
