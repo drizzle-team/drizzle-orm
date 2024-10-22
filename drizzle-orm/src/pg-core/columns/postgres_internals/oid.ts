@@ -50,8 +50,8 @@ export class PgOidInternal<T extends ColumnBaseConfig<'string', 'PgOidInternal'>
 	}
 }
 
-export function oid<TName extends string>(
-	name: TName,
-): PgOidInternalBuilderInitial<TName> {
-	return new PgOidInternalBuilder(name);
+export function oid(): PgOidInternalBuilderInitial<''>;
+export function oid<TName extends string>(name: TName): PgOidInternalBuilderInitial<TName>;
+export function oid(name?: string) {
+	return new PgOidInternalBuilder(name ?? '');
 }

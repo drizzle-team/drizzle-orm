@@ -50,8 +50,8 @@ export class PgNameInternal<T extends ColumnBaseConfig<'string', 'PgNameInternal
 	}
 }
 
-export function name<TName extends string>(
-	name: TName,
-): PgNameInternalBuilderInitial<TName> {
-	return new PgNameInternalBuilder(name);
+export function name(): PgNameInternalBuilderInitial<''>;
+export function name<TName extends string>(name: TName): PgNameInternalBuilderInitial<TName>;
+export function name(name?: string) {
+	return new PgNameInternalBuilder(name ?? '');
 }

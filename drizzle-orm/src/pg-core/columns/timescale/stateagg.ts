@@ -48,8 +48,8 @@ export class PgStateAgg<T extends ColumnBaseConfig<'string', 'PgStateAgg'>> exte
 	}
 }
 
-export function stateAgg<TName extends string>(
-	name: TName,
-): PgStateAggBuilderInitial<TName> {
-	return new PgStateAggBuilder(name);
+export function stateagg(): PgStateAggBuilderInitial<''>;
+export function stateagg<TName extends string>(name: TName): PgStateAggBuilderInitial<TName>;
+export function stateagg(name?: string) {
+	return new PgStateAggBuilder(name ?? '');
 }

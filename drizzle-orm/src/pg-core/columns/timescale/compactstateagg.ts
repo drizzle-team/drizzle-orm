@@ -50,8 +50,8 @@ export class PgCompactStateAgg<T extends ColumnBaseConfig<'string', 'PgCompactSt
 	}
 }
 
-export function compactStateAgg<TName extends string>(
-	name: TName,
-): PgCompactStateAggBuilderInitial<TName> {
-	return new PgCompactStateAggBuilder(name);
+export function compactstateagg(): PgCompactStateAggBuilderInitial<''>;
+export function compactstateagg<TName extends string>(name: TName): PgCompactStateAggBuilderInitial<TName>;
+export function compactstateagg(name?: string) {
+	return new PgCompactStateAggBuilder(name ?? '');
 }

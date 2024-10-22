@@ -50,8 +50,8 @@ export class PgHeartBeatAgg<T extends ColumnBaseConfig<'string', 'PgHeartBeatAgg
 	}
 }
 
-export function heartBeatAgg<TName extends string>(
-	name: TName,
-): PgHeartBeatAggBuilderInitial<TName> {
-	return new PgHeartBeatAggBuilder(name);
+export function heartbeatagg(): PgHeartBeatAggBuilderInitial<''>;
+export function heartbeatagg<TName extends string>(name: TName): PgHeartBeatAggBuilderInitial<TName>;
+export function heartbeatagg(name?: string) {
+	return new PgHeartBeatAggBuilder(name ?? '');
 }

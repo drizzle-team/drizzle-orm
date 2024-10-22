@@ -59,6 +59,11 @@ const pgImportsList = new Set([
 	'line',
 	'geometry',
 	'geography',
+	'oid',
+	'name',
+	'compactstateagg',
+	'stateagg',
+	'heartbeatagg',
 ]);
 
 const objToStatement2 = (json: { [s: string]: unknown }) => {
@@ -1080,6 +1085,31 @@ const column = (
 			out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing })})`;
 		}
 
+		return out;
+	}
+
+	if (lowered === 'oid') {
+		let out = `${withCasing(name, casing)}: oid(${dbColumnName({ name, casing })})`;
+		return out;
+	}
+
+	if (lowered === 'name') {
+		let out = `${withCasing(name, casing)}: name(${dbColumnName({ name, casing })})`;
+		return out;
+	}
+
+	if (lowered === 'heartbeatagg') {
+		let out = `${withCasing(name, casing)}: heartbeatagg(${dbColumnName({ name, casing })})`;
+		return out;
+	}
+
+	if (lowered === 'stateagg') {
+		let out = `${withCasing(name, casing)}: stateagg(${dbColumnName({ name, casing })})`;
+		return out;
+	}
+
+	if (lowered === 'compactstateagg') {
+		let out = `${withCasing(name, casing)}: compactstateagg(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
