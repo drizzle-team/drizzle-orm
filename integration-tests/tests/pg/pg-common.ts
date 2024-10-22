@@ -4966,5 +4966,4 @@ export function tests() {
 			]);
 		});
 	});
-	});
 }
