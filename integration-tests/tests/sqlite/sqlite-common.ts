@@ -953,7 +953,7 @@ export function tests() {
 			}
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).run();
-			let stmt = db
+			const stmt = db
 				.select({
 					id: usersTable.id,
 					name: usersTable.name,

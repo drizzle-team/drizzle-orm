@@ -19,7 +19,6 @@ import {
 	min,
 	Name,
 	notInArray,
-	placeholder,
 	sql,
 	sum,
 	sumDistinct,
@@ -1273,7 +1272,7 @@ export function tests(driver?: string) {
 			}
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
-			let stmt = db
+			const stmt = db
 				.select({
 					id: usersTable.id,
 					name: usersTable.name,
