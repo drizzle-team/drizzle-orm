@@ -959,7 +959,7 @@ export function tests() {
 					name: usersTable.name,
 				})
 				.from(usersTable)
-				.$dynamic()
+				.$dynamic();
 			withLimitOffset(stmt).prepare('stmt_limit');
 
 			const result = await stmt.all({ limit: 1, offset: 1 });

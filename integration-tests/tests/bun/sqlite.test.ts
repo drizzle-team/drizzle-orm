@@ -1,9 +1,9 @@
 import { Database } from 'bun:sqlite';
+import { beforeAll, beforeEach, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { blob, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { test, beforeAll, beforeEach, expect } from 'bun:test';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
@@ -19,13 +19,13 @@ let db: BunSQLiteDatabase;
 beforeAll(async () => {
 	try {
 		const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
-	
+
 		const client = new Database(dbPath);
 		db = drizzle(client);
 	} catch (e) {
 		console.error(e);
 	}
-})
+});
 
 beforeEach(async () => {
 	try {
