@@ -50,10 +50,10 @@ await fs.remove('dist.new');
 
 await Promise.all([
 	(async () => {
-		await $`tsup`;
+		await $`tsup`.stdio('pipe', 'pipe', 'pipe');
 	})(),
 	(async () => {
-		await $`tsc -p tsconfig.dts.json`;
+		await $`tsc -p tsconfig.dts.json`.stdio('pipe', 'pipe', 'pipe');
 		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
 			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.cts'),
 		});
@@ -64,8 +64,8 @@ await Promise.all([
 ]);
 
 await Promise.all([
-	$`tsup src/version.ts --no-config --dts --format esm --outDir dist.new`,
-	$`tsup src/version.ts --no-config --dts --format cjs --outDir dist.new`,
+	$`tsup src/version.ts --no-config --dts --format esm --outDir dist.new`.stdio('pipe', 'pipe', 'pipe'),
+	$`tsup src/version.ts --no-config --dts --format cjs --outDir dist.new`.stdio('pipe', 'pipe', 'pipe'),
 ]);
 
 await $`scripts/fix-imports.ts`;

@@ -1,6 +1,9 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
+import { and, eq } from '~/expressions.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	type BuildRelationalQueryResult,
@@ -14,11 +17,12 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
-import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
+import { Param, SQL, sql, View } from '~/sql/sql.ts';
+import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
+import { Subquery } from '~/subquery.ts';
+import { getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -28,10 +32,25 @@ import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
 
+export interface MySqlDialectConfig {
+	casing?: Casing;
+}
+
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
 
-	async migrate(migrations: MigrationMeta[], session: MySqlSession, config: MigrationConfig): Promise<void> {
+	/** @internal */
+	readonly casing: CasingCache;
+
+	constructor(config?: MySqlDialectConfig) {
+		this.casing = new CasingCache(config?.casing);
+	}
+
+	async migrate(
+		migrations: MigrationMeta[],
+		session: MySqlSession,
+		config: Omit<MigrationConfig, 'migrationsSchema'>,
+	): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 		const migrationTableCreate = sql`
 			create table if not exists ${sql.identifier(migrationsTable)} (
@@ -79,14 +98,34 @@ export class MySqlDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
-	buildDeleteQuery({ table, where, returning }: MySqlDeleteConfig): SQL {
+	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
+		if (!queries?.length) return undefined;
+
+		const withSqlChunks = [sql`with `];
+		for (const [i, w] of queries.entries()) {
+			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
+			if (i < queries.length - 1) {
+				withSqlChunks.push(sql`, `);
+			}
+		}
+		withSqlChunks.push(sql` `);
+		return sql.join(withSqlChunks);
+	}
+
+	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: MySqlDeleteConfig): SQL {
+		const withSql = this.buildWithCTE(withList);
+
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`delete from ${table}${whereSql}${returningSql}`;
+		const orderBySql = this.buildOrderBy(orderBy);
+
+		const limitSql = this.buildLimit(limit);
+
+		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
@@ -101,7 +140,7 @@ export class MySqlDialect {
 			const col = tableColumns[colName]!;
 
 			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
-			const res = sql`${sql.identifier(col.name)} = ${value}`;
+			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
 				return [res, sql.raw(', ')];
@@ -110,7 +149,9 @@ export class MySqlDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: MySqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: MySqlUpdateConfig): SQL {
+		const withSql = this.buildWithCTE(withList);
+
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -119,7 +160,11 @@ export class MySqlDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		const orderBySql = this.buildOrderBy(orderBy);
+
+		const limitSql = this.buildLimit(limit);
+
+		return sql`${withSql}update ${table} set ${setSql}${whereSql}${orderBySql}${limitSql}${returningSql}`;
 	}
 
 	/**
@@ -153,7 +198,7 @@ export class MySqlDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, MySqlColumn)) {
-										return sql.identifier(c.name);
+										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
 								}),
@@ -168,7 +213,7 @@ export class MySqlDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(field.name));
+						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					} else {
 						chunk.push(field);
 					}
@@ -182,6 +227,16 @@ export class MySqlDialect {
 			});
 
 		return sql.join(chunks);
+	}
+
+	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
+		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
+	}
+
+	private buildOrderBy(orderBy: (MySqlColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
+		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
 	}
 
 	buildSelectQuery(
@@ -208,7 +263,7 @@ export class MySqlDialect {
 				is(f.field, Column)
 				&& getTableName(f.field.table)
 					!== (is(table, Subquery)
-						? table[SubqueryConfig].alias
+						? table._.alias
 						: is(table, MySqlViewBase)
 						? table[ViewBaseConfig].name
 						: is(table, SQL)
@@ -230,18 +285,7 @@ export class MySqlDialect {
 
 		const isSingleTable = !joins || joins.length === 0;
 
-		let withSql: SQL | undefined;
-		if (withList?.length) {
-			const withSqlChunks = [sql`with `];
-			for (const [i, w] of withList.entries()) {
-				withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
-				if (i < withList.length - 1) {
-					withSqlChunks.push(sql`, `);
-				}
-			}
-			withSqlChunks.push(sql` `);
-			withSql = sql.join(withSqlChunks);
-		}
+		const withSql = this.buildWithCTE(withList);
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
@@ -302,17 +346,11 @@ export class MySqlDialect {
 
 		const havingSql = having ? sql` having ${having}` : undefined;
 
-		let orderBySql;
-		if (orderBy && orderBy.length > 0) {
-			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
-		}
+		const orderBySql = this.buildOrderBy(orderBy);
 
-		let groupBySql;
-		if (groupBy && groupBy.length > 0) {
-			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
-		}
+		const groupBySql = groupBy && groupBy.length > 0 ? sql` group by ${sql.join(groupBy, sql`, `)}` : undefined;
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = this.buildLimit(limit);
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -370,13 +408,13 @@ export class MySqlDialect {
 			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const orderByUnit of orderBy) {
 				if (is(orderByUnit, MySqlColumn)) {
-					orderByValues.push(sql.identifier(orderByUnit.name));
+					orderByValues.push(sql.identifier(this.casing.getColumnCasing(orderByUnit)));
 				} else if (is(orderByUnit, SQL)) {
 					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
 						const chunk = orderByUnit.queryChunks[i];
 
 						if (is(chunk, MySqlColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
+							orderByUnit.queryChunks[i] = sql.identifier(this.casing.getColumnCasing(chunk));
 						}
 					}
 
@@ -389,7 +427,9 @@ export class MySqlDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
 
 		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
@@ -398,15 +438,22 @@ export class MySqlDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, ignore, onConflict }: MySqlInsertConfig): SQL {
+	buildInsertQuery(
+		{ table, values, ignore, onConflict }: MySqlInsertConfig,
+	): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MySqlColumn][] = Object.entries(columns);
+		const colEntries: [string, MySqlColumn][] = Object.entries(columns).filter(([_, col]) =>
+			!col.shouldDisableInsert()
+		);
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+		const generatedIdsResponse: Record<string, unknown>[] = [];
 
 		for (const [valueIndex, value] of values.entries()) {
+			const generatedIds: Record<string, unknown> = {};
+
 			const valueList: (SQLChunk | SQL)[] = [];
 			for (const [fieldName, col] of colEntries) {
 				const colValue = value[fieldName];
@@ -414,6 +461,7 @@ export class MySqlDialect {
 					// eslint-disable-next-line unicorn/no-negated-condition
 					if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
+						generatedIds[fieldName] = defaultFnResult;
 						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
 						valueList.push(defaultValue);
 						// eslint-disable-next-line unicorn/no-negated-condition
@@ -425,9 +473,14 @@ export class MySqlDialect {
 						valueList.push(sql`default`);
 					}
 				} else {
+					if (col.defaultFn && is(colValue, Param)) {
+						generatedIds[fieldName] = colValue.value;
+					}
 					valueList.push(colValue);
 				}
 			}
+
+			generatedIdsResponse.push(generatedIds);
 			valuesSqlList.push(valueList);
 			if (valueIndex < values.length - 1) {
 				valuesSqlList.push(sql`, `);
@@ -440,14 +493,19 @@ export class MySqlDialect {
 
 		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
 
-		return sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
+		return {
+			sql: sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`,
+			generatedIds: generatedIdsResponse,
+		};
 	}
 
-	sqlToQuery(sql: SQL): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
+			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			invokeSource,
 		});
 	}
 
@@ -601,7 +659,7 @@ export class MySqlDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(
@@ -898,7 +956,7 @@ export class MySqlDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(
@@ -955,7 +1013,11 @@ export class MySqlDialect {
 			let field = sql`json_array(${
 				sql.join(
 					selection.map(({ field }) =>
-						is(field, MySqlColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
+						is(field, MySqlColumn)
+							? sql.identifier(this.casing.getColumnCasing(field))
+							: is(field, SQL.Aliased)
+							? field.sql
+							: field
 					),
 					sql`, `,
 				)

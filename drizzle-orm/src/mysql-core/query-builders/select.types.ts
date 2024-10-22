@@ -22,10 +22,10 @@ import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
-import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
-import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
+import type { MySqlPreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MySqlViewBase } from '../view-base.ts';
 import type { MySqlViewWithSelection } from '../view.ts';
+import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
 
 export interface MySqlSelectJoinConfig {
 	on: SQL | undefined;
@@ -236,7 +236,7 @@ export type MySqlSelectWithout<
 
 export type MySqlSelectPrepare<T extends AnyMySqlSelect> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
-	PreparedQueryConfig & {
+	MySqlPreparedQueryConfig & {
 		execute: T['_']['result'];
 		iterator: T['_']['result'][number];
 	},

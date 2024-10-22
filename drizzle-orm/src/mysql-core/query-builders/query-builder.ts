@@ -1,17 +1,24 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
+import type { MySqlDialectConfig } from '~/mysql-core/dialect.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { WithSubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { MySqlSelectBuilder } from './select.ts';
-import type { SelectedFields } from './select.types.ts';
-import { WithSubquery } from '~/subquery.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
+import { WithSubquery } from '~/subquery.ts';
+import { MySqlSelectBuilder } from './select.ts';
+import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'MySqlQueryBuilder';
 
 	private dialect: MySqlDialect | undefined;
+	private dialectConfig: MySqlDialectConfig | undefined;
+
+	constructor(dialect?: MySqlDialect | MySqlDialectConfig) {
+		this.dialect = is(dialect, MySqlDialect) ? dialect : undefined;
+		this.dialectConfig = is(dialect, MySqlDialect) ? undefined : dialect;
+	}
 
 	$with<TAlias extends string>(alias: TAlias) {
 		const queryBuilder = this;
@@ -95,7 +102,7 @@ export class QueryBuilder {
 	// Lazy load dialect to avoid circular dependency
 	private getDialect() {
 		if (!this.dialect) {
-			this.dialect = new MySqlDialect();
+			this.dialect = new MySqlDialect(this.dialectConfig);
 		}
 
 		return this.dialect;

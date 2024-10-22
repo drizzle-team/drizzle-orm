@@ -2,25 +2,24 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 import type { MySqlIntConfig } from './int.ts';
 
-export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntBuilder<
-	{
-		name: TName;
-		dataType: 'number';
-		columnType: 'MySqlMediumInt';
-		data: number;
-		driverParam: number | string;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
+export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntBuilder<{
+	name: TName;
+	dataType: 'number';
+	columnType: 'MySqlMediumInt';
+	data: number;
+	driverParam: number | string;
+	enumValues: undefined;
+	generated: undefined;
+}>;
 
 export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlMediumInt'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlMediumIntBuilder';
+	static override readonly [entityKind]: string = 'MySqlMediumIntBuilder';
 
 	constructor(name: T['name'], config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlMediumInt');
@@ -41,7 +40,7 @@ export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', '
 export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlMediumInt';
+	static override readonly [entityKind]: string = 'MySqlMediumInt';
 
 	getSQLType(): string {
 		return `mediumint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -55,9 +54,15 @@ export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt
 	}
 }
 
+export function mediumint(): MySqlMediumIntBuilderInitial<''>;
+export function mediumint(
+	config?: MySqlIntConfig,
+): MySqlMediumIntBuilderInitial<''>;
 export function mediumint<TName extends string>(
 	name: TName,
 	config?: MySqlIntConfig,
-): MySqlMediumIntBuilderInitial<TName> {
+): MySqlMediumIntBuilderInitial<TName>;
+export function mediumint(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
 	return new MySqlMediumIntBuilder(name, config);
 }

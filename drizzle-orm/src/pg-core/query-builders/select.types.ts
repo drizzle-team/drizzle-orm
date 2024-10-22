@@ -24,7 +24,7 @@ import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape, ValueOrArray } from '~/utils.ts';
-import type { PreparedQuery, PreparedQueryConfig } from '../session.ts';
+import type { PgPreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { PgSelectBase, PgSelectQueryBuilderBase } from './select.ts';
 
 export interface PgSelectJoinConfig {
@@ -241,7 +241,7 @@ export type PgSelectWithout<
 	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
 >;
 
-export type PgSelectPrepare<T extends AnyPgSelect> = PreparedQuery<
+export type PgSelectPrepare<T extends AnyPgSelect> = PgPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['result'];
 	}

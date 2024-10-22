@@ -4,12 +4,14 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
+	HasGenerated,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
 import { Column } from '~/column.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
+import type { SQL } from '~/sql/sql.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/sqlite-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/sqlite-core/foreign-keys.ts';
 import type { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table.ts';
@@ -29,6 +31,10 @@ export interface SQLiteColumnBuilderBase<
 	TTypeConfig extends object = object,
 > extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'sqlite' }> {}
 
+export interface SQLiteGeneratedColumnConfig {
+	mode?: 'virtual' | 'stored';
+}
+
 export abstract class SQLiteColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
@@ -37,7 +43,7 @@ export abstract class SQLiteColumnBuilder<
 > extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'sqlite' }, TExtraConfig>
 	implements SQLiteColumnBuilderBase<T, TTypeConfig>
 {
-	static readonly [entityKind]: string = 'SQLiteColumnBuilder';
+	static override readonly [entityKind]: string = 'SQLiteColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
@@ -55,6 +61,15 @@ export abstract class SQLiteColumnBuilder<
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		return this;
+	}
+
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: SQLiteGeneratedColumnConfig): HasGenerated<this> {
+		this.config.generated = {
+			as,
+			type: 'always',
+			mode: config?.mode ?? 'virtual',
+		};
+		return this as any;
 	}
 
 	/** @internal */
@@ -87,7 +102,7 @@ export abstract class SQLiteColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 > extends Column<T, TRuntimeConfig, { dialect: 'sqlite' }> {
-	static readonly [entityKind]: string = 'SQLiteColumn';
+	static override readonly [entityKind]: string = 'SQLiteColumn';
 
 	constructor(
 		override readonly table: SQLiteTable,

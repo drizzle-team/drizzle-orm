@@ -11,7 +11,6 @@ import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
 import { SQLiteTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
-import { SQLiteViewConfig } from './view-common.ts';
 import type { SQLiteView } from './view.ts';
 
 export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
@@ -61,6 +60,6 @@ export function getViewConfig<
 >(view: SQLiteView<TName, TExisting>) {
 	return {
 		...view[ViewBaseConfig],
-		...view[SQLiteViewConfig],
+		// ...view[SQLiteViewConfig],
 	};
 }

@@ -8,7 +8,9 @@ export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends A
 }> ? TKey
 	: never;
 
-export type NotGenerated<TKey extends string, T extends Column> = T extends AnyColumn<{ generated: undefined }> ? TKey
+export type NotGenerated<TKey extends string, T extends Column> = T extends AnyColumn<{
+	generated: undefined;
+}> ? TKey
 	: never;
 
 export type OptionalKeyOnly<
@@ -19,6 +21,7 @@ export type OptionalKeyOnly<
 	: T['_']['generated'] extends object ? T['_']['generated']['type'] extends 'byDefault' ? TKey : never
 	: never;
 
+// TODO: SQL -> SQLWrapper
 export type SelectedFieldsFlat<TColumn extends Column> = Record<
 	string,
 	TColumn | SQL | SQL.Aliased

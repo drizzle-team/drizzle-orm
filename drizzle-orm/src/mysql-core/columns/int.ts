@@ -2,24 +2,23 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<
-	{
-		name: TName;
-		dataType: 'number';
-		columnType: 'MySqlInt';
-		data: number;
-		driverParam: number | string;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
+export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
+	name: TName;
+	dataType: 'number';
+	columnType: 'MySqlInt';
+	data: number;
+	driverParam: number | string;
+	enumValues: undefined;
+	generated: undefined;
+}>;
 
 export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlInt'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlIntBuilder';
+	static override readonly [entityKind]: string = 'MySqlIntBuilder';
 
 	constructor(name: T['name'], config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlInt');
@@ -37,7 +36,7 @@ export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlI
 export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlInt';
+	static override readonly [entityKind]: string = 'MySqlInt';
 
 	getSQLType(): string {
 		return `int${this.config.unsigned ? ' unsigned' : ''}`;
@@ -55,6 +54,15 @@ export interface MySqlIntConfig {
 	unsigned?: boolean;
 }
 
-export function int<TName extends string>(name: TName, config?: MySqlIntConfig): MySqlIntBuilderInitial<TName> {
+export function int(): MySqlIntBuilderInitial<''>;
+export function int(
+	config?: MySqlIntConfig,
+): MySqlIntBuilderInitial<''>;
+export function int<TName extends string>(
+	name: TName,
+	config?: MySqlIntConfig,
+): MySqlIntBuilderInitial<TName>;
+export function int(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
 	return new MySqlIntBuilder(name, config);
 }

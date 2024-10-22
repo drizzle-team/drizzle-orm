@@ -7,5 +7,6 @@ export interface RunnableQuery<T, TDialect extends Dialect> {
 		readonly result: T;
 	};
 
-	prepare(): PreparedQuery;
+	/** @internal */
+	_prepare(): PreparedQuery;
 }

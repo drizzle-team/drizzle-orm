@@ -25,7 +25,7 @@ export class SQLJsSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLJsSession';
+	static override readonly [entityKind]: string = 'SQLJsSession';
 
 	private logger: Logger;
 
@@ -43,15 +43,17 @@ export class SQLJsSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query, this.logger, fields, executeMethod);
+		return new PreparedQuery(stmt, query, this.logger, fields, executeMethod, isResponseInArrayMode);
 	}
 
 	override prepareOneTimeQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
@@ -61,6 +63,7 @@ export class SQLJsSession<
 			this.logger,
 			fields,
 			executeMethod,
+			isResponseInArrayMode,
 			customResultMapper,
 			true,
 		);
@@ -87,7 +90,7 @@ export class SQLJsTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLJsTransaction';
+	static override readonly [entityKind]: string = 'SQLJsTransaction';
 
 	override transaction<T>(transaction: (tx: SQLJsTransaction<TFullSchema, TSchema>) => T): T {
 		const savepointName = `sp${this.nestedIndex + 1}`;
@@ -107,7 +110,7 @@ export class SQLJsTransaction<
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'SQLJsPreparedQuery';
+	static override readonly [entityKind]: string = 'SQLJsPreparedQuery';
 
 	constructor(
 		private stmt: Statement,
@@ -115,6 +118,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 		private isOneTimeQuery = false,
 	) {
@@ -210,6 +214,11 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 	free(): boolean {
 		return this.stmt.free();
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }
 

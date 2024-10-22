@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 import { Database } from 'bun:sqlite';
 import { DefaultLogger, sql } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';

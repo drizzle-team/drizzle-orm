@@ -12,24 +12,22 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgSerialBuilderInitial<TName extends string> = NotNull<
 	HasDefault<
-		PgSerialBuilder<
-			{
-				name: TName;
-				dataType: 'number';
-				columnType: 'PgSerial';
-				data: number;
-				driverParam: number;
-				enumValues: undefined;
-				generated: undefined;
-			}
-		>
+		PgSerialBuilder<{
+			name: TName;
+			dataType: 'number';
+			columnType: 'PgSerial';
+			data: number;
+			driverParam: number;
+			enumValues: undefined;
+			generated: undefined;
+		}>
 	>
 >;
 
 export class PgSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSerial'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgSerialBuilder';
+	static override readonly [entityKind]: string = 'PgSerialBuilder';
 
-	constructor(name: string) {
+	constructor(name: T['name']) {
 		super(name, 'number', 'PgSerial');
 		this.config.hasDefault = true;
 		this.config.notNull = true;
@@ -44,13 +42,15 @@ export class PgSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSeri
 }
 
 export class PgSerial<T extends ColumnBaseConfig<'number', 'PgSerial'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgSerial';
+	static override readonly [entityKind]: string = 'PgSerial';
 
 	getSQLType(): string {
 		return 'serial';
 	}
 }
 
-export function serial<TName extends string>(name: TName): PgSerialBuilderInitial<TName> {
-	return new PgSerialBuilder(name) as PgSerialBuilderInitial<TName>;
+export function serial(): PgSerialBuilderInitial<''>;
+export function serial<TName extends string>(name: TName): PgSerialBuilderInitial<TName>;
+export function serial(name?: string) {
+	return new PgSerialBuilder(name ?? '');
 }

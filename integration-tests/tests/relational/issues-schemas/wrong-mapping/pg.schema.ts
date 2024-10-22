@@ -1,5 +1,5 @@
-import { relations } from "drizzle-orm";
-import { boolean, integer, pgTable, primaryKey, text, uuid } from "drizzle-orm/pg-core";
+import { relations } from 'drizzle-orm';
+import { boolean, integer, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
 
 export const menuItems = pgTable('menu_items', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -83,7 +83,7 @@ export const modifierGroupModifiers = pgTable(
 	}),
 );
 
-export const menuItemRelations = relations(menuItems, ({  many }) => ({
+export const menuItemRelations = relations(menuItems, ({ many }) => ({
 	ingredients: many(menuItemIngredients),
 	modifierGroups: many(menuItemModifierGroups),
 	// category: one(menuCategories, {

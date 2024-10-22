@@ -28,7 +28,7 @@ export class SQLiteBunSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteBunSession';
+	static override readonly [entityKind]: string = 'SQLiteBunSession';
 
 	private logger: Logger;
 
@@ -50,10 +50,19 @@ export class SQLiteBunSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query, this.logger, fields, executeMethod, customResultMapper);
+		return new PreparedQuery(
+			stmt,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	override transaction<T>(
@@ -74,7 +83,7 @@ export class SQLiteBunTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteBunTransaction';
+	static override readonly [entityKind]: string = 'SQLiteBunTransaction';
 
 	override transaction<T>(transaction: (tx: SQLiteBunTransaction<TFullSchema, TSchema>) => T): T {
 		const savepointName = `sp${this.nestedIndex}`;
@@ -94,7 +103,7 @@ export class SQLiteBunTransaction<
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'SQLiteBunPreparedQuery';
+	static override readonly [entityKind]: string = 'SQLiteBunPreparedQuery';
 
 	constructor(
 		private stmt: Statement,
@@ -102,6 +111,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
 		super('sync', executeMethod, query);
@@ -133,7 +143,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		const row = this.stmt.get(...params);
+		const row = this.stmt.values(...params)[0];
 
 		if (!row) {
 			return undefined;
@@ -155,5 +165,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.values(...params);
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }

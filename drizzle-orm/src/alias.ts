@@ -2,7 +2,7 @@ import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import type { Relation } from './relations.ts';
-import type { View} from './sql/sql.ts';
+import type { View } from './sql/sql.ts';
 import { SQL, sql } from './sql/sql.ts';
 import { Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';

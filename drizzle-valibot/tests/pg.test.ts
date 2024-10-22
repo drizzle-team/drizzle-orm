@@ -1,10 +1,8 @@
-import test from 'ava';
 import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import {
 	array,
 	date as valiDate,
 	email,
-	enumType,
 	maxLength,
 	minLength,
 	minValue,
@@ -13,10 +11,12 @@ import {
 	object,
 	optional,
 	parse,
+	picklist,
 	string,
 } from 'valibot';
+import { expect, test } from 'vitest';
 import { createInsertSchema, createSelectSchema } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
@@ -52,36 +52,34 @@ const testUser = {
 	initials: 'JD',
 };
 
-test('users insert valid user', (t) => {
+test('users insert valid user', () => {
 	const schema = createInsertSchema(users);
 
-	t.deepEqual(parse(schema, testUser), testUser);
+	expect(parse(schema, testUser)).toStrictEqual(testUser);
 });
 
-test('users insert invalid varchar', (t) => {
+test('users insert invalid varchar', () => {
 	const schema = createInsertSchema(users);
 
-	t.throws(
-		() =>
-			parse(schema, {
-				...testUser,
-				profession: 'Chief Executive Officer',
-			}),
-		undefined,
-	);
+	expect(() =>
+		parse(schema, {
+			...testUser,
+			profession: 'Chief Executive Officer',
+		})
+	).toThrow(undefined);
 });
 
-test('users insert invalid char', (t) => {
+test('users insert invalid char', () => {
 	const schema = createInsertSchema(users);
 
-	t.throws(() => parse(schema, { ...testUser, initials: 'JoDo' }), undefined);
+	expect(() => parse(schema, { ...testUser, initials: 'JoDo' })).toThrow(undefined);
 });
 
 test('users insert schema', (t) => {
 	const actual = createInsertSchema(users, {
 		id: () => number([minValue(0)]),
 		email: () => string([email()]),
-		roleText: enumType(['user', 'manager', 'admin']),
+		roleText: picklist(['user', 'manager', 'admin']),
 	});
 
 	(() => {
@@ -108,9 +106,9 @@ test('users insert schema', (t) => {
 		birthdayString: string(),
 		birthdayDate: valiDate(),
 		createdAt: optional(valiDate()),
-		role: enumType(['admin', 'user']),
-		roleText: enumType(['user', 'manager', 'admin']),
-		roleText2: optional(enumType(['admin', 'user'])),
+		role: picklist(['admin', 'user']),
+		roleText: picklist(['user', 'manager', 'admin']),
+		roleText2: optional(picklist(['admin', 'user'])),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
 	});
@@ -129,9 +127,9 @@ test('users insert schema w/ defaults', (t) => {
 		birthdayString: string(),
 		birthdayDate: valiDate(),
 		createdAt: optional(valiDate()),
-		role: enumType(['admin', 'user']),
-		roleText: enumType(['admin', 'user']),
-		roleText2: optional(enumType(['admin', 'user'])),
+		role: picklist(['admin', 'user']),
+		roleText: picklist(['admin', 'user']),
+		roleText2: optional(picklist(['admin', 'user'])),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
 	});
@@ -143,7 +141,7 @@ test('users select schema', (t) => {
 	const actual = createSelectSchema(users, {
 		id: () => number([minValue(0)]),
 		email: () => string(),
-		roleText: enumType(['user', 'manager', 'admin']),
+		roleText: picklist(['user', 'manager', 'admin']),
 	});
 
 	const expected = object({
@@ -154,9 +152,9 @@ test('users select schema', (t) => {
 		birthdayString: string(),
 		birthdayDate: valiDate(),
 		createdAt: valiDate(),
-		role: enumType(['admin', 'user']),
-		roleText: enumType(['user', 'manager', 'admin']),
-		roleText2: enumType(['admin', 'user']),
+		role: picklist(['admin', 'user']),
+		roleText: picklist(['user', 'manager', 'admin']),
+		roleText2: picklist(['admin', 'user']),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
 	});
@@ -175,9 +173,9 @@ test('users select schema w/ defaults', (t) => {
 		birthdayString: string(),
 		birthdayDate: valiDate(),
 		createdAt: valiDate(),
-		role: enumType(['admin', 'user']),
-		roleText: enumType(['admin', 'user']),
-		roleText2: enumType(['admin', 'user']),
+		role: picklist(['admin', 'user']),
+		roleText: picklist(['admin', 'user']),
+		roleText2: picklist(['admin', 'user']),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
 	});

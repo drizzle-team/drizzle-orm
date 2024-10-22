@@ -2,6 +2,8 @@ import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderRuntimeConfig,
 	HasDefault,
+	IsAutoincrement,
+	IsPrimaryKey,
 	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
@@ -10,18 +12,20 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlSerialBuilderInitial<TName extends string> = NotNull<
-	HasDefault<
-		MySqlSerialBuilder<
-			{
-				name: TName;
-				dataType: 'number';
-				columnType: 'MySqlSerial';
-				data: number;
-				driverParam: number;
-				enumValues: undefined;
-				generated: undefined;
-			}
+export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
+	IsPrimaryKey<
+		NotNull<
+			HasDefault<
+				MySqlSerialBuilder<{
+					name: TName;
+					dataType: 'number';
+					columnType: 'MySqlSerial';
+					data: number;
+					driverParam: number;
+					enumValues: undefined;
+					generated: undefined;
+				}>
+			>
 		>
 	>
 >;
@@ -29,7 +33,7 @@ export type MySqlSerialBuilderInitial<TName extends string> = NotNull<
 export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSerial'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T>
 {
-	static readonly [entityKind]: string = 'MySqlSerialBuilder';
+	static override readonly [entityKind]: string = 'MySqlSerialBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'MySqlSerial');
@@ -48,7 +52,7 @@ export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 export class MySqlSerial<
 	T extends ColumnBaseConfig<'number', 'MySqlSerial'>,
 > extends MySqlColumnWithAutoIncrement<T> {
-	static readonly [entityKind]: string = 'MySqlSerial';
+	static override readonly [entityKind]: string = 'MySqlSerial';
 
 	getSQLType(): string {
 		return 'serial';
@@ -62,6 +66,8 @@ export class MySqlSerial<
 	}
 }
 
-export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName> {
-	return new MySqlSerialBuilder(name) as MySqlSerialBuilderInitial<TName>;
+export function serial(): MySqlSerialBuilderInitial<''>;
+export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName>;
+export function serial(name?: string) {
+	return new MySqlSerialBuilder(name ?? '');
 }

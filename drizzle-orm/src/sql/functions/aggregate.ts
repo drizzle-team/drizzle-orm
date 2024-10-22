@@ -1,6 +1,6 @@
+import { type AnyColumn, Column } from '~/column.ts';
 import { is } from '~/entity.ts';
 import { type SQL, sql, type SQLWrapper } from '../sql.ts';
-import { type AnyColumn, Column } from '~/column.ts';
 
 /**
  * Returns the number of values in `expression`.
@@ -13,11 +13,11 @@ import { type AnyColumn, Column } from '~/column.ts';
  * // Number of employees where `name` is not null
  * db.select({ value: count(employees.name) }).from(employees)
  * ```
- * 
+ *
  * @see countDistinct to get the number of non-duplicate values in `expression`
  */
 export function count(expression?: SQLWrapper): SQL<number> {
-  return sql`count(${expression || sql.raw('*')})`.mapWith(Number);
+	return sql`count(${expression || sql.raw('*')})`.mapWith(Number);
 }
 
 /**
@@ -29,11 +29,11 @@ export function count(expression?: SQLWrapper): SQL<number> {
  * // Number of employees where `name` is distinct
  * db.select({ value: countDistinct(employees.name) }).from(employees)
  * ```
- * 
+ *
  * @see count to get the number of values in `expression`, including duplicates
  */
 export function countDistinct(expression: SQLWrapper): SQL<number> {
-  return sql`count(distinct ${expression})`.mapWith(Number);
+	return sql`count(distinct ${expression})`.mapWith(Number);
 }
 
 /**
@@ -45,11 +45,11 @@ export function countDistinct(expression: SQLWrapper): SQL<number> {
  * // Average salary of an employee
  * db.select({ value: avg(employees.salary) }).from(employees)
  * ```
- * 
+ *
  * @see avgDistinct to get the average of all non-null and non-duplicate values in `expression`
  */
 export function avg(expression: SQLWrapper): SQL<string | null> {
-  return sql`avg(${expression})`.mapWith(String);
+	return sql`avg(${expression})`.mapWith(String);
 }
 
 /**
@@ -61,11 +61,11 @@ export function avg(expression: SQLWrapper): SQL<string | null> {
  * // Average salary of an employee where `salary` is distinct
  * db.select({ value: avgDistinct(employees.salary) }).from(employees)
  * ```
- * 
+ *
  * @see avg to get the average of all non-null values in `expression`, including duplicates
  */
 export function avgDistinct(expression: SQLWrapper): SQL<string | null> {
-  return sql`avg(distinct ${expression})`.mapWith(String);
+	return sql`avg(distinct ${expression})`.mapWith(String);
 }
 
 /**
@@ -77,11 +77,11 @@ export function avgDistinct(expression: SQLWrapper): SQL<string | null> {
  * // Sum of every employee's salary
  * db.select({ value: sum(employees.salary) }).from(employees)
  * ```
- * 
+ *
  * @see sumDistinct to get the sum of all non-null and non-duplicate values in `expression`
  */
 export function sum(expression: SQLWrapper): SQL<string | null> {
-  return sql`sum(${expression})`.mapWith(String);
+	return sql`sum(${expression})`.mapWith(String);
 }
 
 /**
@@ -93,11 +93,11 @@ export function sum(expression: SQLWrapper): SQL<string | null> {
  * // Sum of every employee's salary where `salary` is distinct (no duplicates)
  * db.select({ value: sumDistinct(employees.salary) }).from(employees)
  * ```
- * 
+ *
  * @see sum to get the sum of all non-null values in `expression`, including duplicates
  */
 export function sumDistinct(expression: SQLWrapper): SQL<string | null> {
-  return sql`sum(distinct ${expression})`.mapWith(String);
+	return sql`sum(distinct ${expression})`.mapWith(String);
 }
 
 /**
@@ -111,7 +111,7 @@ export function sumDistinct(expression: SQLWrapper): SQL<string | null> {
  * ```
  */
 export function max<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColumn ? T['_']['data'] : string) | null> {
-  return sql`max(${expression})`.mapWith(is(expression, Column) ? expression : String) as any;
+	return sql`max(${expression})`.mapWith(is(expression, Column) ? expression : String) as any;
 }
 
 /**
@@ -125,5 +125,5 @@ export function max<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColu
  * ```
  */
 export function min<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColumn ? T['_']['data'] : string) | null> {
-  return sql`min(${expression})`.mapWith(is(expression, Column) ? expression : String) as any;
+	return sql`min(${expression})`.mapWith(is(expression, Column) ? expression : String) as any;
 }

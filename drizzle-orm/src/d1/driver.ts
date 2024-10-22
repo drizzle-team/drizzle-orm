@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
+import type { D1Database as MiniflareD1Database } from '@miniflare/d1';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -11,13 +12,19 @@ import {
 } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig, IfNotImported } from '~/utils.ts';
 import { SQLiteD1Session } from './session.ts';
+
+export type AnyD1Database = IfNotImported<
+	D1Database,
+	MiniflareD1Database,
+	D1Database | IfNotImported<MiniflareD1Database, never, MiniflareD1Database>
+>;
 
 export class DrizzleD1Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends BaseSQLiteDatabase<'async', D1Result, TSchema> {
-	static readonly [entityKind]: string = 'LibSQLDatabase';
+	static override readonly [entityKind]: string = 'D1Database';
 
 	/** @internal */
 	declare readonly session: SQLiteD1Session<TSchema, ExtractTablesWithRelations<TSchema>>;
@@ -29,11 +36,16 @@ export class DrizzleD1Database<
 	}
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: D1Database,
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends AnyD1Database = AnyD1Database,
+>(
+	client: TClient,
 	config: DrizzleConfig<TSchema> = {},
-): DrizzleD1Database<TSchema> {
-	const dialect = new SQLiteAsyncDialect();
+): DrizzleD1Database<TSchema> & {
+	$client: TClient;
+} {
+	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -54,6 +66,9 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SQLiteD1Session(client, dialect, schema, { logger });
-	return new DrizzleD1Database('async', dialect, session, schema) as DrizzleD1Database<TSchema>;
+	const session = new SQLiteD1Session(client as D1Database, dialect, schema, { logger });
+	const db = new DrizzleD1Database('async', dialect, session, schema) as DrizzleD1Database<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }
