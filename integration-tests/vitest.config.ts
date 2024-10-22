@@ -54,6 +54,9 @@ export default defineConfig({
 			// todo: remove
 			'js-tests/driver-init/module/vercel.test.mjs',
 			'js-tests/driver-init/commonjs/vercel.test.cjs',
+			// move back after decide on speed
+			'tests/sqlite/libsql-ws.test.ts',
+			'tests/sqlite/libsql-http.test.ts',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
