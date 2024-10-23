@@ -7,6 +7,10 @@ export default defineConfig({
 			'tests/**/*.test.ts',
 		],
 
+		exclude: [
+			'tests/**/singlestore-generated.test.ts',
+		],
+
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
