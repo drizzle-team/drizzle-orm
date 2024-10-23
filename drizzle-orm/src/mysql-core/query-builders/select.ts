@@ -1,7 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
+import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -132,7 +132,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
 
 	override readonly _: {
 		readonly hkt: THKT;
@@ -942,7 +942,7 @@ export class MySqlSelectBase<
 	TResult,
 	TSelectedFields
 > {
-	static readonly [entityKind]: string = 'MySqlSelect';
+	static override readonly [entityKind]: string = 'MySqlSelect';
 
 	prepare(): MySqlSelectPrepare<this> {
 		if (!this.session) {
@@ -950,7 +950,7 @@ export class MySqlSelectBase<
 		}
 		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
 		const query = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
+			MySqlPreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
 		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;

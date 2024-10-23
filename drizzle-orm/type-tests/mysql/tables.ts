@@ -1,33 +1,48 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
+import type { BuildColumn } from '~/column-builder.ts';
 import { eq, gt } from '~/expressions.ts';
-import type { BuildColumn, InferSelectModel, Simplify } from '~/index.ts';
 import {
 	bigint,
+	binary,
+	boolean,
 	char,
 	check,
 	customType,
 	date,
 	datetime,
 	decimal,
+	double,
+	float,
 	foreignKey,
 	index,
 	int,
+	json,
 	longtext,
+	mediumint,
 	mediumtext,
 	type MySqlColumn,
 	mysqlEnum,
 	mysqlTable,
 	primaryKey,
+	real,
 	serial,
+	smallint,
 	text,
+	time,
 	timestamp,
+	tinyint,
 	tinytext,
+	unique,
 	uniqueIndex,
+	varbinary,
 	varchar,
+	year,
 } from '~/mysql-core/index.ts';
 import { mysqlSchema } from '~/mysql-core/schema.ts';
 import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view.ts';
 import { sql } from '~/sql/sql.ts';
+import type { InferSelectModel } from '~/table.ts';
+import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const users = mysqlTable(
@@ -74,11 +89,75 @@ export const cities = mysqlTable('cities_table', {
 }));
 
 Expect<
+	Equal<
+		{
+			id: MySqlColumn<{
+				name: 'id';
+				tableName: 'cities_table';
+				dataType: 'number';
+				columnType: 'MySqlSerial';
+				data: number;
+				driverParam: number;
+				notNull: true;
+				hasDefault: true;
+				isPrimaryKey: true;
+				enumValues: undefined;
+				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: true;
+				hasRuntimeDefault: false;
+			}, object>;
+			name: MySqlColumn<{
+				name: 'name_db';
+				tableName: 'cities_table';
+				dataType: 'string';
+				columnType: 'MySqlText';
+				data: string;
+				driverParam: string;
+				notNull: true;
+				hasDefault: false;
+				isPrimaryKey: false;
+				enumValues: [string, ...string[]];
+				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}, object>;
+			population: MySqlColumn<{
+				name: 'population';
+				tableName: 'cities_table';
+				dataType: 'number';
+				columnType: 'MySqlInt';
+				data: number;
+				driverParam: string | number;
+				notNull: false;
+				hasDefault: true;
+				isPrimaryKey: false;
+				enumValues: undefined;
+				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}, object>;
+		},
+		typeof cities._.columns
+	>
+>;
+
+Expect<
 	Equal<{
 		id: number;
 		name_db: string;
 		population: number | null;
 	}, InferSelectModel<typeof cities, { dbColumnNames: true }>>
+>;
+
+Expect<
+	Equal<{
+		id?: number;
+		name: string;
+		population?: number | null;
+	}, typeof cities.$inferInsert>
 >;
 
 export const customSchema = mysqlSchema('custom_schema');
@@ -93,11 +172,11 @@ export const citiesCustom = customSchema.table('cities_table', {
 
 Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
 
-export const classes = mysqlTable('classes_table', {
+export const classes = mysqlTable('classes_table', ({ serial, text }) => ({
 	id: serial('id').primaryKey(),
 	class: text('class', { enum: ['A', 'C'] }),
 	subClass: text('sub_class', { enum: ['B', 'D'] }).notNull(),
-});
+}));
 
 /* export const classes2 = mysqlTable('classes_table', {
 	id: serial().primaryKey(),
@@ -107,7 +186,6 @@ export const classes = mysqlTable('classes_table', {
 
 export const newYorkers = mysqlView('new_yorkers')
 	.algorithm('merge')
-	.definer('root@localhost')
 	.sqlSecurity('definer')
 	.as((qb) => {
 		const sq = qb
@@ -135,6 +213,10 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: true;
+				hasRuntimeDefault: false;
 			}>;
 			cityId: MySqlColumn<{
 				name: 'id';
@@ -147,6 +229,10 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: true;
+				hasRuntimeDefault: false;
 			}>;
 		}>,
 		typeof newYorkers
@@ -156,7 +242,6 @@ Expect<
 {
 	const newYorkers = customSchema.view('new_yorkers')
 		.algorithm('merge')
-		.definer('root@localhost')
 		.sqlSecurity('definer')
 		.as((qb) => {
 			const sq = qb
@@ -184,6 +269,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: true;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'id';
@@ -196,6 +285,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: true;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -209,7 +302,6 @@ Expect<
 		cityId: int('city_id'),
 	})
 		.algorithm('merge')
-		.definer('root@localhost')
 		.sqlSecurity('definer')
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
@@ -231,6 +323,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -243,6 +339,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -256,7 +356,6 @@ Expect<
 		cityId: int('city_id'),
 	})
 		.algorithm('merge')
-		.definer('root@localhost')
 		.sqlSecurity('definer')
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
@@ -278,6 +377,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -290,6 +393,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -317,6 +424,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -329,6 +440,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -356,6 +471,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -368,6 +487,10 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -398,6 +521,10 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				dialect: 'mysql';
+				generated: undefined;
+				isPrimaryKey: false;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
 			},
 			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>
 		>
@@ -446,6 +573,41 @@ Expect<
 		test13: char('test', { enum: ['a', 'b', 'c'] as const }).notNull(),
 		test14: char('test', { enum: ['a', 'b', 'c'] }).notNull(),
 		test15: text('test').notNull(),
+	});
+	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test3.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test4.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test5.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test6.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test7.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test8.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test9.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test10.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test11.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test12.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test13.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test14.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.test15.enumValues>>;
+}
+
+{ // All types with generated columns
+	const test = mysqlTable('test', {
+		test1: mysqlEnum('test', ['a', 'b', 'c'] as const).generatedAlwaysAs(sql``),
+		test2: mysqlEnum('test', ['a', 'b', 'c']).generatedAlwaysAs(sql``),
+		test3: varchar('test', { length: 255, enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test4: varchar('test', { length: 255, enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test5: text('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test6: text('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test7: tinytext('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test8: tinytext('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test9: mediumtext('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test10: mediumtext('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test11: longtext('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test12: longtext('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test13: char('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test14: char('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test15: text('test').generatedAlwaysAs(sql``),
 	});
 	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;
@@ -559,5 +721,294 @@ Expect<
 		id3: int('id').$default(() => '1'),
 		// @ts-expect-error - should be number
 		id4: int('id').$defaultFn(() => '1'),
+	});
+}
+{
+	const emailLog = mysqlTable(
+		'email_log',
+		{
+			id: int('id', { unsigned: true }).autoincrement().notNull(),
+			clientId: int('id_client', { unsigned: true }).references((): MySqlColumn => emailLog.id, {
+				onDelete: 'set null',
+				onUpdate: 'cascade',
+			}),
+			receiverEmail: varchar('receiver_email', { length: 255 }).notNull(),
+			messageId: varchar('message_id', { length: 255 }),
+			contextId: int('context_id', { unsigned: true }),
+			contextType: mysqlEnum('context_type', ['test']).$type<['test']>(),
+			action: varchar('action', { length: 80 }).$type<['test']>(),
+			events: json('events').$type<{ t: 'test' }[]>(),
+			createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
+			updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().onUpdateNow(),
+		},
+		(table) => {
+			return {
+				emailLogId: primaryKey({ columns: [table.id], name: 'email_log_id' }),
+				emailLogMessageIdUnique: unique('email_log_message_id_unique').on(table.messageId),
+			};
+		},
+	);
+
+	Expect<
+		Equal<{
+			receiverEmail: string;
+			id?: number | undefined;
+			createdAt?: string | undefined;
+			clientId?: number | null | undefined;
+			messageId?: string | null | undefined;
+			contextId?: number | null | undefined;
+			contextType?: ['test'] | null | undefined;
+			action?: ['test'] | null | undefined;
+			events?:
+				| {
+					t: 'test';
+				}[]
+				| null
+				| undefined;
+			updatedAt?: string | null | undefined;
+		}, typeof emailLog.$inferInsert>
+	>;
+}
+
+{
+	const customRequiredConfig = customType<{
+		data: string;
+		driverData: string;
+		config: { length: number };
+		configRequired: true;
+	}>({
+		dataType(config) {
+			Expect<Equal<{ length: number }, typeof config>>;
+			return `varchar(${config.length})`;
+		},
+
+		toDriver(value) {
+			Expect<Equal<string, typeof value>>();
+			return value;
+		},
+
+		fromDriver(value) {
+			Expect<Equal<string, typeof value>>();
+			return value;
+		},
+	});
+
+	customRequiredConfig('t', { length: 10 });
+	customRequiredConfig({ length: 10 });
+	// @ts-expect-error - config is required
+	customRequiredConfig('t');
+	// @ts-expect-error - config is required
+	customRequiredConfig();
+}
+
+{
+	const customOptionalConfig = customType<{
+		data: string;
+		driverData: string;
+		config: { length: number };
+	}>({
+		dataType(config) {
+			Expect<Equal<{ length: number } | undefined, typeof config>>;
+			return config ? `varchar(${config.length})` : `text`;
+		},
+
+		toDriver(value) {
+			Expect<Equal<string, typeof value>>();
+			return value;
+		},
+
+		fromDriver(value) {
+			Expect<Equal<string, typeof value>>();
+			return value;
+		},
+	});
+
+	customOptionalConfig('t', { length: 10 });
+	customOptionalConfig('t');
+	customOptionalConfig({ length: 10 });
+	customOptionalConfig();
+}
+
+{
+	mysqlTable('all_columns', {
+		bigint: bigint('bigint', { mode: 'number' }),
+		bigint2: bigint('bigint', { mode: 'number', unsigned: true }),
+		bigintdef: bigint('bigintdef', { mode: 'number' }).default(0),
+		binary: binary('binary'),
+		binary1: binary('binary1', { length: 1 }),
+		binarydef: binary('binarydef').default(''),
+		boolean: boolean('boolean'),
+		booleandef: boolean('booleandef').default(false),
+		char: char('char'),
+		char2: char('char2', { length: 1 }),
+		char3: char('char3', { enum: ['a', 'b', 'c'] }),
+		char4: char('char4', { length: 1, enum: ['a', 'b', 'c'] }),
+		chardef: char('chardef').default(''),
+		date: date('date'),
+		date2: date('date2', { mode: 'string' }),
+		datedef: date('datedef').default(new Date()),
+		datetime: datetime('datetime'),
+		datetime2: datetime('datetime2', { mode: 'string' }),
+		datetime3: datetime('datetime3', { mode: 'string', fsp: 3 }),
+		datetimedef: datetime('datetimedef').default(new Date()),
+		decimal: decimal('decimal'),
+		decimal2: decimal('decimal2', { precision: 10 }),
+		decimal3: decimal('decimal3', { scale: 2 }),
+		decimal4: decimal('decimal4', { precision: 10, scale: 2 }),
+		decimaldef: decimal('decimaldef').default('0'),
+		double: double('double'),
+		double2: double('double2', { precision: 10 }),
+		double3: double('double3', { scale: 2 }),
+		double4: double('double4', { precision: 10, scale: 2 }),
+		doubledef: double('doubledef').default(0),
+		enum: mysqlEnum('enum', ['a', 'b', 'c']),
+		enumdef: mysqlEnum('enumdef', ['a', 'b', 'c']).default('a'),
+		float: float('float'),
+		floatdef: float('floatdef').default(0),
+		int: int('int'),
+		int2: int('int2', { unsigned: true }),
+		intdef: int('intdef').default(0),
+		json: json('json'),
+		jsondef: json('jsondef').default({}),
+		mediumint: mediumint('mediumint'),
+		mediumint2: mediumint('mediumint2', { unsigned: true }),
+		mediumintdef: mediumint('mediumintdef').default(0),
+		real: real('real'),
+		real2: real('real2', { precision: 10 }),
+		real3: real('real3', { scale: 2 }),
+		real4: real('real4', { precision: 10, scale: 2 }),
+		realdef: real('realdef').default(0),
+		serial: serial('serial'),
+		serialdef: serial('serialdef').default(0),
+		smallint: smallint('smallint'),
+		smallint2: smallint('smallint2', { unsigned: true }),
+		smallintdef: smallint('smallintdef').default(0),
+		text: text('text'),
+		text2: text('text2', { enum: ['a', 'b', 'c'] }),
+		textdef: text('textdef').default(''),
+		tinytext: tinytext('tinytext'),
+		tinytext2: tinytext('tinytext2', { enum: ['a', 'b', 'c'] }),
+		tinytextdef: tinytext('tinytextdef').default(''),
+		mediumtext: mediumtext('mediumtext'),
+		mediumtext2: mediumtext('mediumtext2', { enum: ['a', 'b', 'c'] }),
+		mediumtextdef: mediumtext('mediumtextdef').default(''),
+		longtext: longtext('longtext'),
+		longtext2: longtext('longtext2', { enum: ['a', 'b', 'c'] }),
+		longtextdef: longtext('longtextdef').default(''),
+		time: time('time'),
+		time2: time('time2', { fsp: 1 }),
+		timedef: time('timedef').default('00:00:00'),
+		timestamp: timestamp('timestamp'),
+		timestamp2: timestamp('timestamp2', { mode: 'string' }),
+		timestamp3: timestamp('timestamp3', { mode: 'string', fsp: 1 }),
+		timestamp4: timestamp('timestamp4', { fsp: 1 }),
+		timestampdef: timestamp('timestampdef').default(new Date()),
+		tinyint: tinyint('tinyint'),
+		tinyint2: tinyint('tinyint2', { unsigned: true }),
+		tinyintdef: tinyint('tinyintdef').default(0),
+		varbinary: varbinary('varbinary', { length: 1 }),
+		varbinarydef: varbinary('varbinarydef', { length: 1 }).default(''),
+		varchar: varchar('varchar', { length: 1 }),
+		varchar2: varchar('varchar2', { length: 1, enum: ['a', 'b', 'c'] }),
+		varchardef: varchar('varchardef', { length: 1 }).default(''),
+		year: year('year'),
+		yeardef: year('yeardef').default(0),
+	});
+}
+
+{
+	const keysAsColumnNames = mysqlTable('test', {
+		id: int(),
+		name: text(),
+	});
+
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+}
+
+{
+	mysqlTable('all_columns_without_name', {
+		bigint: bigint({ mode: 'number' }),
+		bigint2: bigint({ mode: 'number', unsigned: true }),
+		bigintdef: bigint({ mode: 'number' }).default(0),
+		binary: binary(),
+		binrary1: binary({ length: 1 }),
+		binarydef: binary().default(''),
+		boolean: boolean(),
+		booleandef: boolean().default(false),
+		char: char(),
+		char2: char({ length: 1 }),
+		char3: char({ enum: ['a', 'b', 'c'] }),
+		char4: char({ length: 1, enum: ['a', 'b', 'c'] }),
+		chardef: char().default(''),
+		date: date(),
+		date2: date({ mode: 'string' }),
+		datedef: date('datedef').default(new Date()),
+		datetime: datetime(),
+		datetime2: datetime({ mode: 'string' }),
+		datetime3: datetime({ mode: 'string', fsp: 3 }),
+		datetimedef: datetime('datetimedef').default(new Date()),
+		decimal: decimal(),
+		decimal2: decimal({ precision: 10 }),
+		decimal3: decimal({ scale: 2 }),
+		decimal4: decimal({ precision: 10, scale: 2 }),
+		decimaldef: decimal('decimaldef').default('0'),
+		double: double(),
+		double2: double({ precision: 10 }),
+		double3: double({ scale: 2 }),
+		double4: double({ precision: 10, scale: 2 }),
+		doubledef: double().default(0),
+		enum: mysqlEnum(['a', 'b', 'c']),
+		enumdef: mysqlEnum(['a', 'b', 'c']).default('a'),
+		float: float(),
+		floatdef: float().default(0),
+		int: int(),
+		int2: int({ unsigned: true }),
+		intdef: int().default(0),
+		json: json(),
+		jsondef: json().default({}),
+		mediumint: mediumint(),
+		mediumint2: mediumint({ unsigned: true }),
+		mediumintdef: mediumint().default(0),
+		real: real(),
+		real2: real({ precision: 10 }),
+		real3: real({ scale: 2 }),
+		real4: real({ precision: 10, scale: 2 }),
+		realdef: real().default(0),
+		serial: serial(),
+		serialdef: serial().default(0),
+		smallint: smallint(),
+		smallint2: smallint({ unsigned: true }),
+		smallintdef: smallint().default(0),
+		text: text(),
+		text2: text({ enum: ['a', 'b', 'c'] }),
+		textdef: text().default(''),
+		tinytext: tinytext(),
+		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }),
+		tinytextdef: tinytext().default(''),
+		mediumtext: mediumtext(),
+		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }),
+		mediumtextdef: mediumtext().default(''),
+		longtext: longtext(),
+		longtext2: longtext({ enum: ['a', 'b', 'c'] }),
+		longtextdef: longtext().default(''),
+		time: time(),
+		time2: time({ fsp: 1 }),
+		timedef: time().default('00:00:00'),
+		timestamp: timestamp(),
+		timestamp2: timestamp({ mode: 'string' }),
+		timestamp3: timestamp({ mode: 'string', fsp: 1 }),
+		timestamp4: timestamp({ fsp: 1 }),
+		timestampdef: timestamp().default(new Date()),
+		tinyint: tinyint(),
+		tinyint2: tinyint({ unsigned: true }),
+		tinyintdef: tinyint().default(0),
+		varbinary: varbinary({ length: 1 }),
+		varbinarydef: varbinary({ length: 1 }).default(''),
+		varchar: varchar({ length: 1 }),
+		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }),
+		varchardef: varchar({ length: 1 }).default(''),
+		year: year(),
+		yeardef: year().default(0),
 	});
 }

@@ -3,10 +3,11 @@ import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { MySqlDialect } from './dialect.ts';
+import { MySqlCountBuilder } from './query-builders/count.ts';
 import {
 	MySqlDeleteBase,
 	MySqlInsertBuilder,
@@ -18,18 +19,19 @@ import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
 	Mode,
+	MySqlQueryResultHKT,
+	MySqlQueryResultKind,
 	MySqlSession,
 	MySqlTransaction,
 	MySqlTransactionConfig,
 	PreparedQueryHKTBase,
-	QueryResultHKT,
-	QueryResultKind,
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { MySqlTable } from './table.ts';
+import type { MySqlViewBase } from './view-base.ts';
 
 export class MySqlDatabase<
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = {},
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
@@ -118,12 +120,13 @@ export class MySqlDatabase<
 	 * ```
 	 */
 	$with<TAlias extends string>(alias: TAlias) {
+		const self = this;
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
-					qb = qb(new QueryBuilder());
+					qb = qb(new QueryBuilder(self.dialect));
 				}
 
 				return new Proxy(
@@ -132,6 +135,13 @@ export class MySqlDatabase<
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
+	}
+
+	$count(
+		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
+		filters?: SQL<unknown>,
+	) {
+		return new MySqlCountBuilder({ source, filters, session: this.session });
 	}
 
 	/**
@@ -451,9 +461,9 @@ export class MySqlDatabase<
 	}
 
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
-		query: SQLWrapper,
-	): Promise<QueryResultKind<TQueryResult, T>> {
-		return this.session.execute(query.getSQL());
+		query: SQLWrapper | string,
+	): Promise<MySqlQueryResultKind<TQueryResult, T>> {
+		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
 	}
 
 	transaction<T>(
@@ -470,7 +480,7 @@ export class MySqlDatabase<
 export type MySQLWithReplicas<Q> = Q & { $primary: Q };
 
 export const withReplicas = <
-	HKT extends QueryResultHKT,
+	HKT extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,

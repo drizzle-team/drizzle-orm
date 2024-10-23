@@ -3,7 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
-import type { Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
@@ -14,6 +14,7 @@ export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTy
 		data: T['data'];
 		driverParam: T['driverData'];
 		enumValues: undefined;
+		generated: undefined;
 	}
 	& (T['notNull'] extends true ? { notNull: true } : {})
 	& (T['default'] extends true ? { hasDefault: true } : {});
@@ -34,7 +35,7 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom
 		}
 	>
 {
-	static readonly [entityKind]: string = 'SQLiteCustomColumnBuilder';
+	static override readonly [entityKind]: string = 'SQLiteCustomColumnBuilder';
 
 	constructor(
 		name: T['name'],
@@ -58,7 +59,7 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom
 }
 
 export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCustomColumn'>> extends SQLiteColumn<T> {
-	static readonly [entityKind]: string = 'SQLiteCustomColumn';
+	static override readonly [entityKind]: string = 'SQLiteCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
@@ -107,7 +108,7 @@ export type CustomTypeValues = {
 	/**
 	 * What config type should be used for {@link CustomTypeParams} `dataType` generation
 	 */
-	config?: unknown;
+	config?: Record<string, any>;
 
 	/**
 	 * Whether the config argument should be required or not
@@ -202,22 +203,34 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
  */
 export function customType<T extends CustomTypeValues = CustomTypeValues>(
 	customTypeParams: CustomTypeParams<T>,
-): Equal<T['configRequired'], true> extends true ? <TName extends string>(
-		dbName: TName,
-		fieldConfig: T['config'],
-	) => SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>>
-	: <TName extends string>(
-		dbName: TName,
-		fieldConfig?: T['config'],
-	) => SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>>
+): Equal<T['configRequired'], true> extends true ? {
+		<TConfig extends Record<string, any> & T['config']>(
+			fieldConfig: TConfig,
+		): SQLiteCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		<TName extends string>(
+			dbName: TName,
+			fieldConfig: T['config'],
+		): SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+	}
+	: {
+		(): SQLiteCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		<TConfig extends Record<string, any> & T['config']>(
+			fieldConfig?: TConfig,
+		): SQLiteCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		<TName extends string>(
+			dbName: TName,
+			fieldConfig?: T['config'],
+		): SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+	}
 {
 	return <TName extends string>(
-		dbName: TName,
-		fieldConfig?: T['config'],
+		a?: TName | T['config'],
+		b?: T['config'],
 	): SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
+		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
 		return new SQLiteCustomColumnBuilder(
-			dbName as ConvertCustomConfig<TName, T>['name'],
-			fieldConfig,
+			name as ConvertCustomConfig<TName, T>['name'],
+			config,
 			customTypeParams,
 		);
 	};

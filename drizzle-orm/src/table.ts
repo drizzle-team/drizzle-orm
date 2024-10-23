@@ -3,6 +3,7 @@ import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
 import type { ExtraConfigColumn } from './pg-core/index.ts';
 import type { SQLWrapper } from './sql/sql.ts';
+import { TableName } from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
 
 export interface TableConfig<TColumn extends Column = Column<any>> {
@@ -15,9 +16,6 @@ export interface TableConfig<TColumn extends Column = Column<any>> {
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Required<
 	Update<T, TUpdate>
 >;
-
-/** @internal */
-export const TableName = Symbol.for('drizzle:Name');
 
 /** @internal */
 export const Schema = Symbol.for('drizzle:Schema');
@@ -108,9 +106,10 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	[IsAlias] = false;
 
 	/** @internal */
-	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown>) | undefined = undefined;
-
 	[IsDrizzleTable] = true;
+
+	/** @internal */
+	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown>) | undefined = undefined;
 
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;
@@ -146,6 +145,10 @@ export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];
 }
 
+export function getTableUniqueName<T extends Table>(table: T): `${T['_']['schema']}.${T['_']['name']}` {
+	return `${table[Schema] ?? 'public'}.${table[TableName]}`;
+}
+
 export type MapColumnName<TName extends string, TColumn extends Column, TDBColumNames extends boolean> =
 	TDBColumNames extends true ? TColumn['_']['name']
 		: TName;
@@ -155,7 +158,7 @@ export type InferModelFromColumns<
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
 > = Simplify<
-	TInferMode extends 'insert' ? 
+	TInferMode extends 'insert' ?
 			& {
 				[
 					Key in keyof TColumns & string as RequiredKeyOnly<

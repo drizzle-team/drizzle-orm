@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import type { Writable } from '~/utils.ts';
+import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 type PgTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = PgTextBuilder<{
@@ -12,12 +12,13 @@ type PgTextBuilderInitial<TName extends string, TEnum extends [string, ...string
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;
+	generated: undefined;
 }>;
 
 export class PgTextBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'PgText'>,
 > extends PgColumnBuilder<T, { enumValues: T['enumValues'] }> {
-	static readonly [entityKind]: string = 'PgTextBuilder';
+	static override readonly [entityKind]: string = 'PgTextBuilder';
 
 	constructor(
 		name: T['name'],
@@ -38,7 +39,7 @@ export class PgTextBuilder<
 export class PgText<T extends ColumnBaseConfig<'string', 'PgText'>>
 	extends PgColumn<T, { enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'PgText';
+	static override readonly [entityKind]: string = 'PgText';
 
 	override readonly enumValues = this.config.enumValues;
 
@@ -47,13 +48,21 @@ export class PgText<T extends ColumnBaseConfig<'string', 'PgText'>>
 	}
 }
 
-export interface PgTextConfig<TEnum extends readonly string[] | string[] | undefined> {
+export interface PgTextConfig<
+	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
+> {
 	enum?: TEnum;
 }
 
+export function text(): PgTextBuilderInitial<'', [string, ...string[]]>;
+export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: PgTextConfig<T | Writable<T>>,
+): PgTextBuilderInitial<'', Writable<T>>;
 export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: PgTextConfig<T | Writable<T>> = {},
-): PgTextBuilderInitial<TName, Writable<T>> {
-	return new PgTextBuilder(name, config);
+	config?: PgTextConfig<T | Writable<T>>,
+): PgTextBuilderInitial<TName, Writable<T>>;
+export function text(a?: string | PgTextConfig, b: PgTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<PgTextConfig>(a, b);
+	return new PgTextBuilder(name, config as any);
 }

@@ -6,6 +6,7 @@ import {
 	type QueryConfig,
 	type QueryResult,
 	type QueryResultRow,
+	types,
 } from '@neondatabase/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -13,16 +14,16 @@ import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type NeonClient = Pool | PoolClient | Client;
 
 export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'NeonPreparedQuery';
+	static override readonly [entityKind]: string = 'NeonPreparedQuery';
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
@@ -41,11 +42,49 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 		this.queryConfig = {
 			name,
 			text: queryString,
 			rowMode: 'array',
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 	}
 
@@ -93,7 +132,7 @@ export class NeonSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<NeonQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NeonSession';
+	static override readonly [entityKind]: string = 'NeonSession';
 
 	private logger: Logger;
 
@@ -143,6 +182,14 @@ export class NeonSession<
 		return this.client.query<T>(query, params);
 	}
 
+	override async count(sql: SQL): Promise<number> {
+		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
+
+		return Number(
+			res['rows'][0]['count'],
+		);
+	}
+
 	override async transaction<T>(
 		transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config: PgTransactionConfig = {},
@@ -171,7 +218,7 @@ export class NeonTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<NeonQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NeonTransaction';
+	static override readonly [entityKind]: string = 'NeonTransaction';
 
 	override async transaction<T>(transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
@@ -188,6 +235,6 @@ export class NeonTransaction<
 	}
 }
 
-export interface NeonQueryResultHKT extends QueryResultHKT {
+export interface NeonQueryResultHKT extends PgQueryResultHKT {
 	type: QueryResult<Assume<this['row'], QueryResultRow>>;
 }

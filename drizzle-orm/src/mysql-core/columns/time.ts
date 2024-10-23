@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
@@ -11,13 +12,14 @@ export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTime'>> extends MySqlColumnBuilder<
 	T,
 	TimeConfig
 > {
-	static readonly [entityKind]: string = 'MySqlTimeBuilder';
+	static override readonly [entityKind]: string = 'MySqlTimeBuilder';
 
 	constructor(
 		name: T['name'],
@@ -38,7 +40,7 @@ export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 export class MySqlTime<
 	T extends ColumnBaseConfig<'string', 'MySqlTime'>,
 > extends MySqlColumn<T, TimeConfig> {
-	static readonly [entityKind]: string = 'MySqlTime';
+	static override readonly [entityKind]: string = 'MySqlTime';
 
 	readonly fsp: number | undefined = this.config.fsp;
 
@@ -52,6 +54,15 @@ export type TimeConfig = {
 	fsp?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
 };
 
-export function time<TName extends string>(name: TName, config?: TimeConfig): MySqlTimeBuilderInitial<TName> {
+export function time(): MySqlTimeBuilderInitial<''>;
+export function time(
+	config?: TimeConfig,
+): MySqlTimeBuilderInitial<''>;
+export function time<TName extends string>(
+	name: TName,
+	config?: TimeConfig,
+): MySqlTimeBuilderInitial<TName>;
+export function time(a?: string | TimeConfig, b?: TimeConfig) {
+	const { name, config } = getColumnNameAndConfig<TimeConfig>(a, b);
 	return new MySqlTimeBuilder(name, config);
 }
