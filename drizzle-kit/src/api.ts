@@ -12,6 +12,7 @@ import {
 	roleResolver,
 	schemasResolver,
 	sequencesResolver,
+	singleStoreViewsResolver,
 	sqliteViewsResolver,
 	tablesResolver,
 	viewsResolver,
@@ -387,6 +388,7 @@ export const pushMySQLSchema = async (
 export const generateSingleStoreDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string,
+	casing?: CasingType,
 ): Promise<SingleStoreSchemaKit> => {
 	const { prepareFromExports } = await import('./serializer/singlestoreImports');
 
@@ -394,7 +396,7 @@ export const generateSingleStoreDrizzleJson = async (
 
 	const id = randomUUID();
 
-	const snapshot = generateSingleStoreSnapshot(prepared.tables);
+	const snapshot = generateSingleStoreSnapshot(prepared.tables, prepared.views, casing);
 
 	return {
 		...snapshot,
@@ -420,8 +422,10 @@ export const generateSingleStoreMigration = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		singleStoreViewsResolver,
 		validatedPrev,
 		validatedCur,
+		'push',
 	);
 
 	return sqlStatements;
@@ -442,7 +446,7 @@ export const pushSingleStoreSchema = async (
 	const { sql } = await import('drizzle-orm');
 
 	const db: DB = {
-		query: async (query: string, params?: any[]) => {
+		query: async (query: string) => {
 			const res = await drizzleInstance.execute(sql.raw(query));
 			return res[0] as unknown as any[];
 		},
@@ -461,6 +465,7 @@ export const pushSingleStoreSchema = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		singleStoreViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',

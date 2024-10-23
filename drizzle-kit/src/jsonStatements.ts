@@ -13,7 +13,7 @@ import {
 	Role,
 	ViewWithOption,
 } from './serializer/pgSchema';
-import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher } from './serializer/singlestoreSchema';
+import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher, View as SingleStoreView } from './serializer/singlestoreSchema';
 import {
 	SQLiteKitInternals,
 	SQLiteSchemaInternal,
@@ -674,6 +674,11 @@ export type JsonCreateMySqlViewStatement = {
 	replace: boolean;
 } & Omit<MySqlView, 'columns' | 'isExisting'>;
 
+export type JsonCreateSingleStoreViewStatement = {
+	type: 'singlestore_create_view';
+	replace: boolean;
+} & Omit<SingleStoreView, 'columns' | 'isExisting'>;
+
 export type JsonCreateSqliteViewStatement = {
 	type: 'sqlite_create_view';
 } & Omit<SqliteView, 'columns' | 'isExisting'>;
@@ -757,6 +762,10 @@ export type JsonAlterMySqlViewStatement = {
 	type: 'alter_mysql_view';
 } & Omit<MySqlView, 'isExisting'>;
 
+export type JsonAlterSingleStoreViewStatement = {
+	type: 'alter_singlestore_view';
+} & Omit<SingleStoreView, 'isExisting'>;
+
 export type JsonAlterViewStatement =
 	| JsonAlterViewAlterSchemaStatement
 	| JsonAlterViewAddWithOptionStatement
@@ -839,6 +848,8 @@ export type JsonStatement =
 	| JsonAlterViewStatement
 	| JsonCreateMySqlViewStatement
 	| JsonAlterMySqlViewStatement
+	| JsonCreateSingleStoreViewStatement
+	| JsonAlterSingleStoreViewStatement
 	| JsonCreateSqliteViewStatement
 	| JsonCreateCheckConstraint
 	| JsonDeleteCheckConstraint
@@ -3331,6 +3342,24 @@ export const prepareMySqlCreateViewJson = (
 	};
 };
 
+export const prepareSingleStoreCreateViewJson = (
+	name: string,
+	definition: string,
+	meta: string,
+	replace: boolean = false,
+): JsonCreateSingleStoreViewStatement => {
+	const { algorithm, sqlSecurity, withCheckOption } = SingleStoreSquasher.unsquashView(meta);
+	return {
+		type: 'singlestore_create_view',
+		name: name,
+		definition: definition,
+		algorithm,
+		sqlSecurity,
+		withCheckOption,
+		replace,
+	};
+};
+
 export const prepareSqliteCreateViewJson = (
 	name: string,
 	definition: string,
@@ -3455,6 +3484,12 @@ export const prepareMySqlAlterView = (
 	view: Omit<MySqlView, 'isExisting'>,
 ): JsonAlterMySqlViewStatement => {
 	return { type: 'alter_mysql_view', ...view };
+};
+
+export const prepareSingleStoreAlterView = (
+	view: Omit<SingleStoreView, 'isExisting'>,
+): JsonAlterSingleStoreViewStatement => {
+	return { type: 'alter_singlestore_view', ...view };
 };
 
 export const prepareAddCompositePrimaryKeySingleStore = (

@@ -9,19 +9,16 @@ export default defineConfig({
 			'tests/relational/**/*.test.ts',
 			'tests/pg/**/*.test.ts',
 			'tests/mysql/**/*.test.ts',
+			'tests/singlestore/**/*.test.ts',
 			'tests/sqlite/**/*.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
 			'tests/extensions/vectors/**/*',
 			'tests/version.test.ts',
 			'tests/pg/node-postgres.test.ts',
-<<<<<<< HEAD
 			'tests/utils/is-config.test.ts',
 			'js-tests/driver-init/commonjs/*.test.cjs',
 			'js-tests/driver-init/module/*.test.mjs',
-=======
-			'tests/singlestore/**/*.test.ts',
->>>>>>> 78db5cf6 ([SingleStore] Add SingleStore connector (#32))
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS

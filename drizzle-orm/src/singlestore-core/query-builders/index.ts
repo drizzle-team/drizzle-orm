@@ -1,6 +1,5 @@
 export * from './attach.ts';
 export * from './branch.ts';
-export * from './count.ts';
 export * from './createMilestone.ts';
 export * from './delete.ts';
 export * from './detach.ts';

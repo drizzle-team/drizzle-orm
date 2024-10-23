@@ -26,8 +26,9 @@ export const prepareMySqlDbPushSnapshot = async (
 export const prepareSingleStoreDbPushSnapshot = async (
 	prev: SingleStoreSchema,
 	schemaPath: string | string[],
+	casing: CasingType | undefined,
 ): Promise<{ prev: SingleStoreSchema; cur: SingleStoreSchema }> => {
-	const serialized = await serializeSingleStore(schemaPath);
+	const serialized = await serializeSingleStore(schemaPath, casing);
 
 	const id = randomUUID();
 	const idPrev = prev.id;
@@ -108,11 +109,12 @@ export const prepareMySqlMigrationSnapshot = async (
 export const prepareSingleStoreMigrationSnapshot = async (
 	migrationFolders: string[],
 	schemaPath: string | string[],
+	casing: CasingType | undefined,
 ): Promise<{ prev: SingleStoreSchema; cur: SingleStoreSchema; custom: SingleStoreSchema }> => {
 	const prevSnapshot = singlestoreSchema.parse(
 		preparePrevSnapshot(migrationFolders, drySingleStore),
 	);
-	const serialized = await serializeSingleStore(schemaPath);
+	const serialized = await serializeSingleStore(schemaPath, casing);
 
 	const id = randomUUID();
 	const idPrev = prevSnapshot.id;
