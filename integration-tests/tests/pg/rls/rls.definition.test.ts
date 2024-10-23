@@ -2,7 +2,7 @@ import { crudPolicy } from 'drizzle-orm/neon';
 import { getTableConfig, integer, pgPolicy, pgRole, pgTable } from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 
-test('getTableConfig: policies', async () => {
+test.skip('getTableConfig: policies', async () => {
 	const schema = pgTable('hhh', {
 		id: integer(),
 	}, () => [

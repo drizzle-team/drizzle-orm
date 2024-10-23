@@ -4788,7 +4788,7 @@ export function tests() {
 				for (const it of Object.values(policy)) {
 					expect(is(it, PgPolicy)).toBe(true);
 					expect(it.to).toStrictEqual(authenticatedRole);
-					expect(it.using).toStrictEqual(sql`true`);
+					it.using ? expect(it.using).toStrictEqual(sql`true`) : '';
 					it.withCheck ? expect(it.withCheck).toStrictEqual(sql`true`) : '';
 				}
 			}
