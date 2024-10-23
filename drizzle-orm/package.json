@@ -130,6 +130,9 @@
 		"@libsql/client": {
 			"optional": true
 		},
+		"@libsql/client-wasm": {
+			"optional": true
+		},
 		"@opentelemetry/api": {
 			"optional": true
 		},
