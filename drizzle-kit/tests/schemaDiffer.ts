@@ -1290,10 +1290,10 @@ export const diffTestSchemasSingleStore = async (
 	return { sqlStatements, statements };
 };
 
-export const diffTestSchemasPushSinglestore = async (
+export const diffTestSchemasPushSingleStore = async (
 	client: Connection,
-	left: SingleStoreSchema,
-	right: SingleStoreSchema,
+	left: SinglestoreSchema,
+	right: SinglestoreSchema,
 	renamesArr: string[],
 	schema: string,
 	cli: boolean = false,
@@ -1374,13 +1374,14 @@ export const diffTestSchemasPushSinglestore = async (
 	}
 };
 
-export const applySingleStoreDiffs = async (sn: SingleStoreSchema, casing: CasingType | undefined) => {
+export const applySingleStoreDiffs = async (sn: SinglestoreSchema, casing: CasingType | undefined) => {
 	const dryRun = {
 		version: '1',
 		dialect: 'singlestore',
 		id: '0',
 		prevId: '0',
 		tables: {},
+		views: {},
 		enums: {},
 		schemas: {},
 		_meta: {
@@ -2070,7 +2071,7 @@ export const introspectMySQLToFile = async (
 
 export const introspectSingleStoreToFile = async (
 	client: Connection,
-	initSchema: SingleStoreSchema,
+	initSchema: SinglestoreSchema,
 	testName: string,
 	schema: string,
 	casing?: CasingType | undefined,

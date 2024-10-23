@@ -1,7 +1,6 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
-import type { CheckBuilder } from './checks.ts';
 import { getSingleStoreColumnBuilders, type SingleStoreColumnBuilders } from './columns/all.ts';
 import type { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreColumnBuilderBase } from './columns/common.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
@@ -11,15 +10,11 @@ import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 export type SingleStoreTableExtraConfig = Record<
 	string,
 	| AnyIndexBuilder
-	| CheckBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder
 >;
 
 export type TableConfig = TableConfigBase<SingleStoreColumn>;
-
-/** @internal */
-export const InlineForeignKeys = Symbol.for('drizzle:SingleStoreInlineForeignKeys');
 
 export class SingleStoreTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'SingleStoreTable';
@@ -78,6 +73,7 @@ export function singlestoreTableWithSchema<
 	const builtColumns = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as SingleStoreColumnBuilder;
+			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
 			return [name, column];
 		}),

@@ -12,9 +12,9 @@ import {
 	int,
 	json,
 	mediumint,
+	serial,
 	singlestoreEnum,
 	singlestoreTable,
-	serial,
 	smallint,
 	text,
 	time,
@@ -26,7 +26,7 @@ import {
 } from 'drizzle-orm/singlestore-core';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
-import { diffTestSchemasSingleStore, diffTestSchemasPushSingleStore } from 'tests/schemaDiffer';
+import { diffTestSchemasPushSingleStore, diffTestSchemasSingleStore } from 'tests/schemaDiffer';
 import { v4 as uuid } from 'uuid';
 import { expect } from 'vitest';
 import { DialectSuite, run } from './common';
@@ -667,7 +667,7 @@ const singlestoreSuite: DialectSuite = {
 run(
 	singlestoreSuite,
 	async (context: any) => {
-		const connectionString = process.env.MYSQL_CONNECTION_STRING ?? await createDockerDB(context);
+		const connectionString = process.env.SINGLESTORE_CONNECTION_STRING ?? await createDockerDB(context);
 
 		const sleep = 1000;
 		let timeLeft = 20000;
@@ -686,7 +686,7 @@ run(
 			}
 		} while (timeLeft > 0);
 		if (!connected) {
-			console.error('Cannot connect to MySQL');
+			console.error('Cannot connect to SingleStore');
 			await context.client?.end().catch(console.error);
 			await context.singlestoreContainer?.stop().catch(console.error);
 			throw lastError;

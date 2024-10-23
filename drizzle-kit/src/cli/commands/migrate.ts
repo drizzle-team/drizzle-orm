@@ -13,7 +13,12 @@ import {
 import chalk from 'chalk';
 import { render } from 'hanji';
 import path, { join } from 'path';
-import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
+import {
+	SingleStoreSchema,
+	singlestoreSchema,
+	squashSingleStoreScheme,
+	ViewSquashed as SingleStoreViewSquashed,
+} from 'src/serializer/singlestoreSchema';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
@@ -121,6 +126,28 @@ export const viewsResolver = async (
 export const mySqlViewsResolver = async (
 	input: ResolverInput<ViewSquashed & { schema: '' }>,
 ): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const singleStoreViewsResolver = async (
+	input: ResolverInput<SingleStoreViewSquashed & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<SingleStoreViewSquashed>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,
@@ -530,11 +557,13 @@ function singleStoreSchemaSuggestions(
 export const prepareSingleStorePush = async (
 	schemaPath: string | string[],
 	snapshot: SingleStoreSchema,
+	casing: CasingType | undefined,
 ) => {
 	try {
 		const { prev, cur } = await prepareSingleStoreDbPushSnapshot(
 			snapshot,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = singlestoreSchema.parse(prev);
@@ -548,6 +577,7 @@ export const prepareSingleStorePush = async (
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -563,6 +593,7 @@ export const prepareSingleStorePush = async (
 export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
+	const casing = config.casing;
 
 	try {
 		// TODO: remove
@@ -572,6 +603,7 @@ export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await prepareSingleStoreMigrationSnapshot(
 			snapshots,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = singlestoreSchema.parse(prev);
@@ -594,11 +626,12 @@ export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 		const squashedPrev = squashSingleStoreScheme(validatedPrev);
 		const squashedCur = squashSingleStoreScheme(validatedCur);
 
-		const { sqlStatements, statements, _meta } = await applySingleStoreSnapshotsDiff(
+		const { sqlStatements, _meta } = await applySingleStoreSnapshotsDiff(
 			squashedPrev,
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);

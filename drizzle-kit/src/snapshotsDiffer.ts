@@ -22,6 +22,7 @@ import {
 	JsonAddColumnStatement,
 	JsonAlterCompositePK,
 	JsonAlterMySqlViewStatement,
+	JsonAlterSingleStoreViewStatement,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
 	JsonAlterViewStatement,
@@ -30,6 +31,7 @@ import {
 	JsonCreateMySqlViewStatement,
 	JsonCreatePgViewStatement,
 	JsonCreateReferenceStatement,
+	JsonCreateSingleStoreViewStatement,
 	JsonCreateSqliteViewStatement,
 	JsonCreateUniqueConstraint,
 	JsonDeleteCheckConstraint,
@@ -50,7 +52,6 @@ import {
 	prepareAddUniqueConstraintPg as prepareAddUniqueConstraint,
 	prepareAddValuesToEnumJson,
 	prepareAlterColumnsMysql,
-	prepareAlterColumnsSingleStore,
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
 	prepareAlterCompositePrimaryKeySingleStore,
@@ -98,7 +99,9 @@ import {
 	prepareRenameSequenceJson,
 	prepareRenameTableJson,
 	prepareRenameViewJson,
+	prepareSingleStoreAlterView,
 	prepareSingleStoreCreateTableJson,
+	prepareSingleStoreCreateViewJson,
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
 	prepareSqliteCreateViewJson,
@@ -2140,7 +2143,11 @@ export const applySingleStoreSnapshotsDiff = async (
 	// squash indexes and fks
 
 	// squash uniqueIndexes and uniqueConstraint into constraints object
-	// it should be done for singlestore only because it has no diffs for it
+	// it should be done for mysql only because it has no diffs for it
+
+	// TODO: @AndriiSherman
+	// Add an upgrade to v6 and move all snaphosts to this strcutre
+	// After that we can generate mysql in 1 object directly(same as sqlite)
 	for (const tableName in json1.tables) {
 		const table = json1.tables[tableName];
 		for (const indexName in table.indexes) {
@@ -2266,9 +2273,40 @@ export const applySingleStoreSnapshotsDiff = async (
 		},
 	);
 
-	const diffResult = applyJsonDiff(columnsPatchedSnap1, json2);
+	const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
 
-	const typedResult: DiffResultSingleStore = diffResultSchemeSingleStore.parse(diffResult);
+	const {
+		created: createdViews,
+		deleted: deletedViews,
+		renamed: renamedViews, // renamed or moved
+	} = await viewsResolver({
+		created: viewsDiff.added,
+		deleted: viewsDiff.deleted,
+	});
+
+	const renamesViewDic: Record<string, { to: string; from: string }> = {};
+	renamedViews.forEach((it) => {
+		renamesViewDic[it.from.name] = { to: it.to.name, from: it.from.name };
+	});
+
+	const viewsPatchedSnap1 = copy(columnsPatchedSnap1);
+	viewsPatchedSnap1.views = mapEntries(
+		viewsPatchedSnap1.views,
+		(viewKey, viewValue) => {
+			const rename = renamesViewDic[viewValue.name];
+
+			if (rename) {
+				viewValue.name = rename.to;
+				viewKey = rename.to;
+			}
+
+			return [viewKey, viewValue];
+		},
+	);
+
+	const diffResult = applyJsonDiff(viewsPatchedSnap1, json2);
+
+	const typedResult: DiffResultMysql = diffResultSchemeMysql.parse(diffResult);
 
 	const jsonStatements: JsonStatement[] = [];
 
@@ -2300,6 +2338,9 @@ export const applySingleStoreSnapshotsDiff = async (
 	const jsonAddedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
 	const jsonDeletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 	const jsonAlteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
+
+	const jsonCreatedCheckConstraints: JsonCreateCheckConstraint[] = [];
+	const jsonDeletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
 
 	const jsonRenameColumnsStatements: JsonRenameColumnStatement[] = columnRenames
 		.map((it) => prepareRenameColumns(it.table, '', it.renames))
@@ -2362,6 +2403,9 @@ export const applySingleStoreSnapshotsDiff = async (
 		let deletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 		let alteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
 
+		let createdCheckConstraints: JsonCreateCheckConstraint[] = [];
+		let deletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+
 		addedUniqueConstraints = prepareAddUniqueConstraint(
 			it.name,
 			it.schema,
@@ -2387,6 +2431,26 @@ export const applySingleStoreSnapshotsDiff = async (
 			);
 		}
 
+		createdCheckConstraints = prepareAddCheckConstraint(it.name, it.schema, it.addedCheckConstraints);
+		deletedCheckConstraints = prepareDeleteCheckConstraint(
+			it.name,
+			it.schema,
+			it.deletedCheckConstraints,
+		);
+
+		// skip for push
+		if (it.alteredCheckConstraints && action !== 'push') {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+
+			for (const k of Object.keys(it.alteredCheckConstraints)) {
+				added[k] = it.alteredCheckConstraints[k].__new;
+				deleted[k] = it.alteredCheckConstraints[k].__old;
+			}
+			createdCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
+			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+		}
+
 		jsonAddedCompositePKs.push(...addedCompositePKs);
 		jsonDeletedCompositePKs.push(...deletedCompositePKs);
 		jsonAlteredCompositePKs.push(...alteredCompositePKs);
@@ -2394,6 +2458,9 @@ export const applySingleStoreSnapshotsDiff = async (
 		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
 		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
 		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+
+		jsonCreatedCheckConstraints.push(...createdCheckConstraints);
+		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);
 	});
 
 	const rColumns = jsonRenameColumnsStatements.map((it) => {
@@ -2407,7 +2474,7 @@ export const applySingleStoreSnapshotsDiff = async (
 
 	const jsonTableAlternations = alteredTables
 		.map((it) => {
-			return prepareAlterColumnsSingleStore(
+			return prepareAlterColumnsMysql(
 				it.name,
 				it.schema,
 				it.altered,
@@ -2470,13 +2537,85 @@ export const applySingleStoreSnapshotsDiff = async (
 			curFull.internal,
 		);
 	});
+
+	const createViews: JsonCreateSingleStoreViewStatement[] = [];
+	const dropViews: JsonDropViewStatement[] = [];
+	const renameViews: JsonRenameViewStatement[] = [];
+	const alterViews: JsonAlterSingleStoreViewStatement[] = [];
+
+	createViews.push(
+		...createdViews.filter((it) => !it.isExisting).map((it) => {
+			return prepareSingleStoreCreateViewJson(
+				it.name,
+				it.definition!,
+				it.meta,
+			);
+		}),
+	);
+
+	dropViews.push(
+		...deletedViews.filter((it) => !it.isExisting).map((it) => {
+			return prepareDropViewJson(it.name);
+		}),
+	);
+
+	renameViews.push(
+		...renamedViews.filter((it) => !it.to.isExisting && !json1.views[it.from.name].isExisting).map((it) => {
+			return prepareRenameViewJson(it.to.name, it.from.name);
+		}),
+	);
+
+	const alteredViews = typedResult.alteredViews.filter((it) => !json2.views[it.name].isExisting);
+
+	for (const alteredView of alteredViews) {
+		const { definition, meta } = json2.views[alteredView.name];
+
+		if (alteredView.alteredExisting) {
+			dropViews.push(prepareDropViewJson(alteredView.name));
+
+			createViews.push(
+				prepareSingleStoreCreateViewJson(
+					alteredView.name,
+					definition!,
+					meta,
+				),
+			);
+
+			continue;
+		}
+
+		if (alteredView.alteredDefinition && action !== 'push') {
+			createViews.push(
+				prepareSingleStoreCreateViewJson(
+					alteredView.name,
+					definition!,
+					meta,
+					true,
+				),
+			);
+			continue;
+		}
+
+		if (alteredView.alteredMeta) {
+			const view = curFull['views'][alteredView.name];
+			alterViews.push(
+				prepareSingleStoreAlterView(view),
+			);
+		}
+	}
+
 	jsonStatements.push(...jsonSingleStoreCreateTables);
 
 	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonRenameTables);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
+	jsonStatements.push(...dropViews);
+	jsonStatements.push(...renameViews);
+	jsonStatements.push(...alterViews);
+
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
+	jsonStatements.push(...jsonDeletedCheckConstraints);
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
@@ -2492,6 +2631,7 @@ export const applySingleStoreSnapshotsDiff = async (
 	jsonStatements.push(...jsonAddColumnsStatemets);
 
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
+	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
 
@@ -2501,11 +2641,11 @@ export const applySingleStoreSnapshotsDiff = async (
 	// jsonStatements.push(...jsonAddedCompositePKs);
 	jsonStatements.push(...jsonAlteredCompositePKs);
 
-	jsonStatements.push(...jsonAddedUniqueConstraints);
+	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
-	const sqlStatements = fromJson(jsonStatements, 'singlestore');
+	const sqlStatements = fromJson(jsonStatements, 'mysql');
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {

@@ -1,4 +1,3 @@
-import { ColumnBuilder } from '~/column-builder.ts';
 import type {
 	ColumnBuilderBase,
 	ColumnBuilderBaseConfig,
@@ -10,6 +9,7 @@ import type {
 	IsAutoincrement,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
+import { ColumnBuilder } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';

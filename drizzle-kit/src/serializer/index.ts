@@ -88,6 +88,7 @@ export const serializeSQLite = async (
 
 export const serializeSingleStore = async (
 	path: string | string[],
+	casing: CasingType | undefined,
 ): Promise<SingleStoreSchemaInternal> => {
 	const filenames = prepareFilenames(path);
 
@@ -96,9 +97,9 @@ export const serializeSingleStore = async (
 	const { prepareFromSingleStoreImports } = await import('./singlestoreImports');
 	const { generateSingleStoreSnapshot } = await import('./singlestoreSerializer');
 
-	const { tables } = await prepareFromSingleStoreImports(filenames);
+	const { tables, views } = await prepareFromSingleStoreImports(filenames);
 
-	return generateSingleStoreSnapshot(tables);
+	return generateSingleStoreSnapshot(tables, views, casing);
 };
 
 export const prepareFilenames = (path: string | string[]) => {

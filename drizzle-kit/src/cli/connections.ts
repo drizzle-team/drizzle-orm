@@ -58,7 +58,7 @@ export const preparePostgresDB = async (
 			);
 
 			const db = drizzle(rdsClient, config);
-			const migrateFn = async (config: string | MigrationConfig) => {
+			const migrateFn = async (config: MigrationConfig) => {
 				return migrate(db, config);
 			};
 
@@ -165,7 +165,7 @@ export const preparePostgresDB = async (
 			: new pg.default.Pool({ ...credentials, ssl, max: 1 });
 
 		const db = drizzle(client);
-		const migrateFn = async (config: string | MigrationConfig) => {
+		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
 
@@ -200,7 +200,7 @@ export const preparePostgresDB = async (
 			: postgres.default({ ...credentials, max: 1 });
 
 		const db = drizzle(client);
-		const migrateFn = async (config: string | MigrationConfig) => {
+		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
 
@@ -248,7 +248,7 @@ export const preparePostgresDB = async (
 		await client.connect();
 
 		const db = drizzle(client);
-		const migrateFn = async (config: string | MigrationConfig) => {
+		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
 
@@ -300,7 +300,7 @@ export const preparePostgresDB = async (
 		neonConfig.webSocketConstructor = ws;
 
 		const db = drizzle(client);
-		const migrateFn = async (config: string | MigrationConfig) => {
+		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
 
