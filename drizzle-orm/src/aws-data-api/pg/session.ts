@@ -10,11 +10,11 @@ import type { Logger } from '~/logger.ts';
 import {
 	type PgDialect,
 	PgPreparedQuery,
+	type PgQueryResultHKT,
 	PgSession,
 	PgTransaction,
 	type PgTransactionConfig,
 	type PreparedQueryConfig,
-	type QueryResultHKT,
 } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -27,7 +27,7 @@ export type AwsDataApiClient = RDSDataClient;
 export class AwsDataApiPreparedQuery<
 	T extends PreparedQueryConfig & { values: AwsDataApiPgQueryResult<unknown[]> },
 > extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
+	static override readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
 
 	private rawQuery: ExecuteStatementCommand;
 
@@ -154,7 +154,7 @@ export class AwsDataApiSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'AwsDataApiSession';
+	static override readonly [entityKind]: string = 'AwsDataApiSession';
 
 	/** @internal */
 	readonly rawQuery: AwsDataApiQueryBase;
@@ -239,7 +239,7 @@ export class AwsDataApiTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'AwsDataApiTransaction';
+	static override readonly [entityKind]: string = 'AwsDataApiTransaction';
 
 	override async transaction<T>(
 		transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>,
@@ -265,6 +265,6 @@ export class AwsDataApiTransaction<
 
 export type AwsDataApiPgQueryResult<T> = ExecuteStatementCommandOutput & { rows: T[] };
 
-export interface AwsDataApiPgQueryResultHKT extends QueryResultHKT {
+export interface AwsDataApiPgQueryResultHKT extends PgQueryResultHKT {
 	type: AwsDataApiPgQueryResult<any>;
 }

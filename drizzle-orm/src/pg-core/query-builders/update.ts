@@ -3,10 +3,10 @@ import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
 	PgPreparedQuery,
+	PgQueryResultHKT,
+	PgQueryResultKind,
 	PgSession,
 	PreparedQueryConfig,
-	QueryResultHKT,
-	QueryResultKind,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
@@ -29,13 +29,13 @@ export interface PgUpdateConfig {
 
 export type PgUpdateSetSource<TTable extends PgTable> =
 	& {
-		[Key in keyof TTable['_']['columns']]?:
+		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL;
 	}
 	& {};
 
-export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends QueryResultHKT> {
+export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQueryResultHKT> {
 	static readonly [entityKind]: string = 'PgUpdateBuilder';
 
 	declare readonly _: {
@@ -105,7 +105,7 @@ export type PgUpdateReturning<
 
 export type PgUpdatePrepare<T extends AnyPgUpdate> = PgPreparedQuery<
 	PreparedQueryConfig & {
-		execute: T['_']['returning'] extends undefined ? QueryResultKind<T['_']['queryResult'], never>
+		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];
 	}
 >;
@@ -118,7 +118,7 @@ export type PgUpdateDynamic<T extends AnyPgUpdate> = PgUpdate<
 
 export type PgUpdate<
 	TTable extends PgTable = PgTable,
-	TQueryResult extends QueryResultHKT = QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = PgUpdateBase<TTable, TQueryResult, TReturning, true, never>;
 
@@ -126,13 +126,13 @@ type AnyPgUpdate = PgUpdateBase<any, any, any, any, any>;
 
 export interface PgUpdateBase<
 	TTable extends PgTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends
-	QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>,
-	RunnableQuery<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
+	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
 {
 	readonly _: {
@@ -142,24 +142,24 @@ export interface PgUpdateBase<
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
-		readonly result: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
+		readonly result: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 	};
 }
 
 export class PgUpdateBase<
 	TTable extends PgTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
+> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
 	implements
-		RunnableQuery<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgUpdate';
+	static override readonly [entityKind]: string = 'PgUpdate';
 
 	private config: PgUpdateConfig;
 

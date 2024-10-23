@@ -6,11 +6,11 @@ import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery as PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
-import { fillPlaceholders, type Query } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
@@ -25,7 +25,7 @@ const queryConfig = {
 } as const;
 
 export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'NeonHttpPreparedQuery';
+	static override readonly [entityKind]: string = 'NeonHttpPreparedQuery';
 
 	constructor(
 		private client: NeonHttpClient,
@@ -94,7 +94,7 @@ export class NeonHttpSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<NeonHttpQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NeonHttpSession';
+	static override readonly [entityKind]: string = 'NeonHttpSession';
 
 	private logger: Logger;
 
@@ -161,6 +161,14 @@ export class NeonHttpSession<
 		return this.client(query, params, { arrayMode: false, fullResults: true });
 	}
 
+	override async count(sql: SQL): Promise<number> {
+		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
+
+		return Number(
+			res['rows'][0]['count'],
+		);
+	}
+
 	override async transaction<T>(
 		_transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -174,7 +182,7 @@ export class NeonTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<NeonHttpQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NeonHttpTransaction';
+	static override readonly [entityKind]: string = 'NeonHttpTransaction';
 
 	override async transaction<T>(_transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		throw new Error('No transactions support in neon-http driver');
@@ -194,6 +202,6 @@ export class NeonTransaction<
 
 export type NeonHttpQueryResult<T> = Omit<FullQueryResults<false>, 'rows'> & { rows: T[] };
 
-export interface NeonHttpQueryResultHKT extends QueryResultHKT {
+export interface NeonHttpQueryResultHKT extends PgQueryResultHKT {
 	type: NeonHttpQueryResult<this['row']>;
 }

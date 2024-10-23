@@ -3,10 +3,10 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
 import type {
 	PgPreparedQuery,
+	PgQueryResultHKT,
+	PgQueryResultKind,
 	PgSession,
 	PreparedQueryConfig,
-	QueryResultHKT,
-	QueryResultKind,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
@@ -36,7 +36,7 @@ export type PgInsertValue<TTable extends PgTable> =
 	}
 	& {};
 
-export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryResultHKT> {
+export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQueryResultHKT> {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
 
 	constructor(
@@ -112,7 +112,7 @@ export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 
 export type PgInsertPrepare<T extends AnyPgInsert> = PgPreparedQuery<
 	PreparedQueryConfig & {
-		execute: T['_']['returning'] extends undefined ? QueryResultKind<T['_']['queryResult'], never>
+		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];
 	}
 >;
@@ -127,19 +127,19 @@ export type AnyPgInsert = PgInsertBase<any, any, any, any, any>;
 
 export type PgInsert<
 	TTable extends PgTable = PgTable,
-	TQueryResult extends QueryResultHKT = QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = PgInsertBase<TTable, TQueryResult, TReturning, true, never>;
 
 export interface PgInsertBase<
 	TTable extends PgTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends
-	QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>,
-	RunnableQuery<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
+	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
 {
 	readonly _: {
@@ -149,24 +149,24 @@ export interface PgInsertBase<
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
-		readonly result: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
+		readonly result: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 	};
 }
 
 export class PgInsertBase<
 	TTable extends PgTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
+> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
 	implements
-		RunnableQuery<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgInsert';
+	static override readonly [entityKind]: string = 'PgInsert';
 
 	private config: PgInsertConfig<TTable>;
 
@@ -242,8 +242,8 @@ export class PgInsertBase<
 		} else {
 			let targetColumn = '';
 			targetColumn = Array.isArray(config.target)
-				? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
-				: this.dialect.escapeName(config.target.name);
+				? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
+				: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
 
 			const whereSql = config.where ? sql` where ${config.where}` : undefined;
 			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
@@ -294,8 +294,8 @@ export class PgInsertBase<
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		let targetColumn = '';
 		targetColumn = Array.isArray(config.target)
-			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
-			: this.dialect.escapeName(config.target.name);
+			? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
+			: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
 		this.config.onConflict = sql`(${
 			sql.raw(targetColumn)
 		})${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
@@ -317,7 +317,7 @@ export class PgInsertBase<
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
-					execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
+					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
 			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
 		});

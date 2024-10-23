@@ -1,18 +1,19 @@
 import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
-import { entityKind } from '~/entity.ts';
+import { Column } from '~/column.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import { MySqlTransaction } from '~/mysql-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import type {
+	MySqlPreparedQueryConfig,
+	MySqlPreparedQueryHKT,
+	MySqlQueryResultHKT,
 	MySqlTransactionConfig,
-	PreparedQueryConfig,
-	PreparedQueryHKT,
 	PreparedQueryKind,
-	QueryResultHKT,
 } from '~/mysql-core/session.ts';
-import { MySqlSession, PreparedQuery as PreparedQueryBase } from '~/mysql-core/session.ts';
+import { MySqlPreparedQuery as PreparedQueryBase, MySqlSession } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
@@ -29,7 +30,7 @@ export class MySqlRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlSession<MySqlRemoteQueryResultHKT, MySqlRemotePreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySqlRemoteSession';
+	static override readonly [entityKind]: string = 'MySqlRemoteSession';
 
 	private logger: Logger;
 
@@ -43,10 +44,12 @@ export class MySqlRemoteSession<
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	prepareQuery<T extends PreparedQueryConfig>(
+	prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<MySqlRemotePreparedQueryHKT, T> {
 		return new PreparedQuery(
 			this.client,
@@ -55,6 +58,8 @@ export class MySqlRemoteSession<
 			this.logger,
 			fields,
 			customResultMapper,
+			generatedIds,
+			returningIds,
 		) as PreparedQueryKind<MySqlRemotePreparedQueryHKT, T>;
 	}
 
@@ -76,7 +81,7 @@ export class MySqlProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlTransaction<MySqlRemoteQueryResultHKT, MySqlRemotePreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySqlProxyTransaction';
+	static override readonly [entityKind]: string = 'MySqlProxyTransaction';
 
 	override async transaction<T>(
 		_transaction: (tx: MySqlProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
@@ -85,8 +90,8 @@ export class MySqlProxyTransaction<
 	}
 }
 
-export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryBase<T> {
-	static readonly [entityKind]: string = 'MySqlProxyPreparedQuery';
+export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQueryBase<T> {
+	static override readonly [entityKind]: string = 'MySqlProxyPreparedQuery';
 
 	constructor(
 		private client: RemoteCallback,
@@ -95,6 +100,10 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		// Keys that were used in $default and the value that was generated for them
+		private generatedIds?: Record<string, unknown>[],
+		// Keys that should be returned, it has the column with all properries + key from object
+		private returningIds?: SelectedFieldsOrdered,
 	) {
 		super();
 	}
@@ -102,14 +111,41 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
-		const { fields, client, queryString, logger, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, client, queryString, logger, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =
+			this;
 
 		logger.logQuery(queryString, params);
 
 		if (!fields && !customResultMapper) {
-			const { rows } = await client(queryString, params, 'execute');
+			const { rows: data } = await client(queryString, params, 'execute');
 
-			return rows;
+			const insertId = data[0].insertId as number;
+			const affectedRows = data[0].affectedRows;
+
+			if (returningIds) {
+				const returningResponse = [];
+				let j = 0;
+				for (let i = insertId; i < insertId + affectedRows; i++) {
+					for (const column of returningIds) {
+						const key = returningIds[0]!.path[0]!;
+						if (is(column.field, Column)) {
+							// @ts-ignore
+							if (column.field.primary && column.field.autoIncrement) {
+								returningResponse.push({ [key]: i });
+							}
+							if (column.field.defaultFn && generatedIds) {
+								// generatedIds[rowIdx][key]
+								returningResponse.push({ [key]: generatedIds[j]![key] });
+							}
+						}
+					}
+					j++;
+				}
+
+				return returningResponse;
+			}
+
+			return data;
 		}
 
 		const { rows } = await client(queryString, params, 'all');
@@ -128,10 +164,10 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 	}
 }
 
-export interface MySqlRemoteQueryResultHKT extends QueryResultHKT {
+export interface MySqlRemoteQueryResultHKT extends MySqlQueryResultHKT {
 	type: MySqlRawQueryResult;
 }
 
-export interface MySqlRemotePreparedQueryHKT extends PreparedQueryHKT {
-	type: PreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
+export interface MySqlRemotePreparedQueryHKT extends MySqlPreparedQueryHKT {
+	type: PreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
 }

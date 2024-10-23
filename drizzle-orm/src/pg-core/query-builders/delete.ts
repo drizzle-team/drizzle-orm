@@ -2,10 +2,10 @@ import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
 	PgPreparedQuery,
+	PgQueryResultHKT,
+	PgQueryResultKind,
 	PgSession,
 	PreparedQueryConfig,
-	QueryResultHKT,
-	QueryResultKind,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
@@ -37,7 +37,7 @@ export type PgDeleteWithout<
 
 export type PgDelete<
 	TTable extends PgTable = PgTable,
-	TQueryResult extends QueryResultHKT = QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = PgDeleteBase<TTable, TQueryResult, TReturning, true, never>;
 
@@ -81,7 +81,7 @@ export type PgDeleteReturning<
 
 export type PgDeletePrepare<T extends AnyPgDeleteBase> = PgPreparedQuery<
 	PreparedQueryConfig & {
-		execute: T['_']['returning'] extends undefined ? QueryResultKind<T['_']['queryResult'], never>
+		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];
 	}
 >;
@@ -96,13 +96,13 @@ export type AnyPgDeleteBase = PgDeleteBase<any, any, any, any, any>;
 
 export interface PgDeleteBase<
 	TTable extends PgTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends
-	QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>,
-	RunnableQuery<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
+	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
 {
 	readonly _: {
@@ -112,23 +112,23 @@ export interface PgDeleteBase<
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
-		readonly result: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
+		readonly result: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 	};
 }
 
 export class PgDeleteBase<
 	TTable extends PgTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
+> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
 	implements
-		RunnableQuery<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgDelete';
+	static override readonly [entityKind]: string = 'PgDelete';
 
 	private config: PgDeleteConfig;
 
@@ -222,7 +222,7 @@ export class PgDeleteBase<
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
-					execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
+					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
 			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
 		});

@@ -1,0 +1,28 @@
+{
+	"compilerOptions": {
+		"target": "es2021",
+		"lib": ["es2021"],
+		"types": ["node"],
+		"strictNullChecks": true,
+		"strictFunctionTypes": false,
+		"allowJs": true,
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"strict": true,
+		"noImplicitOverride": true,
+		"forceConsistentCasingInFileNames": true,
+		"module": "CommonJS",
+		"moduleResolution": "node",
+		"resolveJsonModule": true,
+		"noErrorTruncation": true,
+		"isolatedModules": true,
+		"sourceMap": true,
+		"baseUrl": ".",
+		"outDir": "dist",
+		"noEmit": true,
+		"typeRoots": ["node_modules/@types", "src/@types"]
+	},
+	"include": ["src", "dev", "tests", "drizzle.config.ts", "test.ts"],
+	"exclude": ["node_modules"]
+}

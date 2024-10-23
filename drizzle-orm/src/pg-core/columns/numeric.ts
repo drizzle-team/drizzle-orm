@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
@@ -11,6 +12,7 @@ export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNumeric'>> extends PgColumnBuilder<
@@ -20,9 +22,9 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 		scale: number | undefined;
 	}
 > {
-	static readonly [entityKind]: string = 'PgNumericBuilder';
+	static override readonly [entityKind]: string = 'PgNumericBuilder';
 
-	constructor(name: string, precision?: number, scale?: number) {
+	constructor(name: T['name'], precision?: number, scale?: number) {
 		super(name, 'string', 'PgNumeric');
 		this.config.precision = precision;
 		this.config.scale = scale;
@@ -37,7 +39,7 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 }
 
 export class PgNumeric<T extends ColumnBaseConfig<'string', 'PgNumeric'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgNumeric';
+	static override readonly [entityKind]: string = 'PgNumeric';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
@@ -59,13 +61,21 @@ export class PgNumeric<T extends ColumnBaseConfig<'string', 'PgNumeric'>> extend
 	}
 }
 
+export type PgNumericConfig =
+	| { precision: number; scale?: number }
+	| { precision?: number; scale: number }
+	| { precision: number; scale: number };
+
+export function numeric(): PgNumericBuilderInitial<''>;
+export function numeric(
+	config?: PgNumericConfig,
+): PgNumericBuilderInitial<''>;
 export function numeric<TName extends string>(
 	name: TName,
-	config?:
-		| { precision: number; scale?: number }
-		| { precision?: number; scale: number }
-		| { precision: number; scale: number },
-): PgNumericBuilderInitial<TName> {
+	config?: PgNumericConfig,
+): PgNumericBuilderInitial<TName>;
+export function numeric(a?: string | PgNumericConfig, b?: PgNumericConfig) {
+	const { name, config } = getColumnNameAndConfig<PgNumericConfig>(a, b);
 	return new PgNumericBuilder(name, config?.precision, config?.scale);
 }
 
