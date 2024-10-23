@@ -256,6 +256,7 @@ const tableScheme = object({
 	uniqueConstraints: record(string(), string()).default({}),
 	policies: record(string(), string()).default({}),
 	checkConstraints: record(string(), string()).default({}),
+	isRLSEnabled: boolean().default(false),
 }).strict();
 
 export const alteredTableScheme = object({
@@ -1370,9 +1371,6 @@ export const applyPgSnapshotsDiff = async (
 			);
 		});
 
-		// if there were no tables in json1 and is a table in json2 and it has policies -> enable
-		// if there was a table in json1 and is no table in json2 and it had policies -> disable
-
 		// Handle enabling and disabling RLS
 		for (const table of Object.values(json2.tables)) {
 			const policiesInCurrentState = Object.keys(table.policies);
@@ -1380,32 +1378,33 @@ export const applyPgSnapshotsDiff = async (
 				columnsPatchedSnap1.tables[`${table.schema === '' ? 'public' : table.schema}.${table.name}`];
 			const policiesInPreviousState = tableInPreviousState ? Object.keys(tableInPreviousState.policies) : [];
 
-			if (policiesInPreviousState.length === 0 && policiesInCurrentState.length > 0) {
+			if (policiesInPreviousState.length === 0 && policiesInCurrentState.length > 0 && !table.isRLSEnabled) {
 				jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
 			}
 
-			if (policiesInPreviousState.length > 0 && policiesInCurrentState.length === 0) {
+			if (policiesInPreviousState.length > 0 && policiesInCurrentState.length === 0 && !table.isRLSEnabled) {
 				jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+			}
+
+			// handle table.isRLSEnabled
+			if (table.isRLSEnabled !== tableInPreviousState.isRLSEnabled) {
+				if (table.isRLSEnabled) {
+					// was force enabled
+					jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
+				} else if (!table.isRLSEnabled && policiesInCurrentState.length === 0) {
+					// was force disabled
+					jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+				}
 			}
 		}
 
 		for (const table of Object.values(columnsPatchedSnap1.tables)) {
 			const tableInCurrentState = json2.tables[`${table.schema === '' ? 'public' : table.schema}.${table.name}`];
 
-			if (tableInCurrentState === undefined) {
+			if (tableInCurrentState === undefined && !table.isRLSEnabled) {
 				jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
 			}
 		}
-
-		// TODO
-		// Add to sql generators
-		// Test generate logic manually
-		// Add tests
-		// Add introspect
-		// add introspect-pg.ts - think about introspecting from supabase and neon
-		// add push logic - think about using with neon and supabase
-		// add push and introspect tests
-		// beta release
 
 		// handle indexes
 		const droppedIndexes = Object.keys(it.alteredIndexes).reduce(

@@ -455,6 +455,7 @@ const tableSquashed = object({
 	uniqueConstraints: record(string(), string()),
 	policies: record(string(), string()),
 	checkConstraints: record(string(), string()),
+	isRLSEnabled: boolean().default(false),
 }).strict();
 
 const tableSquashedV4 = object({
@@ -802,6 +803,7 @@ export const squashPgScheme = (
 					uniqueConstraints: squashedUniqueConstraints,
 					policies: squashedPolicies,
 					checkConstraints: squashedChecksContraints,
+					isRLSEnabled: it[1].isRLSEnabled ?? false,
 				},
 			];
 		}),

@@ -322,7 +322,8 @@ class PgCreateTableConvertor extends Convertor {
 	}
 
 	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies } = st;
+		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
+			st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
@@ -425,7 +426,7 @@ class PgCreateTableConvertor extends Convertor {
 			schema,
 		});
 
-		return [statement, ...(policies && policies.length > 0 ? [enableRls] : [])];
+		return [statement, ...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : [])];
 	}
 }
 

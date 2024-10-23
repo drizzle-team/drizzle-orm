@@ -257,7 +257,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 	}
 
 	return {
-		statementsToExecute,
+		statementsToExecute: [...new Set(statementsToExecute)],
 		shouldAskForApprove,
 		infoToPrint,
 		matViewsToRemove: [...new Set(matViewsToRemove)],

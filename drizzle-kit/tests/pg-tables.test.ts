@@ -37,6 +37,7 @@ test('add table #1', async () => {
 		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 	});
 });
@@ -64,6 +65,7 @@ test('add table #2', async () => {
 			},
 		],
 		compositePKs: [],
+		isRLSEnabled: false,
 		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
@@ -107,6 +109,7 @@ test('add table #3', async () => {
 		compositePKs: ['id;users_pk'],
 		policies: [],
 		uniqueConstraints: [],
+		isRLSEnabled: false,
 		checkConstraints: [],
 		compositePkName: 'users_pk',
 	});
@@ -130,6 +133,7 @@ test('add table #4', async () => {
 		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 	});
 	expect(statements[1]).toStrictEqual({
@@ -139,6 +143,7 @@ test('add table #4', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		checkConstraints: [],
 		compositePkName: '',
@@ -169,6 +174,7 @@ test('add table #5', async () => {
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
+		isRLSEnabled: false,
 	});
 });
 
@@ -194,6 +200,7 @@ test('add table #6', async () => {
 		policies: [],
 		compositePkName: '',
 		checkConstraints: [],
+		isRLSEnabled: false,
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
@@ -227,6 +234,7 @@ test('add table #7', async () => {
 		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		isRLSEnabled: false,
 		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
@@ -284,6 +292,7 @@ test('multiproject schema add table #1', async () => {
 		compositePKs: [],
 		policies: [],
 		compositePkName: '',
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		checkConstraints: [],
 	});
@@ -379,6 +388,7 @@ test('add schema + table #1', async () => {
 		policies: [],
 		columns: [],
 		compositePKs: [],
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],

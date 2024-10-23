@@ -597,6 +597,7 @@ test('create table with a policy', async (t) => {
 			],
 			schema: '',
 			tableName: 'users2',
+			isRLSEnabled: false,
 			type: 'create_table',
 			uniqueConstraints: [],
 		},
@@ -690,5 +691,111 @@ test('add policy with multiple "to" roles', async (t) => {
 			tableName: 'users',
 			type: 'create_policy',
 		},
+	]);
+});
+
+test('create table with rls enabled', async (t) => {
+	const schema1 = {};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY NOT NULL\n);
+`,
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+	]);
+
+	console.log(statements);
+});
+
+test('enable rls force', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;']);
+});
+
+test('disable rls force', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;']);
+});
+
+test('drop policy with enabled rls', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { to: ['current_role', role] }),
+		})).enableRLS(),
+	};
+
+	const role = pgRole('manager').existing();
+
+	const schema2 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP POLICY "test" ON "users" CASCADE;',
+	]);
+});
+
+test('add policy with enabled rls', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const role = pgRole('manager').existing();
+
+	const schema2 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { to: ['current_role', role] }),
+		})).enableRLS(),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_role, "manager";',
 	]);
 });

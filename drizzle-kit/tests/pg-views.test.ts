@@ -27,6 +27,7 @@ test('create table and view #1', async () => {
 		}],
 		compositePKs: [],
 		uniqueConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 		checkConstraints: [],
 		policies: [],
@@ -74,6 +75,7 @@ test('create table and view #2', async () => {
 		}],
 		compositePKs: [],
 		uniqueConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 		policies: [],
 		checkConstraints: [],
@@ -132,6 +134,7 @@ test('create table and view #3', async () => {
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
+		isRLSEnabled: false,
 		policies: [],
 	});
 	expect(statements[1]).toStrictEqual({
@@ -218,6 +221,7 @@ test('create table and view #4', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		isRLSEnabled: false,
 		policies: [],
 		checkConstraints: [],
 	});
@@ -306,6 +310,7 @@ test('create table and view #6', async () => {
 		type: 'create_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isRLSEnabled: false,
 		policies: [],
 	});
 	expect(statements[1]).toStrictEqual({
@@ -375,6 +380,7 @@ test('create table and materialized view #1', async () => {
 		}],
 		compositePKs: [],
 		uniqueConstraints: [],
+		isRLSEnabled: false,
 		policies: [],
 		compositePkName: '',
 		checkConstraints: [],
@@ -423,6 +429,7 @@ test('create table and materialized view #2', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		isRLSEnabled: false,
 		policies: [],
 		checkConstraints: [],
 	});
@@ -489,6 +496,7 @@ test('create table and materialized view #3', async () => {
 		}],
 		compositePKs: [],
 		uniqueConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 		policies: [],
 		checkConstraints: [],
@@ -590,6 +598,7 @@ test('create table and materialized view #5', async () => {
 		tableName: 'users',
 		type: 'create_table',
 		uniqueConstraints: [],
+		isRLSEnabled: false,
 		policies: [],
 		checkConstraints: [],
 	});

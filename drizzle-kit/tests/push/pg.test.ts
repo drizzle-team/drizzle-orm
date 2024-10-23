@@ -536,6 +536,7 @@ const pgSuite: DialectSuite = {
 				],
 				compositePKs: [],
 				compositePkName: '',
+				isRLSEnabled: false,
 				schema: '',
 				tableName: 'users',
 				policies: [],
@@ -1214,6 +1215,7 @@ test('create table: identity always/by default - no params', async () => {
 			policies: [],
 			type: 'create_table',
 			uniqueConstraints: [],
+			isRLSEnabled: false,
 			checkConstraints: [],
 		},
 	]);
@@ -1275,6 +1277,7 @@ test('create table: identity always/by default - few params', async () => {
 			schema: '',
 			tableName: 'users',
 			type: 'create_table',
+			isRLSEnabled: false,
 			uniqueConstraints: [],
 			checkConstraints: [],
 		},
@@ -1343,6 +1346,7 @@ test('create table: identity always/by default - all params', async () => {
 			tableName: 'users',
 			type: 'create_table',
 			policies: [],
+			isRLSEnabled: false,
 			uniqueConstraints: [],
 			checkConstraints: [],
 		},
@@ -2796,6 +2800,11 @@ test('drop policy', async () => {
 	expect(statements).toStrictEqual([
 		{ type: 'disable_rls', tableName: 'users', schema: '' },
 		{
+			schema: '',
+			tableName: 'users',
+			type: 'disable_rls',
+		},
+		{
 			type: 'drop_policy',
 			tableName: 'users',
 			data: {
@@ -3451,6 +3460,7 @@ test('create table with a policy', async (t) => {
 			],
 			checkConstraints: [],
 			compositePKs: [],
+			isRLSEnabled: false,
 			compositePkName: '',
 			policies: [
 				'test--PERMISSIVE--ALL--public',

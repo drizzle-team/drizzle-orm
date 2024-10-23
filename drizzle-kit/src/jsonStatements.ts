@@ -51,6 +51,7 @@ export interface JsonCreateTableStatement {
 	policies?: string[];
 	checkConstraints?: string[];
 	internals?: MySqlKitInternals;
+	isRLSEnabled?: boolean;
 }
 
 export interface JsonRecreateTableStatement {
@@ -822,7 +823,8 @@ export const preparePgCreateTableJson = (
 	// TODO: remove?
 	json2: PgSchema,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints, policies } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
+		table;
 	const tableKey = `${schema || 'public'}.${name}`;
 
 	// TODO: @AndriiSherman. We need this, will add test cases
@@ -842,6 +844,7 @@ export const preparePgCreateTableJson = (
 		uniqueConstraints: Object.values(uniqueConstraints),
 		policies: Object.values(policies),
 		checkConstraints: Object.values(checkConstraints),
+		isRLSEnabled: isRLSEnabled ?? false,
 	};
 };
 
