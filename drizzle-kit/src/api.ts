@@ -28,6 +28,8 @@ import { generatePgSnapshot } from './serializer/pgSerializer';
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './serializer/sqliteSchema';
 import { generateSqliteSnapshot } from './serializer/sqliteSerializer';
 import type { DB, SQLiteDB } from './utils';
+import type { Config } from './index'
+import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions'
 export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
@@ -92,9 +94,14 @@ export const pushSchema = async (
 	imports: Record<string, unknown>,
 	drizzleInstance: PgDatabase<any>,
 	schemaFilters?: string[],
+	tablesFilter?: string[],
+	extensionsFilters?: Config['extensionsFilters'],
 ) => {
 	const { applyPgSnapshotsDiff } = await import('./snapshotsDiffer');
 	const { sql } = await import('drizzle-orm');
+	const filters = (tablesFilter ?? []).concat(
+		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' })
+	);
 
 	const db: DB = {
 		query: async (query: string, params?: any[]) => {
@@ -106,7 +113,7 @@ export const pushSchema = async (
 	const cur = generateDrizzleJson(imports);
 	const { schema: prev } = await pgPushIntrospect(
 		db,
-		[],
+		filters,
 		schemaFilters ?? ['public'],
 	);
 
