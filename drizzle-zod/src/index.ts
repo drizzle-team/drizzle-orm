@@ -42,10 +42,16 @@ type MaybeOptional<
 
 type GetZodType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? z.ZodAny
-	: TDataType extends 'json' ? z.ZodType<Json>
+	: TDataType extends 'json' ? TColumn['_']['columnType'] extends 'PgGeometryObject' ? z.ZodObject<{
+				x: z.ZodNumber;
+				y: z.ZodNumber;
+			}, 'strip'>
+		: z.ZodType<Json>
+	: TDataType extends 'array' ? TColumn['_']['columnType'] extends 'PgVector' ? z.ZodArray<z.ZodNumber>
+		: TColumn['_']['columnType'] extends 'PgGeometry' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber]>
+		: z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>>
 	: TColumn extends { enumValues: [string, ...string[]] }
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? z.ZodString : z.ZodEnum<TColumn['enumValues']>
-	: TDataType extends 'array' ? z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>>
 	: TDataType extends 'bigint' ? z.ZodBigInt
 	: TDataType extends 'number' ? z.ZodNumber
 	: TDataType extends 'string' ? z.ZodString
@@ -189,7 +195,7 @@ export function createSelectSchema<
 }
 
 function isWithEnum(column: Column): column is typeof column & { enumValues: [string, ...string[]] } {
-	return 'enumValues' in column && Array.isArray(column.enumValues) && column.enumValues.length > 0;
+	return Array.isArray(column.enumValues) && column.enumValues.length > 0;
 }
 
 function mapColumnToSchema(column: Column): z.ZodTypeAny {
@@ -197,38 +203,38 @@ function mapColumnToSchema(column: Column): z.ZodTypeAny {
 
 	if (isWithEnum(column)) {
 		type = column.enumValues.length ? z.enum(column.enumValues) : z.string();
-	}
+	} else if (is(column, PgUUID)) {
+		type = z.string().uuid();
+	} else if (column.dataType === 'custom') {
+		type = z.any();
+	} else if (column.dataType === 'json') {
+		type = column.columnType === 'PgGeometryObject' ? z.object({ x: z.number(), y: z.number() }) : jsonSchema;
+	} else if (column.dataType === 'array') {
+		type = column.columnType === 'PgVector'
+			? z.array(z.number())
+			: column.columnType === 'PgGeometry'
+			? z.tuple([z.number(), z.number()])
+			: z.array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
+	} else if (column.dataType === 'number') {
+		type = z.number();
+	} else if (column.dataType === 'bigint') {
+		type = z.bigint();
+	} else if (column.dataType === 'boolean') {
+		type = z.boolean();
+	} else if (column.dataType === 'date') {
+		type = z.date();
+	} else if (column.dataType === 'string') {
+		let sType = z.string();
 
-	if (!type) {
-		if (is(column, PgUUID)) {
-			type = z.string().uuid();
-		} else if (column.dataType === 'custom') {
-			type = z.any();
-		} else if (column.dataType === 'json') {
-			type = jsonSchema;
-		} else if (column.dataType === 'array') {
-			type = z.array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
-		} else if (column.dataType === 'number') {
-			type = z.number();
-		} else if (column.dataType === 'bigint') {
-			type = z.bigint();
-		} else if (column.dataType === 'boolean') {
-			type = z.boolean();
-		} else if (column.dataType === 'date') {
-			type = z.date();
-		} else if (column.dataType === 'string') {
-			let sType = z.string();
-
-			if (
-				(is(column, PgChar) || is(column, PgVarchar) || is(column, MySqlVarChar)
-					|| is(column, MySqlVarBinary) || is(column, MySqlChar) || is(column, SQLiteText))
-				&& (typeof column.length === 'number')
-			) {
-				sType = sType.max(column.length);
-			}
-
-			type = sType;
+		if (
+			(is(column, PgChar) || is(column, PgVarchar) || is(column, MySqlVarChar)
+				|| is(column, MySqlVarBinary) || is(column, MySqlChar) || is(column, SQLiteText))
+			&& (typeof column.length === 'number')
+		) {
+			sType = sType.max(column.length);
 		}
+
+		type = sType;
 	}
 
 	if (!type) {
