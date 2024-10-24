@@ -127,7 +127,7 @@ export type Config =
 			casing: 'camel' | 'preserve';
 		};
 		entities?: {
-			roles?: boolean | { provider?: string; exclude?: string[]; include?: string[] }[];
+			roles?: boolean | { provider?: 'supabase' | 'neon' | string & {}; exclude?: string[]; include?: string[] };
 		};
 	}
 	& (

@@ -1,6 +1,6 @@
 import { is } from '~/entity.ts';
-import { pgPolicy, PgRole, pgRole } from '~/pg-core/index.ts';
-import type { AnyPgColumn, PgPolicyToOption } from '~/pg-core/index.ts';
+import { type AnyPgColumn, pgPolicy, type PgPolicyToOption } from '~/pg-core/index.ts';
+import { PgRole, pgRole } from '~/pg-core/roles.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 
 export const crudPolicy = (options: {
