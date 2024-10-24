@@ -169,6 +169,7 @@ export const schemaToTypeScript = (
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
 					let patched = importsPatch[col.type] ?? col.type;
+					patched = patched.replace(" unsigned", "")
 					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
 					patched = patched.startsWith('char(') ? 'char' : patched;
 					patched = patched.startsWith('binary(') ? 'binary' : patched;
@@ -704,9 +705,7 @@ const column = (
 			| undefined;
 
 		if (lowered.length > 7) {
-			const [precision, scale] = lowered
-				.slice(8, lowered.length - 1)
-				.split(',');
+			const [precision, scale] = lowered.match(/decimal\((\d+),(\d+)\)/)?.slice(1) ?? [];
 			params = { precision, scale };
 		}
 
