@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
+import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
 
@@ -105,12 +105,12 @@ export function drizzle<
 ): PgliteDatabase<TSchema> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof PGlite) {
-		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	if (params[0] === undefined || typeof params[0] === 'string') {
+		const instance = new PGlite(params[0]);
+		return construct(instance, params[1]) as any;
 	}
 
-	if (typeof params[0] === 'object') {
+	if (isConfig(params[0])) {
 		const { connection, client, ...drizzleConfig } = params[0] as {
 			connection?: PGliteOptions & { dataDir: string };
 			client?: TClient;
@@ -131,8 +131,7 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	const instance = new PGlite(params[0]);
-	return construct(instance, params[1]) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 }
 
 export namespace drizzle {

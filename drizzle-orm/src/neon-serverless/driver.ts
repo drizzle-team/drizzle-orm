@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
+import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
 import type { NeonClient, NeonQueryResultHKT } from './session.ts';
 import { NeonSession } from './session.ts';
 
@@ -108,12 +108,15 @@ export function drizzle<
 ): NeonDatabase<TSchema> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof Pool) {
-		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	if (typeof params[0] === 'string') {
+		const instance = new Pool({
+			connectionString: params[0],
+		});
+
+		return construct(instance, params[1]) as any;
 	}
 
-	if (typeof params[0] === 'object') {
+	if (isConfig(params[0])) {
 		const { connection, client, ws, ...drizzleConfig } = params[0] as {
 			connection?: PoolConfig | string;
 			ws?: any;
@@ -135,11 +138,7 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	const instance = new Pool({
-		connectionString: params[0],
-	});
-
-	return construct(instance, params[1]) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 }
 
 export namespace drizzle {
