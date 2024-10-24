@@ -17,7 +17,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, Query } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
@@ -811,7 +811,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * await db.select().from(people).limit(10);
 	 * ```
 	 */
-	limit(limit: number): MySqlSelectWithout<this, TDynamic, 'limit'> {
+	limit(limit: number | Placeholder): MySqlSelectWithout<this, TDynamic, 'limit'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.limit = limit;
 		} else {
@@ -836,7 +836,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * await db.select().from(people).offset(10).limit(10);
 	 * ```
 	 */
-	offset(offset: number): MySqlSelectWithout<this, TDynamic, 'offset'> {
+	offset(offset: number | Placeholder): MySqlSelectWithout<this, TDynamic, 'offset'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
 		} else {

@@ -906,6 +906,68 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
+		test('prepared statement with placeholder in .limit', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values({ name: 'John' }).run();
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.where(eq(usersTable.id, sql.placeholder('id')))
+				.limit(sql.placeholder('limit'))
+				.prepare();
+
+			const result = await stmt.all({ id: 1, limit: 1 });
+
+			expect(result).toEqual([{ id: 1, name: 'John' }]);
+			expect(result).toHaveLength(1);
+		});
+
+		test('prepared statement with placeholder in .offset', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).run();
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.limit(sql.placeholder('limit'))
+				.offset(sql.placeholder('offset'))
+				.prepare();
+
+			const result = await stmt.all({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+		});
+
+		test('prepared statement built using $dynamic', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			function withLimitOffset(qb: any) {
+				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
+			}
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).run();
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.$dynamic();
+			withLimitOffset(stmt).prepare('stmt_limit');
+
+			const result = await stmt.all({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+			expect(result).toHaveLength(1);
+		});
+
 		test('select with group by as field', async (ctx) => {
 			const { db } = ctx.sqlite;
 
