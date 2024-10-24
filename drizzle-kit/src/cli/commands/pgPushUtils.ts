@@ -252,18 +252,12 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 		}
 		const stmnt = fromJson([statement], 'postgresql');
 		if (typeof stmnt !== 'undefined') {
-			if (statement.type === 'drop_table') {
-				statementsToExecute.push(
-					`DROP TABLE ${concatSchemaAndTableName(statement.schema, statement.tableName)} CASCADE;`,
-				);
-			} else {
-				statementsToExecute.push(...stmnt);
-			}
+			statementsToExecute.push(...stmnt);
 		}
 	}
 
 	return {
-		statementsToExecute,
+		statementsToExecute: [...new Set(statementsToExecute)],
 		shouldAskForApprove,
 		infoToPrint,
 		matViewsToRemove: [...new Set(matViewsToRemove)],

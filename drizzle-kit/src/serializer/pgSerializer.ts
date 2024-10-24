@@ -12,6 +12,7 @@ import {
 	PgEnum,
 	PgEnumColumn,
 	PgMaterializedView,
+	PgRole,
 	PgSchema,
 	PgSequence,
 	PgView,
@@ -31,7 +32,9 @@ import type {
 	IndexColumnType,
 	PgKitInternals,
 	PgSchemaInternal,
+	Policy,
 	PrimaryKey,
+	Role,
 	Sequence,
 	Table,
 	UniqueConstraint,
@@ -53,7 +56,7 @@ function maxRangeForIdentityBasedOn(columnType: string) {
 }
 
 function minRangeForIdentityBasedOn(columnType: string) {
-	return columnType === 'integer' ? '-2147483648' : columnType === 'bitint' ? '-9223372036854775808' : '-32768';
+	return columnType === 'integer' ? '-2147483648' : columnType === 'bigint' ? '-9223372036854775808' : '-32768';
 }
 
 function stringFromDatabaseIdentityProperty(field: any): string | undefined {
@@ -66,7 +69,7 @@ function stringFromDatabaseIdentityProperty(field: any): string | undefined {
 		: String(field);
 }
 
-function buildArrayString(array: any[], sqlType: string): string {
+export function buildArrayString(array: any[], sqlType: string): string {
 	sqlType = sqlType.split('[')[0];
 	const values = array
 		.map((value) => {
@@ -100,6 +103,7 @@ export const generatePgSnapshot = (
 	enums: PgEnum<any>[],
 	schemas: PgSchema[],
 	sequences: PgSequence[],
+	roles: PgRole[],
 	views: PgView[],
 	matViews: PgMaterializedView[],
 	casing: CasingType | undefined,
@@ -109,6 +113,7 @@ export const generatePgSnapshot = (
 	const result: Record<string, Table> = {};
 	const resultViews: Record<string, View> = {};
 	const sequencesToReturn: Record<string, Sequence> = {};
+	const rolesToReturn: Record<string, Role> = {};
 
 	// This object stores unique names for indexes and will be used to detect if you have the same names for indexes
 	// within the same PostgreSQL schema
@@ -119,8 +124,18 @@ export const generatePgSnapshot = (
 		// within the same PostgreSQL table
 		const checksInTable: Record<string, string[]> = {};
 
-		const { name: tableName, columns, indexes, foreignKeys, checks, schema, primaryKeys, uniqueConstraints } =
-			getTableConfig(table);
+		const {
+			name: tableName,
+			columns,
+			indexes,
+			foreignKeys,
+			checks,
+			schema,
+			primaryKeys,
+			uniqueConstraints,
+			policies,
+			enableRLS,
+		} = getTableConfig(table);
 
 		if (schemaFilter && !schemaFilter.includes(schema ?? 'public')) {
 			continue;
@@ -132,6 +147,7 @@ export const generatePgSnapshot = (
 		const foreignKeysObject: Record<string, ForeignKey> = {};
 		const primaryKeysObject: Record<string, PrimaryKey> = {};
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
+		const policiesObject: Record<string, Policy> = {};
 
 		columns.forEach((column) => {
 			const name = getColumnCasing(column, casing);
@@ -459,6 +475,37 @@ export const generatePgSnapshot = (
 			};
 		});
 
+		policies.forEach((policy) => {
+			const mappedTo = [];
+
+			if (!policy.to) {
+				mappedTo.push('public');
+			} else {
+				if (policy.to && typeof policy.to === 'string') {
+					mappedTo.push(policy.to);
+				} else if (policy.to && is(policy.to, PgRole)) {
+					mappedTo.push(policy.to.name);
+				} else if (policy.to && Array.isArray(policy.to)) {
+					policy.to.forEach((it) => {
+						if (typeof it === 'string') {
+							mappedTo.push(it);
+						} else if (is(it, PgRole)) {
+							mappedTo.push(it.name);
+						}
+					});
+				}
+			}
+
+			policiesObject[policy.name] = {
+				name: policy.name,
+				as: policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE',
+				for: policy.for?.toUpperCase() as Policy['for'] ?? 'ALL',
+				to: mappedTo.sort(),
+				using: is(policy.using, SQL) ? dialect.sqlToQuery(policy.using).sql : undefined,
+				withCheck: is(policy.withCheck, SQL) ? dialect.sqlToQuery(policy.withCheck).sql : undefined,
+			};
+		});
+
 		checks.forEach((check) => {
 			const checkName = check.name;
 
@@ -506,7 +553,9 @@ export const generatePgSnapshot = (
 			foreignKeys: foreignKeysObject,
 			compositePrimaryKeys: primaryKeysObject,
 			uniqueConstraints: uniqueConstraintObject,
+			policies: policiesObject,
 			checkConstraints: checksObject,
+			isRLSEnabled: enableRLS,
 		};
 	}
 
@@ -537,6 +586,16 @@ export const generatePgSnapshot = (
 		}
 	}
 
+	for (const role of roles) {
+		if (!(role as any)._existing) {
+			rolesToReturn[role.name] = {
+				name: role.name,
+				createDb: (role as any).createDb === undefined ? false : (role as any).createDb,
+				createRole: (role as any).createRole === undefined ? false : (role as any).createRole,
+				inherit: (role as any).inherit === undefined ? true : (role as any).inherit,
+			};
+		}
+	}
 	const combinedViews = [...views, ...matViews];
 	for (const view of combinedViews) {
 		let viewName;
@@ -735,6 +794,7 @@ export const generatePgSnapshot = (
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
+		roles: rolesToReturn,
 		views: resultViews,
 		_meta: {
 			schemas: {},
@@ -755,11 +815,64 @@ const trimChar = (str: string, char: string) => {
 	return start > 0 || end < str.length ? str.substring(start, end) : str.toString();
 };
 
+function prepareRoles(entities?: {
+	roles: boolean | {
+		provider?: string | undefined;
+		include?: string[] | undefined;
+		exclude?: string[] | undefined;
+	};
+}) {
+	let useRoles: boolean = false;
+	const includeRoles: string[] = [];
+	const excludeRoles: string[] = [];
+
+	if (entities && entities.roles) {
+		if (typeof entities.roles === 'object') {
+			if (entities.roles.provider) {
+				if (entities.roles.provider === 'supabase') {
+					excludeRoles.push(...[
+						'anon',
+						'authenticator',
+						'authenticated',
+						'service_role',
+						'supabase_auth_admin',
+						'supabase_storage_admin',
+						'dashboard_user',
+						'supabase_admin',
+					]);
+				} else if (entities.roles.provider === 'neon') {
+					excludeRoles.push(...['authenticated', 'anonymous']);
+				}
+			}
+			if (entities.roles.include) {
+				includeRoles.push(...entities.roles.include);
+			}
+			if (entities.roles.exclude) {
+				excludeRoles.push(...entities.roles.exclude);
+			}
+		} else {
+			useRoles = entities.roles;
+		}
+	}
+	return { useRoles, includeRoles, excludeRoles };
+}
+
 export const fromDatabase = async (
 	db: DB,
 	tablesFilter: (table: string) => boolean = () => true,
 	schemaFilters: string[],
-	progressCallback?: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void,
+	entities?: {
+		roles: boolean | {
+			provider?: string | undefined;
+			include?: string[] | undefined;
+			exclude?: string[] | undefined;
+		};
+	},
+	progressCallback?: (
+		stage: IntrospectStage,
+		count: number,
+		status: IntrospectStatus,
+	) => void,
 ): Promise<PgSchemaInternal> => {
 	const result: Record<string, Table> = {};
 	const views: Record<string, View> = {};
@@ -767,7 +880,7 @@ export const fromDatabase = async (
 
 	const where = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
 
-	const allTables = await db.query<{ table_schema: string; table_name: string; type: string }>(
+	const allTables = await db.query<{ table_schema: string; table_name: string; type: string; rls_enabled: boolean }>(
 		`SELECT 
     n.nspname AS table_schema, 
     c.relname AS table_name, 
@@ -775,7 +888,8 @@ export const fromDatabase = async (
         WHEN c.relkind = 'r' THEN 'table'
         WHEN c.relkind = 'v' THEN 'view'
         WHEN c.relkind = 'm' THEN 'materialized_view'
-    END AS type
+    END AS type,
+	c.relrowsecurity AS rls_enabled
 FROM 
     pg_catalog.pg_class c
 JOIN 
@@ -878,6 +992,96 @@ WHERE
 	}
 	if (progressCallback) {
 		progressCallback('enums', Object.keys(enumsToReturn).length, 'done');
+	}
+
+	const allRoles = await db.query<
+		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
+	>(
+		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+	);
+
+	const rolesToReturn: Record<string, Role> = {};
+
+	const preparedRoles = prepareRoles(entities);
+
+	if (
+		preparedRoles.useRoles || !(preparedRoles.includeRoles.length === 0 && preparedRoles.excludeRoles.length === 0)
+	) {
+		for (const dbRole of allRoles) {
+			if (
+				preparedRoles.useRoles
+			) {
+				rolesToReturn[dbRole.rolname] = {
+					createDb: dbRole.rolcreatedb,
+					createRole: dbRole.rolcreatedb,
+					inherit: dbRole.rolinherit,
+					name: dbRole.rolname,
+				};
+			} else {
+				if (preparedRoles.includeRoles.length === 0 && preparedRoles.excludeRoles.length === 0) continue;
+				if (
+					preparedRoles.includeRoles.includes(dbRole.rolname) && preparedRoles.excludeRoles.includes(dbRole.rolname)
+				) continue;
+				if (preparedRoles.excludeRoles.includes(dbRole.rolname)) continue;
+				if (!preparedRoles.includeRoles.includes(dbRole.rolname)) continue;
+
+				rolesToReturn[dbRole.rolname] = {
+					createDb: dbRole.rolcreatedb,
+					createRole: dbRole.rolcreaterole,
+					inherit: dbRole.rolinherit,
+					name: dbRole.rolname,
+				};
+			}
+		}
+	}
+
+	const wherePolicies = schemaFilters
+		.map((t) => `schemaname = '${t}'`)
+		.join(' or ');
+
+	const policiesByTable: Record<string, Record<string, Policy>> = {};
+
+	const allPolicies = await db.query<
+		{
+			schemaname: string;
+			tablename: string;
+			name: string;
+			as: string;
+			to: string[];
+			for: string;
+			using: string;
+			withCheck: string;
+		}
+	>(`SELECT schemaname, tablename, policyname as name, permissive as "as", roles as to, cmd as for, qual as using, with_check as "withCheck" FROM pg_policies${
+		wherePolicies === '' ? '' : ` WHERE ${wherePolicies}`
+	};`);
+
+	for (const dbPolicy of allPolicies) {
+		const { tablename, schemaname, to, withCheck, using, ...rest } = dbPolicy;
+		const tableForPolicy = policiesByTable[`${schemaname}.${tablename}`];
+
+		const parsedTo = to;
+
+		const parsedWithCheck = withCheck === null ? undefined : withCheck;
+		const parsedUsing = using === null ? undefined : using;
+
+		if (tableForPolicy) {
+			tableForPolicy[dbPolicy.name] = { ...rest, to: parsedTo } as Policy;
+		} else {
+			policiesByTable[`${schemaname}.${tablename}`] = {
+				[dbPolicy.name]: { ...rest, to: parsedTo, withCheck: parsedWithCheck, using: parsedUsing } as Policy,
+			};
+		}
+	}
+
+	if (progressCallback) {
+		progressCallback(
+			'policies',
+			Object.values(policiesByTable).reduce((total, innerRecord) => {
+				return total + Object.keys(innerRecord).length;
+			}, 0),
+			'done',
+		);
 	}
 
 	const sequencesInColumns: string[] = [];
@@ -1317,7 +1521,7 @@ WHERE
 									},
 								],
 								isUnique: indexIsUnique,
-								// should not be a part of diff detecs
+								// should not be a part of diff detects
 								concurrently: false,
 								method: indexMethod,
 								where: indexWhere === null ? undefined : indexWhere,
@@ -1339,6 +1543,8 @@ WHERE
 						compositePrimaryKeys: primaryKeys,
 						uniqueConstraints: uniqueConstrains,
 						checkConstraints: checkConstraints,
+						policies: policiesByTable[`${tableSchema}.${tableName}`] ?? {},
+						isRLSEnabled: row.rls_enabled,
 					};
 				} catch (e) {
 					rej(e);
@@ -1601,6 +1807,7 @@ WHERE
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
+		roles: rolesToReturn,
 		views: views,
 		_meta: {
 			schemas: {},
