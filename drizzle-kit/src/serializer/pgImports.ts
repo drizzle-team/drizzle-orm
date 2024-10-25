@@ -7,6 +7,7 @@ import {
 	isPgView,
 	PgEnum,
 	PgMaterializedView,
+	PgRole,
 	PgSchema,
 	PgSequence,
 	PgTable,
@@ -19,6 +20,7 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const enums: PgEnum<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
+	const roles: PgRole[] = [];
 	const views: PgView[] = [];
 	const matViews: PgMaterializedView[] = [];
 
@@ -47,9 +49,13 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 		if (isPgSequence(t)) {
 			sequences.push(t);
 		}
+
+		if (is(t, PgRole)) {
+			roles.push(t);
+		}
 	});
 
-	return { tables, enums, schemas, sequences, views, matViews };
+	return { tables, enums, schemas, sequences, views, matViews, roles };
 };
 
 export const prepareFromPgImports = async (imports: string[]) => {
@@ -58,6 +64,7 @@ export const prepareFromPgImports = async (imports: string[]) => {
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
 	const views: PgView[] = [];
+	let roles: PgRole[] = [];
 	const matViews: PgMaterializedView[] = [];
 
 	const { unregister } = await safeRegister();
@@ -73,8 +80,9 @@ export const prepareFromPgImports = async (imports: string[]) => {
 		sequences.push(...prepared.sequences);
 		views.push(...prepared.views);
 		matViews.push(...prepared.matViews);
+		roles.push(...prepared.roles);
 	}
 	unregister();
 
-	return { tables: Array.from(new Set(tables)), enums, schemas, sequences, views, matViews };
+	return { tables: Array.from(new Set(tables)), enums, schemas, sequences, views, matViews, roles };
 };

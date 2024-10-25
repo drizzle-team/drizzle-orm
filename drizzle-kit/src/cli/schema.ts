@@ -450,6 +450,7 @@ export const pull = command({
 			tablesFilter,
 			schemasFilter,
 			prefix,
+			entities,
 		} = config;
 		mkdirSync(out, { recursive: true });
 
@@ -496,6 +497,7 @@ export const pull = command({
 					tablesFilter,
 					schemasFilter,
 					prefix,
+					entities,
 				);
 			} else if (dialect === 'mysql') {
 				const { introspectMysql } = await import('./commands/introspect');
