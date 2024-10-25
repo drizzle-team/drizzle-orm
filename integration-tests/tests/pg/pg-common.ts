@@ -34,6 +34,7 @@ import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
 	alias,
+	bigserial,
 	boolean,
 	char,
 	cidr,
@@ -49,6 +50,7 @@ import {
 	intersect,
 	intersectAll,
 	interval,
+	json,
 	jsonb,
 	macaddr,
 	macaddr8,
@@ -73,7 +75,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { Expect } from '~/utils';
 import type { schema } from './neon-http-batch.test';
 // eslint-disable-next-line @typescript-eslint/no-import-type-side-effects
@@ -177,9 +179,9 @@ const aggregateTable = pgTable('aggregate_table', {
 });
 
 // To test another schema and multischema
-const mySchema = pgSchema('mySchema');
+export const mySchema = pgSchema('mySchema');
 
-const usersMySchemaTable = mySchema.table('users', {
+export const usersMySchemaTable = mySchema.table('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
@@ -197,6 +199,12 @@ const users2MySchemaTable = mySchema.table('users2', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	cityId: integer('city_id').references(() => citiesTable.id),
+});
+
+const jsonTestTable = pgTable('jsontest', {
+	id: serial('id').primaryKey(),
+	json: json('json').$type<{ string: string; number: number }>(),
+	jsonb: jsonb('jsonb').$type<{ string: string; number: number }>(),
 });
 
 let pgContainer: Docker.Container;
@@ -239,6 +247,7 @@ export function tests() {
 			await db.execute(sql`drop schema if exists public cascade`);
 			await db.execute(sql`drop schema if exists ${mySchema} cascade`);
 			await db.execute(sql`create schema public`);
+			await db.execute(sql`create schema if not exists custom_migrations`);
 			await db.execute(sql`create schema ${mySchema}`);
 			// public users
 			await db.execute(
@@ -246,7 +255,7 @@ export function tests() {
 					create table users (
 						id serial primary key,
 						name text not null,
-						verified boolean not null default false, 
+						verified boolean not null default false,
 						jsonb jsonb,
 						created_at timestamptz not null default now()
 					)
@@ -358,6 +367,21 @@ export function tests() {
 					)
 				`,
 			);
+
+			await db.execute(
+				sql`
+					create table jsontest (
+						id serial primary key,
+						json json,
+						jsonb jsonb
+					)
+				`,
+			);
+		});
+
+		afterEach(async (ctx) => {
+			const { db } = ctx.pg;
+			await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		});
 
 		async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT>) {
@@ -1114,6 +1138,28 @@ export function tests() {
 			const result = await statement.execute();
 
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
+		});
+
+		test('insert: placeholders on columns with encoder', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const statement = db.insert(usersTable).values({
+				name: 'John',
+				jsonb: sql.placeholder('jsonb'),
+			}).prepare('encoder_statement');
+
+			await statement.execute({ jsonb: ['foo', 'bar'] });
+
+			const result = await db
+				.select({
+					id: usersTable.id,
+					jsonb: usersTable.jsonb,
+				})
+				.from(usersTable);
+
+			expect(result).toEqual([
+				{ id: 1, jsonb: ['foo', 'bar'] },
+			]);
 		});
 
 		test('prepared statement reuse', async (ctx) => {
@@ -4480,6 +4526,397 @@ export function tests() {
 				.limit(-1);
 
 			expect(users.length).toBeGreaterThan(0);
+		});
+
+		test('Object keys as column names', async (ctx) => {
+			const { db } = ctx.pg;
+
+			// Tests the following:
+			// Column with required config
+			// Column with optional config without providing a value
+			// Column with optional config providing a value
+			// Column without config
+			const users = pgTable('users', {
+				id: bigserial({ mode: 'number' }).primaryKey(),
+				firstName: varchar(),
+				lastName: varchar({ length: 50 }),
+				admin: boolean(),
+			});
+
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(
+				sql`
+					create table users (
+						"id" bigserial primary key,
+						"firstName" varchar,
+						"lastName" varchar(50),
+						"admin" boolean
+					)
+				`,
+			);
+
+			await db.insert(users).values([
+				{ firstName: 'John', lastName: 'Doe', admin: true },
+				{ firstName: 'Jane', lastName: 'Smith', admin: false },
+			]);
+			const result = await db
+				.select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+				.from(users)
+				.where(eq(users.admin, true));
+
+			expect(result).toEqual([
+				{ id: 1, firstName: 'John', lastName: 'Doe' },
+			]);
+
+			await db.execute(sql`drop table users`);
+		});
+
+		test('proper json and jsonb handling', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const jsonTable = pgTable('json_table', {
+				json: json('json').$type<{ name: string; age: number }>(),
+				jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
+			});
+
+			await db.execute(sql`drop table if exists ${jsonTable}`);
+
+			await db.execute(sql`create table ${jsonTable} (json json, jsonb jsonb)`);
+
+			await db.insert(jsonTable).values({ json: { name: 'Tom', age: 75 }, jsonb: { name: 'Pete', age: 23 } });
+
+			const result = await db.select().from(jsonTable);
+
+			const justNames = await db.select({
+				name1: sql<string>`${jsonTable.json}->>'name'`.as('name1'),
+				name2: sql<string>`${jsonTable.jsonb}->>'name'`.as('name2'),
+			}).from(jsonTable);
+
+			expect(result).toStrictEqual([
+				{
+					json: { name: 'Tom', age: 75 },
+					jsonb: { name: 'Pete', age: 23 },
+				},
+			]);
+
+			expect(justNames).toStrictEqual([
+				{
+					name1: 'Tom',
+					name2: 'Pete',
+				},
+			]);
+		});
+
+		test('set json/jsonb fields with objects and retrieve with the ->> operator', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const obj = { string: 'test', number: 123 };
+			const { string: testString, number: testNumber } = obj;
+
+			await db.insert(jsonTestTable).values({
+				json: obj,
+				jsonb: obj,
+			});
+
+			const result = await db.select({
+				jsonStringField: sql<string>`${jsonTestTable.json}->>'string'`,
+				jsonNumberField: sql<string>`${jsonTestTable.json}->>'number'`,
+				jsonbStringField: sql<string>`${jsonTestTable.jsonb}->>'string'`,
+				jsonbNumberField: sql<string>`${jsonTestTable.jsonb}->>'number'`,
+			}).from(jsonTestTable);
+
+			expect(result).toStrictEqual([{
+				jsonStringField: testString,
+				jsonNumberField: String(testNumber),
+				jsonbStringField: testString,
+				jsonbNumberField: String(testNumber),
+			}]);
+		});
+
+		test('set json/jsonb fields with strings and retrieve with the ->> operator', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const obj = { string: 'test', number: 123 };
+			const { string: testString, number: testNumber } = obj;
+
+			await db.insert(jsonTestTable).values({
+				json: sql`${JSON.stringify(obj)}`,
+				jsonb: sql`${JSON.stringify(obj)}`,
+			});
+
+			const result = await db.select({
+				jsonStringField: sql<string>`${jsonTestTable.json}->>'string'`,
+				jsonNumberField: sql<string>`${jsonTestTable.json}->>'number'`,
+				jsonbStringField: sql<string>`${jsonTestTable.jsonb}->>'string'`,
+				jsonbNumberField: sql<string>`${jsonTestTable.jsonb}->>'number'`,
+			}).from(jsonTestTable);
+
+			expect(result).toStrictEqual([{
+				jsonStringField: testString,
+				jsonNumberField: String(testNumber),
+				jsonbStringField: testString,
+				jsonbNumberField: String(testNumber),
+			}]);
+		});
+
+		test('set json/jsonb fields with objects and retrieve with the -> operator', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const obj = { string: 'test', number: 123 };
+			const { string: testString, number: testNumber } = obj;
+
+			await db.insert(jsonTestTable).values({
+				json: obj,
+				jsonb: obj,
+			});
+
+			const result = await db.select({
+				jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
+				jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
+				jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
+				jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
+			}).from(jsonTestTable);
+
+			expect(result).toStrictEqual([{
+				jsonStringField: testString,
+				jsonNumberField: testNumber,
+				jsonbStringField: testString,
+				jsonbNumberField: testNumber,
+			}]);
+		});
+
+		test('set json/jsonb fields with strings and retrieve with the -> operator', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const obj = { string: 'test', number: 123 };
+			const { string: testString, number: testNumber } = obj;
+
+			await db.insert(jsonTestTable).values({
+				json: sql`${JSON.stringify(obj)}`,
+				jsonb: sql`${JSON.stringify(obj)}`,
+			});
+
+			const result = await db.select({
+				jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
+				jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
+				jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
+				jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
+			}).from(jsonTestTable);
+
+			expect(result).toStrictEqual([{
+				jsonStringField: testString,
+				jsonNumberField: testNumber,
+				jsonbStringField: testString,
+				jsonbNumberField: testNumber,
+			}]);
+		});
+
+		test('$count separate', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.$count(countTestTable);
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual(4);
+		});
+
+		test('$count embedded', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.select({
+				count: db.$count(countTestTable),
+			}).from(countTestTable);
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual([
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+			]);
+		});
+
+		test('$count separate reuse', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = db.$count(countTestTable);
+
+			const count1 = await count;
+
+			await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+			const count2 = await count;
+
+			await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+			const count3 = await count;
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count1).toStrictEqual(4);
+			expect(count2).toStrictEqual(5);
+			expect(count3).toStrictEqual(6);
+		});
+
+		test('$count embedded reuse', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = db.select({
+				count: db.$count(countTestTable),
+			}).from(countTestTable);
+
+			const count1 = await count;
+
+			await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+			const count2 = await count;
+
+			await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+			const count3 = await count;
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count1).toStrictEqual([
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+			]);
+			expect(count2).toStrictEqual([
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+			]);
+			expect(count3).toStrictEqual([
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+			]);
+		});
+
+		test('$count separate with filters', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.$count(countTestTable, gt(countTestTable.id, 1));
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual(3);
+		});
+
+		test('$count embedded with filters', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const countTestTable = pgTable('count_test', {
+				id: integer('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.select({
+				count: db.$count(countTestTable, gt(countTestTable.id, 1)),
+			}).from(countTestTable);
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual([
+				{ count: 3 },
+				{ count: 3 },
+				{ count: 3 },
+				{ count: 3 },
+			]);
 		});
 	});
 }

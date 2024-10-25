@@ -8,6 +8,7 @@ import {
 	sqliteTable,
 	text,
 } from 'drizzle-orm/sqlite-core';
+import { JsonCreateIndexStatement, JsonRecreateTableStatement } from 'src/jsonStatements';
 import { expect, test } from 'vitest';
 import { diffTestSchemasSqlite } from './schemaDiffer';
 
@@ -36,6 +37,7 @@ test('create table with id', async (t) => {
 		uniqueConstraints: [],
 		referenceData: [],
 		compositePKs: [],
+		checkConstraints: [],
 	});
 });
 
@@ -223,7 +225,7 @@ test('add columns #5', async (t) => {
 	const { statements } = await diffTestSchemasSqlite(schema1, schema2, []);
 
 	// TODO: Fix here
-	expect(statements.length).toBe(2);
+	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'sqlite_alter_table_add_column',
 		tableName: 'users',
@@ -332,12 +334,39 @@ test('add foreign key #1', async (t) => {
 	const { statements } = await diffTestSchemasSqlite(schema1, schema2, []);
 
 	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'create_reference',
-		tableName: 'users',
-		schema: '',
-		data: 'users_report_to_users_id_fk;users;report_to;users;id;no action;no action',
-	});
+	expect(statements[0]).toStrictEqual(
+		{
+			type: 'recreate_table',
+			columns: [{
+				autoincrement: true,
+				generated: undefined,
+				name: 'id',
+				notNull: true,
+				primaryKey: true,
+				type: 'integer',
+			}, {
+				autoincrement: false,
+				generated: undefined,
+				name: 'report_to',
+				notNull: false,
+				primaryKey: false,
+				type: 'integer',
+			}],
+			compositePKs: [],
+			referenceData: [{
+				columnsFrom: ['report_to'],
+				columnsTo: ['id'],
+				name: 'users_report_to_users_id_fk',
+				tableFrom: 'users',
+				tableTo: 'users',
+				onDelete: 'no action',
+				onUpdate: 'no action',
+			}],
+			tableName: 'users',
+			uniqueConstraints: [],
+			checkConstraints: [],
+		} as JsonRecreateTableStatement,
+	);
 });
 
 test('add foreign key #2', async (t) => {
@@ -371,11 +400,36 @@ test('add foreign key #2', async (t) => {
 
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'create_reference',
+		type: 'recreate_table',
+		columns: [{
+			autoincrement: true,
+			generated: undefined,
+			name: 'id',
+			notNull: true,
+			primaryKey: true,
+			type: 'integer',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'report_to',
+			notNull: false,
+			primaryKey: false,
+			type: 'integer',
+		}],
+		compositePKs: [],
+		referenceData: [{
+			columnsFrom: ['report_to'],
+			columnsTo: ['id'],
+			name: 'reportee_fk',
+			tableFrom: 'users',
+			tableTo: 'users',
+			onDelete: 'no action',
+			onUpdate: 'no action',
+		}],
 		tableName: 'users',
-		schema: '',
-		data: 'reportee_fk;users;report_to;users;id;no action;no action',
-	});
+		uniqueConstraints: [],
+		checkConstraints: [],
+	} as JsonRecreateTableStatement);
 });
 
 test('alter column change name #1', async (t) => {
@@ -513,9 +567,27 @@ test('alter table add composite pk', async (t) => {
 
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'create_composite_pk',
+		type: 'recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'id1',
+			notNull: false,
+			primaryKey: false,
+			type: 'integer',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'id2',
+			notNull: false,
+			primaryKey: false,
+			type: 'integer',
+		}],
+		compositePKs: [['id1', 'id2']],
+		referenceData: [],
 		tableName: 'table',
-		data: 'id1,id2',
+		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 });
 
@@ -540,16 +612,20 @@ test('alter column drop not null', async (t) => {
 
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_alter_column_drop_notnull',
+		type: 'recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'name',
+			notNull: false,
+			primaryKey: false,
+			type: 'text',
+		}],
+		compositePKs: [],
+		referenceData: [],
 		tableName: 'table',
-		columnName: 'name',
-		schema: '',
-		newDataType: 'text',
-		columnDefault: undefined,
-		columnOnUpdate: undefined,
-		columnNotNull: false,
-		columnAutoIncrement: false,
-		columnPk: false,
+		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 });
 
@@ -574,16 +650,20 @@ test('alter column add not null', async (t) => {
 
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_alter_column_set_notnull',
+		type: 'recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'name',
+			notNull: true,
+			primaryKey: false,
+			type: 'text',
+		}],
+		compositePKs: [],
+		referenceData: [],
 		tableName: 'table',
-		columnName: 'name',
-		schema: '',
-		newDataType: 'text',
-		columnDefault: undefined,
-		columnOnUpdate: undefined,
-		columnNotNull: true,
-		columnAutoIncrement: false,
-		columnPk: false,
+		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 });
 
@@ -608,16 +688,21 @@ test('alter column add default', async (t) => {
 
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_alter_column_set_default',
+		type: 'recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'name',
+			notNull: false,
+			primaryKey: false,
+			type: 'text',
+			default: "'dan'",
+		}],
+		compositePKs: [],
+		referenceData: [],
 		tableName: 'table',
-		columnName: 'name',
-		schema: '',
-		newDataType: 'text',
-		columnNotNull: false,
-		columnOnUpdate: undefined,
-		columnAutoIncrement: false,
-		newDefaultValue: "'dan'",
-		columnPk: false,
+		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 });
 
@@ -642,16 +727,20 @@ test('alter column drop default', async (t) => {
 
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_alter_column_drop_default',
+		type: 'recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'name',
+			notNull: false,
+			primaryKey: false,
+			type: 'text',
+		}],
+		compositePKs: [],
+		referenceData: [],
 		tableName: 'table',
-		columnName: 'name',
-		schema: '',
-		newDataType: 'text',
-		columnNotNull: false,
-		columnOnUpdate: undefined,
-		columnDefault: undefined,
-		columnAutoIncrement: false,
-		columnPk: false,
+		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 });
 
@@ -674,32 +763,86 @@ test('alter column add default not null', async (t) => {
 		[],
 	);
 
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'name',
+			notNull: true,
+			primaryKey: false,
+			type: 'text',
+			default: "'dan'",
+		}],
+		compositePKs: [],
+		referenceData: [],
+		tableName: 'table',
+		uniqueConstraints: [],
+		checkConstraints: [],
+	});
+});
+
+test('alter column add default not null with indexes', async (t) => {
+	const from = {
+		users: sqliteTable('table', {
+			name: text('name'),
+		}, (table) => ({
+			someIndex: index('index_name').on(table.name),
+		})),
+	};
+
+	const to = {
+		users: sqliteTable('table', {
+			name: text('name').notNull().default('dan'),
+		}, (table) => ({
+			someIndex: index('index_name').on(table.name),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+		from,
+		to,
+		[],
+	);
+
 	expect(statements.length).toBe(2);
 	expect(statements[0]).toStrictEqual({
-		columnAutoIncrement: false,
-		columnName: 'name',
-		columnNotNull: true,
-		columnOnUpdate: undefined,
-		columnPk: false,
-		newDataType: 'text',
-		newDefaultValue: "'dan'",
+		type: 'recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'name',
+			notNull: true,
+			primaryKey: false,
+			type: 'text',
+			default: "'dan'",
+		}],
+		compositePKs: [],
+		referenceData: [],
+		tableName: 'table',
+		uniqueConstraints: [],
+		checkConstraints: [],
+	});
+	expect(statements[1]).toStrictEqual({
+		data: 'index_name;name;false;',
 		schema: '',
 		tableName: 'table',
-		type: 'alter_table_alter_column_set_default',
+		type: 'create_index',
+		internal: undefined,
 	});
-
-	expect(statements[0]).toStrictEqual({
-		columnAutoIncrement: false,
-		columnName: 'name',
-		columnNotNull: true,
-		columnOnUpdate: undefined,
-		columnPk: false,
-		newDataType: 'text',
-		newDefaultValue: "'dan'",
-		schema: '',
-		tableName: 'table',
-		type: 'alter_table_alter_column_set_default',
-	});
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
+	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_table\` (
+\t\`name\` text DEFAULT 'dan' NOT NULL
+);\n`);
+	expect(sqlStatements[2]).toBe(
+		`INSERT INTO \`__new_table\`("name") SELECT "name" FROM \`table\`;`,
+	);
+	expect(sqlStatements[3]).toBe(`DROP TABLE \`table\`;`);
+	expect(sqlStatements[4]).toBe(`ALTER TABLE \`__new_table\` RENAME TO \`table\`;`);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
+	expect(sqlStatements[6]).toBe(`CREATE INDEX \`index_name\` ON \`table\` (\`name\`);`);
 });
 
 test('alter column drop default not null', async (t) => {
@@ -721,30 +864,164 @@ test('alter column drop default not null', async (t) => {
 		[],
 	);
 
-	expect(statements.length).toBe(2);
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'name',
+			notNull: false,
+			primaryKey: false,
+			type: 'text',
+		}],
+		compositePKs: [],
+		referenceData: [],
+		tableName: 'table',
+		uniqueConstraints: [],
+		checkConstraints: [],
+	});
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
+	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_table\` (
+\t\`name\` text
+);\n`);
+	expect(sqlStatements[2]).toBe(
+		`INSERT INTO \`__new_table\`("name") SELECT "name" FROM \`table\`;`,
+	);
+	expect(sqlStatements[3]).toBe(`DROP TABLE \`table\`;`);
+	expect(sqlStatements[4]).toBe(`ALTER TABLE \`__new_table\` RENAME TO \`table\`;`);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
+});
+
+test('alter column drop generated', async (t) => {
+	const from = {
+		users: sqliteTable('table', {
+			id: int('id').primaryKey().notNull(),
+			name: text('name').generatedAlwaysAs('drizzle is the best').notNull(),
+		}),
+	};
+
+	const to = {
+		users: sqliteTable('table', {
+			id: int('id').primaryKey().notNull(),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+		from,
+		to,
+		[],
+	);
+
+	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		columnAutoIncrement: false,
 		columnDefault: undefined,
+		columnGenerated: undefined,
 		columnName: 'name',
-		columnNotNull: false,
+		columnNotNull: true,
 		columnOnUpdate: undefined,
 		columnPk: false,
 		newDataType: 'text',
 		schema: '',
 		tableName: 'table',
-		type: 'alter_table_alter_column_drop_default',
+		type: 'alter_table_alter_column_drop_generated',
 	});
 
-	expect(statements[0]).toStrictEqual({
-		columnAutoIncrement: false,
-		columnDefault: undefined,
-		columnName: 'name',
-		columnNotNull: false,
-		columnOnUpdate: undefined,
-		columnPk: false,
-		newDataType: 'text',
-		schema: '',
-		tableName: 'table',
-		type: 'alter_table_alter_column_drop_default',
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE \`table\` DROP COLUMN \`name\`;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE \`table\` ADD \`name\` text NOT NULL;`);
+});
+
+test('recreate table with nested references', async (t) => {
+	let users = sqliteTable('users', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		name: text('name'),
+		age: integer('age'),
 	});
+	let subscriptions = sqliteTable('subscriptions', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		userId: integer('user_id').references(() => users.id),
+		customerId: text('customer_id'),
+	});
+	const schema1 = {
+		users: users,
+		subscriptions: subscriptions,
+		subscriptionMetadata: sqliteTable('subscriptions_metadata', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			subscriptionId: text('subscription_id').references(() => subscriptions.id),
+		}),
+	};
+
+	users = sqliteTable('users', {
+		id: int('id').primaryKey({ autoIncrement: false }),
+		name: text('name'),
+		age: integer('age'),
+	});
+	const schema2 = {
+		users: users,
+		subscriptions: subscriptions,
+		subscriptionMetadata: sqliteTable('subscriptions_metadata', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			subscriptionId: text('subscription_id').references(() => subscriptions.id),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columns: [
+			{
+				autoincrement: false,
+				generated: undefined,
+				name: 'id',
+				notNull: true,
+				primaryKey: true,
+				type: 'integer',
+			},
+			{
+				autoincrement: false,
+				generated: undefined,
+				name: 'name',
+				notNull: false,
+				primaryKey: false,
+				type: 'text',
+			},
+			{
+				autoincrement: false,
+				generated: undefined,
+				name: 'age',
+				notNull: false,
+				primaryKey: false,
+				type: 'integer',
+			},
+		],
+		compositePKs: [],
+		referenceData: [],
+		tableName: 'users',
+		type: 'recreate_table',
+		uniqueConstraints: [],
+		checkConstraints: [],
+	});
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
+	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_users\` (
+\t\`id\` integer PRIMARY KEY NOT NULL,
+\t\`name\` text,
+\t\`age\` integer
+);\n`);
+	expect(sqlStatements[2]).toBe(
+		`INSERT INTO \`__new_users\`("id", "name", "age") SELECT "id", "name", "age" FROM \`users\`;`,
+	);
+	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements[4]).toBe(`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });

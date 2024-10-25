@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "0.23.2",
+	"version": "0.26.2",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -42,7 +42,7 @@
 		"publish": "npm publish package.tgz"
 	},
 	"dependencies": {
-		"@drizzle-team/brocli": "^0.8.2",
+		"@drizzle-team/brocli": "^0.10.1",
 		"@esbuild-kit/esm-loader": "^2.5.5",
 		"esbuild": "^0.19.7",
 		"esbuild-register": "^3.5.0"
@@ -51,10 +51,10 @@
 		"@arethetypeswrong/cli": "^0.15.3",
 		"@aws-sdk/client-rds-data": "^3.556.0",
 		"@cloudflare/workers-types": "^4.20230518.0",
-		"@electric-sql/pglite": "^0.1.5",
+		"@electric-sql/pglite": "^0.2.12",
 		"@hono/node-server": "^1.9.0",
 		"@hono/zod-validator": "^0.2.1",
-		"@libsql/client": "^0.4.2",
+		"@libsql/client": "^0.10.0",
 		"@neondatabase/serverless": "^0.9.1",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.16.0",
@@ -74,12 +74,13 @@
 		"@vercel/postgres": "^0.8.0",
 		"ava": "^5.1.0",
 		"better-sqlite3": "^9.4.3",
+		"bun-types": "^0.6.6",
 		"camelcase": "^7.0.1",
 		"chalk": "^5.2.0",
 		"commander": "^12.1.0",
 		"dockerode": "^3.3.4",
 		"dotenv": "^16.0.3",
-		"drizzle-kit": "0.21.2",
+		"drizzle-kit": "0.25.0-b1faa33",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"env-paths": "^3.0.0",
 		"esbuild-node-externals": "^1.9.0",
@@ -92,7 +93,7 @@
 		"hono": "^4.1.5",
 		"json-diff": "1.0.6",
 		"minimatch": "^7.4.3",
-		"mysql2": "2.3.3",
+		"mysql2": "3.3.3",
 		"node-fetch": "^3.3.2",
 		"pg": "^8.11.5",
 		"pluralize": "^8.0.0",

@@ -9,6 +9,7 @@ import { prepareFilenames } from '../../serializer';
 import { pullParams, pushParams } from '../validations/cli';
 import {
 	Casing,
+	CasingType,
 	CliConfig,
 	configCommonSchema,
 	configMigrations,
@@ -16,6 +17,8 @@ import {
 	Prefix,
 	wrapParam,
 } from '../validations/common';
+import { LibSQLCredentials, libSQLCredentials } from '../validations/libsql';
+import { printConfigConnectionIssues as printIssuesLibSql } from '../validations/libsql';
 import {
 	MysqlCredentials,
 	mysqlCredentials,
@@ -79,7 +82,7 @@ export const safeRegister = async () => {
 export const prepareCheckParams = async (
 	options: {
 		config?: string;
-		dialect: Dialect;
+		dialect?: Dialect;
 		out?: string;
 	},
 	from: 'cli' | 'config',
@@ -122,6 +125,7 @@ export type GenerateConfig = {
 	prefix: Prefix;
 	custom: boolean;
 	bundle: boolean;
+	casing?: CasingType;
 };
 
 export const prepareGenerateConfig = async (
@@ -135,12 +139,13 @@ export const prepareGenerateConfig = async (
 		dialect?: Dialect;
 		driver?: Driver;
 		prefix?: Prefix;
+		casing?: CasingType;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
 
-	const { schema, out, breakpoints, dialect, driver } = config;
+	const { schema, out, breakpoints, dialect, driver, casing } = config;
 
 	if (!schema || !dialect) {
 		console.log(error('Please provide required params:'));
@@ -168,6 +173,7 @@ export const prepareGenerateConfig = async (
 		schema: schema,
 		out: out || 'drizzle',
 		bundle: driver === 'expo',
+		casing,
 	};
 };
 
@@ -211,6 +217,10 @@ export const preparePushConfig = async (
 			dialect: 'sqlite';
 			credentials: SqliteCredentials;
 		}
+		| {
+			dialect: 'turso';
+			credentials: LibSQLCredentials;
+		}
 	) & {
 		schemaPath: string | string[];
 		verbose: boolean;
@@ -218,6 +228,7 @@ export const preparePushConfig = async (
 		force: boolean;
 		tablesFilter: string[];
 		schemasFilter: string[];
+		casing?: CasingType;
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -286,6 +297,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -304,6 +316,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -322,6 +335,26 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
+			tablesFilter,
+			schemasFilter,
+		};
+	}
+
+	if (config.dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesSqlite(config, 'pull');
+			process.exit(1);
+		}
+		return {
+			dialect: 'turso',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -346,6 +379,10 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'sqlite';
 			credentials: SqliteCredentials;
+		}
+		| {
+			dialect: 'turso';
+			credentials: LibSQLCredentials;
 		}
 	) & {
 		out: string;
@@ -408,11 +445,11 @@ export const preparePullConfig = async (
 			dialect: 'postgresql',
 			out: config.out,
 			breakpoints: config.breakpoints,
-			casing: config.introspectCasing,
+			casing: config.casing,
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.database?.prefix || 'index',
+			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 
@@ -426,11 +463,11 @@ export const preparePullConfig = async (
 			dialect: 'mysql',
 			out: config.out,
 			breakpoints: config.breakpoints,
-			casing: config.introspectCasing,
+			casing: config.casing,
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.database?.prefix || 'index',
+			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 
@@ -444,11 +481,29 @@ export const preparePullConfig = async (
 			dialect: 'sqlite',
 			out: config.out,
 			breakpoints: config.breakpoints,
-			casing: config.introspectCasing,
+			casing: config.casing,
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
-			prefix: config.database?.prefix || 'index',
+			prefix: config.migrations?.prefix || 'index',
+		};
+	}
+
+	if (dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesLibSql(config, 'pull');
+			process.exit(1);
+		}
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
 		};
 	}
 
@@ -509,6 +564,22 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		const parsed = sqliteCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printIssuesSqlite(flattened as Record<string, unknown>, 'studio');
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+		};
+	}
+
+	if (dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesLibSql(flattened as Record<string, unknown>, 'studio');
 			process.exit(1);
 		}
 		const credentials = parsed.data;
@@ -589,6 +660,21 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			table,
 		};
 	}
+	if (dialect === 'turso') {
+		const parsed = libSQLCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesLibSql(flattened as Record<string, unknown>, 'migrate');
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
 
 	assertUnreachable(dialect);
 };
@@ -634,6 +720,7 @@ export const drizzleConfigFromFile = async (
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);
 	if (!res.success) {
+		console.log(res.error);
 		if (!('dialect' in content)) {
 			console.log(error("Please specify 'dialect' param in config file"));
 		}

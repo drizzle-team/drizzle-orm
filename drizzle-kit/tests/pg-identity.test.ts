@@ -48,6 +48,7 @@ test('create table: identity always/by default - no params', async () => {
 			tableName: 'users',
 			type: 'create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -86,6 +87,7 @@ test('create table: identity always/by default - few params', async () => {
 			tableName: 'users',
 			type: 'create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -128,6 +130,7 @@ test('create table: identity always/by default - all params', async () => {
 			tableName: 'users',
 			type: 'create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([

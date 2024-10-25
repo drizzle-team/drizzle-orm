@@ -1,3 +1,4 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { SelectedFields } from '~/operations.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
@@ -28,6 +29,7 @@ export type Chunk =
 	| SQL;
 
 export interface BuildQueryConfig {
+	casing: CasingCache;
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
@@ -134,6 +136,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		});
 
 		const {
+			casing,
 			escapeName,
 			escapeParam,
 			prepareTyping,
@@ -185,10 +188,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Column)) {
+				const columnName = casing.getColumnCasing(chunk);
 				if (_config.invokeSource === 'indexes') {
-					return { sql: escapeName(chunk.name), params: [] };
+					return { sql: escapeName(columnName), params: [] };
 				}
-				return { sql: escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name), params: [] };
+				return { sql: escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName), params: [] };
 			}
 
 			if (is(chunk, View)) {
@@ -203,7 +207,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Param)) {
-				const mappedValue = (chunk.value === null) ? null : chunk.encoder.mapToDriverValue(chunk.value);
+				if (is(chunk.value, Placeholder)) {
+					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+				}
+
+				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
 
 				if (is(mappedValue, SQL)) {
 					return this.buildQueryFromSourceParams([mappedValue], config);
@@ -213,7 +221,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 					return { sql: this.mapInlineParam(mappedValue, config), params: [] };
 				}
 
-				let typings: QueryTypingsValue[] | undefined;
+				let typings: QueryTypingsValue[] = ['none'];
 				if (prepareTyping) {
 					typings = [prepareTyping(chunk.encoder)];
 				}
@@ -263,7 +271,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
 
-			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
+			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
 		}));
 	}
 
@@ -583,7 +591,16 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 			if (!(p.name in values)) {
 				throw new Error(`No value for placeholder "${p.name}" was provided`);
 			}
+
 			return values[p.name];
+		}
+
+		if (is(p, Param) && is(p.value, Placeholder)) {
+			if (!(p.value.name in values)) {
+				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
+			}
+
+			return p.encoder.mapToDriverValue(values[p.value.name]);
 		}
 
 		return p;

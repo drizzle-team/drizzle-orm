@@ -1,3 +1,4 @@
+import { vectorOps } from 'src/extensions/vector';
 import { mapValues, originUUID, snapshotVersion } from '../global';
 
 import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
@@ -184,6 +185,11 @@ const column = object({
 		.optional(),
 }).strict();
 
+const checkConstraint = object({
+	name: string(),
+	value: string(),
+}).strict();
+
 const columnSquashed = object({
 	name: string(),
 	type: string(),
@@ -217,6 +223,48 @@ const uniqueConstraint = object({
 	name: string(),
 	columns: string().array(),
 	nullsNotDistinct: boolean(),
+}).strict();
+
+const viewWithOption = object({
+	checkOption: enumType(['local', 'cascaded']).optional(),
+	securityBarrier: boolean().optional(),
+	securityInvoker: boolean().optional(),
+}).strict();
+
+const matViewWithOption = object({
+	fillfactor: number().optional(),
+	toastTupleTarget: number().optional(),
+	parallelWorkers: number().optional(),
+	autovacuumEnabled: boolean().optional(),
+	vacuumIndexCleanup: enumType(['auto', 'off', 'on']).optional(),
+	vacuumTruncate: boolean().optional(),
+	autovacuumVacuumThreshold: number().optional(),
+	autovacuumVacuumScaleFactor: number().optional(),
+	autovacuumVacuumCostDelay: number().optional(),
+	autovacuumVacuumCostLimit: number().optional(),
+	autovacuumFreezeMinAge: number().optional(),
+	autovacuumFreezeMaxAge: number().optional(),
+	autovacuumFreezeTableAge: number().optional(),
+	autovacuumMultixactFreezeMinAge: number().optional(),
+	autovacuumMultixactFreezeMaxAge: number().optional(),
+	autovacuumMultixactFreezeTableAge: number().optional(),
+	logAutovacuumMinDuration: number().optional(),
+	userCatalogTable: boolean().optional(),
+}).strict();
+
+export const mergedViewWithOption = viewWithOption.merge(matViewWithOption).strict();
+
+export const view = object({
+	name: string(),
+	schema: string(),
+	columns: record(string(), column),
+	definition: string().optional(),
+	materialized: boolean(),
+	with: mergedViewWithOption.optional(),
+	isExisting: boolean(),
+	withNoData: boolean().optional(),
+	using: string().optional(),
+	tablespace: string().optional(),
 }).strict();
 
 const tableV4 = object({
@@ -265,6 +313,7 @@ const table = object({
 	foreignKeys: record(string(), fk),
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
+	checkConstraints: record(string(), checkConstraint).default({}),
 }).strict();
 
 const schemaHash = object({
@@ -282,6 +331,7 @@ export const kitInternals = object({
 					isArray: boolean().optional(),
 					dimensions: number().optional(),
 					rawType: string().optional(),
+					isDefaultAnExpression: boolean().optional(),
 				}).optional(),
 			),
 		}).optional(),
@@ -366,6 +416,7 @@ export const pgSchemaInternal = object({
 	tables: record(string(), table),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
+	views: record(string(), view).default({}),
 	sequences: record(string(), sequenceSchema).default({}),
 	_meta: object({
 		schemas: record(string(), string()),
@@ -383,6 +434,7 @@ const tableSquashed = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()),
+	checkConstraints: record(string(), string()),
 }).strict();
 
 const tableSquashedV4 = object({
@@ -415,6 +467,7 @@ export const pgSchemaSquashed = object({
 	tables: record(string(), tableSquashed),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
+	views: record(string(), view),
 	sequences: record(string(), sequenceSquashed),
 }).strict();
 
@@ -443,7 +496,12 @@ export type Index = TypeOf<typeof index>;
 export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
+export type View = TypeOf<typeof view>;
+export type MatViewWithOption = TypeOf<typeof matViewWithOption>;
+export type ViewWithOption = TypeOf<typeof viewWithOption>;
+
 export type PgKitInternals = TypeOf<typeof kitInternals>;
+export type CheckConstraint = TypeOf<typeof checkConstraint>;
 
 export type PgSchemaV1 = TypeOf<typeof pgSchemaV1>;
 export type PgSchemaV2 = TypeOf<typeof pgSchemaV2>;
@@ -464,7 +522,10 @@ export const PgSquasher = {
 		return `${idx.name};${
 			idx.columns
 				.map(
-					(c) => `${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${c.opclass}`,
+					(c) =>
+						`${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${
+							c.opclass && vectorOps.includes(c.opclass) ? c.opclass : ''
+						}`,
 				)
 				.join(',,')
 		};${idx.isUnique};${idx.concurrently};${idx.method};${idx.where};${JSON.stringify(idx.with)}`;
@@ -622,6 +683,17 @@ export const PgSquasher = {
 			cycle: splitted[7] === 'true',
 		};
 	},
+	squashCheck: (check: CheckConstraint) => {
+		return `${check.name};${check.value}`;
+	},
+	unsquashCheck: (input: string): CheckConstraint => {
+		const [
+			name,
+			value,
+		] = input.split(';');
+
+		return { name, value };
+	},
 };
 
 export const squashPgScheme = (
@@ -666,6 +738,13 @@ export const squashPgScheme = (
 				},
 			);
 
+			const squashedChecksContraints = mapValues(
+				it[1].checkConstraints,
+				(check) => {
+					return PgSquasher.squashCheck(check);
+				},
+			);
+
 			return [
 				it[0],
 				{
@@ -676,6 +755,7 @@ export const squashPgScheme = (
 					foreignKeys: squashedFKs,
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
+					checkConstraints: squashedChecksContraints,
 				},
 			];
 		}),
@@ -700,6 +780,7 @@ export const squashPgScheme = (
 		tables: mappedTables,
 		enums: json.enums,
 		schemas: json.schemas,
+		views: json.views,
 		sequences: mappedSequences,
 	};
 };
