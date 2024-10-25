@@ -169,7 +169,7 @@ export const prepareGenerateConfig = async (
 		name: options.name,
 		custom: options.custom || false,
 		prefix,
-		breakpoints: breakpoints || true,
+		breakpoints: breakpoints ?? true,
 		schema: schema,
 		out: out || 'drizzle',
 		bundle: driver === 'expo',
