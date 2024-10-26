@@ -1,4 +1,5 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
@@ -27,7 +28,6 @@ import type { MsSqlUpdateConfig } from './query-builders/update.ts';
 import type { MsSqlSession } from './session.ts';
 import { MsSqlTable } from './table.ts';
 import { MsSqlViewBase } from './view-base.ts';
-import { CasingCache } from '~/casing.ts';
 
 export interface MsSqlDialectConfig {
 	casing?: Casing;
@@ -35,10 +35,10 @@ export interface MsSqlDialectConfig {
 export class MsSqlDialect {
 	static readonly [entityKind]: string = 'MsSqlDialect';
 
-  /** @internal */
+	/** @internal */
 	readonly casing: CasingCache;
 
-  constructor(config?: MsSqlDialectConfig) {
+	constructor(config?: MsSqlDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
 	}
 
@@ -477,7 +477,7 @@ export class MsSqlDialect {
 
 	sqlToQuery(sql: SQL): QueryWithTypings {
 		return sql.toQuery({
-      casing: this.casing,
+			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,

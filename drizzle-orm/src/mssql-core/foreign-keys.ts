@@ -1,6 +1,7 @@
 import { entityKind } from '~/entity.ts';
+import { TableName } from '~/table.utils.ts';
 import type { AnyMsSqlColumn, MsSqlColumn } from './columns/index.ts';
-import { MsSqlTable } from './table.ts';
+import type { MsSqlTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
@@ -80,9 +81,9 @@ export class ForeignKey {
 		const columnNames = columns.map((column) => column.name);
 		const foreignColumnNames = foreignColumns.map((column) => column.name);
 		const chunks = [
-			this.table[MsSqlTable.Symbol.Name],
+			this.table[TableName],
 			...columnNames,
-			foreignColumns[0]!.table[MsSqlTable.Symbol.Name],
+			foreignColumns[0]!.table[TableName],
 			...foreignColumnNames,
 		];
 		return name ?? `${chunks.join('_')}_fk`;

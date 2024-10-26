@@ -15,9 +15,9 @@ import { entityKind } from '~/entity.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/mssql-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/mssql-core/foreign-keys.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
+import type { SQL } from '~/sql/index.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
-import type { SQL } from '~/sql/index.ts';
 
 export interface ReferenceConfig {
 	ref: () => MsSqlColumn;

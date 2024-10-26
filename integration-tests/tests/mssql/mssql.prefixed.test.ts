@@ -27,7 +27,7 @@ import { migrate } from 'drizzle-orm/node-mssql/migrator';
 import getPort from 'get-port';
 import mssql, { type config, type ConnectionPool } from 'mssql';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils.ts';
+import { type Equal, Expect } from '~/utils.ts';
 
 const ENABLE_LOGGING = false;
 

@@ -238,7 +238,7 @@ export type MsSqlSelectReplace<
 	K extends keyof T & string,
 	Include extends keyof T & string,
 > = TDynamic extends true ? T
-	: 
+	:
 		& Omit<
 			MsSqlSelectKind<
 				T['_']['hkt'],
