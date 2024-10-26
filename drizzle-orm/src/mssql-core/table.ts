@@ -1,7 +1,8 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
+import { getMsSqlColumnBuilders, type MsSqlColumnBuilders } from './columns/all.ts';
 import type { MsSqlColumn, MsSqlColumnBuilder, MsSqlColumnBuilderBase } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
@@ -60,7 +61,7 @@ export function mssqlTableWithSchema<
 	TColumnsMap extends Record<string, MsSqlColumnBuilderBase>,
 >(
 	name: TTableName,
-	columns: TColumnsMap,
+	columns: TColumnsMap | ((columnTypes: MsSqlColumnBuilders) => TColumnsMap),
 	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfig) | undefined,
 	schema: TSchemaName,
 	baseName = name,
@@ -77,9 +78,12 @@ export function mssqlTableWithSchema<
 		dialect: 'mssql';
 	}>(name, schema, baseName);
 
+	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getMsSqlColumnBuilders()) : columns;
+
 	const builtColumns = Object.fromEntries(
-		Object.entries(columns).map(([name, colBuilderBase]) => {
+		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as MsSqlColumnBuilder;
+			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
@@ -89,6 +93,11 @@ export function mssqlTableWithSchema<
 	const table = Object.assign(rawTable, builtColumns);
 
 	table[Table.Symbol.Columns] = builtColumns;
+	table[Table.Symbol.ExtraConfigColumns] = builtColumns as unknown as BuildExtraConfigColumns<
+		TTableName,
+		TColumnsMap,
+		'mssql'
+	>;
 
 	if (extraConfig) {
 		table[MsSqlTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (

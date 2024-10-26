@@ -10,6 +10,7 @@ export default defineConfig({
 			'tests/relational/**/*.test.ts',
 			'tests/pg/**/*.test.ts',
 			'tests/mysql/**/*.test.ts',
+			'tests/mssql/**/*.test.ts',
 			'tests/sqlite/**/*.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',

@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import type { ColumnsSelection} from '~/sql/sql.ts';
+import type { ColumnsSelection } from '~/sql/sql.ts';
 import { View } from '~/sql/sql.ts';
 
 export abstract class MsSqlViewBase<
