@@ -17,7 +17,7 @@ import {
 } from '~/relations.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
+import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MsSqlColumn } from './columns/common.ts';
@@ -42,7 +42,11 @@ export class MsSqlDialect {
 		this.casing = new CasingCache(config?.casing);
 	}
 
-	async migrate(migrations: MigrationMeta[], session: MsSqlSession, config: MigrationConfig): Promise<void> {
+	async migrate(
+		migrations: MigrationMeta[],
+		session: MsSqlSession,
+		config: Omit<MigrationConfig, 'migrationsSchema'>,
+	): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 		const migrationTableCreate = sql`
 			create table ${sql.identifier(migrationsTable)} (
@@ -475,12 +479,13 @@ export class MsSqlDialect {
 		return sql`insert into ${table} ${insertOrder.length === 0 ? sql`default` : insertOrder} values ${valuesSql}`;
 	}
 
-	sqlToQuery(sql: SQL): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
 			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			invokeSource,
 		});
 	}
 
@@ -633,7 +638,7 @@ export class MsSqlDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(
