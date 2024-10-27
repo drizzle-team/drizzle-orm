@@ -1,3 +1,4 @@
+import type Docker from 'dockerode';
 import { DefaultLogger } from 'drizzle-orm';
 import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { drizzle } from 'drizzle-orm/node-mssql';
