@@ -1,3 +1,4 @@
+import { neonConfig, Pool, type PoolConfig } from '@neondatabase/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -9,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
 import type { NeonClient, NeonQueryResultHKT } from './session.ts';
 import { NeonSession } from './session.ts';
 
@@ -40,7 +41,7 @@ export class NeonDatabase<
 	static override readonly [entityKind]: string = 'NeonServerlessDatabase';
 }
 
-export function drizzle<
+function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends NeonClient = NeonClient,
 >(
@@ -76,4 +77,76 @@ export function drizzle<
 	(<any> db).$client = client;
 
 	return db as any;
+}
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends NeonClient = Pool,
+>(
+	...params: IfNotImported<
+		Pool,
+		[ImportTypeError<'@neondatabase/serverless'>],
+		[
+			TClient | string,
+		] | [
+			TClient | string,
+			DrizzleConfig<TSchema>,
+		] | [
+			(
+				& DrizzleConfig<TSchema>
+				& ({
+					connection: string | PoolConfig;
+				} | {
+					client: TClient;
+				})
+				& {
+					ws?: any;
+				}
+			),
+		]
+	>
+): NeonDatabase<TSchema> & {
+	$client: TClient;
+} {
+	if (typeof params[0] === 'string') {
+		const instance = new Pool({
+			connectionString: params[0],
+		});
+
+		return construct(instance, params[1]) as any;
+	}
+
+	if (isConfig(params[0])) {
+		const { connection, client, ws, ...drizzleConfig } = params[0] as {
+			connection?: PoolConfig | string;
+			ws?: any;
+			client?: TClient;
+		} & DrizzleConfig<TSchema>;
+
+		if (ws) {
+			neonConfig.webSocketConstructor = ws;
+		}
+
+		if (client) return construct(client, drizzleConfig);
+
+		const instance = typeof connection === 'string'
+			? new Pool({
+				connectionString: connection,
+			})
+			: new Pool(connection);
+
+		return construct(instance, drizzleConfig) as any;
+	}
+
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: DrizzleConfig<TSchema>,
+	): NeonDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }

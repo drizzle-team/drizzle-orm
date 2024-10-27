@@ -146,6 +146,49 @@ export function diffColumns(left, right) {
 	return alteredTables;
 }
 
+export function diffPolicies(left, right) {
+	left = JSON.parse(JSON.stringify(left));
+	right = JSON.parse(JSON.stringify(right));
+	const result = diff(left, right) ?? {};
+
+	const alteredTables = Object.fromEntries(
+		Object.entries(result)
+			.filter((it) => {
+				return !(it[0].includes('__added') || it[0].includes('__deleted'));
+			})
+			.map((tableEntry) => {
+				// const entry = { name: it, ...result[it] }
+				const deletedPolicies = Object.entries(tableEntry[1].policies ?? {})
+					.filter((it) => {
+						return it[0].endsWith('__deleted');
+					})
+					.map((it) => {
+						return it[1];
+					});
+
+				const addedPolicies = Object.entries(tableEntry[1].policies ?? {})
+					.filter((it) => {
+						return it[0].endsWith('__added');
+					})
+					.map((it) => {
+						return it[1];
+					});
+
+				tableEntry[1].policies = {
+					added: addedPolicies,
+					deleted: deletedPolicies,
+				};
+				const table = left[tableEntry[0]];
+				return [
+					tableEntry[0],
+					{ name: table.name, schema: table.schema, ...tableEntry[1] },
+				];
+			}),
+	);
+
+	return alteredTables;
+}
+
 export function applyJsonDiff(json1, json2) {
 	json1 = JSON.parse(JSON.stringify(json1));
 	json2 = JSON.parse(JSON.stringify(json2));
@@ -158,6 +201,7 @@ export function applyJsonDiff(json1, json2) {
 	difference.tables = difference.tables || {};
 	difference.enums = difference.enums || {};
 	difference.sequences = difference.sequences || {};
+	difference.roles = difference.roles || {};
 	difference.views = difference.views || {};
 
 	// remove added/deleted schemas
@@ -240,6 +284,12 @@ export function applyJsonDiff(json1, json2) {
 			return json2.sequences[it[0]];
 		});
 
+	const rolesEntries = Object.entries(difference.roles);
+	const alteredRoles = rolesEntries
+		.filter((it) => !(it[0].includes('__added') || it[0].includes('__deleted')))
+		.map((it) => {
+			return json2.roles[it[0]];
+		});
 	const viewsEntries = Object.entries(difference.views);
 
 	const alteredViews = viewsEntries.filter((it) => !(it[0].includes('__added') || it[0].includes('__deleted'))).map(
@@ -329,6 +379,7 @@ export function applyJsonDiff(json1, json2) {
 		alteredTablesWithColumns,
 		alteredEnums,
 		alteredSequences,
+		alteredRoles,
 		alteredViews,
 	};
 }
@@ -363,6 +414,28 @@ const findAlternationsInTable = (table) => {
 
 	const alteredIndexes = Object.fromEntries(
 		Object.entries(table.indexes || {}).filter((it) => {
+			return !it[0].endsWith('__deleted') && !it[0].endsWith('__added');
+		}),
+	);
+
+	const deletedPolicies = Object.fromEntries(
+		Object.entries(table.policies__deleted || {})
+			.concat(
+				Object.entries(table.policies || {}).filter((it) => it[0].includes('__deleted')),
+			)
+			.map((entry) => [entry[0].replace('__deleted', ''), entry[1]]),
+	);
+
+	const addedPolicies = Object.fromEntries(
+		Object.entries(table.policies__added || {})
+			.concat(
+				Object.entries(table.policies || {}).filter((it) => it[0].includes('__added')),
+			)
+			.map((entry) => [entry[0].replace('__added', ''), entry[1]]),
+	);
+
+	const alteredPolicies = Object.fromEntries(
+		Object.entries(table.policies || {}).filter((it) => {
 			return !it[0].endsWith('__deleted') && !it[0].endsWith('__added');
 		}),
 	);
@@ -463,6 +536,9 @@ const findAlternationsInTable = (table) => {
 		addedUniqueConstraints,
 		deletedUniqueConstraints,
 		alteredUniqueConstraints,
+		deletedPolicies,
+		addedPolicies,
+		alteredPolicies,
 		addedCheckConstraints,
 		deletedCheckConstraints,
 		alteredCheckConstraints,
