@@ -11,6 +11,7 @@ import {
 	isPgView,
 	PgEnum,
 	PgMaterializedView,
+	PgPolicy,
 	PgRole,
 	PgSchema,
 	PgSequence,
@@ -72,7 +73,7 @@ import {
 
 export type PostgresSchema = Record<
 	string,
-	PgTable<any> | PgEnum<any> | PgSchema | PgSequence | PgView | PgMaterializedView | PgRole
+	PgTable<any> | PgEnum<any> | PgSchema | PgSequence | PgView | PgMaterializedView | PgRole | PgPolicy
 >;
 export type MysqlSchema = Record<string, MySqlTable<any> | MySqlSchema | MySqlView>;
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
@@ -796,6 +797,8 @@ export const diffTestSchemasPush = async (
 
 	const leftRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
 
+	const leftPolicies = Object.values(right).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
 	const leftViews = Object.values(right).filter((it) => isPgView(it)) as PgView[];
 
 	const leftMaterializedViews = Object.values(right).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
@@ -806,6 +809,7 @@ export const diffTestSchemasPush = async (
 		leftSchemas,
 		leftSequences,
 		leftRoles,
+		leftPolicies,
 		leftViews,
 		leftMaterializedViews,
 		casing,
@@ -935,9 +939,21 @@ export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | unde
 
 	const views = Object.values(sn).filter((it) => isPgView(it)) as PgView[];
 
+	const policies = Object.values(sn).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
 	const materializedViews = Object.values(sn).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
-	const serialized1 = generatePgSnapshot(tables, enums, schemas, sequences, roles, views, materializedViews, casing);
+	const serialized1 = generatePgSnapshot(
+		tables,
+		enums,
+		schemas,
+		sequences,
+		roles,
+		policies,
+		views,
+		materializedViews,
+		casing,
+	);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -997,6 +1013,11 @@ export const diffTestSchemas = async (
 	const leftRoles = Object.values(left).filter((it) => is(it, PgRole)) as PgRole[];
 
 	const rightRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
+
+	const leftPolicies = Object.values(left).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
+	const rightPolicies = Object.values(right).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
 	const leftViews = Object.values(left).filter((it) => isPgView(it)) as PgView[];
 
 	const rightViews = Object.values(right).filter((it) => isPgView(it)) as PgView[];
@@ -1011,6 +1032,7 @@ export const diffTestSchemas = async (
 		leftSchemas,
 		leftSequences,
 		leftRoles,
+		leftPolicies,
 		leftViews,
 		leftMaterializedViews,
 		casing,
@@ -1021,6 +1043,7 @@ export const diffTestSchemas = async (
 		rightSchemas,
 		rightSequences,
 		rightRoles,
+		rightPolicies,
 		rightViews,
 		rightMaterializedViews,
 		casing,
@@ -1825,6 +1848,7 @@ export const introspectPgToFile = async (
 		response.schemas,
 		response.sequences,
 		response.roles,
+		response.policies,
 		response.views,
 		response.matViews,
 		casing,

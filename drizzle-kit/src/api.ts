@@ -50,6 +50,7 @@ export const generateDrizzleJson = (
 		prepared.schemas,
 		prepared.sequences,
 		prepared.roles,
+		prepared.policies,
 		prepared.views,
 		prepared.matViews,
 		casing,

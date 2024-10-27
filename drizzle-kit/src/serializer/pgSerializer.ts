@@ -12,6 +12,7 @@ import {
 	PgEnum,
 	PgEnumColumn,
 	PgMaterializedView,
+	PgPolicy,
 	PgRole,
 	PgSchema,
 	PgSequence,
@@ -104,6 +105,7 @@ export const generatePgSnapshot = (
 	schemas: PgSchema[],
 	sequences: PgSequence[],
 	roles: PgRole[],
+	policies: PgPolicy[],
 	views: PgView[],
 	matViews: PgMaterializedView[],
 	casing: CasingType | undefined,
@@ -117,6 +119,7 @@ export const generatePgSnapshot = (
 
 	// This object stores unique names for indexes and will be used to detect if you have the same names for indexes
 	// within the same PostgreSQL schema
+
 	const indexesInSchema: Record<string, string[]> = {};
 
 	for (const table of tables) {
@@ -496,6 +499,23 @@ export const generatePgSnapshot = (
 				}
 			}
 
+			if (policiesObject[policy.name] !== undefined) {
+				console.log(
+					`\n${
+						withStyle.errorWarning(
+							`We\'ve found duplicated policy name across ${
+								chalk.underline.blue(tableKey)
+							} table. Please rename one of the policies with ${
+								chalk.underline.blue(
+									policy.name,
+								)
+							} name`,
+						)
+					}`,
+				);
+				process.exit(1);
+			}
+
 			policiesObject[policy.name] = {
 				name: policy.name,
 				as: policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE',
@@ -556,6 +576,71 @@ export const generatePgSnapshot = (
 			policies: policiesObject,
 			checkConstraints: checksObject,
 			isRLSEnabled: enableRLS,
+		};
+	}
+
+	for (const policy of policies) {
+		// @ts-ignore
+		if (!policy._linkedTable) {
+			console.log(
+				`\n${
+					withStyle.errorWarning(
+						`"Policy ${policy.name} was skipped because it was not linked to any table. You should either include the policy in a table or use .link() on the policy to link it to any table you have. For more information, please check:`,
+					)
+				}`,
+			);
+			continue;
+		}
+
+		// @ts-ignore
+		const tableConfig = getTableConfig(policy._linkedTable);
+
+		const tableKey = `${tableConfig.schema ?? 'public'}.${tableConfig.name}`;
+
+		const mappedTo = [];
+
+		if (!policy.to) {
+			mappedTo.push('public');
+		} else {
+			if (policy.to && typeof policy.to === 'string') {
+				mappedTo.push(policy.to);
+			} else if (policy.to && is(policy.to, PgRole)) {
+				mappedTo.push(policy.to.name);
+			} else if (policy.to && Array.isArray(policy.to)) {
+				policy.to.forEach((it) => {
+					if (typeof it === 'string') {
+						mappedTo.push(it);
+					} else if (is(it, PgRole)) {
+						mappedTo.push(it.name);
+					}
+				});
+			}
+		}
+
+		if (result[tableKey].policies[policy.name] !== undefined) {
+			console.log(
+				`\n${
+					withStyle.errorWarning(
+						`We\'ve found duplicated policy name across ${
+							chalk.underline.blue(tableKey)
+						} table. Please rename one of the policies with ${
+							chalk.underline.blue(
+								policy.name,
+							)
+						} name`,
+					)
+				}`,
+			);
+			process.exit(1);
+		}
+
+		result[tableKey].policies[policy.name] = {
+			name: policy.name,
+			as: policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE',
+			for: policy.for?.toUpperCase() as Policy['for'] ?? 'ALL',
+			to: mappedTo.sort(),
+			using: is(policy.using, SQL) ? dialect.sqlToQuery(policy.using).sql : undefined,
+			withCheck: is(policy.withCheck, SQL) ? dialect.sqlToQuery(policy.withCheck).sql : undefined,
 		};
 	}
 

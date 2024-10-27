@@ -799,3 +799,236 @@ test('add policy with enabled rls', async (t) => {
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_role, "manager";',
 	]);
 });
+
+test('add policy + link table', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema2 = {
+		users,
+		rls: pgPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			schema: '',
+			tableName: 'users',
+			type: 'enable_rls',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
+});
+
+test('link table', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+		rls: pgPolicy('test', { as: 'permissive' }),
+	};
+
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema2 = {
+		users,
+		rls: pgPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			schema: '',
+			tableName: 'users',
+			type: 'enable_rls',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
+});
+
+test('unlink table', async (t) => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema1 = {
+		users,
+		rls: pgPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const schema2 = {
+		users,
+		rls: pgPolicy('test', { as: 'permissive' }),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
+		'DROP POLICY "test" ON "users" CASCADE;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			schema: '',
+			tableName: 'users',
+			type: 'disable_rls',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'drop_policy',
+		},
+	]);
+});
+
+test('drop policy with link', async (t) => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema1 = {
+		users,
+		rls: pgPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const schema2 = {
+		users,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
+		'DROP POLICY "test" ON "users" CASCADE;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			schema: '',
+			tableName: 'users',
+			type: 'disable_rls',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'drop_policy',
+		},
+	]);
+});
+
+test('add policy in table and with link table', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	}, () => [
+		pgPolicy('test1', { to: 'current_user' }),
+	]);
+
+	const schema2 = {
+		users,
+		rls: pgPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test1" ON "users" AS PERMISSIVE FOR ALL TO current_user;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			schema: '',
+			tableName: 'users',
+			type: 'enable_rls',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test1',
+				to: ['current_user'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['public'],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
+});
