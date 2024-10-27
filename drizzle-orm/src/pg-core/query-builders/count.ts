@@ -1,6 +1,5 @@
-import { entityKind, sql } from '~/index.ts';
-import type { SQLWrapper } from '~/sql/sql.ts';
-import { SQL } from '~/sql/sql.ts';
+import { entityKind } from '~/entity.ts';
+import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { PgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
@@ -9,7 +8,7 @@ export class PgCountBuilder<
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
 
-	static readonly [entityKind] = 'PgCountBuilder';
+	static override readonly [entityKind] = 'PgCountBuilder';
 	[Symbol.toStringTag] = 'PgCountBuilder';
 
 	private session: TSession;

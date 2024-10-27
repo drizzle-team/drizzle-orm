@@ -14,7 +14,7 @@ import { type PgRemoteQueryResultHKT, PgRemoteSession } from './session.ts';
 export class PgRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<PgRemoteQueryResultHKT, TSchema> {
-	static readonly [entityKind]: string = 'PgRemoteDatabase';
+	static override readonly [entityKind]: string = 'PgRemoteDatabase';
 }
 
 export type RemoteCallback = (
@@ -27,7 +27,7 @@ export type RemoteCallback = (
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	callback: RemoteCallback,
 	config: DrizzleConfig<TSchema> = {},
-	_dialect: () => PgDialect = () => new PgDialect(),
+	_dialect: () => PgDialect = () => new PgDialect({ casing: config.casing }),
 ): PgRemoteDatabase<TSchema> {
 	const dialect = _dialect();
 	let logger;

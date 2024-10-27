@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "0.25.0",
+	"version": "0.26.2",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -51,7 +51,7 @@
 		"@arethetypeswrong/cli": "^0.15.3",
 		"@aws-sdk/client-rds-data": "^3.556.0",
 		"@cloudflare/workers-types": "^4.20230518.0",
-		"@electric-sql/pglite": "^0.1.5",
+		"@electric-sql/pglite": "^0.2.12",
 		"@hono/node-server": "^1.9.0",
 		"@hono/zod-validator": "^0.2.1",
 		"@libsql/client": "^0.10.0",
@@ -80,7 +80,7 @@
 		"commander": "^12.1.0",
 		"dockerode": "^3.3.4",
 		"dotenv": "^16.0.3",
-		"drizzle-kit": "0.21.2",
+		"drizzle-kit": "0.25.0-b1faa33",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"env-paths": "^3.0.0",
 		"esbuild-node-externals": "^1.9.0",

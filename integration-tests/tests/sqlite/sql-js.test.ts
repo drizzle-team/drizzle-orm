@@ -58,5 +58,7 @@ skipTests([
 	 */
 	'transaction rollback',
 	'nested transaction rollback',
+	'delete with limit and order by',
+	'update with limit and order by',
 ]);
 tests();

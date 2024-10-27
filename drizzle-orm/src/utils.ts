@@ -207,9 +207,12 @@ export type ColumnsWithTable<
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
 > = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
 
+export type Casing = 'snake_case' | 'camelCase';
+
 export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
 	logger?: boolean | Logger;
 	schema?: TSchema;
+	casing?: Casing;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -224,4 +227,87 @@ export type KnownKeysOnly<T, U> = {
 
 export type IsAny<T> = 0 extends (1 & T) ? true : false;
 
+/** @internal */
+export function getColumnNameAndConfig<
+	TConfig extends Record<string, any> | undefined,
+>(a: string | TConfig | undefined, b: TConfig | undefined) {
+	return {
+		name: typeof a === 'string' && a.length > 0 ? a : '' as string,
+		config: typeof a === 'object' ? a : b as TConfig,
+	};
+}
+
 export type IfNotImported<T, Y, N> = unknown extends T ? Y : N;
+
+export type ImportTypeError<TPackageName extends string> =
+	`Please install \`${TPackageName}\` to allow Drizzle ORM to connect to the database`;
+
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends any
+	? Required<Pick<T, Keys>> & Partial<Omit<T, Keys>>
+	: never;
+
+type ExpectedConfigShape = {
+	logger?: boolean | {
+		logQuery(query: string, params: unknown[]): void;
+	};
+	schema?: Record<string, never>;
+	casing?: 'snake_case' | 'camelCase';
+};
+
+// If this errors, you must update config shape checker function with new config specs
+const _: DrizzleConfig = {} as ExpectedConfigShape;
+const __: ExpectedConfigShape = {} as DrizzleConfig;
+
+export function isConfig(data: any): boolean {
+	if (typeof data !== 'object' || data === null) return false;
+
+	if (data.constructor.name !== 'Object') return false;
+
+	if ('logger' in data) {
+		const type = typeof data['logger'];
+		if (
+			type !== 'boolean' && (type !== 'object' || typeof data['logger']['logQuery'] !== 'function')
+			&& type !== 'undefined'
+		) return false;
+
+		return true;
+	}
+
+	if ('schema' in data) {
+		const type = typeof data['logger'];
+		if (type !== 'object' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('casing' in data) {
+		const type = typeof data['logger'];
+		if (type !== 'string' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('mode' in data) {
+		if (data['mode'] !== 'default' || data['mode'] !== 'planetscale' || data['mode'] !== undefined) return false;
+
+		return true;
+	}
+
+	if ('connection' in data) {
+		const type = typeof data['connection'];
+		if (type !== 'string' && type !== 'object' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('client' in data) {
+		const type = typeof data['client'];
+		if (type !== 'object' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if (Object.keys(data).length === 0) return true;
+
+	return false;
+}

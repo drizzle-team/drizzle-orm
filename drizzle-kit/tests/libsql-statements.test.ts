@@ -33,6 +33,7 @@ test('drop autoincrement', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 });
 
@@ -66,6 +67,7 @@ test('set autoincrement', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 });
 
@@ -427,6 +429,7 @@ test('drop foriegn key', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements.length).toBe(6);
@@ -512,6 +515,7 @@ test('alter foriegn key', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements.length).toBe(6);
@@ -615,6 +619,7 @@ test('add foriegn key for multiple columns', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	} as JsonRecreateTableStatement);
 
 	expect(sqlStatements.length).toBe(6);
@@ -709,6 +714,7 @@ test('drop foriegn key for multiple columns', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements.length).toBe(6);
@@ -850,6 +856,7 @@ test('recreate table with nested references', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 
 	expect(sqlStatements.length).toBe(6);

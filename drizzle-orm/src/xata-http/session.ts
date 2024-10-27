@@ -22,7 +22,7 @@ export interface QueryResults<ArrayMode extends 'json' | 'array'> {
 }
 
 export class XataHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'XataHttpPreparedQuery';
+	static override readonly [entityKind]: string = 'XataHttpPreparedQuery';
 
 	constructor(
 		private client: XataHttpClient,
@@ -84,7 +84,7 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 		TSchema
 	>
 {
-	static readonly [entityKind]: string = 'XataHttpSession';
+	static override readonly [entityKind]: string = 'XataHttpSession';
 
 	private logger: Logger;
 
@@ -152,7 +152,7 @@ export class XataTransaction<TFullSchema extends Record<string, unknown>, TSchem
 		TSchema
 	>
 {
-	static readonly [entityKind]: string = 'XataHttpTransaction';
+	static override readonly [entityKind]: string = 'XataHttpTransaction';
 
 	override async transaction<T>(_transaction: (tx: XataTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		throw new Error('No transactions support in Xata Http driver');

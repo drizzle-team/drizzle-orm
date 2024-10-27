@@ -14,7 +14,7 @@ import { type MySqlRemotePreparedQueryHKT, type MySqlRemoteQueryResultHKT, MySql
 export class MySqlRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends MySqlDatabase<MySqlRemoteQueryResultHKT, MySqlRemotePreparedQueryHKT, TSchema> {
-	static readonly [entityKind]: string = 'MySqlRemoteDatabase';
+	static override readonly [entityKind]: string = 'MySqlRemoteDatabase';
 }
 
 export type RemoteCallback = (
@@ -27,7 +27,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	callback: RemoteCallback,
 	config: DrizzleConfig<TSchema> = {},
 ): MySqlRemoteDatabase<TSchema> {
-	const dialect = new MySqlDialect();
+	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
