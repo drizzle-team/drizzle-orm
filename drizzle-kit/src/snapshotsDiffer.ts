@@ -12,7 +12,7 @@ import {
 	union,
 	ZodTypeAny,
 } from 'zod';
-import { applyJsonDiff, diffColumns, diffSchemasOrTables } from './jsonDiffer';
+import { applyJsonDiff, diffColumns, diffPolicies, diffSchemasOrTables } from './jsonDiffer';
 import { fromJson } from './sqlgenerator';
 
 import {
@@ -22,6 +22,7 @@ import {
 	JsonAddColumnStatement,
 	JsonAlterCompositePK,
 	JsonAlterMySqlViewStatement,
+	JsonAlterPolicyStatement,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
 	JsonAlterViewStatement,
@@ -29,16 +30,22 @@ import {
 	JsonCreateCompositePK,
 	JsonCreateMySqlViewStatement,
 	JsonCreatePgViewStatement,
+	JsonCreatePolicyStatement,
 	JsonCreateReferenceStatement,
 	JsonCreateSqliteViewStatement,
 	JsonCreateUniqueConstraint,
 	JsonDeleteCheckConstraint,
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
+	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
+	JsonDropPolicyStatement,
 	JsonDropViewStatement,
+	JsonEnableRLSStatement,
 	JsonReferenceStatement,
 	JsonRenameColumnStatement,
+	JsonRenamePolicyStatement,
+	JsonRenameRoleStatement,
 	JsonRenameViewStatement,
 	JsonSqliteAddColumnStatement,
 	JsonStatement,
@@ -52,11 +59,15 @@ import {
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
 	prepareAlterCompositePrimaryKeySqlite,
+	prepareAlterPolicyJson,
 	prepareAlterReferencesJson,
+	prepareAlterRoleJson,
 	prepareAlterSequenceJson,
 	prepareCreateEnumJson,
 	prepareCreateIndexesJson,
+	prepareCreatePolicyJsons,
 	prepareCreateReferencesJson,
+	prepareCreateRoleJson,
 	prepareCreateSchemasJson,
 	prepareCreateSequenceJson,
 	prepareDeleteCheckConstraint,
@@ -68,7 +79,9 @@ import {
 	prepareDropEnumJson,
 	prepareDropEnumValues,
 	prepareDropIndexesJson,
+	prepareDropPolicyJsons,
 	prepareDropReferencesJson,
+	prepareDropRoleJson,
 	prepareDropSequenceJson,
 	prepareDropTableJson,
 	prepareDropViewJson,
@@ -90,6 +103,8 @@ import {
 	preparePgCreateViewJson,
 	prepareRenameColumns,
 	prepareRenameEnumJson,
+	prepareRenamePolicyJsons,
+	prepareRenameRoleJson,
 	prepareRenameSchemasJson,
 	prepareRenameSequenceJson,
 	prepareRenameTableJson,
@@ -102,7 +117,17 @@ import {
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher, ViewSquashed } from './serializer/mysqlSchema';
-import { mergedViewWithOption, PgSchema, PgSchemaSquashed, sequenceSquashed, View } from './serializer/pgSchema';
+import {
+	mergedViewWithOption,
+	PgSchema,
+	PgSchemaSquashed,
+	PgSquasher,
+	Policy,
+	Role,
+	roleSchema,
+	sequenceSquashed,
+	View,
+} from './serializer/pgSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher, View as SqliteView } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';
@@ -229,7 +254,9 @@ const tableScheme = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()).default({}),
 	uniqueConstraints: record(string(), string()).default({}),
+	policies: record(string(), string()).default({}),
 	checkConstraints: record(string(), string()).default({}),
+	isRLSEnabled: boolean().default(false),
 }).strict();
 
 export const alteredTableScheme = object({
@@ -266,6 +293,15 @@ export const alteredTableScheme = object({
 	addedUniqueConstraints: record(string(), string()),
 	deletedUniqueConstraints: record(string(), string()),
 	alteredUniqueConstraints: record(
+		string(),
+		object({
+			__new: string(),
+			__old: string(),
+		}),
+	),
+	addedPolicies: record(string(), string()),
+	deletedPolicies: record(string(), string()),
+	alteredPolicies: record(
 		string(),
 		object({
 			__new: string(),
@@ -337,6 +373,7 @@ export const diffResultScheme = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
 	alteredEnums: changedEnumSchema.array(),
 	alteredSequences: sequenceSquashed.array(),
+	alteredRoles: roleSchema.array(),
 	alteredViews: alteredPgViewSchema.array(),
 }).strict();
 
@@ -384,6 +421,17 @@ export interface ColumnsResolverInput<T extends { name: string }> {
 	tableName: string;
 	schema: string;
 	created: T[];
+	deleted: T[];
+}
+
+export interface RolesResolverInput<T extends { name: string }> {
+	created: T[];
+	deleted: T[];
+}
+
+export interface RolesResolverOutput<T extends { name: string }> {
+	created: T[];
+	renamed: { from: T; to: T }[];
 	deleted: T[];
 }
 
@@ -457,6 +505,12 @@ const columnChangeFor = (
 	return column;
 };
 
+// resolve roles same as enums
+// create new json statements
+// sql generators
+
+// tests everything!
+
 export const applyPgSnapshotsDiff = async (
 	json1: PgSchemaSquashed,
 	json2: PgSchemaSquashed,
@@ -469,6 +523,12 @@ export const applyPgSnapshotsDiff = async (
 	sequencesResolver: (
 		input: ResolverInput<Sequence>,
 	) => Promise<ResolverOutputWithMoved<Sequence>>,
+	policyResolver: (
+		input: ColumnsResolverInput<Policy>,
+	) => Promise<ColumnsResolverOutput<Policy>>,
+	roleResolver: (
+		input: RolesResolverInput<Role>,
+	) => Promise<RolesResolverOutput<Role>>,
 	tablesResolver: (
 		input: ResolverInput<Table>,
 	) => Promise<ResolverOutputWithMoved<Table>>,
@@ -696,6 +756,60 @@ export const applyPgSnapshotsDiff = async (
 		},
 	);
 
+	const rolesDiff = diffSchemasOrTables(
+		schemasPatchedSnap1.roles,
+		json2.roles,
+	);
+
+	const {
+		created: createdRoles,
+		deleted: deletedRoles,
+		renamed: renamedRoles,
+	} = await roleResolver({
+		created: rolesDiff.added,
+		deleted: rolesDiff.deleted,
+	});
+
+	schemasPatchedSnap1.roles = mapEntries(
+		schemasPatchedSnap1.roles,
+		(_, it) => {
+			const { name } = nameChangeFor(it, renamedRoles);
+			it.name = name;
+			return [name, it];
+		},
+	);
+
+	const rolesChangeMap = renamedRoles.reduce(
+		(acc, it) => {
+			acc[it.from.name] = {
+				nameFrom: it.from.name,
+				nameTo: it.to.name,
+			};
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				nameFrom: string;
+				nameTo: string;
+			}
+		>,
+	);
+
+	schemasPatchedSnap1.roles = mapEntries(
+		schemasPatchedSnap1.roles,
+		(roleKey, roleValue) => {
+			const key = roleKey;
+			const change = rolesChangeMap[key];
+
+			if (change) {
+				roleValue.name = change.nameTo;
+			}
+
+			return [roleKey, roleValue];
+		},
+	);
+
 	const tablesDiff = diffSchemasOrTables(
 		schemasPatchedSnap1.tables as Record<string, any>,
 		json2.tables,
@@ -808,7 +922,101 @@ export const applyPgSnapshotsDiff = async (
 		},
 	);
 
-	const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
+	//// Policies
+
+	const policyRes = diffPolicies(tablesPatchedSnap1.tables, json2.tables);
+
+	const policyRenames = [] as {
+		table: string;
+		schema: string;
+		renames: { from: Policy; to: Policy }[];
+	}[];
+
+	const policyCreates = [] as {
+		table: string;
+		schema: string;
+		columns: Policy[];
+	}[];
+
+	const policyDeletes = [] as {
+		table: string;
+		schema: string;
+		columns: Policy[];
+	}[];
+
+	for (let entry of Object.values(policyRes)) {
+		const { renamed, created, deleted } = await policyResolver({
+			tableName: entry.name,
+			schema: entry.schema,
+			deleted: entry.policies.deleted.map(PgSquasher.unsquashPolicy),
+			created: entry.policies.added.map(PgSquasher.unsquashPolicy),
+		});
+
+		if (created.length > 0) {
+			policyCreates.push({
+				table: entry.name,
+				schema: entry.schema,
+				columns: created,
+			});
+		}
+
+		if (deleted.length > 0) {
+			policyDeletes.push({
+				table: entry.name,
+				schema: entry.schema,
+				columns: deleted,
+			});
+		}
+
+		if (renamed.length > 0) {
+			policyRenames.push({
+				table: entry.name,
+				schema: entry.schema,
+				renames: renamed,
+			});
+		}
+	}
+
+	const policyRenamesDict = columnRenames.reduce(
+		(acc, it) => {
+			acc[`${it.schema || 'public'}.${it.table}`] = it.renames;
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				from: Named;
+				to: Named;
+			}[]
+		>,
+	);
+
+	const policyPatchedSnap1 = copy(tablesPatchedSnap1);
+	policyPatchedSnap1.tables = mapEntries(
+		policyPatchedSnap1.tables,
+		(tableKey, tableValue) => {
+			const patchedPolicies = mapKeys(
+				tableValue.policies,
+				(policyKey, policy) => {
+					const rens = policyRenamesDict[
+						`${tableValue.schema || 'public'}.${tableValue.name}`
+					] || [];
+
+					const newName = columnChangeFor(policyKey, rens);
+					const unsquashedPolicy = PgSquasher.unsquashPolicy(policy);
+					unsquashedPolicy.name = newName;
+					policy = PgSquasher.squashPolicy(unsquashedPolicy);
+					return newName;
+				},
+			);
+
+			tableValue.policies = patchedPolicies;
+			return [tableKey, tableValue];
+		},
+	);
+
+	////
+	const viewsDiff = diffSchemasOrTables(policyPatchedSnap1.views, json2.views);
 
 	const {
 		created: createdViews,
@@ -830,7 +1038,7 @@ export const applyPgSnapshotsDiff = async (
 		movedViewDic[`${it.schemaFrom}.${it.name}`] = { to: it.schemaTo, from: it.schemaFrom };
 	});
 
-	const viewsPatchedSnap1 = copy(columnsPatchedSnap1);
+	const viewsPatchedSnap1 = copy(policyPatchedSnap1);
 	viewsPatchedSnap1.views = mapEntries(
 		viewsPatchedSnap1.views,
 		(viewKey, viewValue) => {
@@ -908,13 +1116,15 @@ export const applyPgSnapshotsDiff = async (
 
 	const jsonSetTableSchemas: JsonAlterTableSetSchema[] = [];
 
-	for (let it of movedTables) {
-		jsonSetTableSchemas.push({
-			type: 'alter_table_set_schema',
-			tableName: it.name,
-			schemaFrom: it.schemaFrom || 'public',
-			schemaTo: it.schemaTo || 'public',
-		});
+	if (movedTables) {
+		for (let it of movedTables) {
+			jsonSetTableSchemas.push({
+				type: 'alter_table_set_schema',
+				tableName: it.name,
+				schemaFrom: it.schemaFrom || 'public',
+				schemaTo: it.schemaTo || 'public',
+			});
+		}
 	}
 
 	const jsonDeletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
@@ -1072,7 +1282,131 @@ export const applyPgSnapshotsDiff = async (
 		})
 		.flat();
 
+	const jsonCreatePoliciesStatements: JsonCreatePolicyStatement[] = [];
+	const jsonDropPoliciesStatements: JsonDropPolicyStatement[] = [];
+	const jsonAlterPoliciesStatements: JsonAlterPolicyStatement[] = [];
+	const jsonRenamePoliciesStatements: JsonRenamePolicyStatement[] = [];
+
+	const jsonEnableRLSStatements: JsonEnableRLSStatement[] = [];
+	const jsonDisableRLSStatements: JsonDisableRLSStatement[] = [];
+
+	for (let it of policyRenames) {
+		jsonRenamePoliciesStatements.push(
+			...prepareRenamePolicyJsons(it.table, it.schema, it.renames),
+		);
+	}
+
+	for (const it of policyCreates) {
+		jsonCreatePoliciesStatements.push(
+			...prepareCreatePolicyJsons(
+				it.table,
+				it.schema,
+				it.columns,
+			),
+		);
+	}
+
+	for (const it of policyDeletes) {
+		jsonDropPoliciesStatements.push(
+			...prepareDropPolicyJsons(
+				it.table,
+				it.schema,
+				it.columns,
+			),
+		);
+	}
+
 	alteredTables.forEach((it) => {
+		// handle policies
+		Object.keys(it.alteredPolicies).forEach((policyName: string) => {
+			const newPolicy = PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__new);
+			const oldPolicy = PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__old);
+
+			if (newPolicy.as !== oldPolicy.as) {
+				jsonDropPoliciesStatements.push(
+					...prepareDropPolicyJsons(
+						it.name,
+						it.schema,
+						[oldPolicy],
+					),
+				);
+
+				jsonCreatePoliciesStatements.push(
+					...prepareCreatePolicyJsons(
+						it.name,
+						it.schema,
+						[newPolicy],
+					),
+				);
+				return;
+			}
+
+			if (newPolicy.for !== oldPolicy.for) {
+				jsonDropPoliciesStatements.push(
+					...prepareDropPolicyJsons(
+						it.name,
+						it.schema,
+						[oldPolicy],
+					),
+				);
+
+				jsonCreatePoliciesStatements.push(
+					...prepareCreatePolicyJsons(
+						it.name,
+						it.schema,
+						[newPolicy],
+					),
+				);
+				return;
+			}
+
+			// alter
+			jsonAlterPoliciesStatements.push(
+				prepareAlterPolicyJson(
+					it.name,
+					it.schema,
+					it.alteredPolicies[policyName].__old,
+					it.alteredPolicies[policyName].__new,
+				),
+			);
+		});
+
+		// Handle enabling and disabling RLS
+		for (const table of Object.values(json2.tables)) {
+			const policiesInCurrentState = Object.keys(table.policies);
+			const tableInPreviousState =
+				columnsPatchedSnap1.tables[`${table.schema === '' ? 'public' : table.schema}.${table.name}`];
+			const policiesInPreviousState = tableInPreviousState ? Object.keys(tableInPreviousState.policies) : [];
+
+			if (policiesInPreviousState.length === 0 && policiesInCurrentState.length > 0 && !table.isRLSEnabled) {
+				jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
+			}
+
+			if (policiesInPreviousState.length > 0 && policiesInCurrentState.length === 0 && !table.isRLSEnabled) {
+				jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+			}
+
+			// handle table.isRLSEnabled
+			if (table.isRLSEnabled !== tableInPreviousState.isRLSEnabled) {
+				if (table.isRLSEnabled) {
+					// was force enabled
+					jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
+				} else if (!table.isRLSEnabled && policiesInCurrentState.length === 0) {
+					// was force disabled
+					jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+				}
+			}
+		}
+
+		for (const table of Object.values(columnsPatchedSnap1.tables)) {
+			const tableInCurrentState = json2.tables[`${table.schema === '' ? 'public' : table.schema}.${table.name}`];
+
+			if (tableInCurrentState === undefined && !table.isRLSEnabled) {
+				jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+			}
+		}
+
+		// handle indexes
 		const droppedIndexes = Object.keys(it.alteredIndexes).reduce(
 			(current, item: string) => {
 				current[item] = it.alteredIndexes[item].__old;
@@ -1207,6 +1541,26 @@ export const applyPgSnapshotsDiff = async (
 
 	////////////
 
+	const createRoles = createdRoles.map((it) => {
+		return prepareCreateRoleJson(it);
+	}) ?? [];
+
+	const dropRoles = deletedRoles.map((it) => {
+		return prepareDropRoleJson(it.name);
+	});
+
+	const renameRoles = renamedRoles.map((it) => {
+		return prepareRenameRoleJson(it.from.name, it.to.name);
+	});
+
+	const jsonAlterRoles = typedResult.alteredRoles
+		.map((it) => {
+			return prepareAlterRoleJson(it);
+		})
+		.flat() ?? [];
+
+	////////////
+
 	const createSchemas = prepareCreateSchemasJson(
 		createdSchemas.map((it) => it.name),
 	);
@@ -1223,6 +1577,11 @@ export const applyPgSnapshotsDiff = async (
 		return preparePgCreateTableJson(it, curFull);
 	});
 
+	jsonCreatePoliciesStatements.push(...([] as JsonCreatePolicyStatement[]).concat(
+		...(createdTables.map((it) =>
+			prepareCreatePolicyJsons(it.name, it.schema, Object.values(it.policies).map(PgSquasher.unsquashPolicy))
+		)),
+	));
 	const createViews: JsonCreatePgViewStatement[] = [];
 	const dropViews: JsonDropViewStatement[] = [];
 	const renameViews: JsonRenameViewStatement[] = [];
@@ -1385,8 +1744,15 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...renameSequences);
 	jsonStatements.push(...jsonAlterSequences);
 
+	jsonStatements.push(...renameRoles);
+	jsonStatements.push(...dropRoles);
+	jsonStatements.push(...createRoles);
+	jsonStatements.push(...jsonAlterRoles);
+
 	jsonStatements.push(...createTables);
 
+	jsonStatements.push(...jsonEnableRLSStatements);
+	jsonStatements.push(...jsonDisableRLSStatements);
 	jsonStatements.push(...dropViews);
 	jsonStatements.push(...renameViews);
 	jsonStatements.push(...alterViews);
@@ -1425,6 +1791,10 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 	jsonStatements.push(...jsonAlterEnumsWithDroppedValues);
 
+	jsonStatements.push(...jsonRenamePoliciesStatements);
+	jsonStatements.push(...jsonDropPoliciesStatements);
+	jsonStatements.push(...jsonCreatePoliciesStatements);
+	jsonStatements.push(...jsonAlterPoliciesStatements);
 	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...dropEnums);

@@ -34,8 +34,10 @@ test('add table #1', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 	});
 });
@@ -63,6 +65,8 @@ test('add table #2', async () => {
 			},
 		],
 		compositePKs: [],
+		isRLSEnabled: false,
+		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
 		compositePkName: '',
@@ -103,7 +107,9 @@ test('add table #3', async () => {
 			},
 		],
 		compositePKs: ['id;users_pk'],
+		policies: [],
 		uniqueConstraints: [],
+		isRLSEnabled: false,
 		checkConstraints: [],
 		compositePkName: 'users_pk',
 	});
@@ -124,16 +130,20 @@ test('add table #4', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_table',
 		tableName: 'posts',
+		policies: [],
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		checkConstraints: [],
 		compositePkName: '',
@@ -160,9 +170,11 @@ test('add table #5', async () => {
 		schema: 'folder',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
+		isRLSEnabled: false,
 	});
 });
 
@@ -185,11 +197,14 @@ test('add table #6', async () => {
 		columns: [],
 		compositePKs: [],
 		uniqueConstraints: [],
+		policies: [],
 		compositePkName: '',
 		checkConstraints: [],
+		isRLSEnabled: false,
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
+		policies: [],
 		tableName: 'users1',
 		schema: '',
 	});
@@ -216,8 +231,10 @@ test('add table #7', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		isRLSEnabled: false,
 		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
@@ -275,7 +292,9 @@ test('multiproject schema add table #1', async () => {
 			},
 		],
 		compositePKs: [],
+		policies: [],
 		compositePkName: '',
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		checkConstraints: [],
 	});
@@ -298,6 +317,7 @@ test('multiproject schema drop table #1', async () => {
 		schema: '',
 		tableName: 'prefix_users',
 		type: 'drop_table',
+		policies: [],
 	});
 });
 
@@ -367,8 +387,10 @@ test('add schema + table #1', async () => {
 		type: 'create_table',
 		tableName: 'users',
 		schema: 'folder',
+		policies: [],
 		columns: [],
 		compositePKs: [],
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
@@ -625,6 +647,7 @@ test('drop table + rename schema #1', async () => {
 		type: 'drop_table',
 		tableName: 'users',
 		schema: 'folder2',
+		policies: [],
 	});
 });
 

@@ -45,7 +45,7 @@
 	"peerDependencies": {
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=3",
-		"@electric-sql/pglite": ">=0.1.1",
+		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
 		"@neondatabase/serverless": ">=0.1",
@@ -128,6 +128,9 @@
 			"optional": true
 		},
 		"@libsql/client": {
+			"optional": true
+		},
+		"@libsql/client-wasm": {
 			"optional": true
 		},
 		"@opentelemetry/api": {
