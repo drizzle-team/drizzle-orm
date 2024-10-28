@@ -104,7 +104,7 @@ export const preparePostgresDB = async (
 
 		if (driver === 'pglite') {
 			assertPackages('@electric-sql/pglite');
-			const { PGlite } = await import('@electric-sql/pglite');
+			const { PGlite, types } = await import('@electric-sql/pglite');
 			const { drizzle } = await import('drizzle-orm/pglite');
 			const { migrate } = await import('drizzle-orm/pglite/migrator');
 
@@ -115,25 +115,26 @@ export const preparePostgresDB = async (
 				return migrate(drzl, config);
 			};
 
+			const parsers = {
+				[types.TIMESTAMP]: (value: any) => value,
+				[types.TIMESTAMPTZ]: (value: any) => value,
+				[types.INTERVAL]: (value: any) => value,
+				[types.DATE]: (value: any) => value,
+			};
+
 			const query = async <T>(sql: string, params: any[] = []) => {
-				const result = await pglite.query(sql, params);
+				const result = await pglite.query(sql, params, {
+					parsers,
+				});
 				return result.rows as T[];
 			};
 
 			const proxy = async (params: ProxyParams) => {
 				const preparedParams = preparePGliteParams(params.params);
-				if (
-					params.method === 'values'
-					|| params.method === 'get'
-					|| params.method === 'all'
-				) {
-					const result = await pglite.query(params.sql, preparedParams, {
-						rowMode: params.mode,
-					});
-					return result.rows;
-				}
-
-				const result = await pglite.query(params.sql, preparedParams);
+				const result = await pglite.query(params.sql, preparedParams, {
+					rowMode: params.mode,
+					parsers,
+				});
 				return result.rows;
 			};
 
@@ -145,7 +146,7 @@ export const preparePostgresDB = async (
 
 	if (await checkPackage('pg')) {
 		console.log(withStyle.info(`Using 'pg' driver for database querying`));
-		const pg = await import('pg');
+		const { default: pg } = await import('pg');
 		const { drizzle } = await import('drizzle-orm/node-postgres');
 		const { migrate } = await import('drizzle-orm/node-postgres/migrator');
 
@@ -159,9 +160,30 @@ export const preparePostgresDB = async (
 				: credentials.ssl
 			: {};
 
+		// Override pg default date parsers
+		const types: { getTypeParser: typeof pg.types.getTypeParser } = {
+			// @ts-ignore
+			getTypeParser: (typeId, format) => {
+				if (typeId === pg.types.builtins.TIMESTAMPTZ) {
+					return (val) => val;
+				}
+				if (typeId === pg.types.builtins.TIMESTAMP) {
+					return (val) => val;
+				}
+				if (typeId === pg.types.builtins.DATE) {
+					return (val) => val;
+				}
+				if (typeId === pg.types.builtins.INTERVAL) {
+					return (val) => val;
+				}
+				// @ts-ignore
+				return pg.types.getTypeParser(typeId, format);
+			},
+		}
+
 		const client = 'url' in credentials
-			? new pg.default.Pool({ connectionString: credentials.url, max: 1 })
-			: new pg.default.Pool({ ...credentials, ssl, max: 1 });
+			? new pg.Pool({ connectionString: credentials.url, max: 1 })
+			: new pg.Pool({ ...credentials, ssl, max: 1 });
 
 		const db = drizzle(client);
 		const migrateFn = async (config: MigrationConfig) => {
@@ -169,7 +191,11 @@ export const preparePostgresDB = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.query(sql, params ?? []);
+			const result = await client.query({
+				text: sql,
+				values: params ?? [],
+				types,
+			});
 			return result.rows;
 		};
 
@@ -178,6 +204,7 @@ export const preparePostgresDB = async (
 				text: params.sql,
 				values: params.params,
 				...(params.mode === 'array' && { rowMode: 'array' }),
+				types,
 			});
 			return result.rows;
 		};
@@ -197,6 +224,16 @@ export const preparePostgresDB = async (
 		const client = 'url' in credentials
 			? postgres.default(credentials.url, { max: 1 })
 			: postgres.default({ ...credentials, max: 1 });
+
+		const transparentParser = (val: any) => val;
+
+		// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
+		for (const type of ['1184', '1082', '1083', '1114']) {
+			client.options.parsers[type as any] = transparentParser;
+			client.options.serializers[type as any] = transparentParser;
+		}
+		client.options.serializers['114'] = transparentParser;
+		client.options.serializers['3802'] = transparentParser;
 
 		const db = drizzle(client);
 		const migrateFn = async (config: MigrationConfig) => {
@@ -227,7 +264,7 @@ export const preparePostgresDB = async (
 				"'@vercel/postgres' can only connect to remote Neon/Vercel Postgres/Supabase instances through a websocket",
 			),
 		);
-		const { VercelPool } = await import('@vercel/postgres');
+		const { VercelPool, types: pgTypes } = await import('@vercel/postgres');
 		const { drizzle } = await import('drizzle-orm/vercel-postgres');
 		const { migrate } = await import('drizzle-orm/vercel-postgres/migrator');
 		const ssl = 'ssl' in credentials
@@ -239,6 +276,27 @@ export const preparePostgresDB = async (
 				? {}
 				: credentials.ssl
 			: {};
+
+		// Override @vercel/postgres default date parsers
+		const types: { getTypeParser: typeof pgTypes.getTypeParser } = {
+			// @ts-ignore
+			getTypeParser: (typeId, format) => {
+				if (typeId === pgTypes.builtins.TIMESTAMPTZ) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.TIMESTAMP) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.DATE) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.INTERVAL) {
+					return (val: any) => val;
+				}
+				// @ts-ignore
+				return pgTypes.getTypeParser(typeId, format);
+			},
+		}
 
 		const client = 'url' in credentials
 			? new VercelPool({ connectionString: credentials.url })
@@ -252,7 +310,11 @@ export const preparePostgresDB = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.query(sql, params ?? []);
+			const result = await client.query({
+				text: sql,
+				values: params ?? [],
+				types,
+			});
 			return result.rows;
 		};
 
@@ -261,6 +323,7 @@ export const preparePostgresDB = async (
 				text: params.sql,
 				values: params.params,
 				...(params.mode === 'array' && { rowMode: 'array' }),
+				types,
 			});
 			return result.rows;
 		};
@@ -279,7 +342,7 @@ export const preparePostgresDB = async (
 				"'@neondatabase/serverless' can only connect to remote Neon/Vercel Postgres/Supabase instances through a websocket",
 			),
 		);
-		const { Pool, neonConfig } = await import('@neondatabase/serverless');
+		const { Pool, neonConfig, types: pgTypes } = await import('@neondatabase/serverless');
 		const { drizzle } = await import('drizzle-orm/neon-serverless');
 		const { migrate } = await import('drizzle-orm/neon-serverless/migrator');
 
@@ -293,6 +356,27 @@ export const preparePostgresDB = async (
 				: credentials.ssl
 			: {};
 
+		// Override @neondatabase/serverless default date parsers
+		const types: { getTypeParser: typeof pgTypes.getTypeParser } = {
+			// @ts-ignore
+			getTypeParser: (typeId, format) => {
+				if (typeId === pgTypes.builtins.TIMESTAMPTZ) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.TIMESTAMP) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.DATE) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.INTERVAL) {
+					return (val: any) => val;
+				}
+				// @ts-ignore
+				return pgTypes.getTypeParser(typeId, format);
+			},
+		}
+
 		const client = 'url' in credentials
 			? new Pool({ connectionString: credentials.url, max: 1 })
 			: new Pool({ ...credentials, max: 1, ssl });
@@ -304,7 +388,11 @@ export const preparePostgresDB = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.query(sql, params ?? []);
+			const result = await client.query({
+				text: sql,
+				values: params ?? [],
+				types,
+			});
 			return result.rows;
 		};
 
@@ -313,6 +401,7 @@ export const preparePostgresDB = async (
 				text: params.sql,
 				values: params.params,
 				...(params.mode === 'array' && { rowMode: 'array' }),
+				types,
 			});
 			return result.rows;
 		};
@@ -373,12 +462,23 @@ export const connectToMySQL = async (
 			return migrate(db, config);
 		};
 
+		const typeCast = (field: any, next: any) => {
+			if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+				return field.string();
+			}
+			return next();
+		};
+
 		await connection.connect();
 		const query: DB['query'] = async <T>(
 			sql: string,
 			params?: any[],
 		): Promise<T[]> => {
-			const res = await connection.execute(sql, params);
+			const res = await connection.execute({
+				sql,
+				values: params,
+				typeCast,
+			});
 			return res[0] as any;
 		};
 
@@ -387,6 +487,7 @@ export const connectToMySQL = async (
 				sql: params.sql,
 				values: params.params,
 				rowsAsArray: params.mode === 'array',
+				typeCast,
 			});
 			return result[0] as any[];
 		};

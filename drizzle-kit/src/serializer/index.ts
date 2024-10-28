@@ -1,6 +1,4 @@
 import chalk from 'chalk';
-import { SQL, Table } from 'drizzle-orm';
-import { CasingCache } from 'drizzle-orm/casing';
 import fs from 'fs';
 import * as glob from 'glob';
 import Path from 'path';
@@ -9,36 +7,6 @@ import { error } from '../cli/views';
 import type { MySqlSchemaInternal } from './mysqlSchema';
 import type { PgSchemaInternal } from './pgSchema';
 import type { SQLiteSchemaInternal } from './sqliteSchema';
-
-export const sqlToStr = (sql: SQL, casing: CasingType | undefined) => {
-	return sql.toQuery({
-		escapeName: () => {
-			throw new Error("we don't support params for `sql` default values");
-		},
-		escapeParam: () => {
-			throw new Error("we don't support params for `sql` default values");
-		},
-		escapeString: () => {
-			throw new Error("we don't support params for `sql` default values");
-		},
-		casing: new CasingCache(casing),
-	}).sql;
-};
-
-export const sqlToStrGenerated = (sql: SQL, casing: CasingType | undefined) => {
-	return sql.toQuery({
-		escapeName: () => {
-			throw new Error("we don't support params for `sql` default values");
-		},
-		escapeParam: () => {
-			throw new Error("we don't support params for `sql` default values");
-		},
-		escapeString: () => {
-			throw new Error("we don't support params for `sql` default values");
-		},
-		casing: new CasingCache(casing),
-	}).sql;
-};
 
 export const serializeMySql = async (
 	path: string | string[],
