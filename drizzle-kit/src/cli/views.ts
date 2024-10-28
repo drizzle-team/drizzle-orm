@@ -166,7 +166,7 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 	constructor(
 		private readonly base: T,
 		data: (RenamePropmtItem<T> | T)[],
-		private readonly entityType: 'role',
+		private readonly entityType: 'role' | 'policy',
 	) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));

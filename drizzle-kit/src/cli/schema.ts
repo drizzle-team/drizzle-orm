@@ -269,6 +269,7 @@ export const push = command({
 			schemasFilter,
 			force,
 			casing,
+			entities,
 		} = config;
 
 		try {
@@ -313,6 +314,7 @@ export const push = command({
 					credentials,
 					tablesFilter,
 					schemasFilter,
+					entities,
 					force,
 					casing,
 				);

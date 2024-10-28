@@ -12,7 +12,7 @@ import {
 	union,
 	ZodTypeAny,
 } from 'zod';
-import { applyJsonDiff, diffColumns, diffPolicies, diffSchemasOrTables } from './jsonDiffer';
+import { applyJsonDiff, diffColumns, diffIndPolicies, diffPolicies, diffSchemasOrTables } from './jsonDiffer';
 import { fromJson } from './sqlgenerator';
 
 import {
@@ -21,6 +21,7 @@ import {
 	_prepareSqliteAddColumns,
 	JsonAddColumnStatement,
 	JsonAlterCompositePK,
+	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
 	JsonAlterTableSetSchema,
@@ -28,6 +29,7 @@ import {
 	JsonAlterViewStatement,
 	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
+	JsonCreateIndPolicyStatement,
 	JsonCreateMySqlViewStatement,
 	JsonCreatePgViewStatement,
 	JsonCreatePolicyStatement,
@@ -39,9 +41,11 @@ import {
 	JsonDeleteUniqueConstraint,
 	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
+	JsonDropIndPolicyStatement,
 	JsonDropPolicyStatement,
 	JsonDropViewStatement,
 	JsonEnableRLSStatement,
+	JsonIndRenamePolicyStatement,
 	JsonReferenceStatement,
 	JsonRenameColumnStatement,
 	JsonRenamePolicyStatement,
@@ -59,12 +63,14 @@ import {
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
 	prepareAlterCompositePrimaryKeySqlite,
+	prepareAlterIndPolicyJson,
 	prepareAlterPolicyJson,
 	prepareAlterReferencesJson,
 	prepareAlterRoleJson,
 	prepareAlterSequenceJson,
 	prepareCreateEnumJson,
 	prepareCreateIndexesJson,
+	prepareCreateIndPolicyJsons,
 	prepareCreatePolicyJsons,
 	prepareCreateReferencesJson,
 	prepareCreateRoleJson,
@@ -79,6 +85,7 @@ import {
 	prepareDropEnumJson,
 	prepareDropEnumValues,
 	prepareDropIndexesJson,
+	prepareDropIndPolicyJsons,
 	prepareDropPolicyJsons,
 	prepareDropReferencesJson,
 	prepareDropRoleJson,
@@ -103,6 +110,7 @@ import {
 	preparePgCreateViewJson,
 	prepareRenameColumns,
 	prepareRenameEnumJson,
+	prepareRenameIndPolicyJsons,
 	prepareRenamePolicyJsons,
 	prepareRenameRoleJson,
 	prepareRenameSchemasJson,
@@ -123,6 +131,8 @@ import {
 	PgSchemaSquashed,
 	PgSquasher,
 	Policy,
+	policy,
+	policySquashed,
 	Role,
 	roleSchema,
 	sequenceSquashed,
@@ -374,6 +384,7 @@ export const diffResultScheme = object({
 	alteredEnums: changedEnumSchema.array(),
 	alteredSequences: sequenceSquashed.array(),
 	alteredRoles: roleSchema.array(),
+	alteredPolicies: policySquashed.array(),
 	alteredViews: alteredPgViewSchema.array(),
 }).strict();
 
@@ -421,6 +432,32 @@ export interface ColumnsResolverInput<T extends { name: string }> {
 	tableName: string;
 	schema: string;
 	created: T[];
+	deleted: T[];
+}
+
+export interface TablePolicyResolverInput<T extends { name: string }> {
+	tableName: string;
+	schema: string;
+	created: T[];
+	deleted: T[];
+}
+
+export interface TablePolicyResolverOutput<T extends { name: string }> {
+	tableName: string;
+	schema: string;
+	created: T[];
+	renamed: { from: T; to: T }[];
+	deleted: T[];
+}
+
+export interface PolicyResolverInput<T extends { name: string }> {
+	created: T[];
+	deleted: T[];
+}
+
+export interface PolicyResolverOutput<T extends { name: string }> {
+	created: T[];
+	renamed: { from: T; to: T }[];
 	deleted: T[];
 }
 
@@ -524,8 +561,11 @@ export const applyPgSnapshotsDiff = async (
 		input: ResolverInput<Sequence>,
 	) => Promise<ResolverOutputWithMoved<Sequence>>,
 	policyResolver: (
-		input: ColumnsResolverInput<Policy>,
-	) => Promise<ColumnsResolverOutput<Policy>>,
+		input: TablePolicyResolverInput<Policy>,
+	) => Promise<TablePolicyResolverOutput<Policy>>,
+	indPolicyResolver: (
+		input: PolicyResolverInput<Policy>,
+	) => Promise<PolicyResolverOutput<Policy>>,
 	roleResolver: (
 		input: RolesResolverInput<Role>,
 	) => Promise<RolesResolverOutput<Role>>,
@@ -1015,8 +1055,69 @@ export const applyPgSnapshotsDiff = async (
 		},
 	);
 
+	//// Individual policies
+
+	const indPolicyRes = diffIndPolicies(policyPatchedSnap1.policies, json2.policies);
+
+	const indPolicyCreates = [] as {
+		policies: Policy[];
+	}[];
+
+	const indPolicyDeletes = [] as {
+		policies: Policy[];
+	}[];
+
+	const { renamed: indPolicyRenames, created, deleted } = await indPolicyResolver({
+		deleted: indPolicyRes.deleted.map((t) => PgSquasher.unsquashPolicy(t.values)),
+		created: indPolicyRes.added.map((t) => PgSquasher.unsquashPolicy(t.values)),
+	});
+
+	if (created.length > 0) {
+		indPolicyCreates.push({
+			policies: created,
+		});
+	}
+
+	if (deleted.length > 0) {
+		indPolicyDeletes.push({
+			policies: deleted,
+		});
+	}
+
+	const indPolicyRenamesDict = indPolicyRenames.reduce(
+		(acc, it) => {
+			acc[it.from.name] = {
+				nameFrom: it.from.name,
+				nameTo: it.to.name,
+			};
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				nameFrom: string;
+				nameTo: string;
+			}
+		>,
+	);
+
+	const indPolicyPatchedSnap1 = copy(policyPatchedSnap1);
+	indPolicyPatchedSnap1.policies = mapEntries(
+		indPolicyPatchedSnap1.policies,
+		(policyKey, policyValue) => {
+			const key = policyKey;
+			const change = indPolicyRenamesDict[key];
+
+			if (change) {
+				policyValue.name = change.nameTo;
+			}
+
+			return [policyKey, policyValue];
+		},
+	);
+
 	////
-	const viewsDiff = diffSchemasOrTables(policyPatchedSnap1.views, json2.views);
+	const viewsDiff = diffSchemasOrTables(indPolicyPatchedSnap1.views, json2.views);
 
 	const {
 		created: createdViews,
@@ -1287,8 +1388,82 @@ export const applyPgSnapshotsDiff = async (
 	const jsonAlterPoliciesStatements: JsonAlterPolicyStatement[] = [];
 	const jsonRenamePoliciesStatements: JsonRenamePolicyStatement[] = [];
 
+	const jsonRenameIndPoliciesStatements: JsonIndRenamePolicyStatement[] = [];
+	const jsonCreateIndPoliciesStatements: JsonCreateIndPolicyStatement[] = [];
+	const jsonDropIndPoliciesStatements: JsonDropIndPolicyStatement[] = [];
+	const jsonAlterIndPoliciesStatements: JsonAlterIndPolicyStatement[] = [];
+
 	const jsonEnableRLSStatements: JsonEnableRLSStatement[] = [];
 	const jsonDisableRLSStatements: JsonDisableRLSStatement[] = [];
+
+	for (let it of indPolicyRenames) {
+		jsonRenameIndPoliciesStatements.push(
+			...prepareRenameIndPolicyJsons([it]),
+		);
+	}
+
+	for (const it of indPolicyCreates) {
+		jsonCreateIndPoliciesStatements.push(
+			...prepareCreateIndPolicyJsons(
+				it.policies,
+			),
+		);
+	}
+
+	for (const it of indPolicyDeletes) {
+		jsonDropIndPoliciesStatements.push(
+			...prepareDropIndPolicyJsons(
+				it.policies,
+			),
+		);
+	}
+
+	typedResult.alteredPolicies.forEach(({ values }) => {
+		// return prepareAlterIndPolicyJson(json1.policies[it.name], json2.policies[it.name]);
+
+		const policy = PgSquasher.unsquashPolicy(values);
+
+		const newPolicy = json1.policies[policy.name];
+		const oldPolicy = json2.policies[policy.name];
+
+		if (newPolicy.as !== oldPolicy.as) {
+			jsonDropIndPoliciesStatements.push(
+				...prepareDropIndPolicyJsons(
+					[oldPolicy],
+				),
+			);
+
+			jsonCreateIndPoliciesStatements.push(
+				...prepareCreateIndPolicyJsons(
+					[newPolicy],
+				),
+			);
+			return;
+		}
+
+		if (newPolicy.for !== oldPolicy.for) {
+			jsonDropIndPoliciesStatements.push(
+				...prepareDropIndPolicyJsons(
+					[oldPolicy],
+				),
+			);
+
+			jsonCreateIndPoliciesStatements.push(
+				...prepareCreateIndPolicyJsons(
+					[newPolicy],
+				),
+			);
+			return;
+		}
+
+		// alter
+		jsonAlterIndPoliciesStatements.push(
+			prepareAlterIndPolicyJson(
+				oldPolicy,
+				newPolicy,
+			),
+		);
+	});
 
 	for (let it of policyRenames) {
 		jsonRenamePoliciesStatements.push(
@@ -1378,11 +1553,18 @@ export const applyPgSnapshotsDiff = async (
 				columnsPatchedSnap1.tables[`${table.schema === '' ? 'public' : table.schema}.${table.name}`];
 			const policiesInPreviousState = tableInPreviousState ? Object.keys(tableInPreviousState.policies) : [];
 
-			if (policiesInPreviousState.length === 0 && policiesInCurrentState.length > 0 && !table.isRLSEnabled) {
+			// const indPoliciesInCurrentState = Object.keys(table.policies);
+			// const indPoliciesInPreviousState = Object.keys(columnsPatchedSnap1.policies);
+
+			if (
+				(policiesInPreviousState.length === 0 && policiesInCurrentState.length > 0) && !table.isRLSEnabled
+			) {
 				jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
 			}
 
-			if (policiesInPreviousState.length > 0 && policiesInCurrentState.length === 0 && !table.isRLSEnabled) {
+			if (
+				(policiesInPreviousState.length > 0 && policiesInCurrentState.length === 0) && !table.isRLSEnabled
+			) {
 				jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
 			}
 
@@ -1391,7 +1573,9 @@ export const applyPgSnapshotsDiff = async (
 				if (table.isRLSEnabled) {
 					// was force enabled
 					jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
-				} else if (!table.isRLSEnabled && policiesInCurrentState.length === 0) {
+				} else if (
+					!table.isRLSEnabled && policiesInCurrentState.length === 0
+				) {
 					// was force disabled
 					jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
 				}
@@ -1560,7 +1744,6 @@ export const applyPgSnapshotsDiff = async (
 		.flat() ?? [];
 
 	////////////
-
 	const createSchemas = prepareCreateSchemasJson(
 		createdSchemas.map((it) => it.name),
 	);
@@ -1795,6 +1978,12 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonDropPoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonAlterPoliciesStatements);
+
+	jsonStatements.push(...jsonRenameIndPoliciesStatements);
+	jsonStatements.push(...jsonDropIndPoliciesStatements);
+	jsonStatements.push(...jsonCreateIndPoliciesStatements);
+	jsonStatements.push(...jsonAlterIndPoliciesStatements);
+
 	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...dropEnums);

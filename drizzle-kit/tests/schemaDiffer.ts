@@ -25,6 +25,7 @@ import { libSqlLogSuggestionsAndReturn } from 'src/cli/commands/libSqlPushUtils'
 import {
 	columnsResolver,
 	enumsResolver,
+	indPolicyResolver,
 	mySqlViewsResolver,
 	Named,
 	policyResolver,
@@ -62,6 +63,8 @@ import {
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
 	Enum,
+	PolicyResolverInput,
+	PolicyResolverOutput,
 	ResolverInput,
 	ResolverOutput,
 	ResolverOutputWithMoved,
@@ -69,6 +72,8 @@ import {
 	RolesResolverOutput,
 	Sequence,
 	Table,
+	TablePolicyResolverInput,
+	TablePolicyResolverOutput,
 } from 'src/snapshotsDiffer';
 
 export type PostgresSchema = Record<
@@ -403,8 +408,8 @@ export const testColumnsResolver =
 
 export const testPolicyResolver = (renames: Set<string>) =>
 async (
-	input: ColumnsResolverInput<Policy>,
-): Promise<ColumnsResolverOutput<Policy>> => {
+	input: TablePolicyResolverInput<Policy>,
+): Promise<TablePolicyResolverOutput<Policy>> => {
 	try {
 		if (
 			input.created.length === 0
@@ -455,6 +460,64 @@ async (
 		return {
 			tableName: input.tableName,
 			schema: input.schema,
+			created: createdPolicies,
+			deleted: deletedPolicies,
+			renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const testIndPolicyResolver = (renames: Set<string>) =>
+async (
+	input: PolicyResolverInput<Policy>,
+): Promise<PolicyResolverOutput<Policy>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdPolicies = [...input.created];
+		let deletedPolicies = [...input.deleted];
+
+		const renamed: { from: Policy; to: Policy }[] = [];
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedPolicies.findIndex((it) => {
+				return `${it.on}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdPolicies.findIndex((it) => {
+					return `${it.on}.${it.name}` === to;
+				});
+
+				renamed.push({
+					from: deletedPolicies[idxFrom],
+					to: createdPolicies[idxTo],
+				});
+
+				delete createdPolicies[idxTo];
+				delete deletedPolicies[idxFrom];
+
+				createdPolicies = createdPolicies.filter(Boolean);
+				deletedPolicies = deletedPolicies.filter(Boolean);
+			}
+		}
+
+		return {
 			created: createdPolicies,
 			deleted: deletedPolicies,
 			renamed,
@@ -850,6 +913,7 @@ export const diffTestSchemasPush = async (
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
 			testPolicyResolver(renames),
+			testIndPolicyResolver(renames),
 			testRolesResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
@@ -896,6 +960,7 @@ export const diffTestSchemasPush = async (
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
+			indPolicyResolver,
 			roleResolver,
 			tablesResolver,
 			columnsResolver,
@@ -919,6 +984,7 @@ export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | unde
 		views: {},
 		schemas: {},
 		sequences: {},
+		policies: {},
 		roles: {},
 		_meta: {
 			schemas: {},
@@ -977,6 +1043,7 @@ export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | unde
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testPolicyResolver(new Set()),
+		testIndPolicyResolver(new Set()),
 		testRolesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
@@ -1084,6 +1151,7 @@ export const diffTestSchemas = async (
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
 			testPolicyResolver(renames),
+			testIndPolicyResolver(renames),
 			testRolesResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
@@ -1100,6 +1168,7 @@ export const diffTestSchemas = async (
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
+			indPolicyResolver,
 			roleResolver,
 			tablesResolver,
 			columnsResolver,
@@ -1874,6 +1943,7 @@ export const introspectPgToFile = async (
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testPolicyResolver(new Set()),
+		testIndPolicyResolver(new Set()),
 		testRolesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),

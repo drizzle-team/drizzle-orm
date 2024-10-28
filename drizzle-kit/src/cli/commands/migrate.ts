@@ -25,6 +25,8 @@ import {
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
 	Enum,
+	PolicyResolverInput,
+	PolicyResolverOutput,
 	ResolverInput,
 	ResolverOutput,
 	ResolverOutputWithMoved,
@@ -32,6 +34,8 @@ import {
 	RolesResolverOutput,
 	Sequence,
 	Table,
+	TablePolicyResolverInput,
+	TablePolicyResolverOutput,
 } from '../../snapshotsDiffer';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
@@ -199,8 +203,8 @@ export const roleResolver = async (
 };
 
 export const policyResolver = async (
-	input: ColumnsResolverInput<Policy>,
-): Promise<ColumnsResolverOutput<Policy>> => {
+	input: TablePolicyResolverInput<Policy>,
+): Promise<TablePolicyResolverOutput<Policy>> => {
 	const result = await promptColumnsConflicts(
 		input.tableName,
 		input.created,
@@ -209,6 +213,21 @@ export const policyResolver = async (
 	return {
 		tableName: input.tableName,
 		schema: input.schema,
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
+};
+
+export const indPolicyResolver = async (
+	input: PolicyResolverInput<Policy>,
+): Promise<PolicyResolverOutput<Policy>> => {
+	const result = await promptNamedConflict(
+		input.created,
+		input.deleted,
+		'policy',
+	);
+	return {
 		created: result.created,
 		deleted: result.deleted,
 		renamed: result.renamed,
@@ -300,6 +319,7 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
+			indPolicyResolver,
 			roleResolver,
 			tablesResolver,
 			columnsResolver,
@@ -348,6 +368,7 @@ export const preparePgPush = async (
 		enumsResolver,
 		sequencesResolver,
 		policyResolver,
+		indPolicyResolver,
 		roleResolver,
 		tablesResolver,
 		columnsResolver,
@@ -778,7 +799,7 @@ export const promptColumnsConflicts = async <T extends Named>(
 export const promptNamedConflict = async <T extends Named>(
 	newItems: T[],
 	missingItems: T[],
-	entity: 'role',
+	entity: 'role' | 'policy',
 ): Promise<{
 	created: T[];
 	renamed: { from: T; to: T }[];

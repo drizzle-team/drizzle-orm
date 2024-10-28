@@ -20,6 +20,7 @@ import {
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
+	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
 	JsonAlterReferenceStatement,
@@ -37,6 +38,7 @@ import {
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
+	JsonCreateIndPolicyStatement,
 	JsonCreateMySqlViewStatement,
 	JsonCreatePgViewStatement,
 	JsonCreatePolicyStatement,
@@ -55,6 +57,7 @@ import {
 	JsonDropColumnStatement,
 	JsonDropEnumStatement,
 	JsonDropIndexStatement,
+	JsonDropIndPolicyStatement,
 	JsonDropPolicyStatement,
 	JsonDropRoleStatement,
 	JsonDropSequenceStatement,
@@ -62,6 +65,7 @@ import {
 	JsonDropValueFromEnumStatement,
 	JsonDropViewStatement,
 	JsonEnableRLSStatement,
+	JsonIndRenamePolicyStatement,
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
@@ -80,7 +84,7 @@ import {
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSquasher } from './serializer/pgSchema';
+import { PgSquasher, policy } from './serializer/pgSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 
 export const pgNativeTypes = new Set([
@@ -289,6 +293,73 @@ class PgAlterPolicyConvertor extends Convertor {
 		return `ALTER POLICY "${oldPolicy.name}" ON ${tableNameWithSchema} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
 	}
 }
+
+////
+
+class PgCreateIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreateIndPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		const usingPart = policy.using ? ` USING (${policy.using})` : '';
+
+		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
+
+		const policyToPart = policy.to?.map((v) =>
+			['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
+		).join(', ');
+
+		return `CREATE POLICY "${policy.name}" ON ${policy.on} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
+	}
+}
+
+class PgDropIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropIndPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		return `DROP POLICY "${policy.name}" ON ${policy.on} CASCADE;`;
+	}
+}
+
+class PgRenameIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonIndRenamePolicyStatement): string | string[] {
+		return `ALTER POLICY "${statement.oldName}" ON ${statement.tableKey} RENAME TO "${statement.newName}";`;
+	}
+}
+
+class PgAlterIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterIndPolicyStatement): string | string[] {
+		const newPolicy = statement.newData;
+		const oldPolicy = statement.oldData;
+
+		const usingPart = newPolicy.using
+			? ` USING (${newPolicy.using})`
+			: oldPolicy.using
+			? ` USING (${oldPolicy.using})`
+			: '';
+
+		const withCheckPart = newPolicy.withCheck
+			? ` WITH CHECK (${newPolicy.withCheck})`
+			: oldPolicy.withCheck
+			? ` WITH CHECK  (${oldPolicy.withCheck})`
+			: '';
+
+		return `ALTER POLICY "${oldPolicy.name}" ON ${oldPolicy.on} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
+	}
+}
+
+////
 
 class PgEnableRlsConvertor extends Convertor {
 	override can(statement: JsonStatement, dialect: Dialect): boolean {
@@ -3202,6 +3273,12 @@ convertors.push(new PgAlterPolicyConvertor());
 convertors.push(new PgCreatePolicyConvertor());
 convertors.push(new PgDropPolicyConvertor());
 convertors.push(new PgRenamePolicyConvertor());
+
+convertors.push(new PgAlterIndPolicyConvertor());
+convertors.push(new PgCreateIndPolicyConvertor());
+convertors.push(new PgDropIndPolicyConvertor());
+convertors.push(new PgRenameIndPolicyConvertor());
+
 convertors.push(new PgEnableRlsConvertor());
 convertors.push(new PgDisableRlsConvertor());
 

@@ -229,6 +229,7 @@ export const preparePushConfig = async (
 		tablesFilter: string[];
 		schemasFilter: string[];
 		casing?: CasingType;
+		entities?: Entities;
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -300,6 +301,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
+			entities: config.entities,
 		};
 	}
 
@@ -508,6 +510,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 

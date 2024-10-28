@@ -116,6 +116,8 @@ export const generatePgSnapshot = (
 	const resultViews: Record<string, View> = {};
 	const sequencesToReturn: Record<string, Sequence> = {};
 	const rolesToReturn: Record<string, Role> = {};
+	// this policies are a separate objects that were linked to a table outside of it
+	const policiesToReturn: Record<string, Policy> = {};
 
 	// This object stores unique names for indexes and will be used to detect if you have the same names for indexes
 	// within the same PostgreSQL schema
@@ -617,7 +619,11 @@ export const generatePgSnapshot = (
 			}
 		}
 
-		if (result[tableKey].policies[policy.name] !== undefined) {
+		// add separate policies object, that will be only responsible for policy creation
+		// but we would need to track if a policy was enabled for a specific table or not
+		// enable only if jsonStatements for enable rls was not already there + filter it
+
+		if (result[tableKey]?.policies[policy.name] !== undefined || policiesToReturn[policy.name] !== undefined) {
 			console.log(
 				`\n${
 					withStyle.errorWarning(
@@ -634,7 +640,7 @@ export const generatePgSnapshot = (
 			process.exit(1);
 		}
 
-		result[tableKey].policies[policy.name] = {
+		const mappedPolicy = {
 			name: policy.name,
 			as: policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE',
 			for: policy.for?.toUpperCase() as Policy['for'] ?? 'ALL',
@@ -642,6 +648,15 @@ export const generatePgSnapshot = (
 			using: is(policy.using, SQL) ? dialect.sqlToQuery(policy.using).sql : undefined,
 			withCheck: is(policy.withCheck, SQL) ? dialect.sqlToQuery(policy.withCheck).sql : undefined,
 		};
+
+		if (result[tableKey]) {
+			result[tableKey].policies[policy.name] = mappedPolicy;
+		} else {
+			policiesToReturn[policy.name] = {
+				...mappedPolicy,
+				on: `"${tableConfig.schema ?? 'public'}"."${tableConfig.name}"`,
+			};
+		}
 	}
 
 	for (const sequence of sequences) {
@@ -880,6 +895,7 @@ export const generatePgSnapshot = (
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
 		roles: rolesToReturn,
+		policies: policiesToReturn,
 		views: resultViews,
 		_meta: {
 			schemas: {},
@@ -1893,6 +1909,7 @@ WHERE
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
 		roles: rolesToReturn,
+		policies: {},
 		views: views,
 		_meta: {
 			schemas: {},
