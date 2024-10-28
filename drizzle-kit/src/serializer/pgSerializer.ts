@@ -1,10 +1,9 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
-import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
 	AnyPgTable,
-	ExtraConfigColumn,
 	getMaterializedViewConfig,
+	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
 	PgColumn,
@@ -19,14 +18,13 @@ import {
 	PgView,
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
-import { getTableConfig } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
 import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
 	CheckConstraint,
-	Column as Column,
+	Column,
 	Enum,
 	ForeignKey,
 	Index,
@@ -41,8 +39,8 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/pgSchema';
-import { type DB, getColumnCasing, isPgArrayType } from '../utils';
-import { sqlToStr } from '.';
+import { type DB, isPgArrayType } from '../utils';
+import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
