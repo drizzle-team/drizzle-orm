@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
+import { compress } from 'hono/compress';
 import { createHash } from 'crypto';
 import {
 	AnyColumn,
@@ -467,12 +468,14 @@ export const prepareServer = async (
 ): Promise<Server> => {
 	app = app !== undefined ? app : new Hono();
 
-	app.use(cors());
+	app.use(compress());
 	app.use(async (ctx, next) => {
 		await next();
 		// * https://wicg.github.io/private-network-access/#headers
+		// * https://github.com/drizzle-team/drizzle-orm/issues/1857#issuecomment-2395724232
 		ctx.header('Access-Control-Allow-Private-Network', 'true');
 	});
+	app.use(cors());
 	app.onError((err, ctx) => {
 		console.error(err);
 		return ctx.json({
