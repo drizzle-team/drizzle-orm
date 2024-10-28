@@ -179,7 +179,7 @@ export const preparePostgresDB = async (
 				// @ts-ignore
 				return pg.types.getTypeParser(typeId, format);
 			},
-		}
+		};
 
 		const client = 'url' in credentials
 			? new pg.Pool({ connectionString: credentials.url, max: 1 })
@@ -296,7 +296,7 @@ export const preparePostgresDB = async (
 				// @ts-ignore
 				return pgTypes.getTypeParser(typeId, format);
 			},
-		}
+		};
 
 		const client = 'url' in credentials
 			? new VercelPool({ connectionString: credentials.url })
@@ -375,7 +375,7 @@ export const preparePostgresDB = async (
 				// @ts-ignore
 				return pgTypes.getTypeParser(typeId, format);
 			},
-		}
+		};
 
 		const client = 'url' in credentials
 			? new Pool({ connectionString: credentials.url, max: 1 })
