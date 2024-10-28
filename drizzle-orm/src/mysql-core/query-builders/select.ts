@@ -132,7 +132,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
 
 	override readonly _: {
 		readonly hkt: THKT;
@@ -942,7 +942,7 @@ export class MySqlSelectBase<
 	TResult,
 	TSelectedFields
 > {
-	static readonly [entityKind]: string = 'MySqlSelect';
+	static override readonly [entityKind]: string = 'MySqlSelect';
 
 	prepare(): MySqlSelectPrepare<this> {
 		if (!this.session) {

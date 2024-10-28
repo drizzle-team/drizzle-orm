@@ -1,4 +1,4 @@
-import type { AnyColumn } from '~/index.ts';
+import type { AnyColumn } from '~/column.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { type SQL, sql, type SQLWrapper } from '../sql.ts';
 

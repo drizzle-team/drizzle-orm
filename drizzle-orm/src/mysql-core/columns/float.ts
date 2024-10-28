@@ -17,7 +17,7 @@ export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
 export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlFloat'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T>
 {
-	static readonly [entityKind]: string = 'MySqlFloatBuilder';
+	static override readonly [entityKind]: string = 'MySqlFloatBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'MySqlFloat');
@@ -32,13 +32,15 @@ export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySq
 }
 
 export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>> extends MySqlColumnWithAutoIncrement<T> {
-	static readonly [entityKind]: string = 'MySqlFloat';
+	static override readonly [entityKind]: string = 'MySqlFloat';
 
 	getSQLType(): string {
 		return 'float';
 	}
 }
 
-export function float<TName extends string>(name: TName): MySqlFloatBuilderInitial<TName> {
-	return new MySqlFloatBuilder(name);
+export function float(): MySqlFloatBuilderInitial<''>;
+export function float<TName extends string>(name: TName): MySqlFloatBuilderInitial<TName>;
+export function float(name?: string) {
+	return new MySqlFloatBuilder(name ?? '');
 }

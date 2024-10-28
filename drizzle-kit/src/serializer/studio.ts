@@ -21,6 +21,7 @@ import fs from 'fs';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
+import { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { assertUnreachable } from 'src/global';
 import superjson from 'superjson';
 import { z } from 'zod';
@@ -298,8 +299,6 @@ export const drizzleForSQLite = async (
 		const { driver } = credentials;
 		if (driver === 'd1-http') {
 			dbUrl = `d1-http://${credentials.accountId}/${credentials.databaseId}/${credentials.token}`;
-		} else if (driver === 'turso') {
-			dbUrl = `turso://${credentials.url}/${credentials.authToken}`;
 		} else {
 			assertUnreachable(driver);
 		}
@@ -313,6 +312,32 @@ export const drizzleForSQLite = async (
 		dbHash,
 		dialect: 'sqlite',
 		driver: 'driver' in credentials ? credentials.driver : undefined,
+		proxy: sqliteDB.proxy,
+		customDefaults,
+		schema: sqliteSchema,
+		relations,
+		schemaFiles,
+	};
+};
+export const drizzleForLibSQL = async (
+	credentials: LibSQLCredentials,
+	sqliteSchema: Record<string, Record<string, AnySQLiteTable>>,
+	relations: Record<string, Relations>,
+	schemaFiles?: SchemaFile[],
+): Promise<Setup> => {
+	const { connectToLibSQL } = await import('../cli/connections');
+
+	const sqliteDB = await connectToLibSQL(credentials);
+	const customDefaults = getCustomDefaults(sqliteSchema);
+
+	let dbUrl: string = `turso://${credentials.url}/${credentials.authToken}`;
+
+	const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+
+	return {
+		dbHash,
+		dialect: 'sqlite',
+		driver: undefined,
 		proxy: sqliteDB.proxy,
 		customDefaults,
 		schema: sqliteSchema,

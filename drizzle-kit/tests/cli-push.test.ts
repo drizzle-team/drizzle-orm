@@ -27,6 +27,7 @@ test('push #1', async (t) => {
 		tablesFilter: [],
 		strict: false,
 		verbose: false,
+		casing: undefined,
 	});
 });
 
@@ -34,10 +35,9 @@ test('push #2', async (t) => {
 	const res = await brotest(push, '--config=turso.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
-		dialect: 'sqlite',
+		dialect: 'turso',
 		credentials: {
 			authToken: 'token',
-			driver: 'turso',
 			url: 'turso.dev',
 		},
 		force: false,
@@ -46,6 +46,7 @@ test('push #2', async (t) => {
 		tablesFilter: [],
 		strict: false,
 		verbose: false,
+		casing: undefined,
 	});
 });
 
@@ -66,6 +67,7 @@ test('push #3', async (t) => {
 		tablesFilter: [],
 		strict: false,
 		verbose: false,
+		casing: undefined,
 	});
 });
 
@@ -87,6 +89,7 @@ test('push #4', async (t) => {
 		tablesFilter: [],
 		strict: false,
 		verbose: false,
+		casing: undefined,
 	});
 });
 
@@ -109,6 +112,7 @@ test('push #5', async (t) => {
 		strict: false,
 		force: false,
 		verbose: false,
+		casing: undefined,
 	});
 });
 
