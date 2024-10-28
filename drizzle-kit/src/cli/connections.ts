@@ -161,10 +161,25 @@ export const preparePostgresDB = async (
 			: {};
 
 		// Override pg default date parsers
-		pg.types.setTypeParser(pg.types.builtins.TIMESTAMPTZ, (val) => val);
-		pg.types.setTypeParser(pg.types.builtins.TIMESTAMP, (val) => val);
-		pg.types.setTypeParser(pg.types.builtins.DATE, (val) => val);
-		pg.types.setTypeParser(pg.types.builtins.INTERVAL, (val) => val);
+		const types: { getTypeParser: typeof pg.types.getTypeParser } = {
+			// @ts-ignore
+			getTypeParser: (typeId, format) => {
+				if (typeId === pg.types.builtins.TIMESTAMPTZ) {
+					return (val) => val;
+				}
+				if (typeId === pg.types.builtins.TIMESTAMP) {
+					return (val) => val;
+				}
+				if (typeId === pg.types.builtins.DATE) {
+					return (val) => val;
+				}
+				if (typeId === pg.types.builtins.INTERVAL) {
+					return (val) => val;
+				}
+				// @ts-ignore
+				return pg.types.getTypeParser(typeId, format);
+			},
+		}
 
 		const client = 'url' in credentials
 			? new pg.Pool({ connectionString: credentials.url, max: 1 })
@@ -176,7 +191,11 @@ export const preparePostgresDB = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.query(sql, params ?? []);
+			const result = await client.query({
+				text: sql,
+				values: params ?? [],
+				types,
+			});
 			return result.rows;
 		};
 
@@ -185,6 +204,7 @@ export const preparePostgresDB = async (
 				text: params.sql,
 				values: params.params,
 				...(params.mode === 'array' && { rowMode: 'array' }),
+				types,
 			});
 			return result.rows;
 		};
@@ -244,7 +264,7 @@ export const preparePostgresDB = async (
 				"'@vercel/postgres' can only connect to remote Neon/Vercel Postgres/Supabase instances through a websocket",
 			),
 		);
-		const { VercelPool, types } = await import('@vercel/postgres');
+		const { VercelPool, types: pgTypes } = await import('@vercel/postgres');
 		const { drizzle } = await import('drizzle-orm/vercel-postgres');
 		const { migrate } = await import('drizzle-orm/vercel-postgres/migrator');
 		const ssl = 'ssl' in credentials
@@ -258,10 +278,25 @@ export const preparePostgresDB = async (
 			: {};
 
 		// Override @vercel/postgres default date parsers
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
+		const types: { getTypeParser: typeof pgTypes.getTypeParser } = {
+			// @ts-ignore
+			getTypeParser: (typeId, format) => {
+				if (typeId === pgTypes.builtins.TIMESTAMPTZ) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.TIMESTAMP) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.DATE) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.INTERVAL) {
+					return (val: any) => val;
+				}
+				// @ts-ignore
+				return pgTypes.getTypeParser(typeId, format);
+			},
+		}
 
 		const client = 'url' in credentials
 			? new VercelPool({ connectionString: credentials.url })
@@ -275,7 +310,11 @@ export const preparePostgresDB = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.query(sql, params ?? []);
+			const result = await client.query({
+				text: sql,
+				values: params ?? [],
+				types,
+			});
 			return result.rows;
 		};
 
@@ -284,6 +323,7 @@ export const preparePostgresDB = async (
 				text: params.sql,
 				values: params.params,
 				...(params.mode === 'array' && { rowMode: 'array' }),
+				types,
 			});
 			return result.rows;
 		};
@@ -302,7 +342,7 @@ export const preparePostgresDB = async (
 				"'@neondatabase/serverless' can only connect to remote Neon/Vercel Postgres/Supabase instances through a websocket",
 			),
 		);
-		const { Pool, neonConfig, types } = await import('@neondatabase/serverless');
+		const { Pool, neonConfig, types: pgTypes } = await import('@neondatabase/serverless');
 		const { drizzle } = await import('drizzle-orm/neon-serverless');
 		const { migrate } = await import('drizzle-orm/neon-serverless/migrator');
 
@@ -317,10 +357,25 @@ export const preparePostgresDB = async (
 			: {};
 
 		// Override @neondatabase/serverless default date parsers
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
+		const types: { getTypeParser: typeof pgTypes.getTypeParser } = {
+			// @ts-ignore
+			getTypeParser: (typeId, format) => {
+				if (typeId === pgTypes.builtins.TIMESTAMPTZ) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.TIMESTAMP) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.DATE) {
+					return (val: any) => val;
+				}
+				if (typeId === pgTypes.builtins.INTERVAL) {
+					return (val: any) => val;
+				}
+				// @ts-ignore
+				return pgTypes.getTypeParser(typeId, format);
+			},
+		}
 
 		const client = 'url' in credentials
 			? new Pool({ connectionString: credentials.url, max: 1 })
@@ -333,7 +388,11 @@ export const preparePostgresDB = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.query(sql, params ?? []);
+			const result = await client.query({
+				text: sql,
+				values: params ?? [],
+				types,
+			});
 			return result.rows;
 		};
 
@@ -342,6 +401,7 @@ export const preparePostgresDB = async (
 				text: params.sql,
 				values: params.params,
 				...(params.mode === 'array' && { rowMode: 'array' }),
+				types,
 			});
 			return result.rows;
 		};
