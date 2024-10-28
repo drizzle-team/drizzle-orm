@@ -2,6 +2,7 @@ import 'dotenv/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
+console.log('process.env.SKIP_PLANETSCALE_TESTS', process.env.SKIP_PLANETSCALE_TESTS);
 export default defineConfig({
 	test: {
 		include: [
@@ -9,6 +10,7 @@ export default defineConfig({
 			'tests/relational/**/*.test.ts',
 			'tests/pg/**/*.test.ts',
 			'tests/mysql/**/*.test.ts',
+			'tests/mssql/**/*.test.ts',
 			'tests/sqlite/**/*.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
