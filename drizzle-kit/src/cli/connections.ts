@@ -57,7 +57,7 @@ export const preparePostgresDB = async (
 			);
 
 			const db = drizzle(rdsClient, config);
-			const migrateFn = async (config: string | MigrationConfig) => {
+			const migrateFn = async (config: MigrationConfig) => {
 				return migrate(db, config);
 			};
 
@@ -164,7 +164,7 @@ export const preparePostgresDB = async (
 			: new pg.default.Pool({ ...credentials, ssl, max: 1 });
 
 		const db = drizzle(client);
-		const migrateFn = async (config: string | MigrationConfig) => {
+		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
 
@@ -199,7 +199,7 @@ export const preparePostgresDB = async (
 			: postgres.default({ ...credentials, max: 1 });
 
 		const db = drizzle(client);
-		const migrateFn = async (config: string | MigrationConfig) => {
+		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
 
@@ -247,7 +247,7 @@ export const preparePostgresDB = async (
 		await client.connect();
 
 		const db = drizzle(client);
-		const migrateFn = async (config: string | MigrationConfig) => {
+		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
 
@@ -299,7 +299,7 @@ export const preparePostgresDB = async (
 		neonConfig.webSocketConstructor = ws;
 
 		const db = drizzle(client);
-		const migrateFn = async (config: string | MigrationConfig) => {
+		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
 
@@ -400,13 +400,13 @@ export const connectToMySQL = async (
 	}
 
 	if (await checkPackage('@planetscale/database')) {
-		const { connect } = await import('@planetscale/database');
+		const { Client } = await import('@planetscale/database');
 		const { drizzle } = await import('drizzle-orm/planetscale-serverless');
 		const { migrate } = await import(
 			'drizzle-orm/planetscale-serverless/migrator'
 		);
 
-		const connection = connect(result);
+		const connection = new Client(result);
 
 		const db = drizzle(connection);
 		const migrateFn = async (config: MigrationConfig) => {

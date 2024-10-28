@@ -1161,7 +1161,7 @@ WHERE
 		const { tablename, schemaname, to, withCheck, using, ...rest } = dbPolicy;
 		const tableForPolicy = policiesByTable[`${schemaname}.${tablename}`];
 
-		const parsedTo = to.slice(1, -1).split(',');
+		const parsedTo = typeof to === 'string' ? to.slice(1, -1).split(',') : to;
 
 		const parsedWithCheck = withCheck === null ? undefined : withCheck;
 		const parsedUsing = using === null ? undefined : using;

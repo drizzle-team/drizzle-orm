@@ -29,5 +29,5 @@ export const realtimeMessages = realtime.table(
 	},
 );
 
-export const authUid = sql`(select ${authUsers.id})`;
-export const realtimeTopic = sql`${realtimeMessages.topic}`;
+export const authUid = sql`(select auth.uid())`;
+export const realtimeTopic = sql`realtime.topic()`;
