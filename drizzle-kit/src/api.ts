@@ -116,6 +116,7 @@ export const pushSchema = async (
 		db,
 		[],
 		schemaFilters ?? ['public'],
+		undefined,
 	);
 
 	const validatedPrev = pgSchema.parse(prev);
