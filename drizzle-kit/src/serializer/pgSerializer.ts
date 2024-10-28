@@ -1148,7 +1148,7 @@ WHERE
 			tablename: string;
 			name: string;
 			as: string;
-			to: string[];
+			to: string;
 			for: string;
 			using: string;
 			withCheck: string;
@@ -1161,7 +1161,7 @@ WHERE
 		const { tablename, schemaname, to, withCheck, using, ...rest } = dbPolicy;
 		const tableForPolicy = policiesByTable[`${schemaname}.${tablename}`];
 
-		const parsedTo = to;
+		const parsedTo = to.slice(1, -1).split(',');
 
 		const parsedWithCheck = withCheck === null ? undefined : withCheck;
 		const parsedUsing = using === null ? undefined : using;
