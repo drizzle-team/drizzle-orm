@@ -1,6 +1,5 @@
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
-import { compress } from 'hono/compress';
 import { createHash } from 'crypto';
 import {
 	AnyColumn,
@@ -19,6 +18,7 @@ import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-or
 import { AnySQLiteTable, getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import { Hono } from 'hono';
+import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
