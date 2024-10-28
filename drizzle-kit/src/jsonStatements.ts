@@ -241,11 +241,23 @@ export interface JsonCreatePolicyStatement {
 	schema: string;
 }
 
+export interface JsonCreateIndPolicyStatement {
+	type: 'create_ind_policy';
+	tableName: string;
+	data: Policy;
+}
+
 export interface JsonDropPolicyStatement {
 	type: 'drop_policy';
 	tableName: string;
 	data: Policy;
 	schema: string;
+}
+
+export interface JsonDropIndPolicyStatement {
+	type: 'drop_ind_policy';
+	tableName: string;
+	data: Policy;
 }
 
 export interface JsonRenamePolicyStatement {
@@ -254,6 +266,13 @@ export interface JsonRenamePolicyStatement {
 	oldName: string;
 	newName: string;
 	schema: string;
+}
+
+export interface JsonIndRenamePolicyStatement {
+	type: 'rename_ind_policy';
+	tableKey: string;
+	oldName: string;
+	newName: string;
 }
 
 export interface JsonEnableRLSStatement {
@@ -274,6 +293,12 @@ export interface JsonAlterPolicyStatement {
 	oldData: string;
 	newData: string;
 	schema: string;
+}
+
+export interface JsonAlterIndPolicyStatement {
+	type: 'alter_ind_policy';
+	oldData: Policy;
+	newData: Policy;
 }
 
 export interface JsonCreateIndexStatement {
@@ -816,7 +841,11 @@ export type JsonStatement =
 	| JsonCreateSqliteViewStatement
 	| JsonCreateCheckConstraint
 	| JsonDeleteCheckConstraint
-	| JsonDropValueFromEnumStatement;
+	| JsonDropValueFromEnumStatement
+	| JsonIndRenamePolicyStatement
+	| JsonDropIndPolicyStatement
+	| JsonCreateIndPolicyStatement
+	| JsonAlterIndPolicyStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -2299,6 +2328,22 @@ export const prepareRenamePolicyJsons = (
 	});
 };
 
+export const prepareRenameIndPolicyJsons = (
+	renames: {
+		from: Policy;
+		to: Policy;
+	}[],
+): JsonIndRenamePolicyStatement[] => {
+	return renames.map((it) => {
+		return {
+			type: 'rename_ind_policy',
+			tableKey: it.from.on!,
+			oldName: it.from.name,
+			newName: it.to.name,
+		};
+	});
+};
+
 export const prepareCreatePolicyJsons = (
 	tableName: string,
 	schema: string,
@@ -2310,6 +2355,18 @@ export const prepareCreatePolicyJsons = (
 			tableName,
 			data: it,
 			schema,
+		};
+	});
+};
+
+export const prepareCreateIndPolicyJsons = (
+	policies: Policy[],
+): JsonCreateIndPolicyStatement[] => {
+	return policies.map((it) => {
+		return {
+			type: 'create_ind_policy',
+			tableName: it.on!,
+			data: it,
 		};
 	});
 };
@@ -2329,6 +2386,18 @@ export const prepareDropPolicyJsons = (
 	});
 };
 
+export const prepareDropIndPolicyJsons = (
+	policies: Policy[],
+): JsonDropIndPolicyStatement[] => {
+	return policies.map((it) => {
+		return {
+			type: 'drop_ind_policy',
+			tableName: it.on!,
+			data: it,
+		};
+	});
+};
+
 export const prepareAlterPolicyJson = (
 	tableName: string,
 	schema: string,
@@ -2341,6 +2410,17 @@ export const prepareAlterPolicyJson = (
 		oldData: oldPolicy,
 		newData: newPolicy,
 		schema,
+	};
+};
+
+export const prepareAlterIndPolicyJson = (
+	oldPolicy: Policy,
+	newPolicy: Policy,
+): JsonAlterIndPolicyStatement => {
+	return {
+		type: 'alter_ind_policy',
+		oldData: oldPolicy,
+		newData: newPolicy,
 	};
 };
 

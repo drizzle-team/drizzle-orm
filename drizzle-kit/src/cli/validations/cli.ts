@@ -26,6 +26,13 @@ export const pushParams = object({
 	extensionsFilters: literal('postgis').array().optional(),
 	verbose: boolean().optional(),
 	strict: boolean().optional(),
+	entities: object({
+		roles: boolean().or(object({
+			provider: string().optional(),
+			include: string().array().optional(),
+			exclude: string().array().optional(),
+		})).optional().default(false),
+	}).optional(),
 }).passthrough();
 
 export type PushParams = TypeOf<typeof pushParams>;
