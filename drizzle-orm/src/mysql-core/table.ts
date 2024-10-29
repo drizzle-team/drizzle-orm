@@ -2,6 +2,7 @@ import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts'
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
+import { getMySqlColumnBuilders, type MySqlColumnBuilders } from './columns/all.ts';
 import type { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderBase } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
@@ -23,7 +24,7 @@ export type TableConfig = TableConfigBase<MySqlColumn>;
 export const InlineForeignKeys = Symbol.for('drizzle:MySqlInlineForeignKeys');
 
 export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
-	static readonly [entityKind]: string = 'MySqlTable';
+	static override readonly [entityKind]: string = 'MySqlTable';
 
 	declare protected $columns: T['columns'];
 
@@ -60,7 +61,7 @@ export function mysqlTableWithSchema<
 	TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
 >(
 	name: TTableName,
-	columns: TColumnsMap,
+	columns: TColumnsMap | ((columnTypes: MySqlColumnBuilders) => TColumnsMap),
 	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig) | undefined,
 	schema: TSchemaName,
 	baseName = name,
@@ -77,9 +78,12 @@ export function mysqlTableWithSchema<
 		dialect: 'mysql';
 	}>(name, schema, baseName);
 
+	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getMySqlColumnBuilders()) : columns;
+
 	const builtColumns = Object.fromEntries(
-		Object.entries(columns).map(([name, colBuilderBase]) => {
+		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as MySqlColumnBuilder;
+			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
@@ -111,6 +115,20 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
 		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
 	): MySqlTableWithColumns<{
 		name: TTableName;

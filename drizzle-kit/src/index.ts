@@ -117,6 +117,7 @@ export type Config =
 		schema?: string | string[];
 		verbose?: boolean;
 		strict?: boolean;
+		casing?: 'camelCase' | 'snake_case';
 		migrations?: {
 			table?: string;
 			schema?: string;
@@ -128,8 +129,7 @@ export type Config =
 	}
 	& (
 		| {
-			dialect: Verify<Dialect, 'sqlite'>;
-			driver: Verify<Driver, 'turso'>;
+			dialect: Verify<Dialect, 'turso'>;
 			dbCredentials: {
 				url: string;
 				authToken?: string;

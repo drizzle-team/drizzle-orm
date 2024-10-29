@@ -3577,29 +3577,327 @@ export function tests(driver?: string) {
 
 			await db.execute(sql`drop view ${newYorkers1}`);
 		});
-	});
 
-	test('limit 0', async (ctx) => {
-		const { db } = ctx.mysql;
+		test('$count separate', async (ctx) => {
+			const { db } = ctx.mysql;
 
-		await db.insert(usersTable).values({ name: 'John' });
-		const users = await db
-			.select()
-			.from(usersTable)
-			.limit(0);
+			const countTestTable = mysqlTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
 
-		expect(users).toEqual([]);
-	});
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
 
-	test('limit -1', async (ctx) => {
-		const { db } = ctx.mysql;
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
 
-		await db.insert(usersTable).values({ name: 'John' });
-		const users = await db
-			.select()
-			.from(usersTable)
-			.limit(-1);
+			const count = await db.$count(countTestTable);
 
-		expect(users.length).toBeGreaterThan(0);
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual(4);
+		});
+
+		test('$count embedded', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const countTestTable = mysqlTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.select({
+				count: db.$count(countTestTable),
+			}).from(countTestTable);
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual([
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+			]);
+		});
+
+		test('$count separate reuse', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const countTestTable = mysqlTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = db.$count(countTestTable);
+
+			const count1 = await count;
+
+			await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+			const count2 = await count;
+
+			await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+			const count3 = await count;
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count1).toStrictEqual(4);
+			expect(count2).toStrictEqual(5);
+			expect(count3).toStrictEqual(6);
+		});
+
+		test('$count embedded reuse', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const countTestTable = mysqlTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = db.select({
+				count: db.$count(countTestTable),
+			}).from(countTestTable);
+
+			const count1 = await count;
+
+			await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+			const count2 = await count;
+
+			await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+			const count3 = await count;
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count1).toStrictEqual([
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+			]);
+			expect(count2).toStrictEqual([
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+			]);
+			expect(count3).toStrictEqual([
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+			]);
+		});
+
+		test('$count separate with filters', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const countTestTable = mysqlTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.$count(countTestTable, gt(countTestTable.id, 1));
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual(3);
+		});
+
+		test('$count embedded with filters', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const countTestTable = mysqlTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${countTestTable}`);
+			await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.select({
+				count: db.$count(countTestTable, gt(countTestTable.id, 1)),
+			}).from(countTestTable);
+
+			await db.execute(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual([
+				{ count: 3 },
+				{ count: 3 },
+				{ count: 3 },
+				{ count: 3 },
+			]);
+		});
+
+		test('limit 0', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db.insert(usersTable).values({ name: 'John' });
+			const users = await db
+				.select()
+				.from(usersTable)
+				.limit(0);
+
+			expect(users).toEqual([]);
+		});
+
+		test('limit -1', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db.insert(usersTable).values({ name: 'John' });
+			const users = await db
+				.select()
+				.from(usersTable)
+				.limit(-1);
+
+			expect(users.length).toBeGreaterThan(0);
+		});
+
+		test('update with limit and order by', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db.insert(usersTable).values([
+				{ name: 'Barry', verified: false },
+				{ name: 'Alan', verified: false },
+				{ name: 'Carl', verified: false },
+			]);
+
+			await db.update(usersTable).set({ verified: true }).limit(2).orderBy(asc(usersTable.name));
+
+			const result = await db.select({ name: usersTable.name, verified: usersTable.verified }).from(usersTable).orderBy(
+				asc(usersTable.name),
+			);
+			expect(result).toStrictEqual([
+				{ name: 'Alan', verified: true },
+				{ name: 'Barry', verified: true },
+				{ name: 'Carl', verified: false },
+			]);
+		});
+
+		test('delete with limit and order by', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db.insert(usersTable).values([
+				{ name: 'Barry', verified: false },
+				{ name: 'Alan', verified: false },
+				{ name: 'Carl', verified: false },
+			]);
+
+			await db.delete(usersTable).where(eq(usersTable.verified, false)).limit(1).orderBy(asc(usersTable.name));
+
+			const result = await db.select({ name: usersTable.name, verified: usersTable.verified }).from(usersTable).orderBy(
+				asc(usersTable.name),
+			);
+			expect(result).toStrictEqual([
+				{ name: 'Barry', verified: false },
+				{ name: 'Carl', verified: false },
+			]);
+		});
+
+		test('Object keys as column names', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			// Tests the following:
+			// Column with required config
+			// Column with optional config without providing a value
+			// Column with optional config providing a value
+			// Column without config
+			const users = mysqlTable('users', {
+				id: bigint({ mode: 'number' }).autoincrement().primaryKey(),
+				createdAt: timestamp(),
+				updatedAt: timestamp({ fsp: 3 }),
+				admin: boolean(),
+			});
+
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(
+				sql`
+					create table users (
+						\`id\` bigint auto_increment primary key,
+						\`createdAt\` timestamp,
+						\`updatedAt\` timestamp(3),
+						\`admin\` boolean
+					)
+				`,
+			);
+
+			await db.insert(users).values([
+				{ createdAt: sql`now() - interval 30 day`, updatedAt: sql`now() - interval 1 day`, admin: true },
+				{ createdAt: sql`now() - interval 1 day`, updatedAt: sql`now() - interval 30 day`, admin: true },
+				{ createdAt: sql`now() - interval 1 day`, updatedAt: sql`now() - interval 1 day`, admin: false },
+			]);
+			const result = await db
+				.select({ id: users.id, admin: users.admin })
+				.from(users)
+				.where(
+					and(
+						gt(users.createdAt, sql`now() - interval 7 day`),
+						gt(users.updatedAt, sql`now() - interval 7 day`),
+					),
+				);
+
+			expect(result).toEqual([
+				{ id: 3, admin: false },
+			]);
+
+			await db.execute(sql`drop table users`);
+		});
 	});
 }

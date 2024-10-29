@@ -77,7 +77,7 @@ export class MySqlRelationalQuery<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TResult,
 > extends QueryPromise<TResult> {
-	static readonly [entityKind]: string = 'MySqlRelationalQuery';
+	static override readonly [entityKind]: string = 'MySqlRelationalQuery';
 
 	declare protected $brand: 'MySqlRelationalQuery';
 

@@ -1,3 +1,4 @@
+import { PGlite, type PGliteOptions } from '@electric-sql/pglite';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -9,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
 
@@ -34,15 +35,19 @@ export class PgliteDriver {
 	}
 }
 
-export type PgliteDatabase<
+export class PgliteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<PgliteQueryResultHKT, TSchema>;
+> extends PgDatabase<PgliteQueryResultHKT, TSchema> {
+	static override readonly [entityKind]: string = 'PgliteDatabase';
+}
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: PgliteClient,
 	config: DrizzleConfig<TSchema> = {},
-): PgliteDatabase<TSchema> {
-	const dialect = new PgDialect();
+): PgliteDatabase<TSchema> & {
+	$client: PgliteClient;
+} {
+	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -65,5 +70,76 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const driver = new PgliteDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new PgDatabase(dialect, session, schema) as PgliteDatabase<TSchema>;
+	const db = new PgliteDatabase(dialect, session, schema as any) as PgliteDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
+}
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends PGlite = PGlite,
+>(
+	...params: IfNotImported<
+		PGlite,
+		[ImportTypeError<'@electric-sql/pglite'>],
+		| []
+		| [
+			TClient | string,
+		]
+		| [
+			TClient | string,
+			DrizzleConfig<TSchema>,
+		]
+		| [
+			(
+				& DrizzleConfig<TSchema>
+				& ({
+					connection?: (PGliteOptions & { dataDir?: string }) | string;
+				} | {
+					client: TClient;
+				})
+			),
+		]
+	>
+): PgliteDatabase<TSchema> & {
+	$client: TClient;
+} {
+	if (params[0] === undefined || typeof params[0] === 'string') {
+		const instance = new PGlite(params[0]);
+		return construct(instance, params[1]) as any;
+	}
+
+	if (isConfig(params[0])) {
+		const { connection, client, ...drizzleConfig } = params[0] as {
+			connection?: PGliteOptions & { dataDir: string };
+			client?: TClient;
+		} & DrizzleConfig<TSchema>;
+
+		if (client) return construct(client, drizzleConfig) as any;
+
+		if (typeof connection === 'object') {
+			const { dataDir, ...options } = connection;
+
+			const instance = new PGlite(dataDir, options);
+
+			return construct(instance, drizzleConfig) as any;
+		}
+
+		const instance = new PGlite(connection);
+
+		return construct(instance, drizzleConfig) as any;
+	}
+
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: DrizzleConfig<TSchema>,
+	): PgliteDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }

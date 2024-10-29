@@ -69,6 +69,7 @@ export abstract class Column<
 	declare readonly _: ColumnTypeConfig<T, TTypeConfig>;
 
 	readonly name: string;
+	readonly keyAsName: boolean;
 	readonly primary: boolean;
 	readonly notNull: boolean;
 	readonly default: T['data'] | SQL | undefined;
@@ -92,6 +93,7 @@ export abstract class Column<
 	) {
 		this.config = config;
 		this.name = config.name;
+		this.keyAsName = config.keyAsName;
 		this.notNull = config.notNull;
 		this.default = config.default;
 		this.defaultFn = config.defaultFn;

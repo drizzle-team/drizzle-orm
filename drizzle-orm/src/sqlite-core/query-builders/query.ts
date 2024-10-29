@@ -98,7 +98,7 @@ export class RelationalQueryBuilder<
 export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper
 {
-	static readonly [entityKind]: string = 'SQLiteAsyncRelationalQuery';
+	static override readonly [entityKind]: string = 'SQLiteAsyncRelationalQuery';
 
 	declare readonly _: {
 		readonly dialect: 'sqlite';
@@ -199,7 +199,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 }
 
 export class SQLiteSyncRelationalQuery<TResult> extends SQLiteRelationalQuery<'sync', TResult> {
-	static readonly [entityKind]: string = 'SQLiteSyncRelationalQuery';
+	static override readonly [entityKind]: string = 'SQLiteSyncRelationalQuery';
 
 	sync(): TResult {
 		return this.executeRaw();

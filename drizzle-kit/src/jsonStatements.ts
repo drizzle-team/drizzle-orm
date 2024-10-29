@@ -1,10 +1,16 @@
 import chalk from 'chalk';
-import { table } from 'console';
+import { getNewTableName } from './cli/commands/sqlitePushUtils';
 import { warning } from './cli/views';
-import { CommonSquashedSchema, Dialect } from './schemaValidator';
-import { MySqlKitInternals, MySqlSchema, MySqlSquasher } from './serializer/mysqlSchema';
-import { Index, PgSchema, PgSquasher } from './serializer/pgSchema';
-import { SQLiteKitInternals, SQLiteSquasher } from './serializer/sqliteSchema';
+import { CommonSquashedSchema } from './schemaValidator';
+import { MySqlKitInternals, MySqlSchema, MySqlSquasher, View as MySqlView } from './serializer/mysqlSchema';
+import { Index, MatViewWithOption, PgSchema, PgSquasher, View as PgView, ViewWithOption } from './serializer/pgSchema';
+import {
+	SQLiteKitInternals,
+	SQLiteSchemaInternal,
+	SQLiteSchemaSquashed,
+	SQLiteSquasher,
+	View as SqliteView,
+} from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
 
 export interface JsonSqliteCreateTableStatement {
@@ -22,6 +28,7 @@ export interface JsonSqliteCreateTableStatement {
 	}[];
 	compositePKs: string[][];
 	uniqueConstraints?: string[];
+	checkConstraints?: string[];
 }
 
 export interface JsonCreateTableStatement {
@@ -32,7 +39,26 @@ export interface JsonCreateTableStatement {
 	compositePKs: string[];
 	compositePkName?: string;
 	uniqueConstraints?: string[];
+	checkConstraints?: string[];
 	internals?: MySqlKitInternals;
+}
+
+export interface JsonRecreateTableStatement {
+	type: 'recreate_table';
+	tableName: string;
+	columns: Column[];
+	referenceData: {
+		name: string;
+		tableFrom: string;
+		columnsFrom: string[];
+		tableTo: string;
+		columnsTo: string[];
+		onUpdate?: string | undefined;
+		onDelete?: string | undefined;
+	}[];
+	compositePKs: string[][];
+	uniqueConstraints?: string[];
+	checkConstraints: string[];
 }
 
 export interface JsonDropTableStatement {
@@ -82,6 +108,15 @@ export interface JsonAddValueToEnumStatement {
 	schema: string;
 	value: string;
 	before: string;
+}
+
+export interface JsonDropValueFromEnumStatement {
+	type: 'alter_type_drop_value';
+	name: string;
+	schema: string;
+	deletedValues: string[];
+	newValues: string[];
+	columnsWithEnum: { schema: string; table: string; column: string }[];
 }
 
 export interface JsonCreateSequenceStatement {
@@ -173,6 +208,10 @@ export interface JsonReferenceStatement {
 	data: string;
 	schema: string;
 	tableName: string;
+	isMulticolumn?: boolean;
+	columnNotNull?: boolean;
+	columnDefault?: string;
+	columnType?: string;
 	//   fromTable: string;
 	//   fromColumns: string[];
 	//   toTable: string;
@@ -206,6 +245,20 @@ export interface JsonAlterUniqueConstraint {
 	schema?: string;
 	oldConstraintName?: string;
 	newConstraintName?: string;
+}
+
+export interface JsonCreateCheckConstraint {
+	type: 'create_check_constraint';
+	tableName: string;
+	data: string;
+	schema?: string;
+}
+
+export interface JsonDeleteCheckConstraint {
+	type: 'delete_check_constraint';
+	tableName: string;
+	constraintName: string;
+	schema?: string;
 }
 
 export interface JsonCreateCompositePK {
@@ -498,6 +551,105 @@ export interface JsonRenameSchema {
 	to: string;
 }
 
+export type JsonCreatePgViewStatement = {
+	type: 'create_view';
+} & Omit<PgView, 'columns' | 'isExisting'>;
+
+export type JsonCreateMySqlViewStatement = {
+	type: 'mysql_create_view';
+	replace: boolean;
+} & Omit<MySqlView, 'columns' | 'isExisting'>;
+
+export type JsonCreateSqliteViewStatement = {
+	type: 'sqlite_create_view';
+} & Omit<SqliteView, 'columns' | 'isExisting'>;
+
+export interface JsonDropViewStatement {
+	type: 'drop_view';
+	name: string;
+	schema?: string;
+	materialized?: boolean;
+}
+
+export interface JsonRenameViewStatement {
+	type: 'rename_view';
+	nameTo: string;
+	nameFrom: string;
+	schema: string;
+	materialized?: boolean;
+}
+
+export interface JsonRenameMySqlViewStatement {
+	type: 'rename_view';
+	nameTo: string;
+	nameFrom: string;
+	schema: string;
+	materialized?: boolean;
+}
+
+export interface JsonAlterViewAlterSchemaStatement {
+	type: 'alter_view_alter_schema';
+	fromSchema: string;
+	toSchema: string;
+	name: string;
+	materialized?: boolean;
+}
+
+export type JsonAlterViewAddWithOptionStatement =
+	& {
+		type: 'alter_view_add_with_option';
+		schema: string;
+		name: string;
+	}
+	& ({
+		materialized: true;
+		with: MatViewWithOption;
+	} | {
+		materialized: false;
+		with: ViewWithOption;
+	});
+
+export type JsonAlterViewDropWithOptionStatement =
+	& {
+		type: 'alter_view_drop_with_option';
+		schema: string;
+		name: string;
+	}
+	& ({
+		materialized: true;
+		with: MatViewWithOption;
+	} | {
+		materialized: false;
+		with: ViewWithOption;
+	});
+
+export interface JsonAlterViewAlterTablespaceStatement {
+	type: 'alter_view_alter_tablespace';
+	toTablespace: string;
+	name: string;
+	schema: string;
+	materialized: true;
+}
+
+export interface JsonAlterViewAlterUsingStatement {
+	type: 'alter_view_alter_using';
+	toUsing: string;
+	name: string;
+	schema: string;
+	materialized: true;
+}
+
+export type JsonAlterMySqlViewStatement = {
+	type: 'alter_mysql_view';
+} & Omit<MySqlView, 'isExisting'>;
+
+export type JsonAlterViewStatement =
+	| JsonAlterViewAlterSchemaStatement
+	| JsonAlterViewAddWithOptionStatement
+	| JsonAlterViewDropWithOptionStatement
+	| JsonAlterViewAlterTablespaceStatement
+	| JsonAlterViewAlterUsingStatement;
+
 export type JsonAlterColumnStatement =
 	| JsonRenameColumnStatement
 	| JsonAlterColumnTypeStatement
@@ -519,6 +671,7 @@ export type JsonAlterColumnStatement =
 	| JsonAlterColumnDropIdentityStatement;
 
 export type JsonStatement =
+	| JsonRecreateTableStatement
 	| JsonAlterColumnStatement
 	| JsonCreateTableStatement
 	| JsonDropTableStatement
@@ -555,14 +708,24 @@ export type JsonStatement =
 	| JsonDropSequenceStatement
 	| JsonCreateSequenceStatement
 	| JsonMoveSequenceStatement
-	| JsonRenameSequenceStatement;
+	| JsonRenameSequenceStatement
+	| JsonCreatePgViewStatement
+	| JsonDropViewStatement
+	| JsonRenameViewStatement
+	| JsonAlterViewStatement
+	| JsonCreateMySqlViewStatement
+	| JsonAlterMySqlViewStatement
+	| JsonCreateSqliteViewStatement
+	| JsonCreateCheckConstraint
+	| JsonDeleteCheckConstraint
+	| JsonDropValueFromEnumStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
 	// TODO: remove?
 	json2: PgSchema,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
 	const tableKey = `${schema || 'public'}.${name}`;
 
 	// TODO: @AndriiSherman. We need this, will add test cases
@@ -580,6 +743,7 @@ export const preparePgCreateTableJson = (
 		compositePKs: Object.values(compositePrimaryKeys),
 		compositePkName: compositePkName,
 		uniqueConstraints: Object.values(uniqueConstraints),
+		checkConstraints: Object.values(checkConstraints),
 	};
 };
 
@@ -592,7 +756,7 @@ export const prepareMySqlCreateTableJson = (
 	// if previously it was an expression or column
 	internals: MySqlKitInternals,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
 
 	return {
 		type: 'create_table',
@@ -608,6 +772,7 @@ export const prepareMySqlCreateTableJson = (
 			: '',
 		uniqueConstraints: Object.values(uniqueConstraints),
 		internals,
+		checkConstraints: Object.values(checkConstraints),
 	};
 };
 
@@ -615,7 +780,7 @@ export const prepareSQLiteCreateTable = (
 	table: Table,
 	action?: 'push' | undefined,
 ): JsonSqliteCreateTableStatement => {
-	const { name, columns, uniqueConstraints } = table;
+	const { name, columns, uniqueConstraints, checkConstraints } = table;
 
 	const references: string[] = Object.values(table.foreignKeys);
 
@@ -636,6 +801,7 @@ export const prepareSQLiteCreateTable = (
 		referenceData: fks,
 		compositePKs: composites,
 		uniqueConstraints: Object.values(uniqueConstraints),
+		checkConstraints: Object.values(checkConstraints),
 	};
 };
 
@@ -688,6 +854,36 @@ export const prepareAddValuesToEnumJson = (
 			before: it.before,
 		};
 	});
+};
+
+export const prepareDropEnumValues = (
+	name: string,
+	schema: string,
+	removedValues: string[],
+	json2: PgSchema,
+): JsonDropValueFromEnumStatement[] => {
+	if (!removedValues.length) return [];
+
+	const affectedColumns: { schema: string; table: string; column: string }[] = [];
+
+	for (const tableKey in json2.tables) {
+		const table = json2.tables[tableKey];
+		for (const columnKey in table.columns) {
+			const column = table.columns[columnKey];
+			if (column.type === name && column.typeSchema === schema) {
+				affectedColumns.push({ schema: table.schema || 'public', table: table.name, column: column.name });
+			}
+		}
+	}
+
+	return [{
+		type: 'alter_type_drop_value',
+		name: name,
+		schema: schema,
+		deletedValues: removedValues,
+		newValues: json2.enums[`${schema}.${name}`].values,
+		columnsWithEnum: affectedColumns,
+	}];
 };
 
 export const prepareDropEnumJson = (
@@ -1637,6 +1833,55 @@ export const prepareSqliteAlterColumns = (
 			`${tableName}_${columnName}`
 		];
 
+		if (column.autoincrement?.type === 'added') {
+			statements.push({
+				type: 'alter_table_alter_column_set_autoincrement',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.autoincrement?.type === 'changed') {
+			const type = column.autoincrement.new
+				? 'alter_table_alter_column_set_autoincrement'
+				: 'alter_table_alter_column_drop_autoincrement';
+
+			statements.push({
+				type,
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.autoincrement?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_autoincrement',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
 		if (typeof column.name !== 'string') {
 			statements.push({
 				type: 'alter_table_rename_column',
@@ -1944,6 +2189,54 @@ export const prepareCreateReferencesJson = (
 		};
 	});
 };
+export const prepareLibSQLCreateReferencesJson = (
+	tableName: string,
+	schema: string,
+	foreignKeys: Record<string, string>,
+	json2: SQLiteSchemaSquashed,
+	action?: 'push',
+): JsonCreateReferenceStatement[] => {
+	return Object.values(foreignKeys).map((fkData) => {
+		const { columnsFrom, tableFrom, columnsTo } = action === 'push'
+			? SQLiteSquasher.unsquashPushFK(fkData)
+			: SQLiteSquasher.unsquashFK(fkData);
+
+		// When trying to alter table in lib sql it is necessary to pass all config for column like "NOT NULL", "DEFAULT", etc.
+		// If it is multicolumn reference it is not possible to pass this data for all columns
+		// Pass multicolumn flag for sql statements to not generate migration
+		let isMulticolumn = false;
+
+		if (columnsFrom.length > 1 || columnsTo.length > 1) {
+			isMulticolumn = true;
+
+			return {
+				type: 'create_reference',
+				tableName,
+				data: fkData,
+				schema,
+				isMulticolumn,
+			};
+		}
+
+		const columnFrom = columnsFrom[0];
+
+		const {
+			notNull: columnNotNull,
+			default: columnDefault,
+			type: columnType,
+		} = json2.tables[tableFrom].columns[columnFrom];
+
+		return {
+			type: 'create_reference',
+			tableName,
+			data: fkData,
+			schema,
+			columnNotNull,
+			columnDefault,
+			columnType,
+		};
+	});
+};
 
 export const prepareDropReferencesJson = (
 	tableName: string,
@@ -1958,6 +2251,77 @@ export const prepareDropReferencesJson = (
 			schema,
 		};
 	});
+};
+export const prepareLibSQLDropReferencesJson = (
+	tableName: string,
+	schema: string,
+	foreignKeys: Record<string, string>,
+	json2: SQLiteSchemaSquashed,
+	meta: SQLiteSchemaInternal['_meta'],
+	action?: 'push',
+): JsonDeleteReferenceStatement[] => {
+	const statements = Object.values(foreignKeys).map((fkData) => {
+		const { columnsFrom, tableFrom, columnsTo, name, tableTo, onDelete, onUpdate } = action === 'push'
+			? SQLiteSquasher.unsquashPushFK(fkData)
+			: SQLiteSquasher.unsquashFK(fkData);
+
+		// If all columns from where were references were deleted -> skip this logic
+		// Drop columns will cover this scenario
+		const keys = Object.keys(json2.tables[tableName].columns);
+		const filtered = columnsFrom.filter((it) => keys.includes(it));
+		const fullDrop = filtered.length === 0;
+		if (fullDrop) return;
+
+		// When trying to alter table in lib sql it is necessary to pass all config for column like "NOT NULL", "DEFAULT", etc.
+		// If it is multicolumn reference it is not possible to pass this data for all columns
+		// Pass multicolumn flag for sql statements to not generate migration
+		let isMulticolumn = false;
+
+		if (columnsFrom.length > 1 || columnsTo.length > 1) {
+			isMulticolumn = true;
+
+			return {
+				type: 'delete_reference',
+				tableName,
+				data: fkData,
+				schema,
+				isMulticolumn,
+			};
+		}
+
+		const columnFrom = columnsFrom[0];
+		const newTableName = getNewTableName(tableFrom, meta);
+
+		const {
+			notNull: columnNotNull,
+			default: columnDefault,
+			type: columnType,
+		} = json2.tables[newTableName].columns[columnFrom];
+
+		const fkToSquash = {
+			columnsFrom,
+			columnsTo,
+			name,
+			tableFrom: newTableName,
+			tableTo,
+			onDelete,
+			onUpdate,
+		};
+		const foreignKey = action === 'push'
+			? SQLiteSquasher.squashPushFK(fkToSquash)
+			: SQLiteSquasher.squashFK(fkToSquash);
+		return {
+			type: 'delete_reference',
+			tableName,
+			data: foreignKey,
+			schema,
+			columnNotNull,
+			columnDefault,
+			columnType,
+		};
+	});
+
+	return statements.filter((it) => it) as JsonDeleteReferenceStatement[];
 };
 
 // alter should create 2 statements. It's important to make only 1 sql per statement(for breakpoints)
@@ -2136,6 +2500,36 @@ export const prepareDeleteUniqueConstraintPg = (
 	});
 };
 
+export const prepareAddCheckConstraint = (
+	tableName: string,
+	schema: string,
+	check: Record<string, string>,
+): JsonCreateCheckConstraint[] => {
+	return Object.values(check).map((it) => {
+		return {
+			type: 'create_check_constraint',
+			tableName,
+			data: it,
+			schema,
+		} as JsonCreateCheckConstraint;
+	});
+};
+
+export const prepareDeleteCheckConstraint = (
+	tableName: string,
+	schema: string,
+	check: Record<string, string>,
+): JsonDeleteCheckConstraint[] => {
+	return Object.values(check).map((it) => {
+		return {
+			type: 'delete_check_constraint',
+			tableName,
+			constraintName: PgSquasher.unsquashCheck(it).name,
+			schema,
+		} as JsonDeleteCheckConstraint;
+	});
+};
+
 // add create table changes
 // add handler to make drop and add and not alter(looking at __old and __new)
 // add serializer for mysql and sqlite + types
@@ -2229,4 +2623,171 @@ export const prepareAlterCompositePrimaryKeyMySql = (
 			].name,
 		} as JsonAlterCompositePK;
 	});
+};
+
+export const preparePgCreateViewJson = (
+	name: string,
+	schema: string,
+	definition: string,
+	materialized: boolean,
+	withNoData: boolean = false,
+	withOption?: any,
+	using?: string,
+	tablespace?: string,
+): JsonCreatePgViewStatement => {
+	return {
+		type: 'create_view',
+		name: name,
+		schema: schema,
+		definition: definition,
+		with: withOption,
+		materialized: materialized,
+		withNoData,
+		using,
+		tablespace,
+	};
+};
+
+export const prepareMySqlCreateViewJson = (
+	name: string,
+	definition: string,
+	meta: string,
+	replace: boolean = false,
+): JsonCreateMySqlViewStatement => {
+	const { algorithm, sqlSecurity, withCheckOption } = MySqlSquasher.unsquashView(meta);
+	return {
+		type: 'mysql_create_view',
+		name: name,
+		definition: definition,
+		algorithm,
+		sqlSecurity,
+		withCheckOption,
+		replace,
+	};
+};
+
+export const prepareSqliteCreateViewJson = (
+	name: string,
+	definition: string,
+): JsonCreateSqliteViewStatement => {
+	return {
+		type: 'sqlite_create_view',
+		name: name,
+		definition: definition,
+	};
+};
+
+export const prepareDropViewJson = (
+	name: string,
+	schema?: string,
+	materialized?: boolean,
+): JsonDropViewStatement => {
+	const resObject: JsonDropViewStatement = <JsonDropViewStatement> { name, type: 'drop_view' };
+
+	if (schema) resObject['schema'] = schema;
+
+	if (materialized) resObject['materialized'] = materialized;
+
+	return resObject;
+};
+
+export const prepareRenameViewJson = (
+	to: string,
+	from: string,
+	schema?: string,
+	materialized?: boolean,
+): JsonRenameViewStatement => {
+	const resObject: JsonRenameViewStatement = <JsonRenameViewStatement> {
+		type: 'rename_view',
+		nameTo: to,
+		nameFrom: from,
+	};
+
+	if (schema) resObject['schema'] = schema;
+	if (materialized) resObject['materialized'] = materialized;
+
+	return resObject;
+};
+
+export const preparePgAlterViewAlterSchemaJson = (
+	to: string,
+	from: string,
+	name: string,
+	materialized?: boolean,
+): JsonAlterViewAlterSchemaStatement => {
+	const returnObject: JsonAlterViewAlterSchemaStatement = {
+		type: 'alter_view_alter_schema',
+		fromSchema: from,
+		toSchema: to,
+		name,
+	};
+
+	if (materialized) returnObject['materialized'] = materialized;
+	return returnObject;
+};
+
+export const preparePgAlterViewAddWithOptionJson = (
+	name: string,
+	schema: string,
+	materialized: boolean,
+	withOption: MatViewWithOption | ViewWithOption,
+): JsonAlterViewAddWithOptionStatement => {
+	return {
+		type: 'alter_view_add_with_option',
+		name,
+		schema,
+		materialized: materialized,
+		with: withOption,
+	} as JsonAlterViewAddWithOptionStatement;
+};
+
+export const preparePgAlterViewDropWithOptionJson = (
+	name: string,
+	schema: string,
+	materialized: boolean,
+	withOption: MatViewWithOption | ViewWithOption,
+): JsonAlterViewDropWithOptionStatement => {
+	return {
+		type: 'alter_view_drop_with_option',
+		name,
+		schema,
+		materialized: materialized,
+		with: withOption,
+	} as JsonAlterViewDropWithOptionStatement;
+};
+
+export const preparePgAlterViewAlterTablespaceJson = (
+	name: string,
+	schema: string,
+	materialized: boolean,
+	to: string,
+): JsonAlterViewAlterTablespaceStatement => {
+	return {
+		type: 'alter_view_alter_tablespace',
+		name,
+		schema,
+		materialized: materialized,
+		toTablespace: to,
+	} as JsonAlterViewAlterTablespaceStatement;
+};
+
+export const preparePgAlterViewAlterUsingJson = (
+	name: string,
+	schema: string,
+	materialized: boolean,
+	to: string,
+): JsonAlterViewAlterUsingStatement => {
+	return {
+		type: 'alter_view_alter_using',
+		name,
+		schema,
+		materialized: materialized,
+		toUsing: to,
+	} as JsonAlterViewAlterUsingStatement;
+};
+
+export const prepareMySqlAlterView = (
+	view: Omit<MySqlView, 'isExisting'>,
+): JsonAlterMySqlViewStatement => {
+	return { type: 'alter_mysql_view', ...view };
 };
