@@ -498,7 +498,7 @@ export const pgSchemaSquashed = object({
 	views: record(string(), view),
 	sequences: record(string(), sequenceSquashed),
 	roles: record(string(), roleSchema).default({}),
-	policies: record(string(), policy).default({}),
+	policies: record(string(), policySquashed).default({}),
 }).strict();
 
 export const pgSchemaV3 = pgSchemaInternalV3.merge(schemaHash);

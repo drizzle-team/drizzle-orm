@@ -1423,8 +1423,8 @@ export const applyPgSnapshotsDiff = async (
 
 		const policy = PgSquasher.unsquashPolicy(values);
 
-		const newPolicy = json1.policies[policy.name];
-		const oldPolicy = json2.policies[policy.name];
+		const newPolicy = PgSquasher.unsquashPolicy(json2.policies[policy.name].values);
+		const oldPolicy = PgSquasher.unsquashPolicy(json1.policies[policy.name].values);
 
 		if (newPolicy.as !== oldPolicy.as) {
 			jsonDropIndPoliciesStatements.push(

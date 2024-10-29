@@ -1290,3 +1290,369 @@ test('rename policy that is linked', async (t) => {
 		},
 	]);
 });
+
+test('alter policy that is linked', async (t) => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema1 = {
+		rls: pgPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const schema2 = {
+		rls: pgPolicy('test', { as: 'permissive', to: 'current_role' }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER POLICY "test" ON "public"."users" TO current_role;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			newData: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				on: '"public"."users"',
+				to: [
+					'current_role',
+				],
+				using: undefined,
+				withCheck: undefined,
+			},
+			oldData: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				on: '"public"."users"',
+				to: [
+					'public',
+				],
+				using: undefined,
+				withCheck: undefined,
+			},
+			type: 'alter_ind_policy',
+		},
+	]);
+});
+
+test('alter policy that is linked: withCheck', async (t) => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema1 = {
+		rls: pgPolicy('test', { as: 'permissive', withCheck: sql`true` }).link(users),
+	};
+
+	const schema2 = {
+		rls: pgPolicy('test', { as: 'permissive', withCheck: sql`false` }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER POLICY "test" ON "public"."users" TO public WITH CHECK (false);',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			newData: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				on: '"public"."users"',
+				to: [
+					'public',
+				],
+				using: undefined,
+				withCheck: 'false',
+			},
+			oldData: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				on: '"public"."users"',
+				to: [
+					'public',
+				],
+				using: undefined,
+				withCheck: 'true',
+			},
+			type: 'alter_ind_policy',
+		},
+	]);
+});
+
+test('alter policy that is linked: using', async (t) => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema1 = {
+		rls: pgPolicy('test', { as: 'permissive', using: sql`true` }).link(users),
+	};
+
+	const schema2 = {
+		rls: pgPolicy('test', { as: 'permissive', using: sql`false` }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER POLICY "test" ON "public"."users" TO public USING (false);',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			newData: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				on: '"public"."users"',
+				to: [
+					'public',
+				],
+				using: 'false',
+				withCheck: undefined,
+			},
+			oldData: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				on: '"public"."users"',
+				to: [
+					'public',
+				],
+				using: 'true',
+				withCheck: undefined,
+			},
+			type: 'alter_ind_policy',
+		},
+	]);
+});
+
+test('alter policy that is linked: using', async (t) => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema1 = {
+		rls: pgPolicy('test', { for: 'insert' }).link(users),
+	};
+
+	const schema2 = {
+		rls: pgPolicy('test', { for: 'delete' }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP POLICY "test" ON "public"."users" CASCADE;',
+		'CREATE POLICY "test" ON "public"."users" AS PERMISSIVE FOR DELETE TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'INSERT',
+				name: 'test',
+				on: '"public"."users"',
+				to: [
+					'public',
+				],
+				using: undefined,
+				withCheck: undefined,
+			},
+			tableName: '"public"."users"',
+			type: 'drop_ind_policy',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'DELETE',
+				name: 'test',
+				on: '"public"."users"',
+				to: [
+					'public',
+				],
+				using: undefined,
+				withCheck: undefined,
+			},
+			tableName: '"public"."users"',
+			type: 'create_ind_policy',
+		},
+	]);
+});
+
+////
+
+test('alter policy in the table', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, (t) => [
+			pgPolicy('test', { as: 'permissive' }),
+		]),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, (t) => [
+			pgPolicy('test', { as: 'permissive', to: 'current_role' }),
+		]),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER POLICY "test" ON "users" TO current_role;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			newData: 'test--PERMISSIVE--ALL--current_role--undefined--undefined--undefined',
+			oldData: 'test--PERMISSIVE--ALL--public--undefined--undefined--undefined',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_policy',
+		},
+	]);
+});
+
+test('alter policy in the table: withCheck', async (t) => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, (t) => [
+			pgPolicy('test', { as: 'permissive', withCheck: sql`true` }),
+		]),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, (t) => [
+			pgPolicy('test', { as: 'permissive', withCheck: sql`false` }),
+		]),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER POLICY "test" ON "users" TO public WITH CHECK (false);',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			newData: 'test--PERMISSIVE--ALL--public--undefined--false--undefined',
+			oldData: 'test--PERMISSIVE--ALL--public--undefined--true--undefined',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_policy',
+		},
+	]);
+});
+
+test('alter policy in the table: using', async (t) => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, (t) => [
+			pgPolicy('test', { as: 'permissive', using: sql`true` }),
+		]),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, (t) => [
+			pgPolicy('test', { as: 'permissive', using: sql`false` }),
+		]),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER POLICY "test" ON "users" TO public USING (false);',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			newData: 'test--PERMISSIVE--ALL--public--false--undefined--undefined',
+			oldData: 'test--PERMISSIVE--ALL--public--true--undefined--undefined',
+			schema: '',
+			tableName: 'users',
+			type: 'alter_policy',
+		},
+	]);
+});
+
+test('alter policy in the table: using', async (t) => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, (t) => [
+			pgPolicy('test', { for: 'insert' }),
+		]),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, (t) => [
+			pgPolicy('test', { for: 'delete' }),
+		]),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP POLICY "test" ON "users" CASCADE;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'INSERT',
+				name: 'test',
+				on: undefined,
+				to: [
+					'public',
+				],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'drop_policy',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'DELETE',
+				name: 'test',
+				on: undefined,
+				to: [
+					'public',
+				],
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
+});
