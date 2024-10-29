@@ -1,4 +1,4 @@
-import type { PgDatabase } from '~/pg-core/index.ts';
+import type { PgDatabase } from '~/pg-core/db.ts';
 import { bigserial, pgSchema, text, uuid } from '~/pg-core/index.ts';
 import { pgRole } from '~/pg-core/roles.ts';
 import { sql } from '~/sql/sql.ts';
