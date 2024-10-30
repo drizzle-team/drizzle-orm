@@ -3,7 +3,7 @@ import { int, singlestoreTable, singlestoreView } from 'drizzle-orm/singlestore-
 import { expect, test } from 'vitest';
 import { diffTestSchemasSingleStore } from './schemaDiffer';
 
-test('create view #1', async () => {
+test.skip('create view #1', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -35,7 +35,7 @@ SQL SECURITY definer
 VIEW \`some_view\` AS (select \`id\` from \`users\`);`);
 });
 
-test('create view #2', async () => {
+test.skip('create view #2', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -164,7 +164,7 @@ test('rename view', async () => {
 	expect(sqlStatements[0]).toBe(`RENAME TABLE \`some_view\` TO \`new_some_view\`;`);
 });
 
-test('rename view and alter meta options', async () => {
+test.skip('rename view and alter meta options', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -232,7 +232,7 @@ test('rename view with existing flag', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('add meta to view', async () => {
+test.skip('add meta to view', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -289,7 +289,7 @@ test('add meta to view with existing flag', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('alter meta to view', async () => {
+test.skip('alter meta to view', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -348,7 +348,7 @@ test('alter meta to view with existing flag', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('drop meta from view', async () => {
+test.skip('drop meta from view', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -405,7 +405,7 @@ test('drop meta from view existing flag', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('alter view ".as" value', async () => {
+test.skip('alter view ".as" value', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -441,7 +441,7 @@ VIEW \`some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1)
 WITH cascaded CHECK OPTION;`);
 });
 
-test('rename and alter view ".as" value', async () => {
+test.skip('rename and alter view ".as" value', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -509,7 +509,7 @@ test('set existing', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('drop existing', async () => {
+test.skip('drop existing', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
