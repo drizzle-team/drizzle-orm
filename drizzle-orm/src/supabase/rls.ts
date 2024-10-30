@@ -16,7 +16,7 @@ export const authUsers = auth.table('users', {
 	id: uuid().primaryKey().notNull(),
 });
 
-/* ------------------------------ realtime schema; ------------------------------ */
+/* ------------------------------ realtime schema; ------------------------------- */
 const realtime = pgSchema('realtime');
 
 export const realtimeMessages = realtime.table(
