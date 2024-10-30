@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import Docker from 'dockerode';
 import { SQL, sql } from 'drizzle-orm';
 import { char, check, int, mysqlTable, mysqlView, serial, text, varchar } from 'drizzle-orm/mysql-core';
@@ -76,6 +77,8 @@ if (!fs.existsSync('tests/introspect/mysql')) {
 }
 
 test('generated always column: link to another column', async () => {
+	await client.query(`drop table if exists users;`);
+
 	const schema = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -95,11 +98,11 @@ test('generated always column: link to another column', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop table users;`);
 });
 
 test('generated always column virtual: link to another column', async () => {
+	await client.query(`drop table if exists users;`);
+
 	const schema = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -120,11 +123,11 @@ test('generated always column virtual: link to another column', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop table users;`);
 });
 
 test('Default value of character type column: char', async () => {
+	await client.query(`drop table if exists users;`);
+
 	const schema = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -141,11 +144,11 @@ test('Default value of character type column: char', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop table users;`);
 });
 
 test('Default value of character type column: varchar', async () => {
+	await client.query(`drop table if exists users;`);
+
 	const schema = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -162,11 +165,12 @@ test('Default value of character type column: varchar', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop table users;`);
 });
 
 test('introspect checks', async () => {
+	await client.query(`drop view if exists some_view;`);
+	await client.query(`drop table if exists users;`);
+
 	const schema = {
 		users: mysqlTable('users', {
 			id: serial('id'),
@@ -186,11 +190,12 @@ test('introspect checks', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop table users;`);
 });
 
 test('view #1', async () => {
+	await client.query(`drop table if exists users;`);
+	await client.query(`drop view if exists some_view;`);
+
 	const users = mysqlTable('users', { id: int('id') });
 	const testView = mysqlView('some_view', { id: int('id') }).as(
 		sql`select \`drizzle\`.\`users\`.\`id\` AS \`id\` from \`drizzle\`.\`users\``,
@@ -210,13 +215,11 @@ test('view #1', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop view some_view;`);
-	await client.query(`drop table users;`);
 });
 
 test('view #2', async () => {
-	// await client.query(`drop view some_view;`);
+	await client.query(`drop table if exists some_users;`);
+	await client.query(`drop view if exists some_view;`);
 
 	const users = mysqlTable('some_users', { id: int('id') });
 	const testView = mysqlView('some_view', { id: int('id') }).algorithm('temptable').sqlSecurity('definer').as(
@@ -237,6 +240,4 @@ test('view #2', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop table some_users;`);
 });
