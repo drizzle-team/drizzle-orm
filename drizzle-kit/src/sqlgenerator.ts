@@ -417,7 +417,7 @@ class PgCreateTableConvertor extends Convertor {
 
 			const type = isPgNativeType(column.type)
 				? column.type
-				: `${schemaPrefix}"${column.type}"`;
+				: `${schemaPrefix}${column.type}`;
 			const generated = column.generated;
 
 			const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
