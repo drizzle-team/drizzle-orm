@@ -179,6 +179,7 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 					patched = patched.startsWith('int(') ? 'int' : patched;
 					patched = patched.startsWith('double(') ? 'double' : patched;
+					patched = patched.startsWith('float(') ? 'float' : patched;
 					return patched;
 				})
 				.filter((type) => {
@@ -207,6 +208,7 @@ export const schemaToTypeScript = (
 				patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 				patched = patched.startsWith('int(') ? 'int' : patched;
 				patched = patched.startsWith('double(') ? 'double' : patched;
+				patched = patched.startsWith('float(') ? 'float' : patched;
 				return patched;
 			})
 			.filter((type) => {
@@ -491,8 +493,19 @@ const column = (
 		return out;
 	}
 
-	if (lowered === 'float') {
-		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })})`;
+	if (lowered.startsWith('float')) {
+		let params:
+			| { precision: string | undefined; scale: string | undefined }
+			| undefined;
+
+		if (lowered.length > 5) {
+			const [precision, scale] = lowered
+				.slice(6, lowered.length - 1)
+				.split(',');
+			params = { precision, scale };
+		}
+
+		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })}${params ? timeConfig(params) : ''})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
