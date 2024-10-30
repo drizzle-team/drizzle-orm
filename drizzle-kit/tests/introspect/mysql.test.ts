@@ -2,14 +2,18 @@ import 'dotenv/config';
 import Docker from 'dockerode';
 import { SQL, sql } from 'drizzle-orm';
 import {
+	bigint,
 	char,
 	check,
 	float,
 	int,
+	mediumint,
 	mysqlTable,
 	mysqlView,
 	serial,
+	smallint,
 	text,
+	tinyint,
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
@@ -254,6 +258,28 @@ test('handle float type', async () => {
 		client,
 		schema,
 		'handle-float-type',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('handle unsigned numerical types', async () => {
+	const schema = {
+		table: mysqlTable('table', {
+			col1: int({ unsigned: true }),
+			col2: tinyint({ unsigned: true }),
+			col3: smallint({ unsigned: true }),
+			col4: mediumint({ unsigned: true }),
+			col5: bigint({ mode: 'number', unsigned: true }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'handle-unsigned-numerical-types',
 		'drizzle',
 	);
 

@@ -180,6 +180,11 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('int(') ? 'int' : patched;
 					patched = patched.startsWith('double(') ? 'double' : patched;
 					patched = patched.startsWith('float(') ? 'float' : patched;
+					patched = patched.startsWith('int unsigned') ? 'int' : patched;
+					patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+					patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+					patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+					patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
 					return patched;
 				})
 				.filter((type) => {
@@ -209,6 +214,11 @@ export const schemaToTypeScript = (
 				patched = patched.startsWith('int(') ? 'int' : patched;
 				patched = patched.startsWith('double(') ? 'double' : patched;
 				patched = patched.startsWith('float(') ? 'float' : patched;
+				patched = patched.startsWith('int unsigned') ? 'int' : patched;
+				patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+				patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+				patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+				patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
 				return patched;
 			})
 			.filter((type) => {
@@ -399,8 +409,9 @@ const column = (
 
 	if (lowered.startsWith('int')) {
 		const isUnsigned = lowered.startsWith('int unsigned');
-		let out = `${casing(name)}: int(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? '{ unsigned: true }' : ''
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: int(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
@@ -411,9 +422,10 @@ const column = (
 
 	if (lowered.startsWith('tinyint')) {
 		const isUnsigned = lowered.startsWith('tinyint unsigned');
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		// let out = `${name.camelCase()}: tinyint("${name}")`;
-		let out: string = `${casing(name)}: tinyint(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? ', { unsigned: true }' : ''
+		let out: string = `${casing(name)}: tinyint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
@@ -424,8 +436,9 @@ const column = (
 
 	if (lowered.startsWith('smallint')) {
 		const isUnsigned = lowered.startsWith('smallint unsigned');
-		let out = `${casing(name)}: smallint(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? ', { unsigned: true }' : ''
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: smallint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
@@ -436,8 +449,9 @@ const column = (
 
 	if (lowered.startsWith('mediumint')) {
 		const isUnsigned = lowered.startsWith('mediumint unsigned');
-		let out = `${casing(name)}: mediumint(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? ', { unsigned: true }' : ''
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: mediumint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue

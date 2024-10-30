@@ -651,10 +651,6 @@ export const fromDatabase = async (
 			}
 		}
 
-		if (columnType.startsWith('tinyint')) {
-			changedType = 'tinyint';
-		}
-
 		let onUpdate: boolean | undefined = undefined;
 		if (
 			columnType.startsWith('timestamp')
