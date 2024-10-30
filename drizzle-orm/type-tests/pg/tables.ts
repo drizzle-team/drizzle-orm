@@ -78,23 +78,23 @@ export const users = pgTable(
 		enumCol: myEnum('enum_col').notNull(),
 		arrayCol: text('array_col').array().notNull(),
 	},
-	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class.asc().nullsFirst(), sql``),
-		usersAge2Idx: index('usersAge2Idx').on(sql``),
-		uniqueClass: uniqueIndex('uniqueClass')
+	(users) => [
+		uniqueIndex('usersAge1Idx').on(users.class.asc().nullsFirst(), sql``),
+		index('usersAge2Idx').on(sql``),
+		uniqueIndex('uniqueClass')
 			.using('btree', users.class.desc().op('text_ops'), users.subClass.nullsLast())
 			.where(sql`${users.class} is not null`)
 			.concurrently(),
-		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] })
+		check('legalAge', sql`${users.age1} > 18`),
+		foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] })
 			.onUpdate('cascade')
 			.onDelete('cascade'),
-		usersClassComplexFK: foreignKey({
+		foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		}),
-		pk: primaryKey(users.age1, users.class),
-	}),
+		primaryKey(users.age1, users.class),
+	],
 );
 
 Expect<Equal<InferSelectModel<typeof users>, typeof users['$inferSelect']>>;
@@ -172,9 +172,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+}, (cities) => [index().on(cities.id)]);
 
 export const newYorkers = pgView('new_yorkers')
 	.with({
