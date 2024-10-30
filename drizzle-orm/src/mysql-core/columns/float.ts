@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
@@ -15,12 +16,14 @@ export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
 }>;
 
 export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlFloat'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T>
+	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlFloatConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlFloatBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: T['name'], config: MySqlFloatConfig | undefined) {
 		super(name, 'number', 'MySqlFloat');
+		this.config.precision = config?.precision;
+		this.config.scale = config?.scale;
 	}
 
 	/** @internal */
@@ -31,16 +34,39 @@ export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySq
 	}
 }
 
-export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>> extends MySqlColumnWithAutoIncrement<T> {
+export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>>
+	extends MySqlColumnWithAutoIncrement<T, MySqlFloatConfig>
+{
 	static override readonly [entityKind]: string = 'MySqlFloat';
 
+	readonly precision: number | undefined = this.config.precision;
+	readonly scale: number | undefined = this.config.scale;
+
 	getSQLType(): string {
-		return 'float';
+		if (this.precision !== undefined && this.scale !== undefined) {
+			return `float(${this.precision},${this.scale})`;
+		} else if (this.precision === undefined) {
+			return 'float';
+		} else {
+			return `float(${this.precision})`;
+		}
 	}
 }
 
+export interface MySqlFloatConfig {
+	precision?: number;
+	scale?: number;
+}
+
 export function float(): MySqlFloatBuilderInitial<''>;
-export function float<TName extends string>(name: TName): MySqlFloatBuilderInitial<TName>;
-export function float(name?: string) {
-	return new MySqlFloatBuilder(name ?? '');
+export function float(
+	config?: MySqlFloatConfig,
+): MySqlFloatBuilderInitial<''>;
+export function float<TName extends string>(
+	name: TName,
+	config?: MySqlFloatConfig,
+): MySqlFloatBuilderInitial<TName>;
+export function float(a?: string | MySqlFloatConfig, b?: MySqlFloatConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlFloatConfig>(a, b);
+	return new MySqlFloatBuilder(name, config);
 }

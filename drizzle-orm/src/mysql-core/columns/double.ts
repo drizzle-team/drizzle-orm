@@ -39,8 +39,8 @@ export class MySqlDouble<T extends ColumnBaseConfig<'number', 'MySqlDouble'>>
 {
 	static override readonly [entityKind]: string = 'MySqlDouble';
 
-	precision: number | undefined = this.config.precision;
-	scale: number | undefined = this.config.scale;
+	readonly precision: number | undefined = this.config.precision;
+	readonly scale: number | undefined = this.config.scale;
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
