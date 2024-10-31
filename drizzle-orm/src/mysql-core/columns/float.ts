@@ -24,6 +24,7 @@ export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySq
 		super(name, 'number', 'MySqlFloat');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
+		this.config.unsigned = config?.unsigned;
 	}
 
 	/** @internal */
@@ -41,21 +42,25 @@ export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>>
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
+	readonly unsigned: boolean | undefined = this.config.unsigned;
 
 	getSQLType(): string {
+		let type = '';
 		if (this.precision !== undefined && this.scale !== undefined) {
-			return `float(${this.precision},${this.scale})`;
+			type += `float(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {
-			return 'float';
+			type += 'float';
 		} else {
-			return `float(${this.precision})`;
+			type += `float(${this.precision})`;
 		}
+		return this.unsigned ? `${type} unsigned` : type;
 	}
 }
 
 export interface MySqlFloatConfig {
 	precision?: number;
 	scale?: number;
+	unsigned?: boolean;
 }
 
 export function float(): MySqlFloatBuilderInitial<''>;
