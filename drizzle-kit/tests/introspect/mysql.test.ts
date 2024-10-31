@@ -5,6 +5,8 @@ import {
 	bigint,
 	char,
 	check,
+	decimal,
+	double,
 	float,
 	int,
 	mediumint,
@@ -273,6 +275,12 @@ test('handle unsigned numerical types', async () => {
 			col3: smallint({ unsigned: true }),
 			col4: mediumint({ unsigned: true }),
 			col5: bigint({ mode: 'number', unsigned: true }),
+			col6: float({ unsigned: true }),
+			col7: float({ precision: 2, scale: 1, unsigned: true }),
+			col8: double({ unsigned: true }),
+			col9: double({ precision: 2, scale: 1, unsigned: true }),
+			col10: decimal({ unsigned: true }),
+			col11: decimal({ precision: 2, scale: 1, unsigned: true }),
 		}),
 	};
 

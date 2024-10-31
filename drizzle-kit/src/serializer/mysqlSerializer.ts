@@ -651,6 +651,10 @@ export const fromDatabase = async (
 			}
 		}
 
+		if (columnType.includes('decimal(10,0)')) {
+			changedType = columnType.replace('decimal(10,0)', 'decimal');
+		}
+
 		let onUpdate: boolean | undefined = undefined;
 		if (
 			columnType.startsWith('timestamp')

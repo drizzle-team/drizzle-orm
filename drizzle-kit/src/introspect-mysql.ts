@@ -482,14 +482,18 @@ const column = (
 
 	if (lowered.startsWith('double')) {
 		let params:
-			| { precision: string | undefined; scale: string | undefined }
+			| { precision?: string; scale?: string; unsigned?: boolean }
 			| undefined;
 
-		if (lowered.length > 6) {
+		if (lowered.length > (lowered.includes('unsigned') ? 15 : 6)) {
 			const [precision, scale] = lowered
-				.slice(7, lowered.length - 1)
+				.slice(7, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
 				.split(',');
 			params = { precision, scale };
+		}
+
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
 		}
 
 		const timeConfigParams = params ? timeConfig(params) : undefined;
@@ -509,14 +513,18 @@ const column = (
 
 	if (lowered.startsWith('float')) {
 		let params:
-			| { precision: string | undefined; scale: string | undefined }
+			| { precision?: string; scale?: string; unsigned?: boolean }
 			| undefined;
 
-		if (lowered.length > 5) {
+		if (lowered.length > (lowered.includes('unsigned') ? 14 : 5)) {
 			const [precision, scale] = lowered
-				.slice(6, lowered.length - 1)
+				.slice(6, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
 				.split(',');
 			params = { precision, scale };
+		}
+
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
 		}
 
 		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })}${params ? timeConfig(params) : ''})`;
@@ -727,14 +735,18 @@ const column = (
 
 	if (lowered.startsWith('decimal')) {
 		let params:
-			| { precision: string | undefined; scale: string | undefined }
+			| { precision?: string; scale?: string; unsigned?: boolean }
 			| undefined;
 
-		if (lowered.length > 7) {
+		if (lowered.length > (lowered.includes('unsigned') ? 16 : 7)) {
 			const [precision, scale] = lowered
-				.slice(8, lowered.length - 1)
+				.slice(8, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
 				.split(',');
 			params = { precision, scale };
+		}
+
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
 		}
 
 		const timeConfigParams = params ? timeConfig(params) : undefined;
