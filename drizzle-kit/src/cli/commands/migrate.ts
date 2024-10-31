@@ -14,7 +14,7 @@ import path, { join } from 'path';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
-import { PgSchema, pgSchema, squashPgScheme, View } from '../../serializer/pgSchema';
+import { PgSchema, pgSchema, Policy, Role, squashPgScheme, View } from '../../serializer/pgSchema';
 import { SQLiteSchema, sqliteSchema, squashSqliteScheme, View as SQLiteView } from '../../serializer/sqliteSchema';
 import {
 	applyLibSQLSnapshotsDiff,
@@ -25,11 +25,17 @@ import {
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
 	Enum,
+	PolicyResolverInput,
+	PolicyResolverOutput,
 	ResolverInput,
 	ResolverOutput,
 	ResolverOutputWithMoved,
+	RolesResolverInput,
+	RolesResolverOutput,
 	Sequence,
 	Table,
+	TablePolicyResolverInput,
+	TablePolicyResolverOutput,
 } from '../../snapshotsDiffer';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
@@ -41,6 +47,7 @@ import {
 	ResolveColumnSelect,
 	ResolveSchemasSelect,
 	ResolveSelect,
+	ResolveSelectNamed,
 	schema,
 } from '../views';
 import { GenerateConfig } from './utils';
@@ -180,6 +187,53 @@ export const sequencesResolver = async (
 	}
 };
 
+export const roleResolver = async (
+	input: RolesResolverInput<Role>,
+): Promise<RolesResolverOutput<Role>> => {
+	const result = await promptNamedConflict(
+		input.created,
+		input.deleted,
+		'role',
+	);
+	return {
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
+};
+
+export const policyResolver = async (
+	input: TablePolicyResolverInput<Policy>,
+): Promise<TablePolicyResolverOutput<Policy>> => {
+	const result = await promptColumnsConflicts(
+		input.tableName,
+		input.created,
+		input.deleted,
+	);
+	return {
+		tableName: input.tableName,
+		schema: input.schema,
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
+};
+
+export const indPolicyResolver = async (
+	input: PolicyResolverInput<Policy>,
+): Promise<PolicyResolverOutput<Policy>> => {
+	const result = await promptNamedConflict(
+		input.created,
+		input.deleted,
+		'policy',
+	);
+	return {
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
+};
+
 export const enumsResolver = async (
 	input: ResolverInput<Enum>,
 ): Promise<ResolverOutputWithMoved<Enum>> => {
@@ -264,6 +318,9 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			schemasResolver,
 			enumsResolver,
 			sequencesResolver,
+			policyResolver,
+			indPolicyResolver,
+			roleResolver,
 			tablesResolver,
 			columnsResolver,
 			viewsResolver,
@@ -310,6 +367,9 @@ export const preparePgPush = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
 		viewsResolver,
@@ -732,6 +792,78 @@ export const promptColumnsConflicts = async <T extends Named>(
 		chalk.gray(`--- all columns conflicts in ${tableName} table resolved ---\n`),
 	);
 
+	result.deleted.push(...leftMissing);
+	return result;
+};
+
+export const promptNamedConflict = async <T extends Named>(
+	newItems: T[],
+	missingItems: T[],
+	entity: 'role' | 'policy',
+): Promise<{
+	created: T[];
+	renamed: { from: T; to: T }[];
+	deleted: T[];
+}> => {
+	if (missingItems.length === 0 || newItems.length === 0) {
+		return {
+			created: newItems,
+			renamed: [],
+			deleted: missingItems,
+		};
+	}
+
+	const result: {
+		created: T[];
+		renamed: { from: T; to: T }[];
+		deleted: T[];
+	} = { created: [], renamed: [], deleted: [] };
+	let index = 0;
+	let leftMissing = [...missingItems];
+	do {
+		const created = newItems[index];
+		const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
+			return { from: it, to: created };
+		});
+
+		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
+
+		const { status, data } = await render(
+			new ResolveSelectNamed<T>(created, promptData, entity),
+		);
+		if (status === 'aborted') {
+			console.error('ERROR');
+			process.exit(1);
+		}
+
+		if (isRenamePromptItem(data)) {
+			console.log(
+				`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
+					chalk.gray(
+						`${entity} will be renamed/moved`,
+					)
+				}`,
+			);
+
+			if (data.from.name !== data.to.name) {
+				result.renamed.push(data);
+			}
+
+			delete leftMissing[leftMissing.indexOf(data.from)];
+			leftMissing = leftMissing.filter(Boolean);
+		} else {
+			console.log(
+				`${chalk.green('+')} ${data.name} ${
+					chalk.gray(
+						`${entity} will be created`,
+					)
+				}`,
+			);
+			result.created.push(created);
+		}
+		index += 1;
+	} while (index < newItems.length);
+	console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
 	result.deleted.push(...leftMissing);
 	return result;
 };

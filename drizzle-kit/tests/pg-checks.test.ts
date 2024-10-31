@@ -39,6 +39,8 @@ test('create table with check', async (t) => {
 		checkConstraints: ['some_check_name;"users"."age" > 21'],
 		compositePkName: '',
 		uniqueConstraints: [],
+		isRLSEnabled: false,
+		policies: [],
 	} as JsonCreateTableStatement);
 
 	expect(sqlStatements.length).toBe(1);
