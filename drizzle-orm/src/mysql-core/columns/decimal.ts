@@ -56,6 +56,7 @@ export class MySqlDecimal<T extends ColumnBaseConfig<'string', 'MySqlDecimal'>>
 		} else {
 			type += `decimal(${this.precision})`;
 		}
+		type = type === 'decimal(10,0)' || type === 'decimal(10)' ? 'decimal' : type;
 		return this.unsigned ? `${type} unsigned` : type;
 	}
 }
