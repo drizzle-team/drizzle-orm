@@ -150,7 +150,8 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Name)) {
-				return { sql: escapeName(chunk.value), params: [] };
+				const name = casing.convert(chunk.value)
+				return { sql: escapeName(name), params: [] };
 			}
 
 			if (chunk === undefined) {
