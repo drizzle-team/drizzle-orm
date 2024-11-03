@@ -8,12 +8,17 @@ import {
 	MatViewWithOption,
 	PgSchema,
 	PgSquasher,
-	View as PgView,
 	Policy,
 	Role,
+	View as PgView,
 	ViewWithOption,
 } from './serializer/pgSchema';
-import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher, View as SingleStoreView } from './serializer/singlestoreSchema';
+import {
+	SingleStoreKitInternals,
+	SingleStoreSchema,
+	SingleStoreSquasher,
+	View as SingleStoreView,
+} from './serializer/singlestoreSchema';
 import {
 	SQLiteKitInternals,
 	SQLiteSchemaInternal,

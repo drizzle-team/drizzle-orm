@@ -16,7 +16,6 @@ import { IntrospectStage, IntrospectStatus } from '../cli/views';
 import { SingleStoreColumn } from 'drizzle-orm/singlestore-core/columns';
 import { CasingType } from 'src/cli/validations/common';
 import type { DB } from '../utils';
-import { sqlToStr } from '.';
 import {
 	Column,
 	Index,
@@ -27,6 +26,7 @@ import {
 	UniqueConstraint,
 	View,
 } from './singlestoreSchema';
+import { sqlToStr } from './utils';
 
 const dialect = new SingleStoreDialect();
 

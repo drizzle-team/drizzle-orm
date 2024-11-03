@@ -84,6 +84,7 @@ import {
 	prepareDeleteCompositePrimaryKeyPg,
 	prepareDeleteCompositePrimaryKeySingleStore,
 	prepareDeleteCompositePrimaryKeySqlite,
+	prepareDeleteSchemasJson as prepareDropSchemasJson,
 	prepareDeleteUniqueConstraintPg as prepareDeleteUniqueConstraint,
 	prepareDropEnumJson,
 	prepareDropEnumValues,
@@ -92,7 +93,6 @@ import {
 	prepareDropPolicyJsons,
 	prepareDropReferencesJson,
 	prepareDropRoleJson,
-	prepareDeleteSchemasJson as prepareDropSchemasJson,
 	prepareDropSequenceJson,
 	prepareDropTableJson,
 	prepareDropViewJson,
@@ -126,7 +126,7 @@ import {
 	prepareSingleStoreCreateViewJson,
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
-	prepareSqliteCreateViewJson
+	prepareSqliteCreateViewJson,
 } from './jsonStatements';
 
 import { Named, NamedWithSchema } from './cli/commands/migrate';
