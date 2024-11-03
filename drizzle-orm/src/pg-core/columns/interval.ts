@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
 
@@ -18,7 +19,7 @@ export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
 export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInterval'>>
 	extends PgColumnBuilder<T, { intervalConfig: IntervalConfig }>
 {
-	static readonly [entityKind]: string = 'PgIntervalBuilder';
+	static override readonly [entityKind]: string = 'PgIntervalBuilder';
 
 	constructor(
 		name: T['name'],
@@ -39,7 +40,7 @@ export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgIn
 export class PgInterval<T extends ColumnBaseConfig<'string', 'PgInterval'>>
 	extends PgColumn<T, { intervalConfig: IntervalConfig }>
 {
-	static readonly [entityKind]: string = 'PgInterval';
+	static override readonly [entityKind]: string = 'PgInterval';
 
 	readonly fields: IntervalConfig['fields'] = this.config.intervalConfig.fields;
 	readonly precision: IntervalConfig['precision'] = this.config.intervalConfig.precision;
@@ -69,9 +70,15 @@ export interface IntervalConfig {
 	precision?: Precision;
 }
 
+export function interval(): PgIntervalBuilderInitial<''>;
+export function interval(
+	config?: IntervalConfig,
+): PgIntervalBuilderInitial<''>;
 export function interval<TName extends string>(
 	name: TName,
-	config: IntervalConfig = {},
-): PgIntervalBuilderInitial<TName> {
+	config?: IntervalConfig,
+): PgIntervalBuilderInitial<TName>;
+export function interval(a?: string | IntervalConfig, b: IntervalConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<IntervalConfig>(a, b);
 	return new PgIntervalBuilder(name, config);
 }

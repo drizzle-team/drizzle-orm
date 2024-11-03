@@ -24,13 +24,13 @@ import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { dialects } from 'src/schemaValidator';
 import { assertUnreachable } from '../global';
-import type { Setup } from '../serializer/studio';
+import { drizzleForLibSQL, type Setup } from '../serializer/studio';
 import { certs } from '../utils/certs';
 import { grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
-	.desc(`Database dialect: 'postgresql', 'mysql' or 'sqlite'`);
+	.desc(`Database dialect: 'postgresql', 'mysql', 'sqlite' or 'turso'`);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
 const optionBreakpoints = boolean().desc(
@@ -41,12 +41,15 @@ const optionDriver = string()
 	.enum(...drivers)
 	.desc('Database driver');
 
+const optionCasing = string().enum('camelCase', 'snake_case').desc('Casing for serialization');
+
 export const generate = command({
 	name: 'generate',
 	options: {
 		config: optionConfig,
 		dialect: optionDialect,
 		driver: optionDriver,
+		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
 		out: optionOut,
 		name: string().desc('Migration file name'),
@@ -63,7 +66,7 @@ export const generate = command({
 			'generate',
 			opts,
 			['prefix', 'name', 'custom'],
-			['driver', 'breakpoints', 'schema', 'out', 'dialect'],
+			['driver', 'breakpoints', 'schema', 'out', 'dialect', 'casing'],
 		);
 		return prepareGenerateConfig(opts, from);
 	},
@@ -77,6 +80,7 @@ export const generate = command({
 			prepareAndMigratePg,
 			prepareAndMigrateMysql,
 			prepareAndMigrateSqlite,
+			prepareAndMigrateLibSQL,
 		} = await import('./commands/migrate');
 
 		const dialect = opts.dialect;
@@ -86,6 +90,8 @@ export const generate = command({
 			await prepareAndMigrateMysql(opts);
 		} else if (dialect === 'sqlite') {
 			await prepareAndMigrateSqlite(opts);
+		} else if (dialect === 'turso') {
+			await prepareAndMigrateLibSQL(opts);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -159,6 +165,17 @@ export const migrate = command({
 						migrationsSchema: schema,
 					}),
 				);
+			} else if (dialect === 'turso') {
+				const { connectToLibSQL } = await import('./connections');
+				const { migrate } = await connectToLibSQL(credentials);
+				await renderWithTask(
+					new MigrateProgress(),
+					migrate({
+						migrationsFolder: opts.out,
+						migrationsTable: table,
+						migrationsSchema: schema,
+					}),
+				);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -198,6 +215,7 @@ export const push = command({
 	options: {
 		config: optionConfig,
 		dialect: optionDialect,
+		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
 		...optionsFilters,
 		...optionsDatabaseCredentials,
@@ -231,6 +249,7 @@ export const push = command({
 				'schemaFilters',
 				'extensionsFilters',
 				'tablesFilter',
+				'casing',
 			],
 		);
 
@@ -249,6 +268,8 @@ export const push = command({
 			tablesFilter,
 			schemasFilter,
 			force,
+			casing,
+			entities,
 		} = config;
 
 		try {
@@ -261,6 +282,7 @@ export const push = command({
 					strict,
 					verbose,
 					force,
+					casing,
 				);
 			} else if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
@@ -292,7 +314,9 @@ export const push = command({
 					credentials,
 					tablesFilter,
 					schemasFilter,
+					entities,
 					force,
+					casing,
 				);
 			} else if (dialect === 'sqlite') {
 				const { sqlitePush } = await import('./commands/push');
@@ -303,6 +327,18 @@ export const push = command({
 					credentials,
 					tablesFilter,
 					force,
+					casing,
+				);
+			} else if (dialect === 'turso') {
+				const { libSQLPush } = await import('./commands/push');
+				await libSQLPush(
+					schemaPath,
+					verbose,
+					strict,
+					credentials,
+					tablesFilter,
+					force,
+					casing,
 				);
 			} else {
 				assertUnreachable(dialect);
@@ -359,7 +395,7 @@ export const up = command({
 			upMysqlHandler(out);
 		}
 
-		if (dialect === 'sqlite') {
+		if (dialect === 'sqlite' || dialect === 'turso') {
 			upSqliteHandler(out);
 		}
 	},
@@ -416,6 +452,7 @@ export const pull = command({
 			tablesFilter,
 			schemasFilter,
 			prefix,
+			entities,
 		} = config;
 		mkdirSync(out, { recursive: true });
 
@@ -462,6 +499,7 @@ export const pull = command({
 					tablesFilter,
 					schemasFilter,
 					prefix,
+					entities,
 				);
 			} else if (dialect === 'mysql') {
 				const { introspectMysql } = await import('./commands/introspect');
@@ -476,6 +514,16 @@ export const pull = command({
 			} else if (dialect === 'sqlite') {
 				const { introspectSqlite } = await import('./commands/introspect');
 				await introspectSqlite(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					prefix,
+				);
+			} else if (dialect === 'turso') {
+				const { introspectLibSQL } = await import('./commands/introspect');
+				await introspectLibSQL(
 					casing,
 					out,
 					breakpoints,
@@ -583,6 +631,11 @@ export const studio = command({
 					? await prepareSQLiteSchema(schemaPath)
 					: { schema: {}, relations: {}, files: [] };
 				setup = await drizzleForSQLite(credentials, schema, relations, files);
+			} else if (dialect === 'turso') {
+				const { schema, relations, files } = schemaPath
+					? await prepareSQLiteSchema(schemaPath)
+					: { schema: {}, relations: {}, files: [] };
+				setup = await drizzleForLibSQL(credentials, schema, relations, files);
 			} else {
 				assertUnreachable(dialect);
 			}

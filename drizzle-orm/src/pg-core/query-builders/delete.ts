@@ -128,7 +128,7 @@ export class PgDeleteBase<
 		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgDelete';
+	static override readonly [entityKind]: string = 'PgDelete';
 
 	private config: PgDeleteConfig;
 

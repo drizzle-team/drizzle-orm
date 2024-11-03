@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder<{
@@ -17,7 +18,7 @@ export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder
 export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlDouble'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDoubleConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDoubleBuilder';
+	static override readonly [entityKind]: string = 'MySqlDoubleBuilder';
 
 	constructor(name: T['name'], config: MySqlDoubleConfig | undefined) {
 		super(name, 'number', 'MySqlDouble');
@@ -36,7 +37,7 @@ export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 export class MySqlDouble<T extends ColumnBaseConfig<'number', 'MySqlDouble'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDoubleConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDouble';
+	static override readonly [entityKind]: string = 'MySqlDouble';
 
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;
@@ -57,9 +58,15 @@ export interface MySqlDoubleConfig {
 	scale?: number;
 }
 
+export function double(): MySqlDoubleBuilderInitial<''>;
+export function double(
+	config?: MySqlDoubleConfig,
+): MySqlDoubleBuilderInitial<''>;
 export function double<TName extends string>(
 	name: TName,
 	config?: MySqlDoubleConfig,
-): MySqlDoubleBuilderInitial<TName> {
+): MySqlDoubleBuilderInitial<TName>;
+export function double(a?: string | MySqlDoubleConfig, b?: MySqlDoubleConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlDoubleConfig>(a, b);
 	return new MySqlDoubleBuilder(name, config);
 }

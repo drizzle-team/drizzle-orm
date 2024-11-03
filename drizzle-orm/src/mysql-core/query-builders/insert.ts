@@ -190,7 +190,7 @@ export class MySqlInsertBase<
 		RunnableQuery<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[], 'mysql'>,
 		SQLWrapper
 {
-	static readonly [entityKind]: string = 'MySqlInsert';
+	static override readonly [entityKind]: string = 'MySqlInsert';
 
 	declare protected $table: TTable;
 
