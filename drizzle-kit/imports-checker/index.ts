@@ -6,7 +6,7 @@ const issues = analyzeImports({
   localPaths: ["src"],
   whiteList: [
     "@drizzle-team/brocli",
-		"json-diff",
+    "json-diff",
     "path",
     "fs",
     "fs/*",
@@ -42,8 +42,8 @@ const chainToString = (chains: ChainLink[]) => {
   return out;
 };
 
-console.log()
+console.log();
 for (const issue of issues) {
-	console.log(chalk.red(issue.imports.map(it=>it.name).join("\n")))
+  console.log(chalk.red(issue.imports.map((it) => it.name).join("\n")));
   console.log(issue.accessChains.map((it) => chainToString(it)).join("\n"));
 }

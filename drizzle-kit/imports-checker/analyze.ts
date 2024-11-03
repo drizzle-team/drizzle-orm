@@ -1,65 +1,78 @@
-import { readFileSync } from 'fs';
-import type { Node } from 'ohm-js';
-import JSImports from './grammar/grammar.ohm-bundle';
+import { readFileSync } from "fs";
+import type { Node } from "ohm-js";
+import JSImports from "./grammar/grammar.ohm-bundle";
 
 export type CollectionItem = {
-	type: 'data' | 'types';
-	source: string;
+  type: "data" | "types";
+  source: string;
 };
 
 function recursiveRun(...args: Node[]): boolean {
-	for (const arg of args) {
-		if (arg.ctorName === 'Rest' || arg.ctorName === 'comment') continue;
+  for (const arg of args) {
+    if (
+      arg.ctorName === "Rest" ||
+      arg.ctorName === "comment" ||
+      arg.ctorName === "stringLiteral"
+    )
+      continue;
 
-		if (arg.ctorName === 'ImportExpr') {
-			arg['analyze']();
+    if (
+      arg.ctorName === "ImportExpr_From" ||
+      arg.ctorName === "ImportExpr_NoFrom"
+    ) {
+      arg["analyze"]();
 
-			continue;
-		}
+      continue;
+    }
 
-		if (arg.isTerminal()) continue;
+    if (arg.isTerminal()) continue;
 
-		for (const c of arg.children) {
-			if (!recursiveRun(c)) return false;
-		}
-	}
+    for (const c of arg.children) {
+      if (!recursiveRun(c)) return false;
+    }
+  }
 
-	return true;
+  return true;
 }
 function init(collection: CollectionItem[]) {
-	const semantics = JSImports.createSemantics();
+  const semantics = JSImports.createSemantics();
 
-	semantics.addOperation('analyze', {
-		JSImports(arg0, arg1) {
-			recursiveRun(arg0, arg1);
-		},
+  semantics.addOperation("analyze", {
+    JSImports(arg0, arg1) {
+      recursiveRun(arg0, arg1);
+    },
 
-		ImportExpr(arg0) {
-			if (arg0.ctorName === 'ImportExpr_NoFrom') return;
+    ImportExpr_From(kImport, importInner, kFrom, importSource) {
+      const ruleName = importInner.children[0]!.ctorName;
+      const importType =
+        ruleName === "ImportInner_Type" || ruleName === "ImportInner_Types"
+          ? "types"
+          : "data";
 
-			arg0['analyze']();
-		},
+      collection.push({
+        source: importSource.children[1]!.sourceString!,
+        type: importType,
+      });
+    },
 
-		ImportExpr_From(kImport, importInner, kFrom, importSource) {
-			const importType = importInner.children[0]?.ctorName === 'ImportInner_Type' ? 'types' : 'data';
+    ImportExpr_NoFrom(kImport, importSource) {
+      collection.push({
+        source: importSource.children[1]!.sourceString!,
+        type: "data",
+      });
+    },
+  });
 
-			collection.push({
-				source: importSource.children[1]!.sourceString!,
-				type: importType,
-			});
-		},
-	});
-
-	return semantics;
+  return semantics;
 }
 
 export function analyze(path: string) {
-	const file = readFileSync(path).toString();
-	const match = JSImports.match(file, 'JSImports');
+  const file = readFileSync(path).toString();
+  const match = JSImports.match(file, "JSImports");
 
-	if (match.failed()) throw new Error(`Failed to parse file: ${path}`);
-	const collection: CollectionItem[] = [];
+  if (match.failed()) throw new Error(`Failed to parse file: ${path}`);
+  const collection: CollectionItem[] = [];
 
-	init(collection)(match)['analyze']();
-	return collection;
+  init(collection)(match)["analyze"]();
+  return collection;
 }
