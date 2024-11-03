@@ -24,7 +24,7 @@ import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { dialects } from 'src/schemaValidator';
 import { assertUnreachable } from '../global';
-import { drizzleForLibSQL, type Setup } from '../serializer/studio';
+import type { Setup } from '../serializer/studio';
 import { certs } from '../utils/certs';
 import { grey, MigrateProgress } from './views';
 
@@ -591,6 +591,7 @@ export const studio = command({
 			drizzleForMySQL,
 			prepareSQLiteSchema,
 			drizzleForSQLite,
+			drizzleForLibSQL,
 		} = await import('../serializer/studio');
 
 		let setup: Setup;
