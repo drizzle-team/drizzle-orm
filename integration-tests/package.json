@@ -43,7 +43,8 @@
 	"dependencies": {
 		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@aws-sdk/credential-providers": "^3.549.0",
-		"@electric-sql/pglite": "^0.2.12",
+		"@electric-sql/pglite": "0.2.12",
+		"@libsql/client": "^0.10.0",
 		"@miniflare/d1": "^2.14.4",
 		"@miniflare/shared": "^2.14.4",
 		"@planetscale/database": "^1.16.0",
