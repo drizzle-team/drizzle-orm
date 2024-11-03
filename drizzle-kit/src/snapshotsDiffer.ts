@@ -1974,6 +1974,8 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 	jsonStatements.push(...jsonAlterEnumsWithDroppedValues);
 
+	jsonStatements.push(...createViews);
+
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonDropPoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);
@@ -1983,8 +1985,6 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonDropIndPoliciesStatements);
 	jsonStatements.push(...jsonCreateIndPoliciesStatements);
 	jsonStatements.push(...jsonAlterIndPoliciesStatements);
-
-	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);
