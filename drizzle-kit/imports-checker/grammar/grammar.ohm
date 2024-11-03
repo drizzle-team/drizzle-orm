@@ -1,0 +1,47 @@
+JSImports {
+    JSImports = (Expr semicolon?)*
+
+    Expr = 
+    | comment
+    | ImportExpr
+    | Rest
+
+    ImportExpr =
+    | kImport ImportInner kFrom importSource -- From
+    | kImport importSource -- NoFrom
+
+    Rest = (~ImportExpr any)+
+
+    ImportInner = 
+    | ("*" (kAs identifier)?) -- Default
+    | ("{" NonemptyListOf<ImportExtendedSelection, kComma> kComma? "}") -- Extended
+    | ("type" "{" NonemptyListOf<ImportExtendedSelectionTypeless, kComma> kComma? "}") -- Type
+
+    ImportExtendedSelection = TypeImport | Import
+    ImportExtendedSelectionTypeless = Import
+
+    Import = identifier (kAs identifier)?
+    TypeImport = kType Import (kAs identifier)?
+
+    kType = "type"
+    kImport = "import"
+    kFrom = "from"
+    kAs = "as"
+    kComma = ","
+
+    identifier = letter alnum*
+    quote = "\"" | "'" | "`"
+    notQuote = ~quote any
+    importSource =
+    | "\"" notQuote+ "\""
+    | "'" notQuote+ "'"
+    | "`" notQuote+ "`"
+    semicolon = ";"
+
+    lineTerminator = "\n" | "\r" | "\u2028" | "\u2029"
+    
+    comment = multiLineComment | singleLineComment
+
+    multiLineComment = "/*" (~"*/" any)* "*/"
+    singleLineComment = "//" (~lineTerminator any)*
+}
