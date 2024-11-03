@@ -1,3 +1,4 @@
+import { sql, type VercelPool } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -9,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
 import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
 
 export interface VercelPgDriverOptions {
@@ -39,7 +40,7 @@ export class VercelPgDatabase<
 	static override readonly [entityKind]: string = 'VercelPgDatabase';
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: VercelPgClient,
 	config: DrizzleConfig<TSchema> = {},
 ): VercelPgDatabase<TSchema> & {
@@ -72,4 +73,46 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	(<any> db).$client = client;
 
 	return db as any;
+}
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends VercelPgClient = typeof sql,
+>(
+	...params: IfNotImported<
+		VercelPool,
+		[ImportTypeError<'@vercel/postgres'>],
+		[] | [
+			TClient,
+		] | [
+			TClient,
+			DrizzleConfig<TSchema>,
+		] | [
+			(
+				& DrizzleConfig<TSchema>
+				& ({
+					client?: TClient;
+				})
+			),
+		]
+	>
+): VercelPgDatabase<TSchema> & {
+	$client: TClient;
+} {
+	if (isConfig(params[0])) {
+		const { client, ...drizzleConfig } = params[0] as ({ client?: TClient } & DrizzleConfig<TSchema>);
+		return construct(client ?? sql, drizzleConfig) as any;
+	}
+
+	return construct((params[0] ?? sql) as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: DrizzleConfig<TSchema>,
+	): VercelPgDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }

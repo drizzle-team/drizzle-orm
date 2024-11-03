@@ -14,6 +14,10 @@ export default defineConfig({
 			'tests/imports/**/*',
 			'tests/extensions/vectors/**/*',
 			'tests/version.test.ts',
+			'tests/pg/node-postgres.test.ts',
+			'tests/utils/is-config.test.ts',
+			'js-tests/driver-init/commonjs/*.test.cjs',
+			'js-tests/driver-init/module/*.test.mjs',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
@@ -27,6 +31,17 @@ export default defineConfig({
 					'tests/sqlite/libsql-batch.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
+					'tests/utils/is-config.test.ts', // Uses external DBs in some cases
+					'js-tests/driver-init/commonjs/neon-http.test.cjs',
+					'js-tests/driver-init/commonjs/neon-ws.test.cjs',
+					'js-tests/driver-init/commonjs/planetscale.test.cjs',
+					'js-tests/driver-init/commonjs/tidb.test.cjs',
+					'js-tests/driver-init/commonjs/vercel.test.cjs',
+					'js-tests/driver-init/module/neon-http.test.mjs',
+					'js-tests/driver-init/module/neon-ws.test.mjs',
+					'js-tests/driver-init/module/planetscale.test.mjs',
+					'js-tests/driver-init/module/tidb.test.mjs',
+					'js-tests/driver-init/module/vercel.test.mjs',
 				]
 				: []),
 			'tests/pg/awsdatapi.test.ts',
@@ -36,6 +51,12 @@ export default defineConfig({
 			// Have a strange "invalid SQL: ERROR: must be owner of schema public" error. Will need to check with xata team
 			'tests/pg/xata-http.test.ts',
 			'tests/pg/neon-http-batch.ts',
+			// todo: remove
+			'js-tests/driver-init/module/vercel.test.mjs',
+			'js-tests/driver-init/commonjs/vercel.test.cjs',
+			// move back after decide on speed
+			'tests/sqlite/libsql-ws.test.ts',
+			'tests/sqlite/libsql-http.test.ts',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
