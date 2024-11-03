@@ -201,6 +201,7 @@ test('add table #6', async () => {
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
+		policies: [],
 		tableName: 'users1',
 		schema: undefined,
 	});
@@ -294,6 +295,7 @@ test('change table schema #1', async () => {
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'drop_table',
+		policies: [],
 		tableName: 'users',
 		schema: undefined,
 	});
