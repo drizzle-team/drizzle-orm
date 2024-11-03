@@ -591,7 +591,7 @@ export const studio = command({
 			drizzleForMySQL,
 			prepareSQLiteSchema,
 			drizzleForSQLite,
-			drizzleForLibSQL
+			drizzleForLibSQL,
 		} = await import('../serializer/studio');
 
 		let setup: Setup;
