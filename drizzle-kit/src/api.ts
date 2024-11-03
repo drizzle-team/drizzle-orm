@@ -5,7 +5,10 @@ import { PgDatabase } from 'drizzle-orm/pg-core';
 import {
 	columnsResolver,
 	enumsResolver,
+	indPolicyResolver,
 	mySqlViewsResolver,
+	policyResolver,
+	roleResolver,
 	schemasResolver,
 	sequencesResolver,
 	sqliteViewsResolver,
@@ -47,6 +50,8 @@ export const generateDrizzleJson = (
 		prepared.enums,
 		prepared.schemas,
 		prepared.sequences,
+		prepared.roles,
+		prepared.policies,
 		prepared.views,
 		prepared.matViews,
 		casing,
@@ -78,6 +83,9 @@ export const generateMigration = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
 		viewsResolver,
@@ -108,6 +116,7 @@ export const pushSchema = async (
 		db,
 		[],
 		schemaFilters ?? ['public'],
+		undefined,
 	);
 
 	const validatedPrev = pgSchema.parse(prev);
@@ -122,6 +131,9 @@ export const pushSchema = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
 		viewsResolver,
