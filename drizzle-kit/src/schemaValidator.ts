@@ -3,7 +3,7 @@ import { mysqlSchema, mysqlSchemaSquashed } from './serializer/mysqlSchema';
 import { pgSchema, pgSchemaSquashed } from './serializer/pgSchema';
 import { sqliteSchema, SQLiteSchemaSquashed } from './serializer/sqliteSchema';
 
-export const dialects = ['postgresql', 'mysql', 'sqlite'] as const;
+export const dialects = ['postgresql', 'mysql', 'sqlite', 'turso'] as const;
 export const dialect = enumType(dialects);
 
 export type Dialect = (typeof dialects)[number];

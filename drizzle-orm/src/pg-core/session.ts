@@ -86,6 +86,14 @@ export abstract class PgSession<
 		).all();
 	}
 
+	async count(sql: SQL): Promise<number> {
+		const res = await this.execute<[{ count: string }]>(sql);
+
+		return Number(
+			res[0]['count'],
+		);
+	}
+
 	abstract transaction<T>(
 		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
@@ -97,7 +105,7 @@ export abstract class PgTransaction<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > extends PgDatabase<TQueryResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgTransaction';
+	static override readonly [entityKind]: string = 'PgTransaction';
 
 	constructor(
 		dialect: PgDialect,

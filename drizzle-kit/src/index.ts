@@ -117,6 +117,7 @@ export type Config =
 		schema?: string | string[];
 		verbose?: boolean;
 		strict?: boolean;
+		casing?: 'camelCase' | 'snake_case';
 		migrations?: {
 			table?: string;
 			schema?: string;
@@ -125,11 +126,13 @@ export type Config =
 		introspect?: {
 			casing: 'camel' | 'preserve';
 		};
+		entities?: {
+			roles?: boolean | { provider?: 'supabase' | 'neon' | string & {}; exclude?: string[]; include?: string[] };
+		};
 	}
 	& (
 		| {
-			dialect: Verify<Dialect, 'sqlite'>;
-			driver: Verify<Driver, 'turso'>;
+			dialect: Verify<Dialect, 'turso'>;
 			dbCredentials: {
 				url: string;
 				authToken?: string;

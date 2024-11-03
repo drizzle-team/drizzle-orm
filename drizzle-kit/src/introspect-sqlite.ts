@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
+import { toCamelCase } from 'drizzle-orm/casing';
 import './@types/utils';
 import type { Casing } from './cli/validations/common';
+import { assertUnreachable } from './global';
+import { CheckConstraint } from './serializer/mysqlSchema';
 import type {
 	Column,
 	ForeignKey,
@@ -56,6 +59,17 @@ const withCasing = (value: string, casing?: Casing) => {
 	return value;
 };
 
+const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
+	if (casing === 'preserve') {
+		return '';
+	}
+	if (casing === 'camel') {
+		return toCamelCase(name) === name ? '' : withMode ? `"${name}", ` : `"${name}"`;
+	}
+
+	assertUnreachable(casing);
+};
+
 export const schemaToTypeScript = (
 	schema: SQLiteSchemaInternal,
 	casing: Casing,
@@ -78,11 +92,15 @@ export const schemaToTypeScript = (
 			const uniqueImports = Object.values(it.uniqueConstraints).map(
 				(it) => 'unique',
 			);
+			const checkImports = Object.values(it.checkConstraints).map(
+				(it) => 'check',
+			);
 
 			res.sqlite.push(...idxImports);
 			res.sqlite.push(...fkImpots);
 			res.sqlite.push(...pkImports);
 			res.sqlite.push(...uniqueImports);
+			res.sqlite.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -97,6 +115,20 @@ export const schemaToTypeScript = (
 		},
 		{ sqlite: [] as string[] },
 	);
+
+	Object.values(schema.views).forEach((it) => {
+		imports.sqlite.push('sqliteView');
+
+		const columnImports = Object.values(it.columns)
+			.map((col) => {
+				return col.type;
+			})
+			.filter((type) => {
+				return sqliteImportsList.has(type);
+			});
+
+		imports.sqlite.push(...columnImports);
+	});
 
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const func = 'sqliteTable';
@@ -127,6 +159,7 @@ export const schemaToTypeScript = (
 			|| filteredFKs.length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
+			|| Object.keys(table.checkConstraints).length > 0
 		) {
 			statement += ',\n';
 			statement += '(table) => {\n';
@@ -145,11 +178,39 @@ export const schemaToTypeScript = (
 				Object.values(table.uniqueConstraints),
 				casing,
 			);
+			statement += createTableChecks(
+				Object.values(table.checkConstraints),
+				casing,
+			);
 			statement += '\t}\n';
 			statement += '}';
 		}
 
 		statement += ');';
+		return statement;
+	});
+
+	const viewsStatements = Object.values(schema.views).map((view) => {
+		const func = 'sqliteView';
+
+		let statement = '';
+		if (imports.sqlite.includes(withCasing(view.name, casing))) {
+			statement = `// Table name is in conflict with ${
+				withCasing(
+					view.name,
+					casing,
+				)
+			} import.\n// Please change to any other name, that is not in imports list\n`;
+		}
+		statement += `export const ${withCasing(view.name, casing)} = ${func}("${view.name}", {\n`;
+		statement += createTableColumns(
+			Object.values(view.columns),
+			[],
+			casing,
+		);
+		statement += '})';
+		statement += `.as(sql\`${view.definition?.replaceAll('`', '\\`')}\`);`;
+
 		return statement;
 	});
 
@@ -166,7 +227,9 @@ export const schemaToTypeScript = (
 	} } from "drizzle-orm/sqlite-core"
   import { sql } from "drizzle-orm"\n\n`;
 
-	const decalrations = tableStatements.join('\n\n');
+	let decalrations = tableStatements.join('\n\n');
+	decalrations += '\n\n';
+	decalrations += viewsStatements.join('\n\n');
 
 	const file = importsTs + decalrations;
 
@@ -226,9 +289,10 @@ const column = (
 	casing?: Casing,
 ) => {
 	let lowered = type;
+	casing = casing!;
 
 	if (lowered === 'integer') {
-		let out = `${withCasing(name, casing)}: integer("${name}")`;
+		let out = `${withCasing(name, casing)}: integer(${dbColumnName({ name, casing })})`;
 		// out += autoincrement ? `.autoincrement()` : "";
 		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue)})`
@@ -237,7 +301,7 @@ const column = (
 	}
 
 	if (lowered === 'real') {
-		let out = `${withCasing(name, casing)}: real("${name}")`;
+		let out = `${withCasing(name, casing)}: real(${dbColumnName({ name, casing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
@@ -247,9 +311,11 @@ const column = (
 		let out: string;
 
 		if (match) {
-			out = `${withCasing(name, casing)}: text("${name}", { length: ${match[0]} })`;
+			out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing, withMode: true })}{ length: ${
+				match[0]
+			} })`;
 		} else {
-			out = `${withCasing(name, casing)}: text("${name}")`;
+			out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing })})`;
 		}
 
 		out += defaultValue ? `.default("${mapColumnDefault(defaultValue)}")` : '';
@@ -257,13 +323,13 @@ const column = (
 	}
 
 	if (lowered === 'blob') {
-		let out = `${withCasing(name, casing)}: blob("${name}")`;
+		let out = `${withCasing(name, casing)}: blob(${dbColumnName({ name, casing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 
 	if (lowered === 'numeric') {
-		let out = `${withCasing(name, casing)}: numeric("${name}")`;
+		let out = `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
@@ -397,6 +463,24 @@ const createTableUniques = (
 				.join(', ')
 		}),`;
 		statement += `\n`;
+	});
+
+	return statement;
+};
+const createTableChecks = (
+	checks: CheckConstraint[],
+	casing: Casing,
+): string => {
+	let statement = '';
+
+	checks.forEach((it) => {
+		const checkKey = withCasing(it.name, casing);
+
+		statement += `\t\t${checkKey}: `;
+		statement += 'check(';
+		statement += `"${it.name}", `;
+		statement += `sql\`${it.value}\`)`;
+		statement += `,\n`;
 	});
 
 	return statement;
