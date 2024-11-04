@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
+import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
@@ -37,7 +38,6 @@ import {
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error, grey } from '../views';
-import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions'
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {

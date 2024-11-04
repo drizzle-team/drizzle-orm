@@ -21,7 +21,9 @@ import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/p
 import { sqlitePushIntrospect } from './cli/commands/sqliteIntrospect';
 import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
 import type { CasingType } from './cli/validations/common';
+import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 import { originUUID } from './global';
+import type { Config } from './index';
 import { fillPgSnapshot } from './migrationPreparator';
 import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
 import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
@@ -31,8 +33,6 @@ import { generatePgSnapshot } from './serializer/pgSerializer';
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './serializer/sqliteSchema';
 import { generateSqliteSnapshot } from './serializer/sqliteSerializer';
 import type { DB, SQLiteDB } from './utils';
-import type { Config } from './index'
-import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions'
 export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
@@ -108,7 +108,7 @@ export const pushSchema = async (
 	const { applyPgSnapshotsDiff } = await import('./snapshotsDiffer');
 	const { sql } = await import('drizzle-orm');
 	const filters = (tablesFilter ?? []).concat(
-		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' })
+		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' }),
 	);
 
 	const db: DB = {
