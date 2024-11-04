@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
+import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
@@ -273,16 +274,7 @@ export const preparePushConfig = async (
 			: schemasFilterConfig
 		: [];
 
-	if (config.extensionsFilters) {
-		if (
-			config.extensionsFilters.includes('postgis')
-			&& config.dialect === 'postgresql'
-		) {
-			tablesFilter.push(
-				...['!geography_columns', '!geometry_columns', '!spatial_ref_sys'],
-			);
-		}
-	}
+	tablesFilter.push(...getTablesFilterByExtensions(config));
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
