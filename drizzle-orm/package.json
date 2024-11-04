@@ -1,10 +1,11 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.35.3",
+	"version": "0.36.0",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
-		"build": "scripts/build.ts",
+		"p": "prisma generate --schema src/prisma/schema.prisma",
+		"build": "pnpm p && scripts/build.ts",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",
 		"test": "vitest run",
@@ -46,7 +47,7 @@
 	"peerDependencies": {
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=3",
-		"@electric-sql/pglite": ">=0.1.1",
+		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
 		"@neondatabase/serverless": ">=0.1",
@@ -129,6 +130,9 @@
 			"optional": true
 		},
 		"@libsql/client": {
+			"optional": true
+		},
+		"@libsql/client-wasm": {
 			"optional": true
 		},
 		"@opentelemetry/api": {

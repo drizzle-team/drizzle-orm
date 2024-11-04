@@ -158,6 +158,77 @@ export const tableKey = (it: NamedWithSchema) => {
 		: `${it.schema}.${it.name}`;
 };
 
+export class ResolveSelectNamed<T extends Named> extends Prompt<
+	RenamePropmtItem<T> | T
+> {
+	private readonly state: SelectState<RenamePropmtItem<T> | T>;
+
+	constructor(
+		private readonly base: T,
+		data: (RenamePropmtItem<T> | T)[],
+		private readonly entityType: 'role' | 'policy',
+	) {
+		super();
+		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
+		this.state = new SelectState(data);
+		this.state.bind(this);
+		this.base = base;
+	}
+
+	render(status: 'idle' | 'submitted' | 'aborted'): string {
+		if (status === 'submitted' || status === 'aborted') {
+			return '';
+		}
+		const key = this.base.name;
+
+		let text = `\nIs ${chalk.bold.blue(key)} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
+
+		const isSelectedRenamed = isRenamePromptItem(
+			this.state.items[this.state.selectedIdx],
+		);
+
+		const selectedPrefix = isSelectedRenamed
+			? chalk.yellow('❯ ')
+			: chalk.green('❯ ');
+
+		const labelLength: number = this.state.items
+			.filter((it) => isRenamePromptItem(it))
+			.map((_) => {
+				const it = _ as RenamePropmtItem<T>;
+				const keyFrom = it.from.name;
+				return key.length + 3 + keyFrom.length;
+			})
+			.reduce((a, b) => {
+				if (a > b) {
+					return a;
+				}
+				return b;
+			}, 0);
+
+		const entityType = this.entityType;
+		this.state.items.forEach((it, idx) => {
+			const isSelected = idx === this.state.selectedIdx;
+			const isRenamed = isRenamePromptItem(it);
+
+			const title = isRenamed
+				? `${it.from.name} › ${it.to.name}`.padEnd(labelLength, ' ')
+				: it.name.padEnd(labelLength, ' ');
+
+			const label = isRenamed
+				? `${chalk.yellow('~')} ${title} ${chalk.gray(`rename ${entityType}`)}`
+				: `${chalk.green('+')} ${title} ${chalk.gray(`create ${entityType}`)}`;
+
+			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
+			text += idx != this.state.items.length - 1 ? '\n' : '';
+		});
+		return text;
+	}
+
+	result(): RenamePropmtItem<T> | T {
+		return this.state.items[this.state.selectedIdx]!;
+	}
+}
+
 export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 	RenamePropmtItem<T> | T
 > {
@@ -166,7 +237,7 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 	constructor(
 		private readonly base: T,
 		data: (RenamePropmtItem<T> | T)[],
-		private readonly entityType: 'table' | 'enum' | 'sequence' | 'view',
+		private readonly entityType: 'table' | 'enum' | 'sequence' | 'view' | 'role',
 	) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
@@ -330,9 +401,11 @@ export type IntrospectStage =
 	| 'columns'
 	| 'enums'
 	| 'indexes'
+	| 'policies'
 	| 'checks'
 	| 'fks'
 	| 'views';
+
 type IntrospectState = {
 	[key in IntrospectStage]: {
 		count: number;
@@ -369,6 +442,11 @@ export class IntrospectProgress extends TaskView {
 		fks: {
 			count: 0,
 			name: 'foreign keys',
+			status: 'fetching',
+		},
+		policies: {
+			count: 0,
+			name: 'policies',
 			status: 'fetching',
 		},
 		checks: {
@@ -434,6 +512,7 @@ export class IntrospectProgress extends TaskView {
 		info += this.hasEnums ? this.statusText(spin, this.state.enums) : '';
 		info += this.statusText(spin, this.state.indexes);
 		info += this.statusText(spin, this.state.fks);
+		info += this.statusText(spin, this.state.policies);
 		info += this.statusText(spin, this.state.checks);
 		info += this.statusText(spin, this.state.views);
 

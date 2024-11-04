@@ -1,9 +1,15 @@
 import chalk from 'chalk';
-import { getTableName, is } from 'drizzle-orm';
-import { SQL } from 'drizzle-orm';
-import { getViewConfig, MySqlColumn, MySqlView } from 'drizzle-orm/mysql-core';
-import { AnyMySqlTable, MySqlDialect, type PrimaryKey as PrimaryKeyORM, uniqueKeyName } from 'drizzle-orm/mysql-core';
-import { getTableConfig } from 'drizzle-orm/mysql-core';
+import { getTableName, is, SQL } from 'drizzle-orm';
+import {
+	AnyMySqlTable,
+	getTableConfig,
+	getViewConfig,
+	MySqlColumn,
+	MySqlDialect,
+	MySqlView,
+	type PrimaryKey as PrimaryKeyORM,
+	uniqueKeyName,
+} from 'drizzle-orm/mysql-core';
 import { RowDataPacket } from 'mysql2/promise';
 import { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../cli/validations/outputs';
@@ -20,8 +26,8 @@ import {
 	UniqueConstraint,
 	View,
 } from '../serializer/mysqlSchema';
-import { type DB, getColumnCasing } from '../utils';
-import { sqlToStr } from '.';
+import type { DB } from '../utils';
+import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;

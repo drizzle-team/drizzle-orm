@@ -222,7 +222,7 @@ To understand how test should be created and run - please check [Run tests](#-ru
 
 📂 extensions/ - all the extension helpers for databases
 
-📂 serialaizer/ - all the necessary logic to read from the Drizzle ORM schema and convert it to a common JSON format, as well as the logic to introspect all tables, types, and other database elements and convert them to a common JSON format
+📂 serializer/ - all the necessary logic to read from the Drizzle ORM schema and convert it to a common JSON format, as well as the logic to introspect all tables, types, and other database elements and convert them to a common JSON format
 
 📄 introspect-pg.ts, introspect-mysql.ts, introspect-sqlite.ts - these files are responsible for mapping JSON snapshots to TypeScript files during introspect commands
 

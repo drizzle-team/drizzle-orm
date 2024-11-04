@@ -20,8 +20,11 @@ import {
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
+	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
+	JsonAlterPolicyStatement,
 	JsonAlterReferenceStatement,
+	JsonAlterRoleStatement,
 	JsonAlterSequenceStatement,
 	JsonAlterTableRemoveFromSchema,
 	JsonAlterTableSetNewSchema,
@@ -35,9 +38,12 @@ import {
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
+	JsonCreateIndPolicyStatement,
 	JsonCreateMySqlViewStatement,
 	JsonCreatePgViewStatement,
+	JsonCreatePolicyStatement,
 	JsonCreateReferenceStatement,
+	JsonCreateRoleStatement,
 	JsonCreateSchema,
 	JsonCreateSequenceStatement,
 	JsonCreateSqliteViewStatement,
@@ -47,19 +53,27 @@ import {
 	JsonDeleteCompositePK,
 	JsonDeleteReferenceStatement,
 	JsonDeleteUniqueConstraint,
+	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
 	JsonDropEnumStatement,
 	JsonDropIndexStatement,
+	JsonDropIndPolicyStatement,
+	JsonDropPolicyStatement,
+	JsonDropRoleStatement,
 	JsonDropSequenceStatement,
 	JsonDropTableStatement,
 	JsonDropValueFromEnumStatement,
 	JsonDropViewStatement,
+	JsonEnableRLSStatement,
+	JsonIndRenamePolicyStatement,
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
 	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
 	JsonRenameEnumStatement,
+	JsonRenamePolicyStatement,
+	JsonRenameRoleStatement,
 	JsonRenameSchema,
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
@@ -70,8 +84,8 @@ import {
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSquasher } from './serializer/pgSchema';
 import { SingleStoreSquasher } from './serializer/singlestoreSchema';
+import { PgSquasher, policy } from './serializer/pgSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 
 export const pgNativeTypes = new Set([
@@ -156,13 +170,232 @@ abstract class Convertor {
 	): string | string[];
 }
 
+class PgCreateRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreateRoleStatement): string | string[] {
+		return `CREATE ROLE "${statement.name}"${
+			statement.values.createDb || statement.values.createRole || !statement.values.inherit
+				? ` WITH${statement.values.createDb ? ' CREATEDB' : ''}${statement.values.createRole ? ' CREATEROLE' : ''}${
+					statement.values.inherit ? '' : ' NOINHERIT'
+				}`
+				: ''
+		};`;
+	}
+}
+
+class PgDropRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropRoleStatement): string | string[] {
+		return `DROP ROLE "${statement.name}";`;
+	}
+}
+
+class PgRenameRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonRenameRoleStatement): string | string[] {
+		return `ALTER ROLE "${statement.nameFrom}" RENAME TO "${statement.nameTo}";`;
+	}
+}
+
+class PgAlterRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterRoleStatement): string | string[] {
+		return `ALTER ROLE "${statement.name}"${` WITH${statement.values.createDb ? ' CREATEDB' : ' NOCREATEDB'}${
+			statement.values.createRole ? ' CREATEROLE' : ' NOCREATEROLE'
+		}${statement.values.inherit ? ' INHERIT' : ' NOINHERIT'}`};`;
+	}
+}
+
+/////
+
+class PgCreatePolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreatePolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		const usingPart = policy.using ? ` USING (${policy.using})` : '';
+
+		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
+
+		const policyToPart = policy.to?.map((v) =>
+			['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
+		).join(', ');
+
+		return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
+	}
+}
+
+class PgDropPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `DROP POLICY "${policy.name}" ON ${tableNameWithSchema} CASCADE;`;
+	}
+}
+
+class PgRenamePolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonRenamePolicyStatement): string | string[] {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER POLICY "${statement.oldName}" ON ${tableNameWithSchema} RENAME TO "${statement.newName}";`;
+	}
+}
+
+class PgAlterPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterPolicyStatement): string | string[] {
+		const newPolicy = PgSquasher.unsquashPolicy(statement.newData);
+		const oldPolicy = PgSquasher.unsquashPolicy(statement.oldData);
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		const usingPart = newPolicy.using
+			? ` USING (${newPolicy.using})`
+			: oldPolicy.using
+			? ` USING (${oldPolicy.using})`
+			: '';
+
+		const withCheckPart = newPolicy.withCheck
+			? ` WITH CHECK (${newPolicy.withCheck})`
+			: oldPolicy.withCheck
+			? ` WITH CHECK  (${oldPolicy.withCheck})`
+			: '';
+
+		return `ALTER POLICY "${oldPolicy.name}" ON ${tableNameWithSchema} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
+	}
+}
+
+////
+
+class PgCreateIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreateIndPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		const usingPart = policy.using ? ` USING (${policy.using})` : '';
+
+		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
+
+		const policyToPart = policy.to?.map((v) =>
+			['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
+		).join(', ');
+
+		return `CREATE POLICY "${policy.name}" ON ${policy.on} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
+	}
+}
+
+class PgDropIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropIndPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		return `DROP POLICY "${policy.name}" ON ${policy.on} CASCADE;`;
+	}
+}
+
+class PgRenameIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonIndRenamePolicyStatement): string | string[] {
+		return `ALTER POLICY "${statement.oldName}" ON ${statement.tableKey} RENAME TO "${statement.newName}";`;
+	}
+}
+
+class PgAlterIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterIndPolicyStatement): string | string[] {
+		const newPolicy = statement.newData;
+		const oldPolicy = statement.oldData;
+
+		const usingPart = newPolicy.using
+			? ` USING (${newPolicy.using})`
+			: oldPolicy.using
+			? ` USING (${oldPolicy.using})`
+			: '';
+
+		const withCheckPart = newPolicy.withCheck
+			? ` WITH CHECK (${newPolicy.withCheck})`
+			: oldPolicy.withCheck
+			? ` WITH CHECK  (${oldPolicy.withCheck})`
+			: '';
+
+		return `ALTER POLICY "${oldPolicy.name}" ON ${oldPolicy.on} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
+	}
+}
+
+////
+
+class PgEnableRlsConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'enable_rls' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonEnableRLSStatement): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} ENABLE ROW LEVEL SECURITY;`;
+	}
+}
+
+class PgDisableRlsConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'disable_rls' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDisableRLSStatement): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} DISABLE ROW LEVEL SECURITY;`;
+	}
+}
+
 class PgCreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_table' && dialect === 'postgresql';
 	}
 
 	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints } = st;
+		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
+			st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
@@ -259,7 +492,13 @@ class PgCreateTableConvertor extends Convertor {
 		statement += `\n);`;
 		statement += `\n`;
 
-		return statement;
+		const enableRls = new PgEnableRlsConvertor().convert({
+			type: 'enable_rls',
+			tableName,
+			schema,
+		});
+
+		return [statement, ...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : [])];
 	}
 }
 
@@ -1269,13 +1508,26 @@ class PgDropTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonDropTableStatement) {
-		const { tableName, schema } = statement;
+		const { tableName, schema, policies } = statement;
 
 		const tableNameWithSchema = schema
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		return `DROP TABLE ${tableNameWithSchema};`;
+		const dropPolicyConvertor = new PgDropPolicyConvertor();
+		const droppedPolicies = policies?.map((p) => {
+			return dropPolicyConvertor.convert({
+				type: 'drop_policy',
+				tableName,
+				data: PgSquasher.unsquashPolicy(p),
+				schema,
+			}) as string;
+		}) ?? [];
+
+		return [
+			...droppedPolicies,
+			`DROP TABLE ${tableNameWithSchema} CASCADE;`,
+		];
 	}
 }
 
@@ -3713,6 +3965,24 @@ convertors.push(new PgAlterTableAlterColumnSetNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnDropNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnSetDefaultConvertor());
 convertors.push(new PgAlterTableAlterColumnDropDefaultConvertor());
+
+convertors.push(new PgAlterPolicyConvertor());
+convertors.push(new PgCreatePolicyConvertor());
+convertors.push(new PgDropPolicyConvertor());
+convertors.push(new PgRenamePolicyConvertor());
+
+convertors.push(new PgAlterIndPolicyConvertor());
+convertors.push(new PgCreateIndPolicyConvertor());
+convertors.push(new PgDropIndPolicyConvertor());
+convertors.push(new PgRenameIndPolicyConvertor());
+
+convertors.push(new PgEnableRlsConvertor());
+convertors.push(new PgDisableRlsConvertor());
+
+convertors.push(new PgDropRoleConvertor());
+convertors.push(new PgAlterRoleConvertor());
+convertors.push(new PgCreateRoleConvertor());
+convertors.push(new PgRenameRoleConvertor());
 
 /// generated
 convertors.push(new PgAlterTableAlterColumnSetExpressionConvertor());
