@@ -261,7 +261,7 @@ test('add table #8: geometry types', async () => {
 	expect(statements.length).toBe(1);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL\n);\n`,
+		`CREATE TABLE "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL\n);\n`,
 	]);
 });
 
@@ -360,7 +360,7 @@ test('add table #8: column with pgvector', async () => {
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements[0]).toBe(
-		`CREATE TABLE IF NOT EXISTS "users2" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"name" vector(3)\n);
+		`CREATE TABLE "users2" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"name" vector(3)\n);
 `,
 	);
 });
@@ -671,8 +671,8 @@ test('create table with tsvector', async () => {
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "posts" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"title" text NOT NULL,\n\t"description" text NOT NULL\n);\n',
-		`CREATE INDEX IF NOT EXISTS "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
+		'CREATE TABLE "posts" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"title" text NOT NULL,\n\t"description" text NOT NULL\n);\n',
+		`CREATE INDEX "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
 	]);
 });
 
@@ -729,7 +729,7 @@ test('optional db aliases (snake case)', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'snake_case');
 
-	const st1 = `CREATE TABLE IF NOT EXISTS "t1" (
+	const st1 = `CREATE TABLE "t1" (
 	"t1_id1" integer PRIMARY KEY NOT NULL,
 	"t1_col2" integer NOT NULL,
 	"t1_col3" integer NOT NULL,
@@ -741,35 +741,27 @@ test('optional db aliases (snake case)', async () => {
 );
 `;
 
-	const st2 = `CREATE TABLE IF NOT EXISTS "t2" (
+	const st2 = `CREATE TABLE "t2" (
 	"t2_id" serial PRIMARY KEY NOT NULL
 );
 `;
 
-	const st3 = `CREATE TABLE IF NOT EXISTS "t3" (
+	const st3 = `CREATE TABLE "t3" (
 	"t3_id1" integer,
 	"t3_id2" integer,
 	CONSTRAINT "t3_t3_id1_t3_id2_pk" PRIMARY KEY("t3_id1","t3_id2")
 );
 `;
 
-	const st4 = `DO $$ BEGIN
- ALTER TABLE "t1" ADD CONSTRAINT "t1_t2_ref_t2_t2_id_fk" FOREIGN KEY ("t2_ref") REFERENCES "public"."t2"("t2_id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
-`;
+	const st4 =
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t2_ref_t2_t2_id_fk" FOREIGN KEY ("t2_ref") REFERENCES "public"."t2"("t2_id") ON DELETE no action ON UPDATE no action;`;
 
-	const st5 = `DO $$ BEGIN
- ALTER TABLE "t1" ADD CONSTRAINT "t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk" FOREIGN KEY ("t1_col2","t1_col3") REFERENCES "public"."t3"("t3_id1","t3_id2") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
-`;
+	const st5 =
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk" FOREIGN KEY ("t1_col2","t1_col3") REFERENCES "public"."t3"("t3_id1","t3_id2") ON DELETE no action ON UPDATE no action;`;
 
-	const st6 = `CREATE UNIQUE INDEX IF NOT EXISTS "t1_uni_idx" ON "t1" USING btree ("t1_uni_idx");`;
+	const st6 = `CREATE UNIQUE INDEX "t1_uni_idx" ON "t1" USING btree ("t1_uni_idx");`;
 
-	const st7 = `CREATE INDEX IF NOT EXISTS "t1_idx" ON "t1" USING btree ("t1_idx") WHERE "t1"."t1_idx" > 0;`;
+	const st7 = `CREATE INDEX "t1_idx" ON "t1" USING btree ("t1_idx") WHERE "t1"."t1_idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
@@ -827,7 +819,7 @@ test('optional db aliases (camel case)', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'camelCase');
 
-	const st1 = `CREATE TABLE IF NOT EXISTS "t1" (
+	const st1 = `CREATE TABLE "t1" (
 	"t1Id1" integer PRIMARY KEY NOT NULL,
 	"t1Col2" integer NOT NULL,
 	"t1Col3" integer NOT NULL,
@@ -839,35 +831,27 @@ test('optional db aliases (camel case)', async () => {
 );
 `;
 
-	const st2 = `CREATE TABLE IF NOT EXISTS "t2" (
+	const st2 = `CREATE TABLE "t2" (
 	"t2Id" serial PRIMARY KEY NOT NULL
 );
 `;
 
-	const st3 = `CREATE TABLE IF NOT EXISTS "t3" (
+	const st3 = `CREATE TABLE "t3" (
 	"t3Id1" integer,
 	"t3Id2" integer,
 	CONSTRAINT "t3_t3Id1_t3Id2_pk" PRIMARY KEY("t3Id1","t3Id2")
 );
 `;
 
-	const st4 = `DO $$ BEGIN
- ALTER TABLE "t1" ADD CONSTRAINT "t1_t2Ref_t2_t2Id_fk" FOREIGN KEY ("t2Ref") REFERENCES "public"."t2"("t2Id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
-`;
+	const st4 =
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t2Ref_t2_t2Id_fk" FOREIGN KEY ("t2Ref") REFERENCES "public"."t2"("t2Id") ON DELETE no action ON UPDATE no action;`;
 
-	const st5 = `DO $$ BEGIN
- ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "public"."t3"("t3Id1","t3Id2") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
-`;
+	const st5 =
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "public"."t3"("t3Id1","t3Id2") ON DELETE no action ON UPDATE no action;`;
 
-	const st6 = `CREATE UNIQUE INDEX IF NOT EXISTS "t1UniIdx" ON "t1" USING btree ("t1UniIdx");`;
+	const st6 = `CREATE UNIQUE INDEX "t1UniIdx" ON "t1" USING btree ("t1UniIdx");`;
 
-	const st7 = `CREATE INDEX IF NOT EXISTS "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
+	const st7 = `CREATE INDEX "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
