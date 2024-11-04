@@ -1,10 +1,9 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
-import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
 	AnyPgTable,
-	ExtraConfigColumn,
 	getMaterializedViewConfig,
+	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
 	PgColumn,
@@ -12,20 +11,20 @@ import {
 	PgEnum,
 	PgEnumColumn,
 	PgMaterializedView,
+	PgPolicy,
 	PgRole,
 	PgSchema,
 	PgSequence,
 	PgView,
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
-import { getTableConfig } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
 import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
 	CheckConstraint,
-	Column as Column,
+	Column,
 	Enum,
 	ForeignKey,
 	Index,
@@ -40,8 +39,8 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/pgSchema';
-import { type DB, getColumnCasing, isPgArrayType } from '../utils';
-import { sqlToStr } from '.';
+import { type DB, isPgArrayType } from '../utils';
+import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -104,6 +103,7 @@ export const generatePgSnapshot = (
 	schemas: PgSchema[],
 	sequences: PgSequence[],
 	roles: PgRole[],
+	policies: PgPolicy[],
 	views: PgView[],
 	matViews: PgMaterializedView[],
 	casing: CasingType | undefined,
@@ -114,9 +114,12 @@ export const generatePgSnapshot = (
 	const resultViews: Record<string, View> = {};
 	const sequencesToReturn: Record<string, Sequence> = {};
 	const rolesToReturn: Record<string, Role> = {};
+	// this policies are a separate objects that were linked to a table outside of it
+	const policiesToReturn: Record<string, Policy> = {};
 
 	// This object stores unique names for indexes and will be used to detect if you have the same names for indexes
 	// within the same PostgreSQL schema
+
 	const indexesInSchema: Record<string, string[]> = {};
 
 	for (const table of tables) {
@@ -496,6 +499,23 @@ export const generatePgSnapshot = (
 				}
 			}
 
+			if (policiesObject[policy.name] !== undefined) {
+				console.log(
+					`\n${
+						withStyle.errorWarning(
+							`We\'ve found duplicated policy name across ${
+								chalk.underline.blue(tableKey)
+							} table. Please rename one of the policies with ${
+								chalk.underline.blue(
+									policy.name,
+								)
+							} name`,
+						)
+					}`,
+				);
+				process.exit(1);
+			}
+
 			policiesObject[policy.name] = {
 				name: policy.name,
 				as: policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE',
@@ -557,6 +577,84 @@ export const generatePgSnapshot = (
 			checkConstraints: checksObject,
 			isRLSEnabled: enableRLS,
 		};
+	}
+
+	for (const policy of policies) {
+		// @ts-ignore
+		if (!policy._linkedTable) {
+			console.log(
+				`\n${
+					withStyle.errorWarning(
+						`"Policy ${policy.name} was skipped because it was not linked to any table. You should either include the policy in a table or use .link() on the policy to link it to any table you have. For more information, please check:`,
+					)
+				}`,
+			);
+			continue;
+		}
+
+		// @ts-ignore
+		const tableConfig = getTableConfig(policy._linkedTable);
+
+		const tableKey = `${tableConfig.schema ?? 'public'}.${tableConfig.name}`;
+
+		const mappedTo = [];
+
+		if (!policy.to) {
+			mappedTo.push('public');
+		} else {
+			if (policy.to && typeof policy.to === 'string') {
+				mappedTo.push(policy.to);
+			} else if (policy.to && is(policy.to, PgRole)) {
+				mappedTo.push(policy.to.name);
+			} else if (policy.to && Array.isArray(policy.to)) {
+				policy.to.forEach((it) => {
+					if (typeof it === 'string') {
+						mappedTo.push(it);
+					} else if (is(it, PgRole)) {
+						mappedTo.push(it.name);
+					}
+				});
+			}
+		}
+
+		// add separate policies object, that will be only responsible for policy creation
+		// but we would need to track if a policy was enabled for a specific table or not
+		// enable only if jsonStatements for enable rls was not already there + filter it
+
+		if (result[tableKey]?.policies[policy.name] !== undefined || policiesToReturn[policy.name] !== undefined) {
+			console.log(
+				`\n${
+					withStyle.errorWarning(
+						`We\'ve found duplicated policy name across ${
+							chalk.underline.blue(tableKey)
+						} table. Please rename one of the policies with ${
+							chalk.underline.blue(
+								policy.name,
+							)
+						} name`,
+					)
+				}`,
+			);
+			process.exit(1);
+		}
+
+		const mappedPolicy = {
+			name: policy.name,
+			as: policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE',
+			for: policy.for?.toUpperCase() as Policy['for'] ?? 'ALL',
+			to: mappedTo.sort(),
+			using: is(policy.using, SQL) ? dialect.sqlToQuery(policy.using).sql : undefined,
+			withCheck: is(policy.withCheck, SQL) ? dialect.sqlToQuery(policy.withCheck).sql : undefined,
+		};
+
+		if (result[tableKey]) {
+			result[tableKey].policies[policy.name] = mappedPolicy;
+		} else {
+			policiesToReturn[policy.name] = {
+				...mappedPolicy,
+				on: `"${tableConfig.schema ?? 'public'}"."${tableConfig.name}"`,
+			};
+		}
 	}
 
 	for (const sequence of sequences) {
@@ -795,6 +893,7 @@ export const generatePgSnapshot = (
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
 		roles: rolesToReturn,
+		policies: policiesToReturn,
 		views: resultViews,
 		_meta: {
 			schemas: {},
@@ -1047,7 +1146,7 @@ WHERE
 			tablename: string;
 			name: string;
 			as: string;
-			to: string[];
+			to: string;
 			for: string;
 			using: string;
 			withCheck: string;
@@ -1060,7 +1159,7 @@ WHERE
 		const { tablename, schemaname, to, withCheck, using, ...rest } = dbPolicy;
 		const tableForPolicy = policiesByTable[`${schemaname}.${tablename}`];
 
-		const parsedTo = to;
+		const parsedTo = typeof to === 'string' ? to.slice(1, -1).split(',') : to;
 
 		const parsedWithCheck = withCheck === null ? undefined : withCheck;
 		const parsedUsing = using === null ? undefined : using;
@@ -1808,6 +1907,7 @@ WHERE
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
 		roles: rolesToReturn,
+		policies: {},
 		views: views,
 		_meta: {
 			schemas: {},

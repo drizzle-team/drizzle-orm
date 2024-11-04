@@ -1,6 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { PgRole } from './roles.ts';
+import type { PgTable } from './table.ts';
 
 export type PgPolicyToOption =
 	| 'public'
@@ -28,6 +29,9 @@ export class PgPolicy implements PgPolicyConfig {
 	readonly using: PgPolicyConfig['using'];
 	readonly withCheck: PgPolicyConfig['withCheck'];
 
+	/** @internal */
+	_linkedTable?: PgTable;
+
 	constructor(
 		readonly name: string,
 		config?: PgPolicyConfig,
@@ -39,6 +43,11 @@ export class PgPolicy implements PgPolicyConfig {
 			this.using = config.using;
 			this.withCheck = config.withCheck;
 		}
+	}
+
+	link(table: PgTable): this {
+		this._linkedTable = table;
+		return this;
 	}
 }
 

@@ -11,7 +11,7 @@ export const pgPushIntrospect = async (
 	db: DB,
 	filters: string[],
 	schemaFilters: string[],
-	entities: Entities = { roles: true },
+	entities: Entities,
 ) => {
 	const matchers = filters.map((it) => {
 		return new Minimatch(it);

@@ -1,10 +1,11 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.35.3",
+	"version": "0.36.0",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
-		"build": "scripts/build.ts",
+		"p": "prisma generate --schema src/prisma/schema.prisma",
+		"build": "pnpm p && scripts/build.ts",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",
 		"test": "vitest run",

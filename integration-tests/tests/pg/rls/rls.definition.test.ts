@@ -7,7 +7,7 @@ test.skip('getTableConfig: policies', async () => {
 		id: integer(),
 	}, () => [
 		pgPolicy('name'),
-		crudPolicy({ role: pgRole('users') }),
+		crudPolicy({ role: pgRole('users'), read: true, modify: true }),
 	]);
 
 	const tc = getTableConfig(schema);

@@ -11,6 +11,7 @@ import {
 	isPgView,
 	PgEnum,
 	PgMaterializedView,
+	PgPolicy,
 	PgRole,
 	PgSchema,
 	PgSequence,
@@ -24,6 +25,7 @@ import { libSqlLogSuggestionsAndReturn } from 'src/cli/commands/libSqlPushUtils'
 import {
 	columnsResolver,
 	enumsResolver,
+	indPolicyResolver,
 	mySqlViewsResolver,
 	Named,
 	policyResolver,
@@ -61,6 +63,8 @@ import {
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
 	Enum,
+	PolicyResolverInput,
+	PolicyResolverOutput,
 	ResolverInput,
 	ResolverOutput,
 	ResolverOutputWithMoved,
@@ -68,11 +72,13 @@ import {
 	RolesResolverOutput,
 	Sequence,
 	Table,
+	TablePolicyResolverInput,
+	TablePolicyResolverOutput,
 } from 'src/snapshotsDiffer';
 
 export type PostgresSchema = Record<
 	string,
-	PgTable<any> | PgEnum<any> | PgSchema | PgSequence | PgView | PgMaterializedView | PgRole
+	PgTable<any> | PgEnum<any> | PgSchema | PgSequence | PgView | PgMaterializedView | PgRole | PgPolicy
 >;
 export type MysqlSchema = Record<string, MySqlTable<any> | MySqlSchema | MySqlView>;
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
@@ -402,8 +408,8 @@ export const testColumnsResolver =
 
 export const testPolicyResolver = (renames: Set<string>) =>
 async (
-	input: ColumnsResolverInput<Policy>,
-): Promise<ColumnsResolverOutput<Policy>> => {
+	input: TablePolicyResolverInput<Policy>,
+): Promise<TablePolicyResolverOutput<Policy>> => {
 	try {
 		if (
 			input.created.length === 0
@@ -454,6 +460,64 @@ async (
 		return {
 			tableName: input.tableName,
 			schema: input.schema,
+			created: createdPolicies,
+			deleted: deletedPolicies,
+			renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const testIndPolicyResolver = (renames: Set<string>) =>
+async (
+	input: PolicyResolverInput<Policy>,
+): Promise<PolicyResolverOutput<Policy>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdPolicies = [...input.created];
+		let deletedPolicies = [...input.deleted];
+
+		const renamed: { from: Policy; to: Policy }[] = [];
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedPolicies.findIndex((it) => {
+				return `${it.on}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdPolicies.findIndex((it) => {
+					return `${it.on}.${it.name}` === to;
+				});
+
+				renamed.push({
+					from: deletedPolicies[idxFrom],
+					to: createdPolicies[idxTo],
+				});
+
+				delete createdPolicies[idxTo];
+				delete deletedPolicies[idxFrom];
+
+				createdPolicies = createdPolicies.filter(Boolean);
+				deletedPolicies = deletedPolicies.filter(Boolean);
+			}
+		}
+
+		return {
 			created: createdPolicies,
 			deleted: deletedPolicies,
 			renamed,
@@ -796,6 +860,8 @@ export const diffTestSchemasPush = async (
 
 	const leftRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
 
+	const leftPolicies = Object.values(right).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
 	const leftViews = Object.values(right).filter((it) => isPgView(it)) as PgView[];
 
 	const leftMaterializedViews = Object.values(right).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
@@ -806,6 +872,7 @@ export const diffTestSchemasPush = async (
 		leftSchemas,
 		leftSequences,
 		leftRoles,
+		leftPolicies,
 		leftViews,
 		leftMaterializedViews,
 		casing,
@@ -846,6 +913,7 @@ export const diffTestSchemasPush = async (
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
 			testPolicyResolver(renames),
+			testIndPolicyResolver(renames),
 			testRolesResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
@@ -892,6 +960,7 @@ export const diffTestSchemasPush = async (
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
+			indPolicyResolver,
 			roleResolver,
 			tablesResolver,
 			columnsResolver,
@@ -915,6 +984,7 @@ export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | unde
 		views: {},
 		schemas: {},
 		sequences: {},
+		policies: {},
 		roles: {},
 		_meta: {
 			schemas: {},
@@ -935,9 +1005,21 @@ export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | unde
 
 	const views = Object.values(sn).filter((it) => isPgView(it)) as PgView[];
 
+	const policies = Object.values(sn).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
 	const materializedViews = Object.values(sn).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
-	const serialized1 = generatePgSnapshot(tables, enums, schemas, sequences, roles, views, materializedViews, casing);
+	const serialized1 = generatePgSnapshot(
+		tables,
+		enums,
+		schemas,
+		sequences,
+		roles,
+		policies,
+		views,
+		materializedViews,
+		casing,
+	);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -961,6 +1043,7 @@ export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | unde
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testPolicyResolver(new Set()),
+		testIndPolicyResolver(new Set()),
 		testRolesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
@@ -997,6 +1080,11 @@ export const diffTestSchemas = async (
 	const leftRoles = Object.values(left).filter((it) => is(it, PgRole)) as PgRole[];
 
 	const rightRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
+
+	const leftPolicies = Object.values(left).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
+	const rightPolicies = Object.values(right).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
 	const leftViews = Object.values(left).filter((it) => isPgView(it)) as PgView[];
 
 	const rightViews = Object.values(right).filter((it) => isPgView(it)) as PgView[];
@@ -1011,6 +1099,7 @@ export const diffTestSchemas = async (
 		leftSchemas,
 		leftSequences,
 		leftRoles,
+		leftPolicies,
 		leftViews,
 		leftMaterializedViews,
 		casing,
@@ -1021,6 +1110,7 @@ export const diffTestSchemas = async (
 		rightSchemas,
 		rightSequences,
 		rightRoles,
+		rightPolicies,
 		rightViews,
 		rightMaterializedViews,
 		casing,
@@ -1061,6 +1151,7 @@ export const diffTestSchemas = async (
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
 			testPolicyResolver(renames),
+			testIndPolicyResolver(renames),
 			testRolesResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
@@ -1077,6 +1168,7 @@ export const diffTestSchemas = async (
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
+			indPolicyResolver,
 			roleResolver,
 			tablesResolver,
 			columnsResolver,
@@ -1825,6 +1917,7 @@ export const introspectPgToFile = async (
 		response.schemas,
 		response.sequences,
 		response.roles,
+		response.policies,
 		response.views,
 		response.matViews,
 		casing,
@@ -1850,6 +1943,7 @@ export const introspectPgToFile = async (
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testPolicyResolver(new Set()),
+		testIndPolicyResolver(new Set()),
 		testRolesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
