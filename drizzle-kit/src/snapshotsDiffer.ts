@@ -23,8 +23,8 @@ import {
 	JsonAlterCompositePK,
 	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
-	JsonAlterSingleStoreViewStatement,
 	JsonAlterPolicyStatement,
+	JsonAlterSingleStoreViewStatement,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
 	JsonAlterViewStatement,
@@ -133,7 +133,6 @@ import {
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher, ViewSquashed } from './serializer/mysqlSchema';
-import { SingleStoreSchema, SingleStoreSchemaSquashed, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import {
 	mergedViewWithOption,
 	PgSchema,
@@ -147,6 +146,7 @@ import {
 	sequenceSquashed,
 	View,
 } from './serializer/pgSchema';
+import { SingleStoreSchema, SingleStoreSchemaSquashed, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher, View as SqliteView } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';

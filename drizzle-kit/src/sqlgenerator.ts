@@ -84,8 +84,8 @@ import {
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
-import { SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { PgSquasher, policy } from './serializer/pgSchema';
+import { SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 
 export const pgNativeTypes = new Set([
