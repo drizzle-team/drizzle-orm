@@ -4,11 +4,13 @@ title: "[DOCS]:"
 labels: ["docs"]
 
 body:
-  - type: checkbox
+  - type: checkboxes
+    id: verified
     attributes:
-      label: I have verified this enhancement I'm about to request hasn't been suggested before.
-    validations:
-      required: true
+      label: Enhancement hasn't been filed before.
+      options:
+        - label: I have verified this enhancement I'm about to request hasn't been suggested before.
+          required: true
 
   - type: textarea
     attributes:

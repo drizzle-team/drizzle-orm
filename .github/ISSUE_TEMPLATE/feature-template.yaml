@@ -4,11 +4,13 @@ title: "[FEATURE]:"
 labels: ["enhancement"]
 
 body:
-  - type: checkbox
+  - type: checkboxes
+    id: verified
     attributes:
-      label: I have verified this feature I'm about to request hasn't been suggested before.
-    validations:
-      required: true
+      label: Feature hasn't been suggested before.
+      options:
+        - label: I have verified this feature I'm about to request hasn't been suggested before.
+          required: true
 
   - type: textarea
     attributes:
