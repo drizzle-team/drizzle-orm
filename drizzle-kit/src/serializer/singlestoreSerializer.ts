@@ -716,12 +716,18 @@ export const fromDatabase = async (
 		const viewName = view['TABLE_NAME'];
 		const definition = view['VIEW_DEFINITION'];
 
-		const withCheckOption = view['CHECK_OPTION'] === 'NONE' ? undefined : view['CHECK_OPTION'].toLowerCase();
+		const withCheckOption = view['CHECK_OPTION'] === 'NONE'
+			? undefined
+			: view['CHECK_OPTION'].toLowerCase();
 		const sqlSecurity = view['SECURITY_TYPE'].toLowerCase();
 
-		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW \`${viewName}\`;`);
+		const [createSqlStatement] = await db.query(
+			`SHOW CREATE VIEW \`${viewName}\`;`,
+		);
 		const algorithmMatch = createSqlStatement['Create View'].match(/ALGORITHM=([^ ]+)/);
-		const algorithm = algorithmMatch ? algorithmMatch[1].toLowerCase() : undefined;
+		const algorithm = algorithmMatch
+			? algorithmMatch[1].toLowerCase()
+			: undefined;
 
 		const columns = result[viewName].columns;
 		delete result[viewName];

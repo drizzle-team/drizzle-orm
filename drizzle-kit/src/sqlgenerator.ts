@@ -84,7 +84,7 @@ import {
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSquasher } from './serializer/pgSchema';
+import { PgSquasher, policy } from './serializer/pgSchema';
 import { SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 import { escapeSingleQuotes } from './utils';
