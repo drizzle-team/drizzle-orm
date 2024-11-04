@@ -13,7 +13,6 @@ import {
 	PrimaryKey,
 	UniqueConstraint,
 } from './serializer/mysqlSchema';
-import { indexName } from './serializer/mysqlSerializer';
 
 // time precision to fsp
 // {mode: "string"} for timestamp by default
@@ -883,12 +882,9 @@ const createTableIndexes = (
 
 		idxKey = casing(idxKey);
 
-		const indexGeneratedName = indexName(tableName, it.columns);
-		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
-
 		statement += `\t\t${idxKey}: `;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
-		statement += `${escapedIndexName})`;
+		statement += `"${it.name}")`;
 		statement += `.on(${
 			it.columns
 				.map((it) => `table.${casing(it)}`)
