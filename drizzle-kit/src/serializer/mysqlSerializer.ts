@@ -651,8 +651,8 @@ export const fromDatabase = async (
 			}
 		}
 
-		if (columnType.startsWith('tinyint')) {
-			changedType = 'tinyint';
+		if (columnType.includes('decimal(10,0)')) {
+			changedType = columnType.replace('decimal(10,0)', 'decimal');
 		}
 
 		let onUpdate: boolean | undefined = undefined;

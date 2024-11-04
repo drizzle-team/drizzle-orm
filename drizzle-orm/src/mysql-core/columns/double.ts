@@ -24,6 +24,7 @@ export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 		super(name, 'number', 'MySqlDouble');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
+		this.config.unsigned = config?.unsigned;
 	}
 
 	/** @internal */
@@ -39,23 +40,27 @@ export class MySqlDouble<T extends ColumnBaseConfig<'number', 'MySqlDouble'>>
 {
 	static override readonly [entityKind]: string = 'MySqlDouble';
 
-	precision: number | undefined = this.config.precision;
-	scale: number | undefined = this.config.scale;
+	readonly precision: number | undefined = this.config.precision;
+	readonly scale: number | undefined = this.config.scale;
+	readonly unsigned: boolean | undefined = this.config.unsigned;
 
 	getSQLType(): string {
+		let type = '';
 		if (this.precision !== undefined && this.scale !== undefined) {
-			return `double(${this.precision},${this.scale})`;
+			type += `double(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {
-			return 'double';
+			type += 'double';
 		} else {
-			return `double(${this.precision})`;
+			type += `double(${this.precision})`;
 		}
+		return this.unsigned ? `${type} unsigned` : type;
 	}
 }
 
 export interface MySqlDoubleConfig {
 	precision?: number;
 	scale?: number;
+	unsigned?: boolean;
 }
 
 export function double(): MySqlDoubleBuilderInitial<''>;
