@@ -700,6 +700,7 @@ const mysqlSuite: DialectSuite = {
 				compositePKs: ['table_col1_col2_pk;col1,col2'],
 				compositePkName: 'table_col1_col2_pk',
 				uniqueConstraints: [],
+				checkConstraints: [],
 				columns: [
 					{ name: 'col1', type: 'int', primaryKey: false, notNull: true, autoincrement: false },
 					{ name: 'col2', type: 'int', primaryKey: false, notNull: true, autoincrement: false },

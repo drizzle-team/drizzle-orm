@@ -272,10 +272,8 @@ const mapColumnDefault = (defaultValue: any) => {
 
 	if (
 		typeof defaultValue === 'string'
-		&& defaultValue.startsWith("'")
-		&& defaultValue.endsWith("'")
 	) {
-		return defaultValue.substring(1, defaultValue.length - 1);
+		return defaultValue.substring(1, defaultValue.length - 1).replaceAll('"', '\\"').replaceAll("''", "'");
 	}
 
 	return defaultValue;

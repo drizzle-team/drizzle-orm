@@ -1568,6 +1568,7 @@ test('create composite primary key', async (t) => {
 		compositePKs: [['col1', 'col2']],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 		columns: [
 			{ name: 'col1', type: 'integer', primaryKey: false, notNull: true, autoincrement: false },
 			{ name: 'col2', type: 'integer', primaryKey: false, notNull: true, autoincrement: false },

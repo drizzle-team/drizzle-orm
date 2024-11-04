@@ -517,7 +517,7 @@ test('enums #19', async () => {
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toStrictEqual(
-		'DO $$ BEGIN\n CREATE TYPE "public"."my_enum" AS ENUM(\'escape\'\'s quotes\');\nEXCEPTION\n WHEN duplicate_object THEN null;\nEND $$;\n',
+		'CREATE TYPE "public"."my_enum" AS ENUM(\'escape\'\'s quotes\');',
 	);
 });
 

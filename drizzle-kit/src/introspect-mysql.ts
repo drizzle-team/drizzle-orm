@@ -680,8 +680,9 @@ const column = (
 			)
 		} })`;
 
+		const mappedDefaultValue = mapColumnDefault(defaultValue, isExpression);
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
 			: '';
 		return out;
 	}
@@ -794,8 +795,9 @@ const column = (
 			.map((v) => unescapeSingleQuotes(v, true))
 			.join(',');
 		let out = `${casing(name)}: mysqlEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
+		const mappedDefaultValue = mapColumnDefault(defaultValue, isExpression);
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
 			: '';
 		return out;
 	}

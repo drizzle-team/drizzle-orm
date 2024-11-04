@@ -690,7 +690,9 @@ const mapDefault = (
 	}
 
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	if (lowered.startsWith('integer')) {
@@ -769,7 +771,9 @@ const mapDefault = (
 	}
 
 	if (lowered.startsWith('text')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	if (lowered.startsWith('jsonb')) {
@@ -803,7 +807,9 @@ const mapDefault = (
 	}
 
 	if (lowered.startsWith('varchar')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	if (lowered.startsWith('point')) {
@@ -823,7 +829,9 @@ const mapDefault = (
 	}
 
 	if (lowered.startsWith('char')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	return '';

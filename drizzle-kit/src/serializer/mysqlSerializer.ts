@@ -26,8 +26,8 @@ import {
 	UniqueConstraint,
 	View,
 } from '../serializer/mysqlSchema';
-import { type DB, escapeSingleQuotes, getColumnCasing, unescapeSingleQuotes } from '../utils';
-import { sqlToStr } from './utils';
+import { type DB, escapeSingleQuotes } from '../utils';
+import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -554,7 +554,7 @@ function clearDefaults(defaultValue: any, collate: string) {
 		if (resultDefault.startsWith("'") && resultDefault.endsWith("'")) {
 			return `('${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}')`;
 		} else {
-			return `'${resultDefault}'`;
+			return `'${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}'`;
 		}
 	} else {
 		return `(${resultDefault})`;
@@ -680,7 +680,7 @@ export const fromDatabase = async (
 				? Number(columnDefault)
 				: isDefaultAnExpression
 				? clearDefaults(columnDefault, collation)
-				: `'${unescapeSingleQuotes(columnDefault, false)}'`,
+				: `'${escapeSingleQuotes(columnDefault)}'`,
 			autoincrement: isAutoincrement,
 			name: columnName,
 			type: changedType,

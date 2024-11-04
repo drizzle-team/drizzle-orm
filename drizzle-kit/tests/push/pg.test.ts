@@ -947,7 +947,10 @@ const pgSuite: DialectSuite = {
 				schema: '',
 				compositePKs: ['col1,col2;table_col1_col2_pk'],
 				compositePkName: 'table_col1_col2_pk',
+				isRLSEnabled: false,
+				policies: [],
 				uniqueConstraints: [],
+				checkConstraints: [],
 				columns: [
 					{ name: 'col1', type: 'integer', primaryKey: false, notNull: true },
 					{ name: 'col2', type: 'integer', primaryKey: false, notNull: true },
@@ -2224,7 +2227,10 @@ test('Column with same name as enum', async () => {
 			schema: '',
 			compositePKs: [],
 			compositePkName: '',
+			isRLSEnabled: false,
+			policies: [],
 			uniqueConstraints: [],
+			checkConstraints: [],
 			columns: [
 				{ name: 'id', type: 'serial', primaryKey: true, notNull: true },
 				{

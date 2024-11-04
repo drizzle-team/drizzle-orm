@@ -38,8 +38,8 @@ import fs from 'fs';
 import { introspectPgToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
-if (!fs.existsSync('tests/introspect/pg')) {
-	fs.mkdirSync('tests/introspect/pg');
+if (!fs.existsSync('tests/introspect/postgres')) {
+	fs.mkdirSync('tests/introspect/postgres');
 }
 
 test('basic introspect test', async () => {
@@ -425,13 +425,13 @@ test('introspect enum with similar name to native type', async () => {
 test('instrospect strings with single quotes', async () => {
 	const client = new PGlite();
 
-	const myEnum = pgEnum('my_enum', ["escape's quotes"]);
+	const myEnum = pgEnum('my_enum', ['escape\'s quotes " ']);
 	const schema = {
 		enum_: myEnum,
 		columns: pgTable('columns', {
-			enum: myEnum('my_enum').default("escape's quotes"),
-			text: text('text').default("escape's quotes"),
-			varchar: varchar('varchar').default("escape's quotes"),
+			enum: myEnum('my_enum').default('escape\'s quotes " '),
+			text: text('text').default('escape\'s quotes " '),
+			varchar: varchar('varchar').default('escape\'s quotes " '),
 		}),
 	};
 

@@ -25,8 +25,8 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/sqliteSchema';
-import { escapeSingleQuotes, getColumnCasing, type SQLiteDB, unescapeSingleQuotes } from '../utils';
-import { sqlToStr } from './utils';
+import { escapeSingleQuotes, type SQLiteDB } from '../utils';
+import { getColumnCasing, sqlToStr } from './utils';
 
 export const generateSqliteSnapshot = (
 	tables: AnySQLiteTable[],
@@ -623,7 +623,7 @@ export const fromDatabase = async (
 				: columnDefault === 'true'
 				? true
 				: columnDefault.startsWith("'") && columnDefault.endsWith("'")
-				? unescapeSingleQuotes(columnDefault, true)
+				? columnDefault
 				// ? columnDefault.substring(1, columnDefault.length - 1)
 				: `(${columnDefault})`,
 			autoincrement: isAutoincrement,

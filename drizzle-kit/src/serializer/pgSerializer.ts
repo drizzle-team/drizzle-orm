@@ -39,8 +39,8 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/pgSchema';
-import { type DB, escapeSingleQuotes, getColumnCasing, isPgArrayType, unescapeSingleQuotes } from '../utils';
-import { sqlToStr } from './utils';
+import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
+import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -2002,7 +2002,7 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 	} else if (columnDefaultAsString === 'NULL') {
 		return `NULL`;
 	} else if (columnDefaultAsString.startsWith("'") && columnDefaultAsString.endsWith("'")) {
-		return unescapeSingleQuotes(columnDefaultAsString, true);
+		return columnDefaultAsString;
 	} else {
 		return `${columnDefaultAsString.replace(/\\/g, '`\\')}`;
 	}
