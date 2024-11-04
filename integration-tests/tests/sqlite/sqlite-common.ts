@@ -63,7 +63,7 @@ export const usersTable = sqliteTable('users', {
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`strftime('%s', 'now')`),
 });
 
-const usersOnUpdate = sqliteTable('users_on_update', {
+export const usersOnUpdate = sqliteTable('users_on_update', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	name: text('name').notNull(),
 	updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
@@ -1450,7 +1450,7 @@ export function tests() {
 				cityId: integer('city_id').notNull(),
 			}).existing();
 
-			await db.run(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
+			await db.run(sql`create view if not exists new_yorkers as ${getViewConfig(newYorkers1).query}`);
 
 			await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]).run();
 
@@ -1844,7 +1844,7 @@ export function tests() {
 			await db.run(
 				sql`create table ${users} (id integer not null primary key, name text not null, city_id integer not null)`,
 			);
-			await db.run(sql`create view ${newYorkers} as ${getViewConfig(newYorkers).query}`);
+			await db.run(sql`create view if not exists ${newYorkers} as ${getViewConfig(newYorkers).query}`);
 
 			db.insert(users).values([
 				{ name: 'John', cityId: 1 },

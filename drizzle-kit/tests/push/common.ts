@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, test } from 'vitest';
 
 export interface DialectSuite {
 	allTypes(context?: any): Promise<void>;
@@ -22,9 +22,12 @@ export const run = (
 	suite: DialectSuite,
 	beforeAllFn?: (context: any) => Promise<void>,
 	afterAllFn?: (context: any) => Promise<void>,
+	beforeEachFn?: (context: any) => Promise<void>,
 ) => {
 	let context: any = {};
 	beforeAll(beforeAllFn ? () => beforeAllFn(context) : () => {});
+
+	beforeEach(beforeEachFn ? () => beforeEachFn(context) : () => {});
 
 	test('No diffs for all database types', () => suite.allTypes(context));
 	test('Adding basic indexes', () => suite.addBasicIndexes(context));
