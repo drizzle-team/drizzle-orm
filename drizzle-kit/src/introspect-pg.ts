@@ -13,11 +13,13 @@ import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from './cli/validations/common';
 import { assertUnreachable } from './global';
 import {
+	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
 	PgKitInternals,
 	PgSchemaInternal,
+	Policy,
 	PrimaryKey,
 	UniqueConstraint,
 } from './serializer/pgSchema';
@@ -133,9 +135,7 @@ const intervalConfig = (str: string) => {
 	if (keys.length === 0) return;
 
 	let statement = '{ ';
-	statement += keys
-		.map((it: keyof typeof json) => `${it}: ${json[it]}`)
-		.join(', ');
+	statement += keys.map((it: keyof typeof json) => `${it}: ${json[it]}`).join(', ');
 	statement += ' }';
 	return statement;
 };
@@ -207,10 +207,7 @@ export const relationsToTypeScriptForStudio = (
 		...relations,
 	};
 
-	const relationsConfig = extractTablesRelationalConfig(
-		relationalSchema,
-		createTableRelationsHelpers,
-	);
+	const relationsConfig = extractTablesRelationalConfig(relationalSchema, createTableRelationsHelpers);
 
 	let result = '';
 
@@ -239,45 +236,29 @@ export const relationsToTypeScriptForStudio = (
 			if (is(relation, Many)) {
 				hasMany = true;
 				relationsObjAsStr += `\t\t${relation.fieldName}: many(${
-					relationsConfig.tableNamesMap[relation.referencedTableName].split(
-						'.',
-					)[1]
-				}${
-					typeof relation.relationName !== 'undefined'
-						? `, { relationName: "${relation.relationName}"}`
-						: ''
-				}),`;
+					relationsConfig.tableNamesMap[relation.referencedTableName].split('.')[1]
+				}${typeof relation.relationName !== 'undefined' ? `, { relationName: "${relation.relationName}"}` : ''}),`;
 			}
 
 			if (is(relation, One)) {
 				hasOne = true;
 				relationsObjAsStr += `\t\t${relation.fieldName}: one(${
-					relationsConfig.tableNamesMap[relation.referencedTableName].split(
-						'.',
-					)[1]
+					relationsConfig.tableNamesMap[relation.referencedTableName].split('.')[1]
 				}, { fields: [${
 					relation.config?.fields.map(
 						(c) =>
-							`${
-								relationsConfig.tableNamesMap[
-									getTableName(relation.sourceTable)
-								].split('.')[1]
-							}.${findColumnKey(relation.sourceTable, c.name)}`,
+							`${relationsConfig.tableNamesMap[getTableName(relation.sourceTable)].split('.')[1]}.${
+								findColumnKey(relation.sourceTable, c.name)
+							}`,
 					)
 				}], references: [${
 					relation.config?.references.map(
 						(c) =>
-							`${
-								relationsConfig.tableNamesMap[
-									getTableName(relation.referencedTable)
-								].split('.')[1]
-							}.${findColumnKey(relation.referencedTable, c.name)}`,
+							`${relationsConfig.tableNamesMap[getTableName(relation.referencedTable)].split('.')[1]}.${
+								findColumnKey(relation.referencedTable, c.name)
+							}`,
 					)
-				}]${
-					typeof relation.relationName !== 'undefined'
-						? `, relationName: "${relation.relationName}"`
-						: ''
-				}}),`;
+				}]${typeof relation.relationName !== 'undefined' ? `, relationName: "${relation.relationName}"` : ''}}),`;
 			}
 		});
 
@@ -325,10 +306,7 @@ export const paramNameFor = (name: string, schema?: string) => {
 	return `${name}${schemaSuffix}`;
 };
 
-export const schemaToTypeScript = (
-	schema: PgSchemaInternal,
-	casing: Casing,
-) => {
+export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => {
 	// collectFKs
 	Object.values(schema.tables).forEach((table) => {
 		Object.values(table.foreignKeys).forEach((fk) => {
@@ -343,28 +321,27 @@ export const schemaToTypeScript = (
 		}),
 	);
 
-	const enumTypes = Object.values(schema.enums).reduce(
-		(acc, cur) => {
-			acc.add(`${cur.schema}.${cur.name}`);
-			return acc;
-		},
-		new Set<string>(),
-	);
+	const enumTypes = Object.values(schema.enums).reduce((acc, cur) => {
+		acc.add(`${cur.schema}.${cur.name}`);
+		return acc;
+	}, new Set<string>());
 
 	const imports = Object.values(schema.tables).reduce(
 		(res, it) => {
-			const idxImports = Object.values(it.indexes).map((idx) => idx.isUnique ? 'uniqueIndex' : 'index');
+			const idxImports = Object.values(it.indexes).map((idx) => (idx.isUnique ? 'uniqueIndex' : 'index'));
 			const fkImpots = Object.values(it.foreignKeys).map((it) => 'foreignKey');
-			if (
-				Object.values(it.foreignKeys).some((it) => isCyclic(it) && !isSelf(it))
-			) {
+			if (Object.values(it.foreignKeys).some((it) => isCyclic(it) && !isSelf(it))) {
 				res.pg.push('type AnyPgColumn');
 			}
-			const pkImports = Object.values(it.compositePrimaryKeys).map(
-				(it) => 'primaryKey',
+			const pkImports = Object.values(it.compositePrimaryKeys).map((it) => 'primaryKey');
+			const uniqueImports = Object.values(it.uniqueConstraints).map((it) => 'unique');
+
+			const checkImports = Object.values(it.checkConstraints).map(
+				(it) => 'check',
 			);
-			const uniqueImports = Object.values(it.uniqueConstraints).map(
-				(it) => 'unique',
+
+			const policiesImports = Object.values(it.policies).map(
+				(it) => 'pgPolicy',
 			);
 
 			if (it.schema && it.schema !== 'public' && it.schema !== '') {
@@ -375,6 +352,8 @@ export const schemaToTypeScript = (
 			res.pg.push(...fkImpots);
 			res.pg.push(...pkImports);
 			res.pg.push(...uniqueImports);
+			res.pg.push(...policiesImports);
+			res.pg.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -399,6 +378,35 @@ export const schemaToTypeScript = (
 		{ pg: [] as string[] },
 	);
 
+	Object.values(schema.views).forEach((it) => {
+		if (it.schema && it.schema !== 'public' && it.schema !== '') {
+			imports.pg.push('pgSchema');
+		} else if (it.schema === 'public') {
+			it.materialized ? imports.pg.push('pgMaterializedView') : imports.pg.push('pgView');
+		}
+
+		Object.values(it.columns).forEach(() => {
+			const columnImports = Object.values(it.columns)
+				.map((col) => {
+					let patched: string = (importsPatch[col.type] || col.type).replace('[]', '');
+					patched = patched === 'double precision' ? 'doublePrecision' : patched;
+					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+					patched = patched.startsWith('char(') ? 'char' : patched;
+					patched = patched.startsWith('numeric(') ? 'numeric' : patched;
+					patched = patched.startsWith('time(') ? 'time' : patched;
+					patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
+					patched = patched.startsWith('vector(') ? 'vector' : patched;
+					patched = patched.startsWith('geometry(') ? 'geometry' : patched;
+					return patched;
+				})
+				.filter((type) => {
+					return pgImportsList.has(type);
+				});
+
+			imports.pg.push(...columnImports);
+		});
+	});
+
 	Object.values(schema.sequences).forEach((it) => {
 		if (it.schema && it.schema !== 'public' && it.schema !== '') {
 			imports.pg.push('pgSchema');
@@ -414,6 +422,10 @@ export const schemaToTypeScript = (
 			imports.pg.push('pgEnum');
 		}
 	});
+
+	if (Object.keys(schema.roles).length > 0) {
+		imports.pg.push('pgRole');
+	}
 
 	const enumStatements = Object.values(schema.enums)
 		.map((it) => {
@@ -466,12 +478,30 @@ export const schemaToTypeScript = (
 			})\n`;
 		})
 		.join('')
-		.concat('\n');
+		.concat('');
 
 	const schemaStatements = Object.entries(schemas)
 		// .filter((it) => it[0] !== "public")
 		.map((it) => {
 			return `export const ${it[1]} = pgSchema("${it[0]}");\n`;
+		})
+		.join('');
+
+	const rolesNameToTsKey: Record<string, string> = {};
+
+	const rolesStatements = Object.entries(schema.roles)
+		.map((it) => {
+			const fields = it[1];
+			rolesNameToTsKey[fields.name] = it[0];
+			return `export const ${withCasing(it[0], casing)} = pgRole("${fields.name}", ${
+				!fields.createDb && !fields.createRole && fields.inherit
+					? ''
+					: `${
+						`, { ${fields.createDb ? `createDb: true,` : ''}${fields.createRole ? ` createRole: true,` : ''}${
+							!fields.inherit ? ` inherit: false ` : ''
+						}`.trimChar(',')
+					}}`
+			} );\n`;
 		})
 		.join('');
 
@@ -501,17 +531,15 @@ export const schemaToTypeScript = (
 		if (
 			Object.keys(table.indexes).length > 0
 			|| Object.values(table.foreignKeys).length > 0
+			|| Object.values(table.policies).length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
+			|| Object.keys(table.checkConstraints).length > 0
 		) {
-			statement += ',\n';
+			statement += ', ';
 			statement += '(table) => {\n';
 			statement += '\treturn {\n';
-			statement += createTableIndexes(
-				table.name,
-				Object.values(table.indexes),
-				casing,
-			);
+			statement += createTableIndexes(table.name, Object.values(table.indexes), casing);
 			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing);
 			statement += createTablePKs(
 				Object.values(table.compositePrimaryKeys),
@@ -519,6 +547,15 @@ export const schemaToTypeScript = (
 			);
 			statement += createTableUniques(
 				Object.values(table.uniqueConstraints),
+				casing,
+			);
+			statement += createTablePolicies(
+				Object.values(table.policies),
+				casing,
+				rolesNameToTsKey,
+			);
+			statement += createTableChecks(
+				Object.values(table.checkConstraints),
 				casing,
 			);
 			statement += '\t}\n';
@@ -529,6 +566,43 @@ export const schemaToTypeScript = (
 		return statement;
 	});
 
+	const viewsStatements = Object.values(schema.views)
+		.map((it) => {
+			const viewSchema = schemas[it.schema];
+
+			const paramName = paramNameFor(it.name, viewSchema);
+
+			const func = viewSchema
+				? (it.materialized ? `${viewSchema}.materializedView` : `${viewSchema}.view`)
+				: it.materialized
+				? 'pgMaterializedView'
+				: 'pgView';
+
+			const withOption = it.with ?? '';
+
+			const as = `sql\`${it.definition}\``;
+
+			const tablespace = it.tablespace ?? '';
+
+			const columns = createTableColumns(
+				'',
+				Object.values(it.columns),
+				[],
+				enumTypes,
+				schemas,
+				casing,
+				schema.internal,
+			);
+
+			let statement = `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", {${columns}})`;
+			statement += tablespace ? `.tablespace("${tablespace}")` : '';
+			statement += withOption ? `.with(${JSON.stringify(withOption)})` : '';
+			statement += `.as(${as});`;
+
+			return statement;
+		})
+		.join('\n\n');
+
 	const uniquePgImports = ['pgTable', ...new Set(imports.pg)];
 
 	const importsTs = `import { ${
@@ -536,13 +610,16 @@ export const schemaToTypeScript = (
 			', ',
 		)
 	} } from "drizzle-orm/pg-core"
-  import { sql } from "drizzle-orm"\n\n`;
+import { sql } from "drizzle-orm"\n\n`;
 
 	let decalrations = schemaStatements;
+	decalrations += rolesStatements;
 	decalrations += enumStatements;
 	decalrations += sequencesStatements;
 	decalrations += '\n';
 	decalrations += tableStatements.join('\n\n');
+	decalrations += '\n';
+	decalrations += viewsStatements;
 
 	const file = importsTs + decalrations;
 
@@ -586,9 +663,7 @@ const buildArrayDefault = (defaultValue: string, typeName: string): string => {
 				// 	} else if (typeName === 'boolean') {
 				// 		return value === 't' ? 'true' : 'false';
 				if (typeName === 'json' || typeName === 'jsonb') {
-					return value
-						.substring(1, value.length - 1)
-						.replaceAll('\\', '');
+					return value.substring(1, value.length - 1).replaceAll('\\', '');
 				}
 				return value;
 				// 	}
@@ -652,9 +727,9 @@ const mapDefault = (
 
 	if (lowered.startsWith('numeric')) {
 		defaultValue = defaultValue
-			? defaultValue.startsWith(`'`) && defaultValue.endsWith(`'`)
+			? (defaultValue.startsWith(`'`) && defaultValue.endsWith(`'`)
 				? defaultValue.substring(1, defaultValue.length - 1)
-				: defaultValue
+				: defaultValue)
 			: undefined;
 		return defaultValue ? `.default('${mapColumnDefault(defaultValue, isExpression)}')` : '';
 	}
@@ -768,12 +843,9 @@ const column = (
 	const lowered = type.toLowerCase().replace('[]', '');
 
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		let out = `${withCasing(name, casing)}: ${
-			withCasing(
-				paramNameFor(type.replace('[]', ''), typeSchema),
-				casing,
-			)
-		}(${dbColumnName({ name, casing })})`;
+		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
+			dbColumnName({ name, casing })
+		})`;
 		return out;
 	}
 
@@ -786,12 +858,9 @@ const column = (
 	}
 
 	if (lowered.startsWith('bigserial')) {
-		return `${
-			withCasing(
-				name,
-				casing,
-			)
-		}: bigserial(${dbColumnName({ name, casing, withMode: true })}{ mode: "bigint" })`;
+		return `${withCasing(name, casing)}: bigserial(${
+			dbColumnName({ name, casing, withMode: true })
+		}{ mode: "bigint" })`;
 	}
 
 	if (lowered.startsWith('integer')) {
@@ -832,14 +901,10 @@ const column = (
 	}
 
 	if (lowered.startsWith('numeric')) {
-		let params:
-			| { precision: string | undefined; scale: string | undefined }
-			| undefined;
+		let params: { precision: string | undefined; scale: string | undefined } | undefined;
 
 		if (lowered.length > 7) {
-			const [precision, scale] = lowered
-				.slice(8, lowered.length - 1)
-				.split(',');
+			const [precision, scale] = lowered.slice(8, lowered.length - 1).split(',');
 			params = { precision, scale };
 		}
 
@@ -854,11 +919,7 @@ const column = (
 		const withTimezone = lowered.includes('with time zone');
 		// const split = lowered.split(" ");
 		let precision = lowered.startsWith('timestamp(')
-			? Number(
-				lowered
-					.split(' ')[0]
-					.substring('timestamp('.length, lowered.split(' ')[0].length - 1),
-			)
+			? Number(lowered.split(' ')[0].substring('timestamp('.length, lowered.split(' ')[0].length - 1))
 			: null;
 		precision = precision ? precision : null;
 
@@ -879,11 +940,7 @@ const column = (
 		const withTimezone = lowered.includes('with time zone');
 
 		let precision = lowered.startsWith('time(')
-			? Number(
-				lowered
-					.split(' ')[0]
-					.substring('time('.length, lowered.split(' ')[0].length - 1),
-			)
+			? Number(lowered.split(' ')[0].substring('time('.length, lowered.split(' ')[0].length - 1))
 			: null;
 		precision = precision ? precision : null;
 
@@ -955,16 +1012,8 @@ const column = (
 	if (lowered.startsWith('varchar')) {
 		let out: string;
 		if (lowered.length !== 7) {
-			out = `${
-				withCasing(
-					name,
-					casing,
-				)
-			}: varchar(${dbColumnName({ name, casing, withMode: true })}{ length: ${
-				lowered.substring(
-					8,
-					lowered.length - 1,
-				)
+			out = `${withCasing(name, casing)}: varchar(${dbColumnName({ name, casing, withMode: true })}{ length: ${
+				lowered.substring(8, lowered.length - 1)
 			} })`;
 		} else {
 			out = `${withCasing(name, casing)}: varchar(${dbColumnName({ name, casing })})`;
@@ -1017,16 +1066,8 @@ const column = (
 	if (lowered.startsWith('vector')) {
 		let out: string;
 		if (lowered.length !== 6) {
-			out = `${
-				withCasing(
-					name,
-					casing,
-				)
-			}: vector(${dbColumnName({ name, casing, withMode: true })}{ dimensions: ${
-				lowered.substring(
-					7,
-					lowered.length - 1,
-				)
+			out = `${withCasing(name, casing)}: vector(${dbColumnName({ name, casing, withMode: true })}{ dimensions: ${
+				lowered.substring(7, lowered.length - 1)
 			} })`;
 		} else {
 			out = `${withCasing(name, casing)}: vector(${dbColumnName({ name, casing })})`;
@@ -1038,16 +1079,8 @@ const column = (
 	if (lowered.startsWith('char')) {
 		let out: string;
 		if (lowered.length !== 4) {
-			out = `${
-				withCasing(
-					name,
-					casing,
-				)
-			}: char(${dbColumnName({ name, casing, withMode: true })}{ length: ${
-				lowered.substring(
-					5,
-					lowered.length - 1,
-				)
+			out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing, withMode: true })}{ length: ${
+				lowered.substring(5, lowered.length - 1)
 			} })`;
 		} else {
 			out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing })})`;
@@ -1110,27 +1143,15 @@ const createTableColumns = (
 		statement += columnStatement;
 		// Provide just this in column function
 		if (internals?.tables[tableName]?.columns[it.name]?.isArray) {
-			statement += dimensionsInArray(
-				internals?.tables[tableName]?.columns[it.name]?.dimensions,
-			);
+			statement += dimensionsInArray(internals?.tables[tableName]?.columns[it.name]?.dimensions);
 		}
-		statement += mapDefault(
-			tableName,
-			it.type,
-			it.name,
-			enumTypes,
-			it.typeSchema ?? 'public',
-			it.default,
-			internals,
-		);
+		statement += mapDefault(tableName, it.type, it.name, enumTypes, it.typeSchema ?? 'public', it.default, internals);
 		statement += it.primaryKey ? '.primaryKey()' : '';
 		statement += it.notNull && !it.identity ? '.notNull()' : '';
 
 		statement += it.identity ? generateIdentityParams(it.identity) : '';
 
-		statement += it.generated
-			? `.generatedAlwaysAs(sql\`${it.generated.as}\`)`
-			: '';
+		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';
 
 		// const fks = fkByColumnName[it.name];
 		// Andrii: I switched it off until we will get a custom naem setting in references
@@ -1171,21 +1192,13 @@ const createTableColumns = (
 	return statement;
 };
 
-const createTableIndexes = (
-	tableName: string,
-	idxs: Index[],
-	casing: Casing,
-): string => {
+const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): string => {
 	let statement = '';
 
 	idxs.forEach((it) => {
 		// we have issue when index is called as table called
-		let idxKey = it.name.startsWith(tableName) && it.name !== tableName
-			? it.name.slice(tableName.length + 1)
-			: it.name;
-		idxKey = idxKey.endsWith('_index')
-			? idxKey.slice(0, -'_index'.length) + '_idx'
-			: idxKey;
+		let idxKey = it.name.startsWith(tableName) && it.name !== tableName ? it.name.slice(tableName.length + 1) : it.name;
+		idxKey = idxKey.endsWith('_index') ? idxKey.slice(0, -'_index'.length) + '_idx' : idxKey;
 
 		idxKey = withCasing(idxKey, casing);
 
@@ -1226,15 +1239,11 @@ const createTableIndexes = (
 					reversedString += `${key}: "${mappedWith[key]}",`;
 				}
 			}
-			reversedString = reversedString.length > 1
-				? reversedString.slice(0, reversedString.length - 1)
-				: reversedString;
+			reversedString = reversedString.length > 1 ? reversedString.slice(0, reversedString.length - 1) : reversedString;
 			return `${reversedString}}`;
 		}
 
-		statement += it.with && Object.keys(it.with).length > 0
-			? `.with(${reverseLogic(it.with)})`
-			: '';
+		statement += it.with && Object.keys(it.with).length > 0 ? `.with(${reverseLogic(it.with)})` : '';
 		statement += `,\n`;
 	});
 
@@ -1263,6 +1272,35 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 	return statement;
 };
 
+// get a map of db role name to ts key
+// if to by key is in this map - no quotes, otherwise - quotes
+
+const createTablePolicies = (
+	policies: Policy[],
+	casing: Casing,
+	rolesNameToTsKey: Record<string, string> = {},
+): string => {
+	let statement = '';
+
+	policies.forEach((it) => {
+		const idxKey = withCasing(it.name, casing);
+
+		const mappedItTo = it.to?.map((v) => {
+			return rolesNameToTsKey[v] ? withCasing(rolesNameToTsKey[v], casing) : `"${v}"`;
+		});
+
+		statement += `\t\t${idxKey}: `;
+		statement += 'pgPolicy(';
+		statement += `"${it.name}", { `;
+		statement += `as: "${it.as?.toLowerCase()}", for: "${it.for?.toLowerCase()}", to: [${mappedItTo?.join(', ')}]${
+			it.using ? `, using: sql\`${it.using}\`` : ''
+		}${it.withCheck ? `, withCheck: sql\`${it.withCheck}\` ` : ''}`;
+		statement += ` }),\n`;
+	});
+
+	return statement;
+};
+
 const createTableUniques = (
 	unqs: UniqueConstraint[],
 	casing: Casing,
@@ -1275,11 +1313,7 @@ const createTableUniques = (
 		statement += `\t\t${idxKey}: `;
 		statement += 'unique(';
 		statement += `"${it.name}")`;
-		statement += `.on(${
-			it.columns
-				.map((it) => `table.${withCasing(it, casing)}`)
-				.join(', ')
-		})`;
+		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
 		statement += it.nullsNotDistinct ? `.nullsNotDistinct()` : '';
 		statement += `,\n`;
 	});
@@ -1287,11 +1321,25 @@ const createTableUniques = (
 	return statement;
 };
 
-const createTableFKs = (
-	fks: ForeignKey[],
-	schemas: Record<string, string>,
+const createTableChecks = (
+	checkConstraints: CheckConstraint[],
 	casing: Casing,
-): string => {
+) => {
+	let statement = '';
+
+	checkConstraints.forEach((it) => {
+		const checkKey = withCasing(it.name, casing);
+		statement += `\t\t${checkKey}: `;
+		statement += 'check(';
+		statement += `"${it.name}", `;
+		statement += `sql\`${it.value}\`)`;
+		statement += `,\n`;
+	});
+
+	return statement;
+};
+
+const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casing: Casing): string => {
 	let statement = '';
 
 	fks.forEach((it) => {
@@ -1301,26 +1349,16 @@ const createTableFKs = (
 		const isSelf = it.tableTo === it.tableFrom;
 		const tableTo = isSelf ? 'table' : `${withCasing(paramName, casing)}`;
 		statement += `\t\t${withCasing(it.name, casing)}: foreignKey({\n`;
-		statement += `\t\t\tcolumns: [${
-			it.columnsFrom
-				.map((i) => `table.${withCasing(i, casing)}`)
-				.join(', ')
-		}],\n`;
+		statement += `\t\t\tcolumns: [${it.columnsFrom.map((i) => `table.${withCasing(i, casing)}`).join(', ')}],\n`;
 		statement += `\t\t\tforeignColumns: [${
-			it.columnsTo
-				.map((i) => `${tableTo}.${withCasing(i, casing)}`)
-				.join(', ')
+			it.columnsTo.map((i) => `${tableTo}.${withCasing(i, casing)}`).join(', ')
 		}],\n`;
 		statement += `\t\t\tname: "${it.name}"\n`;
 		statement += `\t\t})`;
 
-		statement += it.onUpdate && it.onUpdate !== 'no action'
-			? `.onUpdate("${it.onUpdate}")`
-			: '';
+		statement += it.onUpdate && it.onUpdate !== 'no action' ? `.onUpdate("${it.onUpdate}")` : '';
 
-		statement += it.onDelete && it.onDelete !== 'no action'
-			? `.onDelete("${it.onDelete}")`
-			: '';
+		statement += it.onDelete && it.onDelete !== 'no action' ? `.onDelete("${it.onDelete}")` : '';
 
 		statement += `,\n`;
 	});

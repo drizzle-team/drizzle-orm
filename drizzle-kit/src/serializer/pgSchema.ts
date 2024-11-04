@@ -147,6 +147,13 @@ export const sequenceSchema = object({
 	schema: string(),
 }).strict();
 
+export const roleSchema = object({
+	name: string(),
+	createDb: boolean().optional(),
+	createRole: boolean().optional(),
+	inherit: boolean().optional(),
+}).strict();
+
 export const sequenceSquashed = object({
 	name: string(),
 	schema: string(),
@@ -184,6 +191,11 @@ const column = object({
 		.optional(),
 }).strict();
 
+const checkConstraint = object({
+	name: string(),
+	value: string(),
+}).strict();
+
 const columnSquashed = object({
 	name: string(),
 	type: string(),
@@ -217,6 +229,63 @@ const uniqueConstraint = object({
 	name: string(),
 	columns: string().array(),
 	nullsNotDistinct: boolean(),
+}).strict();
+
+export const policy = object({
+	name: string(),
+	as: enumType(['PERMISSIVE', 'RESTRICTIVE']).optional(),
+	for: enumType(['ALL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE']).optional(),
+	to: string().array().optional(),
+	using: string().optional(),
+	withCheck: string().optional(),
+	on: string().optional(),
+}).strict();
+
+export const policySquashed = object({
+	name: string(),
+	values: string(),
+}).strict();
+
+const viewWithOption = object({
+	checkOption: enumType(['local', 'cascaded']).optional(),
+	securityBarrier: boolean().optional(),
+	securityInvoker: boolean().optional(),
+}).strict();
+
+const matViewWithOption = object({
+	fillfactor: number().optional(),
+	toastTupleTarget: number().optional(),
+	parallelWorkers: number().optional(),
+	autovacuumEnabled: boolean().optional(),
+	vacuumIndexCleanup: enumType(['auto', 'off', 'on']).optional(),
+	vacuumTruncate: boolean().optional(),
+	autovacuumVacuumThreshold: number().optional(),
+	autovacuumVacuumScaleFactor: number().optional(),
+	autovacuumVacuumCostDelay: number().optional(),
+	autovacuumVacuumCostLimit: number().optional(),
+	autovacuumFreezeMinAge: number().optional(),
+	autovacuumFreezeMaxAge: number().optional(),
+	autovacuumFreezeTableAge: number().optional(),
+	autovacuumMultixactFreezeMinAge: number().optional(),
+	autovacuumMultixactFreezeMaxAge: number().optional(),
+	autovacuumMultixactFreezeTableAge: number().optional(),
+	logAutovacuumMinDuration: number().optional(),
+	userCatalogTable: boolean().optional(),
+}).strict();
+
+export const mergedViewWithOption = viewWithOption.merge(matViewWithOption).strict();
+
+export const view = object({
+	name: string(),
+	schema: string(),
+	columns: record(string(), column),
+	definition: string().optional(),
+	materialized: boolean(),
+	with: mergedViewWithOption.optional(),
+	isExisting: boolean(),
+	withNoData: boolean().optional(),
+	using: string().optional(),
+	tablespace: string().optional(),
 }).strict();
 
 const tableV4 = object({
@@ -265,6 +334,9 @@ const table = object({
 	foreignKeys: record(string(), fk),
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
+	policies: record(string(), policy).default({}),
+	checkConstraints: record(string(), checkConstraint).default({}),
+	isRLSEnabled: boolean().default(false),
 }).strict();
 
 const schemaHash = object({
@@ -367,7 +439,10 @@ export const pgSchemaInternal = object({
 	tables: record(string(), table),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
+	views: record(string(), view).default({}),
 	sequences: record(string(), sequenceSchema).default({}),
+	roles: record(string(), roleSchema).default({}),
+	policies: record(string(), policy).default({}),
 	_meta: object({
 		schemas: record(string(), string()),
 		tables: record(string(), string()),
@@ -384,6 +459,9 @@ const tableSquashed = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()),
+	policies: record(string(), string()),
+	checkConstraints: record(string(), string()),
+	isRLSEnabled: boolean().default(false),
 }).strict();
 
 const tableSquashedV4 = object({
@@ -416,7 +494,10 @@ export const pgSchemaSquashed = object({
 	tables: record(string(), tableSquashed),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
+	views: record(string(), view),
 	sequences: record(string(), sequenceSquashed),
+	roles: record(string(), roleSchema).default({}),
+	policies: record(string(), policySquashed).default({}),
 }).strict();
 
 export const pgSchemaV3 = pgSchemaInternalV3.merge(schemaHash);
@@ -428,6 +509,7 @@ export const pgSchema = pgSchemaInternal.merge(schemaHash);
 
 export type Enum = TypeOf<typeof enumSchema>;
 export type Sequence = TypeOf<typeof sequenceSchema>;
+export type Role = TypeOf<typeof roleSchema>;
 export type Column = TypeOf<typeof column>;
 export type TableV3 = TypeOf<typeof tableV3>;
 export type TableV4 = TypeOf<typeof tableV4>;
@@ -444,7 +526,13 @@ export type Index = TypeOf<typeof index>;
 export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
+export type Policy = TypeOf<typeof policy>;
+export type View = TypeOf<typeof view>;
+export type MatViewWithOption = TypeOf<typeof matViewWithOption>;
+export type ViewWithOption = TypeOf<typeof viewWithOption>;
+
 export type PgKitInternals = TypeOf<typeof kitInternals>;
+export type CheckConstraint = TypeOf<typeof checkConstraint>;
 
 export type PgSchemaV1 = TypeOf<typeof pgSchemaV1>;
 export type PgSchemaV2 = TypeOf<typeof pgSchemaV2>;
@@ -545,6 +633,26 @@ export const PgSquasher = {
 			fk.onUpdate ?? ''
 		};${fk.onDelete ?? ''};${fk.schemaTo || 'public'}`;
 	},
+	squashPolicy: (policy: Policy) => {
+		return `${policy.name}--${policy.as}--${policy.for}--${
+			policy.to?.join(',')
+		}--${policy.using}--${policy.withCheck}--${policy.on}`;
+	},
+	unsquashPolicy: (policy: string): Policy => {
+		const splitted = policy.split('--');
+		return {
+			name: splitted[0],
+			as: splitted[1] as Policy['as'],
+			for: splitted[2] as Policy['for'],
+			to: splitted[3].split(','),
+			using: splitted[4] !== 'undefined' ? splitted[4] : undefined,
+			withCheck: splitted[5] !== 'undefined' ? splitted[5] : undefined,
+			on: splitted[6] !== 'undefined' ? splitted[6] : undefined,
+		};
+	},
+	squashPolicyPush: (policy: Policy) => {
+		return `${policy.name}--${policy.as}--${policy.for}--${policy.to?.join(',')}--${policy.on}`;
+	},
 	squashPK: (pk: PrimaryKey) => {
 		return `${pk.columns.join(',')};${pk.name}`;
 	},
@@ -623,6 +731,17 @@ export const PgSquasher = {
 			cycle: splitted[7] === 'true',
 		};
 	},
+	squashCheck: (check: CheckConstraint) => {
+		return `${check.name};${check.value}`;
+	},
+	unsquashCheck: (input: string): CheckConstraint => {
+		const [
+			name,
+			value,
+		] = input.split(';');
+
+		return { name, value };
+	},
 };
 
 export const squashPgScheme = (
@@ -667,6 +786,18 @@ export const squashPgScheme = (
 				},
 			);
 
+			const squashedPolicies = mapValues(it[1].policies, (policy) => {
+				return action === 'push'
+					? PgSquasher.squashPolicyPush(policy)
+					: PgSquasher.squashPolicy(policy);
+			});
+			const squashedChecksContraints = mapValues(
+				it[1].checkConstraints,
+				(check) => {
+					return PgSquasher.squashCheck(check);
+				},
+			);
+
 			return [
 				it[0],
 				{
@@ -677,6 +808,9 @@ export const squashPgScheme = (
 					foreignKeys: squashedFKs,
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
+					policies: squashedPolicies,
+					checkConstraints: squashedChecksContraints,
+					isRLSEnabled: it[1].isRLSEnabled ?? false,
 				},
 			];
 		}),
@@ -695,13 +829,30 @@ export const squashPgScheme = (
 		}),
 	);
 
+	const mappedPolicies = Object.fromEntries(
+		Object.entries(json.policies).map((it) => {
+			return [
+				it[0],
+				{
+					name: it[1].name,
+					values: action === 'push'
+						? PgSquasher.squashPolicyPush(it[1])
+						: PgSquasher.squashPolicy(it[1]),
+				},
+			];
+		}),
+	);
+
 	return {
 		version: '7',
 		dialect: json.dialect,
 		tables: mappedTables,
 		enums: json.enums,
 		schemas: json.schemas,
+		views: json.views,
+		policies: mappedPolicies,
 		sequences: mappedSequences,
+		roles: json.roles,
 	};
 };
 
@@ -713,6 +864,8 @@ export const dryPg = pgSchema.parse({
 	tables: {},
 	enums: {},
 	schemas: {},
+	policies: {},
+	roles: {},
 	sequences: {},
 	_meta: {
 		schemas: {},

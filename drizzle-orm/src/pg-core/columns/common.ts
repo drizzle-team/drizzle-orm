@@ -46,7 +46,7 @@ export abstract class PgColumnBuilder<
 {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
-	static readonly [entityKind]: string = 'PgColumnBuilder';
+	static override readonly [entityKind]: string = 'PgColumnBuilder';
 
 	array(size?: number): PgArrayBuilder<
 		& {
@@ -134,7 +134,7 @@ export abstract class PgColumn<
 	TRuntimeConfig extends object = {},
 	TTypeConfig extends object = {},
 > extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }> {
-	static readonly [entityKind]: string = 'PgColumn';
+	static override readonly [entityKind]: string = 'PgColumn';
 
 	constructor(
 		override readonly table: PgTable,
@@ -152,7 +152,7 @@ export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' |
 export class ExtraConfigColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 > extends PgColumn<T, IndexedExtraConfigType> {
-	static readonly [entityKind]: string = 'ExtraConfigColumn';
+	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
 	override getSQLType(): string {
 		return this.getSQLType();
@@ -292,7 +292,7 @@ export class PgArray<
 > extends PgColumn<T> {
 	readonly size: number | undefined;
 
-	static readonly [entityKind]: string = 'PgArray';
+	static override readonly [entityKind]: string = 'PgArray';
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,

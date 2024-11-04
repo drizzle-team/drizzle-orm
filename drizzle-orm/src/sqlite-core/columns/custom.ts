@@ -35,7 +35,7 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom
 		}
 	>
 {
-	static readonly [entityKind]: string = 'SQLiteCustomColumnBuilder';
+	static override readonly [entityKind]: string = 'SQLiteCustomColumnBuilder';
 
 	constructor(
 		name: T['name'],
@@ -59,7 +59,7 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom
 }
 
 export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCustomColumn'>> extends SQLiteColumn<T> {
-	static readonly [entityKind]: string = 'SQLiteCustomColumn';
+	static override readonly [entityKind]: string = 'SQLiteCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];

@@ -17,7 +17,7 @@ export type SQLiteRealBuilderInitial<TName extends string> = SQLiteRealBuilder<{
 export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLiteReal'>>
 	extends SQLiteColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'SQLiteRealBuilder';
+	static override readonly [entityKind]: string = 'SQLiteRealBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'SQLiteReal');
@@ -32,7 +32,7 @@ export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLi
 }
 
 export class SQLiteReal<T extends ColumnBaseConfig<'number', 'SQLiteReal'>> extends SQLiteColumn<T> {
-	static readonly [entityKind]: string = 'SQLiteReal';
+	static override readonly [entityKind]: string = 'SQLiteReal';
 
 	getSQLType(): string {
 		return 'real';

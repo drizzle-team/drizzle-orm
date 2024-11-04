@@ -1,11 +1,9 @@
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
-import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';
 import type { NamedWithSchema } from './cli/commands/migrate';
-import { CasingType } from './cli/validations/common';
 import { info } from './cli/views';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
@@ -13,6 +11,8 @@ import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';
 import { backwardCompatibleSqliteSchema } from './serializer/sqliteSchema';
 import type { ProxyParams } from './serializer/studio';
+import { CasingType } from './cli/validations/common';
+import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
 

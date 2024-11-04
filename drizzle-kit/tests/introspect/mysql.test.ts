@@ -1,13 +1,30 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
 import { SQL, sql } from 'drizzle-orm';
-import { char, int, mysqlEnum, mysqlTable, text, varchar } from 'drizzle-orm/mysql-core';
+import {
+	bigint,
+	char,
+	check,
+	decimal,
+	double,
+	float,
+	int,
+	mediumint,
+	mysqlTable,
+	mysqlView,
+	serial,
+	smallint,
+	text,
+	tinyint,
+	varchar,
+	mysqlEnum
+} from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { introspectMySQLToFile } from 'tests/schemaDiffer';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 let client: Connection;
 let mysqlContainer: Docker.Container;
@@ -72,6 +89,12 @@ afterAll(async () => {
 	await mysqlContainer?.stop().catch(console.error);
 });
 
+beforeEach(async () => {
+	await client.query(`drop database if exists \`drizzle\`;`);
+	await client.query(`create database \`drizzle\`;`);
+	await client.query(`use \`drizzle\`;`);
+});
+
 if (!fs.existsSync('tests/introspect/mysql')) {
 	fs.mkdirSync('tests/introspect/mysql');
 }
@@ -96,8 +119,6 @@ test('generated always column: link to another column', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop table users;`);
 });
 
 test('generated always column virtual: link to another column', async () => {
@@ -121,8 +142,6 @@ test('generated always column virtual: link to another column', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop table users;`);
 });
 
 test('Default value of character type column: char', async () => {
@@ -142,8 +161,6 @@ test('Default value of character type column: char', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop table users;`);
 });
 
 test('Default value of character type column: varchar', async () => {
@@ -163,8 +180,120 @@ test('Default value of character type column: varchar', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
 
-	await client.query(`drop table users;`);
+test('introspect checks', async () => {
+	const schema = {
+		users: mysqlTable('users', {
+			id: serial('id'),
+			name: varchar('name', { length: 255 }),
+			age: int('age'),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 21`),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'introspect-checks',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('view #1', async () => {
+	const users = mysqlTable('users', { id: int('id') });
+	const testView = mysqlView('some_view', { id: int('id') }).as(
+		sql`select \`drizzle\`.\`users\`.\`id\` AS \`id\` from \`drizzle\`.\`users\``,
+	);
+
+	const schema = {
+		users: users,
+		testView,
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'view-1',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('view #2', async () => {
+	const users = mysqlTable('some_users', { id: int('id') });
+	const testView = mysqlView('some_view', { id: int('id') }).algorithm('temptable').sqlSecurity('definer').as(
+		sql`SELECT * FROM ${users}`,
+	);
+
+	const schema = {
+		users: users,
+		testView,
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'view-2',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('handle float type', async () => {
+	const schema = {
+		table: mysqlTable('table', {
+			col1: float(),
+			col2: float({ precision: 2 }),
+			col3: float({ precision: 2, scale: 1 }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'handle-float-type',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('handle unsigned numerical types', async () => {
+	const schema = {
+		table: mysqlTable('table', {
+			col1: int({ unsigned: true }),
+			col2: tinyint({ unsigned: true }),
+			col3: smallint({ unsigned: true }),
+			col4: mediumint({ unsigned: true }),
+			col5: bigint({ mode: 'number', unsigned: true }),
+			col6: float({ unsigned: true }),
+			col7: float({ precision: 2, scale: 1, unsigned: true }),
+			col8: double({ unsigned: true }),
+			col9: double({ precision: 2, scale: 1, unsigned: true }),
+			col10: decimal({ unsigned: true }),
+			col11: decimal({ precision: 2, scale: 1, unsigned: true }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'handle-unsigned-numerical-types',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
 });
 
 test('instrospect strings with single quotes', async () => {

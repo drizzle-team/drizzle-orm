@@ -508,6 +508,7 @@ test('generated as callback: add table with column with stored generated constra
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -576,6 +577,7 @@ test('generated as callback: add table with column with virtual generated constr
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -1076,6 +1078,7 @@ test('generated as sql: add table with column with stored generated constraint',
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -1144,6 +1147,7 @@ test('generated as sql: add table with column with virtual generated constraint'
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -1644,6 +1648,7 @@ test('generated as string: add table with column with stored generated constrain
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -1712,6 +1717,7 @@ test('generated as string: add table with column with virtual generated constrai
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([

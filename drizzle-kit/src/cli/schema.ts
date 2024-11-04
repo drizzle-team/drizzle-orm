@@ -24,7 +24,7 @@ import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { dialects } from 'src/schemaValidator';
 import { assertUnreachable } from '../global';
-import { drizzleForLibSQL, type Setup } from '../serializer/studio';
+import type { Setup } from '../serializer/studio';
 import { certs } from '../utils/certs';
 import { grey, MigrateProgress } from './views';
 
@@ -269,6 +269,7 @@ export const push = command({
 			schemasFilter,
 			force,
 			casing,
+			entities,
 		} = config;
 
 		try {
@@ -313,6 +314,7 @@ export const push = command({
 					credentials,
 					tablesFilter,
 					schemasFilter,
+					entities,
 					force,
 					casing,
 				);
@@ -450,6 +452,7 @@ export const pull = command({
 			tablesFilter,
 			schemasFilter,
 			prefix,
+			entities,
 		} = config;
 		mkdirSync(out, { recursive: true });
 
@@ -496,6 +499,7 @@ export const pull = command({
 					tablesFilter,
 					schemasFilter,
 					prefix,
+					entities,
 				);
 			} else if (dialect === 'mysql') {
 				const { introspectMysql } = await import('./commands/introspect');
@@ -587,6 +591,7 @@ export const studio = command({
 			drizzleForMySQL,
 			prepareSQLiteSchema,
 			drizzleForSQLite,
+			drizzleForLibSQL,
 		} = await import('../serializer/studio');
 
 		let setup: Setup;

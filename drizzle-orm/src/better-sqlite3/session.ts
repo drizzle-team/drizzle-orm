@@ -26,7 +26,7 @@ export class BetterSQLiteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'sync', RunResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'BetterSQLiteSession';
+	static override readonly [entityKind]: string = 'BetterSQLiteSession';
 
 	private logger: Logger;
 
@@ -73,7 +73,7 @@ export class BetterSQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'sync', RunResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'BetterSQLiteTransaction';
+	static override readonly [entityKind]: string = 'BetterSQLiteTransaction';
 
 	override transaction<T>(transaction: (tx: BetterSQLiteTransaction<TFullSchema, TSchema>) => T): T {
 		const savepointName = `sp${this.nestedIndex}`;
@@ -93,7 +93,7 @@ export class BetterSQLiteTransaction<
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'sync'; run: RunResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'BetterSQLitePreparedQuery';
+	static override readonly [entityKind]: string = 'BetterSQLitePreparedQuery';
 
 	constructor(
 		private stmt: Statement,

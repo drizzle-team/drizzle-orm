@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import Docker from 'dockerode';
 import 'dotenv/config';
 import { SQL, sql } from 'drizzle-orm';
@@ -778,5 +779,10 @@ run(
 	async (context: any) => {
 		await context.client?.end().catch(console.error);
 		await context.mysqlContainer?.stop().catch(console.error);
+	},
+	async (context: any) => {
+		await context.client?.query(`drop database if exists \`drizzle\`;`);
+		await context.client?.query(`create database \`drizzle\`;`);
+		await context.client?.query(`use \`drizzle\`;`);
 	},
 );
