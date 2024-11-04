@@ -32,10 +32,11 @@ export const schema = (schema: CommonSchema): string => {
 		.map((t) => {
 			const columnsCount = Object.values(t.columns).length;
 			const indexesCount = Object.values(t.indexes).length;
-			const foreignKeys = Object.values(t.foreignKeys).length;
+			// should we have fks?
+			// const foreignKeys = Object.values(t.foreignKeys).length;
 			return `${chalk.bold.blue(t.name)} ${
 				chalk.gray(
-					`${columnsCount} columns ${indexesCount} indexes ${foreignKeys} fks`,
+					`${columnsCount} columns ${indexesCount} indexes`,
 				)
 			}`;
 		})
