@@ -632,6 +632,7 @@ export const studio = command({
 			drizzleForSQLite,
 			prepareSingleStoreSchema,
 			drizzleForSingleStore,
+			drizzleForLibSQL,
 		} = await import('../serializer/studio');
 
 		let setup: Setup;

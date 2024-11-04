@@ -179,6 +179,12 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 					patched = patched.startsWith('int(') ? 'int' : patched;
 					patched = patched.startsWith('double(') ? 'double' : patched;
+					patched = patched.startsWith('float(') ? 'float' : patched;
+					patched = patched.startsWith('int unsigned') ? 'int' : patched;
+					patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+					patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+					patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+					patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
 					return patched;
 				})
 				.filter((type) => {
@@ -207,6 +213,12 @@ export const schemaToTypeScript = (
 				patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 				patched = patched.startsWith('int(') ? 'int' : patched;
 				patched = patched.startsWith('double(') ? 'double' : patched;
+				patched = patched.startsWith('float(') ? 'float' : patched;
+				patched = patched.startsWith('int unsigned') ? 'int' : patched;
+				patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+				patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+				patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+				patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
 				return patched;
 			})
 			.filter((type) => {
@@ -397,8 +409,9 @@ const column = (
 
 	if (lowered.startsWith('int')) {
 		const isUnsigned = lowered.startsWith('int unsigned');
-		let out = `${casing(name)}: int(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? '{ unsigned: true }' : ''
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: int(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
@@ -409,9 +422,10 @@ const column = (
 
 	if (lowered.startsWith('tinyint')) {
 		const isUnsigned = lowered.startsWith('tinyint unsigned');
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		// let out = `${name.camelCase()}: tinyint("${name}")`;
-		let out: string = `${casing(name)}: tinyint(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? ', { unsigned: true }' : ''
+		let out: string = `${casing(name)}: tinyint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
@@ -422,8 +436,9 @@ const column = (
 
 	if (lowered.startsWith('smallint')) {
 		const isUnsigned = lowered.startsWith('smallint unsigned');
-		let out = `${casing(name)}: smallint(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? ', { unsigned: true }' : ''
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: smallint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
@@ -434,8 +449,9 @@ const column = (
 
 	if (lowered.startsWith('mediumint')) {
 		const isUnsigned = lowered.startsWith('mediumint unsigned');
-		let out = `${casing(name)}: mediumint(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? ', { unsigned: true }' : ''
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: mediumint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
@@ -466,14 +482,18 @@ const column = (
 
 	if (lowered.startsWith('double')) {
 		let params:
-			| { precision: string | undefined; scale: string | undefined }
+			| { precision?: string; scale?: string; unsigned?: boolean }
 			| undefined;
 
-		if (lowered.length > 6) {
+		if (lowered.length > (lowered.includes('unsigned') ? 15 : 6)) {
 			const [precision, scale] = lowered
-				.slice(7, lowered.length - 1)
+				.slice(7, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
 				.split(',');
 			params = { precision, scale };
+		}
+
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
 		}
 
 		const timeConfigParams = params ? timeConfig(params) : undefined;
@@ -491,8 +511,23 @@ const column = (
 		return out;
 	}
 
-	if (lowered === 'float') {
-		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })})`;
+	if (lowered.startsWith('float')) {
+		let params:
+			| { precision?: string; scale?: string; unsigned?: boolean }
+			| undefined;
+
+		if (lowered.length > (lowered.includes('unsigned') ? 14 : 5)) {
+			const [precision, scale] = lowered
+				.slice(6, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
+				.split(',');
+			params = { precision, scale };
+		}
+
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
+		}
+
+		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })}${params ? timeConfig(params) : ''})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
@@ -700,14 +735,18 @@ const column = (
 
 	if (lowered.startsWith('decimal')) {
 		let params:
-			| { precision: string | undefined; scale: string | undefined }
+			| { precision?: string; scale?: string; unsigned?: boolean }
 			| undefined;
 
-		if (lowered.length > 7) {
+		if (lowered.length > (lowered.includes('unsigned') ? 16 : 7)) {
 			const [precision, scale] = lowered
-				.slice(8, lowered.length - 1)
+				.slice(8, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
 				.split(',');
 			params = { precision, scale };
+		}
+
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
 		}
 
 		const timeConfigParams = params ? timeConfig(params) : undefined;
