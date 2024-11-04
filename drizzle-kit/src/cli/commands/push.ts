@@ -168,16 +168,21 @@ export const singlestorePush = async (
 	strict: boolean,
 	verbose: boolean,
 	force: boolean,
+	casing: CasingType | undefined,
 ) => {
 	const { connectToSingleStore } = await import('../connections');
 	const { singlestorePushIntrospect } = await import('./singlestoreIntrospect');
 
 	const { db, database } = await connectToSingleStore(credentials);
 
-	const { schema } = await singlestorePushIntrospect(db, database, tablesFilter);
+	const { schema } = await singlestorePushIntrospect(
+		db,
+		database,
+		tablesFilter,
+	);
 	const { prepareSingleStorePush } = await import('./migrate');
 
-	const statements = await prepareSingleStorePush(schemaPath, schema);
+	const statements = await prepareSingleStorePush(schemaPath, schema, casing);
 
 	const filteredStatements = singleStoreFilterStatements(
 		statements.statements ?? [],
@@ -315,11 +320,21 @@ export const pgPush = async (
 	const { pgPushIntrospect } = await import('./pgIntrospect');
 
 	const db = await preparePostgresDB(credentials);
-	const { schema } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities);
+	const { schema } = await pgPushIntrospect(
+		db,
+		tablesFilter,
+		schemasFilter,
+		entities,
+	);
 
 	const { preparePgPush } = await import('./migrate');
 
-	const statements = await preparePgPush(schemaPath, schema, schemasFilter, casing);
+	const statements = await preparePgPush(
+		schemaPath,
+		schema,
+		schemasFilter,
+		casing,
+	);
 
 	try {
 		if (statements.sqlStatements.length === 0) {
@@ -390,7 +405,9 @@ export const pgPush = async (
 						}${
 							matViewsToRemove.length > 0
 								? ` remove ${matViewsToRemove.length} ${
-									matViewsToRemove.length > 1 ? 'materialized views' : 'materialize view'
+									matViewsToRemove.length > 1
+										? 'materialized views'
+										: 'materialize view'
 								},`
 								: ' '
 						}`

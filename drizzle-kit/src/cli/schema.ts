@@ -6,7 +6,7 @@ import { renderWithTask } from 'hanji';
 import { dialects } from 'src/schemaValidator';
 import '../@types/utils';
 import { assertUnreachable } from '../global';
-import { drizzleForLibSQL, type Setup } from '../serializer/studio';
+import { type Setup } from '../serializer/studio';
 import { assertV1OutFolder } from '../utils';
 import { certs } from '../utils/certs';
 import { checkHandler } from './commands/check';
@@ -31,7 +31,9 @@ import { grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
-	.desc(`Database dialect: 'postgresql', 'mysql', 'sqlite', 'turso' or 'singlestore'`);
+	.desc(
+		`Database dialect: 'postgresql', 'mysql', 'sqlite', 'turso' or 'singlestore'`,
+	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
 const optionBreakpoints = boolean().desc(
@@ -42,7 +44,9 @@ const optionDriver = string()
 	.enum(...drivers)
 	.desc('Database driver');
 
-const optionCasing = string().enum('camelCase', 'snake_case').desc('Casing for serialization');
+const optionCasing = string()
+	.enum('camelCase', 'snake_case')
+	.desc('Casing for serialization');
 
 export const generate = command({
 	name: 'generate',
@@ -364,6 +368,7 @@ export const push = command({
 					strict,
 					verbose,
 					force,
+					casing,
 				);
 			} else {
 				assertUnreachable(dialect);
@@ -682,7 +687,12 @@ export const studio = command({
 				const { schema, relations, files } = schemaPath
 					? await prepareSingleStoreSchema(schemaPath)
 					: { schema: {}, relations: {}, files: [] };
-				setup = await drizzleForSingleStore(credentials, schema, relations, files);
+				setup = await drizzleForSingleStore(
+					credentials,
+					schema,
+					relations,
+					files,
+				);
 			} else {
 				assertUnreachable(dialect);
 			}

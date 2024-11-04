@@ -516,6 +516,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -768,8 +769,12 @@ export const drizzleConfigFromFile = async (
 ): Promise<CliConfig> => {
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
-	const defaultTsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.ts')));
-	const defaultJsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.js')));
+	const defaultTsConfigExists = existsSync(
+		resolve(join(prefix, 'drizzle.config.ts')),
+	);
+	const defaultJsConfigExists = existsSync(
+		resolve(join(prefix, 'drizzle.config.js')),
+	);
 	const defaultJsonConfigExists = existsSync(
 		join(resolve('drizzle.config.json')),
 	);
