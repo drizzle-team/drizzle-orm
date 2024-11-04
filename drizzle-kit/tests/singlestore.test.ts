@@ -191,6 +191,7 @@ test('add table #6', async () => {
 		compositePkName: '',
 	});
 	expect(statements[1]).toStrictEqual({
+		policies: [],
 		type: 'drop_table',
 		tableName: 'users1',
 		schema: undefined,
@@ -283,6 +284,7 @@ test('change table schema #1', async () => {
 
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
+		policies: [],
 		type: 'drop_table',
 		tableName: 'users',
 		schema: undefined,
