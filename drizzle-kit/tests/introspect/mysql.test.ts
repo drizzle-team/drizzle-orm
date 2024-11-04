@@ -10,6 +10,7 @@ import {
 	float,
 	int,
 	mediumint,
+	mysqlEnum,
 	mysqlTable,
 	mysqlView,
 	serial,
@@ -17,7 +18,6 @@ import {
 	text,
 	tinyint,
 	varchar,
-	mysqlEnum
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
 import getPort from 'get-port';
