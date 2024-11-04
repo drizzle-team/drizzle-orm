@@ -3,7 +3,16 @@ import { getNewTableName } from './cli/commands/sqlitePushUtils';
 import { warning } from './cli/views';
 import { CommonSquashedSchema } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher, View as MySqlView } from './serializer/mysqlSchema';
-import { Index, MatViewWithOption, PgSchema, PgSquasher, View as PgView, ViewWithOption } from './serializer/pgSchema';
+import {
+	Index,
+	MatViewWithOption,
+	PgSchema,
+	PgSquasher,
+	Policy,
+	Role,
+	View as PgView,
+	ViewWithOption,
+} from './serializer/pgSchema';
 import {
 	SingleStoreKitInternals,
 	SingleStoreSchema,
@@ -45,8 +54,10 @@ export interface JsonCreateTableStatement {
 	compositePKs: string[];
 	compositePkName?: string;
 	uniqueConstraints?: string[];
+	policies?: string[];
 	checkConstraints?: string[];
-	internals?: MySqlKitInternals | SingleStoreKitInternals;
+	internals?: MySqlKitInternals;
+	isRLSEnabled?: boolean;
 }
 
 export interface JsonRecreateTableStatement {
@@ -71,6 +82,7 @@ export interface JsonDropTableStatement {
 	type: 'drop_table';
 	tableName: string;
 	schema: string;
+	policies?: string[];
 }
 
 export interface JsonRenameTableStatement {
@@ -115,6 +127,40 @@ export interface JsonAddValueToEnumStatement {
 	value: string;
 	before: string;
 }
+
+//////
+
+export interface JsonCreateRoleStatement {
+	type: 'create_role';
+	name: string;
+	values: {
+		inherit?: boolean;
+		createDb?: boolean;
+		createRole?: boolean;
+	};
+}
+
+export interface JsonDropRoleStatement {
+	type: 'drop_role';
+	name: string;
+}
+export interface JsonRenameRoleStatement {
+	type: 'rename_role';
+	nameFrom: string;
+	nameTo: string;
+}
+
+export interface JsonAlterRoleStatement {
+	type: 'alter_role';
+	name: string;
+	values: {
+		inherit?: boolean;
+		createDb?: boolean;
+		createRole?: boolean;
+	};
+}
+
+//////
 
 export interface JsonDropValueFromEnumStatement {
 	type: 'alter_type_drop_value';
@@ -192,6 +238,73 @@ export interface JsonSqliteAddColumnStatement {
 	tableName: string;
 	column: Column;
 	referenceData?: string;
+}
+
+export interface JsonCreatePolicyStatement {
+	type: 'create_policy';
+	tableName: string;
+	data: Policy;
+	schema: string;
+}
+
+export interface JsonCreateIndPolicyStatement {
+	type: 'create_ind_policy';
+	tableName: string;
+	data: Policy;
+}
+
+export interface JsonDropPolicyStatement {
+	type: 'drop_policy';
+	tableName: string;
+	data: Policy;
+	schema: string;
+}
+
+export interface JsonDropIndPolicyStatement {
+	type: 'drop_ind_policy';
+	tableName: string;
+	data: Policy;
+}
+
+export interface JsonRenamePolicyStatement {
+	type: 'rename_policy';
+	tableName: string;
+	oldName: string;
+	newName: string;
+	schema: string;
+}
+
+export interface JsonIndRenamePolicyStatement {
+	type: 'rename_ind_policy';
+	tableKey: string;
+	oldName: string;
+	newName: string;
+}
+
+export interface JsonEnableRLSStatement {
+	type: 'enable_rls';
+	tableName: string;
+	schema: string;
+}
+
+export interface JsonDisableRLSStatement {
+	type: 'disable_rls';
+	tableName: string;
+	schema: string;
+}
+
+export interface JsonAlterPolicyStatement {
+	type: 'alter_policy';
+	tableName: string;
+	oldData: string;
+	newData: string;
+	schema: string;
+}
+
+export interface JsonAlterIndPolicyStatement {
+	type: 'alter_ind_policy';
+	oldData: Policy;
+	newData: Policy;
 }
 
 export interface JsonCreateIndexStatement {
@@ -724,6 +837,16 @@ export type JsonStatement =
 	| JsonCreateSequenceStatement
 	| JsonMoveSequenceStatement
 	| JsonRenameSequenceStatement
+	| JsonDropPolicyStatement
+	| JsonCreatePolicyStatement
+	| JsonAlterPolicyStatement
+	| JsonRenamePolicyStatement
+	| JsonEnableRLSStatement
+	| JsonDisableRLSStatement
+	| JsonRenameRoleStatement
+	| JsonCreateRoleStatement
+	| JsonDropRoleStatement
+	| JsonAlterRoleStatement
 	| JsonCreatePgViewStatement
 	| JsonDropViewStatement
 	| JsonRenameViewStatement
@@ -735,14 +858,19 @@ export type JsonStatement =
 	| JsonCreateSqliteViewStatement
 	| JsonCreateCheckConstraint
 	| JsonDeleteCheckConstraint
-	| JsonDropValueFromEnumStatement;
+	| JsonDropValueFromEnumStatement
+	| JsonIndRenamePolicyStatement
+	| JsonDropIndPolicyStatement
+	| JsonCreateIndPolicyStatement
+	| JsonAlterIndPolicyStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
 	// TODO: remove?
 	json2: PgSchema,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
+		table;
 	const tableKey = `${schema || 'public'}.${name}`;
 
 	// TODO: @AndriiSherman. We need this, will add test cases
@@ -760,7 +888,9 @@ export const preparePgCreateTableJson = (
 		compositePKs: Object.values(compositePrimaryKeys),
 		compositePkName: compositePkName,
 		uniqueConstraints: Object.values(uniqueConstraints),
+		policies: Object.values(policies),
 		checkConstraints: Object.values(checkConstraints),
+		isRLSEnabled: isRLSEnabled ?? false,
 	};
 };
 
@@ -855,6 +985,7 @@ export const prepareDropTableJson = (table: Table): JsonDropTableStatement => {
 		type: 'drop_table',
 		tableName: table.name,
 		schema: table.schema,
+		policies: table.policies ? Object.values(table.policies) : [],
 	};
 };
 
@@ -1034,6 +1165,56 @@ export const prepareRenameSequenceJson = (
 };
 
 ////////////
+
+export const prepareCreateRoleJson = (
+	role: Role,
+): JsonCreateRoleStatement => {
+	return {
+		type: 'create_role',
+		name: role.name,
+		values: {
+			createDb: role.createDb,
+			createRole: role.createRole,
+			inherit: role.inherit,
+		},
+	};
+};
+
+export const prepareAlterRoleJson = (
+	role: Role,
+): JsonAlterRoleStatement => {
+	return {
+		type: 'alter_role',
+		name: role.name,
+		values: {
+			createDb: role.createDb,
+			createRole: role.createRole,
+			inherit: role.inherit,
+		},
+	};
+};
+
+export const prepareDropRoleJson = (
+	name: string,
+): JsonDropRoleStatement => {
+	return {
+		type: 'drop_role',
+		name: name,
+	};
+};
+
+export const prepareRenameRoleJson = (
+	nameFrom: string,
+	nameTo: string,
+): JsonRenameRoleStatement => {
+	return {
+		type: 'rename_role',
+		nameFrom,
+		nameTo,
+	};
+};
+
+//////////
 
 export const prepareCreateSchemasJson = (
 	values: string[],
@@ -2528,6 +2709,121 @@ export const prepareSqliteAlterColumns = (
 	}
 
 	return [...dropPkStatements, ...setPkStatements, ...statements];
+};
+
+export const prepareRenamePolicyJsons = (
+	tableName: string,
+	schema: string,
+	renames: {
+		from: Policy;
+		to: Policy;
+	}[],
+): JsonRenamePolicyStatement[] => {
+	return renames.map((it) => {
+		return {
+			type: 'rename_policy',
+			tableName: tableName,
+			oldName: it.from.name,
+			newName: it.to.name,
+			schema,
+		};
+	});
+};
+
+export const prepareRenameIndPolicyJsons = (
+	renames: {
+		from: Policy;
+		to: Policy;
+	}[],
+): JsonIndRenamePolicyStatement[] => {
+	return renames.map((it) => {
+		return {
+			type: 'rename_ind_policy',
+			tableKey: it.from.on!,
+			oldName: it.from.name,
+			newName: it.to.name,
+		};
+	});
+};
+
+export const prepareCreatePolicyJsons = (
+	tableName: string,
+	schema: string,
+	policies: Policy[],
+): JsonCreatePolicyStatement[] => {
+	return policies.map((it) => {
+		return {
+			type: 'create_policy',
+			tableName,
+			data: it,
+			schema,
+		};
+	});
+};
+
+export const prepareCreateIndPolicyJsons = (
+	policies: Policy[],
+): JsonCreateIndPolicyStatement[] => {
+	return policies.map((it) => {
+		return {
+			type: 'create_ind_policy',
+			tableName: it.on!,
+			data: it,
+		};
+	});
+};
+
+export const prepareDropPolicyJsons = (
+	tableName: string,
+	schema: string,
+	policies: Policy[],
+): JsonDropPolicyStatement[] => {
+	return policies.map((it) => {
+		return {
+			type: 'drop_policy',
+			tableName,
+			data: it,
+			schema,
+		};
+	});
+};
+
+export const prepareDropIndPolicyJsons = (
+	policies: Policy[],
+): JsonDropIndPolicyStatement[] => {
+	return policies.map((it) => {
+		return {
+			type: 'drop_ind_policy',
+			tableName: it.on!,
+			data: it,
+		};
+	});
+};
+
+export const prepareAlterPolicyJson = (
+	tableName: string,
+	schema: string,
+	oldPolicy: string,
+	newPolicy: string,
+): JsonAlterPolicyStatement => {
+	return {
+		type: 'alter_policy',
+		tableName,
+		oldData: oldPolicy,
+		newData: newPolicy,
+		schema,
+	};
+};
+
+export const prepareAlterIndPolicyJson = (
+	oldPolicy: Policy,
+	newPolicy: Policy,
+): JsonAlterIndPolicyStatement => {
+	return {
+		type: 'alter_ind_policy',
+		oldData: oldPolicy,
+		newData: newPolicy,
+	};
 };
 
 export const preparePgCreateIndexesJson = (
