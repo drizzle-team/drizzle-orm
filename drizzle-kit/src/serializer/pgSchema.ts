@@ -657,6 +657,16 @@ export const PgSquasher = {
 	squashPolicyPush: (policy: Policy) => {
 		return `${policy.name}--${policy.as}--${policy.for}--${policy.to?.join(',')}--${policy.on}`;
 	},
+	unsquashPolicyPush: (policy: string): Policy => {
+		const splitted = policy.split('--');
+		return {
+			name: splitted[0],
+			as: splitted[1] as Policy['as'],
+			for: splitted[2] as Policy['for'],
+			to: splitted[3].split(','),
+			on: splitted[4] !== 'undefined' ? splitted[4] : undefined,
+		};
+	},
 	squashPK: (pk: PrimaryKey) => {
 		return `${pk.columns.join(',')};${pk.name}`;
 	},
