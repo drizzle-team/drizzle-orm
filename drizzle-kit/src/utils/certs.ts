@@ -1,6 +1,5 @@
 import envPaths from 'env-paths';
-import { mkdirSync } from 'fs';
-import { access, readFile } from 'fs/promises';
+import { access, mkdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { $ } from 'zx';
 
@@ -10,9 +9,10 @@ const p = envPaths('drizzle-studio', {
 
 $.verbose = false;
 $.cwd = p.data;
-mkdirSync(p.data, { recursive: true });
 
 export const certs = async () => {
+	await mkdir(p.data, { recursive: true });
+
 	const res = await $`mkcert --help`.nothrow();
 
 	// ~/.local/share/drizzle-studio
@@ -33,5 +33,3 @@ export const certs = async () => {
 	}
 	return null;
 };
-
-certs();
