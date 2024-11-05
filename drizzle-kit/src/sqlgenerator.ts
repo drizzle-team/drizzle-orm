@@ -270,9 +270,13 @@ class PgAlterPolicyConvertor extends Convertor {
 	override can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_policy' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonAlterPolicyStatement): string | string[] {
-		const newPolicy = PgSquasher.unsquashPolicy(statement.newData);
-		const oldPolicy = PgSquasher.unsquashPolicy(statement.oldData);
+	override convert(statement: JsonAlterPolicyStatement, _dialect: any, action?: string): string | string[] {
+		const newPolicy = action === 'push'
+			? PgSquasher.unsquashPolicyPush(statement.newData)
+			: PgSquasher.unsquashPolicy(statement.newData);
+		const oldPolicy = action === 'push'
+			? PgSquasher.unsquashPolicyPush(statement.oldData)
+			: PgSquasher.unsquashPolicy(statement.oldData);
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -1408,7 +1412,7 @@ class PgDropTableConvertor extends Convertor {
 		return statement.type === 'drop_table' && dialect === 'postgresql';
 	}
 
-	convert(statement: JsonDropTableStatement) {
+	convert(statement: JsonDropTableStatement, _d: any, action?: string) {
 		const { tableName, schema, policies } = statement;
 
 		const tableNameWithSchema = schema
@@ -1420,7 +1424,9 @@ class PgDropTableConvertor extends Convertor {
 			return dropPolicyConvertor.convert({
 				type: 'drop_policy',
 				tableName,
-				data: PgSquasher.unsquashPolicy(p),
+				data: action === 'push'
+					? PgSquasher.unsquashPolicyPush(p)
+					: PgSquasher.unsquashPolicy(p),
 				schema,
 			}) as string;
 		}) ?? [];
@@ -3333,17 +3339,6 @@ convertors.push(new MySqlAlterTableDropPk());
 convertors.push(new MySqlAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new MySqlAlterTableAddPk());
 convertors.push(new MySqlAlterTableAlterCompositePrimaryKeyConvertor());
-
-export function fromJson(
-	statements: JsonStatement[],
-	dialect: Exclude<Dialect, 'sqlite' | 'turso'>,
-): string[];
-export function fromJson(
-	statements: JsonStatement[],
-	dialect: 'sqlite' | 'turso',
-	action?: 'push',
-	json2?: SQLiteSchemaSquashed,
-): string[];
 
 export function fromJson(
 	statements: JsonStatement[],

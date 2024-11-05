@@ -2058,7 +2058,7 @@ export const applyPgSnapshotsDiff = async (
 		return true;
 	});
 
-	const sqlStatements = fromJson(filteredEnumsJsonStatements, 'postgresql');
+	const sqlStatements = fromJson(filteredEnumsJsonStatements, 'postgresql', action);
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {
