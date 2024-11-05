@@ -1569,7 +1569,8 @@ export const applyPgSnapshotsDiff = async (
 			}
 
 			// handle table.isRLSEnabled
-			if (table.isRLSEnabled !== tableInPreviousState.isRLSEnabled) {
+			const wasRlsEnabled = tableInPreviousState ? tableInPreviousState.isRLSEnabled : false;
+			if (table.isRLSEnabled !== wasRlsEnabled) {
 				if (table.isRLSEnabled) {
 					// was force enabled
 					jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
