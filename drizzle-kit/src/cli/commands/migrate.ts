@@ -343,18 +343,9 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 };
 
 export const preparePgPush = async (
-	schemaPath: string | string[],
-	snapshot: PgSchema,
-	schemaFilter: string[],
-	casing: CasingType | undefined,
+	cur: PgSchema,
+	prev: PgSchema,
 ) => {
-	const { prev, cur } = await preparePgDbPushSnapshot(
-		snapshot,
-		schemaPath,
-		casing,
-		schemaFilter,
-	);
-
 	const validatedPrev = pgSchema.parse(prev);
 	const validatedCur = pgSchema.parse(cur);
 
