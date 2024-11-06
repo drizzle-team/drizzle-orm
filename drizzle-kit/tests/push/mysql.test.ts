@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import 'dotenv/config';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
