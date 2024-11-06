@@ -86,75 +86,59 @@ import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
 import { PgSquasher, policy } from './serializer/pgSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
+import { escapeSingleQuotes } from './utils';
 
-export const pgNativeTypes = new Set([
-	'uuid',
-	'smallint',
-	'integer',
-	'bigint',
-	'boolean',
-	'text',
-	'varchar',
-	'serial',
-	'bigserial',
-	'decimal',
-	'numeric',
-	'real',
-	'json',
-	'jsonb',
-	'time',
-	'time with time zone',
-	'time without time zone',
-	'time',
-	'timestamp',
-	'timestamp with time zone',
-	'timestamp without time zone',
-	'date',
-	'interval',
-	'bigint',
-	'bigserial',
-	'double precision',
-	'interval year',
-	'interval month',
-	'interval day',
-	'interval hour',
-	'interval minute',
-	'interval second',
-	'interval year to month',
-	'interval day to hour',
-	'interval day to minute',
-	'interval day to second',
-	'interval hour to minute',
-	'interval hour to second',
-	'interval minute to second',
-]);
-
-const isPgNativeType = (it: string) => {
-	if (pgNativeTypes.has(it)) return true;
-	const toCheck = it.replace(/ /g, '');
-	return (
-		toCheck.startsWith('varchar(')
-		|| toCheck.startsWith('char(')
-		|| toCheck.startsWith('numeric(')
-		|| toCheck.startsWith('timestamp(')
-		|| toCheck.startsWith('doubleprecision[')
-		|| toCheck.startsWith('intervalyear(')
-		|| toCheck.startsWith('intervalmonth(')
-		|| toCheck.startsWith('intervalday(')
-		|| toCheck.startsWith('intervalhour(')
-		|| toCheck.startsWith('intervalminute(')
-		|| toCheck.startsWith('intervalsecond(')
-		|| toCheck.startsWith('intervalyeartomonth(')
-		|| toCheck.startsWith('intervaldaytohour(')
-		|| toCheck.startsWith('intervaldaytominute(')
-		|| toCheck.startsWith('intervaldaytosecond(')
-		|| toCheck.startsWith('intervalhourtominute(')
-		|| toCheck.startsWith('intervalhourtosecond(')
-		|| toCheck.startsWith('intervalminutetosecond(')
-		|| toCheck.startsWith('vector(')
-		|| toCheck.startsWith('geometry(')
-		|| /^(\w+)(\[\d*])+$/.test(it)
-	);
+const parseType = (schemaPrefix: string, type: string) => {
+	const pgNativeTypes = [
+		'uuid',
+		'smallint',
+		'integer',
+		'bigint',
+		'boolean',
+		'text',
+		'varchar',
+		'serial',
+		'bigserial',
+		'decimal',
+		'numeric',
+		'real',
+		'json',
+		'jsonb',
+		'time',
+		'time with time zone',
+		'time without time zone',
+		'time',
+		'timestamp',
+		'timestamp with time zone',
+		'timestamp without time zone',
+		'date',
+		'interval',
+		'bigint',
+		'bigserial',
+		'double precision',
+		'interval year',
+		'interval month',
+		'interval day',
+		'interval hour',
+		'interval minute',
+		'interval second',
+		'interval year to month',
+		'interval day to hour',
+		'interval day to minute',
+		'interval day to second',
+		'interval hour to minute',
+		'interval hour to second',
+		'interval minute to second',
+		'char',
+		'vector',
+		'geometry',
+	];
+	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
+	const arrayDefinition = (type.match(arrayDefinitionRegex) ?? []).join('');
+	const withoutArrayDefinition = type.replace(arrayDefinitionRegex, '');
+	return pgNativeTypes.some((it) => type.startsWith(it))
+		? `${withoutArrayDefinition}${arrayDefinition}`
+		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
 };
 
 abstract class Convertor {
@@ -419,9 +403,7 @@ class PgCreateTableConvertor extends Convertor {
 				? `"${column.typeSchema}".`
 				: '';
 
-			const type = isPgNativeType(column.type)
-				? column.type
-				: `${schemaPrefix}"${column.type}"`;
+			const type = parseType(schemaPrefix, column.type);
 			const generated = column.generated;
 
 			const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
@@ -1296,7 +1278,7 @@ class CreateTypeEnumConvertor extends Convertor {
 		const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 
 		let valuesStatement = '(';
-		valuesStatement += values.map((it) => `'${it}'`).join(', ');
+		valuesStatement += values.map((it) => `'${escapeSingleQuotes(it)}'`).join(', ');
 		valuesStatement += ')';
 
 		// TODO do we need this?
@@ -1604,9 +1586,7 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 			? `"${column.typeSchema}".`
 			: '';
 
-		const fixedType = isPgNativeType(column.type)
-			? column.type
-			: `${schemaPrefix}"${column.type}"`;
+		const fixedType = parseType(schemaPrefix, column.type);
 
 		const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 
@@ -2530,9 +2510,10 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT ${statement.oldConstraintName};\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT ${statement.newConstraintName} PRIMARY KEY(${
-			newColumns.join(',')
-		});`;
+		console.log(statement.oldConstraintName, statement.newConstraintName);
+		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.oldConstraintName}";\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.newConstraintName}" PRIMARY KEY("${
+			newColumns.join('","')
+		}");`;
 	}
 }
 

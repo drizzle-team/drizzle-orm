@@ -2704,19 +2704,14 @@ export const prepareAddCompositePrimaryKeyPg = (
 	tableName: string,
 	schema: string,
 	pks: Record<string, string>,
-	// TODO: remove?
-	json2: PgSchema,
 ): JsonCreateCompositePK[] => {
 	return Object.values(pks).map((it) => {
-		const unsquashed = PgSquasher.unsquashPK(it);
 		return {
 			type: 'create_composite_pk',
 			tableName,
 			data: it,
 			schema,
-			constraintName: json2.tables[`${schema || 'public'}.${tableName}`].compositePrimaryKeys[
-				unsquashed.name
-			].name,
+			constraintName: PgSquasher.unsquashPK(it).name,
 		} as JsonCreateCompositePK;
 	});
 };
@@ -2725,8 +2720,6 @@ export const prepareDeleteCompositePrimaryKeyPg = (
 	tableName: string,
 	schema: string,
 	pks: Record<string, string>,
-	// TODO: remove?
-	json1: PgSchema,
 ): JsonDeleteCompositePK[] => {
 	return Object.values(pks).map((it) => {
 		return {
@@ -2734,9 +2727,7 @@ export const prepareDeleteCompositePrimaryKeyPg = (
 			tableName,
 			data: it,
 			schema,
-			constraintName: json1.tables[`${schema || 'public'}.${tableName}`].compositePrimaryKeys[
-				PgSquasher.unsquashPK(it).name
-			].name,
+			constraintName: PgSquasher.unsquashPK(it).name,
 		} as JsonDeleteCompositePK;
 	});
 };
@@ -2745,9 +2736,6 @@ export const prepareAlterCompositePrimaryKeyPg = (
 	tableName: string,
 	schema: string,
 	pks: Record<string, { __old: string; __new: string }>,
-	// TODO: remove?
-	json1: PgSchema,
-	json2: PgSchema,
 ): JsonAlterCompositePK[] => {
 	return Object.values(pks).map((it) => {
 		return {
@@ -2756,12 +2744,8 @@ export const prepareAlterCompositePrimaryKeyPg = (
 			old: it.__old,
 			new: it.__new,
 			schema,
-			oldConstraintName: json1.tables[`${schema || 'public'}.${tableName}`].compositePrimaryKeys[
-				PgSquasher.unsquashPK(it.__old).name
-			].name,
-			newConstraintName: json2.tables[`${schema || 'public'}.${tableName}`].compositePrimaryKeys[
-				PgSquasher.unsquashPK(it.__new).name
-			].name,
+			oldConstraintName: PgSquasher.unsquashPK(it.__old).name,
+			newConstraintName: PgSquasher.unsquashPK(it.__new).name,
 		} as JsonAlterCompositePK;
 	});
 };
@@ -2874,7 +2858,7 @@ export const prepareAddCompositePrimaryKeyMySql = (
 			type: 'create_composite_pk',
 			tableName,
 			data: it,
-			constraintName: json2.tables[tableName].compositePrimaryKeys[unsquashed.name].name,
+			constraintName: unsquashed.name,
 		} as JsonCreateCompositePK);
 	}
 	return res;
@@ -2887,13 +2871,12 @@ export const prepareDeleteCompositePrimaryKeyMySql = (
 	json1: MySqlSchema,
 ): JsonDeleteCompositePK[] => {
 	return Object.values(pks).map((it) => {
+		const unsquashed = MySqlSquasher.unsquashPK(it);
 		return {
 			type: 'delete_composite_pk',
 			tableName,
 			data: it,
-			constraintName: json1.tables[tableName].compositePrimaryKeys[
-				MySqlSquasher.unsquashPK(it).name
-			].name,
+			constraintName: unsquashed.name,
 		} as JsonDeleteCompositePK;
 	});
 };

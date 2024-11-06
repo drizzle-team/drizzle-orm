@@ -383,15 +383,15 @@ export const sqlitePush = async (
 			render(`\n[${chalk.blue('i')}] No changes detected`);
 		} else {
 			if (!('driver' in credentials)) {
-				await db.query('begin');
+				await db.run('begin');
 				try {
 					for (const dStmnt of statementsToExecute) {
-						await db.query(dStmnt);
+						await db.run(dStmnt);
 					}
-					await db.query('commit');
+					await db.run('commit');
 				} catch (e) {
 					console.error(e);
-					await db.query('rollback');
+					await db.run('rollback');
 					process.exit(1);
 				}
 			}

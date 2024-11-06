@@ -25,7 +25,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/sqliteSchema';
-import type { SQLiteDB } from '../utils';
+import { escapeSingleQuotes, type SQLiteDB } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const generateSqliteSnapshot = (
@@ -90,7 +90,7 @@ export const generateSqliteSnapshot = (
 					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					columnToSet.default = typeof column.default === 'string'
-						? `'${column.default}'`
+						? `'${escapeSingleQuotes(column.default)}'`
 						: typeof column.default === 'object'
 								|| Array.isArray(column.default)
 						? `'${JSON.stringify(column.default)}'`
