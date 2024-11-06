@@ -240,6 +240,7 @@ export const policy = object({
 	using: string().optional(),
 	withCheck: string().optional(),
 	on: string().optional(),
+	schema: string().optional(),
 }).strict();
 
 export const policySquashed = object({
