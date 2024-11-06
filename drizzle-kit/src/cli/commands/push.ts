@@ -1,5 +1,7 @@
 import chalk from 'chalk';
+import { randomUUID } from 'crypto';
 import { render } from 'hanji';
+import { serializePg } from 'src/serializer';
 import { fromJson } from '../../sqlgenerator';
 import { Select } from '../selector-ui';
 import { Entities } from '../validations/cli';
@@ -169,11 +171,17 @@ export const pgPush = async (
 	const { pgPushIntrospect } = await import('./pgIntrospect');
 
 	const db = await preparePostgresDB(credentials);
-	const { schema } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities);
+
+	const serialized = await serializePg(schemaPath, casing, schemasFilter);
+
+	const { schema } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities, serialized);
 
 	const { preparePgPush } = await import('./migrate');
 
-	const statements = await preparePgPush(schemaPath, schema, schemasFilter, casing);
+	const statements = await preparePgPush(
+		{ id: randomUUID(), prevId: schema.id, ...serialized },
+		schema,
+	);
 
 	try {
 		if (statements.sqlStatements.length === 0) {

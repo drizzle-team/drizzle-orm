@@ -652,6 +652,7 @@ export const generatePgSnapshot = (
 		} else {
 			policiesToReturn[policy.name] = {
 				...mappedPolicy,
+				schema: tableConfig.schema ?? 'public',
 				on: `"${tableConfig.schema ?? 'public'}"."${tableConfig.name}"`,
 			};
 		}
@@ -972,9 +973,11 @@ export const fromDatabase = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void,
+	tsSchema?: PgSchemaInternal,
 ): Promise<PgSchemaInternal> => {
 	const result: Record<string, Table> = {};
 	const views: Record<string, View> = {};
+	const policies: Record<string, Policy> = {};
 	const internals: PgKitInternals = { tables: {} };
 
 	const where = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
@@ -1134,7 +1137,9 @@ WHERE
 		}
 	}
 
-	const wherePolicies = schemaFilters
+	const schemasForLinkedPoliciesInSchema = Object.values(tsSchema?.policies ?? {}).map((it) => it.schema!);
+
+	const wherePolicies = [...schemaFilters, ...schemasForLinkedPoliciesInSchema]
 		.map((t) => `schemaname = '${t}'`)
 		.join(' or ');
 
@@ -1170,6 +1175,16 @@ WHERE
 			policiesByTable[`${schemaname}.${tablename}`] = {
 				[dbPolicy.name]: { ...rest, to: parsedTo, withCheck: parsedWithCheck, using: parsedUsing } as Policy,
 			};
+		}
+
+		if (tsSchema?.policies[dbPolicy.name]) {
+			policies[dbPolicy.name] = {
+				...rest,
+				to: parsedTo,
+				withCheck: parsedWithCheck,
+				using: parsedUsing,
+				on: tsSchema?.policies[dbPolicy.name].on,
+			} as Policy;
 		}
 	}
 
@@ -1907,7 +1922,7 @@ WHERE
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
 		roles: rolesToReturn,
-		policies: {},
+		policies,
 		views: views,
 		_meta: {
 			schemas: {},

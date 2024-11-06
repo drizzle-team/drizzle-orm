@@ -2914,9 +2914,7 @@ test('add policy', async () => {
 				as: 'PERMISSIVE',
 				for: 'ALL',
 				to: ['public'],
-				using: undefined,
 				on: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 		},
@@ -2973,8 +2971,6 @@ test('drop policy', async () => {
 				for: 'ALL',
 				to: ['public'],
 				on: undefined,
-				using: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 		},
@@ -3027,9 +3023,7 @@ test('add policy without enable rls', async () => {
 				as: 'PERMISSIVE',
 				for: 'ALL',
 				to: ['public'],
-				using: undefined,
 				on: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 		},
@@ -3081,9 +3075,7 @@ test('drop policy without disable rls', async () => {
 				as: 'PERMISSIVE',
 				for: 'ALL',
 				to: ['public'],
-				using: undefined,
 				on: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 		},
@@ -3257,8 +3249,6 @@ test('alter policy with recreation: changing as', async (t) => {
 				name: 'test',
 				to: ['public'],
 				on: undefined,
-				using: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 			tableName: 'users',
@@ -3271,8 +3261,6 @@ test('alter policy with recreation: changing as', async (t) => {
 				name: 'test',
 				to: ['public'],
 				on: undefined,
-				using: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 			tableName: 'users',
@@ -3325,8 +3313,6 @@ test('alter policy with recreation: changing for', async (t) => {
 				name: 'test',
 				to: ['public'],
 				on: undefined,
-				using: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 			tableName: 'users',
@@ -3338,9 +3324,7 @@ test('alter policy with recreation: changing for', async (t) => {
 				for: 'DELETE',
 				name: 'test',
 				to: ['public'],
-				using: undefined,
 				on: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 			tableName: 'users',
@@ -3392,9 +3376,7 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 				for: 'ALL',
 				name: 'test',
 				to: ['public'],
-				using: undefined,
 				on: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 			tableName: 'users',
@@ -3406,9 +3388,7 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 				for: 'INSERT',
 				name: 'test',
 				to: ['public'],
-				using: undefined,
 				on: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 			tableName: 'users',
@@ -3460,9 +3440,7 @@ test('alter policy with recreation: changing all fields', async (t) => {
 				for: 'SELECT',
 				name: 'test',
 				to: ['public'],
-				using: undefined,
 				on: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 			tableName: 'users',
@@ -3475,8 +3453,6 @@ test('alter policy with recreation: changing all fields', async (t) => {
 				name: 'test',
 				to: ['current_role'],
 				on: undefined,
-				using: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 			tableName: 'users',
@@ -3649,9 +3625,7 @@ test('create table with a policy', async (t) => {
 				to: [
 					'public',
 				],
-				using: undefined,
 				on: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 			tableName: 'users2',
@@ -3754,8 +3728,6 @@ test('add policy with multiple "to" roles', async (t) => {
 				name: 'test',
 				on: undefined,
 				to: ['current_role', 'manager'],
-				using: undefined,
-				withCheck: undefined,
 			},
 			schema: '',
 			tableName: 'users',
@@ -3766,6 +3738,223 @@ test('add policy with multiple "to" roles', async (t) => {
 	for (const st of sqlStatements) {
 		await client.query(st);
 	}
+});
+
+test('rename policy that is linked', async (t) => {
+	const client = new PGlite();
+
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const { sqlStatements: createUsers } = await diffTestSchemas({}, { users }, []);
+
+	const schema1 = {
+		rls: pgPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const schema2 = {
+		users,
+		rls: pgPolicy('newName', { as: 'permissive' }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		['public.users.test->public.users.newName'],
+		false,
+		['public'],
+		undefined,
+		undefined,
+		{ before: createUsers },
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER POLICY "test" ON "users" RENAME TO "newName";',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			newName: 'newName',
+			oldName: 'test',
+			schema: '',
+			tableName: 'users',
+			type: 'rename_policy',
+		},
+	]);
+});
+
+test('alter policy that is linked', async (t) => {
+	const client = new PGlite();
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const { sqlStatements: createUsers } = await diffTestSchemas({}, { users }, []);
+
+	const schema1 = {
+		rls: pgPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const schema2 = {
+		users,
+		rls: pgPolicy('test', { as: 'permissive', to: 'current_role' }).link(users),
+	};
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+		undefined,
+		{ before: createUsers },
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER POLICY "test" ON "users" TO current_role;',
+	]);
+	expect(statements).toStrictEqual([{
+		newData: 'test--PERMISSIVE--ALL--current_role--undefined',
+		oldData: 'test--PERMISSIVE--ALL--public--undefined',
+		schema: '',
+		tableName: 'users',
+		type: 'alter_policy',
+	}]);
+});
+
+test('alter policy that is linked: withCheck', async (t) => {
+	const client = new PGlite();
+
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const { sqlStatements: createUsers } = await diffTestSchemas({}, { users }, []);
+
+	const schema1 = {
+		rls: pgPolicy('test', { as: 'permissive', withCheck: sql`true` }).link(users),
+	};
+
+	const schema2 = {
+		users,
+		rls: pgPolicy('test', { as: 'permissive', withCheck: sql`false` }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+		undefined,
+		{ before: createUsers },
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+});
+
+test('alter policy that is linked: using', async (t) => {
+	const client = new PGlite();
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const { sqlStatements: createUsers } = await diffTestSchemas({}, { users }, []);
+
+	const schema1 = {
+		rls: pgPolicy('test', { as: 'permissive', using: sql`true` }).link(users),
+	};
+
+	const schema2 = {
+		users,
+		rls: pgPolicy('test', { as: 'permissive', using: sql`false` }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+		undefined,
+		{ before: createUsers },
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+});
+
+test('alter policy that is linked: using', async (t) => {
+	const client = new PGlite();
+
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const { sqlStatements: createUsers } = await diffTestSchemas({}, { users }, []);
+
+	const schema1 = {
+		rls: pgPolicy('test', { for: 'insert' }).link(users),
+	};
+
+	const schema2 = {
+		users,
+		rls: pgPolicy('test', { for: 'delete' }).link(users),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+		undefined,
+		{ before: createUsers },
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP POLICY "test" ON "users" CASCADE;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'INSERT',
+				name: 'test',
+				on: undefined,
+				to: [
+					'public',
+				],
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'drop_policy',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'DELETE',
+				name: 'test',
+				on: undefined,
+				to: [
+					'public',
+				],
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
 });
 
 ////
