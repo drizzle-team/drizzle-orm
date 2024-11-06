@@ -63,8 +63,9 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		private returningIds?: SelectedFieldsOrdered,
 	) {
 		super();
+		const queryWithComment = `/* drizzleIntegration */ ${queryString}`;
 		this.rawQuery = {
-			sql: queryString,
+			sql: queryWithComment,
 			// rowsAsArray: true,
 			typeCast: function(field: any, next: any) {
 				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
@@ -74,7 +75,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 			},
 		};
 		this.query = {
-			sql: queryString,
+			sql: queryWithComment,
 			rowsAsArray: true,
 			typeCast: function(field: any, next: any) {
 				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
