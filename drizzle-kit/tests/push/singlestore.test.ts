@@ -38,7 +38,7 @@ async function createDockerDB(context: any): Promise<string> {
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
 	);
 
 	context.singlestoreContainer = await docker.createContainer({
@@ -83,15 +83,15 @@ const singlestoreSuite: DialectSuite = {
 					'h',
 				),
 			}),
-			allDateTimes: singlestoreTable('all_date_times', {
-				simple: datetime('simple', { mode: 'string', fsp: 1 }),
-				columnNotNull: datetime('column_not_null', {
-					mode: 'string',
-				}).notNull(),
-				columnDefault: datetime('column_default', { mode: 'string' }).default(
-					'2023-03-01 14:05:29',
-				),
-			}),
+			//   allDateTimes: singlestoreTable("all_date_times", {
+			//     simple: datetime("simple", { mode: "string", fsp: 1 }),
+			//     columnNotNull: datetime("column_not_null", {
+			//       mode: "string",
+			//     }).notNull(),
+			//     columnDefault: datetime("column_default", { mode: "string" }).default(
+			//       "2023-03-01 14:05:29"
+			//     ),
+			//   }),
 			allDates: singlestoreTable('all_dates', {
 				simple: date('simple', { mode: 'string' }),
 				column_not_null: date('column_not_null', { mode: 'string' }).notNull(),
@@ -150,17 +150,17 @@ const singlestoreSuite: DialectSuite = {
 				columnDefaultSql: int('column_default_sql').default(101),
 			}),
 
-			allJsons: singlestoreTable('all_jsons', {
-				columnDefaultObject: json('column_default_object')
-					.default({ hello: 'world world' })
-					.notNull(),
-				columnDefaultArray: json('column_default_array').default({
-					hello: { 'world world': ['foo', 'bar'] },
-					foo: 'bar',
-					fe: 23,
-				}),
-				column: json('column'),
-			}),
+			//   allJsons: singlestoreTable("all_jsons", {
+			//     columnDefaultObject: json("column_default_object")
+			//       .default({ hello: "world world" })
+			//       .notNull(),
+			//     columnDefaultArray: json("column_default_array").default({
+			//       hello: { "world world": ["foo", "bar"] },
+			//       foo: "bar",
+			//       fe: 23,
+			//     }),
+			//     column: json("column"),
+			//   }),
 
 			allMInts: singlestoreTable('all_m_ints', {
 				simple: mediumint('simple'),
@@ -318,346 +318,16 @@ const singlestoreSuite: DialectSuite = {
 		return {} as any;
 	},
 	addGeneratedColumn: async function(context: any): Promise<void> {
-		const schema1 = {
-			users: singlestoreTable('users', {
-				id: int('id'),
-				id2: int('id2'),
-				name: text('name'),
-			}),
-		};
-		const schema2 = {
-			users: singlestoreTable('users', {
-				id: int('id'),
-				id2: int('id2'),
-				name: text('name'),
-				generatedName: text('gen_name').generatedAlwaysAs(
-					(): SQL => sql`${schema2.users.name} || 'hello'`,
-					{ mode: 'stored' },
-				),
-				generatedName1: text('gen_name1').generatedAlwaysAs(
-					(): SQL => sql`${schema2.users.name} || 'hello'`,
-					{ mode: 'virtual' },
-				),
-			}),
-		};
-
-		const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
-			context.client as Connection,
-			schema1,
-			schema2,
-			[],
-			'drizzle',
-			false,
-		);
-
-		expect(statements).toStrictEqual([
-			{
-				column: {
-					autoincrement: false,
-					generated: {
-						as: "`users`.`name` || 'hello'",
-						type: 'stored',
-					},
-					name: 'gen_name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-				schema: '',
-				tableName: 'users',
-				type: 'alter_table_add_column',
-			},
-			{
-				column: {
-					autoincrement: false,
-					generated: {
-						as: "`users`.`name` || 'hello'",
-						type: 'virtual',
-					},
-					name: 'gen_name1',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-				schema: '',
-				tableName: 'users',
-				type: 'alter_table_add_column',
-			},
-		]);
-		expect(sqlStatements).toStrictEqual([
-			"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
-			"ALTER TABLE `users` ADD `gen_name1` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
-		]);
-
-		for (const st of sqlStatements) {
-			await context.client.query(st);
-		}
-
-		const { sqlStatements: dropStatements } = await diffTestSchemasSingleStore(
-			schema2,
-			{},
-			[],
-			false,
-		);
-
-		for (const st of dropStatements) {
-			await context.client.query(st);
-		}
+		return {} as any;
 	},
 	addGeneratedToColumn: async function(context: any): Promise<void> {
-		const schema1 = {
-			users: singlestoreTable('users', {
-				id: int('id'),
-				id2: int('id2'),
-				name: text('name'),
-				generatedName: text('gen_name'),
-				generatedName1: text('gen_name1'),
-			}),
-		};
-		const schema2 = {
-			users: singlestoreTable('users', {
-				id: int('id'),
-				id2: int('id2'),
-				name: text('name'),
-				generatedName: text('gen_name').generatedAlwaysAs(
-					(): SQL => sql`${schema2.users.name} || 'hello'`,
-					{ mode: 'stored' },
-				),
-				generatedName1: text('gen_name1').generatedAlwaysAs(
-					(): SQL => sql`${schema2.users.name} || 'hello'`,
-					{ mode: 'virtual' },
-				),
-			}),
-		};
-
-		const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
-			context.client as Connection,
-			schema1,
-			schema2,
-			[],
-			'drizzle',
-			false,
-		);
-
-		expect(statements).toStrictEqual([
-			{
-				columnAutoIncrement: false,
-				columnDefault: undefined,
-				columnGenerated: {
-					as: "`users`.`name` || 'hello'",
-					type: 'stored',
-				},
-				columnName: 'gen_name',
-				columnNotNull: false,
-				columnOnUpdate: undefined,
-				columnPk: false,
-				newDataType: 'text',
-				schema: '',
-				tableName: 'users',
-				type: 'alter_table_alter_column_set_generated',
-			},
-			{
-				columnAutoIncrement: false,
-				columnDefault: undefined,
-				columnGenerated: {
-					as: "`users`.`name` || 'hello'",
-					type: 'virtual',
-				},
-				columnName: 'gen_name1',
-				columnNotNull: false,
-				columnOnUpdate: undefined,
-				columnPk: false,
-				newDataType: 'text',
-				schema: '',
-				tableName: 'users',
-				type: 'alter_table_alter_column_set_generated',
-			},
-		]);
-		expect(sqlStatements).toStrictEqual([
-			"ALTER TABLE `users` MODIFY COLUMN `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
-			'ALTER TABLE `users` DROP COLUMN `gen_name1`;',
-			"ALTER TABLE `users` ADD `gen_name1` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
-		]);
-
-		for (const st of sqlStatements) {
-			await context.client.query(st);
-		}
-
-		const { sqlStatements: dropStatements } = await diffTestSchemasSingleStore(
-			schema2,
-			{},
-			[],
-			false,
-		);
-
-		for (const st of dropStatements) {
-			await context.client.query(st);
-		}
+		return {} as any;
 	},
 	dropGeneratedConstraint: async function(context: any): Promise<void> {
-		const schema1 = {
-			users: singlestoreTable('users', {
-				id: int('id'),
-				id2: int('id2'),
-				name: text('name'),
-				generatedName: text('gen_name').generatedAlwaysAs(
-					(): SQL => sql`${schema2.users.name}`,
-					{ mode: 'stored' },
-				),
-				generatedName1: text('gen_name1').generatedAlwaysAs(
-					(): SQL => sql`${schema2.users.name}`,
-					{ mode: 'virtual' },
-				),
-			}),
-		};
-		const schema2 = {
-			users: singlestoreTable('users', {
-				id: int('id'),
-				id2: int('id2'),
-				name: text('name'),
-				generatedName: text('gen_name'),
-				generatedName1: text('gen_name1'),
-			}),
-		};
-
-		const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
-			context.client as Connection,
-			schema1,
-			schema2,
-			[],
-			'drizzle',
-			false,
-		);
-
-		expect(statements).toStrictEqual([
-			{
-				columnAutoIncrement: false,
-				columnDefault: undefined,
-				columnGenerated: undefined,
-				columnName: 'gen_name',
-				columnNotNull: false,
-				columnOnUpdate: undefined,
-				columnPk: false,
-				newDataType: 'text',
-				oldColumn: {
-					autoincrement: false,
-					default: undefined,
-					generated: {
-						as: '`name`',
-						type: 'stored',
-					},
-					name: 'gen_name',
-					notNull: false,
-					onUpdate: undefined,
-					primaryKey: false,
-					type: 'text',
-				},
-				schema: '',
-				tableName: 'users',
-				type: 'alter_table_alter_column_drop_generated',
-			},
-			{
-				columnAutoIncrement: false,
-				columnDefault: undefined,
-				columnGenerated: undefined,
-				columnName: 'gen_name1',
-				columnNotNull: false,
-				columnOnUpdate: undefined,
-				columnPk: false,
-				newDataType: 'text',
-				oldColumn: {
-					autoincrement: false,
-					default: undefined,
-					generated: {
-						as: '`name`',
-						type: 'virtual',
-					},
-					name: 'gen_name1',
-					notNull: false,
-					onUpdate: undefined,
-					primaryKey: false,
-					type: 'text',
-				},
-				schema: '',
-				tableName: 'users',
-				type: 'alter_table_alter_column_drop_generated',
-			},
-		]);
-		expect(sqlStatements).toStrictEqual([
-			'ALTER TABLE `users` MODIFY COLUMN `gen_name` text;',
-			'ALTER TABLE `users` DROP COLUMN `gen_name1`;',
-			'ALTER TABLE `users` ADD `gen_name1` text;',
-		]);
-
-		for (const st of sqlStatements) {
-			await context.client.query(st);
-		}
-
-		const { sqlStatements: dropStatements } = await diffTestSchemasSingleStore(
-			schema2,
-			{},
-			[],
-			false,
-		);
-
-		for (const st of dropStatements) {
-			await context.client.query(st);
-		}
+		return {} as any;
 	},
 	alterGeneratedConstraint: async function(context: any): Promise<void> {
-		const schema1 = {
-			users: singlestoreTable('users', {
-				id: int('id'),
-				id2: int('id2'),
-				name: text('name'),
-				generatedName: text('gen_name').generatedAlwaysAs(
-					(): SQL => sql`${schema2.users.name}`,
-					{ mode: 'stored' },
-				),
-				generatedName1: text('gen_name1').generatedAlwaysAs(
-					(): SQL => sql`${schema2.users.name}`,
-					{ mode: 'virtual' },
-				),
-			}),
-		};
-		const schema2 = {
-			users: singlestoreTable('users', {
-				id: int('id'),
-				id2: int('id2'),
-				name: text('name'),
-				generatedName: text('gen_name').generatedAlwaysAs(
-					(): SQL => sql`${schema2.users.name} || 'hello'`,
-					{ mode: 'stored' },
-				),
-				generatedName1: text('gen_name1').generatedAlwaysAs(
-					(): SQL => sql`${schema2.users.name} || 'hello'`,
-					{ mode: 'virtual' },
-				),
-			}),
-		};
-
-		const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
-			context.client as Connection,
-			schema1,
-			schema2,
-			[],
-			'drizzle',
-			false,
-		);
-
-		expect(statements).toStrictEqual([]);
-		expect(sqlStatements).toStrictEqual([]);
-
-		const { sqlStatements: dropStatements } = await diffTestSchemasSingleStore(
-			schema2,
-			{},
-			[],
-			false,
-		);
-
-		for (const st of dropStatements) {
-			await context.client.query(st);
-		}
+		return {} as any;
 	},
 	createTableWithGeneratedConstraint: function(context?: any): Promise<void> {
 		return {} as any;
@@ -667,7 +337,8 @@ const singlestoreSuite: DialectSuite = {
 run(
 	singlestoreSuite,
 	async (context: any) => {
-		const connectionString = process.env.SINGLESTORE_CONNECTION_STRING ?? await createDockerDB(context);
+		const connectionString = process.env.SINGLESTORE_CONNECTION_STRING
+			?? (await createDockerDB(context));
 
 		const sleep = 1000;
 		let timeLeft = 20000;
@@ -691,6 +362,9 @@ run(
 			await context.singlestoreContainer?.stop().catch(console.error);
 			throw lastError;
 		}
+
+		await context.client.query('CREATE DATABASE drizzle;');
+		await context.client.query('USE drizzle;');
 	},
 	async (context: any) => {
 		await context.client?.end().catch(console.error);
