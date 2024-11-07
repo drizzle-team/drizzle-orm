@@ -3218,7 +3218,7 @@ export const applySingleStoreSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
-	const sqlStatements = fromJson(jsonStatements, 'mysql');
+	const sqlStatements = fromJson(jsonStatements, 'singlestore');
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {

@@ -387,7 +387,7 @@ const column = (
 			: `${casing(name)}: timestamp("${name}")`;
 
 		// TODO: check if SingleStore has defaultNow() or now()
-		defaultValue = defaultValue === 'now()' || defaultValue === '(CURRENT_TIMESTAMP)'
+		defaultValue = defaultValue === 'now()' || defaultValue === 'CURRENT_TIMESTAMP()'
 			? '.defaultNow()'
 			: defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`

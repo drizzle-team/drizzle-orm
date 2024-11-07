@@ -934,6 +934,8 @@ export const prepareSingleStoreCreateTableJson = (
 ): JsonCreateTableStatement => {
 	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints } = table;
 
+	console.log('prepareSingleStoreCreateTableJson', columns);
+
 	return {
 		type: 'create_table',
 		tableName: name,

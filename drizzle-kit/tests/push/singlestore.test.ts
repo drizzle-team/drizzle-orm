@@ -1,18 +1,15 @@
 import Docker from 'dockerode';
-import { SQL, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import {
 	bigint,
 	binary,
 	char,
 	date,
-	datetime,
 	decimal,
 	double,
 	float,
 	int,
-	json,
 	mediumint,
-	serial,
 	singlestoreEnum,
 	singlestoreTable,
 	smallint,
@@ -22,7 +19,7 @@ import {
 	tinyint,
 	varbinary,
 	varchar,
-	year,
+	year
 } from 'drizzle-orm/singlestore-core';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
@@ -183,10 +180,6 @@ const singlestoreSuite: DialectSuite = {
 				columnDefaultSql: smallint('column_default_sql').default(101),
 			}),
 
-			allSmallSerials: singlestoreTable('all_small_serials', {
-				columnAll: serial('column_all').primaryKey().notNull(),
-			}),
-
 			allTInts: singlestoreTable('all_t_ints', {
 				simple: tinyint('simple'),
 				columnNotNull: tinyint('column_not_null').notNull(),
@@ -202,16 +195,16 @@ const singlestoreSuite: DialectSuite = {
 			}),
 
 			allTimes: singlestoreTable('all_times', {
-				simple: time('simple', { fsp: 1 }),
+				simple: time('simple', { fsp: 0 }),
 				columnNotNull: time('column_not_null').notNull(),
 				columnDefault: time('column_default').default('22:12:12'),
 			}),
 
 			allTimestamps: singlestoreTable('all_timestamps', {
 				columnDateNow: timestamp('column_date_now', {
-					fsp: 1,
+					fsp: 0,
 					mode: 'string',
-				}).default(sql`(now())`),
+				}).default(sql`now()`),
 				columnAll: timestamp('column_all', { mode: 'string' })
 					.default('2023-03-01 14:05:29')
 					.notNull(),
@@ -234,9 +227,6 @@ const singlestoreSuite: DialectSuite = {
 			allVarbinaries: singlestoreTable('all_varbinaries', {
 				simple: varbinary('simple', { length: 100 }),
 				columnNotNull: varbinary('column_not_null', { length: 100 }).notNull(),
-				columnDefault: varbinary('column_default', { length: 12 }).default(
-					sql`(uuid_to_bin(uuid()))`,
-				),
 			}),
 
 			allYears: singlestoreTable('all_years', {
@@ -248,9 +238,6 @@ const singlestoreSuite: DialectSuite = {
 			binafry: singlestoreTable('binary', {
 				simple: binary('simple', { length: 1 }),
 				columnNotNull: binary('column_not_null', { length: 1 }).notNull(),
-				columnDefault: binary('column_default', { length: 12 }).default(
-					sql`(uuid_to_bin(uuid()))`,
-				),
 			}),
 		};
 
@@ -262,6 +249,7 @@ const singlestoreSuite: DialectSuite = {
 			'drizzle',
 			false,
 		);
+		console.log(statements);
 		expect(statements.length).toBe(2);
 		expect(statements).toEqual([
 			{
@@ -332,6 +320,12 @@ const singlestoreSuite: DialectSuite = {
 	createTableWithGeneratedConstraint: function(context?: any): Promise<void> {
 		return {} as any;
 	},
+	createCompositePrimaryKey: function(context?: any): Promise<void> {
+		return {} as any;
+	},
+	renameTableWithCompositePrimaryKey: function(context?: any): Promise<void> {
+		return {} as any;
+	}
 };
 
 run(

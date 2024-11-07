@@ -21,7 +21,7 @@ export abstract class SingleStoreDateColumnBaseBuilder<
 	static override readonly [entityKind]: string = 'SingleStoreDateColumnBuilder';
 
 	defaultNow() {
-		return this.default(sql`(now())`);
+		return this.default(sql`now()`);
 	}
 
 	onUpdateNow(): HasDefault<this> {

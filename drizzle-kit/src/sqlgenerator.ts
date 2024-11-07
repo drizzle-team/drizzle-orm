@@ -588,10 +588,12 @@ class SingleStoreCreateTableConvertor extends Convertor {
 			internals,
 		} = st;
 
+		
 		let statement = '';
 		statement += `CREATE TABLE \`${tableName}\` (\n`;
 		for (let i = 0; i < columns.length; i++) {
 			const column = columns[i];
+			console.log('SingleStoreCreateTableConvertor', column.default);
 
 			const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
 			const notNullStatement = column.notNull ? ' NOT NULL' : '';
