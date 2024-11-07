@@ -59,7 +59,6 @@
 		"drizzle-orm": ">=0.23.13"
 	},
 	"devDependencies": {
-		"@rollup/plugin-terser": "^0.4.1",
 		"@rollup/plugin-typescript": "^11.1.0",
 		"@sinclair/typebox": "^0.29.6",
 		"@types/node": "^18.15.10",
