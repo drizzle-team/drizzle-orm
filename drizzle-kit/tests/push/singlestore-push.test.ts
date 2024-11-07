@@ -18,7 +18,7 @@ async function createDockerDB(): Promise<string> {
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
 	);
 
 	singlestoreContainer = await docker.createContainer({
@@ -40,7 +40,7 @@ async function createDockerDB(): Promise<string> {
 }
 
 beforeAll(async () => {
-	const connectionString = process.env.MYSQL_CONNECTION_STRING ?? await createDockerDB();
+	const connectionString = process.env.MYSQL_CONNECTION_STRING ?? (await createDockerDB());
 
 	const sleep = 1000;
 	let timeLeft = 20000;
@@ -64,6 +64,9 @@ beforeAll(async () => {
 		await singlestoreContainer?.stop().catch(console.error);
 		throw lastError;
 	}
+
+	await client.query('CREATE DATABASE drizzle;');
+	await client.query('USE drizzle;');
 });
 
 afterAll(async () => {
@@ -103,7 +106,7 @@ test('add check constraint to table', async () => {
 			type: 'create_check_constraint',
 			tableName: 'test',
 			schema: '',
-			data: 'some_check1;\`test\`.\`values\` < 100',
+			data: 'some_check1;`test`.`values` < 100',
 		},
 		{
 			data: "some_check2;'test' < 100",
@@ -113,7 +116,7 @@ test('add check constraint to table', async () => {
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE \`test\` ADD CONSTRAINT \`some_check1\` CHECK (\`test\`.\`values\` < 100);',
+		'ALTER TABLE `test` ADD CONSTRAINT `some_check1` CHECK (`test`.`values` < 100);',
 		`ALTER TABLE \`test\` ADD CONSTRAINT \`some_check2\` CHECK ('test' < 100);`,
 	]);
 
@@ -158,7 +161,7 @@ test('drop check constraint to table', async () => {
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE \`test\` DROP CONSTRAINT \`some_check1\`;',
+		'ALTER TABLE `test` DROP CONSTRAINT `some_check1`;',
 		`ALTER TABLE \`test\` DROP CONSTRAINT \`some_check2\`;`,
 	]);
 
@@ -218,7 +221,7 @@ test('create view', async () => {
 
 	expect(statements).toStrictEqual([
 		{
-			definition: 'select \`id\` from \`test\`',
+			definition: 'select `id` from `test`',
 			name: 'view',
 			type: 'singlestore_create_view',
 			replace: false,
@@ -265,9 +268,7 @@ test('drop view', async () => {
 			type: 'drop_view',
 		},
 	]);
-	expect(sqlStatements).toStrictEqual([
-		'DROP VIEW \`view\`;',
-	]);
+	expect(sqlStatements).toStrictEqual(['DROP VIEW `view`;']);
 	await client.query(`DROP TABLE \`test\`;`);
 	await client.query(`DROP VIEW \`view\`;`);
 });
@@ -279,7 +280,12 @@ test('alter view ".as"', async () => {
 
 	const schema1 = {
 		test: table,
-		view: singlestoreView('view').as((qb) => qb.select().from(table).where(sql`${table.id} = 1`)),
+		view: singlestoreView('view').as((qb) =>
+			qb
+				.select()
+				.from(table)
+				.where(sql`${table.id} = 1`)
+		),
 	};
 
 	const schema2 = {
@@ -310,26 +316,37 @@ test('alter meta options with distinct in definition', async () => {
 
 	const schema1 = {
 		test: table,
-		view: singlestoreView('view').withCheckOption('cascaded').sqlSecurity('definer').algorithm('merge').as((
-			qb,
-		) => qb.selectDistinct().from(table).where(sql`${table.id} = 1`)),
+		view: singlestoreView('view')
+			.withCheckOption('cascaded')
+			.sqlSecurity('definer')
+			.algorithm('merge')
+			.as((qb) =>
+				qb
+					.selectDistinct()
+					.from(table)
+					.where(sql`${table.id} = 1`)
+			),
 	};
 
 	const schema2 = {
 		test: table,
-		view: singlestoreView('view').withCheckOption('cascaded').sqlSecurity('definer').algorithm('undefined').as((qb) =>
-			qb.selectDistinct().from(table)
-		),
+		view: singlestoreView('view')
+			.withCheckOption('cascaded')
+			.sqlSecurity('definer')
+			.algorithm('undefined')
+			.as((qb) => qb.selectDistinct().from(table)),
 	};
 
-	await expect(diffTestSchemasPushSingleStore(
-		client,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	)).rejects.toThrowError();
+	await expect(
+		diffTestSchemasPushSingleStore(
+			client,
+			schema1,
+			schema2,
+			[],
+			'drizzle',
+			false,
+		),
+	).rejects.toThrowError();
 
 	await client.query(`DROP TABLE \`test\`;`);
 });
