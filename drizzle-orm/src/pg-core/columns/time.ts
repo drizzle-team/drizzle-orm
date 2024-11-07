@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
 import type { Precision } from './timestamp.ts';
@@ -20,7 +21,7 @@ export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTime'>
 	T,
 	{ withTimezone: boolean; precision: number | undefined }
 > {
-	static readonly [entityKind]: string = 'PgTimeBuilder';
+	static override readonly [entityKind]: string = 'PgTimeBuilder';
 
 	constructor(
 		name: T['name'],
@@ -41,7 +42,7 @@ export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTime'>
 }
 
 export class PgTime<T extends ColumnBaseConfig<'string', 'PgTime'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgTime';
+	static override readonly [entityKind]: string = 'PgTime';
 
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
@@ -63,6 +64,10 @@ export interface TimeConfig {
 	withTimezone?: boolean;
 }
 
-export function time<TName extends string>(name: TName, config: TimeConfig = {}): PgTimeBuilderInitial<TName> {
+export function time(): PgTimeBuilderInitial<''>;
+export function time(config?: TimeConfig): PgTimeBuilderInitial<''>;
+export function time<TName extends string>(name: TName, config?: TimeConfig): PgTimeBuilderInitial<TName>;
+export function time(a?: string | TimeConfig, b: TimeConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<TimeConfig>(a, b);
 	return new PgTimeBuilder(name, config.withTimezone ?? false, config.precision);
 }

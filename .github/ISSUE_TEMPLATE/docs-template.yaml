@@ -1,0 +1,20 @@
+name: "Documentation Enhancement"
+description: Suggest documentation improvements
+title: "[DOCS]:"
+labels: ["docs"]
+
+body:
+  - type: checkboxes
+    id: verified
+    attributes:
+      label: Enhancement hasn't been filed before.
+      options:
+        - label: I have verified this enhancement I'm about to request hasn't been suggested before.
+          required: true
+
+  - type: textarea
+    attributes:
+      label: Describe the enhancement you want to request
+      description: What do you want to change or add to the documentation?
+    validations:
+      required: true

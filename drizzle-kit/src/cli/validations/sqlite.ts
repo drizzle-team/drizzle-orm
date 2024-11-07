@@ -26,11 +26,6 @@ export const sqliteCredentials = union([
 
 export type SqliteCredentials =
 	| {
-		driver: 'turso';
-		url: string;
-		authToken: string;
-	}
-	| {
 		driver: 'd1-http';
 		accountId: string;
 		databaseId: string;

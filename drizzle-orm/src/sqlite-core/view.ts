@@ -10,7 +10,6 @@ import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { sqliteTable } from './table.ts';
 import { SQLiteViewBase } from './view-base.ts';
-import { SQLiteViewConfig } from './view-common.ts';
 
 export interface ViewBuilderConfig {
 	algorithm?: 'undefined' | 'merge' | 'temptable';
@@ -37,7 +36,7 @@ export class ViewBuilderCore<
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
-	static readonly [entityKind]: string = 'SQLiteViewBuilder';
+	static override readonly [entityKind]: string = 'SQLiteViewBuilder';
 
 	as<TSelection extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
@@ -55,7 +54,7 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 		const aliasedSelectedFields = qb.getSelectedFields();
 		return new Proxy(
 			new SQLiteView({
-				sqliteConfig: this.config,
+				// sqliteConfig: this.config,
 				config: {
 					name: this.name,
 					schema: undefined,
@@ -74,7 +73,7 @@ export class ManualViewBuilder<
 > extends ViewBuilderCore<
 	{ name: TName; columns: TColumns }
 > {
-	static readonly [entityKind]: string = 'SQLiteManualViewBuilder';
+	static override readonly [entityKind]: string = 'SQLiteManualViewBuilder';
 
 	private columns: Record<string, SQLiteColumn>;
 
@@ -89,7 +88,6 @@ export class ManualViewBuilder<
 	existing(): SQLiteViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'sqlite'>> {
 		return new Proxy(
 			new SQLiteView({
-				sqliteConfig: undefined,
 				config: {
 					name: this.name,
 					schema: undefined,
@@ -109,7 +107,6 @@ export class ManualViewBuilder<
 	as(query: SQL): SQLiteViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'sqlite'>> {
 		return new Proxy(
 			new SQLiteView({
-				sqliteConfig: this.config,
 				config: {
 					name: this.name,
 					schema: undefined,
@@ -132,13 +129,9 @@ export class SQLiteView<
 	TExisting extends boolean = boolean,
 	TSelection extends ColumnsSelection = ColumnsSelection,
 > extends SQLiteViewBase<TName, TExisting, TSelection> {
-	static readonly [entityKind]: string = 'SQLiteView';
+	static override readonly [entityKind]: string = 'SQLiteView';
 
-	/** @internal */
-	[SQLiteViewConfig]: ViewBuilderConfig | undefined;
-
-	constructor({ sqliteConfig, config }: {
-		sqliteConfig: ViewBuilderConfig | undefined;
+	constructor({ config }: {
 		config: {
 			name: TName;
 			schema: string | undefined;
@@ -147,7 +140,6 @@ export class SQLiteView<
 		};
 	}) {
 		super(config);
-		this[SQLiteViewConfig] = sqliteConfig;
 	}
 }
 
