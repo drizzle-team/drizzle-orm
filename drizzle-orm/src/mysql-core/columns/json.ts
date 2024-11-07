@@ -11,10 +11,11 @@ export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlJson'>> extends MySqlColumnBuilder<T> {
-	static readonly [entityKind]: string = 'MySqlJsonBuilder';
+	static override readonly [entityKind]: string = 'MySqlJsonBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'json', 'MySqlJson');
@@ -29,7 +30,7 @@ export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlJs
 }
 
 export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlJson';
+	static override readonly [entityKind]: string = 'MySqlJson';
 
 	getSQLType(): string {
 		return 'json';
@@ -40,6 +41,8 @@ export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends 
 	}
 }
 
-export function json<TName extends string>(name: TName): MySqlJsonBuilderInitial<TName> {
-	return new MySqlJsonBuilder(name);
+export function json(): MySqlJsonBuilderInitial<''>;
+export function json<TName extends string>(name: TName): MySqlJsonBuilderInitial<TName>;
+export function json(name?: string) {
+	return new MySqlJsonBuilder(name ?? '');
 }

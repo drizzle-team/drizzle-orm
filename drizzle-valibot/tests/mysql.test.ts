@@ -1,4 +1,3 @@
-import test from 'ava';
 import {
 	bigint,
 	binary,
@@ -34,7 +33,6 @@ import {
 	bigint as valibigint,
 	boolean as valiboolean,
 	date as valiDate,
-	enumType,
 	maxLength,
 	minLength,
 	minValue,
@@ -42,10 +40,12 @@ import {
 	object,
 	optional,
 	parse,
+	picklist,
 	string,
 } from 'valibot';
+import { expect, test } from 'vitest';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 const customInt = customType<{ data: number }>({
 	dataType() {
@@ -140,39 +140,35 @@ const testTableRow = {
 	autoIncrement: 1,
 };
 
-test('insert valid row', (t) => {
+test('insert valid row', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.deepEqual(parse(schema, testTableRow), testTableRow);
+	expect(parse(schema, testTableRow)).toStrictEqual(testTableRow);
 });
 
-test('insert invalid varchar length', (t) => {
+test('insert invalid varchar length', () => {
 	const schema = createInsertSchema(testTable);
-	t.throws(
-		() =>
-			parse(schema, {
-				...testTableRow,
-				varchar: 'A'.repeat(201),
-			}),
-		undefined, /* schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success */
-	);
+
+	expect(() =>
+		parse(schema, {
+			...testTableRow,
+			varchar: 'A'.repeat(201),
+		})
+	).toThrow(undefined);
 });
 
-test('insert smaller char length should work', (t) => {
+test('insert smaller char length should work', () => {
 	const schema = createInsertSchema(testTable);
 
 	const input = { ...testTableRow, char: 'abc' };
 
-	t.deepEqual(parse(schema, input), input);
+	expect(parse(schema, input)).toStrictEqual(input);
 });
 
-test('insert larger char length should fail', (t) => {
+test('insert larger char length should fail', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.throws(
-		() => parse(schema, { ...testTableRow, char: 'abcde' }),
-		undefined,
-	);
+	expect(() => parse(schema, { ...testTableRow, char: 'abcde' })).toThrow(undefined);
 });
 
 test('insert schema', (t) => {
@@ -184,7 +180,7 @@ test('insert schema', (t) => {
 		binary: string(),
 		boolean: valiboolean(),
 		char: string([minLength(4), maxLength(4)]),
-		charEnum: enumType([
+		charEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -196,7 +192,7 @@ test('insert schema', (t) => {
 		datetimeString: string(),
 		decimal: string(),
 		double: number(),
-		enum: enumType([
+		enum: picklist([
 			'a',
 			'b',
 			'c',
@@ -209,25 +205,25 @@ test('insert schema', (t) => {
 		serial: optional(number()),
 		smallint: number(),
 		text: string(),
-		textEnum: enumType([
+		textEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		tinytext: string(),
-		tinytextEnum: enumType([
+		tinytextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		mediumtext: string(),
-		mediumtextEnum: enumType([
+		mediumtextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		longtext: string(),
-		longtextEnum: enumType([
+		longtextEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -238,7 +234,7 @@ test('insert schema', (t) => {
 		tinyint: number(),
 		varbinary: string([maxLength(200)]),
 		varchar: string([maxLength(200)]),
-		varcharEnum: enumType([
+		varcharEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -259,7 +255,7 @@ test('select schema', (t) => {
 		binary: string(),
 		boolean: valiboolean(),
 		char: string([minLength(4), maxLength(4)]),
-		charEnum: enumType([
+		charEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -271,7 +267,7 @@ test('select schema', (t) => {
 		datetimeString: string(),
 		decimal: string(),
 		double: number(),
-		enum: enumType([
+		enum: picklist([
 			'a',
 			'b',
 			'c',
@@ -285,25 +281,25 @@ test('select schema', (t) => {
 		serial: number(),
 		smallint: number(),
 		text: string(),
-		textEnum: enumType([
+		textEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		tinytext: string(),
-		tinytextEnum: enumType([
+		tinytextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		mediumtext: string(),
-		mediumtextEnum: enumType([
+		mediumtextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		longtext: string(),
-		longtextEnum: enumType([
+		longtextEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -314,7 +310,7 @@ test('select schema', (t) => {
 		tinyint: number(),
 		varbinary: string([maxLength(200)]),
 		varchar: string([maxLength(200)]),
-		varcharEnum: enumType([
+		varcharEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -337,7 +333,7 @@ test('select schema w/ refine', (t) => {
 		binary: string(),
 		boolean: valiboolean(),
 		char: string([minLength(5), maxLength(5)]),
-		charEnum: enumType([
+		charEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -349,7 +345,7 @@ test('select schema w/ refine', (t) => {
 		datetimeString: string(),
 		decimal: string(),
 		double: number(),
-		enum: enumType([
+		enum: picklist([
 			'a',
 			'b',
 			'c',
@@ -362,25 +358,25 @@ test('select schema w/ refine', (t) => {
 		serial: number(),
 		smallint: number(),
 		text: string(),
-		textEnum: enumType([
+		textEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		tinytext: string(),
-		tinytextEnum: enumType([
+		tinytextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		mediumtext: string(),
-		mediumtextEnum: enumType([
+		mediumtextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		longtext: string(),
-		longtextEnum: enumType([
+		longtextEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -391,7 +387,7 @@ test('select schema w/ refine', (t) => {
 		tinyint: number(),
 		varbinary: string([maxLength(200)]),
 		varchar: string([maxLength(200)]),
-		varcharEnum: enumType([
+		varcharEnum: picklist([
 			'a',
 			'b',
 			'c',

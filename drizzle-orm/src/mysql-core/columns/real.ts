@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<{
@@ -11,6 +12,7 @@ export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<{
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlReal'>>
@@ -19,7 +21,7 @@ export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySql
 		MySqlRealConfig
 	>
 {
-	static readonly [entityKind]: string = 'MySqlRealBuilder';
+	static override readonly [entityKind]: string = 'MySqlRealBuilder';
 
 	constructor(name: T['name'], config: MySqlRealConfig | undefined) {
 		super(name, 'number', 'MySqlReal');
@@ -39,7 +41,7 @@ export class MySqlReal<T extends ColumnBaseConfig<'number', 'MySqlReal'>> extend
 	T,
 	MySqlRealConfig
 > {
-	static readonly [entityKind]: string = 'MySqlReal';
+	static override readonly [entityKind]: string = 'MySqlReal';
 
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;
@@ -60,6 +62,15 @@ export interface MySqlRealConfig {
 	scale?: number;
 }
 
-export function real<TName extends string>(name: TName, config: MySqlRealConfig = {}): MySqlRealBuilderInitial<TName> {
+export function real(): MySqlRealBuilderInitial<''>;
+export function real(
+	config?: MySqlRealConfig,
+): MySqlRealBuilderInitial<''>;
+export function real<TName extends string>(
+	name: TName,
+	config?: MySqlRealConfig,
+): MySqlRealBuilderInitial<TName>;
+export function real(a?: string | MySqlRealConfig, b: MySqlRealConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<MySqlRealConfig>(a, b);
 	return new MySqlRealBuilder(name, config);
 }

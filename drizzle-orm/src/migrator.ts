@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import path from 'node:path';
 
 export interface KitConfig {
 	out: string;
@@ -10,6 +9,7 @@ export interface KitConfig {
 export interface MigrationConfig {
 	migrationsFolder: string;
 	migrationsTable?: string;
+	migrationsSchema?: string;
 }
 
 export interface MigrationMeta {
@@ -19,19 +19,8 @@ export interface MigrationMeta {
 	bps: boolean;
 }
 
-export function readMigrationFiles(config: string | MigrationConfig): MigrationMeta[] {
-	let migrationFolderTo: string | undefined;
-	if (typeof config === 'string') {
-		const configAsString = fs.readFileSync(path.resolve('.', config), 'utf8');
-		const jsonConfig = JSON.parse(configAsString) as KitConfig;
-		migrationFolderTo = jsonConfig.out;
-	} else {
-		migrationFolderTo = config.migrationsFolder;
-	}
-
-	if (!migrationFolderTo) {
-		throw new Error('no migration folder defined');
-	}
+export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
+	const migrationFolderTo = config.migrationsFolder;
 
 	const migrationQueries: MigrationMeta[] = [];
 
