@@ -4,6 +4,8 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
+	GeneratedColumnConfig,
+	HasGenerated,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
@@ -15,6 +17,7 @@ import type { Update } from '~/utils.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
+import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
@@ -43,7 +46,7 @@ export abstract class PgColumnBuilder<
 {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
-	static readonly [entityKind]: string = 'PgColumnBuilder';
+	static override readonly [entityKind]: string = 'PgColumnBuilder';
 
 	array(size?: number): PgArrayBuilder<
 		& {
@@ -53,6 +56,7 @@ export abstract class PgColumnBuilder<
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
 			enumValues: T['enumValues'];
+			generated: GeneratedColumnConfig<T['data']>;
 		}
 		& (T extends { notNull: true } ? { notNull: true } : {})
 		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
@@ -77,6 +81,15 @@ export abstract class PgColumnBuilder<
 		this.config.uniqueName = name;
 		this.config.uniqueType = config?.nulls;
 		return this;
+	}
+
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this> {
+		this.config.generated = {
+			as,
+			type: 'always',
+			mode: 'stored',
+		};
+		return this as any;
 	}
 
 	/** @internal */
@@ -121,7 +134,7 @@ export abstract class PgColumn<
 	TRuntimeConfig extends object = {},
 	TTypeConfig extends object = {},
 > extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }> {
-	static readonly [entityKind]: string = 'PgColumn';
+	static override readonly [entityKind]: string = 'PgColumn';
 
 	constructor(
 		override readonly table: PgTable,
@@ -139,7 +152,7 @@ export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' |
 export class ExtraConfigColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 > extends PgColumn<T, IndexedExtraConfigType> {
-	static readonly [entityKind]: string = 'ExtraConfigColumn';
+	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
 	override getSQLType(): string {
 		return this.getSQLType();
@@ -215,15 +228,18 @@ export class IndexedColumn {
 	static readonly [entityKind]: string = 'IndexedColumn';
 	constructor(
 		name: string | undefined,
+		keyAsName: boolean,
 		type: string,
 		indexConfig: IndexedExtraConfigType,
 	) {
 		this.name = name;
+		this.keyAsName = keyAsName;
 		this.type = type;
 		this.indexConfig = indexConfig;
 	}
 
 	name: string | undefined;
+	keyAsName: boolean;
 	type: string;
 	indexConfig: IndexedExtraConfigType;
 }
@@ -276,7 +292,7 @@ export class PgArray<
 > extends PgColumn<T> {
 	readonly size: number | undefined;
 
-	static readonly [entityKind]: string = 'PgArray';
+	static override readonly [entityKind]: string = 'PgArray';
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,

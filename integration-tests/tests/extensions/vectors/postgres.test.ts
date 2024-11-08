@@ -42,7 +42,7 @@ async function createDockerDB(): Promise<string> {
 }
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB());
+	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'] ?? (await createDockerDB());
 
 	const sleep = 250;
 	let timeLeft = 5000;
@@ -73,7 +73,7 @@ beforeAll(async () => {
 	}
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 
-	await db.execute(sql`CREATE EXTENSION vector;`);
+	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`);
 });
 
 afterAll(async () => {

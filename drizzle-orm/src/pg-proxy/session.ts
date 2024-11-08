@@ -4,7 +4,7 @@ import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery as PreparedQueryBase, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { QueryWithTypings } from '~/sql/sql.ts';
@@ -21,7 +21,7 @@ export class PgRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<PgRemoteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgRemoteSession';
+	static override readonly [entityKind]: string = 'PgRemoteSession';
 
 	private logger: Logger;
 
@@ -66,7 +66,7 @@ export class PgProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<PgRemoteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgProxyTransaction';
+	static override readonly [entityKind]: string = 'PgProxyTransaction';
 
 	override async transaction<T>(
 		_transaction: (tx: PgProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
@@ -76,7 +76,7 @@ export class PgProxyTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryBase<T> {
-	static readonly [entityKind]: string = 'PgProxyPreparedQuery';
+	static override readonly [entityKind]: string = 'PgProxyPreparedQuery';
 
 	constructor(
 		private client: RemoteCallback,
@@ -130,7 +130,8 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 		});
 	}
 
-	async all() {}
+	async all() {
+	}
 
 	/** @internal */
 	isResponseInArrayMode(): boolean {
@@ -138,7 +139,7 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 	}
 }
 
-export interface PgRemoteQueryResultHKT extends QueryResultHKT {
+export interface PgRemoteQueryResultHKT extends PgQueryResultHKT {
 	type: Assume<this['row'], {
 		[column: string]: any;
 	}>[];

@@ -18,7 +18,10 @@ it('dynamic imports check for CommonJS', async () => {
 	const promises: ProcessPromise[] = [];
 	for (const [i, key] of Object.keys(pj['exports']).entries()) {
 		const o1 = path.join('drizzle-orm', key);
-		if (o1.startsWith('drizzle-orm/pglite')) {
+		if (
+			o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/pglite')
+			|| o1.startsWith('drizzle-orm/expo-sqlite') || o1.startsWith('drizzle-orm/libsql/wasm')
+		) {
 			continue;
 		}
 		fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.cjs`, 'requ');
@@ -43,6 +46,9 @@ it('dynamic imports check for ESM', async () => {
 	const promises: ProcessPromise[] = [];
 	for (const [i, key] of Object.keys(pj['exports']).entries()) {
 		const o1 = path.join('drizzle-orm', key);
+		if (o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/expo-sqlite')) {
+			continue;
+		}
 		fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
 		fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
 		promises.push($`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow());

@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
@@ -11,12 +12,13 @@ export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryB
 	data: Buffer | string;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MySqlVarBinary'>>
 	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>
 {
-	static readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
+	static override readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: MySqlVarbinaryOptions) {
@@ -38,7 +40,7 @@ export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', '
 export class MySqlVarBinary<
 	T extends ColumnBaseConfig<'buffer', 'MySqlVarBinary'>,
 > extends MySqlColumn<T, MySqlVarbinaryOptions> {
-	static readonly [entityKind]: string = 'MySqlVarBinary';
+	static override readonly [entityKind]: string = 'MySqlVarBinary';
 
 	length: number | undefined = this.config.length;
 
@@ -64,9 +66,14 @@ export interface MySqlVarbinaryOptions {
 	length: number;
 }
 
+export function varbinary(
+	config: MySqlVarbinaryOptions,
+): MySqlVarBinaryBuilderInitial<''>;
 export function varbinary<TName extends string>(
 	name: TName,
-	options: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<TName> {
-	return new MySqlVarBinaryBuilder(name, options);
+	config: MySqlVarbinaryOptions,
+): MySqlVarBinaryBuilderInitial<TName>;
+export function varbinary(a?: string | MySqlVarbinaryOptions, b?: MySqlVarbinaryOptions) {
+	const { name, config } = getColumnNameAndConfig<MySqlVarbinaryOptions>(a, b);
+	return new MySqlVarBinaryBuilder(name, config);
 }

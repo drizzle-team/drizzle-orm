@@ -1,4 +1,3 @@
-import test from 'ava';
 import {
 	bigint,
 	binary,
@@ -29,9 +28,10 @@ import {
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
+import { expect, test } from 'vitest';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '~/index';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 const customInt = customType<{ data: number }>({
 	dataType() {
@@ -125,28 +125,28 @@ const testTableRow = {
 	autoIncrement: 1,
 };
 
-test('insert valid row', (t) => {
+test('insert valid row', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.is(schema.safeParse(testTableRow).success, true);
+	expect(schema.safeParse(testTableRow).success).toBeTruthy();
 });
 
-test('insert invalid varchar length', (t) => {
+test('insert invalid varchar length', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.is(schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success, false);
+	expect(schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success).toBeFalsy();
 });
 
-test('insert smaller char length should work', (t) => {
+test('insert smaller char length should work', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.is(schema.safeParse({ ...testTableRow, char: 'abc' }).success, true);
+	expect(schema.safeParse({ ...testTableRow, char: 'abc' }).success).toBeTruthy();
 });
 
-test('insert larger char length should fail', (t) => {
+test('insert larger char length should fail', () => {
 	const schema = createInsertSchema(testTable);
 
-	t.is(schema.safeParse({ ...testTableRow, char: 'abcde' }).success, false);
+	expect(schema.safeParse({ ...testTableRow, char: 'abcde' }).success).toBeFalsy();
 });
 
 test('insert schema', (t) => {

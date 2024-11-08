@@ -46,7 +46,7 @@ export interface PgTransactionConfig {
 }
 
 export abstract class PgSession<
-	TQueryResult extends QueryResultHKT = QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > {
@@ -86,6 +86,14 @@ export abstract class PgSession<
 		).all();
 	}
 
+	async count(sql: SQL): Promise<number> {
+		const res = await this.execute<[{ count: string }]>(sql);
+
+		return Number(
+			res[0]['count'],
+		);
+	}
+
 	abstract transaction<T>(
 		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
@@ -93,11 +101,11 @@ export abstract class PgSession<
 }
 
 export abstract class PgTransaction<
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > extends PgDatabase<TQueryResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgTransaction';
+	static override readonly [entityKind]: string = 'PgTransaction';
 
 	constructor(
 		dialect: PgDialect,
@@ -140,12 +148,12 @@ export abstract class PgTransaction<
 	): Promise<T>;
 }
 
-export interface QueryResultHKT {
-	readonly $brand: 'QueryRowHKT';
+export interface PgQueryResultHKT {
+	readonly $brand: 'PgQueryResultHKT';
 	readonly row: unknown;
 	readonly type: unknown;
 }
 
-export type QueryResultKind<TKind extends QueryResultHKT, TRow> = (TKind & {
+export type PgQueryResultKind<TKind extends PgQueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];

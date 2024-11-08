@@ -4,7 +4,8 @@ import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { QueryPromise } from '../index.ts';
+// import { QueryPromise } from '../index.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import { BaseSQLiteDatabase } from './db.ts';
 import type { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
@@ -19,7 +20,7 @@ export interface PreparedQueryConfig {
 }
 
 export class ExecuteResultSync<T> extends QueryPromise<T> {
-	static readonly [entityKind]: string = 'ExecuteResultSync';
+	static override readonly [entityKind]: string = 'ExecuteResultSync';
 
 	constructor(private resultCb: () => T) {
 		super();
@@ -186,6 +187,12 @@ export abstract class SQLiteSession<
 		>;
 	}
 
+	async count(sql: SQL) {
+		const result = await this.values(sql) as [[number]];
+
+		return result[0][0];
+	}
+
 	/** @internal */
 	extractRawValuesValueFromBatchResult(_result: unknown): unknown {
 		throw new Error('Not implemented');
@@ -202,7 +209,7 @@ export abstract class SQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends BaseSQLiteDatabase<TResultType, TRunResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteTransaction';
+	static override readonly [entityKind]: string = 'SQLiteTransaction';
 
 	constructor(
 		resultType: TResultType,

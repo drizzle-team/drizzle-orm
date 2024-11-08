@@ -11,10 +11,11 @@ export type PgCidrBuilderInitial<TName extends string> = PgCidrBuilder<{
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgCidrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgCidr'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgCidrBuilder';
+	static override readonly [entityKind]: string = 'PgCidrBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'string', 'PgCidr');
@@ -29,13 +30,15 @@ export class PgCidrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgCidr'>
 }
 
 export class PgCidr<T extends ColumnBaseConfig<'string', 'PgCidr'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgCidr';
+	static override readonly [entityKind]: string = 'PgCidr';
 
 	getSQLType(): string {
 		return 'cidr';
 	}
 }
 
-export function cidr<TName extends string>(name: TName): PgCidrBuilderInitial<TName> {
-	return new PgCidrBuilder(name);
+export function cidr(): PgCidrBuilderInitial<''>;
+export function cidr<TName extends string>(name: TName): PgCidrBuilderInitial<TName>;
+export function cidr(name?: string) {
+	return new PgCidrBuilder(name ?? '');
 }

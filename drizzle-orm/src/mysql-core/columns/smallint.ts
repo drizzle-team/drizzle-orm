@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 import type { MySqlIntConfig } from './int.ts';
 
@@ -12,12 +13,13 @@ export type MySqlSmallIntBuilderInitial<TName extends string> = MySqlSmallIntBui
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSmallInt'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlSmallIntBuilder';
+	static override readonly [entityKind]: string = 'MySqlSmallIntBuilder';
 
 	constructor(name: T['name'], config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlSmallInt');
@@ -38,7 +40,7 @@ export class MySqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'M
 export class MySqlSmallInt<T extends ColumnBaseConfig<'number', 'MySqlSmallInt'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlSmallInt';
+	static override readonly [entityKind]: string = 'MySqlSmallInt';
 
 	getSQLType(): string {
 		return `smallint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -52,9 +54,15 @@ export class MySqlSmallInt<T extends ColumnBaseConfig<'number', 'MySqlSmallInt'>
 	}
 }
 
+export function smallint(): MySqlSmallIntBuilderInitial<''>;
+export function smallint(
+	config?: MySqlIntConfig,
+): MySqlSmallIntBuilderInitial<''>;
 export function smallint<TName extends string>(
 	name: TName,
 	config?: MySqlIntConfig,
-): MySqlSmallIntBuilderInitial<TName> {
+): MySqlSmallIntBuilderInitial<TName>;
+export function smallint(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
 	return new MySqlSmallIntBuilder(name, config);
 }

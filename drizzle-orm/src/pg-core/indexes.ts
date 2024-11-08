@@ -111,14 +111,14 @@ export class IndexBuilderOn {
 
 	constructor(private unique: boolean, private name?: string) {}
 
-	on(...columns: [Partial<ExtraConfigColumn> | SQL, ...Partial<ExtraConfigColumn>[] | SQL[]]): IndexBuilder {
+	on(...columns: [Partial<ExtraConfigColumn> | SQL, ...Partial<ExtraConfigColumn | SQL>[]]): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
 				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, it.columnType!, it.indexConfig!);
+				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
 				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
 				return clonedIndexedColumn;
 			}),
@@ -128,14 +128,14 @@ export class IndexBuilderOn {
 		);
 	}
 
-	onOnly(...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn>[] | SQL[]]): IndexBuilder {
+	onOnly(...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn | SQL>[]]): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
 				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, it.columnType!, it.indexConfig!);
+				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
 				it.indexConfig = it.defaultConfig;
 				return clonedIndexedColumn;
 			}),
@@ -158,7 +158,7 @@ export class IndexBuilderOn {
 	 */
 	using(
 		method: PgIndexMethod,
-		...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn>[] | SQL[]]
+		...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn | SQL>[]]
 	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
@@ -166,7 +166,7 @@ export class IndexBuilderOn {
 					return it;
 				}
 				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, it.columnType!, it.indexConfig!);
+				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
 				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
 				return clonedIndexedColumn;
 			}),
