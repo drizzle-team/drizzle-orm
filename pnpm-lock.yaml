@@ -41,6 +41,9 @@ importers:
       drizzle-orm-old:
         specifier: npm:drizzle-orm@^0.27.2
         version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.687.0)(@cloudflare/workers-types@4.20241106.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.9.5)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@7.6.11)(@types/pg@8.11.10)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.5.0)(bun-types@1.1.34)(knex@2.5.1(better-sqlite3@11.5.0)(mysql2@3.3.3)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.3.3)(pg@8.13.1)(postgres@3.4.5)(sql.js@1.12.0)(sqlite3@5.1.7)
+      drizzle-seed:
+        specifier: workspace:./drizzle-seed/dist
+        version: link:drizzle-seed/dist
       eslint:
         specifier: ^8.50.0
         version: 8.57.1
@@ -428,8 +431,8 @@ importers:
         specifier: ^0.16.1
         version: 0.16.4
       '@electric-sql/pglite':
-        specifier: ^0.1.5
-        version: 0.1.5
+        specifier: ^0.2.12
+        version: 0.2.12
       '@rollup/plugin-terser':
         specifier: ^0.4.4
         version: 0.4.4(rollup@4.24.4)
@@ -688,9 +691,6 @@ importers:
       drizzle-prisma-generator:
         specifier: ^0.1.2
         version: 0.1.7
-      drizzle-seed:
-        specifier: workspace:../drizzle-seed/dist
-        version: link:../drizzle-seed/dist
       drizzle-typebox:
         specifier: workspace:../drizzle-typebox/dist
         version: link:../drizzle-typebox/dist
@@ -750,8 +750,8 @@ importers:
         specifier: ^4.20241004.0
         version: 4.20241106.0
       '@neondatabase/serverless':
-        specifier: 0.9.0
-        version: 0.9.0
+        specifier: ^0.9.0
+        version: 0.9.5
       '@originjs/vite-plugin-commonjs':
         specifier: ^1.0.3
         version: 1.0.3
@@ -1849,9 +1849,6 @@ packages:
 
   '@drizzle-team/studio@0.0.5':
     resolution: {integrity: sha512-ps5qF0tMxWRVu+V5gvCRrQNqlY92aTnIKdq27gm9LZMSdaKYZt6AVvSK1dlUMzs6Rt0Jm80b+eWct6xShBKhIw==}
-
-  '@electric-sql/pglite@0.1.5':
-    resolution: {integrity: sha512-eymv4ONNvoPZQTvOQIi5dbpR+J5HzEv0qQH9o/y3gvNheJV/P/NFcrbsfJZYTsDKoq7DKrTiFNexsRkJKy8x9Q==}
 
   '@electric-sql/pglite@0.2.12':
     resolution: {integrity: sha512-J/X42ujcoFEbOkgRyoNqZB5qcqrnJRWVlwpH3fKYoJkTz49N91uAK/rDSSG/85WRas9nC9mdV4FnMTxnQWE/rw==}
@@ -2989,9 +2986,6 @@ packages:
 
   '@neondatabase/serverless@0.7.2':
     resolution: {integrity: sha512-wU3WA2uTyNO7wjPs3Mg0G01jztAxUxzd9/mskMmtPwPTjf7JKWi9AW5/puOGXLxmZ9PVgRFeBVRVYq5nBPhsCg==}
-
-  '@neondatabase/serverless@0.9.0':
-    resolution: {integrity: sha512-mmJnUAzlzvxNSZuuhI6kgJjH+JgFdBMYUWxihtq/nj0Tjt+Y5UU3W+SvRFoucnd5NObYkuLYQzk+zV5DGFKGJg==}
 
   '@neondatabase/serverless@0.9.5':
     resolution: {integrity: sha512-siFas6gItqv6wD/pZnvdu34wEqgG3nSE6zWZdq5j2DEsa+VvX8i/5HXJOo06qrw5axPXn+lGCxeR+NLaSPIXug==}
@@ -10928,8 +10922,6 @@ snapshots:
 
   '@drizzle-team/studio@0.0.5': {}
 
-  '@electric-sql/pglite@0.1.5': {}
-
   '@electric-sql/pglite@0.2.12': {}
 
   '@esbuild-kit/core-utils@3.3.2':
@@ -11920,10 +11912,6 @@ snapshots:
     dependencies:
       '@types/pg': 8.6.6
 
-  '@neondatabase/serverless@0.9.0':
-    dependencies:
-      '@types/pg': 8.6.6
-
   '@neondatabase/serverless@0.9.5':
     dependencies:
       '@types/pg': 8.11.6
@@ -12838,7 +12826,7 @@ snapshots:
 
   '@types/pg@8.6.6':
     dependencies:
-      '@types/node': 20.17.6
+      '@types/node': 18.19.64
       pg-protocol: 1.7.0
       pg-types: 2.2.0
 

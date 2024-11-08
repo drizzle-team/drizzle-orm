@@ -3,6 +3,7 @@ import type { MySqlTable } from 'drizzle-orm/mysql-core';
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { PgDatabase } from 'drizzle-orm/pg-core';
+import { PgliteSession } from 'drizzle-orm/pglite';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import type {
@@ -44,6 +45,7 @@ class SeedService {
 	static readonly [entityKind]: string = 'SeedService';
 
 	private defaultCountForTable = 10;
+	private postgresPgLiteMaxParametersNumber = 32740;
 	private postgresMaxParametersNumber = 65535;
 	// there is no max parameters number in mysql, so you can increase mysqlMaxParametersNumber if it's needed.
 	private mysqlMaxParametersNumber = 100000;
@@ -1094,7 +1096,9 @@ class SeedService {
 		// console.timeEnd("initiate generators");
 		let maxParametersNumber: number;
 		if (is(db, PgDatabase<any>)) {
-			maxParametersNumber = this.postgresMaxParametersNumber;
+			maxParametersNumber = is(db._.session, PgliteSession)
+				? this.postgresPgLiteMaxParametersNumber
+				: this.postgresMaxParametersNumber;
 		} else if (is(db, MySqlDatabase<any, any>)) {
 			maxParametersNumber = this.mysqlMaxParametersNumber;
 		} else {
