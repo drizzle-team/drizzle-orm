@@ -2038,7 +2038,7 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
     END AS is_nullable,  -- NULL or NOT NULL constraint
     a.attndims AS array_dimensions,  -- Array dimensions
     CASE 
-        WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[]) 
+        WHEN a.atttypid = 'int'::regtype OR a.atttypid = 'int2'::regtype OR a.atttypid = 'int8'::regtype
         AND EXISTS (
             SELECT FROM pg_attrdef ad
             WHERE ad.adrelid = a.attrelid 
