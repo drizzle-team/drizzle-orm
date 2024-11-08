@@ -1658,7 +1658,7 @@ WHERE
 						uniqueConstraints: uniqueConstrains,
 						checkConstraints: checkConstraints,
 						policies: policiesByTable[`${tableSchema}.${tableName}`] ?? {},
-						isRLSEnabled: row.rls_enabled,
+						isRLSEnabled: row.rls_enabled ?? false,
 					};
 				} catch (e) {
 					rej(e);
