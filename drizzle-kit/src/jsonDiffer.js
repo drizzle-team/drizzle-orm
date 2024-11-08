@@ -576,7 +576,7 @@ const alternationsInColumn = (column) => {
 
 	const result = altered
 		.filter((it) => {
-			if ('type' in it && it.type.__old.replace(' (', '(') === it.type.__new.replace(' (', '(')) {
+			if ('type' in it && it.type.__old.toLowerCase().replace(' (', '(') === it.type.__new.toLowerCase().replace(' (', '(')) {
 				return false;
 			}
 			return true;
