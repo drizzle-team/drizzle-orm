@@ -25,7 +25,7 @@ const queryConfig = {
 } as const;
 
 export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'NeonHttpPreparedQuery';
+	static override readonly [entityKind]: string = 'NeonHttpPreparedQuery';
 
 	constructor(
 		private client: NeonHttpClient,
@@ -94,7 +94,7 @@ export class NeonHttpSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<NeonHttpQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NeonHttpSession';
+	static override readonly [entityKind]: string = 'NeonHttpSession';
 
 	private logger: Logger;
 
@@ -182,7 +182,7 @@ export class NeonTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<NeonHttpQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NeonHttpTransaction';
+	static override readonly [entityKind]: string = 'NeonHttpTransaction';
 
 	override async transaction<T>(_transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		throw new Error('No transactions support in neon-http driver');

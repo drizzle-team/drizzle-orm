@@ -21,7 +21,7 @@ export class PgRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<PgRemoteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgRemoteSession';
+	static override readonly [entityKind]: string = 'PgRemoteSession';
 
 	private logger: Logger;
 
@@ -66,7 +66,7 @@ export class PgProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<PgRemoteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgProxyTransaction';
+	static override readonly [entityKind]: string = 'PgProxyTransaction';
 
 	override async transaction<T>(
 		_transaction: (tx: PgProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
@@ -76,7 +76,7 @@ export class PgProxyTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryBase<T> {
-	static readonly [entityKind]: string = 'PgProxyPreparedQuery';
+	static override readonly [entityKind]: string = 'PgProxyPreparedQuery';
 
 	constructor(
 		private client: RemoteCallback,

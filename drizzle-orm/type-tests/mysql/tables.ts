@@ -186,7 +186,6 @@ export const classes = mysqlTable('classes_table', ({ serial, text }) => ({
 
 export const newYorkers = mysqlView('new_yorkers')
 	.algorithm('merge')
-	.definer('root@localhost')
 	.sqlSecurity('definer')
 	.as((qb) => {
 		const sq = qb
@@ -243,7 +242,6 @@ Expect<
 {
 	const newYorkers = customSchema.view('new_yorkers')
 		.algorithm('merge')
-		.definer('root@localhost')
 		.sqlSecurity('definer')
 		.as((qb) => {
 			const sq = qb
@@ -304,7 +302,6 @@ Expect<
 		cityId: int('city_id'),
 	})
 		.algorithm('merge')
-		.definer('root@localhost')
 		.sqlSecurity('definer')
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
@@ -359,7 +356,6 @@ Expect<
 		cityId: int('city_id'),
 	})
 		.algorithm('merge')
-		.definer('root@localhost')
 		.sqlSecurity('definer')
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
@@ -868,6 +864,9 @@ Expect<
 		enum: mysqlEnum('enum', ['a', 'b', 'c']),
 		enumdef: mysqlEnum('enumdef', ['a', 'b', 'c']).default('a'),
 		float: float('float'),
+		float2: float('float2', { precision: 10 }),
+		float3: float('float3', { scale: 2 }),
+		float4: float('float4', { precision: 10, scale: 2 }),
 		floatdef: float('floatdef').default(0),
 		int: int('int'),
 		int2: int('int2', { unsigned: true }),
@@ -965,6 +964,9 @@ Expect<
 		enum: mysqlEnum(['a', 'b', 'c']),
 		enumdef: mysqlEnum(['a', 'b', 'c']).default('a'),
 		float: float(),
+		float2: float({ precision: 10 }),
+		float3: float({ scale: 2 }),
+		float4: float({ precision: 10, scale: 2 }),
 		floatdef: float().default(0),
 		int: int(),
 		int2: int({ unsigned: true }),

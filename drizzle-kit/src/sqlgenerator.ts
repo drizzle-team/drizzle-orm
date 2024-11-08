@@ -1,5 +1,4 @@
 import { BREAKPOINT } from './cli/commands/migrate';
-import { Driver } from './cli/validations/common';
 import {
 	JsonAddColumnStatement,
 	JsonAddValueToEnumStatement,
@@ -21,110 +20,125 @@ import {
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
+	JsonAlterIndPolicyStatement,
+	JsonAlterMySqlViewStatement,
+	JsonAlterPolicyStatement,
 	JsonAlterReferenceStatement,
+	JsonAlterRoleStatement,
 	JsonAlterSequenceStatement,
 	JsonAlterTableRemoveFromSchema,
 	JsonAlterTableSetNewSchema,
 	JsonAlterTableSetSchema,
+	JsonAlterViewAddWithOptionStatement,
+	JsonAlterViewAlterSchemaStatement,
+	JsonAlterViewAlterTablespaceStatement,
+	JsonAlterViewAlterUsingStatement,
+	JsonAlterViewDropWithOptionStatement,
+	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
+	JsonCreateIndPolicyStatement,
+	JsonCreateMySqlViewStatement,
+	JsonCreatePgViewStatement,
+	JsonCreatePolicyStatement,
 	JsonCreateReferenceStatement,
+	JsonCreateRoleStatement,
 	JsonCreateSchema,
 	JsonCreateSequenceStatement,
+	JsonCreateSqliteViewStatement,
 	JsonCreateTableStatement,
 	JsonCreateUniqueConstraint,
+	JsonDeleteCheckConstraint,
 	JsonDeleteCompositePK,
 	JsonDeleteReferenceStatement,
 	JsonDeleteUniqueConstraint,
+	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
+	JsonDropEnumStatement,
 	JsonDropIndexStatement,
+	JsonDropIndPolicyStatement,
+	JsonDropPolicyStatement,
+	JsonDropRoleStatement,
 	JsonDropSequenceStatement,
 	JsonDropTableStatement,
+	JsonDropValueFromEnumStatement,
+	JsonDropViewStatement,
+	JsonEnableRLSStatement,
+	JsonIndRenamePolicyStatement,
+	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
 	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
+	JsonRenameEnumStatement,
+	JsonRenamePolicyStatement,
+	JsonRenameRoleStatement,
 	JsonRenameSchema,
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
+	JsonRenameViewStatement,
 	JsonSqliteAddColumnStatement,
 	JsonSqliteCreateTableStatement,
 	JsonStatement,
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSquasher } from './serializer/pgSchema';
+import { PgSquasher, policy } from './serializer/pgSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
+import { escapeSingleQuotes } from './utils';
 
-export const pgNativeTypes = new Set([
-	'uuid',
-	'smallint',
-	'integer',
-	'bigint',
-	'boolean',
-	'text',
-	'varchar',
-	'serial',
-	'bigserial',
-	'decimal',
-	'numeric',
-	'real',
-	'json',
-	'jsonb',
-	'time',
-	'time with time zone',
-	'time without time zone',
-	'time',
-	'timestamp',
-	'timestamp with time zone',
-	'timestamp without time zone',
-	'date',
-	'interval',
-	'bigint',
-	'bigserial',
-	'double precision',
-	'interval year',
-	'interval month',
-	'interval day',
-	'interval hour',
-	'interval minute',
-	'interval second',
-	'interval year to month',
-	'interval day to hour',
-	'interval day to minute',
-	'interval day to second',
-	'interval hour to minute',
-	'interval hour to second',
-	'interval minute to second',
-]);
-
-const isPgNativeType = (it: string) => {
-	if (pgNativeTypes.has(it)) return true;
-	const toCheck = it.replace(/ /g, '');
-	return (
-		toCheck.startsWith('varchar(')
-		|| toCheck.startsWith('char(')
-		|| toCheck.startsWith('numeric(')
-		|| toCheck.startsWith('timestamp(')
-		|| toCheck.startsWith('doubleprecision[')
-		|| toCheck.startsWith('intervalyear(')
-		|| toCheck.startsWith('intervalmonth(')
-		|| toCheck.startsWith('intervalday(')
-		|| toCheck.startsWith('intervalhour(')
-		|| toCheck.startsWith('intervalminute(')
-		|| toCheck.startsWith('intervalsecond(')
-		|| toCheck.startsWith('intervalyeartomonth(')
-		|| toCheck.startsWith('intervaldaytohour(')
-		|| toCheck.startsWith('intervaldaytominute(')
-		|| toCheck.startsWith('intervaldaytosecond(')
-		|| toCheck.startsWith('intervalhourtominute(')
-		|| toCheck.startsWith('intervalhourtosecond(')
-		|| toCheck.startsWith('intervalminutetosecond(')
-		|| toCheck.startsWith('vector(')
-		|| toCheck.startsWith('geometry(')
-		|| /^(\w+)(\[\d*])+$/.test(it)
-	);
+const parseType = (schemaPrefix: string, type: string) => {
+	const pgNativeTypes = [
+		'uuid',
+		'smallint',
+		'integer',
+		'bigint',
+		'boolean',
+		'text',
+		'varchar',
+		'serial',
+		'bigserial',
+		'decimal',
+		'numeric',
+		'real',
+		'json',
+		'jsonb',
+		'time',
+		'time with time zone',
+		'time without time zone',
+		'time',
+		'timestamp',
+		'timestamp with time zone',
+		'timestamp without time zone',
+		'date',
+		'interval',
+		'bigint',
+		'bigserial',
+		'double precision',
+		'interval year',
+		'interval month',
+		'interval day',
+		'interval hour',
+		'interval minute',
+		'interval second',
+		'interval year to month',
+		'interval day to hour',
+		'interval day to minute',
+		'interval day to second',
+		'interval hour to minute',
+		'interval hour to second',
+		'interval minute to second',
+		'char',
+		'vector',
+		'geometry',
+	];
+	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
+	const arrayDefinition = (type.match(arrayDefinitionRegex) ?? []).join('');
+	const withoutArrayDefinition = type.replace(arrayDefinitionRegex, '');
+	return pgNativeTypes.some((it) => type.startsWith(it))
+		? `${withoutArrayDefinition}${arrayDefinition}`
+		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
 };
 
 abstract class Convertor {
@@ -139,13 +153,236 @@ abstract class Convertor {
 	): string | string[];
 }
 
+class PgCreateRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreateRoleStatement): string | string[] {
+		return `CREATE ROLE "${statement.name}"${
+			statement.values.createDb || statement.values.createRole || !statement.values.inherit
+				? ` WITH${statement.values.createDb ? ' CREATEDB' : ''}${statement.values.createRole ? ' CREATEROLE' : ''}${
+					statement.values.inherit ? '' : ' NOINHERIT'
+				}`
+				: ''
+		};`;
+	}
+}
+
+class PgDropRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropRoleStatement): string | string[] {
+		return `DROP ROLE "${statement.name}";`;
+	}
+}
+
+class PgRenameRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonRenameRoleStatement): string | string[] {
+		return `ALTER ROLE "${statement.nameFrom}" RENAME TO "${statement.nameTo}";`;
+	}
+}
+
+class PgAlterRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterRoleStatement): string | string[] {
+		return `ALTER ROLE "${statement.name}"${` WITH${statement.values.createDb ? ' CREATEDB' : ' NOCREATEDB'}${
+			statement.values.createRole ? ' CREATEROLE' : ' NOCREATEROLE'
+		}${statement.values.inherit ? ' INHERIT' : ' NOINHERIT'}`};`;
+	}
+}
+
+/////
+
+class PgCreatePolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreatePolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		const usingPart = policy.using ? ` USING (${policy.using})` : '';
+
+		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
+
+		const policyToPart = policy.to?.map((v) =>
+			['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
+		).join(', ');
+
+		return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
+	}
+}
+
+class PgDropPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `DROP POLICY "${policy.name}" ON ${tableNameWithSchema} CASCADE;`;
+	}
+}
+
+class PgRenamePolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonRenamePolicyStatement): string | string[] {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER POLICY "${statement.oldName}" ON ${tableNameWithSchema} RENAME TO "${statement.newName}";`;
+	}
+}
+
+class PgAlterPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterPolicyStatement, _dialect: any, action?: string): string | string[] {
+		const newPolicy = action === 'push'
+			? PgSquasher.unsquashPolicyPush(statement.newData)
+			: PgSquasher.unsquashPolicy(statement.newData);
+		const oldPolicy = action === 'push'
+			? PgSquasher.unsquashPolicyPush(statement.oldData)
+			: PgSquasher.unsquashPolicy(statement.oldData);
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		const usingPart = newPolicy.using
+			? ` USING (${newPolicy.using})`
+			: oldPolicy.using
+			? ` USING (${oldPolicy.using})`
+			: '';
+
+		const withCheckPart = newPolicy.withCheck
+			? ` WITH CHECK (${newPolicy.withCheck})`
+			: oldPolicy.withCheck
+			? ` WITH CHECK  (${oldPolicy.withCheck})`
+			: '';
+
+		return `ALTER POLICY "${oldPolicy.name}" ON ${tableNameWithSchema} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
+	}
+}
+
+////
+
+class PgCreateIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreateIndPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		const usingPart = policy.using ? ` USING (${policy.using})` : '';
+
+		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
+
+		const policyToPart = policy.to?.map((v) =>
+			['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
+		).join(', ');
+
+		return `CREATE POLICY "${policy.name}" ON ${policy.on} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
+	}
+}
+
+class PgDropIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropIndPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		return `DROP POLICY "${policy.name}" ON ${policy.on} CASCADE;`;
+	}
+}
+
+class PgRenameIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonIndRenamePolicyStatement): string | string[] {
+		return `ALTER POLICY "${statement.oldName}" ON ${statement.tableKey} RENAME TO "${statement.newName}";`;
+	}
+}
+
+class PgAlterIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterIndPolicyStatement): string | string[] {
+		const newPolicy = statement.newData;
+		const oldPolicy = statement.oldData;
+
+		const usingPart = newPolicy.using
+			? ` USING (${newPolicy.using})`
+			: oldPolicy.using
+			? ` USING (${oldPolicy.using})`
+			: '';
+
+		const withCheckPart = newPolicy.withCheck
+			? ` WITH CHECK (${newPolicy.withCheck})`
+			: oldPolicy.withCheck
+			? ` WITH CHECK  (${oldPolicy.withCheck})`
+			: '';
+
+		return `ALTER POLICY "${oldPolicy.name}" ON ${oldPolicy.on} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
+	}
+}
+
+////
+
+class PgEnableRlsConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'enable_rls' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonEnableRLSStatement): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} ENABLE ROW LEVEL SECURITY;`;
+	}
+}
+
+class PgDisableRlsConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'disable_rls' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDisableRLSStatement): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} DISABLE ROW LEVEL SECURITY;`;
+	}
+}
+
 class PgCreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_table' && dialect === 'postgresql';
 	}
 
 	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints } = st;
+		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
+			st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
@@ -166,9 +403,7 @@ class PgCreateTableConvertor extends Convertor {
 				? `"${column.typeSchema}".`
 				: '';
 
-			const type = isPgNativeType(column.type)
-				? column.type
-				: `${schemaPrefix}"${column.type}"`;
+			const type = parseType(schemaPrefix, column.type);
 			const generated = column.generated;
 
 			const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
@@ -230,10 +465,25 @@ class PgCreateTableConvertor extends Convertor {
 				// statement += `\n`;
 			}
 		}
+
+		if (typeof checkConstraints !== 'undefined' && checkConstraints.length > 0) {
+			for (const checkConstraint of checkConstraints) {
+				statement += ',\n';
+				const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
+				statement += `\tCONSTRAINT "${unsquashedCheck.name}" CHECK (${unsquashedCheck.value})`;
+			}
+		}
+
 		statement += `\n);`;
 		statement += `\n`;
 
-		return statement;
+		const enableRls = new PgEnableRlsConvertor().convert({
+			type: 'enable_rls',
+			tableName,
+			schema,
+		});
+
+		return [statement, ...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : [])];
 	}
 }
 
@@ -247,6 +497,7 @@ class MySqlCreateTableConvertor extends Convertor {
 			tableName,
 			columns,
 			schema,
+			checkConstraints,
 			compositePKs,
 			uniqueConstraints,
 			internals,
@@ -307,6 +558,15 @@ class MySqlCreateTableConvertor extends Convertor {
 			}
 		}
 
+		if (typeof checkConstraints !== 'undefined' && checkConstraints.length > 0) {
+			for (const checkConstraint of checkConstraints) {
+				statement += ',\n';
+				const unsquashedCheck = MySqlSquasher.unsquashCheck(checkConstraint);
+
+				statement += `\tCONSTRAINT \`${unsquashedCheck.name}\` CHECK(${unsquashedCheck.value})`;
+			}
+		}
+
 		statement += `\n);`;
 		statement += `\n`;
 		return statement;
@@ -325,6 +585,7 @@ export class SQLiteCreateTableConvertor extends Convertor {
 			referenceData,
 			compositePKs,
 			uniqueConstraints,
+			checkConstraints,
 		} = st;
 
 		let statement = '';
@@ -384,14 +645,275 @@ export class SQLiteCreateTableConvertor extends Convertor {
 		) {
 			for (const uniqueConstraint of uniqueConstraints) {
 				statement += ',\n';
-				const unsquashedUnique = MySqlSquasher.unsquashUnique(uniqueConstraint);
+				const unsquashedUnique = SQLiteSquasher.unsquashUnique(uniqueConstraint);
 				statement += `\tCONSTRAINT ${unsquashedUnique.name} UNIQUE(\`${unsquashedUnique.columns.join(`\`,\``)}\`)`;
+			}
+		}
+
+		if (
+			typeof checkConstraints !== 'undefined'
+			&& checkConstraints.length > 0
+		) {
+			for (const check of checkConstraints) {
+				statement += ',\n';
+				const { value, name } = SQLiteSquasher.unsquashCheck(check);
+				statement += `\tCONSTRAINT "${name}" CHECK(${value})`;
 			}
 		}
 
 		statement += `\n`;
 		statement += `);`;
 		statement += `\n`;
+		return statement;
+	}
+}
+
+class PgCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_view' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonCreatePgViewStatement) {
+		const { definition, name: viewName, schema, with: withOption, materialized, withNoData, tablespace, using } = st;
+
+		const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
+
+		let statement = materialized ? `CREATE MATERIALIZED VIEW ${name}` : `CREATE VIEW ${name}`;
+
+		if (using) statement += ` USING "${using}"`;
+
+		const options: string[] = [];
+		if (withOption) {
+			statement += ` WITH (`;
+
+			Object.entries(withOption).forEach(([key, value]) => {
+				if (typeof value === 'undefined') return;
+
+				options.push(`${key.snake_case()} = ${value}`);
+			});
+
+			statement += options.join(', ');
+
+			statement += `)`;
+		}
+
+		if (tablespace) statement += ` TABLESPACE ${tablespace}`;
+
+		statement += ` AS (${definition})`;
+
+		if (withNoData) statement += ` WITH NO DATA`;
+
+		statement += `;`;
+
+		return statement;
+	}
+}
+
+class MySqlCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'mysql_create_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonCreateMySqlViewStatement) {
+		const { definition, name, algorithm, sqlSecurity, withCheckOption, replace } = st;
+
+		let statement = `CREATE `;
+		statement += replace ? `OR REPLACE ` : '';
+		statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
+		statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
+		statement += `VIEW \`${name}\` AS (${definition})`;
+		statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';
+
+		statement += ';';
+
+		return statement;
+	}
+}
+
+class SqliteCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'sqlite_create_view' && (dialect === 'sqlite' || dialect === 'turso');
+	}
+
+	convert(st: JsonCreateSqliteViewStatement) {
+		const { definition, name } = st;
+
+		return `CREATE VIEW \`${name}\` AS ${definition};`;
+	}
+}
+
+class PgDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name: viewName, schema, materialized } = st;
+
+		const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
+
+		return `DROP${materialized ? ' MATERIALIZED' : ''} VIEW ${name};`;
+	}
+}
+
+class MySqlDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name } = st;
+
+		return `DROP VIEW \`${name}\`;`;
+	}
+}
+
+class SqliteDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && (dialect === 'sqlite' || dialect === 'turso');
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name } = st;
+
+		return `DROP VIEW \`${name}\`;`;
+	}
+}
+
+class MySqlAlterViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_mysql_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonAlterMySqlViewStatement) {
+		const { name, algorithm, definition, sqlSecurity, withCheckOption } = st;
+
+		let statement = `ALTER `;
+		statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
+		statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
+		statement += `VIEW \`${name}\` AS ${definition}`;
+		statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';
+
+		statement += ';';
+
+		return statement;
+	}
+}
+
+class PgRenameViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_view' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonRenameViewStatement) {
+		const { nameFrom: from, nameTo: to, schema, materialized } = st;
+
+		const nameFrom = `"${schema}"."${from}"`;
+
+		return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO "${to}";`;
+	}
+}
+
+class MySqlRenameViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonRenameViewStatement) {
+		const { nameFrom: from, nameTo: to } = st;
+
+		return `RENAME TABLE \`${from}\` TO \`${to}\`;`;
+	}
+}
+
+class PgAlterViewSchemaConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_alter_schema' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAlterSchemaStatement) {
+		const { fromSchema, toSchema, name, materialized } = st;
+
+		const statement = `ALTER${
+			materialized ? ' MATERIALIZED' : ''
+		} VIEW "${fromSchema}"."${name}" SET SCHEMA "${toSchema}";`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewAddWithOptionConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_add_with_option' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAddWithOptionStatement) {
+		const { schema, with: withOption, name, materialized } = st;
+
+		let statement = `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW "${schema}"."${name}" SET (`;
+
+		const options: string[] = [];
+
+		Object.entries(withOption).forEach(([key, value]) => {
+			options.push(`${key.snake_case()} = ${value}`);
+		});
+
+		statement += options.join(', ');
+
+		statement += `);`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewDropWithOptionConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_drop_with_option' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewDropWithOptionStatement) {
+		const { schema, name, materialized, with: withOptions } = st;
+
+		let statement = `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW "${schema}"."${name}" RESET (`;
+
+		const options: string[] = [];
+
+		Object.entries(withOptions).forEach(([key, value]) => {
+			options.push(`${key.snake_case()}`);
+		});
+
+		statement += options.join(', ');
+
+		statement += ');';
+
+		return statement;
+	}
+}
+
+class PgAlterViewAlterTablespaceConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_alter_tablespace' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAlterTablespaceStatement) {
+		const { schema, name, toTablespace } = st;
+
+		const statement = `ALTER MATERIALIZED VIEW "${schema}"."${name}" SET TABLESPACE ${toTablespace};`;
+
+		return statement;
+	}
+}
+
+class PgAlterViewAlterUsingConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_view_alter_using' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonAlterViewAlterUsingStatement) {
+		const { schema, name, toUsing } = st;
+
+		const statement = `ALTER MATERIALIZED VIEW "${schema}"."${name}" SET ACCESS METHOD "${toUsing}";`;
+
 		return statement;
 	}
 }
@@ -573,6 +1095,38 @@ class PgAlterTableDropUniqueConstraintConvertor extends Convertor {
 	}
 }
 
+class PgAlterTableAddCheckConstraintConvertor extends Convertor {
+	can(statement: JsonCreateCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'create_check_constraint' && dialect === 'postgresql'
+		);
+	}
+	convert(statement: JsonCreateCheckConstraint): string {
+		const unsquashed = PgSquasher.unsquashCheck(statement.data);
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unsquashed.name}" CHECK (${unsquashed.value});`;
+	}
+}
+
+class PgAlterTableDeleteCheckConstraintConvertor extends Convertor {
+	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'delete_check_constraint' && dialect === 'postgresql'
+		);
+	}
+	convert(statement: JsonDeleteCheckConstraint): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.constraintName}";`;
+	}
+}
+
 class MySQLAlterTableAddUniqueConstraintConvertor extends Convertor {
 	can(statement: JsonCreateUniqueConstraint, dialect: Dialect): boolean {
 		return statement.type === 'create_unique_constraint' && dialect === 'mysql';
@@ -594,6 +1148,33 @@ class MySQLAlterTableDropUniqueConstraintConvertor extends Convertor {
 		const unsquashed = MySqlSquasher.unsquashUnique(statement.data);
 
 		return `ALTER TABLE \`${statement.tableName}\` DROP INDEX \`${unsquashed.name}\`;`;
+	}
+}
+
+class MySqlAlterTableAddCheckConstraintConvertor extends Convertor {
+	can(statement: JsonCreateCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'create_check_constraint' && dialect === 'mysql'
+		);
+	}
+	convert(statement: JsonCreateCheckConstraint): string {
+		const unsquashed = MySqlSquasher.unsquashCheck(statement.data);
+		const { tableName } = statement;
+
+		return `ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` CHECK (${unsquashed.value});`;
+	}
+}
+
+class MySqlAlterTableDeleteCheckConstraintConvertor extends Convertor {
+	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'delete_check_constraint' && dialect === 'mysql'
+		);
+	}
+	convert(statement: JsonDeleteCheckConstraint): string {
+		const { tableName } = statement;
+
+		return `ALTER TABLE \`${tableName}\` DROP CONSTRAINT \`${statement.constraintName}\`;`;
 	}
 }
 
@@ -694,22 +1275,39 @@ class CreateTypeEnumConvertor extends Convertor {
 	convert(st: JsonCreateEnumStatement) {
 		const { name, values, schema } = st;
 
-		const tableNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+		const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 
 		let valuesStatement = '(';
-		valuesStatement += values.map((it) => `'${it}'`).join(', ');
+		valuesStatement += values.map((it) => `'${escapeSingleQuotes(it)}'`).join(', ');
 		valuesStatement += ')';
 
-		let statement = 'DO $$ BEGIN';
-		statement += '\n';
-		statement += ` CREATE TYPE ${tableNameWithSchema} AS ENUM${valuesStatement};`;
-		statement += '\n';
-		statement += 'EXCEPTION';
-		statement += '\n';
-		statement += ' WHEN duplicate_object THEN null;';
-		statement += '\n';
-		statement += 'END $$;';
-		statement += '\n';
+		// TODO do we need this?
+		// let statement = 'DO $$ BEGIN';
+		// statement += '\n';
+		let statement = `CREATE TYPE ${enumNameWithSchema} AS ENUM${valuesStatement};`;
+		// statement += '\n';
+		// statement += 'EXCEPTION';
+		// statement += '\n';
+		// statement += ' WHEN duplicate_object THEN null;';
+		// statement += '\n';
+		// statement += 'END $$;';
+		// statement += '\n';
+		return statement;
+	}
+}
+
+class DropTypeEnumConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'drop_type_enum';
+	}
+
+	convert(st: JsonDropEnumStatement) {
+		const { name, schema } = st;
+
+		const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+
+		let statement = `DROP TYPE ${enumNameWithSchema};`;
+
 		return statement;
 	}
 }
@@ -720,9 +1318,74 @@ class AlterTypeAddValueConvertor extends Convertor {
 	}
 
 	convert(st: JsonAddValueToEnumStatement) {
-		const { name, schema, value } = st;
-		const schemaPrefix = schema && schema !== 'public' ? `"${schema}".` : '';
-		return `ALTER TYPE ${schemaPrefix}"${name}" ADD VALUE '${value}';`;
+		const { name, schema, value, before } = st;
+
+		const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+
+		return `ALTER TYPE ${enumNameWithSchema} ADD VALUE '${value}'${before.length ? ` BEFORE '${before}'` : ''};`;
+	}
+}
+
+class AlterTypeSetSchemaConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'move_type_enum';
+	}
+
+	convert(st: JsonMoveEnumStatement) {
+		const { name, schemaFrom, schemaTo } = st;
+
+		const enumNameWithSchema = schemaFrom ? `"${schemaFrom}"."${name}"` : `"${name}"`;
+
+		return `ALTER TYPE ${enumNameWithSchema} SET SCHEMA "${schemaTo}";`;
+	}
+}
+
+class AlterRenameTypeConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'rename_type_enum';
+	}
+
+	convert(st: JsonRenameEnumStatement) {
+		const { nameTo, nameFrom, schema } = st;
+
+		const enumNameWithSchema = schema ? `"${schema}"."${nameFrom}"` : `"${nameFrom}"`;
+
+		return `ALTER TYPE ${enumNameWithSchema} RENAME TO "${nameTo}";`;
+	}
+}
+
+class AlterTypeDropValueConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'alter_type_drop_value';
+	}
+
+	convert(st: JsonDropValueFromEnumStatement) {
+		const { columnsWithEnum, name, newValues, schema } = st;
+
+		const statements: string[] = [];
+
+		for (const withEnum of columnsWithEnum) {
+			statements.push(
+				`ALTER TABLE "${withEnum.schema}"."${withEnum.table}" ALTER COLUMN "${withEnum.column}" SET DATA TYPE text;`,
+			);
+		}
+
+		statements.push(new DropTypeEnumConvertor().convert({ name: name, schema, type: 'drop_type_enum' }));
+
+		statements.push(new CreateTypeEnumConvertor().convert({
+			name: name,
+			schema: schema,
+			values: newValues,
+			type: 'create_type_enum',
+		}));
+
+		for (const withEnum of columnsWithEnum) {
+			statements.push(
+				`ALTER TABLE "${withEnum.schema}"."${withEnum.table}" ALTER COLUMN "${withEnum.column}" SET DATA TYPE "${schema}"."${name}" USING "${withEnum.column}"::"${schema}"."${name}";`,
+			);
+		}
+
+		return statements;
 	}
 }
 
@@ -731,14 +1394,29 @@ class PgDropTableConvertor extends Convertor {
 		return statement.type === 'drop_table' && dialect === 'postgresql';
 	}
 
-	convert(statement: JsonDropTableStatement) {
-		const { tableName, schema } = statement;
+	convert(statement: JsonDropTableStatement, _d: any, action?: string) {
+		const { tableName, schema, policies } = statement;
 
 		const tableNameWithSchema = schema
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		return `DROP TABLE ${tableNameWithSchema};`;
+		const dropPolicyConvertor = new PgDropPolicyConvertor();
+		const droppedPolicies = policies?.map((p) => {
+			return dropPolicyConvertor.convert({
+				type: 'drop_policy',
+				tableName,
+				data: action === 'push'
+					? PgSquasher.unsquashPolicyPush(p)
+					: PgSquasher.unsquashPolicy(p),
+				schema,
+			}) as string;
+		}) ?? [];
+
+		return [
+			...droppedPolicies,
+			`DROP TABLE ${tableNameWithSchema} CASCADE;`,
+		];
 	}
 }
 
@@ -908,9 +1586,7 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 			? `"${column.typeSchema}".`
 			: '';
 
-		const fixedType = isPgNativeType(column.type)
-			? column.type
-			: `${schemaPrefix}"${column.type}"`;
+		const fixedType = parseType(schemaPrefix, column.type);
 
 		const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 
@@ -1450,7 +2126,9 @@ export class LibSQLModifyColumn extends Convertor {
 				|| statement.type === 'alter_table_alter_column_drop_notnull'
 				|| statement.type === 'alter_table_alter_column_set_notnull'
 				|| statement.type === 'alter_table_alter_column_set_default'
-				|| statement.type === 'alter_table_alter_column_drop_default')
+				|| statement.type === 'alter_table_alter_column_drop_default'
+				|| statement.type === 'create_check_constraint'
+				|| statement.type === 'delete_check_constraint')
 			&& dialect === 'turso'
 		);
 	}
@@ -1832,9 +2510,10 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT ${statement.oldConstraintName};\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT ${statement.newConstraintName} PRIMARY KEY(${
-			newColumns.join(',')
-		});`;
+		console.log(statement.oldConstraintName, statement.newConstraintName);
+		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.oldConstraintName}";\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.newConstraintName}" PRIMARY KEY("${
+			newColumns.join('","')
+		}");`;
 	}
 }
 
@@ -2368,7 +3047,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string | string[] {
-		const { tableName, columns, compositePKs, referenceData } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
@@ -2376,6 +3055,12 @@ class SQLiteRecreateTableConvertor extends Convertor {
 		const sqlStatements: string[] = [];
 
 		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
+
+		// map all possible variants
+		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
+			it.replaceAll(`"${tableName}".`, `"${newTableName}".`).replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
+				.replaceAll(`${tableName}.`, `${newTableName}.`).replaceAll(`'${tableName}'.`, `'${newTableName}'.`)
+		);
 
 		// create new table
 		sqlStatements.push(
@@ -2385,6 +3070,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 				columns,
 				referenceData,
 				compositePKs,
+				checkConstraints: mappedCheckConstraints,
 			}),
 		);
 
@@ -2428,12 +3114,17 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string[] {
-		const { tableName, columns, compositePKs, referenceData } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
+
+		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
+			it.replaceAll(`"${tableName}".`, `"${newTableName}".`).replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
+				.replaceAll(`${tableName}.`, `${newTableName}.`).replaceAll(`'${tableName}'.`, `\`${newTableName}\`.`)
+		);
 
 		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
 
@@ -2445,6 +3136,7 @@ class LibSQLRecreateTableConvertor extends Convertor {
 				columns,
 				referenceData,
 				compositePKs,
+				checkConstraints: mappedCheckConstraints,
 			}),
 		);
 
@@ -2486,7 +3178,29 @@ convertors.push(new SQLiteCreateTableConvertor());
 convertors.push(new SQLiteRecreateTableConvertor());
 convertors.push(new LibSQLRecreateTableConvertor());
 
+convertors.push(new PgCreateViewConvertor());
+convertors.push(new PgDropViewConvertor());
+convertors.push(new PgRenameViewConvertor());
+convertors.push(new PgAlterViewSchemaConvertor());
+convertors.push(new PgAlterViewAddWithOptionConvertor());
+convertors.push(new PgAlterViewDropWithOptionConvertor());
+convertors.push(new PgAlterViewAlterTablespaceConvertor());
+convertors.push(new PgAlterViewAlterUsingConvertor());
+
+convertors.push(new MySqlCreateViewConvertor());
+convertors.push(new MySqlDropViewConvertor());
+convertors.push(new MySqlRenameViewConvertor());
+convertors.push(new MySqlAlterViewConvertor());
+
+convertors.push(new SqliteCreateViewConvertor());
+convertors.push(new SqliteDropViewConvertor());
+
 convertors.push(new CreateTypeEnumConvertor());
+convertors.push(new DropTypeEnumConvertor());
+convertors.push(new AlterTypeAddValueConvertor());
+convertors.push(new AlterTypeSetSchemaConvertor());
+convertors.push(new AlterRenameTypeConvertor());
+convertors.push(new AlterTypeDropValueConvertor());
 
 convertors.push(new CreatePgSequenceConvertor());
 convertors.push(new DropPgSequenceConvertor());
@@ -2519,6 +3233,11 @@ convertors.push(new PgAlterTableAlterColumnSetTypeConvertor());
 convertors.push(new PgAlterTableAddUniqueConstraintConvertor());
 convertors.push(new PgAlterTableDropUniqueConstraintConvertor());
 
+convertors.push(new PgAlterTableAddCheckConstraintConvertor());
+convertors.push(new PgAlterTableDeleteCheckConstraintConvertor());
+convertors.push(new MySqlAlterTableAddCheckConstraintConvertor());
+convertors.push(new MySqlAlterTableDeleteCheckConstraintConvertor());
+
 convertors.push(new MySQLAlterTableAddUniqueConstraintConvertor());
 convertors.push(new MySQLAlterTableDropUniqueConstraintConvertor());
 
@@ -2530,14 +3249,30 @@ convertors.push(new PgDropIndexConvertor());
 convertors.push(new SqliteDropIndexConvertor());
 convertors.push(new MySqlDropIndexConvertor());
 
-convertors.push(new AlterTypeAddValueConvertor());
-
 convertors.push(new PgAlterTableAlterColumnSetPrimaryKeyConvertor());
 convertors.push(new PgAlterTableAlterColumnDropPrimaryKeyConvertor());
 convertors.push(new PgAlterTableAlterColumnSetNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnDropNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnSetDefaultConvertor());
 convertors.push(new PgAlterTableAlterColumnDropDefaultConvertor());
+
+convertors.push(new PgAlterPolicyConvertor());
+convertors.push(new PgCreatePolicyConvertor());
+convertors.push(new PgDropPolicyConvertor());
+convertors.push(new PgRenamePolicyConvertor());
+
+convertors.push(new PgAlterIndPolicyConvertor());
+convertors.push(new PgCreateIndPolicyConvertor());
+convertors.push(new PgDropIndPolicyConvertor());
+convertors.push(new PgRenameIndPolicyConvertor());
+
+convertors.push(new PgEnableRlsConvertor());
+convertors.push(new PgDisableRlsConvertor());
+
+convertors.push(new PgDropRoleConvertor());
+convertors.push(new PgAlterRoleConvertor());
+convertors.push(new PgCreateRoleConvertor());
+convertors.push(new PgRenameRoleConvertor());
 
 /// generated
 convertors.push(new PgAlterTableAlterColumnSetExpressionConvertor());
@@ -2585,17 +3320,6 @@ convertors.push(new MySqlAlterTableDropPk());
 convertors.push(new MySqlAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new MySqlAlterTableAddPk());
 convertors.push(new MySqlAlterTableAlterCompositePrimaryKeyConvertor());
-
-export function fromJson(
-	statements: JsonStatement[],
-	dialect: Exclude<Dialect, 'sqlite' | 'turso'>,
-): string[];
-export function fromJson(
-	statements: JsonStatement[],
-	dialect: 'sqlite' | 'turso',
-	action?: 'push',
-	json2?: SQLiteSchemaSquashed,
-): string[];
 
 export function fromJson(
 	statements: JsonStatement[],

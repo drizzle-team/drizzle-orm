@@ -43,7 +43,7 @@ export abstract class SQLiteColumnBuilder<
 > extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'sqlite' }, TExtraConfig>
 	implements SQLiteColumnBuilderBase<T, TTypeConfig>
 {
-	static readonly [entityKind]: string = 'SQLiteColumnBuilder';
+	static override readonly [entityKind]: string = 'SQLiteColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
@@ -102,7 +102,7 @@ export abstract class SQLiteColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 > extends Column<T, TRuntimeConfig, { dialect: 'sqlite' }> {
-	static readonly [entityKind]: string = 'SQLiteColumn';
+	static override readonly [entityKind]: string = 'SQLiteColumn';
 
 	constructor(
 		override readonly table: SQLiteTable,

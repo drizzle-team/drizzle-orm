@@ -28,6 +28,7 @@ test('add table #1', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -56,6 +57,7 @@ test('add table #2', async () => {
 		compositePKs: [],
 		referenceData: [],
 		uniqueConstraints: [],
+		checkConstraints: [],
 	});
 });
 
@@ -95,6 +97,7 @@ test('add table #3', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -114,6 +117,7 @@ test('add table #4', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'sqlite_create_table',
@@ -122,6 +126,7 @@ test('add table #4', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -148,11 +153,13 @@ test('add table #6', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
 		tableName: 'users1',
 		schema: undefined,
+		policies: [],
 	});
 });
 
@@ -185,6 +192,7 @@ test('add table #7', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 });
 
@@ -222,6 +230,7 @@ test('add table #8', async () => {
 		],
 		compositePKs: [],
 		uniqueConstraints: [],
+		checkConstraints: [],
 		referenceData: [
 			{
 				columnsFrom: ['reportee_id'],
@@ -277,6 +286,7 @@ test('add table #9', async () => {
 		compositePKs: [],
 		uniqueConstraints: [],
 		referenceData: [],
+		checkConstraints: [],
 	});
 
 	expect(statements[1]).toStrictEqual({
@@ -405,6 +415,50 @@ test('add table with indexes', async () => {
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
 		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`email`);',
 		'CREATE INDEX `indexColExpr` ON `users` ((lower("email")),`email`);',
+	]);
+});
+
+test('composite primary key', async () => {
+	const from = {};
+	const to = {
+		table: sqliteTable('works_to_creators', {
+			workId: int('work_id').notNull(),
+			creatorId: int('creator_id').notNull(),
+			classification: text('classification').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.workId, t.creatorId, t.classification],
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `works_to_creators` (\n\t`work_id` integer NOT NULL,\n\t`creator_id` integer NOT NULL,\n\t`classification` text NOT NULL,\n\tPRIMARY KEY(`work_id`, `creator_id`, `classification`)\n);\n',
+	]);
+});
+
+test('add column before creating unique constraint', async () => {
+	const from = {
+		table: sqliteTable('table', {
+			id: int('id').primaryKey(),
+		}),
+	};
+	const to = {
+		table: sqliteTable('table', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			uq: unique('uq').on(t.name),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE `table` ADD `name` text NOT NULL;',
+		'CREATE UNIQUE INDEX `uq` ON `table` (`name`);',
 	]);
 });
 

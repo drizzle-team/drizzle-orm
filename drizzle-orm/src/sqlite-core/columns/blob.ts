@@ -20,7 +20,7 @@ export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuild
 export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQLiteBigInt'>>
 	extends SQLiteColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'SQLiteBigIntBuilder';
+	static override readonly [entityKind]: string = 'SQLiteBigIntBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'bigint', 'SQLiteBigInt');
@@ -35,14 +35,14 @@ export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQ
 }
 
 export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> extends SQLiteColumn<T> {
-	static readonly [entityKind]: string = 'SQLiteBigInt';
+	static override readonly [entityKind]: string = 'SQLiteBigInt';
 
 	getSQLType(): string {
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer): bigint {
-		return BigInt(value.toString());
+	override mapFromDriverValue(value: Buffer | Uint8Array): bigint {
+		return BigInt(Buffer.isBuffer(value) ? value.toString() : String.fromCodePoint(...value));
 	}
 
 	override mapToDriverValue(value: bigint): Buffer {
@@ -63,7 +63,7 @@ export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonB
 export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteBlobJson'>>
 	extends SQLiteColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'SQLiteBlobJsonBuilder';
+	static override readonly [entityKind]: string = 'SQLiteBlobJsonBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'json', 'SQLiteBlobJson');
@@ -81,14 +81,14 @@ export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQ
 }
 
 export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>> extends SQLiteColumn<T> {
-	static readonly [entityKind]: string = 'SQLiteBlobJson';
+	static override readonly [entityKind]: string = 'SQLiteBlobJson';
 
 	getSQLType(): string {
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer): T['data'] {
-		return JSON.parse(value.toString());
+	override mapFromDriverValue(value: Buffer | Uint8Array): T['data'] {
+		return JSON.parse(Buffer.isBuffer(value) ? value.toString() : String.fromCodePoint(...value));
 	}
 
 	override mapToDriverValue(value: T['data']): Buffer {
@@ -109,7 +109,7 @@ export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBuf
 export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'SQLiteBlobBuffer'>>
 	extends SQLiteColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'SQLiteBlobBufferBuilder';
+	static override readonly [entityKind]: string = 'SQLiteBlobBufferBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'buffer', 'SQLiteBlobBuffer');
@@ -124,7 +124,7 @@ export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer',
 }
 
 export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'buffer', 'SQLiteBlobBuffer'>> extends SQLiteColumn<T> {
-	static readonly [entityKind]: string = 'SQLiteBlobBuffer';
+	static override readonly [entityKind]: string = 'SQLiteBlobBuffer';
 
 	getSQLType(): string {
 		return 'blob';

@@ -3,10 +3,11 @@ import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
+import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
-import { pullParams, pushParams } from '../validations/cli';
+import { Entities, pullParams, pushParams } from '../validations/cli';
 import {
 	Casing,
 	CasingType,
@@ -169,7 +170,7 @@ export const prepareGenerateConfig = async (
 		name: options.name,
 		custom: options.custom || false,
 		prefix,
-		breakpoints: breakpoints || true,
+		breakpoints: breakpoints ?? true,
 		schema: schema,
 		out: out || 'drizzle',
 		bundle: driver === 'expo',
@@ -229,6 +230,7 @@ export const preparePushConfig = async (
 		tablesFilter: string[];
 		schemasFilter: string[];
 		casing?: CasingType;
+		entities?: Entities;
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -272,16 +274,7 @@ export const preparePushConfig = async (
 			: schemasFilterConfig
 		: [];
 
-	if (config.extensionsFilters) {
-		if (
-			config.extensionsFilters.includes('postgis')
-			&& config.dialect === 'postgresql'
-		) {
-			tablesFilter.push(
-				...['!geography_columns', '!geometry_columns', '!spatial_ref_sys'],
-			);
-		}
-	}
+	tablesFilter.push(...getTablesFilterByExtensions(config));
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
@@ -300,6 +293,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
+			entities: config.entities,
 		};
 	}
 
@@ -391,6 +385,7 @@ export const preparePullConfig = async (
 		tablesFilter: string[];
 		schemasFilter: string[];
 		prefix: Prefix;
+		entities: Entities;
 	}
 > => {
 	const raw = flattenPull(
@@ -450,6 +445,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -468,6 +464,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -486,6 +483,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -504,6 +502,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 

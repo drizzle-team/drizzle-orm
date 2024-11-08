@@ -1,6 +1,5 @@
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
-import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';
@@ -359,14 +358,11 @@ export function findAddedAndRemoved(columnNames1: string[], columnNames2: string
 	return { addedColumns, removedColumns };
 }
 
-export function getColumnCasing(
-	column: { keyAsName: boolean; name: string | undefined },
-	casing: CasingType | undefined,
-) {
-	if (!column.name) return '';
-	return !column.keyAsName || casing === undefined
-		? column.name
-		: casing === 'camelCase'
-		? toCamelCase(column.name)
-		: toSnakeCase(column.name);
+export function escapeSingleQuotes(str: string) {
+	return str.replace(/'/g, "''");
+}
+
+export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolean) {
+	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
+	return str.replace(/''/g, "'").replace(regex, "\\'");
 }

@@ -18,12 +18,13 @@ export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuild
 export class MySqlDecimalBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'MySqlDecimal'>,
 > extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
-	static readonly [entityKind]: string = 'MySqlDecimalBuilder';
+	static override readonly [entityKind]: string = 'MySqlDecimalBuilder';
 
-	constructor(name: T['name'], precision?: number, scale?: number) {
+	constructor(name: T['name'], config: MySqlDecimalConfig | undefined) {
 		super(name, 'string', 'MySqlDecimal');
-		this.config.precision = precision;
-		this.config.scale = scale;
+		this.config.precision = config?.precision;
+		this.config.scale = config?.scale;
+		this.config.unsigned = config?.unsigned;
 	}
 
 	/** @internal */
@@ -40,25 +41,30 @@ export class MySqlDecimalBuilder<
 export class MySqlDecimal<T extends ColumnBaseConfig<'string', 'MySqlDecimal'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
 {
-	static readonly [entityKind]: string = 'MySqlDecimal';
+	static override readonly [entityKind]: string = 'MySqlDecimal';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
+	readonly unsigned: boolean | undefined = this.config.unsigned;
 
 	getSQLType(): string {
+		let type = '';
 		if (this.precision !== undefined && this.scale !== undefined) {
-			return `decimal(${this.precision},${this.scale})`;
+			type += `decimal(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {
-			return 'decimal';
+			type += 'decimal';
 		} else {
-			return `decimal(${this.precision})`;
+			type += `decimal(${this.precision})`;
 		}
+		type = type === 'decimal(10,0)' || type === 'decimal(10)' ? 'decimal' : type;
+		return this.unsigned ? `${type} unsigned` : type;
 	}
 }
 
 export interface MySqlDecimalConfig {
 	precision?: number;
 	scale?: number;
+	unsigned?: boolean;
 }
 
 export function decimal(): MySqlDecimalBuilderInitial<''>;
@@ -71,5 +77,5 @@ export function decimal<TName extends string>(
 ): MySqlDecimalBuilderInitial<TName>;
 export function decimal(a?: string | MySqlDecimalConfig, b: MySqlDecimalConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<MySqlDecimalConfig>(a, b);
-	return new MySqlDecimalBuilder(name, config.precision, config.scale);
+	return new MySqlDecimalBuilder(name, config);
 }

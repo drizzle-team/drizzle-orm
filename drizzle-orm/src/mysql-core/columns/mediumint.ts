@@ -19,7 +19,7 @@ export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntB
 export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlMediumInt'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlMediumIntBuilder';
+	static override readonly [entityKind]: string = 'MySqlMediumIntBuilder';
 
 	constructor(name: T['name'], config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlMediumInt');
@@ -40,7 +40,7 @@ export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', '
 export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlMediumInt';
+	static override readonly [entityKind]: string = 'MySqlMediumInt';
 
 	getSQLType(): string {
 		return `mediumint${this.config.unsigned ? ' unsigned' : ''}`;

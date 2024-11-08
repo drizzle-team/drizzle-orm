@@ -17,7 +17,7 @@ export type PgLineBuilderInitial<TName extends string> = PgLineBuilder<{
 }>;
 
 export class PgLineBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgLine'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgLineBuilder';
+	static override readonly [entityKind]: string = 'PgLineBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'array', 'PgLine');
@@ -35,7 +35,7 @@ export class PgLineBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgLine'>>
 }
 
 export class PgLineTuple<T extends ColumnBaseConfig<'array', 'PgLine'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgLine';
+	static override readonly [entityKind]: string = 'PgLine';
 
 	getSQLType(): string {
 		return 'line';
@@ -62,7 +62,7 @@ export type PgLineABCBuilderInitial<TName extends string> = PgLineABCBuilder<{
 }>;
 
 export class PgLineABCBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgLineABC'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgLineABCBuilder';
+	static override readonly [entityKind]: string = 'PgLineABCBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'json', 'PgLineABC');
@@ -80,7 +80,7 @@ export class PgLineABCBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgLineA
 }
 
 export class PgLineABC<T extends ColumnBaseConfig<'json', 'PgLineABC'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgLineABC';
+	static override readonly [entityKind]: string = 'PgLineABC';
 
 	getSQLType(): string {
 		return 'line';

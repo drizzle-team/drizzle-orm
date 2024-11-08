@@ -4,6 +4,7 @@ import './@types/utils';
 import type { Casing } from './cli/validations/common';
 import { assertUnreachable } from './global';
 import {
+	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
@@ -13,6 +14,7 @@ import {
 	UniqueConstraint,
 } from './serializer/mysqlSchema';
 import { indexName } from './serializer/mysqlSerializer';
+import { unescapeSingleQuotes } from './utils';
 
 // time precision to fsp
 // {mode: "string"} for timestamp by default
@@ -155,11 +157,15 @@ export const schemaToTypeScript = (
 			const uniqueImports = Object.values(it.uniqueConstraints).map(
 				(it) => 'unique',
 			);
+			const checkImports = Object.values(it.checkConstraint).map(
+				(it) => 'check',
+			);
 
 			res.mysql.push(...idxImports);
 			res.mysql.push(...fkImpots);
 			res.mysql.push(...pkImports);
 			res.mysql.push(...uniqueImports);
+			res.mysql.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -174,6 +180,12 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 					patched = patched.startsWith('int(') ? 'int' : patched;
 					patched = patched.startsWith('double(') ? 'double' : patched;
+					patched = patched.startsWith('float(') ? 'float' : patched;
+					patched = patched.startsWith('int unsigned') ? 'int' : patched;
+					patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+					patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+					patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+					patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
 					return patched;
 				})
 				.filter((type) => {
@@ -185,6 +197,37 @@ export const schemaToTypeScript = (
 		},
 		{ mysql: [] as string[] },
 	);
+
+	Object.values(schema.views).forEach((it) => {
+		imports.mysql.push('mysqlView');
+
+		const columnImports = Object.values(it.columns)
+			.map((col) => {
+				let patched = importsPatch[col.type] ?? col.type;
+				patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+				patched = patched.startsWith('char(') ? 'char' : patched;
+				patched = patched.startsWith('binary(') ? 'binary' : patched;
+				patched = patched.startsWith('decimal(') ? 'decimal' : patched;
+				patched = patched.startsWith('smallint(') ? 'smallint' : patched;
+				patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
+				patched = patched.startsWith('datetime(') ? 'datetime' : patched;
+				patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
+				patched = patched.startsWith('int(') ? 'int' : patched;
+				patched = patched.startsWith('double(') ? 'double' : patched;
+				patched = patched.startsWith('float(') ? 'float' : patched;
+				patched = patched.startsWith('int unsigned') ? 'int' : patched;
+				patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+				patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+				patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+				patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
+				return patched;
+			})
+			.filter((type) => {
+				return mysqlImportsList.has(type);
+			});
+
+		imports.mysql.push(...columnImports);
+	});
 
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const func = 'mysqlTable';
@@ -217,6 +260,7 @@ export const schemaToTypeScript = (
 			|| filteredFKs.length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
+			|| Object.keys(table.checkConstraint).length > 0
 		) {
 			statement += ',\n';
 			statement += '(table) => {\n';
@@ -235,11 +279,46 @@ export const schemaToTypeScript = (
 				Object.values(table.uniqueConstraints),
 				withCasing,
 			);
+			statement += createTableChecks(
+				Object.values(table.checkConstraint),
+				withCasing,
+			);
 			statement += '\t}\n';
 			statement += '}';
 		}
 
 		statement += ');';
+		return statement;
+	});
+
+	const viewsStatements = Object.values(schema.views).map((view) => {
+		const { columns, name, algorithm, definition, sqlSecurity, withCheckOption } = view;
+		const func = 'mysqlView';
+		let statement = '';
+
+		if (imports.mysql.includes(withCasing(name))) {
+			statement = `// Table name is in conflict with ${
+				withCasing(
+					view.name,
+				)
+			} import.\n// Please change to any other name, that is not in imports list\n`;
+		}
+		statement += `export const ${withCasing(name)} = ${func}("${name}", {\n`;
+		statement += createTableColumns(
+			Object.values(columns),
+			[],
+			withCasing,
+			casing,
+			name,
+			schema,
+		);
+		statement += '})';
+
+		statement += algorithm ? `.algorithm("${algorithm}")` : '';
+		statement += sqlSecurity ? `.sqlSecurity("${sqlSecurity}")` : '';
+		statement += withCheckOption ? `.withCheckOption("${withCheckOption}")` : '';
+		statement += `.as(sql\`${definition?.replaceAll('`', '\\`')}\`);`;
+
 		return statement;
 	});
 
@@ -257,6 +336,8 @@ export const schemaToTypeScript = (
 
 	let decalrations = '';
 	decalrations += tableStatements.join('\n\n');
+	decalrations += '\n';
+	decalrations += viewsStatements.join('\n\n');
 
 	const file = importsTs + decalrations;
 
@@ -329,8 +410,9 @@ const column = (
 
 	if (lowered.startsWith('int')) {
 		const isUnsigned = lowered.startsWith('int unsigned');
-		let out = `${casing(name)}: int(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? '{ unsigned: true }' : ''
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: int(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
@@ -341,9 +423,10 @@ const column = (
 
 	if (lowered.startsWith('tinyint')) {
 		const isUnsigned = lowered.startsWith('tinyint unsigned');
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		// let out = `${name.camelCase()}: tinyint("${name}")`;
-		let out: string = `${casing(name)}: tinyint(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? ', { unsigned: true }' : ''
+		let out: string = `${casing(name)}: tinyint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
@@ -354,8 +437,9 @@ const column = (
 
 	if (lowered.startsWith('smallint')) {
 		const isUnsigned = lowered.startsWith('smallint unsigned');
-		let out = `${casing(name)}: smallint(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? ', { unsigned: true }' : ''
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: smallint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
@@ -366,8 +450,9 @@ const column = (
 
 	if (lowered.startsWith('mediumint')) {
 		const isUnsigned = lowered.startsWith('mediumint unsigned');
-		let out = `${casing(name)}: mediumint(${dbColumnName({ name, casing: rawCasing, withMode: isUnsigned })}${
-			isUnsigned ? ', { unsigned: true }' : ''
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: mediumint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
@@ -398,14 +483,18 @@ const column = (
 
 	if (lowered.startsWith('double')) {
 		let params:
-			| { precision: string | undefined; scale: string | undefined }
+			| { precision?: string; scale?: string; unsigned?: boolean }
 			| undefined;
 
-		if (lowered.length > 6) {
+		if (lowered.length > (lowered.includes('unsigned') ? 15 : 6)) {
 			const [precision, scale] = lowered
-				.slice(7, lowered.length - 1)
+				.slice(7, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
 				.split(',');
 			params = { precision, scale };
+		}
+
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
 		}
 
 		const timeConfigParams = params ? timeConfig(params) : undefined;
@@ -423,8 +512,23 @@ const column = (
 		return out;
 	}
 
-	if (lowered === 'float') {
-		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })})`;
+	if (lowered.startsWith('float')) {
+		let params:
+			| { precision?: string; scale?: string; unsigned?: boolean }
+			| undefined;
+
+		if (lowered.length > (lowered.includes('unsigned') ? 14 : 5)) {
+			const [precision, scale] = lowered
+				.slice(6, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
+				.split(',');
+			params = { precision, scale };
+		}
+
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
+		}
+
+		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })}${params ? timeConfig(params) : ''})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
@@ -576,8 +680,9 @@ const column = (
 			)
 		} })`;
 
+		const mappedDefaultValue = mapColumnDefault(defaultValue, isExpression);
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
 			: '';
 		return out;
 	}
@@ -632,14 +737,18 @@ const column = (
 
 	if (lowered.startsWith('decimal')) {
 		let params:
-			| { precision: string | undefined; scale: string | undefined }
+			| { precision?: string; scale?: string; unsigned?: boolean }
 			| undefined;
 
-		if (lowered.length > 7) {
+		if (lowered.length > (lowered.includes('unsigned') ? 16 : 7)) {
 			const [precision, scale] = lowered
-				.slice(8, lowered.length - 1)
+				.slice(8, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
 				.split(',');
 			params = { precision, scale };
+		}
+
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
 		}
 
 		const timeConfigParams = params ? timeConfig(params) : undefined;
@@ -680,10 +789,15 @@ const column = (
 	}
 
 	if (lowered.startsWith('enum')) {
-		const values = lowered.substring('enum'.length + 1, lowered.length - 1);
+		const values = lowered
+			.substring('enum'.length + 1, lowered.length - 1)
+			.split(',')
+			.map((v) => unescapeSingleQuotes(v, true))
+			.join(',');
 		let out = `${casing(name)}: mysqlEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
+		const mappedDefaultValue = mapColumnDefault(defaultValue, isExpression);
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
 			: '';
 		return out;
 	}
@@ -850,6 +964,25 @@ const createTableUniques = (
 				.join(', ')
 		}),`;
 		statement += `\n`;
+	});
+
+	return statement;
+};
+
+const createTableChecks = (
+	checks: CheckConstraint[],
+	casing: (value: string) => string,
+): string => {
+	let statement = '';
+
+	checks.forEach((it) => {
+		const checkKey = casing(it.name);
+
+		statement += `\t\t${checkKey}: `;
+		statement += 'check(';
+		statement += `"${it.name}", `;
+		statement += `sql\`${it.value.replace(/`/g, '\\`')}\`)`;
+		statement += `,\n`;
 	});
 
 	return statement;

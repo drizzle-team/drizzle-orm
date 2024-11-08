@@ -1,14 +1,21 @@
 import chalk from 'chalk';
-import { getTableName, is } from 'drizzle-orm';
-import { SQL } from 'drizzle-orm';
-import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
-import { AnyMySqlTable, MySqlDialect, type PrimaryKey as PrimaryKeyORM, uniqueKeyName } from 'drizzle-orm/mysql-core';
-import { getTableConfig } from 'drizzle-orm/mysql-core';
+import { getTableName, is, SQL } from 'drizzle-orm';
+import {
+	AnyMySqlTable,
+	getTableConfig,
+	getViewConfig,
+	MySqlColumn,
+	MySqlDialect,
+	MySqlView,
+	type PrimaryKey as PrimaryKeyORM,
+	uniqueKeyName,
+} from 'drizzle-orm/mysql-core';
 import { RowDataPacket } from 'mysql2/promise';
 import { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../cli/validations/outputs';
 import { IntrospectStage, IntrospectStatus } from '../cli/views';
 import {
+	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
@@ -17,23 +24,32 @@ import {
 	PrimaryKey,
 	Table,
 	UniqueConstraint,
+	View,
 } from '../serializer/mysqlSchema';
-import { type DB, getColumnCasing } from '../utils';
-import { sqlToStr } from '.';
-// import { MySqlColumnWithAutoIncrement } from "drizzle-orm/mysql-core";
-// import { MySqlDateBaseColumn } from "drizzle-orm/mysql-core";
+import { type DB, escapeSingleQuotes } from '../utils';
+import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
 };
 
+const handleEnumType = (type: string) => {
+	let str = type.split('(')[1];
+	str = str.substring(0, str.length - 1);
+	const values = str.split(',').map((v) => `'${escapeSingleQuotes(v.substring(1, v.length - 1))}'`);
+	return `enum(${values.join(',')})`;
+};
+
 export const generateMySqlSnapshot = (
 	tables: AnyMySqlTable[],
+	views: MySqlView[],
 	casing: CasingType | undefined,
 ): MySqlSchemaInternal => {
 	const dialect = new MySqlDialect({ casing });
 	const result: Record<string, Table> = {};
+	const resultViews: Record<string, View> = {};
 	const internal: MySqlKitInternals = { tables: {}, indexes: {} };
+
 	for (const table of tables) {
 		const {
 			name: tableName,
@@ -41,19 +57,26 @@ export const generateMySqlSnapshot = (
 			indexes,
 			foreignKeys,
 			schema,
+			checks,
 			primaryKeys,
 			uniqueConstraints,
 		} = getTableConfig(table);
+
 		const columnsObject: Record<string, Column> = {};
 		const indexesObject: Record<string, Index> = {};
 		const foreignKeysObject: Record<string, ForeignKey> = {};
 		const primaryKeysObject: Record<string, PrimaryKey> = {};
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
+		const checkConstraintObject: Record<string, CheckConstraint> = {};
+
+		// this object will help to identify same check names
+		let checksInTable: Record<string, string[]> = {};
 
 		columns.forEach((column) => {
 			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
-			const sqlTypeLowered = column.getSQLType().toLowerCase();
+			const sqlType = column.getSQLType();
+			const sqlTypeLowered = sqlType.toLowerCase();
 			const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
 				? false
 				: (column as any).autoIncrement;
@@ -62,7 +85,7 @@ export const generateMySqlSnapshot = (
 
 			const columnToSet: Column = {
 				name,
-				type: column.getSQLType(),
+				type: sqlType.startsWith('enum') ? handleEnumType(sqlType) : sqlType,
 				primaryKey: false,
 				// If field is autoincrement it's notNull by default
 				// notNull: autoIncrement ? true : notNull,
@@ -126,7 +149,7 @@ export const generateMySqlSnapshot = (
 					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					if (typeof column.default === 'string') {
-						columnToSet.default = `'${column.default}'`;
+						columnToSet.default = `'${escapeSingleQuotes(column.default)}'`;
 					} else {
 						if (sqlTypeLowered === 'json') {
 							columnToSet.default = `'${JSON.stringify(column.default)}'`;
@@ -347,6 +370,39 @@ export const generateMySqlSnapshot = (
 			};
 		});
 
+		checks.forEach((check) => {
+			check;
+			const checkName = check.name;
+			if (typeof checksInTable[tableName] !== 'undefined') {
+				if (checksInTable[tableName].includes(check.name)) {
+					console.log(
+						`\n${
+							withStyle.errorWarning(
+								`We\'ve found duplicated check constraint name in ${
+									chalk.underline.blue(
+										tableName,
+									)
+								}. Please rename your check constraint in the ${
+									chalk.underline.blue(
+										tableName,
+									)
+								} table`,
+							)
+						}`,
+					);
+					process.exit(1);
+				}
+				checksInTable[tableName].push(checkName);
+			} else {
+				checksInTable[tableName] = [check.name];
+			}
+
+			checkConstraintObject[checkName] = {
+				name: checkName,
+				value: dialect.sqlToQuery(check.value).sql,
+			};
+		});
+
 		// only handle tables without schemas
 		if (!schema) {
 			result[tableName] = {
@@ -356,14 +412,126 @@ export const generateMySqlSnapshot = (
 				foreignKeys: foreignKeysObject,
 				compositePrimaryKeys: primaryKeysObject,
 				uniqueConstraints: uniqueConstraintObject,
+				checkConstraint: checkConstraintObject,
 			};
 		}
+	}
+
+	for (const view of views) {
+		const {
+			isExisting,
+			name,
+			query,
+			schema,
+			selectedFields,
+			algorithm,
+			sqlSecurity,
+			withCheckOption,
+		} = getViewConfig(view);
+
+		const columnsObject: Record<string, Column> = {};
+
+		const existingView = resultViews[name];
+		if (typeof existingView !== 'undefined') {
+			console.log(
+				`\n${
+					withStyle.errorWarning(
+						`We\'ve found duplicated view name across ${
+							chalk.underline.blue(
+								schema ?? 'public',
+							)
+						} schema. Please rename your view`,
+					)
+				}`,
+			);
+			process.exit(1);
+		}
+
+		for (const key in selectedFields) {
+			if (is(selectedFields[key], MySqlColumn)) {
+				const column = selectedFields[key];
+
+				const notNull: boolean = column.notNull;
+				const sqlTypeLowered = column.getSQLType().toLowerCase();
+				const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
+					? false
+					: (column as any).autoIncrement;
+
+				const generated = column.generated;
+
+				const columnToSet: Column = {
+					name: column.name,
+					type: column.getSQLType(),
+					primaryKey: false,
+					// If field is autoincrement it's notNull by default
+					// notNull: autoIncrement ? true : notNull,
+					notNull,
+					autoincrement: autoIncrement,
+					onUpdate: (column as any).hasOnUpdateNow,
+					generated: generated
+						? {
+							as: is(generated.as, SQL)
+								? dialect.sqlToQuery(generated.as as SQL).sql
+								: typeof generated.as === 'function'
+								? dialect.sqlToQuery(generated.as() as SQL).sql
+								: (generated.as as any),
+							type: generated.mode ?? 'stored',
+						}
+						: undefined,
+				};
+
+				if (column.default !== undefined) {
+					if (is(column.default, SQL)) {
+						columnToSet.default = sqlToStr(column.default, casing);
+					} else {
+						if (typeof column.default === 'string') {
+							columnToSet.default = `'${column.default}'`;
+						} else {
+							if (sqlTypeLowered === 'json') {
+								columnToSet.default = `'${JSON.stringify(column.default)}'`;
+							} else if (column.default instanceof Date) {
+								if (sqlTypeLowered === 'date') {
+									columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
+								} else if (
+									sqlTypeLowered.startsWith('datetime')
+									|| sqlTypeLowered.startsWith('timestamp')
+								) {
+									columnToSet.default = `'${
+										column.default
+											.toISOString()
+											.replace('T', ' ')
+											.slice(0, 23)
+									}'`;
+								}
+							} else {
+								columnToSet.default = column.default;
+							}
+						}
+						if (['blob', 'text', 'json'].includes(column.getSQLType())) {
+							columnToSet.default = `(${columnToSet.default})`;
+						}
+					}
+				}
+				columnsObject[column.name] = columnToSet;
+			}
+		}
+
+		resultViews[name] = {
+			columns: columnsObject,
+			name,
+			isExisting,
+			definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
+			withCheckOption,
+			algorithm: algorithm ?? 'undefined', // set default values
+			sqlSecurity: sqlSecurity ?? 'definer', // set default values
+		};
 	}
 
 	return {
 		version: '5',
 		dialect: 'mysql',
 		tables: result,
+		views: resultViews,
 		_meta: {
 			tables: {},
 			columns: {},
@@ -384,9 +552,9 @@ function clearDefaults(defaultValue: any, collate: string) {
 			.substring(collate.length, defaultValue.length)
 			.replace(/\\/g, '');
 		if (resultDefault.startsWith("'") && resultDefault.endsWith("'")) {
-			return `('${resultDefault.substring(1, resultDefault.length - 1)}')`;
+			return `('${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}')`;
 		} else {
-			return `'${resultDefault}'`;
+			return `'${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}'`;
 		}
 	} else {
 		return `(${resultDefault})`;
@@ -418,6 +586,8 @@ export const fromDatabase = async (
 	let tablesCount = new Set();
 	let indexesCount = 0;
 	let foreignKeysCount = 0;
+	let checksCount = 0;
+	let viewsCount = 0;
 
 	const idxs = await db.query(
 		`select * from INFORMATION_SCHEMA.STATISTICS
@@ -489,8 +659,8 @@ export const fromDatabase = async (
 			}
 		}
 
-		if (columnType.startsWith('tinyint')) {
-			changedType = 'tinyint';
+		if (columnType.includes('decimal(10,0)')) {
+			changedType = columnType.replace('decimal(10,0)', 'decimal');
 		}
 
 		let onUpdate: boolean | undefined = undefined;
@@ -503,14 +673,14 @@ export const fromDatabase = async (
 		}
 
 		const newColumn: Column = {
-			default: columnDefault === null
+			default: columnDefault === null || columnDefault === undefined
 				? undefined
 				: /^-?[\d.]+(?:e-?\d+)?$/.test(columnDefault)
 						&& !['decimal', 'char', 'varchar'].some((type) => columnType.startsWith(type))
 				? Number(columnDefault)
 				: isDefaultAnExpression
 				? clearDefaults(columnDefault, collation)
-				: `'${columnDefault}'`,
+				: `'${escapeSingleQuotes(columnDefault)}'`,
 			autoincrement: isAutoincrement,
 			name: columnName,
 			type: changedType,
@@ -561,6 +731,7 @@ export const fromDatabase = async (
 				indexes: {},
 				foreignKeys: {},
 				uniqueConstraints: {},
+				checkConstraint: {},
 			};
 		} else {
 			result[tableName]!.columns[columnName] = newColumn;
@@ -734,16 +905,91 @@ export const fromDatabase = async (
 		}
 	}
 
+	const views = await db.query(
+		`select * from INFORMATION_SCHEMA.VIEWS WHERE table_schema = '${inputSchema}';`,
+	);
+
+	const resultViews: Record<string, View> = {};
+
+	viewsCount = views.length;
+	if (progressCallback) {
+		progressCallback('views', viewsCount, 'fetching');
+	}
+	for await (const view of views) {
+		const viewName = view['TABLE_NAME'];
+		const definition = view['VIEW_DEFINITION'];
+
+		const withCheckOption = view['CHECK_OPTION'] === 'NONE' ? undefined : view['CHECK_OPTION'].toLowerCase();
+		const sqlSecurity = view['SECURITY_TYPE'].toLowerCase();
+
+		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW \`${viewName}\`;`);
+		const algorithmMatch = createSqlStatement['Create View'].match(/ALGORITHM=([^ ]+)/);
+		const algorithm = algorithmMatch ? algorithmMatch[1].toLowerCase() : undefined;
+
+		const columns = result[viewName].columns;
+		delete result[viewName];
+
+		resultViews[viewName] = {
+			columns: columns,
+			isExisting: false,
+			name: viewName,
+			algorithm,
+			definition,
+			sqlSecurity,
+			withCheckOption,
+		};
+	}
+
 	if (progressCallback) {
 		progressCallback('indexes', indexesCount, 'done');
 		// progressCallback("enums", 0, "fetching");
 		progressCallback('enums', 0, 'done');
+		progressCallback('views', viewsCount, 'done');
+	}
+
+	const checkConstraints = await db.query(
+		`SELECT 
+    tc.table_name, 
+    tc.constraint_name, 
+    cc.check_clause
+FROM 
+    information_schema.table_constraints tc
+JOIN 
+    information_schema.check_constraints cc 
+    ON tc.constraint_name = cc.constraint_name
+WHERE 
+    tc.constraint_schema = '${inputSchema}'
+AND 
+    tc.constraint_type = 'CHECK';`,
+	);
+
+	checksCount += checkConstraints.length;
+	if (progressCallback) {
+		progressCallback('checks', checksCount, 'fetching');
+	}
+	for (const checkConstraintRow of checkConstraints) {
+		const constraintName = checkConstraintRow['CONSTRAINT_NAME'];
+		const constraintValue = checkConstraintRow['CHECK_CLAUSE'];
+		const tableName = checkConstraintRow['TABLE_NAME'];
+
+		const tableInResult = result[tableName];
+		// if (typeof tableInResult === 'undefined') continue;
+
+		tableInResult.checkConstraint[constraintName] = {
+			name: constraintName,
+			value: constraintValue,
+		};
+	}
+
+	if (progressCallback) {
+		progressCallback('checks', checksCount, 'done');
 	}
 
 	return {
 		version: '5',
 		dialect: 'mysql',
 		tables: result,
+		views: resultViews,
 		_meta: {
 			tables: {},
 			columns: {},

@@ -66,7 +66,7 @@ export class One<
 	TTableName extends string = string,
 	TIsNullable extends boolean = boolean,
 > extends Relation<TTableName> {
-	static readonly [entityKind]: string = 'One';
+	static override readonly [entityKind]: string = 'One';
 
 	declare protected $relationBrand: 'One';
 
@@ -98,7 +98,7 @@ export class One<
 }
 
 export class Many<TTableName extends string> extends Relation<TTableName> {
-	static readonly [entityKind]: string = 'Many';
+	static override readonly [entityKind]: string = 'Many';
 
 	declare protected $relationBrand: 'Many';
 
