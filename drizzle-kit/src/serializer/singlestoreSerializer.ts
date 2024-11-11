@@ -154,9 +154,9 @@ export const generateSingleStoreSnapshot = (
 							columnToSet.default = column.default;
 						}
 					}
-					if (['blob', 'text', 'json'].includes(column.getSQLType())) {
-						columnToSet.default = `(${columnToSet.default})`;
-					}
+					// if (['blob', 'text', 'json'].includes(column.getSQLType())) {
+					// 	columnToSet.default = `(${columnToSet.default})`;
+					// }
 				}
 			}
 			columnsObject[column.name] = columnToSet;
@@ -489,6 +489,7 @@ export const fromDatabase = async (
 		const isNullable = column['IS_NULLABLE'] === 'YES'; // 'YES', 'NO'
 		const dataType = column['DATA_TYPE']; // varchar
 		const columnType = column['COLUMN_TYPE']; // varchar(256)
+		// const columnType = column["DATA_TYPE"];
 		const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
 		const columnDefault: string = column['COLUMN_DEFAULT'];
 		const collation: string = column['CHARACTER_SET_NAME'];
@@ -534,9 +535,23 @@ export const fromDatabase = async (
 			}
 		}
 
-		if (columnType.startsWith('tinyint')) {
-			changedType = 'tinyint';
+		if (
+			columnType.startsWith('bigint(')
+			|| columnType.startsWith('tinyint(')
+			|| columnType.startsWith('date(')
+			|| columnType.startsWith('int(')
+			|| columnType.startsWith('mediumint(')
+			|| columnType.startsWith('smallint(')
+			|| columnType.startsWith('text(')
+			|| columnType.startsWith('time(')
+			|| columnType.startsWith('year(')
+		) {
+			changedType = columnType.replace(/\(\s*[^)]*\)$/, '');
 		}
+
+		// if (columnType.includes("decimal(10,0)")) {
+		//   changedType = columnType.replace("decimal(10,0)", "decimal");
+		// }
 
 		let onUpdate: boolean | undefined = undefined;
 		if (
@@ -551,7 +566,7 @@ export const fromDatabase = async (
 			default: columnDefault === null
 				? undefined
 				: /^-?[\d.]+(?:e-?\d+)?$/.test(columnDefault)
-						&& !columnType.startsWith('decimal')
+						&& !['decimal', 'char', 'varchar'].some((type) => columnType.startsWith(type))
 				? Number(columnDefault)
 				: isDefaultAnExpression
 				? clearDefaults(columnDefault, collation)

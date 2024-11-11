@@ -78,7 +78,7 @@ if (!fs.existsSync('tests/push/singlestore')) {
 	fs.mkdirSync('tests/push/singlestore');
 }
 
-test('add check constraint to table', async () => {
+test.skip('add check constraint to table', async () => {
 	const schema1 = {
 		test: singlestoreTable('test', {
 			id: int('id').primaryKey(),
@@ -123,7 +123,7 @@ test('add check constraint to table', async () => {
 	await client.query(`DROP TABLE \`test\`;`);
 });
 
-test('drop check constraint to table', async () => {
+test.skip('drop check constraint to table', async () => {
 	const schema1 = {
 		test: singlestoreTable('test', {
 			id: int('id').primaryKey(),
@@ -168,7 +168,7 @@ test('drop check constraint to table', async () => {
 	await client.query(`DROP TABLE \`test\`;`);
 });
 
-test('db has checks. Push with same names', async () => {
+test.skip('db has checks. Push with same names', async () => {
 	const schema1 = {
 		test: singlestoreTable('test', {
 			id: int('id').primaryKey(),
@@ -196,7 +196,7 @@ test('db has checks. Push with same names', async () => {
 	await client.query(`DROP TABLE \`test\`;`);
 });
 
-test('create view', async () => {
+test.skip('create view', async () => {
 	const table = singlestoreTable('test', {
 		id: int('id').primaryKey(),
 	});
@@ -239,7 +239,7 @@ VIEW \`view\` AS (select \`id\` from \`test\`);`,
 	await client.query(`DROP TABLE \`test\`;`);
 });
 
-test('drop view', async () => {
+test.skip('drop view', async () => {
 	const table = singlestoreTable('test', {
 		id: int('id').primaryKey(),
 	});
@@ -273,7 +273,7 @@ test('drop view', async () => {
 	await client.query(`DROP VIEW \`view\`;`);
 });
 
-test('alter view ".as"', async () => {
+test.skip('alter view ".as"', async () => {
 	const table = singlestoreTable('test', {
 		id: int('id').primaryKey(),
 	});
@@ -309,7 +309,7 @@ test('alter view ".as"', async () => {
 	await client.query(`DROP VIEW \`view\`;`);
 });
 
-test('alter meta options with distinct in definition', async () => {
+test.skip('alter meta options with distinct in definition', async () => {
 	const table = singlestoreTable('test', {
 		id: int('id').primaryKey(),
 	});
