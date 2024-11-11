@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import type { Assume, Column, Equal, SelectedFieldsFlat, Simplify } from 'drizzle-orm';
+import type { z } from 'zod';
+import type { Assume, Column, Equal, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type { literalSchema } from './column';
 
 type Literal = z.infer<typeof literalSchema>;
@@ -94,3 +94,27 @@ export type BuildSelectSchema<
   }>,
   'strip'
 >;
+
+export interface CreateSelectSchema {
+  <TView extends View>(view: TView): BuildSelectSchema<TView['_']['selectedFields'], never>;
+  <
+    TView extends View,
+    TRefine extends BuildRefine<TView['_']['selectedFields']>
+  >(
+    view: TView,
+    refine: TRefine
+  ): BuildSelectSchema<TView['_']['selectedFields'], TRefine>;
+
+  <TTable extends Table>(table: TTable): BuildSelectSchema<TTable['_']['columns'], never>;
+  <
+    TTable extends Table,
+    TRefine extends BuildRefine<TTable['_']['columns']>
+  >(
+    table: TTable,
+    refine?: TRefine
+  ): BuildSelectSchema<TTable['_']['columns'], TRefine>;
+}
+
+export interface CreateSchemaFactoryOptions {
+  zodInstance?: any;
+}

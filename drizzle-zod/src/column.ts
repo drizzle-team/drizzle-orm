@@ -4,6 +4,7 @@ import { PgArray, PgBigInt53, PgBigSerial53, PgChar, PgDoublePrecision, PgGeomet
 import { MySqlBigInt53, MySqlChar, MySqlColumn, MySqlDecimal, MySqlDouble, MySqlFloat, MySqlInt, MySqlMediumInt, MySqlReal, MySqlSerial, MySqlSmallInt, MySqlText, MySqlTinyInt, MySqlVarChar } from 'drizzle-orm/mysql-core';
 import { SQLiteInteger, SQLiteReal } from 'drizzle-orm/sqlite-core';
 import { isAny, isWithEnum } from './utils';
+import type { z as zod } from 'zod';
 import type { Column } from 'drizzle-orm';
 import type { Json } from './types';
 
@@ -39,7 +40,7 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 export const bufferSchema: z.ZodType<Buffer> = z.custom<Buffer>((v) => v instanceof Buffer);
 
 /** @internal */
-export function columnToSchema(column: Column): z.ZodTypeAny {
+export function columnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
   let schema!: z.ZodTypeAny;
 
   if (isWithEnum(column)) {
@@ -48,21 +49,21 @@ export function columnToSchema(column: Column): z.ZodTypeAny {
 
   if (!schema) {
     if (is(column, PgArray)) {
-      schema = z.array(columnToSchema(column.baseColumn));
+      schema = z.array(columnToSchema(column.baseColumn, z));
     } else if (column.dataType === 'array') {
-      schema = arrayColumnToSchema(column);
+      schema = arrayColumnToSchema(column, z);
     } else if (column.dataType === 'number') {
-      schema = numberColumnToSchema(column);
+      schema = numberColumnToSchema(column, z);
     } else if (column.dataType === 'bigint') {
-      schema = bigintColumnToSchema(column);
+      schema = bigintColumnToSchema(column, z);
     } else if (column.dataType === 'boolean') {
       schema = z.boolean()
     } else if (column.dataType === 'date') {
       schema = z.date();
     } else if (column.dataType === 'string') {
-      schema = stringColumnToSchema(column);
+      schema = stringColumnToSchema(column, z);
     } else if (column.dataType === 'json') {
-      schema = jsonColumnToSchema(column);
+      schema = jsonColumnToSchema(column, z);
     } else if (column.dataType === 'custom') {
       schema = z.any();
     } else if (column.dataType === 'buffer') {
@@ -77,7 +78,7 @@ export function columnToSchema(column: Column): z.ZodTypeAny {
   return schema;
 }
 
-function numberColumnToSchema(column: Column): z.ZodTypeAny {
+function numberColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
   const unsigned = column.getSQLType().includes('unsigned') || (is(column, MySqlColumn) && column.getSQLType() === 'serial');
   let min!: number;
   let max!: number;
@@ -115,7 +116,7 @@ function numberColumnToSchema(column: Column): z.ZodTypeAny {
   return integer ? schema.int() : schema;
 }
 
-function bigintColumnToSchema(column: Column): z.ZodTypeAny {
+function bigintColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
   const unsigned = column.getSQLType().includes('unsigned');
   let min = unsigned ? 0n : INT64_MIN;
   let max = unsigned ? INT64_UNSIGNED_MAX : INT64_MAX;
@@ -123,7 +124,7 @@ function bigintColumnToSchema(column: Column): z.ZodTypeAny {
   return z.bigint().min(min).max(max);
 }
 
-function stringColumnToSchema(column: Column): z.ZodTypeAny {
+function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
   let max: number | undefined;
   let fixed = false;
 
@@ -143,7 +144,7 @@ function stringColumnToSchema(column: Column): z.ZodTypeAny {
   return max !== undefined && fixed ? schema.length(max) : max !== undefined ? schema.max(max) : schema;
 }
 
-function arrayColumnToSchema(column: Column): z.ZodTypeAny {
+function arrayColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
   let schema!: z.ZodTypeAny;
 
   if (is(column, PgLineTuple)) {
@@ -166,7 +167,7 @@ function arrayColumnToSchema(column: Column): z.ZodTypeAny {
   return schema;
 }
 
-function jsonColumnToSchema(column: Column): z.ZodTypeAny {
+function jsonColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
   let schema!: z.ZodTypeAny;
 
   if (is(column, PgLineABC)) {
