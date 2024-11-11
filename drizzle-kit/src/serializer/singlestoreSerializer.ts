@@ -549,9 +549,9 @@ export const fromDatabase = async (
 			changedType = columnType.replace(/\(\s*[^)]*\)$/, '');
 		}
 
-		// if (columnType.includes("decimal(10,0)")) {
-		//   changedType = columnType.replace("decimal(10,0)", "decimal");
-		// }
+		if (columnType.includes('decimal(10,0)')) {
+			changedType = columnType.replace('decimal(10,0)', 'decimal');
+		}
 
 		let onUpdate: boolean | undefined = undefined;
 		if (
