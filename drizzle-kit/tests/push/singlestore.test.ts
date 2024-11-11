@@ -1,18 +1,14 @@
 import Docker from "dockerode";
-import { SQL, sql } from "drizzle-orm";
 import {
   bigint,
   binary,
   char,
   date,
-  datetime,
   decimal,
   double,
   float,
   int,
-  json,
   mediumint,
-  serial,
   singlestoreEnum,
   singlestoreTable,
   smallint,
@@ -22,7 +18,7 @@ import {
   tinyint,
   varbinary,
   varchar,
-  year,
+  year
 } from "drizzle-orm/singlestore-core";
 import getPort from "get-port";
 import { Connection, createConnection } from "mysql2/promise";
