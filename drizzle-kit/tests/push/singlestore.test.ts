@@ -259,6 +259,7 @@ const singlestoreSuite: DialectSuite = {
       "drizzle",
       false
     );
+
     expect(statements.length).toBe(0);
     expect(statements).toEqual([]);
 
