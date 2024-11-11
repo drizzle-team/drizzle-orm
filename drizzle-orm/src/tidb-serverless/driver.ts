@@ -1,4 +1,5 @@
-import type { Connection } from '@tidbcloud/serverless';
+import { type Config, connect, type Connection } from '@tidbcloud/serverless';
+import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -9,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
 import type { TiDBServerlessPreparedQueryHKT, TiDBServerlessQueryResultHKT } from './session.ts';
 import { TiDBServerlessSession } from './session.ts';
 
@@ -17,15 +18,19 @@ export interface TiDBServerlessSDriverOptions {
 	logger?: Logger;
 }
 
-export type TiDBServerlessDatabase<
+export class TiDBServerlessDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = MySqlDatabase<TiDBServerlessQueryResultHKT, TiDBServerlessPreparedQueryHKT, TSchema>;
+> extends MySqlDatabase<TiDBServerlessQueryResultHKT, TiDBServerlessPreparedQueryHKT, TSchema> {
+	static override readonly [entityKind]: string = 'TiDBServerlessDatabase';
+}
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Connection,
 	config: DrizzleConfig<TSchema> = {},
-): TiDBServerlessDatabase<TSchema> {
-	const dialect = new MySqlDialect();
+): TiDBServerlessDatabase<TSchema> & {
+	$client: Connection;
+} {
+	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -47,5 +52,69 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new TiDBServerlessSession(client, dialect, undefined, schema, { logger });
-	return new MySqlDatabase(dialect, session, schema, 'default') as TiDBServerlessDatabase<TSchema>;
+	const db = new TiDBServerlessDatabase(dialect, session, schema as any, 'default') as TiDBServerlessDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
+}
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends Connection = Connection,
+>(
+	...params: IfNotImported<
+		Config,
+		[ImportTypeError<'@tidbcloud/serverless'>],
+		[
+			TClient | string,
+		] | [
+			TClient | string,
+			DrizzleConfig<TSchema>,
+		] | [
+			& ({
+				connection: string | Config;
+			} | {
+				client: TClient;
+			})
+			& DrizzleConfig<TSchema>,
+		]
+	>
+): TiDBServerlessDatabase<TSchema> & {
+	$client: TClient;
+} {
+	if (typeof params[0] === 'string') {
+		const instance = connect({
+			url: params[0],
+		});
+
+		return construct(instance, params[1]) as any;
+	}
+
+	if (isConfig(params[0])) {
+		const { connection, client, ...drizzleConfig } = params[0] as
+			& { connection?: Config | string; client?: TClient }
+			& DrizzleConfig<TSchema>;
+
+		if (client) return construct(client, drizzleConfig) as any;
+
+		const instance = typeof connection === 'string'
+			? connect({
+				url: connection,
+			})
+			: connect(connection!);
+
+		return construct(instance, drizzleConfig) as any;
+	}
+
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: DrizzleConfig<TSchema>,
+	): TiDBServerlessDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }
