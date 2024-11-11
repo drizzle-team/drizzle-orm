@@ -1,44 +1,101 @@
-import { char, date, integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
-import { expect, test, describe } from 'vitest';
+import { char, date, getViewConfig, integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { test } from 'vitest';
 import { z } from 'zod';
 import { createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils.ts';
 import { sql } from 'drizzle-orm';
 
-describe('nullability', () => {
-	const cols = {
+test('table - select', (t) => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = z.object({ id: z.number().int(), name: z.string() });
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('view qb - select', (t) => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+	const view = pgView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
+
+	const result = createSelectSchema(view);
+	const expected = z.object({ id: z.number().int(), age: z.any() });
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('view columns - select', (t) => {
+	const view = pgView('test', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	}).as(sql``);
+
+	const result = createSelectSchema(view);
+	const expected = z.object({ id: z.number().int(), name: z.string() });
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('materialized view qb - select', (t) => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+	const view = pgMaterializedView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
+
+	const result = createSelectSchema(view);
+	const expected = z.object({ id: z.number().int(), age: z.any() });
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('materialized view columns - select', (t) => {
+	const view = pgView('test', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	}).as(sql``);
+
+	const result = createSelectSchema(view);
+	const expected = z.object({ id: z.number().int(), name: z.string() });
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('view with nested fields - select', (t) => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+	const view = pgMaterializedView('test').as((qb) => qb.select({
+		id: table.id,
+		profile: {
+			name: table.name,
+			age: sql``.as('age')
+		}
+	}).from(table));
+
+	const result = createSelectSchema(view);
+	const expected = z.object({ id: z.number().int(), profile: z.object({ name: z.string(), age: z.any() }) });
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('nullability - select', (t) => {
+	const table = pgTable('test', {
 		c1: integer(),
 		c2: integer().notNull(),
 		c3: integer().default(1),
 		c4: integer().notNull().default(1),
-	} as const;
-	const table = pgTable('test', cols);
-	const view1 = pgView('test').as((qb) => qb.select().from(table));
-	const view2 = pgView('test', cols).as(sql``);
-	const mView1 = pgMaterializedView('test').as((qb) => qb.select().from(table));
-	const mView2 = pgMaterializedView('test', cols).as(sql``);
+	});
 
-	const expectSelect = z.object({
+	const result = createSelectSchema(table);
+	const expected = z.object({
 		c1: z.number().int().nullable(),
 		c2: z.number().int(),
 		c3: z.number().int().nullable(),
 		c4: z.number().int(),
-	});
-
-	test('select table', (t) => {
-		const result = createSelectSchema(table);
-		expectSchemaShape(t, expectSelect).from(result);
-	});
-
-	// test('select view with qb', (t) => {
-	// 	const result = createSelectSchema(view1);
-	// 	expectSchemaShape(t, expectSelect).from(result);
-	// });
-
-	// test('select view with sql', (t) => {
-	// 	const result = createSelectSchema(view2);
-	// 	expectSchemaShape(t, expectSelect).from(result);
-	// });
+	})
+	expectSchemaShape(t, expected).from(result);
 });
 
 // export const roleEnum = pgEnum('role', ['admin', 'user']);
@@ -76,19 +133,19 @@ describe('nullability', () => {
 // test('users insert valid user', () => {
 // 	const schema = createInsertSchema(users);
 
-// 	expect(schema.safeParse(testUser).success).toBeTruthy();
+// 	expected(schema.safeParse(testUser).success).toBeTruthy();
 // });
 
 // test('users insert invalid varchar', () => {
 // 	const schema = createInsertSchema(users);
 
-// 	expect(schema.safeParse({ ...testUser, profession: 'Chief Executive Officer' }).success).toBeFalsy();
+// 	expected(schema.safeParse({ ...testUser, profession: 'Chief Executive Officer' }).success).toBeFalsy();
 // });
 
 // test('users insert invalid char', () => {
 // 	const schema = createInsertSchema(users);
 
-// 	expect(schema.safeParse({ ...testUser, initials: 'JoDo' }).success).toBeFalsy();
+// 	expected(schema.safeParse({ ...testUser, initials: 'JoDo' }).success).toBeFalsy();
 // });
 
 // test('users insert schema', (t) => {
@@ -101,20 +158,20 @@ describe('nullability', () => {
 // 	(() => {
 // 		{
 // 			createInsertSchema(users, {
-// 				// @ts-expect-error (missing property)
+// 				// @ts-expected-error (missing property)
 // 				foobar: z.number(),
 // 			});
 // 		}
 
 // 		{
 // 			createInsertSchema(users, {
-// 				// @ts-expect-error (invalid type)
+// 				// @ts-expected-error (invalid type)
 // 				id: 123,
 // 			});
 // 		}
 // 	});
 
-// 	const expected = z.object({
+// 	const expecteded = z.object({
 // 		a: z.array(z.number()).nullable().optional(),
 // 		id: z.number().positive().optional(),
 // 		name: z.string().nullable().optional(),
@@ -129,13 +186,13 @@ describe('nullability', () => {
 // 		initials: z.string().max(2).min(1),
 // 	});
 
-// 	expectSchemaShape(t, expected).from(actual);
+// 	expectedSchemaShape(t, expecteded).from(actual);
 // });
 
 // test('users insert schema w/ defaults', (t) => {
 // 	const actual = createInsertSchema(users);
 
-// 	const expected = z.object({
+// 	const expecteded = z.object({
 // 		a: z.array(z.number()).nullable().optional(),
 // 		id: z.number().optional(),
 // 		name: z.string().nullable().optional(),
@@ -150,7 +207,7 @@ describe('nullability', () => {
 // 		initials: z.string().max(2).min(1),
 // 	});
 
-// 	expectSchemaShape(t, expected).from(actual);
+// 	expectedSchemaShape(t, expecteded).from(actual);
 // });
 
 // test('users select schema', (t) => {
@@ -160,7 +217,7 @@ describe('nullability', () => {
 // 		roleText: z.enum(['user', 'manager', 'admin']),
 // 	});
 
-// 	const expected = z.object({
+// 	const expecteded = z.object({
 // 		a: z.array(z.number()).nullable(),
 // 		id: z.number().positive(),
 // 		name: z.string().nullable(),
@@ -175,13 +232,13 @@ describe('nullability', () => {
 // 		initials: z.string().max(2).min(1),
 // 	});
 
-// 	expectSchemaShape(t, expected).from(actual);
+// 	expectedSchemaShape(t, expecteded).from(actual);
 // });
 
 // test('users select schema w/ defaults', (t) => {
 // 	const actual = createSelectSchema(users);
 
-// 	const expected = z.object({
+// 	const expecteded = z.object({
 // 		a: z.array(z.number()).nullable(),
 // 		id: z.number(),
 // 		name: z.string().nullable(),
@@ -196,5 +253,5 @@ describe('nullability', () => {
 // 		initials: z.string().max(2).min(1),
 // 	});
 
-// 	expectSchemaShape(t, expected).from(actual);
+// 	expectedSchemaShape(t, expecteded).from(actual);
 // });

@@ -1,51 +1,41 @@
 import { z } from 'zod';
-import { getTableColumns } from 'drizzle-orm';
+import { Column, getTableColumns, getViewSelectedFields, is, isTable, SQL } from 'drizzle-orm';
 import { columnToSchema } from './column';
 import type { Table, View } from 'drizzle-orm';
-import type { BuildTableSelectSchema, BuildViewSelectSchema } from './types';
+import type { BuildSelectSchema } from './types';
 
-// export function createSelectSchema<
-// 	TView extends View
-// >(
-// 	view: TView
-// ): z.ZodObject<BuildViewSelectSchema<TView>>
-// export function createSelectSchema<
-// 	TTable extends Table
-// >(
-// 	table: TTable
-// ): z.ZodObject<BuildTableSelectSchema<TTable>>;
-// export function createSelectSchema<
-// 	TTableLike extends Table | View
-// >(
-// 	tableLike: TTableLike
-// ) {
-//   const columns = isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
-//   let columnSchemas: Record<string, z.ZodTypeAny> = {};
+function createSelectColumns(columns: Record<string, any>): z.ZodTypeAny {
+  const columnSchemas: Record<string, z.ZodTypeAny> = {};
 
-//   for (const [key, column] of Object.entries(columns)) {
-//     if (is(column, Column)) {
-//       const schema = columnToSchema(column);
-//       columnSchemas[key] = column.notNull ? schema : schema.nullable();
-//     } else if (is(column, SQL)) {
-//       column.
-//     }
-//   }
+  for (const [key, selected] of Object.entries(columns)) {
+    if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
+      columnSchemas[key] = createSelectColumns(selected);
+      continue;
+    }
 
-//   return z.object(columnSchemas) as any;
-// }
+    const column = is(selected, Column) ? selected : undefined;
+    const schema = !!column ? columnToSchema(column) : z.any();
+    columnSchemas[key] = (!!column && !column.notNull) ? schema.nullable() : schema;
+  }
 
+  return z.object(columnSchemas) as any;
+}
+
+export function createSelectSchema<
+	TView extends View
+>(
+	view: TView
+): BuildSelectSchema<TView['_']['selectedFields']>;
 export function createSelectSchema<
 	TTable extends Table
 >(
 	table: TTable
-): z.ZodObject<BuildTableSelectSchema<TTable>> {
-  const columns = getTableColumns(table);
-  let columnSchemas: Record<string, z.ZodTypeAny> = {};
-
-  for (const [key, column] of Object.entries(columns)) {
-    const schema = columnToSchema(column);
-    columnSchemas[key] = column.notNull ? schema : schema.nullable();
-  }
-
-  return z.object(columnSchemas) as any;
+): BuildSelectSchema<TTable['_']['columns']>;
+export function createSelectSchema<
+	TTableLike extends Table | View
+>(
+	tableLike: TTableLike
+) {
+  const columns = isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
+  return createSelectColumns(columns);
 }
