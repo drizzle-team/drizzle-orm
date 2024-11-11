@@ -40,24 +40,57 @@ export type GetZodType<
   ? z.ZodType<Buffer>
   : z.ZodTypeAny;
 
-export type BuildSelectSchema<
+export type BuildRefineColumns<
   TColumns extends Record<string, any>
+> = Simplify<{
+  [K in keyof TColumns]:
+    TColumns[K] extends infer TColumn extends Column
+      ? GetZodType<
+        TColumn['_']['data'],
+        TColumn['_']['dataType'],
+        TColumn['_'] extends { enumValues: [string, ...string[]] } ? TColumn['_']['enumValues'] : undefined
+      > extends infer TSchema extends z.ZodTypeAny
+        ? TSchema
+        : z.ZodAny
+      : TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column>
+        ? BuildRefineColumns<TObject>
+        : TColumns[K]
+}>;
+
+export type BuildRefine<TColumns extends Record<string, any>> = BuildRefineColumns<TColumns> extends infer TBuildColumns
+  ? {
+    [K in keyof TBuildColumns]?:
+      TBuildColumns[K] extends z.ZodTypeAny
+        ? ((schema: TBuildColumns[K]) => z.ZodTypeAny) | z.ZodTypeAny
+        : TBuildColumns[K] extends Record<string, any>
+        ? Simplify<BuildRefine<TBuildColumns[K]>>
+        : never
+  }
+  : never;
+
+export type BuildSelectSchema<
+  TColumns extends Record<string, any>,
+  TRefinements extends Record<string, ((schema: z.ZodTypeAny) => z.ZodTypeAny | z.ZodTypeAny)> | undefined
 > = z.ZodObject<
   Simplify<{
     [K in keyof TColumns]:
       TColumns[K] extends infer TColumn extends Column
-        ? GetZodType<
-          TColumn['_']['data'],
-          TColumn['_']['dataType'],
-          TColumn['_'] extends { enumValues: [string, ...string[]] } ? TColumn['_']['enumValues'] : undefined
-        > extends infer TSchema extends z.ZodTypeAny
-          ? TColumn['_']['notNull'] extends true
-            ? TSchema
-            : z.ZodNullable<TSchema>
-        : z.ZodAny
-      : TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column>
-        ? BuildSelectSchema<TObject>
-        : z.ZodAny
+        ? TRefinements[Assume<K, keyof TRefinements>] extends infer TRefinement extends z.ZodTypeAny | ((schema: z.ZodTypeAny) => z.ZodTypeAny)
+          ? TRefinement extends (schema: z.ZodTypeAny) => z.ZodTypeAny
+            ? TColumn['_']['notNull'] extends true ? ReturnType<TRefinement> : z.ZodNullable<ReturnType<TRefinement>>
+            : TRefinement
+          : GetZodType<
+            TColumn['_']['data'],
+            TColumn['_']['dataType'],
+            TColumn['_'] extends { enumValues: [string, ...string[]] } ? TColumn['_']['enumValues'] : undefined
+          > extends infer TSchema extends z.ZodTypeAny
+            ? TColumn['_']['notNull'] extends true
+                ? TSchema
+                : z.ZodNullable<TSchema>
+              : z.ZodAny
+        : TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column>
+          ? BuildSelectSchema<TObject, Assume<TRefinements[Assume<K, keyof TRefinements>], Record<string, any>>>
+          : z.ZodAny
   }>,
   'strip'
 >;

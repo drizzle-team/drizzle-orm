@@ -98,6 +98,66 @@ test('nullability - select', (t) => {
 	expectSchemaShape(t, expected).from(result);
 });
 
+test('refine table - select', (t) => {
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().notNull(),
+	});
+
+	const result = createSelectSchema(table, {
+		c2: (schema) => schema.max(1000),
+		c3: z.string().transform((v) => Number(v))
+	});
+	const expected = z.object({
+		c1: z.number().int().nullable(),
+		c2: z.number().int().max(1000),
+		c3: z.string().transform((v) => Number(v))
+	});
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('refine view - select', (t) => {
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer(),
+		c3: integer(),
+		c4: integer(),
+		c5: integer(),
+		c6: integer(),
+	});
+	const view = pgView('test').as((qb) => qb.select({
+		c1: table.c1,
+		c2: table.c2,
+		c3: table.c3,
+		nested: {
+			c4: table.c4,
+			c5: table.c5,
+			c6: table.c6
+		}
+	}).from(table));
+
+	const result = createSelectSchema(view, {
+		c2: (schema) => schema.max(1000),
+		c3: z.string().transform((v) => Number(v)),
+		nested: {
+			c5: (schema) => schema.max(1000),
+			c6: z.string().transform((v) => Number(v)),
+		}
+	});
+	const expected = z.object({
+		c1: z.number().int().nullable(),
+		c2: z.number().int().max(1000).nullable(),
+		c3: z.string().transform((v) => Number(v)),
+		nested: z.object({
+			c4: z.number().int().nullable(),
+			c5: z.number().int().max(1000).nullable(),
+			c6: z.string().transform((v) => Number(v)),
+		})
+	});
+	expectSchemaShape(t, expected).from(result);
+});
+
 // export const roleEnum = pgEnum('role', ['admin', 'user']);
 
 // const users = pgTable('users', {
