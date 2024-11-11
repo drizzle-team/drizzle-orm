@@ -20,10 +20,11 @@ export class SingleStoreDecimalBuilder<
 > extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreDecimalConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDecimalBuilder';
 
-	constructor(name: T['name'], precision?: number, scale?: number) {
+	constructor(name: T['name'], config: SingleStoreDecimalConfig | undefined) {
 		super(name, 'string', 'SingleStoreDecimal');
-		this.config.precision = precision;
-		this.config.scale = scale;
+		this.config.precision = config?.precision;
+		this.config.scale = config?.scale;
+		this.config.unsigned = config?.unsigned;
 	}
 
 	/** @internal */
@@ -44,21 +45,26 @@ export class SingleStoreDecimal<T extends ColumnBaseConfig<'string', 'SingleStor
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
+	readonly unsigned: boolean | undefined = this.config.unsigned;
 
 	getSQLType(): string {
+		let type = '';
 		if (this.precision !== undefined && this.scale !== undefined) {
-			return `decimal(${this.precision},${this.scale})`;
+			type += `decimal(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {
-			return 'decimal';
+			type += 'decimal';
 		} else {
-			return `decimal(${this.precision})`;
+			type += `decimal(${this.precision})`;
 		}
+		type = type === 'decimal(10,0)' || type === 'decimal(10)' ? 'decimal' : type;
+		return this.unsigned ? `${type} unsigned` : type;
 	}
 }
 
 export interface SingleStoreDecimalConfig {
 	precision?: number;
 	scale?: number;
+	unsigned?: boolean;
 }
 
 export function decimal(): SingleStoreDecimalBuilderInitial<''>;
@@ -71,5 +77,5 @@ export function decimal<TName extends string>(
 ): SingleStoreDecimalBuilderInitial<TName>;
 export function decimal(a?: string | SingleStoreDecimalConfig, b: SingleStoreDecimalConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreDecimalConfig>(a, b);
-	return new SingleStoreDecimalBuilder(name, config.precision, config.scale);
+	return new SingleStoreDecimalBuilder(name, config);
 }
