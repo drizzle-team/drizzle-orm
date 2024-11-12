@@ -64,8 +64,8 @@
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"peerDependencies": {
-		"drizzle-orm": ">=0.23.13",
-		"zod": "*"
+		"drizzle-orm": ">=0.36.0",
+		"zod": ">=3.0.0"
 	},
 	"devDependencies": {
 		"@rollup/plugin-typescript": "^11.1.0",
