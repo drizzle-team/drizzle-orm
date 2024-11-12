@@ -468,7 +468,7 @@ export class PgDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning, withList }: PgInsertConfig): SQL {
+	buildInsertQuery({ table, values, onConflict, returning, withList, overridingSystemValue_ }: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
@@ -517,7 +517,9 @@ export class PgDialect {
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
-		return sql`${withSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		const overridingSql = overridingSystemValue_ === true? sql`overriding system value `: undefined;
+
+		return sql`${withSql}insert into ${table} ${insertOrder} ${overridingSql}values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	buildRefreshMaterializedViewQuery(
@@ -1127,7 +1129,7 @@ export class PgDialect {
 			}));
 		} else {
 			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
+				Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value as PgColumn, tableAlias)]),
 			);
 
 			if (config.where) {

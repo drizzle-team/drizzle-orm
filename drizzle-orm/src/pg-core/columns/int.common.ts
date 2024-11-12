@@ -2,7 +2,7 @@ import type {
 	ColumnBuilderBaseConfig,
 	ColumnDataType,
 	GeneratedIdentityConfig,
-	IsIdentityByDefault,
+	IsIdentity,
 } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgSequenceOptions } from '../sequence.ts';
@@ -18,7 +18,7 @@ export abstract class PgIntColumnBaseBuilder<
 
 	generatedAlwaysAsIdentity(
 		sequence?: PgSequenceOptions & { name?: string },
-	): IsIdentityByDefault<this, 'always'> {
+	): IsIdentity<this, 'always'> {
 		if (sequence) {
 			const { name, ...options } = sequence;
 			this.config.generatedIdentity = {
@@ -40,7 +40,7 @@ export abstract class PgIntColumnBaseBuilder<
 
 	generatedByDefaultAsIdentity(
 		sequence?: PgSequenceOptions & { name?: string },
-	): IsIdentityByDefault<this, 'byDefault'> {
+	): IsIdentity<this, 'byDefault'> {
 		if (sequence) {
 			const { name, ...options } = sequence;
 			this.config.generatedIdentity = {
