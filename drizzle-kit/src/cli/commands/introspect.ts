@@ -14,9 +14,16 @@ import { dryPg, type PgSchema, squashPgScheme } from '../../serializer/pgSchema'
 import { fromDatabase as fromPostgresDatabase } from '../../serializer/pgSerializer';
 import { drySQLite, type SQLiteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
 import { fromDatabase as fromSqliteDatabase } from '../../serializer/sqliteSerializer';
-import { applyMysqlSnapshotsDiff, applyPgSnapshotsDiff, applySqliteSnapshotsDiff } from '../../snapshotsDiffer';
+import {
+	applyLibSQLSnapshotsDiff,
+	applyMysqlSnapshotsDiff,
+	applyPgSnapshotsDiff,
+	applySqliteSnapshotsDiff,
+} from '../../snapshotsDiffer';
 import { prepareOutFolder } from '../../utils';
+import { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
+import { LibSQLCredentials } from '../validations/libsql';
 import type { MysqlCredentials } from '../validations/mysql';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { SqliteCredentials } from '../validations/sqlite';
@@ -24,9 +31,15 @@ import { IntrospectProgress } from '../views';
 import {
 	columnsResolver,
 	enumsResolver,
+	indPolicyResolver,
+	mySqlViewsResolver,
+	policyResolver,
+	roleResolver,
 	schemasResolver,
 	sequencesResolver,
+	sqliteViewsResolver,
 	tablesResolver,
+	viewsResolver,
 	writeResult,
 } from './migrate';
 
@@ -38,6 +51,7 @@ export const introspectPostgres = async (
 	tablesFilter: string[],
 	schemasFilter: string[],
 	prefix: Prefix,
+	entities: Entities,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const db = await preparePostgresDB(credentials);
@@ -70,11 +84,18 @@ export const introspectPostgres = async (
 	};
 
 	const progress = new IntrospectProgress(true);
+
 	const res = await renderWithTask(
 		progress,
-		fromPostgresDatabase(db, filter, schemasFilter, (stage, count, status) => {
-			progress.update(stage, count, status);
-		}),
+		fromPostgresDatabase(
+			db,
+			filter,
+			schemasFilter,
+			entities,
+			(stage, count, status) => {
+				progress.update(stage, count, status);
+			},
+		),
 	);
 
 	const schema = { id: originUUID, prevId: '', ...res } as PgSchema;
@@ -97,8 +118,12 @@ export const introspectPostgres = async (
 			schemasResolver,
 			enumsResolver,
 			sequencesResolver,
+			policyResolver,
+			indPolicyResolver,
+			roleResolver,
 			tablesResolver,
 			columnsResolver,
+			viewsResolver,
 			dryPg,
 			schema,
 		);
@@ -128,14 +153,14 @@ export const introspectPostgres = async (
 			chalk.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
 	render(
 		`[${
 			chalk.green(
 				'✓',
 			)
-		}] You relations file is ready ➜ ${
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)
@@ -201,7 +226,7 @@ export const introspectMysql = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
+	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
 
 	if (snapshots.length === 0) {
 		const { sqlStatements, _meta } = await applyMysqlSnapshotsDiff(
@@ -209,6 +234,7 @@ export const introspectMysql = async (
 			squashMysqlScheme(schema),
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			dryMySql,
 			schema,
 		);
@@ -238,14 +264,14 @@ export const introspectMysql = async (
 			chalk.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
 	render(
 		`[${
 			chalk.green(
 				'✓',
 			)
-		}] You relations file is ready ➜ ${
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)
@@ -312,7 +338,7 @@ export const introspectSqlite = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
+	const { snapshots, journal } = prepareOutFolder(out, 'sqlite');
 
 	if (snapshots.length === 0) {
 		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
@@ -320,6 +346,7 @@ export const introspectSqlite = async (
 			squashSqliteScheme(schema),
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			drySQLite,
 			schema,
 		);
@@ -357,6 +384,118 @@ export const introspectSqlite = async (
 				'✓',
 			)
 		}] You relations file is ready ➜ ${
+			chalk.bold.underline.blue(
+				relationsFile,
+			)
+		} 🚀`,
+	);
+	process.exit(0);
+};
+
+export const introspectLibSQL = async (
+	casing: Casing,
+	out: string,
+	breakpoints: boolean,
+	credentials: LibSQLCredentials,
+	tablesFilter: string[],
+	prefix: Prefix,
+) => {
+	const { connectToLibSQL } = await import('../connections');
+	const db = await connectToLibSQL(credentials);
+
+	const matchers = tablesFilter.map((it) => {
+		return new Minimatch(it);
+	});
+
+	const filter = (tableName: string) => {
+		if (matchers.length === 0) return true;
+
+		let flags: boolean[] = [];
+
+		for (let matcher of matchers) {
+			if (matcher.negate) {
+				if (!matcher.match(tableName)) {
+					flags.push(false);
+				}
+			}
+
+			if (matcher.match(tableName)) {
+				flags.push(true);
+			}
+		}
+
+		if (flags.length > 0) {
+			return flags.every(Boolean);
+		}
+		return false;
+	};
+
+	const progress = new IntrospectProgress();
+	const res = await renderWithTask(
+		progress,
+		fromSqliteDatabase(db, filter, (stage, count, status) => {
+			progress.update(stage, count, status);
+		}),
+	);
+
+	const schema = { id: originUUID, prevId: '', ...res } as SQLiteSchema;
+	const ts = sqliteSchemaToTypeScript(schema, casing);
+	const relationsTs = relationsToTypeScript(schema, casing);
+
+	// check orm and orm-pg api version
+
+	const schemaFile = join(out, 'schema.ts');
+	writeFileSync(schemaFile, ts.file);
+	const relationsFile = join(out, 'relations.ts');
+	writeFileSync(relationsFile, relationsTs.file);
+	console.log();
+
+	const { snapshots, journal } = prepareOutFolder(out, 'sqlite');
+
+	if (snapshots.length === 0) {
+		const { sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
+			squashSqliteScheme(drySQLite),
+			squashSqliteScheme(schema),
+			tablesResolver,
+			columnsResolver,
+			sqliteViewsResolver,
+			drySQLite,
+			schema,
+		);
+
+		writeResult({
+			cur: schema,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder: out,
+			breakpoints,
+			type: 'introspect',
+			prefixMode: prefix,
+		});
+	} else {
+		render(
+			`[${
+				chalk.blue(
+					'i',
+				)
+			}] No SQL generated, you already have migrations in project`,
+		);
+	}
+
+	render(
+		`[${
+			chalk.green(
+				'✓',
+			)
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+	);
+	render(
+		`[${
+			chalk.green(
+				'✓',
+			)
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)
