@@ -2,7 +2,7 @@ import { char, date, getViewConfig, integer, pgEnum, pgMaterializedView, pgTable
 import { test } from 'vitest';
 import { z } from 'zod';
 import { createSelectSchema } from '../src';
-import { expectSchemaShape } from './utils.ts';
+import { expectEnumValues, expectSchemaShape } from './utils.ts';
 import { sql } from 'drizzle-orm';
 
 test('table - select', (t) => {
@@ -78,6 +78,14 @@ test('view with nested fields - select', (t) => {
 	const result = createSelectSchema(view);
 	const expected = z.object({ id: z.number().int(), profile: z.object({ name: z.string(), age: z.any() }) });
 	expectSchemaShape(t, expected).from(result);
+});
+
+test('enum - select', (t) => {
+	const enum_ = pgEnum('test', ['a', 'b', 'c']);
+
+	const result = createSelectSchema(enum_);
+	const expected = z.enum(['a', 'b', 'c']);
+	expectEnumValues(t, expected).from(result);
 });
 
 test('nullability - select', (t) => {

@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type { Assume, Column, Equal, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type { literalSchema } from './column';
+import { PgEnum } from 'drizzle-orm/pg-core';
 
 type Literal = z.infer<typeof literalSchema>;
 export type Json = Literal | { [key: string]: Json } | Json[];
@@ -113,6 +114,8 @@ export interface CreateSelectSchema {
     table: TTable,
     refine?: TRefine
   ): BuildSelectSchema<TTable['_']['columns'], TRefine>;
+
+  <TEnum extends PgEnum<any>>(enum_: TEnum): z.ZodEnum<TEnum['enumValues']>;
 }
 
 export interface CreateSchemaFactoryOptions {
