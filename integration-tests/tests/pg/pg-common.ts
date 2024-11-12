@@ -1260,6 +1260,29 @@ export function tests() {
 			expect(result).toEqual([{ id: 2, name: 'John1' }]);
 		});
 
+		test('prepared statement built using $dynamic', async (ctx) => {
+			const { db } = ctx.pg;
+
+			function withLimitOffset(qb: any) {
+				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
+			}
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.$dynamic();
+			withLimitOffset(stmt).prepare('stmt_limit');
+
+			const result = await stmt.execute({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+			expect(result).toHaveLength(1);
+		});
+
 		// TODO change tests to new structure
 		test('Query check: Insert all defaults in 1 row', async (ctx) => {
 			const { db } = ctx.pg;
@@ -4255,7 +4278,7 @@ export function tests() {
 				.toSQL();
 
 			expect(query).toEqual({
-				sql: 'select "id", "name" from "mySchema"."users" group by "users"."id", "users"."name"',
+				sql: 'select "id", "name" from "mySchema"."users" group by "mySchema"."users"."id", "mySchema"."users"."name"',
 				params: [],
 			});
 		});
@@ -5039,6 +5062,30 @@ export function tests() {
 				{ count: 3 },
 				{ count: 3 },
 				{ count: 3 },
+			]);
+		});
+
+		test('insert multiple rows into table with generated identity column', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} ("id" integer generated always as identity primary key, "name" text)`);
+
+			const result = await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+				{ name: 'Bob' },
+			]).returning();
+
+			expect(result).toEqual([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Bob' },
 			]);
 		});
 	});

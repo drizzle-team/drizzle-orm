@@ -41,8 +41,8 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> 
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer): bigint {
-		return BigInt(value.toString());
+	override mapFromDriverValue(value: Buffer | Uint8Array): bigint {
+		return BigInt(Buffer.isBuffer(value) ? value.toString() : String.fromCodePoint(...value));
 	}
 
 	override mapToDriverValue(value: bigint): Buffer {
@@ -87,8 +87,8 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer): T['data'] {
-		return JSON.parse(value.toString());
+	override mapFromDriverValue(value: Buffer | Uint8Array): T['data'] {
+		return JSON.parse(Buffer.isBuffer(value) ? value.toString() : String.fromCodePoint(...value));
 	}
 
 	override mapToDriverValue(value: T['data']): Buffer {
