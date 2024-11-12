@@ -14,6 +14,7 @@ export type MySqlVarCharBuilderInitial<TName extends string, TEnum extends [stri
 		driverParam: number | string;
 		enumValues: TEnum;
 		generated: undefined;
+		identity: undefined;
 	}
 >;
 

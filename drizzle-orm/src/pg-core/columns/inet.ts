@@ -12,6 +12,7 @@ export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<{
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>> extends PgColumnBuilder<T> {

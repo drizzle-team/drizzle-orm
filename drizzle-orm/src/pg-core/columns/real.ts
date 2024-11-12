@@ -12,6 +12,7 @@ export type PgRealBuilderInitial<TName extends string> = PgRealBuilder<{
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgReal'>> extends PgColumnBuilder<

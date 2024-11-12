@@ -13,6 +13,7 @@ export type PgVectorBuilderInitial<TName extends string> = PgVectorBuilder<{
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVector'>> extends PgColumnBuilder<

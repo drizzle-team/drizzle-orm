@@ -13,6 +13,7 @@ export type PgCharBuilderInitial<TName extends string, TEnum extends [string, ..
 	enumValues: TEnum;
 	driverParam: string;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class PgCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgChar'>> extends PgColumnBuilder<

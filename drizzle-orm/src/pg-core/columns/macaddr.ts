@@ -12,6 +12,7 @@ export type PgMacaddrBuilderInitial<TName extends string> = PgMacaddrBuilder<{
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class PgMacaddrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgMacaddr'>> extends PgColumnBuilder<T> {

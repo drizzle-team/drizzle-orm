@@ -15,6 +15,7 @@ export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTy
 		driverParam: T['driverData'];
 		enumValues: undefined;
 		generated: undefined;
+		identity: undefined;
 	}
 	& (T['notNull'] extends true ? { notNull: true } : {})
 	& (T['default'] extends true ? { hasDefault: true } : {});

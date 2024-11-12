@@ -4,7 +4,7 @@ import { Expect } from 'type-tests/utils.ts';
 import type { PgInsert } from '~/pg-core/query-builders/insert.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
-import { users } from './tables.ts';
+import { users, identityColumnsTable } from './tables.ts';
 
 const insert = await db
 	.insert(users)
@@ -204,3 +204,9 @@ Expect<
 		// @ts-expect-error method was already called
 		.returning();
 }
+
+db.insert(identityColumnsTable).overridingSystemValue().values([
+	{ alwaysAsIdentity: 3, name: "aa"},
+	// { byDefaultAsIdentity: 5, name: "ff"},
+	// { alwaysAsIdentity: 4, byDefaultAsIdentity: 6, name: "sd"},
+]);

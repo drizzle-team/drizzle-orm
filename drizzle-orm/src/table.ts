@@ -159,23 +159,32 @@ export type InferModelFromColumns<
 	TConfig extends { dbColumnNames: boolean, override?: boolean } = { dbColumnNames: false, override: false },
 > = Simplify<
 	TInferMode extends 'insert' ?
-			& {
-				[
-					Key in keyof TColumns & string as RequiredKeyOnly<
-						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-						TColumns[Key]
-					>
-				]: GetColumnData<TColumns[Key], 'query'>;
-			}
-			& {
-				[
-					Key in keyof TColumns & string as OptionalKeyOnly<
-						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-						TColumns[Key],
-						TConfig['override']
-					>
-				]?: GetColumnData<TColumns[Key], 'query'>;
-			}
+	& {
+		[
+			Key in keyof TColumns & string as RequiredKeyOnly<
+				MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+				TColumns[Key]
+			>
+		]: GetColumnData<TColumns[Key], 'query'>;
+	}
+	& {
+		[
+			Key in keyof TColumns & string as OptionalKeyOnly<
+				MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+				TColumns[Key],
+				TConfig['override']
+			>
+		]?: GetColumnData<TColumns[Key], 'query'>;
+	}
+			// & {
+			// 	[
+			// 		Key in keyof TColumns & string as IdentityColumns<
+			// 			MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+			// 			TColumns[Key],
+			// 			TConfig['override']
+			// 		>
+			// 	]?: GetColumnData<TColumns[Key], 'query'>;
+			// }
 		: {
 			[
 				Key in keyof TColumns & string as MapColumnName<

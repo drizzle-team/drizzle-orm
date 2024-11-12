@@ -13,6 +13,7 @@ export type MySqlCharBuilderInitial<TName extends string, TEnum extends [string,
 	driverParam: number | string;
 	enumValues: TEnum;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class MySqlCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlChar'>> extends MySqlColumnBuilder<

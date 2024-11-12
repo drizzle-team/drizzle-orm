@@ -51,7 +51,7 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 
 	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true>, 'overridingSystemValue'>{
 		this.overridingSystemValue_ = true;
-		return this;
+		return this as any;
 	}
 
 	values(value: PgInsertValue<TTable, OverrideT>): PgInsertBase<TTable, TQueryResult>;

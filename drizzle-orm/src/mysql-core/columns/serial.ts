@@ -24,6 +24,7 @@ export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
 					driverParam: number;
 					enumValues: undefined;
 					generated: undefined;
+					identity: undefined;
 				}>
 			>
 		>

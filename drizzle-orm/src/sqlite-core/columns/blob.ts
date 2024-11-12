@@ -15,6 +15,7 @@ export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuild
 	driverParam: Buffer;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQLiteBigInt'>>
@@ -58,6 +59,7 @@ export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonB
 	driverParam: Buffer;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteBlobJson'>>
@@ -104,6 +106,7 @@ export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBuf
 	driverParam: Buffer;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'SQLiteBlobBuffer'>>

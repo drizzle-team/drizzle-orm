@@ -13,6 +13,7 @@ export type PgHalfVectorBuilderInitial<TName extends string> = PgHalfVectorBuild
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class PgHalfVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgHalfVector'>> extends PgColumnBuilder<

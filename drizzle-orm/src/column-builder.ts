@@ -162,7 +162,8 @@ export type IsIdentity<
 	_: {
 		notNull: true;
 		hasDefault: true;
-		identity: TType;
+		generated: { as: any; type: TType };
+		identity: TType ;
 	};
 };
 // always -> user pass overriding and 

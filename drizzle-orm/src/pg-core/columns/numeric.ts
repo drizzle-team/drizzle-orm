@@ -13,6 +13,7 @@ export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNumeric'>> extends PgColumnBuilder<

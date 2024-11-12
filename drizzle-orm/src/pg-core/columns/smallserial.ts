@@ -20,6 +20,7 @@ export type PgSmallSerialBuilderInitial<TName extends string> = NotNull<
 			driverParam: number;
 			enumValues: undefined;
 			generated: undefined;
+			identity: undefined;
 		}>
 	>
 >;

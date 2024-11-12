@@ -13,6 +13,7 @@ export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBui
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDateTime'>>
@@ -71,6 +72,7 @@ export type MySqlDateTimeStringBuilderInitial<TName extends string> = MySqlDateT
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
+	identity: undefined;
 }>;
 
 export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlDateTimeString'>>

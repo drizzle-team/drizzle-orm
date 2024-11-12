@@ -13,20 +13,47 @@ export type NotGenerated<TKey extends string, T extends Column> = T extends AnyC
 }> ? TKey
 	: never;
 
+// export type OptionalKeyOnly<
+// 	TKey extends string,
+// 	T extends Column,
+// 	// OverrideT extends boolean | undefined = false
+// > = TKey extends RequiredKeyOnly<TKey, T> ? never
+// 	: TKey extends NotGenerated<TKey, T> ? TKey
+// 	: T['_']['generated'] extends object ? T['_']['generated']['type'] extends 'byDefault' ? TKey 
+// 	: never
+// 	// (
+// 	// 	T['_']['identity'] extends 'always'?
+// 	// 	OverrideT extends true? TKey: never
+// 	// 	: never
+// 	// )
+// 	: never;
+
 export type OptionalKeyOnly<
 	TKey extends string,
 	T extends Column,
 	OverrideT extends boolean | undefined = false
 > = TKey extends RequiredKeyOnly<TKey, T> ? never
-	: TKey extends NotGenerated<TKey, T> ? TKey
-	: T['_']['generated'] extends object ? T['_']['generated']['type'] extends 'byDefault' ? TKey 
+	: TKey extends NotGenerated<TKey, T> ? (
+		T['_']
+		// T['_']['identity'] extends 'always'?
+		// OverrideT extends true? TKey: never
+		// : TKey
+	):
+	never;
+
+export type IdentityColumns<
+	TKey extends string,
+	T extends Column,
+	OverrideT extends boolean | undefined = false
+> = TKey extends RequiredKeyOnly<TKey, T> ? never
+	: TKey extends OptionalKeyOnly<TKey, T>? never
+	: T['_']['identity'] extends 'byDefault' ? TKey 
 	:
 	(
 		T['_']['identity'] extends 'always'?
 		OverrideT extends true? TKey: never
 		: never
-	)
-	: never;
+	);
 
 // byDefault -> accept
 // always -> accept only if overide and always
