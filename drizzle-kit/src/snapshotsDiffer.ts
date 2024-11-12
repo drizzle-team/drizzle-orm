@@ -131,7 +131,6 @@ import {
 	PgSchemaSquashed,
 	PgSquasher,
 	Policy,
-	policy,
 	policySquashed,
 	Role,
 	roleSchema,
@@ -988,8 +987,10 @@ export const applyPgSnapshotsDiff = async (
 		const { renamed, created, deleted } = await policyResolver({
 			tableName: entry.name,
 			schema: entry.schema,
-			deleted: entry.policies.deleted.map(PgSquasher.unsquashPolicy),
-			created: entry.policies.added.map(PgSquasher.unsquashPolicy),
+			deleted: entry.policies.deleted.map(
+				action === 'push' ? PgSquasher.unsquashPolicyPush : PgSquasher.unsquashPolicy,
+			),
+			created: entry.policies.added.map(action === 'push' ? PgSquasher.unsquashPolicyPush : PgSquasher.unsquashPolicy),
 		});
 
 		if (created.length > 0) {
@@ -1043,7 +1044,9 @@ export const applyPgSnapshotsDiff = async (
 					] || [];
 
 					const newName = columnChangeFor(policyKey, rens);
-					const unsquashedPolicy = PgSquasher.unsquashPolicy(policy);
+					const unsquashedPolicy = action === 'push'
+						? PgSquasher.unsquashPolicyPush(policy)
+						: PgSquasher.unsquashPolicy(policy);
 					unsquashedPolicy.name = newName;
 					policy = PgSquasher.squashPolicy(unsquashedPolicy);
 					return newName;
@@ -1068,8 +1071,12 @@ export const applyPgSnapshotsDiff = async (
 	}[];
 
 	const { renamed: indPolicyRenames, created, deleted } = await indPolicyResolver({
-		deleted: indPolicyRes.deleted.map((t) => PgSquasher.unsquashPolicy(t.values)),
-		created: indPolicyRes.added.map((t) => PgSquasher.unsquashPolicy(t.values)),
+		deleted: indPolicyRes.deleted.map((t) =>
+			action === 'push' ? PgSquasher.unsquashPolicyPush(t.values) : PgSquasher.unsquashPolicy(t.values)
+		),
+		created: indPolicyRes.added.map((t) =>
+			action === 'push' ? PgSquasher.unsquashPolicyPush(t.values) : PgSquasher.unsquashPolicy(t.values)
+		),
 	});
 
 	if (created.length > 0) {
@@ -1235,22 +1242,22 @@ export const applyPgSnapshotsDiff = async (
 		// This part is needed to make sure that same columns in a table are not triggered for change
 		// there is a case where orm and kit are responsible for pk name generation and one of them is not sorting name
 		// We double-check that pk with same set of columns are both in added and deleted diffs
-		let addedColumns: string[] = [];
+		let addedColumns: { name: string; columns: string[] } | undefined;
 		for (const addedPkName of Object.keys(it.addedCompositePKs)) {
 			const addedPkColumns = it.addedCompositePKs[addedPkName];
-			addedColumns = SQLiteSquasher.unsquashPK(addedPkColumns);
+			addedColumns = PgSquasher.unsquashPK(addedPkColumns);
 		}
 
-		let deletedColumns: string[] = [];
+		let deletedColumns: { name: string; columns: string[] } | undefined;
 		for (const deletedPkName of Object.keys(it.deletedCompositePKs)) {
 			const deletedPkColumns = it.deletedCompositePKs[deletedPkName];
-			deletedColumns = SQLiteSquasher.unsquashPK(deletedPkColumns);
+			deletedColumns = PgSquasher.unsquashPK(deletedPkColumns);
 		}
 
 		// Don't need to sort, but need to add tests for it
 		// addedColumns.sort();
 		// deletedColumns.sort();
-		const doPerformDeleteAndCreate = JSON.stringify(addedColumns) !== JSON.stringify(deletedColumns);
+		const doPerformDeleteAndCreate = JSON.stringify(addedColumns ?? {}) !== JSON.stringify(deletedColumns ?? {});
 
 		let addedCompositePKs: JsonCreateCompositePK[] = [];
 		let deletedCompositePKs: JsonDeleteCompositePK[] = [];
@@ -1260,21 +1267,17 @@ export const applyPgSnapshotsDiff = async (
 				it.name,
 				it.schema,
 				it.addedCompositePKs,
-				curFull as PgSchema,
 			);
 			deletedCompositePKs = prepareDeleteCompositePrimaryKeyPg(
 				it.name,
 				it.schema,
 				it.deletedCompositePKs,
-				prevFull as PgSchema,
 			);
 		}
 		alteredCompositePKs = prepareAlterCompositePrimaryKeyPg(
 			it.name,
 			it.schema,
 			it.alteredCompositePKs,
-			prevFull as PgSchema,
-			curFull as PgSchema,
 		);
 
 		// add logic for unique constraints
@@ -1421,10 +1424,14 @@ export const applyPgSnapshotsDiff = async (
 	typedResult.alteredPolicies.forEach(({ values }) => {
 		// return prepareAlterIndPolicyJson(json1.policies[it.name], json2.policies[it.name]);
 
-		const policy = PgSquasher.unsquashPolicy(values);
+		const policy = action === 'push' ? PgSquasher.unsquashPolicyPush(values) : PgSquasher.unsquashPolicy(values);
 
-		const newPolicy = PgSquasher.unsquashPolicy(json2.policies[policy.name].values);
-		const oldPolicy = PgSquasher.unsquashPolicy(json1.policies[policy.name].values);
+		const newPolicy = action === 'push'
+			? PgSquasher.unsquashPolicyPush(json2.policies[policy.name].values)
+			: PgSquasher.unsquashPolicy(json2.policies[policy.name].values);
+		const oldPolicy = action === 'push'
+			? PgSquasher.unsquashPolicyPush(json2.policies[policy.name].values)
+			: PgSquasher.unsquashPolicy(json1.policies[policy.name].values);
 
 		if (newPolicy.as !== oldPolicy.as) {
 			jsonDropIndPoliciesStatements.push(
@@ -1494,8 +1501,12 @@ export const applyPgSnapshotsDiff = async (
 	alteredTables.forEach((it) => {
 		// handle policies
 		Object.keys(it.alteredPolicies).forEach((policyName: string) => {
-			const newPolicy = PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__new);
-			const oldPolicy = PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__old);
+			const newPolicy = action === 'push'
+				? PgSquasher.unsquashPolicyPush(it.alteredPolicies[policyName].__new)
+				: PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__new);
+			const oldPolicy = action === 'push'
+				? PgSquasher.unsquashPolicyPush(it.alteredPolicies[policyName].__old)
+				: PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__old);
 
 			if (newPolicy.as !== oldPolicy.as) {
 				jsonDropPoliciesStatements.push(
@@ -1569,7 +1580,8 @@ export const applyPgSnapshotsDiff = async (
 			}
 
 			// handle table.isRLSEnabled
-			if (table.isRLSEnabled !== tableInPreviousState.isRLSEnabled) {
+			const wasRlsEnabled = tableInPreviousState ? tableInPreviousState.isRLSEnabled : false;
+			if (table.isRLSEnabled !== wasRlsEnabled) {
 				if (table.isRLSEnabled) {
 					// was force enabled
 					jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
@@ -1762,7 +1774,11 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonCreatePoliciesStatements.push(...([] as JsonCreatePolicyStatement[]).concat(
 		...(createdTables.map((it) =>
-			prepareCreatePolicyJsons(it.name, it.schema, Object.values(it.policies).map(PgSquasher.unsquashPolicy))
+			prepareCreatePolicyJsons(
+				it.name,
+				it.schema,
+				Object.values(it.policies).map(action === 'push' ? PgSquasher.unsquashPolicyPush : PgSquasher.unsquashPolicy),
+			)
 		)),
 	));
 	const createViews: JsonCreatePgViewStatement[] = [];
@@ -1974,6 +1990,8 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 	jsonStatements.push(...jsonAlterEnumsWithDroppedValues);
 
+	jsonStatements.push(...createViews);
+
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonDropPoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);
@@ -1983,8 +2001,6 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonDropIndPoliciesStatements);
 	jsonStatements.push(...jsonCreateIndPoliciesStatements);
 	jsonStatements.push(...jsonAlterIndPoliciesStatements);
-
-	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);
@@ -2037,7 +2053,7 @@ export const applyPgSnapshotsDiff = async (
 		return true;
 	});
 
-	const sqlStatements = fromJson(filteredEnumsJsonStatements, 'postgresql');
+	const sqlStatements = fromJson(filteredEnumsJsonStatements, 'postgresql', action);
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {
@@ -2613,11 +2629,10 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...jsonDeletedCompositePKs);
 	jsonStatements.push(...jsonTableAlternations);
 	jsonStatements.push(...jsonAddedCompositePKs);
+	jsonStatements.push(...jsonAddColumnsStatemets);
 
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
-
-	jsonStatements.push(...jsonAddColumnsStatemets);
 
 	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);

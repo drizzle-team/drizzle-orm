@@ -26,11 +26,18 @@ import {
 	UniqueConstraint,
 	View,
 } from '../serializer/mysqlSchema';
-import type { DB } from '../utils';
+import { type DB, escapeSingleQuotes } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
+};
+
+const handleEnumType = (type: string) => {
+	let str = type.split('(')[1];
+	str = str.substring(0, str.length - 1);
+	const values = str.split(',').map((v) => `'${escapeSingleQuotes(v.substring(1, v.length - 1))}'`);
+	return `enum(${values.join(',')})`;
 };
 
 export const generateMySqlSnapshot = (
@@ -68,7 +75,8 @@ export const generateMySqlSnapshot = (
 		columns.forEach((column) => {
 			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
-			const sqlTypeLowered = column.getSQLType().toLowerCase();
+			const sqlType = column.getSQLType();
+			const sqlTypeLowered = sqlType.toLowerCase();
 			const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
 				? false
 				: (column as any).autoIncrement;
@@ -77,7 +85,7 @@ export const generateMySqlSnapshot = (
 
 			const columnToSet: Column = {
 				name,
-				type: column.getSQLType(),
+				type: sqlType.startsWith('enum') ? handleEnumType(sqlType) : sqlType,
 				primaryKey: false,
 				// If field is autoincrement it's notNull by default
 				// notNull: autoIncrement ? true : notNull,
@@ -141,7 +149,7 @@ export const generateMySqlSnapshot = (
 					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					if (typeof column.default === 'string') {
-						columnToSet.default = `'${column.default}'`;
+						columnToSet.default = `'${escapeSingleQuotes(column.default)}'`;
 					} else {
 						if (sqlTypeLowered === 'json') {
 							columnToSet.default = `'${JSON.stringify(column.default)}'`;
@@ -544,9 +552,9 @@ function clearDefaults(defaultValue: any, collate: string) {
 			.substring(collate.length, defaultValue.length)
 			.replace(/\\/g, '');
 		if (resultDefault.startsWith("'") && resultDefault.endsWith("'")) {
-			return `('${resultDefault.substring(1, resultDefault.length - 1)}')`;
+			return `('${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}')`;
 		} else {
-			return `'${resultDefault}'`;
+			return `'${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}'`;
 		}
 	} else {
 		return `(${resultDefault})`;
@@ -651,8 +659,8 @@ export const fromDatabase = async (
 			}
 		}
 
-		if (columnType.startsWith('tinyint')) {
-			changedType = 'tinyint';
+		if (columnType.includes('decimal(10,0)')) {
+			changedType = columnType.replace('decimal(10,0)', 'decimal');
 		}
 
 		let onUpdate: boolean | undefined = undefined;
@@ -665,14 +673,14 @@ export const fromDatabase = async (
 		}
 
 		const newColumn: Column = {
-			default: columnDefault === null
+			default: columnDefault === null || columnDefault === undefined
 				? undefined
 				: /^-?[\d.]+(?:e-?\d+)?$/.test(columnDefault)
 						&& !['decimal', 'char', 'varchar'].some((type) => columnType.startsWith(type))
 				? Number(columnDefault)
 				: isDefaultAnExpression
 				? clearDefaults(columnDefault, collation)
-				: `'${columnDefault}'`,
+				: `'${escapeSingleQuotes(columnDefault)}'`,
 			autoincrement: isAutoincrement,
 			name: columnName,
 			type: changedType,

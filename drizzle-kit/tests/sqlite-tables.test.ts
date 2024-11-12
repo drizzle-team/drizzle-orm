@@ -418,6 +418,50 @@ test('add table with indexes', async () => {
 	]);
 });
 
+test('composite primary key', async () => {
+	const from = {};
+	const to = {
+		table: sqliteTable('works_to_creators', {
+			workId: int('work_id').notNull(),
+			creatorId: int('creator_id').notNull(),
+			classification: text('classification').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.workId, t.creatorId, t.classification],
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `works_to_creators` (\n\t`work_id` integer NOT NULL,\n\t`creator_id` integer NOT NULL,\n\t`classification` text NOT NULL,\n\tPRIMARY KEY(`work_id`, `creator_id`, `classification`)\n);\n',
+	]);
+});
+
+test('add column before creating unique constraint', async () => {
+	const from = {
+		table: sqliteTable('table', {
+			id: int('id').primaryKey(),
+		}),
+	};
+	const to = {
+		table: sqliteTable('table', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			uq: unique('uq').on(t.name),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE `table` ADD `name` text NOT NULL;',
+		'CREATE UNIQUE INDEX `uq` ON `table` (`name`);',
+	]);
+});
+
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
