@@ -4,7 +4,7 @@ import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
-import type { Simplify } from './utils.ts';
+import type { Assume, Simplify } from './utils.ts';
 
 export type ColumnDataType =
 	| 'string'
@@ -89,6 +89,7 @@ export type ColumnBuilderTypeConfig<
 
 export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = object> = {
 	name: string;
+	keyAsName: boolean;
 	notNull: boolean;
 	default: TData | SQL | undefined;
 	defaultFn: (() => TData | SQL) | undefined;
@@ -185,6 +186,7 @@ export abstract class ColumnBuilder<
 	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
 		this.config = {
 			name,
+			keyAsName: name === '',
 			notNull: false,
 			default: undefined,
 			hasDefault: false,
@@ -293,6 +295,12 @@ export abstract class ColumnBuilder<
 		as: SQL | T['data'] | (() => SQL),
 		config?: Partial<GeneratedColumnConfig<unknown>>,
 	): HasGenerated<this>;
+
+	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
+	setName(name: string) {
+		if (this.config.name !== '') return;
+		this.config.name = name;
+	}
 }
 
 export type BuildColumn<
@@ -322,7 +330,11 @@ export type BuildColumns<
 	TDialect extends Dialect,
 > =
 	& {
-		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key], TDialect>;
+		[Key in keyof TConfigMap]: BuildColumn<TTableName, {
+			_:
+				& Omit<TConfigMap[Key]['_'], 'name'>
+				& { name: TConfigMap[Key]['_']['name'] extends '' ? Assume<Key, string> : TConfigMap[Key]['_']['name'] };
+		}, TDialect>;
 	}
 	& {};
 

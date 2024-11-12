@@ -1,21 +1,29 @@
 import { randomUUID } from 'crypto';
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import {
 	columnsResolver,
 	enumsResolver,
+	indPolicyResolver,
+	mySqlViewsResolver,
+	policyResolver,
+	roleResolver,
 	schemasResolver,
 	sequencesResolver,
+	sqliteViewsResolver,
 	tablesResolver,
+	viewsResolver,
 } from './cli/commands/migrate';
 import { pgPushIntrospect } from './cli/commands/pgIntrospect';
 import { pgSuggestions } from './cli/commands/pgPushUtils';
 import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/pgUp';
 import { sqlitePushIntrospect } from './cli/commands/sqliteIntrospect';
 import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
+import type { CasingType } from './cli/validations/common';
+import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 import { originUUID } from './global';
+import type { Config } from './index';
 import { fillPgSnapshot } from './migrationPreparator';
 import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
 import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
@@ -33,6 +41,7 @@ export const generateDrizzleJson = (
 	imports: Record<string, unknown>,
 	prevId?: string,
 	schemaFilters?: string[],
+	casing?: CasingType,
 ): PgSchemaKit => {
 	const prepared = prepareFromExports(imports);
 
@@ -43,6 +52,11 @@ export const generateDrizzleJson = (
 		prepared.enums,
 		prepared.schemas,
 		prepared.sequences,
+		prepared.roles,
+		prepared.policies,
+		prepared.views,
+		prepared.matViews,
+		casing,
 		schemaFilters,
 	);
 
@@ -71,8 +85,12 @@ export const generateMigration = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
+		viewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -84,9 +102,14 @@ export const pushSchema = async (
 	imports: Record<string, unknown>,
 	drizzleInstance: PgDatabase<any>,
 	schemaFilters?: string[],
+	tablesFilter?: string[],
+	extensionsFilters?: Config['extensionsFilters'],
 ) => {
 	const { applyPgSnapshotsDiff } = await import('./snapshotsDiffer');
 	const { sql } = await import('drizzle-orm');
+	const filters = (tablesFilter ?? []).concat(
+		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' }),
+	);
 
 	const db: DB = {
 		query: async (query: string, params?: any[]) => {
@@ -98,8 +121,9 @@ export const pushSchema = async (
 	const cur = generateDrizzleJson(imports);
 	const { schema: prev } = await pgPushIntrospect(
 		db,
-		[],
+		filters,
 		schemaFilters ?? ['public'],
+		undefined,
 	);
 
 	const validatedPrev = pgSchema.parse(prev);
@@ -114,8 +138,12 @@ export const pushSchema = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
+		viewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -140,6 +168,7 @@ export const pushSchema = async (
 export const generateSQLiteDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string,
+	casing?: CasingType,
 ): Promise<SQLiteSchemaKit> => {
 	const { prepareFromExports } = await import('./serializer/sqliteImports');
 
@@ -147,7 +176,7 @@ export const generateSQLiteDrizzleJson = async (
 
 	const id = randomUUID();
 
-	const snapshot = generateSqliteSnapshot(prepared.tables);
+	const snapshot = generateSqliteSnapshot(prepared.tables, prepared.views, casing);
 
 	return {
 		...snapshot,
@@ -173,6 +202,7 @@ export const generateSQLiteMigration = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -213,6 +243,7 @@ export const pushSQLiteSchema = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -243,6 +274,7 @@ export const pushSQLiteSchema = async (
 export const generateMySQLDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string,
+	casing?: CasingType,
 ): Promise<MySQLSchemaKit> => {
 	const { prepareFromExports } = await import('./serializer/mysqlImports');
 
@@ -250,7 +282,7 @@ export const generateMySQLDrizzleJson = async (
 
 	const id = randomUUID();
 
-	const snapshot = generateMySqlSnapshot(prepared.tables);
+	const snapshot = generateMySqlSnapshot(prepared.tables, prepared.views, casing);
 
 	return {
 		...snapshot,
@@ -276,6 +308,7 @@ export const generateMySQLMigration = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		mySqlViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -317,6 +350,7 @@ export const pushMySQLSchema = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		mySqlViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
