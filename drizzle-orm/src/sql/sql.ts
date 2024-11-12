@@ -192,10 +192,12 @@ export class SQL<T = unknown> implements SQLWrapper {
 				if (_config.invokeSource === 'indexes') {
 					return { sql: escapeName(columnName), params: [] };
 				}
+
+				const schemaName = chunk.table[Table.Symbol.Schema];
 				return {
-					sql: chunk.table[IsAlias] || chunk.table[Table.Symbol.Schema] === undefined
+					sql: chunk.table[IsAlias] || schemaName === undefined
 						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
-						: escapeName(chunk.table[Table.Symbol.Schema]!) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
+						: escapeName(schemaName) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
 							+ escapeName(columnName),
 					params: [],
 				};
