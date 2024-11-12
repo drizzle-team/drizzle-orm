@@ -7,7 +7,7 @@ import { tracer } from '~/tracing.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
-import { Table } from '../table.ts';
+import { IsAlias, Table } from '../table.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -192,7 +192,13 @@ export class SQL<T = unknown> implements SQLWrapper {
 				if (_config.invokeSource === 'indexes') {
 					return { sql: escapeName(columnName), params: [] };
 				}
-				return { sql: escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName), params: [] };
+				return {
+					sql: chunk.table[IsAlias] || chunk.table[Table.Symbol.Schema] === undefined
+						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
+						: escapeName(chunk.table[Table.Symbol.Schema]!) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
+							+ escapeName(columnName),
+					params: [],
+				};
 			}
 
 			if (is(chunk, View)) {
