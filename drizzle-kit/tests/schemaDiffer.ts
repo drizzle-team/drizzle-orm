@@ -33,6 +33,7 @@ import {
 	roleResolver,
 	schemasResolver,
 	sequencesResolver,
+	singleStoreViewsResolver,
 	sqliteViewsResolver,
 	tablesResolver,
 	viewsResolver,
@@ -49,7 +50,7 @@ import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
 import { mysqlSchema, squashMysqlScheme, ViewSquashed } from 'src/serializer/mysqlSchema';
 import { fromDatabase as fromMySqlDatabase, generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
 import { prepareFromPgImports } from 'src/serializer/pgImports';
-import { pgSchema, PgSquasher, Policy, Role, squashPgScheme, View } from 'src/serializer/pgSchema';
+import { pgSchema, Policy, Role, squashPgScheme, View } from 'src/serializer/pgSchema';
 import { fromDatabase, generatePgSnapshot } from 'src/serializer/pgSerializer';
 import { prepareFromSingleStoreImports } from 'src/serializer/singlestoreImports';
 import { singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
@@ -58,7 +59,7 @@ import {
 	generateSingleStoreSnapshot,
 } from 'src/serializer/singlestoreSerializer';
 import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
-import { sqliteSchema, squashSqliteScheme, View as SqliteView } from 'src/serializer/sqliteSchema';
+import { sqliteSchema, View as SqliteView, squashSqliteScheme } from 'src/serializer/sqliteSchema';
 import { fromDatabase as fromSqliteDatabase, generateSqliteSnapshot } from 'src/serializer/sqliteSerializer';
 import {
 	applyLibSQLSnapshotsDiff,
@@ -1627,7 +1628,6 @@ export const diffTestSchemasPushSingleStore = async (
 ) => {
 	const { sqlStatements } = await applySingleStoreDiffs(left, casing);
 	for (const st of sqlStatements) {
-		console.log('st', st);
 		await client.query(st);
 	}
 	// do introspect into PgSchemaInternal
@@ -1696,7 +1696,7 @@ export const diffTestSchemasPushSingleStore = async (
 			sn2,
 			tablesResolver,
 			columnsResolver,
-			mySqlViewsResolver,
+			singleStoreViewsResolver,
 			validatedPrev,
 			validatedCur,
 			'push',

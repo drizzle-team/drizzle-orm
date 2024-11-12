@@ -52,7 +52,8 @@ export class SingleStoreDateTime<T extends ColumnBaseConfig<'date', 'SingleStore
 	}
 
 	getSQLType(): string {
-		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
+		const hidePrecision = this.fsp === undefined || this.fsp === 0;
+		const precision = hidePrecision ? '' : `(${this.fsp})`;
 		return `datetime${precision}`;
 	}
 
@@ -112,7 +113,8 @@ export class SingleStoreDateTimeString<T extends ColumnBaseConfig<'string', 'Sin
 	}
 
 	getSQLType(): string {
-		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
+		const hidePrecision = this.fsp === undefined || this.fsp === 0;
+		const precision = hidePrecision ? '' : `(${this.fsp})`;
 		return `datetime${precision}`;
 	}
 }

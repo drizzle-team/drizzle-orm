@@ -6,9 +6,9 @@ import { assertUnreachable } from './global';
 import {
 	Column,
 	Index,
+	PrimaryKey,
 	SingleStoreSchema,
 	SingleStoreSchemaInternal,
-	PrimaryKey,
 	UniqueConstraint,
 } from './serializer/singlestoreSchema';
 import { indexName } from './serializer/singlestoreSerializer';
@@ -170,6 +170,9 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('double(') ? 'double' : patched;
 					patched = patched.startsWith('float(') ? 'float' : patched;
 					patched = patched.startsWith('int unsigned') ? 'int' : patched;
+					patched = patched.startsWith('tinyint(') ? 'tinyint' : patched;
+					patched = patched.startsWith('mediumint(') ? 'mediumint' : patched;
+					patched = patched.startsWith('bigint(') ? 'bigint' : patched;
 					patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
 					patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
 					patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
@@ -204,6 +207,9 @@ export const schemaToTypeScript = (
 				patched = patched.startsWith('double(') ? 'double' : patched;
 				patched = patched.startsWith('float(') ? 'float' : patched;
 				patched = patched.startsWith('int unsigned') ? 'int' : patched;
+				patched = patched.startsWith('tinyint(') ? 'tinyint' : patched;
+				patched = patched.startsWith('mediumint(') ? 'mediumint' : patched;
+				patched = patched.startsWith('bigint(') ? 'bigint' : patched;
 				patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
 				patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
 				patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
@@ -373,7 +379,7 @@ const column = (
 	}
 
 	if (lowered.startsWith('int')) {
-		const isUnsigned = lowered.startsWith('int unsigned');
+		const isUnsigned = lowered.includes('unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		let out = `${casing(name)}: int(${columnName}${
 			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
@@ -386,7 +392,7 @@ const column = (
 	}
 
 	if (lowered.startsWith('tinyint')) {
-		const isUnsigned = lowered.startsWith('tinyint unsigned');
+		const isUnsigned = lowered.includes('unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		// let out = `${name.camelCase()}: tinyint("${name}")`;
 		let out: string = `${casing(name)}: tinyint(${columnName}${
@@ -400,7 +406,7 @@ const column = (
 	}
 
 	if (lowered.startsWith('smallint')) {
-		const isUnsigned = lowered.startsWith('smallint unsigned');
+		const isUnsigned = lowered.includes('unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		let out = `${casing(name)}: smallint(${columnName}${
 			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
@@ -413,7 +419,7 @@ const column = (
 	}
 
 	if (lowered.startsWith('mediumint')) {
-		const isUnsigned = lowered.startsWith('mediumint unsigned');
+		const isUnsigned = lowered.includes('unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		let out = `${casing(name)}: mediumint(${columnName}${
 			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
@@ -426,7 +432,7 @@ const column = (
 	}
 
 	if (lowered.startsWith('bigint')) {
-		const isUnsigned = lowered.startsWith('bigint unsigned');
+		const isUnsigned = lowered.includes('unsigned');
 		let out = `${casing(name)}: bigint(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: "number"${
 			isUnsigned ? ', unsigned: true' : ''
 		} })`;
@@ -523,7 +529,7 @@ const column = (
 			: `${casing(name)}: timestamp(${dbColumnName({ name, casing: rawCasing })})`;
 
 		// singlestore has only CURRENT_TIMESTAMP, as I found from docs. But will leave now() for just a case
-		defaultValue = defaultValue === 'now()' || defaultValue === '(CURRENT_TIMESTAMP)'
+		defaultValue = defaultValue === 'now()' || defaultValue === 'CURRENT_TIMESTAMP'
 			? '.defaultNow()'
 			: defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -753,7 +759,9 @@ const column = (
 
 	if (lowered.startsWith('enum')) {
 		const values = lowered.substring('enum'.length + 1, lowered.length - 1);
-		let out = `${casing(name)}: singlestoreEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
+		let out = `${casing(name)}: singlestoreEnum(${
+			dbColumnName({ name, casing: rawCasing, withMode: true })
+		}[${values}])`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';

@@ -31,7 +31,10 @@ export class SingleStoreFloatBuilder<T extends ColumnBuilderBaseConfig<'number',
 	override build<TTableName extends string>(
 		table: AnySingleStoreTable<{ name: TTableName }>,
 	): SingleStoreFloat<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreFloat<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new SingleStoreFloat<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
@@ -51,7 +54,7 @@ export class SingleStoreFloat<T extends ColumnBaseConfig<'number', 'SingleStoreF
 		} else if (this.precision === undefined) {
 			type += 'float';
 		} else {
-			type += `float(${this.precision})`;
+			type += `float(${this.precision},0)`;
 		}
 		return this.unsigned ? `${type} unsigned` : type;
 	}

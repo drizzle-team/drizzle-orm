@@ -88,7 +88,8 @@ test('create view with existing flag', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('drop view', async () => {
+// Views are not currently supported by this driver
+test.skip('drop view', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -134,7 +135,8 @@ test('drop view with existing flag', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('rename view', async () => {
+// Views are not currently supported by this driver
+test.skip('rename view', async () => {
 	const users = singlestoreTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});

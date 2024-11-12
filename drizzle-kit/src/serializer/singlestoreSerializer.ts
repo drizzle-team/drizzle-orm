@@ -384,9 +384,6 @@ export const generateSingleStoreSnapshot = (
 								columnToSet.default = column.default;
 							}
 						}
-						if (['blob', 'text', 'json'].includes(column.getSQLType())) {
-							columnToSet.default = `(${columnToSet.default})`;
-						}
 					}
 				}
 				columnsObject[column.name] = columnToSet;
@@ -491,7 +488,7 @@ export const fromDatabase = async (
 		const columnType = column['COLUMN_TYPE']; // varchar(256)
 		// const columnType = column["DATA_TYPE"];
 		const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
-		const columnDefault: string = column['COLUMN_DEFAULT'];
+		let columnDefault: string | null = column['COLUMN_DEFAULT'];
 		const collation: string = column['CHARACTER_SET_NAME'];
 		const geenratedExpression: string = column['GENERATION_EXPRESSION'];
 
@@ -553,6 +550,10 @@ export const fromDatabase = async (
 			changedType = columnType.replace('decimal(10,0)', 'decimal');
 		}
 
+		if (columnDefault?.endsWith('.')) {
+			columnDefault = columnDefault.slice(0, -1);
+		}
+
 		let onUpdate: boolean | undefined = undefined;
 		if (
 			columnType.startsWith('timestamp')
@@ -570,6 +571,8 @@ export const fromDatabase = async (
 				? Number(columnDefault)
 				: isDefaultAnExpression
 				? clearDefaults(columnDefault, collation)
+				: columnDefault.startsWith('CURRENT_TIMESTAMP')
+				? 'CURRENT_TIMESTAMP'
 				: `'${columnDefault}'`,
 			autoincrement: isAutoincrement,
 			name: columnName,

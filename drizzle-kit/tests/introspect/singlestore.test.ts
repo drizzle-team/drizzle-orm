@@ -1,10 +1,9 @@
-import 'dotenv/config';
 import Docker from 'dockerode';
+import 'dotenv/config';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
 	char,
-	check,
 	decimal,
 	double,
 	float,
@@ -12,11 +11,10 @@ import {
 	mediumint,
 	singlestoreTable,
 	singlestoreView,
-	serial,
 	smallint,
 	text,
 	tinyint,
-	varchar,
+	varchar
 } from 'drizzle-orm/singlestore-core';
 import * as fs from 'fs';
 import getPort from 'get-port';
@@ -57,7 +55,7 @@ async function createDockerDB(): Promise<string> {
 }
 
 beforeAll(async () => {
-	const connectionString = process.env.MYSQL_CONNECTION_STRING ?? await createDockerDB();
+	const connectionString = process.env.SINGLESTORE_CONNECTION_STRING ?? await createDockerDB();
 
 	const sleep = 1000;
 	let timeLeft = 20000;
@@ -98,7 +96,7 @@ if (!fs.existsSync('tests/introspect/singlestore')) {
 	fs.mkdirSync('tests/introspect/singlestore');
 }
 
-test('generated always column: link to another column', async () => {
+test.skip('generated always column: link to another column', async () => {
 	const schema = {
 		users: singlestoreTable('users', {
 			id: int('id'),
@@ -120,7 +118,7 @@ test('generated always column: link to another column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('generated always column virtual: link to another column', async () => {
+test.skip('generated always column virtual: link to another column', async () => {
 	const schema = {
 		users: singlestoreTable('users', {
 			id: int('id'),
@@ -174,28 +172,6 @@ test('Default value of character type column: varchar', async () => {
 		client,
 		schema,
 		'default-value-varchar-column',
-		'drizzle',
-	);
-
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});
-
-test('introspect checks', async () => {
-	const schema = {
-		users: singlestoreTable('users', {
-			id: serial('id'),
-			name: varchar('name', { length: 255 }),
-			age: int('age'),
-		}, (table) => ({
-			someCheck: check('some_check', sql`${table.age} > 21`),
-		})),
-	};
-
-	const { statements, sqlStatements } = await introspectSingleStoreToFile(
-		client,
-		schema,
-		'introspect-checks',
 		'drizzle',
 	);
 

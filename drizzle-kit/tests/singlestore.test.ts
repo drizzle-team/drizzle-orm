@@ -433,7 +433,7 @@ test('add table #10', async () => {
 	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
-		"CREATE TABLE `table` (\n\t`json` json DEFAULT ('{}')\n);\n",
+		"CREATE TABLE `table` (\n\t`json` json DEFAULT '{}'\n);\n",
 	);
 });
 
@@ -447,7 +447,7 @@ test('add table #11', async () => {
 	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
-		"CREATE TABLE `table` (\n\t`json` json DEFAULT ('[]')\n);\n",
+		"CREATE TABLE `table` (\n\t`json` json DEFAULT '[]'\n);\n",
 	);
 });
 
@@ -461,7 +461,7 @@ test('add table #12', async () => {
 	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
-		"CREATE TABLE `table` (\n\t`json` json DEFAULT ('[1,2,3]')\n);\n",
+		"CREATE TABLE `table` (\n\t`json` json DEFAULT '[1,2,3]'\n);\n",
 	);
 });
 
@@ -475,7 +475,7 @@ test('add table #13', async () => {
 	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
-		'CREATE TABLE `table` (\n\t`json` json DEFAULT (\'{"key":"value"}\')\n);\n',
+		'CREATE TABLE `table` (\n\t`json` json DEFAULT \'{"key":"value"}\'\n);\n',
 	);
 });
 
@@ -492,7 +492,7 @@ test('add table #14', async () => {
 	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
-		'CREATE TABLE `table` (\n\t`json` json DEFAULT (\'{"key":"value","arr":[1,2,3]}\')\n);\n',
+		'CREATE TABLE `table` (\n\t`json` json DEFAULT \'{"key":"value","arr":[1,2,3]}\'\n);\n',
 	);
 });
 

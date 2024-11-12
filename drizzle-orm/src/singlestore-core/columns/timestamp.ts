@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreDateBaseColumn, SingleStoreDateColumnBaseBuilder } from './date.common.ts';
+import { sql } from '~/sql/sql.ts';
 
 export type SingleStoreTimestampBuilderInitial<TName extends string> = SingleStoreTimestampBuilder<{
 	name: TName;
@@ -34,6 +35,10 @@ export class SingleStoreTimestampBuilder<T extends ColumnBuilderBaseConfig<'date
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
+
+	override defaultNow() {
+		return this.default(sql`CURRENT_TIMESTAMP`);
+	}
 }
 
 export class SingleStoreTimestamp<T extends ColumnBaseConfig<'date', 'SingleStoreTimestamp'>>
@@ -44,7 +49,8 @@ export class SingleStoreTimestamp<T extends ColumnBaseConfig<'date', 'SingleStor
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
-		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
+		const hidePrecision = this.fsp === undefined || this.fsp === 0;
+		const precision = hidePrecision ? '' : `(${this.fsp})`;
 		return `timestamp${precision}`;
 	}
 
@@ -86,6 +92,10 @@ export class SingleStoreTimestampStringBuilder<
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
+
+	override defaultNow() {
+		return this.default(sql`CURRENT_TIMESTAMP`);
+	}
 }
 
 export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string', 'SingleStoreTimestampString'>>
@@ -96,7 +106,8 @@ export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string', 'Si
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
-		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
+		const hidePrecision = this.fsp === undefined || this.fsp === 0;
+		const precision = hidePrecision ? '' : `(${this.fsp})`;
 		return `timestamp${precision}`;
 	}
 }
