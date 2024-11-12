@@ -4043,17 +4043,6 @@ convertors.push(new SingleStoreAlterTableAlterCompositePrimaryKeyConvertor());
 
 export function fromJson(
 	statements: JsonStatement[],
-	dialect: Exclude<Dialect, 'sqlite' | 'turso'>,
-): string[];
-export function fromJson(
-	statements: JsonStatement[],
-	dialect: 'sqlite' | 'turso',
-	action?: 'push',
-	json2?: SQLiteSchemaSquashed,
-): string[];
-
-export function fromJson(
-	statements: JsonStatement[],
 	dialect: Dialect,
 	action?: 'push',
 	json2?: SQLiteSchemaSquashed,
