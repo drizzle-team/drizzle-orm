@@ -30,7 +30,7 @@ This project has simple example of defining http proxy server, that will proxy a
 
 </br>
 
-> **Warning**:
+> [!WARNING]
 > You will be responsible for proper error handling in this part. Drizzle always waits for `{rows: string[][] | object[]}` so if any error was on http call(or any other call) - be sure, that you return at least empty array back
 >
 > For `all` method you should return `{rows: string[][]}`
@@ -72,7 +72,7 @@ In current MySQL Proxy version - drizzle don't handle transactions for migration
 
 </br>
 
-> **Warning**:
+> [!WARNING]
 > You will be responsible for proper error handling in this part. Drizzle just finds migrations, that need to be executed on this iteration and if finds some -> provide `queries` array to callback
 
 </br>
@@ -97,7 +97,7 @@ await migrate(db, async (queries) => {
 
 ---
 
-> **Note**:
+> [!WARNING]
 > It's just a suggestion on how proxy server could be set up and a simple example of params handling on `query` and `migration` calls
 
 ```typescript
