@@ -1068,8 +1068,8 @@ export const writeResult = ({
 		JSON.stringify(toSave, null, 2),
 	);
 
-	const sqlDelimiter = breakpoints ? BREAKPOINT : '\n';
-	let sql = sqlStatements.join(sqlDelimiter);
+	const sqlDelimiter = breakpoints ? '\n' + BREAKPOINT : '\n';
+	let sql = sqlStatements.join(sqlDelimiter).replace(/\n\n/g, '\n');
 
 	if (type === 'introspect') {
 		sql =
