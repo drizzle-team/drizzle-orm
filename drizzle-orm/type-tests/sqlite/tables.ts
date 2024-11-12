@@ -4,11 +4,15 @@ import { eq, gt } from '~/expressions.ts';
 import { sql } from '~/sql/sql.ts';
 import {
 	alias,
+	blob,
 	check,
+	customType,
 	foreignKey,
 	index,
 	integer,
+	numeric,
 	primaryKey,
+	real,
 	type SQLiteColumn,
 	sqliteTable,
 	text,
@@ -91,11 +95,11 @@ Expect<
 	}>
 >;
 
-export const cities = sqliteTable('cities_table', {
+export const cities = sqliteTable('cities_table', ({ integer, text }) => ({
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-});
+}));
 
 export type City = typeof cities.$inferSelect;
 Expect<
@@ -459,4 +463,115 @@ Expect<
 	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.test3.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.test4.enumValues>>;
+}
+
+{
+	const customRequiredConfig = customType<{
+		data: string;
+		driverData: string;
+		config: { length: number };
+		configRequired: true;
+	}>({
+		dataType(config) {
+			Expect<Equal<{ length: number }, typeof config>>;
+			return `varchar(${config.length})`;
+		},
+
+		toDriver(value) {
+			Expect<Equal<string, typeof value>>();
+			return value;
+		},
+
+		fromDriver(value) {
+			Expect<Equal<string, typeof value>>();
+			return value;
+		},
+	});
+
+	customRequiredConfig('t', { length: 10 });
+	customRequiredConfig({ length: 10 });
+	// @ts-expect-error - config is required
+	customRequiredConfig('t');
+	// @ts-expect-error - config is required
+	customRequiredConfig();
+}
+
+{
+	const customOptionalConfig = customType<{
+		data: string;
+		driverData: string;
+		config: { length: number };
+	}>({
+		dataType(config) {
+			Expect<Equal<{ length: number } | undefined, typeof config>>;
+			return config ? `varchar(${config.length})` : `text`;
+		},
+
+		toDriver(value) {
+			Expect<Equal<string, typeof value>>();
+			return value;
+		},
+
+		fromDriver(value) {
+			Expect<Equal<string, typeof value>>();
+			return value;
+		},
+	});
+
+	customOptionalConfig('t', { length: 10 });
+	customOptionalConfig('t');
+	customOptionalConfig({ length: 10 });
+	customOptionalConfig();
+}
+
+{
+	sqliteTable('all_columns', {
+		blob: blob('blob'),
+		blob2: blob('blob2', { mode: 'bigint' }),
+		blobdef: blob('blobdef').default(0),
+		integer: integer('integer'),
+		integer2: integer('integer2', { mode: 'boolean' }),
+		integerdef: integer('integerdef').default(0),
+		numeric: numeric('numeric'),
+		numericdef: numeric('numericdef').default(''),
+		real: real('real'),
+		realdef: real('realdef').default(0),
+		text: text('text'),
+		text2: text('text2', { enum: ['a', 'b', 'c'] }),
+		text3: text('text3', { length: 1 }),
+		text4: text('text4', { length: 1, enum: ['a', 'b', 'c'] }),
+		text5: text('text5', { mode: 'json' }),
+		textdef: text('textdef').default(''),
+	});
+}
+
+{
+	const keysAsColumnNames = sqliteTable('test', {
+		id: integer(),
+		name: text(),
+	});
+
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+}
+
+{
+	sqliteTable('all_columns_without_name', {
+		blob: blob(),
+		blob2: blob({ mode: 'bigint' }),
+		blobdef: blob().default(0),
+		integer: integer(),
+		integer2: integer({ mode: 'boolean' }),
+		integerdef: integer().default(0),
+		numeric: numeric(),
+		numericdef: numeric().default(''),
+		real: real(),
+		realdef: real().default(0),
+		text: text(),
+		text2: text({ enum: ['a', 'b', 'c'] }),
+		text3: text({ length: 1 }),
+		text4: text({ length: 1, enum: ['a', 'b', 'c'] }),
+		text5: text({ mode: 'json' }),
+		textdef: text().default(''),
+	});
 }

@@ -1,4 +1,4 @@
-import { pgEnum, pgSchema, pgTable } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgSchema, pgTable, serial } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
@@ -7,8 +7,10 @@ test('enums #1', async () => {
 		enum: pgEnum('enum', ['value']),
 	};
 
-	const { statements } = await diffTestSchemas({}, to, []);
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value');`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		name: 'enum',
@@ -24,8 +26,10 @@ test('enums #2', async () => {
 		enum: folder.enum('enum', ['value']),
 	};
 
-	const { statements } = await diffTestSchemas({}, to, []);
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`CREATE TYPE "folder"."enum" AS ENUM('value');`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		name: 'enum',
@@ -40,8 +44,10 @@ test('enums #3', async () => {
 		enum: pgEnum('enum', ['value']),
 	};
 
-	const { statements } = await diffTestSchemas(from, {}, []);
+	const { statements, sqlStatements } = await diffTestSchemas(from, {}, []);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`DROP TYPE "public"."enum";`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'drop_type_enum',
@@ -57,8 +63,10 @@ test('enums #4', async () => {
 		enum: folder.enum('enum', ['value']),
 	};
 
-	const { statements } = await diffTestSchemas(from, {}, []);
+	const { statements, sqlStatements } = await diffTestSchemas(from, {}, []);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`DROP TYPE "folder"."enum";`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'drop_type_enum',
@@ -81,8 +89,10 @@ test('enums #5', async () => {
 		enum: folder2.enum('enum', ['value']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, ['folder1->folder2']);
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, ['folder1->folder2']);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER SCHEMA "folder1" RENAME TO "folder2";\n`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'rename_schema',
@@ -107,10 +117,12 @@ test('enums #6', async () => {
 		enum: folder2.enum('enum', ['value']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, [
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
 		'folder1.enum->folder2.enum',
 	]);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder1"."enum" SET SCHEMA "folder2";`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'move_type_enum',
@@ -129,8 +141,10 @@ test('enums #7', async () => {
 		enum: pgEnum('enum', ['value1', 'value2']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "public"."enum" ADD VALUE 'value2';`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'alter_type_add_value',
@@ -150,8 +164,11 @@ test('enums #8', async () => {
 		enum: pgEnum('enum', ['value1', 'value2', 'value3']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "public"."enum" ADD VALUE 'value2';`);
+	expect(sqlStatements[1]).toBe(`ALTER TYPE "public"."enum" ADD VALUE 'value3';`);
 	expect(statements.length).toBe(2);
 	expect(statements[0]).toStrictEqual({
 		type: 'alter_type_add_value',
@@ -179,8 +196,10 @@ test('enums #9', async () => {
 		enum: pgEnum('enum', ['value1', 'value2', 'value3']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "public"."enum" ADD VALUE 'value2' BEFORE 'value3';`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'alter_type_add_value',
@@ -201,8 +220,10 @@ test('enums #10', async () => {
 		enum: schema.enum('enum', ['value1', 'value2']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder"."enum" ADD VALUE 'value2';`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'alter_type_add_value',
@@ -223,10 +244,12 @@ test('enums #11', async () => {
 		enum: pgEnum('enum', ['value1']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, [
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
 		'folder1.enum->public.enum',
 	]);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder1"."enum" SET SCHEMA "public";`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'move_type_enum',
@@ -246,10 +269,12 @@ test('enums #12', async () => {
 		enum: schema1.enum('enum', ['value1']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, [
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
 		'public.enum->folder1.enum',
 	]);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "public"."enum" SET SCHEMA "folder1";`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'move_type_enum',
@@ -268,10 +293,12 @@ test('enums #13', async () => {
 		enum: pgEnum('enum2', ['value1']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, [
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
 		'public.enum1->public.enum2',
 	]);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "public"."enum1" RENAME TO "enum2";`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'rename_type_enum',
@@ -292,10 +319,13 @@ test('enums #14', async () => {
 		enum: folder2.enum('enum2', ['value1']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, [
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
 		'folder1.enum1->folder2.enum2',
 	]);
 
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder1"."enum1" SET SCHEMA "folder2";`);
+	expect(sqlStatements[1]).toBe(`ALTER TYPE "folder2"."enum1" RENAME TO "enum2";`);
 	expect(statements.length).toBe(2);
 	expect(statements[0]).toStrictEqual({
 		type: 'move_type_enum',
@@ -322,9 +352,15 @@ test('enums #15', async () => {
 		enum: folder2.enum('enum2', ['value1', 'value2', 'value3', 'value4']),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, [
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
 		'folder1.enum1->folder2.enum2',
 	]);
+
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder1"."enum1" SET SCHEMA "folder2";`);
+	expect(sqlStatements[1]).toBe(`ALTER TYPE "folder2"."enum1" RENAME TO "enum2";`);
+	expect(sqlStatements[2]).toBe(`ALTER TYPE "folder2"."enum2" ADD VALUE 'value2' BEFORE 'value4';`);
+	expect(sqlStatements[3]).toBe(`ALTER TYPE "folder2"."enum2" ADD VALUE 'value3' BEFORE 'value4';`);
 
 	expect(statements.length).toBe(4);
 	expect(statements[0]).toStrictEqual({
@@ -373,9 +409,12 @@ test('enums #16', async () => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, [
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
 		'public.enum1->public.enum2',
 	]);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "public"."enum1" RENAME TO "enum2";`);
 
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
@@ -405,10 +444,14 @@ test('enums #17', async () => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, [
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
 		'public.enum1->schema.enum1',
 	]);
 
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "public"."enum1" SET SCHEMA "schema";`);
+
+	expect(sqlStatements.length).toBe(1);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'move_type_enum',
@@ -440,9 +483,13 @@ test('enums #18', async () => {
 	};
 
 	// change name and schema of the enum, no table changes
-	const { statements } = await diffTestSchemas(from, to, [
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
 		'schema1.enum1->schema2.enum2',
 	]);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(`ALTER TYPE "schema1"."enum1" SET SCHEMA "schema2";`);
+	expect(sqlStatements[1]).toBe(`ALTER TYPE "schema2"."enum1" RENAME TO "enum2";`);
 
 	expect(statements.length).toBe(2);
 	expect(statements[0]).toStrictEqual({
@@ -456,5 +503,249 @@ test('enums #18', async () => {
 		nameFrom: 'enum1',
 		nameTo: 'enum2',
 		schema: 'schema2',
+	});
+});
+
+test('enums #19', async () => {
+	const myEnum = pgEnum('my_enum', ["escape's quotes"]);
+
+	const from = {};
+
+	const to = { myEnum };
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toStrictEqual(
+		'CREATE TYPE "public"."my_enum" AS ENUM(\'escape\'\'s quotes\');',
+	);
+});
+
+test('enums #20', async () => {
+	const myEnum = pgEnum('my_enum', ['one', 'two', 'three']);
+
+	const from = {
+		myEnum,
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const to = {
+		myEnum,
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			col1: myEnum('col1'),
+			col2: integer('col2'),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" ADD COLUMN "col1" "my_enum";',
+		'ALTER TABLE "table" ADD COLUMN "col2" integer;',
+	]);
+});
+
+test('enums #21', async () => {
+	const myEnum = pgEnum('my_enum', ['one', 'two', 'three']);
+
+	const from = {
+		myEnum,
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const to = {
+		myEnum,
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			col1: myEnum('col1').array(),
+			col2: integer('col2').array(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" ADD COLUMN "col1" "my_enum"[];',
+		'ALTER TABLE "table" ADD COLUMN "col2" integer[];',
+	]);
+});
+
+test('drop enum value', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3']);
+	const to = {
+		enum2,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[1]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3');`);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [],
+		deletedValues: [
+			'value2',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+		],
+		schema: 'public',
+		type: 'alter_type_drop_value',
+	});
+});
+
+test('drop enum value. enum is columns data type', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const schema = pgSchema('new_schema');
+
+	const from = {
+		schema,
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+		table2: schema.table('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3']);
+	const to = {
+		schema,
+		enum2,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+		table2: schema.table('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				schema: 'public',
+				table: 'table',
+			},
+			{
+				column: 'column',
+				schema: 'new_schema',
+				table: 'table',
+			},
+		],
+		deletedValues: [
+			'value2',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+		],
+		schema: 'public',
+		type: 'alter_type_drop_value',
+	});
+});
+
+test('shuffle enum values', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const schema = pgSchema('new_schema');
+
+	const from = {
+		schema,
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+		table2: schema.table('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		schema,
+		enum2,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+		table2: schema.table('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				schema: 'public',
+				table: 'table',
+			},
+			{
+				column: 'column',
+				schema: 'new_schema',
+				table: 'table',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		schema: 'public',
+		type: 'alter_type_drop_value',
 	});
 });

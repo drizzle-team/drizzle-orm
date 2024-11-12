@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
 export type PgVectorBuilderInitial<TName extends string> = PgVectorBuilder<{
@@ -18,7 +19,7 @@ export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVecto
 	T,
 	{ dimensions: number | undefined }
 > {
-	static readonly [entityKind]: string = 'PgVectorBuilder';
+	static override readonly [entityKind]: string = 'PgVectorBuilder';
 
 	constructor(name: string, config: PgVectorConfig) {
 		super(name, 'array', 'PgVector');
@@ -36,7 +37,7 @@ export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVecto
 export class PgVector<T extends ColumnBaseConfig<'array', 'PgVector'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
-	static readonly [entityKind]: string = 'PgVector';
+	static override readonly [entityKind]: string = 'PgVector';
 
 	readonly dimensions = this.config.dimensions;
 
@@ -60,9 +61,14 @@ export interface PgVectorConfig {
 	dimensions: number;
 }
 
+export function vector(
+	config: PgVectorConfig,
+): PgVectorBuilderInitial<''>;
 export function vector<TName extends string>(
 	name: TName,
 	config: PgVectorConfig,
-): PgVectorBuilderInitial<TName> {
+): PgVectorBuilderInitial<TName>;
+export function vector(a: string | PgVectorConfig, b?: PgVectorConfig) {
+	const { name, config } = getColumnNameAndConfig<PgVectorConfig>(a, b);
 	return new PgVectorBuilder(name, config);
 }

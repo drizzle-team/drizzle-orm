@@ -18,8 +18,10 @@ import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-or
 import { AnySQLiteTable, getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import { Hono } from 'hono';
+import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
+import { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { assertUnreachable } from 'src/global';
 import superjson from 'superjson';
 import { z } from 'zod';
@@ -44,7 +46,7 @@ type SchemaFile = {
 export type Setup = {
 	dbHash: string;
 	dialect: 'postgresql' | 'mysql' | 'sqlite';
-	driver?: 'aws-data-api' | 'd1-http' | 'turso';
+	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
 	proxy: (params: ProxyParams) => Promise<any[] | any>;
 	customDefaults: CustomDefault[];
 	schema: Record<string, Record<string, AnyTable<any>>>;
@@ -218,11 +220,13 @@ export const drizzleForPostgres = async (
 	let dbUrl: string;
 
 	if ('driver' in credentials) {
-		// aws-data-api
-		if (credentials.driver === 'aws-data-api') {
+		const { driver } = credentials;
+		if (driver === 'aws-data-api') {
 			dbUrl = `aws-data-api://${credentials.database}/${credentials.secretArn}/${credentials.resourceArn}`;
+		} else if (driver === 'pglite') {
+			dbUrl = credentials.url;
 		} else {
-			assertUnreachable(credentials.driver);
+			assertUnreachable(driver);
 		}
 	} else if ('url' in credentials) {
 		dbUrl = credentials.url;
@@ -295,8 +299,6 @@ export const drizzleForSQLite = async (
 		const { driver } = credentials;
 		if (driver === 'd1-http') {
 			dbUrl = `d1-http://${credentials.accountId}/${credentials.databaseId}/${credentials.token}`;
-		} else if (driver === 'turso') {
-			dbUrl = `turso://${credentials.url}/${credentials.authToken}`;
 		} else {
 			assertUnreachable(driver);
 		}
@@ -310,6 +312,32 @@ export const drizzleForSQLite = async (
 		dbHash,
 		dialect: 'sqlite',
 		driver: 'driver' in credentials ? credentials.driver : undefined,
+		proxy: sqliteDB.proxy,
+		customDefaults,
+		schema: sqliteSchema,
+		relations,
+		schemaFiles,
+	};
+};
+export const drizzleForLibSQL = async (
+	credentials: LibSQLCredentials,
+	sqliteSchema: Record<string, Record<string, AnySQLiteTable>>,
+	relations: Record<string, Relations>,
+	schemaFiles?: SchemaFile[],
+): Promise<Setup> => {
+	const { connectToLibSQL } = await import('../cli/connections');
+
+	const sqliteDB = await connectToLibSQL(credentials);
+	const customDefaults = getCustomDefaults(sqliteSchema);
+
+	let dbUrl: string = `turso://${credentials.url}/${credentials.authToken}`;
+
+	const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+
+	return {
+		dbHash,
+		dialect: 'sqlite',
+		driver: undefined,
 		proxy: sqliteDB.proxy,
 		customDefaults,
 		schema: sqliteSchema,
@@ -465,12 +493,14 @@ export const prepareServer = async (
 ): Promise<Server> => {
 	app = app !== undefined ? app : new Hono();
 
-	app.use(cors());
+	app.use(compress());
 	app.use(async (ctx, next) => {
 		await next();
 		// * https://wicg.github.io/private-network-access/#headers
+		// * https://github.com/drizzle-team/drizzle-orm/issues/1857#issuecomment-2395724232
 		ctx.header('Access-Control-Allow-Private-Network', 'true');
 	});
+	app.use(cors());
 	app.onError((err, ctx) => {
 		console.error(err);
 		return ctx.json({

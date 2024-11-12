@@ -5,7 +5,7 @@ import type { AnyPgTable } from '../table.ts';
 import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
 
-type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
+export type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
 	name: TName;
 	dataType: 'number';
 	columnType: 'PgInteger';
@@ -18,7 +18,7 @@ type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
 export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInteger'>>
 	extends PgIntColumnBaseBuilder<T>
 {
-	static readonly [entityKind]: string = 'PgIntegerBuilder';
+	static override readonly [entityKind]: string = 'PgIntegerBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'PgInteger');
@@ -33,7 +33,7 @@ export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInt
 }
 
 export class PgInteger<T extends ColumnBaseConfig<'number', 'PgInteger'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgInteger';
+	static override readonly [entityKind]: string = 'PgInteger';
 
 	getSQLType(): string {
 		return 'integer';
@@ -47,6 +47,8 @@ export class PgInteger<T extends ColumnBaseConfig<'number', 'PgInteger'>> extend
 	}
 }
 
-export function integer<TName extends string>(name: TName): PgIntegerBuilderInitial<TName> {
-	return new PgIntegerBuilder(name);
+export function integer(): PgIntegerBuilderInitial<''>;
+export function integer<TName extends string>(name: TName): PgIntegerBuilderInitial<TName>;
+export function integer(name?: string) {
+	return new PgIntegerBuilder(name ?? '');
 }

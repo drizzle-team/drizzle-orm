@@ -139,12 +139,6 @@ jobs:
             cd drizzle-orm
             pnpm prisma generate --schema src/prisma/schema.prisma
           )
-          (
-            cd integration-tests
-            pnpm prisma generate --schema tests/prisma/pg/schema.prisma
-            pnpm prisma generate --schema tests/prisma/mysql/schema.prisma
-            pnpm prisma generate --schema tests/prisma/sqlite/schema.prisma
-          )
           pnpm build
 
       - name: Run tests
@@ -160,6 +154,8 @@ jobs:
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
           LIBSQL_URL: file:local.db
+          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
+          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
         run: |
           if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
             pnpm test --filter ${{ matrix.package }} --filter integration-tests

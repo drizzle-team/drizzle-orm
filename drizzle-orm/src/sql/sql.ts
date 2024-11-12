@@ -1,3 +1,4 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { SelectedFields } from '~/operations.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
@@ -6,7 +7,7 @@ import { tracer } from '~/tracing.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
-import { Table } from '../table.ts';
+import { IsAlias, Table } from '../table.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -28,6 +29,7 @@ export type Chunk =
 	| SQL;
 
 export interface BuildQueryConfig {
+	casing: CasingCache;
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
@@ -134,6 +136,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		});
 
 		const {
+			casing,
 			escapeName,
 			escapeParam,
 			prepareTyping,
@@ -185,10 +188,19 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Column)) {
+				const columnName = casing.getColumnCasing(chunk);
 				if (_config.invokeSource === 'indexes') {
-					return { sql: escapeName(chunk.name), params: [] };
+					return { sql: escapeName(columnName), params: [] };
 				}
-				return { sql: escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name), params: [] };
+
+				const schemaName = chunk.table[Table.Symbol.Schema];
+				return {
+					sql: chunk.table[IsAlias] || schemaName === undefined
+						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
+						: escapeName(schemaName) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
+							+ escapeName(columnName),
+					params: [],
+				};
 			}
 
 			if (is(chunk, View)) {
