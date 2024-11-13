@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
 export type PgBinaryVectorBuilderInitial<TName extends string> = PgBinaryVectorBuilder<{
@@ -11,7 +12,6 @@ export type PgBinaryVectorBuilderInitial<TName extends string> = PgBinaryVectorB
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgBinaryVectorBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgBinaryVector'>>
@@ -20,7 +20,7 @@ export class PgBinaryVectorBuilder<T extends ColumnBuilderBaseConfig<'string', '
 		{ dimensions: number | undefined }
 	>
 {
-	static readonly [entityKind]: string = 'PgBinaryVectorBuilder';
+	static override readonly [entityKind]: string = 'PgBinaryVectorBuilder';
 
 	constructor(name: string, config: PgBinaryVectorConfig) {
 		super(name, 'string', 'PgBinaryVector');
@@ -41,7 +41,7 @@ export class PgBinaryVectorBuilder<T extends ColumnBuilderBaseConfig<'string', '
 export class PgBinaryVector<T extends ColumnBaseConfig<'string', 'PgBinaryVector'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
-	static readonly [entityKind]: string = 'PgBinaryVector';
+	static override readonly [entityKind]: string = 'PgBinaryVector';
 
 	readonly dimensions = this.config.dimensions;
 
@@ -54,9 +54,14 @@ export interface PgBinaryVectorConfig {
 	dimensions: number;
 }
 
+export function bit(
+	config: PgBinaryVectorConfig,
+): PgBinaryVectorBuilderInitial<''>;
 export function bit<TName extends string>(
 	name: TName,
 	config: PgBinaryVectorConfig,
-): PgBinaryVectorBuilderInitial<TName> {
+): PgBinaryVectorBuilderInitial<TName>;
+export function bit(a: string | PgBinaryVectorConfig, b?: PgBinaryVectorConfig) {
+	const { name, config } = getColumnNameAndConfig<PgBinaryVectorConfig>(a, b);
 	return new PgBinaryVectorBuilder(name, config);
 }

@@ -4,7 +4,7 @@ import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
-import type { Simplify } from './utils.ts';
+import type { Assume, Simplify } from './utils.ts';
 
 export type ColumnDataType =
 	| 'string'
@@ -42,7 +42,6 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColu
 	data: unknown;
 	driverParam: unknown;
 	enumValues: string[] | undefined;
-	generated: GeneratedColumnConfig<unknown> | undefined;
 }
 
 export type MakeColumnConfig<
@@ -64,7 +63,10 @@ export type MakeColumnConfig<
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
-	generated: T['generated'] extends object ? T['generated'] : undefined;
+	generated: T extends { generated: infer G } ? unknown extends G ? undefined
+		: G extends undefined ? undefined
+		: G
+		: undefined;
 } & {};
 
 export type ColumnBuilderTypeConfig<
@@ -82,13 +84,14 @@ export type ColumnBuilderTypeConfig<
 		notNull: T extends { notNull: infer U } ? U : boolean;
 		hasDefault: T extends { hasDefault: infer U } ? U : boolean;
 		enumValues: T['enumValues'];
-		generated: GeneratedColumnConfig<T['data']> | undefined;
+		generated: T extends { generated: infer G } ? G extends undefined ? unknown : G : unknown;
 	}
 	& TTypeConfig
 >;
 
 export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = object> = {
 	name: string;
+	keyAsName: boolean;
 	notNull: boolean;
 	default: TData | SQL | undefined;
 	defaultFn: (() => TData | SQL) | undefined;
@@ -185,6 +188,7 @@ export abstract class ColumnBuilder<
 	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
 		this.config = {
 			name,
+			keyAsName: name === '',
 			notNull: false,
 			default: undefined,
 			hasDefault: false,
@@ -292,7 +296,15 @@ export abstract class ColumnBuilder<
 	abstract generatedAlwaysAs(
 		as: SQL | T['data'] | (() => SQL),
 		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this>;
+	): HasGenerated<this, {
+		type: 'always';
+	}>;
+
+	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
+	setName(name: string) {
+		if (this.config.name !== '') return;
+		this.config.name = name;
+	}
 }
 
 export type BuildColumn<
@@ -322,7 +334,11 @@ export type BuildColumns<
 	TDialect extends Dialect,
 > =
 	& {
-		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key], TDialect>;
+		[Key in keyof TConfigMap]: BuildColumn<TTableName, {
+			_:
+				& Omit<TConfigMap[Key]['_'], 'name'>
+				& { name: TConfigMap[Key]['_']['name'] extends '' ? Assume<Key, string> : TConfigMap[Key]['_']['name'] };
+		}, TDialect>;
 	}
 	& {};
 

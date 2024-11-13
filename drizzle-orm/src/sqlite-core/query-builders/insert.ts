@@ -232,7 +232,7 @@ export class SQLiteInsertBase<
 > extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
 	implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper
 {
-	static readonly [entityKind]: string = 'SQLiteInsert';
+	static override readonly [entityKind]: string = 'SQLiteInsert';
 
 	/** @internal */
 	config: SQLiteInsertConfig<TTable>;
