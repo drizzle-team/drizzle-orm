@@ -9,6 +9,7 @@ import {
 	cidr,
 	date,
 	doublePrecision,
+	index,
 	inet,
 	integer,
 	interval,
@@ -100,6 +101,35 @@ test('basic identity by default test', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+test.only('basic index test', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			firstName: text('first_name'),
+			lastName: text('last_name'),
+			data: jsonb('data'),
+		}, (table) => ({
+			singleColumn: index('single_column').on(table.firstName),
+			multiColumn: index('multi_column').on(table.firstName, table.lastName),
+			singleExpression: index('single_expression').on(sql`lower(${table.firstName})`),
+			multiExpression: index('multi_expression').on(sql`lower(${table.firstName})`, sql`lower(${table.lastName})`),
+			expressionWithComma: index('expression_with_comma').on(sql`(lower(${table.firstName}) || ', '::text || lower(${table.lastName}))`),
+			expressionWithDoubleQuote: index('expression_with_double_quote').on(sql`('"'::text || ${table.firstName})`),
+			expressionWithJsonbOperator: index('expression_with_jsonb_operator').on(sql`(${table.data} #>> '{a,b,1}'::text[])`),
+		})),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'basic-index-introspect',
+	);
+
+	expect(statements.length).toBe(10);
+	expect(sqlStatements.length).toBe(10);
 });
 
 test('identity always test: few params', async () => {
