@@ -12,6 +12,7 @@ import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { SingleStoreDialect } from '../dialect.ts';
 import type {
+	Mode,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
 	SingleStorePreparedQueryConfig,
@@ -34,6 +35,7 @@ export class RelationalQueryBuilder<
 		private tableConfig: TableRelationalConfig,
 		private dialect: SingleStoreDialect,
 		private session: SingleStoreSession,
+		private mode: Mode,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
@@ -49,6 +51,7 @@ export class RelationalQueryBuilder<
 			this.session,
 			config ? (config as DBQueryConfig<'many', true>) : {},
 			'many',
+			this.mode,
 		);
 	}
 
@@ -65,6 +68,7 @@ export class RelationalQueryBuilder<
 			this.session,
 			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
 			'first',
+			this.mode,
 		);
 	}
 }
@@ -87,6 +91,7 @@ export class SingleStoreRelationalQuery<
 		private session: SingleStoreSession,
 		private config: DBQueryConfig<'many', true> | true,
 		private queryMode: 'many' | 'first',
+		private mode?: Mode,
 	) {
 		super();
 	}

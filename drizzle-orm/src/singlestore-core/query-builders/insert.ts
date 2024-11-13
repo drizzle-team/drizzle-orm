@@ -219,7 +219,7 @@ export class SingleStoreInsertBase<
 	/**
 	 * Adds an `on duplicate key update` clause to the query.
 	 *
-	 * Calling this method will update update the row if any unique index conflicts. SingleStore will automatically determine the conflict target based on the primary key and unique indexes.
+	 * Calling this method will update update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-duplicate-key-update}
 	 *
@@ -232,7 +232,7 @@ export class SingleStoreInsertBase<
 	 *   .onDuplicateKeyUpdate({ set: { brand: 'Porsche' }});
 	 * ```
 	 *
-	 * While SingleStore does not directly support doing nothing on conflict, you can perform a no-op by setting any column's value to itself and achieve the same effect:
+	 * While MySQL does not directly support doing nothing on conflict, you can perform a no-op by setting any column's value to itself and achieve the same effect:
 	 *
 	 * ```ts
 	 * import { sql } from 'drizzle-orm';

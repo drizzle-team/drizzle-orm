@@ -7,7 +7,7 @@ import { SingleStoreDatabase } from './db.ts';
 import type { SingleStoreDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
-export type Mode = 'default' | 'planetscale';
+export type Mode = 'default';
 
 export interface SingleStoreQueryResultHKT {
 	readonly $brand: 'SingleStoreQueryResultHKT';
@@ -56,7 +56,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 export interface SingleStoreTransactionConfig {
 	withConsistentSnapshot?: boolean;
 	accessMode?: 'read only' | 'read write';
-	isolationLevel: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
+	isolationLevel: 'read committed'; // SingleStore only supports read committed isolation level (https://docs.singlestore.com/db/v8.7/introduction/faqs/durability/)
 }
 
 export abstract class SingleStoreSession<
@@ -140,8 +140,9 @@ export abstract class SingleStoreTransaction<
 		session: SingleStoreSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
+		mode: Mode,
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, schema, mode);
 	}
 
 	rollback(): never {

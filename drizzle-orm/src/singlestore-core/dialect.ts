@@ -17,22 +17,15 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Param, SQL, sql, View } from '~/sql/sql.ts';
-import type { Name, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { orderSelectedFields } from '~/utils.ts';
-import type { Casing, UpdateSet } from '~/utils.ts';
+import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
-import type { SingleStoreAttachConfig } from './query-builders/attach.ts';
-import type { SingleStoreBranchConfig } from './query-builders/branch.ts';
-import type { SingleStoreCreateMilestoneConfig } from './query-builders/createMilestone.ts';
 import type { SingleStoreDeleteConfig } from './query-builders/delete.ts';
-import type { SingleStoreDetachConfig } from './query-builders/detach.ts';
-import type { SingleStoreDropMilestoneConfig } from './query-builders/dropMilestone.ts';
 import type { SingleStoreInsertConfig } from './query-builders/insert.ts';
-import type { SingleStoreOptimizeTableConfig } from './query-builders/optimizeTable.ts';
 import type {
 	SelectedFieldsOrdered,
 	SingleStoreSelectConfig,
@@ -123,7 +116,7 @@ export class SingleStoreDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList }: SingleStoreDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: SingleStoreDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -132,61 +125,11 @@ export class SingleStoreDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
-	}
+		const orderBySql = this.buildOrderBy(orderBy);
 
-	buildDetachQuery({ database, milestone, workspace }: SingleStoreDetachConfig): SQL {
-		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
+		const limitSql = this.buildLimit(limit);
 
-		const workspaceSql = workspace ? sql` from workspace ${workspace}` : undefined;
-
-		return sql`detach database ${database}${milestoneSql}${workspaceSql}`;
-	}
-
-	buildAttachQuery(
-		{ database, milestone, time, databaseAlias, readOnly, ...rest }: SingleStoreAttachConfig | SingleStoreBranchConfig,
-	): SQL {
-		const asSql = databaseAlias ? sql` as ${sql.identifier(databaseAlias)}` : undefined;
-		const milestoneSql = milestone ? sql` at milestone ${milestone}` : undefined;
-		const timeSql = time ? sql` at time ${time}` : undefined;
-		const readOnlySql = readOnly ? sql` read only` : undefined;
-		const fromWorkspaceGroupSql = 'fromWorkspaceGroup' in rest
-			? sql` from workspace group ${rest.fromWorkspaceGroup}`
-			: undefined;
-
-		return sql`attach database ${
-			sql.raw(database)
-		}${fromWorkspaceGroupSql}${readOnlySql}${asSql}${milestoneSql}${timeSql}`;
-	}
-
-	buildCreateMilestoneQuery({ database, milestone }: SingleStoreCreateMilestoneConfig): SQL {
-		const forSql = database ? sql` for ${sql.identifier(database)}` : undefined;
-
-		return sql`create milestone ${milestone}${forSql}`;
-	}
-
-	buildDropMilestoneQuery({ database, milestone }: SingleStoreDropMilestoneConfig): SQL {
-		const forSql = database ? sql` for ${sql.identifier(database)}` : undefined;
-
-		return sql`drop milestone ${milestone}${forSql}`;
-	}
-
-	buildOptimizeTable({ table, arg, selection }: SingleStoreOptimizeTableConfig): SQL {
-		const argSql = arg ? sql` ${sql.raw(arg)}` : undefined;
-
-		let warmBlobCacheForColumnSql = undefined;
-		if (selection) {
-			const selectionField = selection.length > 0
-				? selection.map((column) => {
-					return { path: [], field: column };
-				})
-				: [{ path: [], field: sql.raw('*') }];
-			warmBlobCacheForColumnSql = sql` warm blob cache for column ${
-				this.buildSelection(selectionField, { isSingleTable: true })
-			}`;
-		}
-
-		return sql`optimize table ${table}${argSql}${warmBlobCacheForColumnSql}`;
+		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
@@ -201,7 +144,7 @@ export class SingleStoreDialect {
 			const col = tableColumns[colName]!;
 
 			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
-			const res = sql`${sql.identifier(col.name)} = ${value}`;
+			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
 				return [res, sql.raw(', ')];
@@ -210,7 +153,7 @@ export class SingleStoreDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList }: SingleStoreUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: SingleStoreUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
@@ -221,7 +164,11 @@ export class SingleStoreDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
+		const orderBySql = this.buildOrderBy(orderBy);
+
+		const limitSql = this.buildLimit(limit);
+
+		return sql`${withSql}update ${table} set ${setSql}${whereSql}${orderBySql}${limitSql}${returningSql}`;
 	}
 
 	/**
@@ -255,7 +202,7 @@ export class SingleStoreDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, SingleStoreColumn)) {
-										return sql.identifier(c.name);
+										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
 								}),
@@ -270,7 +217,7 @@ export class SingleStoreDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(field.name));
+						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					} else {
 						chunk.push(field);
 					}
@@ -284,6 +231,16 @@ export class SingleStoreDialect {
 			});
 
 		return sql.join(chunks);
+	}
+
+	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
+		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
+	}
+
+	private buildOrderBy(orderBy: (SingleStoreColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
+		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
 	}
 
 	buildSelectQuery(
@@ -393,19 +350,11 @@ export class SingleStoreDialect {
 
 		const havingSql = having ? sql` having ${having}` : undefined;
 
-		let orderBySql;
-		if (orderBy && orderBy.length > 0) {
-			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
-		}
+		const orderBySql = this.buildOrderBy(orderBy);
 
-		let groupBySql;
-		if (groupBy && groupBy.length > 0) {
-			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
-		}
+		const groupBySql = groupBy && groupBy.length > 0 ? sql` group by ${sql.join(groupBy, sql`, `)}` : undefined;
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitSql = this.buildLimit(limit);
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -463,13 +412,13 @@ export class SingleStoreDialect {
 			// which is invalid SingleStore syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const orderByUnit of orderBy) {
 				if (is(orderByUnit, SingleStoreColumn)) {
-					orderByValues.push(sql.identifier(orderByUnit.name));
+					orderByValues.push(sql.identifier(this.casing.getColumnCasing(orderByUnit)));
 				} else if (is(orderByUnit, SQL)) {
 					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
 						const chunk = orderByUnit.queryChunks[i];
 
 						if (is(chunk, SingleStoreColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
+							orderByUnit.queryChunks[i] = sql.identifier(this.casing.getColumnCasing(chunk));
 						}
 					}
 
@@ -503,7 +452,7 @@ export class SingleStoreDialect {
 			!col.shouldDisableInsert()
 		);
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
 		for (const [valueIndex, value] of values.entries()) {
@@ -740,9 +689,7 @@ export class SingleStoreDialect {
 					joinOn,
 					nestedQueryRelation: relation,
 				});
-				const field = sql`coalesce(${sql.identifier(relationTableAlias)}.${sql.identifier('data')}, "[]")`.as(
-					selectedRelationTsKey,
-				);
+				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
 				joins.push({
 					on: sql`true`,
 					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
@@ -772,12 +719,12 @@ export class SingleStoreDialect {
 		if (nestedQueryRelation) {
 			let field = sql`JSON_BUILD_OBJECT(${
 				sql.join(
-					selection.map(({ field, tsKey, isJson }, index) =>
+					selection.map(({ field, tsKey, isJson }) =>
 						isJson
-							? sql`${index}, ${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
+							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
-							? sql`${index}, ${field.sql}`
-							: sql`${index}, ${field}`
+							? field.sql
+							: field
 					),
 					sql`, `,
 				)

@@ -22,7 +22,7 @@ import type {
 import type { SubqueryWithSelection } from '~/singlestore-core/subquery.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { ColumnsSelection, Query } from '~/sql/sql.ts';
-import { SQL, View } from '~/sql/sql.ts';
+import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
@@ -33,8 +33,6 @@ import {
 	orderSelectedFields,
 	type ValueOrArray,
 } from '~/utils.ts';
-import { ViewBaseConfig } from '~/view-common.ts';
-import { SingleStoreViewBase } from '../view-base.ts';
 import type {
 	AnySingleStoreSelect,
 	CreateSingleStoreSelectFromBuilderMode,
@@ -86,7 +84,7 @@ export class SingleStoreSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	from<TFrom extends SingleStoreTable | Subquery | SingleStoreViewBase | SQL>(
+	from<TFrom extends SingleStoreTable | Subquery | SQL>( // | SingleStoreViewBase
 		source: TFrom,
 	): CreateSingleStoreSelectFromBuilderMode<
 		TBuilderMode,
@@ -107,8 +105,8 @@ export class SingleStoreSelectBuilder<
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
-		} else if (is(source, SingleStoreViewBase)) {
-			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
+			/* } else if (is(source, SingleStoreViewBase)) {
+			fields = source[ViewBaseConfig].selectedFields as SelectedFields; */
 		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
@@ -198,7 +196,7 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		joinType: TJoinType,
 	): SingleStoreJoinFn<this, TDynamic, TJoinType> {
 		return (
-			table: SingleStoreTable | Subquery | SingleStoreViewBase | SQL,
+			table: SingleStoreTable | Subquery | SQL, // | SingleStoreViewBase
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
@@ -218,8 +216,8 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 				if (typeof tableName === 'string' && !is(table, SQL)) {
 					const selection = is(table, Subquery)
 						? table._.selectedFields
-						: is(table, View)
-						? table[ViewBaseConfig].selectedFields
+						/* : is(table, View)
+						? table[ViewBaseConfig].selectedFields */
 						: table[Table.Symbol.Columns];
 					this.config.fields[tableName] = selection;
 				}

@@ -23,13 +23,13 @@ import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
 import type { PreparedQueryHKTBase, PreparedQueryKind, SingleStorePreparedQueryConfig } from '../session.ts';
-import type { SingleStoreViewBase } from '../view-base.ts';
+/* import type { SingleStoreViewBase } from '../view-base.ts'; */
 import type { SingleStoreViewWithSelection } from '../view.ts';
 import type { SingleStoreSelectBase, SingleStoreSelectQueryBuilderBase } from './select.ts';
 
 export interface SingleStoreSelectJoinConfig {
 	on: SQL | undefined;
-	table: SingleStoreTable | Subquery | SingleStoreViewBase | SQL;
+	table: SingleStoreTable | Subquery | SQL; // SingleStoreViewBase |
 	alias: string | undefined;
 	joinType: JoinType;
 	lateral?: boolean;
@@ -55,7 +55,7 @@ export interface SingleStoreSelectConfig {
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
-	table: SingleStoreTable | Subquery | SingleStoreViewBase | SQL;
+	table: SingleStoreTable | Subquery | SQL; // | SingleStoreViewBase
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
 	joins?: SingleStoreSelectJoinConfig[];
@@ -80,7 +80,7 @@ export type SingleStoreJoin<
 	T extends AnySingleStoreSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
-	TJoinedTable extends SingleStoreTable | Subquery | SingleStoreViewBase | SQL,
+	TJoinedTable extends SingleStoreTable | Subquery | SQL, // | SingleStoreViewBase
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 > = T extends any ? SingleStoreSelectWithout<
 		SingleStoreSelectKind<
@@ -111,7 +111,7 @@ export type SingleStoreJoinFn<
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 > = <
-	TJoinedTable extends SingleStoreTable | Subquery | SingleStoreViewBase | SQL,
+	TJoinedTable extends SingleStoreTable | Subquery | SQL, // | SingleStoreViewBase
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
 	table: TJoinedTable,

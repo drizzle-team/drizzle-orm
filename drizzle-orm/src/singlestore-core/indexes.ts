@@ -45,10 +45,6 @@ export interface AnyIndexBuilder {
 	build(table: SingleStoreTable): Index;
 }
 
-export interface AnyFullTextIndexBuilder {
-	build(table: SingleStoreTable): FullTextIndex;
-}
-
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface IndexBuilder extends AnyIndexBuilder {}
 
@@ -111,6 +107,10 @@ export function uniqueIndex(name: string): IndexBuilderOn {
 	return new IndexBuilderOn(name, true);
 }
 
+/* export interface AnyFullTextIndexBuilder {
+	build(table: SingleStoreTable): FullTextIndex;
+} */
+/*
 interface FullTextIndexConfig {
 	version?: number;
 }
@@ -133,22 +133,23 @@ export class FullTextIndexBuilderOn {
 			...this.config,
 		});
 	}
-}
+} */
 
+/*
 export interface FullTextIndexBuilder extends AnyFullTextIndexBuilder {}
 
 export class FullTextIndexBuilder implements AnyFullTextIndexBuilder {
-	static readonly [entityKind]: string = 'SingleStoreFullTextIndexBuilder';
+	static readonly [entityKind]: string = 'SingleStoreFullTextIndexBuilder'; */
 
-	/** @internal */
-	config: FullTextIndexFullConfig;
+/** @internal */
+/* config: FullTextIndexFullConfig;
 
 	constructor(config: FullTextIndexFullConfig) {
 		this.config = config;
-	}
+	} */
 
-	/** @internal */
-	build(table: SingleStoreTable): FullTextIndex {
+/** @internal */
+/* build(table: SingleStoreTable): FullTextIndex {
 		return new FullTextIndex(this.config, table);
 	}
 }
@@ -172,10 +173,10 @@ export type SortKeyColumn = SingleStoreColumn | SQL;
 export class SortKeyBuilder {
 	static readonly [entityKind]: string = 'SingleStoreSortKeyBuilder';
 
-	constructor(private columns: SortKeyColumn[]) {}
+	constructor(private columns: SortKeyColumn[]) {} */
 
-	/** @internal */
-	build(table: SingleStoreTable): SortKey {
+/** @internal */
+/* build(table: SingleStoreTable): SortKey {
 		return new SortKey(this.columns, table);
 	}
 }
@@ -189,3 +190,4 @@ export class SortKey {
 export function sortKey(...columns: SortKeyColumn[]): SortKeyBuilder {
 	return new SortKeyBuilder(columns);
 }
+ */

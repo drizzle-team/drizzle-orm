@@ -1,14 +1,13 @@
 import { is } from '~/entity.ts';
 import { Table } from '~/table.ts';
-import { ViewBaseConfig } from '~/view-common.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
 import { SingleStoreTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
-import { SingleStoreViewConfig } from './view-common.ts';
-import type { SingleStoreView } from './view.ts';
+/* import { SingleStoreViewConfig } from './view-common.ts';
+import type { SingleStoreView } from './view.ts'; */
 
 export function getTableConfig(table: SingleStoreTable) {
 	const columns = Object.values(table[SingleStoreTable.Symbol.Columns]);
@@ -45,7 +44,7 @@ export function getTableConfig(table: SingleStoreTable) {
 	};
 }
 
-export function getViewConfig<
+/* export function getViewConfig<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
 >(view: SingleStoreView<TName, TExisting>) {
@@ -53,4 +52,4 @@ export function getViewConfig<
 		...view[ViewBaseConfig],
 		...view[SingleStoreViewConfig],
 	};
-}
+} */

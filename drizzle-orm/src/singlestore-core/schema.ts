@@ -1,6 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
 import { type SingleStoreTableFn, singlestoreTableWithSchema } from './table.ts';
-import { type singlestoreView, singlestoreViewWithSchema } from './view.ts';
+/* import { type singlestoreView, singlestoreViewWithSchema } from './view.ts'; */
 
 export class SingleStoreSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'SingleStoreSchema';
@@ -12,10 +12,10 @@ export class SingleStoreSchema<TName extends string = string> {
 	table: SingleStoreTableFn<TName> = (name, columns, extraConfig) => {
 		return singlestoreTableWithSchema(name, columns, extraConfig, this.schemaName);
 	};
-
+	/*
 	view = ((name, columns) => {
 		return singlestoreViewWithSchema(name, columns, this.schemaName);
-	}) as typeof singlestoreView;
+	}) as typeof singlestoreView; */
 }
 
 /** @deprecated - use `instanceof SingleStoreSchema` */
@@ -25,8 +25,7 @@ export function isSingleStoreSchema(obj: unknown): obj is SingleStoreSchema {
 
 /**
  * Create a SingleStore schema.
- * https://dev.mysql.com/doc/refman/8.0/en/create-database.html
- * TODO(singlestore)
+ * https://docs.singlestore.com/cloud/create-a-database/
  *
  * @param name singlestore use schema name
  * @returns SingleStore schema

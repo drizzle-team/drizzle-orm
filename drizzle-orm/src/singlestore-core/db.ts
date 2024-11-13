@@ -3,15 +3,11 @@ import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { SingleStoreDialect } from './dialect.ts';
-import { SingleStoreAttachBase } from './query-builders/attach.ts';
-import { SingleStoreBranchBase } from './query-builders/branch.ts';
-import { SingleStoreCreateMilestoneBase } from './query-builders/createMilestone.ts';
-import { SingleStoreDetachBase } from './query-builders/detach.ts';
-import { SingleStoreDropMilestoneBase } from './query-builders/dropMilestone.ts';
+import { SingleStoreCountBuilder } from './query-builders/count.ts';
 import {
 	QueryBuilder,
 	SingleStoreDeleteBase,
@@ -19,11 +15,10 @@ import {
 	SingleStoreSelectBuilder,
 	SingleStoreUpdateBuilder,
 } from './query-builders/index.ts';
-import type { OptimizeTableArgument } from './query-builders/optimizeTable.ts';
-import { SingleStoreOptimizeTableBase } from './query-builders/optimizeTable.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
+	Mode,
 	PreparedQueryHKTBase,
 	SingleStoreQueryResultHKT,
 	SingleStoreQueryResultKind,
@@ -60,6 +55,7 @@ export class SingleStoreDatabase<
 		/** @internal */
 		readonly session: SingleStoreSession<any, any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
+		protected readonly mode: Mode,
 	) {
 		this._ = schema
 			? {
@@ -84,6 +80,7 @@ export class SingleStoreDatabase<
 						columns,
 						dialect,
 						session,
+						this.mode,
 					);
 			}
 		}
@@ -122,12 +119,13 @@ export class SingleStoreDatabase<
 	 * ```
 	 */
 	$with<TAlias extends string>(alias: TAlias) {
+		const self = this;
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
-					qb = qb(new QueryBuilder());
+					qb = qb(new QueryBuilder(self.dialect));
 				}
 
 				return new Proxy(
@@ -136,6 +134,13 @@ export class SingleStoreDatabase<
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
+	}
+
+	$count(
+		source: SingleStoreTable | SQL | SQLWrapper, // SingleStoreViewBase |
+		filters?: SQL<unknown>,
+	) {
+		return new SingleStoreCountBuilder({ source, filters, session: this.session });
 	}
 
 	/**
@@ -463,9 +468,9 @@ export class SingleStoreDatabase<
 	}
 
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
-		query: SQLWrapper,
+		query: SQLWrapper | string,
 	): Promise<SingleStoreQueryResultKind<TQueryResult, T>> {
-		return this.session.execute(query.getSQL());
+		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
 	}
 
 	transaction<T>(
@@ -476,47 +481,6 @@ export class SingleStoreDatabase<
 		config?: SingleStoreTransactionConfig,
 	): Promise<T> {
 		return this.session.transaction(transaction, config);
-	}
-
-	detach<TDatabase extends string>(
-		database: TDatabase,
-	): SingleStoreDetachBase<TDatabase, TQueryResult, TPreparedQueryHKT> {
-		return new SingleStoreDetachBase(database, this.session, this.dialect);
-	}
-
-	attach<TDatabase extends string>(
-		database: TDatabase,
-	): SingleStoreAttachBase<TDatabase, TQueryResult, TPreparedQueryHKT> {
-		return new SingleStoreAttachBase(database, this.session, this.dialect);
-	}
-
-	branch<TDatabase extends string>(
-		database: TDatabase,
-		branchName: string,
-	): SingleStoreBranchBase<TDatabase, TQueryResult, TPreparedQueryHKT> {
-		return new SingleStoreBranchBase(database, branchName, this.session, this.dialect);
-	}
-
-	createMilestone<TMilestone extends string>(
-		milestone: TMilestone,
-	): SingleStoreCreateMilestoneBase<TMilestone, TQueryResult, TPreparedQueryHKT> {
-		return new SingleStoreCreateMilestoneBase(milestone, this.session, this.dialect);
-	}
-
-	dropMilestone<TMilestone extends string>(
-		milestone: TMilestone,
-	): SingleStoreDropMilestoneBase<TMilestone, TQueryResult, TPreparedQueryHKT> {
-		return new SingleStoreDropMilestoneBase(milestone, this.session, this.dialect);
-	}
-
-	optimizeTable<
-		TTable extends SingleStoreTable,
-		TArg extends OptimizeTableArgument,
-	>(
-		table: TTable,
-		arg: TArg | undefined = undefined,
-	): SingleStoreOptimizeTableBase<TTable, TArg, TQueryResult, TPreparedQueryHKT> {
-		return new SingleStoreOptimizeTableBase(table, arg, this.session, this.dialect);
 	}
 }
 
