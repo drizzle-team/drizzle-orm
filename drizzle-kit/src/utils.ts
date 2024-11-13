@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'path';
 import { parse } from 'url';
 import type { NamedWithSchema } from './cli/commands/migrate';
+import { CasingType } from './cli/validations/common';
 import { info } from './cli/views';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
@@ -355,4 +356,13 @@ export function findAddedAndRemoved(columnNames1: string[], columnNames2: string
 	const removedColumns = columnNames1.filter((it) => !set2.has(it));
 
 	return { addedColumns, removedColumns };
+}
+
+export function escapeSingleQuotes(str: string) {
+	return str.replace(/'/g, "''");
+}
+
+export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolean) {
+	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
+	return str.replace(/''/g, "'").replace(regex, "\\'");
 }

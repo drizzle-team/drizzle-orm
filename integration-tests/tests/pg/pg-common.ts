@@ -18,6 +18,7 @@ import {
 	gte,
 	ilike,
 	inArray,
+	is,
 	lt,
 	max,
 	min,
@@ -30,10 +31,12 @@ import {
 	sumDistinct,
 	TransactionRollbackError,
 } from 'drizzle-orm';
+import { authenticatedRole, crudPolicy } from 'drizzle-orm/neon';
 import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
 	alias,
+	bigserial,
 	boolean,
 	char,
 	cidr,
@@ -44,6 +47,7 @@ import {
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
+	index,
 	inet,
 	integer,
 	intersect,
@@ -54,8 +58,11 @@ import {
 	macaddr,
 	macaddr8,
 	numeric,
+	PgDialect,
 	pgEnum,
 	pgMaterializedView,
+	PgPolicy,
+	pgPolicy,
 	pgSchema,
 	pgTable,
 	pgTableCreator,
@@ -178,9 +185,9 @@ const aggregateTable = pgTable('aggregate_table', {
 });
 
 // To test another schema and multischema
-const mySchema = pgSchema('mySchema');
+export const mySchema = pgSchema('mySchema');
 
-const usersMySchemaTable = mySchema.table('users', {
+export const usersMySchemaTable = mySchema.table('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
@@ -1251,6 +1258,29 @@ export function tests() {
 			const result = await stmt.execute({ offset: 1 });
 
 			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+		});
+
+		test('prepared statement built using $dynamic', async (ctx) => {
+			const { db } = ctx.pg;
+
+			function withLimitOffset(qb: any) {
+				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
+			}
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.$dynamic();
+			withLimitOffset(stmt).prepare('stmt_limit');
+
+			const result = await stmt.execute({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+			expect(result).toHaveLength(1);
 		});
 
 		// TODO change tests to new structure
@@ -4248,7 +4278,7 @@ export function tests() {
 				.toSQL();
 
 			expect(query).toEqual({
-				sql: 'select "id", "name" from "mySchema"."users" group by "users"."id", "users"."name"',
+				sql: 'select "id", "name" from "mySchema"."users" group by "mySchema"."users"."id", "mySchema"."users"."name"',
 				params: [],
 			});
 		});
@@ -4525,6 +4555,49 @@ export function tests() {
 				.limit(-1);
 
 			expect(users.length).toBeGreaterThan(0);
+		});
+
+		test('Object keys as column names', async (ctx) => {
+			const { db } = ctx.pg;
+
+			// Tests the following:
+			// Column with required config
+			// Column with optional config without providing a value
+			// Column with optional config providing a value
+			// Column without config
+			const users = pgTable('users', {
+				id: bigserial({ mode: 'number' }).primaryKey(),
+				firstName: varchar(),
+				lastName: varchar({ length: 50 }),
+				admin: boolean(),
+			});
+
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(
+				sql`
+					create table users (
+						"id" bigserial primary key,
+						"firstName" varchar,
+						"lastName" varchar(50),
+						"admin" boolean
+					)
+				`,
+			);
+
+			await db.insert(users).values([
+				{ firstName: 'John', lastName: 'Doe', admin: true },
+				{ firstName: 'Jane', lastName: 'Smith', admin: false },
+			]);
+			const result = await db
+				.select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+				.from(users)
+				.where(eq(users.admin, true));
+
+			expect(result).toEqual([
+				{ id: 1, firstName: 'John', lastName: 'Doe' },
+			]);
+
+			await db.execute(sql`drop table users`);
 		});
 
 		test('proper json and jsonb handling', async (ctx) => {
@@ -4835,6 +4908,123 @@ export function tests() {
 				states: null,
 			}]);
 		});
+		
+		test('policy', () => {
+			{
+				const policy = pgPolicy('test policy');
+
+				expect(is(policy, PgPolicy)).toBe(true);
+				expect(policy.name).toBe('test policy');
+			}
+
+			{
+				const policy = pgPolicy('test policy', {
+					as: 'permissive',
+					for: 'all',
+					to: 'public',
+					using: sql`1=1`,
+					withCheck: sql`1=1`,
+				});
+
+				expect(is(policy, PgPolicy)).toBe(true);
+				expect(policy.name).toBe('test policy');
+				expect(policy.as).toBe('permissive');
+				expect(policy.for).toBe('all');
+				expect(policy.to).toBe('public');
+				const dialect = new PgDialect();
+				expect(is(policy.using, SQL)).toBe(true);
+				expect(dialect.sqlToQuery(policy.using!).sql).toBe('1=1');
+				expect(is(policy.withCheck, SQL)).toBe(true);
+				expect(dialect.sqlToQuery(policy.withCheck!).sql).toBe('1=1');
+			}
+
+			{
+				const policy = pgPolicy('test policy', {
+					to: 'custom value',
+				});
+
+				expect(policy.to).toBe('custom value');
+			}
+
+			{
+				const p1 = pgPolicy('test policy');
+				const p2 = pgPolicy('test policy 2', {
+					as: 'permissive',
+					for: 'all',
+					to: 'public',
+					using: sql`1=1`,
+					withCheck: sql`1=1`,
+				});
+				const table = pgTable('table_with_policy', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				}, () => ({
+					p1,
+					p2,
+				}));
+				const config = getTableConfig(table);
+				expect(config.policies).toHaveLength(2);
+				expect(config.policies[0]).toBe(p1);
+				expect(config.policies[1]).toBe(p2);
+			}
+		});
+
+		test('neon: policy', () => {
+			{
+				const policy = crudPolicy({
+					read: true,
+					modify: true,
+					role: authenticatedRole,
+				});
+
+				for (const it of Object.values(policy)) {
+					expect(is(it, PgPolicy)).toBe(true);
+					expect(it?.to).toStrictEqual(authenticatedRole);
+					it?.using ? expect(it.using).toStrictEqual(sql`true`) : '';
+					it?.withCheck ? expect(it.withCheck).toStrictEqual(sql`true`) : '';
+				}
+			}
+
+			{
+				const table = pgTable('name', {
+					id: integer('id'),
+				}, (t) => [
+					index('name').on(t.id),
+					crudPolicy({
+						read: true,
+						modify: true,
+						role: authenticatedRole,
+					}),
+					primaryKey({ columns: [t.id], name: 'custom' }),
+				]);
+
+				const { policies, indexes, primaryKeys } = getTableConfig(table);
+
+				expect(policies.length).toBe(4);
+				expect(indexes.length).toBe(1);
+				expect(primaryKeys.length).toBe(1);
+
+				expect(policies[0]?.name === 'crud-custom-policy-modify');
+				expect(policies[1]?.name === 'crud-custom-policy-read');
+			}
+		});
+
+		test('Enable RLS function', () => {
+			const usersWithRLS = pgTable('users', {
+				id: integer(),
+			}).enableRLS();
+
+			const config1 = getTableConfig(usersWithRLS);
+
+			const usersNoRLS = pgTable('users', {
+				id: integer(),
+			});
+
+			const config2 = getTableConfig(usersNoRLS);
+
+			expect(config1.enableRLS).toBeTruthy();
+			expect(config2.enableRLS).toBeFalsy();
+		});
 
 		test('$count separate', async (ctx) => {
 			const { db } = ctx.pg;
@@ -5041,6 +5231,30 @@ export function tests() {
 				{ count: 3 },
 				{ count: 3 },
 				{ count: 3 },
+			]);
+		});
+
+		test('insert multiple rows into table with generated identity column', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} ("id" integer generated always as identity primary key, "name" text)`);
+
+			const result = await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+				{ name: 'Bob' },
+			]).returning();
+
+			expect(result).toEqual([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Bob' },
 			]);
 		});
 	});

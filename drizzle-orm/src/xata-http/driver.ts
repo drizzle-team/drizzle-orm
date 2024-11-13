@@ -40,7 +40,7 @@ export class XataHttpDriver {
 export class XataHttpDatabase<TSchema extends Record<string, unknown> = Record<string, never>>
 	extends PgDatabase<XataHttpQueryResultHKT, TSchema>
 {
-	static readonly [entityKind]: string = 'XataHttpDatabase';
+	static override readonly [entityKind]: string = 'XataHttpDatabase';
 
 	/** @internal */
 	declare readonly session: XataHttpSession<TSchema, ExtractTablesWithRelations<TSchema>>;
@@ -52,7 +52,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 ): XataHttpDatabase<TSchema> & {
 	$client: XataHttpClient;
 } {
-	const dialect = new PgDialect();
+	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

@@ -193,4 +193,5 @@ Expect<Equal<typeof users.$inferSelect, typeof updateGetReturningAllBun>>;
 			id: number;
 		}[], typeof result>
 	>;
+	db.update(users).set({}).where(sql``).limit(1).orderBy(sql``);
 }

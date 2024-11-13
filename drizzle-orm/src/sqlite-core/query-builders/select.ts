@@ -137,7 +137,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'SQLiteSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'SQLiteSelectQueryBuilder';
 
 	override readonly _: {
 		readonly dialect: 'sqlite';
@@ -854,7 +854,7 @@ export class SQLiteSelectBase<
 	TResult,
 	TSelectedFields
 > implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper {
-	static readonly [entityKind]: string = 'SQLiteSelect';
+	static override readonly [entityKind]: string = 'SQLiteSelect';
 
 	/** @internal */
 	_prepare(isOneTimeQuery = true): SQLiteSelectPrepare<this> {

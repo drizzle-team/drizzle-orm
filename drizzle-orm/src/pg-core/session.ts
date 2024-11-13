@@ -105,7 +105,7 @@ export abstract class PgTransaction<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > extends PgDatabase<TQueryResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgTransaction';
+	static override readonly [entityKind]: string = 'PgTransaction';
 
 	constructor(
 		dialect: PgDialect,

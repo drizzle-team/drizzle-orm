@@ -4,20 +4,29 @@ import type { JoinType, SelectResultFields } from '~/query-builders/select.types
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
+import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { type DrizzleTypeError, getTableLikeName, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { ViewBaseConfig } from '~/view-common.ts';
+import {
+	type DrizzleTypeError,
+	mapUpdateSet,
+	orderSelectedFields,
+	type UpdateSet,
+	type ValueOrArray,
+	getTableLikeName
+} from '~/utils.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
 import { SQLiteViewBase } from '../view-base.ts';
 import type { SelectedFields, SelectedFieldsOrdered, SQLiteSelectJoinConfig } from './select.types.ts';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
+	limit?: number | Placeholder;
+	orderBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
 	set: UpdateSet;
 	table: SQLiteTable;
 	from?: SQLiteTable | Subquery | SQLiteViewBase | SQL;
@@ -225,7 +234,7 @@ export class SQLiteUpdateBase<
 > extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
 	implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper
 {
-	static readonly [entityKind]: string = 'SQLiteUpdate';
+	static override readonly [entityKind]: string = 'SQLiteUpdate';
 
 	/** @internal */
 	config: SQLiteUpdateConfig;
@@ -332,6 +341,37 @@ export class SQLiteUpdateBase<
 	 */
 	where(where: SQL | undefined): SQLiteUpdateWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
+		return this as any;
+	}
+
+	orderBy(
+		builder: (updateTable: TTable) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
+	): SQLiteUpdateWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (SQLiteColumn | SQL | SQL.Aliased)[]): SQLiteUpdateWithout<this, TDynamic, 'orderBy'>;
+	orderBy(
+		...columns:
+			| [(updateTable: TTable) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
+			| (SQLiteColumn | SQL | SQL.Aliased)[]
+	): SQLiteUpdateWithout<this, TDynamic, 'orderBy'> {
+		if (typeof columns[0] === 'function') {
+			const orderBy = columns[0](
+				new Proxy(
+					this.config.table[Table.Symbol.Columns],
+					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
+				) as any,
+			);
+
+			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
+			this.config.orderBy = orderByArray;
+		} else {
+			const orderByArray = columns as (SQLiteColumn | SQL | SQL.Aliased)[];
+			this.config.orderBy = orderByArray;
+		}
+		return this as any;
+	}
+
+	limit(limit: number | Placeholder): SQLiteUpdateWithout<this, TDynamic, 'limit'> {
+		this.config.limit = limit;
 		return this as any;
 	}
 

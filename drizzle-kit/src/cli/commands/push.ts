@@ -1,7 +1,11 @@
 import chalk from 'chalk';
+import { randomUUID } from 'crypto';
 import { render } from 'hanji';
+import { serializePg } from 'src/serializer';
 import { fromJson } from '../../sqlgenerator';
 import { Select } from '../selector-ui';
+import { Entities } from '../validations/cli';
+import { CasingType } from '../validations/common';
 import { LibSQLCredentials } from '../validations/libsql';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
@@ -19,6 +23,7 @@ export const mysqlPush = async (
 	strict: boolean,
 	verbose: boolean,
 	force: boolean,
+	casing: CasingType | undefined,
 ) => {
 	const { connectToMySQL } = await import('../connections');
 	const { mysqlPushIntrospect } = await import('./mysqlIntrospect');
@@ -28,7 +33,7 @@ export const mysqlPush = async (
 	const { schema } = await mysqlPushIntrospect(db, database, tablesFilter);
 	const { prepareMySQLPush } = await import('./migrate');
 
-	const statements = await prepareMySQLPush(schemaPath, schema);
+	const statements = await prepareMySQLPush(schemaPath, schema, casing);
 
 	const filteredStatements = filterStatements(
 		statements.statements ?? [],
@@ -158,17 +163,25 @@ export const pgPush = async (
 	credentials: PostgresCredentials,
 	tablesFilter: string[],
 	schemasFilter: string[],
+	entities: Entities,
 	force: boolean,
+	casing: CasingType | undefined,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const { pgPushIntrospect } = await import('./pgIntrospect');
 
 	const db = await preparePostgresDB(credentials);
-	const { schema } = await pgPushIntrospect(db, tablesFilter, schemasFilter);
+
+	const serialized = await serializePg(schemaPath, casing, schemasFilter);
+
+	const { schema } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities, serialized);
 
 	const { preparePgPush } = await import('./migrate');
 
-	const statements = await preparePgPush(schemaPath, schema, schemasFilter);
+	const statements = await preparePgPush(
+		{ id: randomUUID(), prevId: schema.id, ...serialized },
+		schema,
+	);
 
 	try {
 		if (statements.sqlStatements.length === 0) {
@@ -180,6 +193,7 @@ export const pgPush = async (
 				statementsToExecute,
 				columnsToRemove,
 				tablesToRemove,
+				matViewsToRemove,
 				tablesToTruncate,
 				infoToPrint,
 				schemasToRemove,
@@ -235,6 +249,12 @@ export const pgPush = async (
 							tablesToTruncate.length > 0
 								? ` truncate ${tablesToTruncate.length} ${tablesToTruncate.length > 1 ? 'tables' : 'table'}`
 								: ''
+						}${
+							matViewsToRemove.length > 0
+								? ` remove ${matViewsToRemove.length} ${
+									matViewsToRemove.length > 1 ? 'materialized views' : 'materialize view'
+								},`
+								: ' '
 						}`
 							.replace(/(^,)|(,$)/g, '')
 							.replace(/ +(?= )/g, ''),
@@ -268,6 +288,7 @@ export const sqlitePush = async (
 	credentials: SqliteCredentials,
 	tablesFilter: string[],
 	force: boolean,
+	casing: CasingType | undefined,
 ) => {
 	const { connectToSQLite } = await import('../connections');
 	const { sqlitePushIntrospect } = await import('./sqliteIntrospect');
@@ -276,7 +297,7 @@ export const sqlitePush = async (
 	const { schema } = await sqlitePushIntrospect(db, tablesFilter);
 	const { prepareSQLitePush } = await import('./migrate');
 
-	const statements = await prepareSQLitePush(schemaPath, schema);
+	const statements = await prepareSQLitePush(schemaPath, schema, casing);
 
 	if (statements.sqlStatements.length === 0) {
 		render(`\n[${chalk.blue('i')}] No changes detected`);
@@ -362,15 +383,15 @@ export const sqlitePush = async (
 			render(`\n[${chalk.blue('i')}] No changes detected`);
 		} else {
 			if (!('driver' in credentials)) {
-				await db.query('begin');
+				await db.run('begin');
 				try {
 					for (const dStmnt of statementsToExecute) {
-						await db.query(dStmnt);
+						await db.run(dStmnt);
 					}
-					await db.query('commit');
+					await db.run('commit');
 				} catch (e) {
 					console.error(e);
-					await db.query('rollback');
+					await db.run('rollback');
 					process.exit(1);
 				}
 			}
@@ -386,6 +407,7 @@ export const libSQLPush = async (
 	credentials: LibSQLCredentials,
 	tablesFilter: string[],
 	force: boolean,
+	casing: CasingType | undefined,
 ) => {
 	const { connectToLibSQL } = await import('../connections');
 	const { sqlitePushIntrospect } = await import('./sqliteIntrospect');
@@ -395,7 +417,7 @@ export const libSQLPush = async (
 
 	const { prepareLibSQLPush } = await import('./migrate');
 
-	const statements = await prepareLibSQLPush(schemaPath, schema);
+	const statements = await prepareLibSQLPush(schemaPath, schema, casing);
 
 	if (statements.sqlStatements.length === 0) {
 		render(`\n[${chalk.blue('i')}] No changes detected`);

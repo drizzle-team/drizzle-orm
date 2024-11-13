@@ -13,9 +13,9 @@ import { render } from 'hanji';
 import path, { join } from 'path';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
-import { MySqlSchema, mysqlSchema, squashMysqlScheme } from '../../serializer/mysqlSchema';
-import { PgSchema, pgSchema, squashPgScheme } from '../../serializer/pgSchema';
-import { SQLiteSchema, sqliteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
+import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
+import { PgSchema, pgSchema, Policy, Role, squashPgScheme, View } from '../../serializer/pgSchema';
+import { SQLiteSchema, sqliteSchema, squashSqliteScheme, View as SQLiteView } from '../../serializer/sqliteSchema';
 import {
 	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
@@ -25,15 +25,21 @@ import {
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
 	Enum,
+	PolicyResolverInput,
+	PolicyResolverOutput,
 	ResolverInput,
 	ResolverOutput,
 	ResolverOutputWithMoved,
+	RolesResolverInput,
+	RolesResolverOutput,
 	Sequence,
 	Table,
+	TablePolicyResolverInput,
+	TablePolicyResolverOutput,
 } from '../../snapshotsDiffer';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
-import { Prefix } from '../validations/common';
+import { CasingType, Prefix } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import {
 	isRenamePromptItem,
@@ -41,6 +47,7 @@ import {
 	ResolveColumnSelect,
 	ResolveSchemasSelect,
 	ResolveSelect,
+	ResolveSelectNamed,
 	schema,
 } from '../views';
 import { GenerateConfig } from './utils';
@@ -92,6 +99,72 @@ export const tablesResolver = async (
 	}
 };
 
+export const viewsResolver = async (
+	input: ResolverInput<View>,
+): Promise<ResolverOutputWithMoved<View>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const mySqlViewsResolver = async (
+	input: ResolverInput<ViewSquashed & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const sqliteViewsResolver = async (
+	input: ResolverInput<SQLiteView & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<SQLiteView>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
 export const sequencesResolver = async (
 	input: ResolverInput<Sequence>,
 ): Promise<ResolverOutputWithMoved<Sequence>> => {
@@ -112,6 +185,53 @@ export const sequencesResolver = async (
 		console.error(e);
 		throw e;
 	}
+};
+
+export const roleResolver = async (
+	input: RolesResolverInput<Role>,
+): Promise<RolesResolverOutput<Role>> => {
+	const result = await promptNamedConflict(
+		input.created,
+		input.deleted,
+		'role',
+	);
+	return {
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
+};
+
+export const policyResolver = async (
+	input: TablePolicyResolverInput<Policy>,
+): Promise<TablePolicyResolverOutput<Policy>> => {
+	const result = await promptColumnsConflicts(
+		input.tableName,
+		input.created,
+		input.deleted,
+	);
+	return {
+		tableName: input.tableName,
+		schema: input.schema,
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
+};
+
+export const indPolicyResolver = async (
+	input: PolicyResolverInput<Policy>,
+): Promise<PolicyResolverOutput<Policy>> => {
+	const result = await promptNamedConflict(
+		input.created,
+		input.deleted,
+		'policy',
+	);
+	return {
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
 };
 
 export const enumsResolver = async (
@@ -156,6 +276,7 @@ export const columnsResolver = async (
 export const prepareAndMigratePg = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
+	const casing = config.casing;
 
 	try {
 		assertV1OutFolder(outFolder);
@@ -168,6 +289,7 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await preparePgMigrationSnapshot(
 			snapshots,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = pgSchema.parse(prev);
@@ -196,8 +318,12 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			schemasResolver,
 			enumsResolver,
 			sequencesResolver,
+			policyResolver,
+			indPolicyResolver,
+			roleResolver,
 			tablesResolver,
 			columnsResolver,
+			viewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -217,16 +343,9 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 };
 
 export const preparePgPush = async (
-	schemaPath: string | string[],
-	snapshot: PgSchema,
-	schemaFilter: string[],
+	cur: PgSchema,
+	prev: PgSchema,
 ) => {
-	const { prev, cur } = await preparePgDbPushSnapshot(
-		snapshot,
-		schemaPath,
-		schemaFilter,
-	);
-
 	const validatedPrev = pgSchema.parse(prev);
 	const validatedCur = pgSchema.parse(cur);
 
@@ -239,8 +358,12 @@ export const preparePgPush = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
+		viewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -304,11 +427,13 @@ function mysqlSchemaSuggestions(
 export const prepareMySQLPush = async (
 	schemaPath: string | string[],
 	snapshot: MySqlSchema,
+	casing: CasingType | undefined,
 ) => {
 	try {
 		const { prev, cur } = await prepareMySqlDbPushSnapshot(
 			snapshot,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = mysqlSchema.parse(prev);
@@ -322,6 +447,7 @@ export const prepareMySQLPush = async (
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -337,6 +463,7 @@ export const prepareMySQLPush = async (
 export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
+	const casing = config.casing;
 
 	try {
 		// TODO: remove
@@ -346,6 +473,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await prepareMySqlMigrationSnapshot(
 			snapshots,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = mysqlSchema.parse(prev);
@@ -373,6 +501,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			mySqlViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -395,6 +524,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
+	const casing = config.casing;
 
 	try {
 		assertV1OutFolder(outFolder);
@@ -403,6 +533,7 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
 			snapshots,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = sqliteSchema.parse(prev);
@@ -431,6 +562,7 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -454,6 +586,7 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
+	const casing = config.casing;
 
 	try {
 		assertV1OutFolder(outFolder);
@@ -462,6 +595,7 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
 			snapshots,
 			schemaPath,
+			casing,
 		);
 
 		const validatedPrev = sqliteSchema.parse(prev);
@@ -490,6 +624,7 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
+			sqliteViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -513,8 +648,9 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 export const prepareSQLitePush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
+	casing: CasingType | undefined,
 ) => {
-	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath);
+	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath, casing);
 
 	const validatedPrev = sqliteSchema.parse(prev);
 	const validatedCur = sqliteSchema.parse(cur);
@@ -527,6 +663,7 @@ export const prepareSQLitePush = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -544,8 +681,9 @@ export const prepareSQLitePush = async (
 export const prepareLibSQLPush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
+	casing: CasingType | undefined,
 ) => {
-	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath);
+	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath, casing);
 
 	const validatedPrev = sqliteSchema.parse(prev);
 	const validatedCur = sqliteSchema.parse(cur);
@@ -558,6 +696,7 @@ export const prepareLibSQLPush = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
+		sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -648,10 +787,82 @@ export const promptColumnsConflicts = async <T extends Named>(
 	return result;
 };
 
+export const promptNamedConflict = async <T extends Named>(
+	newItems: T[],
+	missingItems: T[],
+	entity: 'role' | 'policy',
+): Promise<{
+	created: T[];
+	renamed: { from: T; to: T }[];
+	deleted: T[];
+}> => {
+	if (missingItems.length === 0 || newItems.length === 0) {
+		return {
+			created: newItems,
+			renamed: [],
+			deleted: missingItems,
+		};
+	}
+
+	const result: {
+		created: T[];
+		renamed: { from: T; to: T }[];
+		deleted: T[];
+	} = { created: [], renamed: [], deleted: [] };
+	let index = 0;
+	let leftMissing = [...missingItems];
+	do {
+		const created = newItems[index];
+		const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
+			return { from: it, to: created };
+		});
+
+		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
+
+		const { status, data } = await render(
+			new ResolveSelectNamed<T>(created, promptData, entity),
+		);
+		if (status === 'aborted') {
+			console.error('ERROR');
+			process.exit(1);
+		}
+
+		if (isRenamePromptItem(data)) {
+			console.log(
+				`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
+					chalk.gray(
+						`${entity} will be renamed/moved`,
+					)
+				}`,
+			);
+
+			if (data.from.name !== data.to.name) {
+				result.renamed.push(data);
+			}
+
+			delete leftMissing[leftMissing.indexOf(data.from)];
+			leftMissing = leftMissing.filter(Boolean);
+		} else {
+			console.log(
+				`${chalk.green('+')} ${data.name} ${
+					chalk.gray(
+						`${entity} will be created`,
+					)
+				}`,
+			);
+			result.created.push(created);
+		}
+		index += 1;
+	} while (index < newItems.length);
+	console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
+	result.deleted.push(...leftMissing);
+	return result;
+};
+
 export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 	newItems: T[],
 	missingItems: T[],
-	entity: 'table' | 'enum' | 'sequence',
+	entity: 'table' | 'enum' | 'sequence' | 'view',
 ): Promise<{
 	created: T[];
 	renamed: { from: T; to: T }[];
@@ -867,7 +1078,7 @@ export const writeResult = ({
 
 	if (type === 'custom') {
 		console.log('Prepared empty file for your custom SQL migration!');
-		sql = '-- Custom SQL migration file, put you code below! --';
+		sql = '-- Custom SQL migration file, put your code below! --';
 	}
 
 	journal.entries.push({

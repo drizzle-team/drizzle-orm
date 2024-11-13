@@ -3,12 +3,14 @@ import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
+import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
-import { pullParams, pushParams } from '../validations/cli';
+import { Entities, pullParams, pushParams } from '../validations/cli';
 import {
 	Casing,
+	CasingType,
 	CliConfig,
 	configCommonSchema,
 	configMigrations,
@@ -124,6 +126,7 @@ export type GenerateConfig = {
 	prefix: Prefix;
 	custom: boolean;
 	bundle: boolean;
+	casing?: CasingType;
 };
 
 export const prepareGenerateConfig = async (
@@ -137,12 +140,13 @@ export const prepareGenerateConfig = async (
 		dialect?: Dialect;
 		driver?: Driver;
 		prefix?: Prefix;
+		casing?: CasingType;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
 
-	const { schema, out, breakpoints, dialect, driver } = config;
+	const { schema, out, breakpoints, dialect, driver, casing } = config;
 
 	if (!schema || !dialect) {
 		console.log(error('Please provide required params:'));
@@ -166,10 +170,11 @@ export const prepareGenerateConfig = async (
 		name: options.name,
 		custom: options.custom || false,
 		prefix,
-		breakpoints: breakpoints || true,
+		breakpoints: breakpoints ?? true,
 		schema: schema,
 		out: out || 'drizzle',
 		bundle: driver === 'expo',
+		casing,
 	};
 };
 
@@ -224,6 +229,8 @@ export const preparePushConfig = async (
 		force: boolean;
 		tablesFilter: string[];
 		schemasFilter: string[];
+		casing?: CasingType;
+		entities?: Entities;
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -267,16 +274,7 @@ export const preparePushConfig = async (
 			: schemasFilterConfig
 		: [];
 
-	if (config.extensionsFilters) {
-		if (
-			config.extensionsFilters.includes('postgis')
-			&& config.dialect === 'postgresql'
-		) {
-			tablesFilter.push(
-				...['!geography_columns', '!geometry_columns', '!spatial_ref_sys'],
-			);
-		}
-	}
+	tablesFilter.push(...getTablesFilterByExtensions(config));
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
@@ -292,8 +290,10 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
+			entities: config.entities,
 		};
 	}
 
@@ -310,6 +310,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -328,6 +329,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -346,6 +348,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -382,6 +385,7 @@ export const preparePullConfig = async (
 		tablesFilter: string[];
 		schemasFilter: string[];
 		prefix: Prefix;
+		entities: Entities;
 	}
 > => {
 	const raw = flattenPull(
@@ -441,6 +445,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -459,6 +464,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -477,6 +483,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -495,6 +502,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -711,6 +719,7 @@ export const drizzleConfigFromFile = async (
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);
 	if (!res.success) {
+		console.log(res.error);
 		if (!('dialect' in content)) {
 			console.log(error("Please specify 'dialect' param in config file"));
 		}

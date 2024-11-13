@@ -139,7 +139,7 @@ export abstract class PgSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'PgSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'PgSelectQueryBuilder';
 
 	override readonly _: {
 		readonly dialect: 'pg';
@@ -947,7 +947,7 @@ export class PgSelectBase<
 	TResult,
 	TSelectedFields
 > implements RunnableQuery<TResult, 'pg'>, SQLWrapper {
-	static readonly [entityKind]: string = 'PgSelect';
+	static override readonly [entityKind]: string = 'PgSelect';
 
 	/** @internal */
 	_prepare(name?: string): PgSelectPrepare<this> {
