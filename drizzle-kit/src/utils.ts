@@ -1,4 +1,3 @@
-
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';

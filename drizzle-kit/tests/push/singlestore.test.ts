@@ -1,4 +1,5 @@
 import Docker from 'dockerode';
+import { sql } from 'drizzle-orm';
 import {
 	bigint,
 	binary,
@@ -27,7 +28,6 @@ import { diffTestSchemasPushSingleStore, diffTestSchemasSingleStore } from 'test
 import { v4 as uuid } from 'uuid';
 import { expect } from 'vitest';
 import { DialectSuite, run } from './common';
-import { sql } from 'drizzle-orm';
 
 async function createDockerDB(context: any): Promise<string> {
 	const docker = new Docker();
@@ -206,10 +206,10 @@ const singlestoreSuite: DialectSuite = {
 			}),
 
 			allTimestamps: singlestoreTable('all_timestamps', {
-				columnDateNow: timestamp("column_date_now", {
-				   fsp: 0,
-				   mode: "string",
-				 }).default(sql`CURRENT_TIMESTAMP`),
+				columnDateNow: timestamp('column_date_now', {
+					fsp: 0,
+					mode: 'string',
+				}).default(sql`CURRENT_TIMESTAMP`),
 				columnAll: timestamp('column_all', { mode: 'string' })
 					.default('2023-03-01 14:05:29')
 					.notNull(),

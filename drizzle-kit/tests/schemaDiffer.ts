@@ -59,7 +59,7 @@ import {
 	generateSingleStoreSnapshot,
 } from 'src/serializer/singlestoreSerializer';
 import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
-import { sqliteSchema, View as SqliteView, squashSqliteScheme } from 'src/serializer/sqliteSchema';
+import { sqliteSchema, squashSqliteScheme, View as SqliteView } from 'src/serializer/sqliteSchema';
 import { fromDatabase as fromSqliteDatabase, generateSqliteSnapshot } from 'src/serializer/sqliteSerializer';
 import {
 	applyLibSQLSnapshotsDiff,

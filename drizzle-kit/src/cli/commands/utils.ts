@@ -42,7 +42,7 @@ import {
 	sqliteCredentials,
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
-import { error } from '../views';
+import { error, grey } from '../views';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {
@@ -769,12 +769,8 @@ export const drizzleConfigFromFile = async (
 ): Promise<CliConfig> => {
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
-	const defaultTsConfigExists = existsSync(
-		resolve(join(prefix, 'drizzle.config.ts')),
-	);
-	const defaultJsConfigExists = existsSync(
-		resolve(join(prefix, 'drizzle.config.js')),
-	);
+	const defaultTsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.ts')));
+	const defaultJsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.js')));
 	const defaultJsonConfigExists = existsSync(
 		join(resolve('drizzle.config.json')),
 	);

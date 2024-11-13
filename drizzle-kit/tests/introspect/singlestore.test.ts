@@ -14,7 +14,7 @@ import {
 	smallint,
 	text,
 	tinyint,
-	varchar
+	varchar,
 } from 'drizzle-orm/singlestore-core';
 import * as fs from 'fs';
 import getPort from 'get-port';

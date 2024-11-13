@@ -223,6 +223,7 @@ export const introspectMysql = async (
 	const schema = { id: originUUID, prevId: '', ...res } as MySqlSchema;
 	const ts = mysqlSchemaToTypeScript(schema, casing);
 	const relationsTs = relationsToTypeScript(schema, casing);
+	const { internal, ...schemaWithoutInternals } = schema;
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
