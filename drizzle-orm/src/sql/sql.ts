@@ -8,6 +8,8 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { Table } from '../table.ts';
+import { Assume, Equal } from '~/utils.ts';
+import { SelectResult } from '~/query-builders/select.types.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -635,6 +637,8 @@ export abstract class View<
 		isAlias: boolean;
 	};
 
+	declare readonly $inferSelect: InferSelectViewModel<View<Assume<TName, string>, TExisting, TSelection>>;
+
 	constructor(
 		{ name, schema, selectedFields, query }: {
 			name: TName;
@@ -658,6 +662,14 @@ export abstract class View<
 		return new SQL([this]);
 	}
 }
+
+export type InferSelectViewModel<TView extends View> = Equal<TView['_']['selectedFields'], { [x: string]: unknown }> extends true
+	? { [x: string]: unknown }
+	: SelectResult<
+		TView['_']['selectedFields'],
+		'single',
+		Record<TView['_']['name'], 'not-null'>
+	>;
 
 // Defined separately from the Column class to resolve circular dependency
 Column.prototype.getSQL = function() {

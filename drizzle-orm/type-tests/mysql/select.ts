@@ -22,7 +22,7 @@ import {
 	or,
 } from '~/expressions.ts';
 import { alias } from '~/mysql-core/alias.ts';
-import { param, sql } from '~/sql/sql.ts';
+import { InferSelectViewModel, param, sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
@@ -634,4 +634,6 @@ await db
 			column: string | null;
 		}
 	}[]>>;
+	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
 }
