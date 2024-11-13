@@ -26,7 +26,7 @@ export const outputs = {
 			),
 		noDialect: () =>
 			withStyle.error(
-				`Please specify 'dialect' param in config, either of 'pg', 'mysql' or 'sqlite'`,
+				`Please specify 'dialect' param in config, either of 'postgresql', 'mysql', 'sqlite' or 'turso'`,
 			),
 	},
 	common: {

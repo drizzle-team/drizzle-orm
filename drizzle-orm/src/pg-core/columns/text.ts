@@ -12,7 +12,6 @@ type PgTextBuilderInitial<TName extends string, TEnum extends [string, ...string
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;
-	generated: undefined;
 }>;
 
 export class PgTextBuilder<

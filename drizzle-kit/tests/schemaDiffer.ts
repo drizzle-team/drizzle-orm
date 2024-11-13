@@ -837,19 +837,6 @@ export const diffTestSchemasPush = async (
 		);
 	}
 
-	// do introspect into PgSchemaInternal
-	const introspectedSchema = await fromDatabase(
-		{
-			query: async (query: string, values?: any[] | undefined) => {
-				const res = await client.query(query, values);
-				return res.rows as any[];
-			},
-		},
-		undefined,
-		schemas,
-		entities,
-	);
-
 	const leftTables = Object.values(right).filter((it) => is(it, PgTable)) as PgTable[];
 
 	const leftSchemas = Object.values(right).filter((it) => is(it, PgSchema)) as PgSchema[];
@@ -876,6 +863,21 @@ export const diffTestSchemasPush = async (
 		leftViews,
 		leftMaterializedViews,
 		casing,
+	);
+
+	// do introspect into PgSchemaInternal
+	const introspectedSchema = await fromDatabase(
+		{
+			query: async (query: string, values?: any[] | undefined) => {
+				const res = await client.query(query, values);
+				return res.rows as any[];
+			},
+		},
+		undefined,
+		schemas,
+		entities,
+		undefined,
+		serialized2,
 	);
 
 	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;

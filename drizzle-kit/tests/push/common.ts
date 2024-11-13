@@ -15,6 +15,8 @@ export interface DialectSuite {
 	dropGeneratedConstraint(context?: any): Promise<void>;
 	alterGeneratedConstraint(context?: any): Promise<void>;
 	createTableWithGeneratedConstraint(context?: any): Promise<void>;
+	createCompositePrimaryKey(context?: any): Promise<void>;
+	renameTableWithCompositePrimaryKey(context?: any): Promise<void>;
 	case1(): Promise<void>;
 }
 
@@ -48,6 +50,9 @@ export const run = (
 	// should ignore on push
 	test('Alter generated constraint', () => suite.alterGeneratedConstraint(context));
 	test('Create table with generated column', () => suite.createTableWithGeneratedConstraint(context));
+	test('Rename table with composite primary key', () => suite.renameTableWithCompositePrimaryKey(context));
+
+	test('Create composite primary key', () => suite.createCompositePrimaryKey(context));
 
 	afterAll(afterAllFn ? () => afterAllFn(context) : () => {});
 };
