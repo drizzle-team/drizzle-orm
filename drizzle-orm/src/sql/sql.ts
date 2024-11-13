@@ -612,7 +612,7 @@ export type ColumnsSelection = Record<string, unknown>;
 export abstract class View<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelection extends ColumnsSelection = ColumnsSelection,
+	TSelection extends ColumnsSelection = ColumnsSelection
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'View';
 
@@ -629,7 +629,7 @@ export abstract class View<
 		name: TName;
 		originalName: TName;
 		schema: string | undefined;
-		selectedFields: SelectedFields<AnyColumn, Table>;
+		selectedFields: ColumnsSelection;
 		isExisting: TExisting;
 		query: TExisting extends true ? undefined : SQL;
 		isAlias: boolean;
@@ -639,7 +639,7 @@ export abstract class View<
 		{ name, schema, selectedFields, query }: {
 			name: TName;
 			schema: string | undefined;
-			selectedFields: SelectedFields<AnyColumn, Table>;
+			selectedFields: ColumnsSelection;
 			query: SQL | undefined;
 		},
 	) {

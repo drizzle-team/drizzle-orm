@@ -26,7 +26,7 @@ import { param, sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { type MySqlSelect, type MySqlSelectQueryBuilder, QueryBuilder } from '~/mysql-core/index.ts';
+import { int, type MySqlSelect, type MySqlSelectQueryBuilder, mysqlTable, mysqlView, QueryBuilder, text } from '~/mysql-core/index.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
 
@@ -603,4 +603,35 @@ await db
 		.limit(10)
 		// @ts-expect-error method was already called
 		.for('update');
+}
+
+{
+	const table1 = mysqlTable('table1', {
+		id: int().primaryKey(),
+		name: text().notNull(),
+	});
+	const table2 = mysqlTable('table2', {
+		id: int().primaryKey(),
+		age: int().notNull(),
+	});
+	const table3 = mysqlTable('table3', {
+		id: int().primaryKey(),
+		phone: text().notNull(),
+	});
+	const view = mysqlView('view').as((qb) => qb.select({
+		table: table1,
+		column: table2.age,
+		nested: {
+			column: table3.phone,
+		}
+	}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``));
+	const result = await db.select().from(view);
+
+	Expect<Equal<typeof result, {
+		table: typeof table1.$inferSelect;
+		column: number;
+		nested: {
+			column: string | null;
+		}
+	}[]>>;
 }
