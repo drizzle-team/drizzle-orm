@@ -3243,7 +3243,7 @@ export function tests() {
 			cityId: 3,
 		}]);
 	});
-	
+
 	test('Object keys as column names', async (ctx) => {
 		const { db } = ctx.sqlite;
 

@@ -4908,7 +4908,7 @@ export function tests() {
 				states: null,
 			}]);
 		});
-		
+
 		test('policy', () => {
 			{
 				const policy = pgPolicy('test policy');

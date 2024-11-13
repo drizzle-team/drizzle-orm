@@ -128,9 +128,9 @@ export abstract class SQLiteDialect {
 		const whereSql = where ? sql` where ${where}` : undefined;
 
 		const orderBySql = this.buildOrderBy(orderBy);
-		
+
 		const limitSql = this.buildLimit(limit);
-		
+
 		return sql`${withSql}update ${table} set ${setSql}${fromSql}${joinsSql}${whereSql}${returningSql}${orderBySql}${limitSql}`;
 	}
 
@@ -231,7 +231,7 @@ export abstract class SQLiteDialect {
 				}
 			}
 		}
-					
+
 		return sql.join(joinsArray);
 	}
 

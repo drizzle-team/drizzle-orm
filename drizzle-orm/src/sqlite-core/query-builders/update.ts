@@ -4,7 +4,6 @@ import type { JoinType, SelectResultFields } from '~/query-builders/select.types
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { ViewBaseConfig } from '~/view-common.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
@@ -13,12 +12,13 @@ import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
 	type DrizzleTypeError,
+	getTableLikeName,
 	mapUpdateSet,
 	orderSelectedFields,
 	type UpdateSet,
 	type ValueOrArray,
-	getTableLikeName
 } from '~/utils.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
 import { SQLiteViewBase } from '../view-base.ts';
 import type { SelectedFields, SelectedFieldsOrdered, SQLiteSelectJoinConfig } from './select.types.ts';
