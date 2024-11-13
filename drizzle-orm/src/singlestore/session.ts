@@ -18,6 +18,7 @@ import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
 import {
+	type Mode,
 	type PreparedQueryKind,
 	SingleStorePreparedQuery,
 	type SingleStorePreparedQueryConfig,
@@ -27,12 +28,9 @@ import {
 	SingleStoreTransaction,
 	type SingleStoreTransactionConfig,
 } from '~/singlestore-core/session.ts';
-import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
+import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
-
-// must keep this type here for compatibility with DrizzleConfig
-export type Mode = 'default';
 
 export type SingleStoreDriverClient = Pool | Connection;
 
@@ -42,9 +40,7 @@ export type SingleStoreQueryResult<
 	T = any,
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
-export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryConfig>
-	extends SingleStorePreparedQuery<T>
-{
+export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryConfig> extends SingleStorePreparedQuery<T> {
 	static override readonly [entityKind]: string = 'SingleStoreDriverPreparedQuery';
 
 	private rawQuery: QueryOptions;
@@ -63,9 +59,8 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		private returningIds?: SelectedFieldsOrdered,
 	) {
 		super();
-		const queryWithComment = `/* drizzleIntegration */ ${queryString}`;
 		this.rawQuery = {
-			sql: queryWithComment,
+			sql: queryString,
 			// rowsAsArray: true,
 			typeCast: function(field: any, next: any) {
 				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
@@ -75,7 +70,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 			},
 		};
 		this.query = {
-			sql: queryWithComment,
+			sql: queryString,
 			rowsAsArray: true,
 			typeCast: function(field: any, next: any) {
 				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
@@ -188,6 +183,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
+	mode: Mode;
 }
 
 export class SingleStoreDriverSession<
@@ -197,6 +193,7 @@ export class SingleStoreDriverSession<
 	static override readonly [entityKind]: string = 'SingleStoreDriverSession';
 
 	private logger: Logger;
+	private mode: Mode;
 
 	constructor(
 		private client: SingleStoreDriverClient,
@@ -206,6 +203,7 @@ export class SingleStoreDriverSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.mode = options.mode;
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
@@ -272,8 +270,13 @@ export class SingleStoreDriverSession<
 			session as SingleStoreSession<any, any, any, any>,
 			this.schema,
 			0,
+			this.mode,
 		);
 		if (config) {
+			const setTransactionConfigSql = this.getSetTransactionSQL(config);
+			if (setTransactionConfigSql) {
+				await tx.execute(setTransactionConfigSql);
+			}
 			const startTransactionSql = this.getStartTransactionSQL(config);
 			await (startTransactionSql ? tx.execute(startTransactionSql) : tx.execute(sql`begin`));
 		} else {
@@ -297,23 +300,17 @@ export class SingleStoreDriverSession<
 export class SingleStoreDriverTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SingleStoreTransaction<
-	SingleStoreDriverQueryResultHKT,
-	SingleStoreDriverPreparedQueryHKT,
-	TFullSchema,
-	TSchema
-> {
+> extends SingleStoreTransaction<SingleStoreDriverQueryResultHKT, SingleStoreDriverPreparedQueryHKT, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'SingleStoreDriverTransaction';
 
-	override async transaction<T>(
-		transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TSchema>) => Promise<T>,
-	): Promise<T> {
+	override async transaction<T>(transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new SingleStoreDriverTransaction<TFullSchema, TSchema>(
 			this.dialect,
 			this.session,
 			this.schema,
 			this.nestedIndex + 1,
+			this.mode,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
