@@ -12,7 +12,6 @@ export type SQLiteRealBuilderInitial<TName extends string> = SQLiteRealBuilder<{
 	driverParam: number;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLiteReal'>>

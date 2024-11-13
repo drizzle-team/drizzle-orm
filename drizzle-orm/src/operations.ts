@@ -13,21 +13,6 @@ export type NotGenerated<TKey extends string, T extends Column> = T extends AnyC
 }> ? TKey
 	: never;
 
-// export type OptionalKeyOnly<
-// 	TKey extends string,
-// 	T extends Column,
-// 	// OverrideT extends boolean | undefined = false
-// > = TKey extends RequiredKeyOnly<TKey, T> ? never
-// 	: TKey extends NotGenerated<TKey, T> ? TKey
-// 	: T['_']['generated'] extends object ? T['_']['generated']['type'] extends 'byDefault' ? TKey
-// 	: never
-// 	// (
-// 	// 	T['_']['identity'] extends 'always'?
-// 	// 	OverrideT extends true? TKey: never
-// 	// 	: never
-// 	// )
-// 	: never;
-
 export type OptionalKeyOnly<
 	TKey extends string,
 	T extends Column,
@@ -51,8 +36,6 @@ export type IdentityColumns<
 			: never
 	);
 
-// byDefault -> accept
-// always -> accept only if overide and always
 // TODO: SQL -> SQLWrapper
 export type SelectedFieldsFlat<TColumn extends Column> = Record<
 	string,

@@ -14,7 +14,6 @@ export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends [s
 		driverParam: string;
 		enumValues: TEnum;
 		generated: undefined;
-		identity: undefined;
 	}>;
 
 export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlEnumColumn'>>

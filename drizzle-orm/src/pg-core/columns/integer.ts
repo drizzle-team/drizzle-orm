@@ -5,8 +5,7 @@ import type { AnyPgTable } from '../table.ts';
 import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
 
-// no need export
-export type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
+type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
 	name: TName;
 	dataType: 'number';
 	columnType: 'PgInteger';

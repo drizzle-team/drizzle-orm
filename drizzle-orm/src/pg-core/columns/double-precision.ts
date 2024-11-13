@@ -12,7 +12,6 @@ export type PgDoublePrecisionBuilderInitial<TName extends string> = PgDoublePrec
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgDoublePrecision'>>

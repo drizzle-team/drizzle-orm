@@ -14,7 +14,6 @@ export type PgLineBuilderInitial<TName extends string> = PgLineBuilder<{
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgLineBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgLine'>> extends PgColumnBuilder<T> {
@@ -60,7 +59,6 @@ export type PgLineABCBuilderInitial<TName extends string> = PgLineABCBuilder<{
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgLineABCBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgLineABC'>> extends PgColumnBuilder<T> {

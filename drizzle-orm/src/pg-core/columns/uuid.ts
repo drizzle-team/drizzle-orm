@@ -13,7 +13,6 @@ export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<{
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>> extends PgColumnBuilder<T> {

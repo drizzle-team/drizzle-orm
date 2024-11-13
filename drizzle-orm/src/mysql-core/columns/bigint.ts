@@ -13,7 +13,6 @@ export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Bui
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'MySqlBigInt53'>>
@@ -62,7 +61,6 @@ export type MySqlBigInt64BuilderInitial<TName extends string> = MySqlBigInt64Bui
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'MySqlBigInt64'>>

@@ -38,7 +38,7 @@ export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>,
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseColumn: infer U } ? U : unknown;
 	generated: GeneratedColumnConfig<T['data']> | undefined;
-	identity: T["identity"];
+	identity: undefined | 'always' | 'byDefault';
 } & TTypeConfig;
 
 export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBuilderRuntimeConfig<

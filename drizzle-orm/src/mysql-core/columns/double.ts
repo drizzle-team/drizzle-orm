@@ -13,7 +13,6 @@ export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlDouble'>>

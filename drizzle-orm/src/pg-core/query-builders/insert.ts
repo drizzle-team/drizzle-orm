@@ -15,7 +15,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import type { InferInsertModel} from '~/table.ts';
+import type { InferInsertModel } from '~/table.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
@@ -34,11 +34,18 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 
 export type PgInsertValue<TTable extends PgTable<TableConfig>, OverrideT extends boolean = false> =
 	& {
-		[Key in keyof InferInsertModel<TTable, {dbColumnNames: false, override: OverrideT}>]: InferInsertModel<TTable, {dbColumnNames: false, override: OverrideT}>[Key] | SQL | Placeholder;
+		[Key in keyof InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>]:
+			| InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]
+			| SQL
+			| Placeholder;
 	}
 	& {};
 
-export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQueryResultHKT, OverrideT extends boolean = false> {
+export class PgInsertBuilder<
+	TTable extends PgTable,
+	TQueryResult extends PgQueryResultHKT,
+	OverrideT extends boolean = false,
+> {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
 
 	constructor(
@@ -49,14 +56,16 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 		private overridingSystemValue_?: boolean,
 	) {}
 
-	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true>, 'overridingSystemValue'>{
+	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true>, 'overridingSystemValue'> {
 		this.overridingSystemValue_ = true;
 		return this as any;
 	}
 
 	values(value: PgInsertValue<TTable, OverrideT>): PgInsertBase<TTable, TQueryResult>;
 	values(values: PgInsertValue<TTable, OverrideT>[]): PgInsertBase<TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable, OverrideT> | PgInsertValue<TTable, OverrideT>[]): PgInsertBase<TTable, TQueryResult> {
+	values(
+		values: PgInsertValue<TTable, OverrideT> | PgInsertValue<TTable, OverrideT>[],
+	): PgInsertBase<TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -71,7 +80,14 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 			return result;
 		});
 
-		return new PgInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList, this.overridingSystemValue_);
+		return new PgInsertBase(
+			this.table,
+			mappedValues,
+			this.session,
+			this.dialect,
+			this.withList,
+			this.overridingSystemValue_,
+		);
 	}
 }
 

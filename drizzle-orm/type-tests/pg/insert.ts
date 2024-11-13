@@ -2,7 +2,6 @@ import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { PgInsert } from '~/pg-core/query-builders/insert.ts';
-import { PgInsertValue } from '~/pg-core/query-builders/insert.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { identityColumnsTable, users } from './tables.ts';
@@ -206,10 +205,22 @@ Expect<
 		.returning();
 }
 
-type hh = PgInsertValue<typeof identityColumnsTable, true>;
+{
+	db.insert(identityColumnsTable).values([
+		{ byDefaultAsIdentity: 4, name: 'fdf' },
+	]);
 
-db.insert(identityColumnsTable).overridingSystemValue().values([
-	{ alwaysAsIdentity: 1 },
-	// { byDefaultAsIdentity: 5, name: "ff"},
-	// { alwaysAsIdentity: 4, byDefaultAsIdentity: 6, name: "sd"},
-]);
+	// @ts-expect-error
+	db.insert(identityColumnsTable).values([
+		{ alwaysAsIdentity: 2 },
+	]);
+
+	db.insert(identityColumnsTable).overridingSystemValue().values([
+		{ alwaysAsIdentity: 2 },
+	]);
+
+	// @ts-expect-error
+	db.insert(identityColumnsTable).values([
+		{ generatedCol: 2 },
+	]);
+}

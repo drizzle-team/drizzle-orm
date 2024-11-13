@@ -14,7 +14,6 @@ export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInterval'>>

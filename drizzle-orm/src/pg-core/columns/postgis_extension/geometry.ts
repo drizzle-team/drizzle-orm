@@ -15,7 +15,6 @@ export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgGeometryBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGeometry'>> extends PgColumnBuilder<T> {
@@ -60,7 +59,6 @@ export type PgGeometryObjectBuilderInitial<TName extends string> = PgGeometryObj
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgGeometryObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgGeometryObject'>>

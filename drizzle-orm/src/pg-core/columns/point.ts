@@ -14,7 +14,6 @@ export type PgPointTupleBuilderInitial<TName extends string> = PgPointTupleBuild
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgPointTupleBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgPointTuple'>>
@@ -65,7 +64,6 @@ export type PgPointObjectBuilderInitial<TName extends string> = PgPointObjectBui
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgPointObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgPointObject'>>

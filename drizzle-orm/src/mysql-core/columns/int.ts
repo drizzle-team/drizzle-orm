@@ -13,7 +13,6 @@ export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlInt'>>

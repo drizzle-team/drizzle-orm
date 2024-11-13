@@ -13,7 +13,6 @@ export type SQLiteTextBuilderInitial<TName extends string, TEnum extends [string
 	driverParam: string;
 	enumValues: TEnum;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class SQLiteTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'SQLiteText'>> extends SQLiteColumnBuilder<
@@ -65,7 +64,6 @@ export type SQLiteTextJsonBuilderInitial<TName extends string> = SQLiteTextJsonB
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class SQLiteTextJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteTextJson'>>

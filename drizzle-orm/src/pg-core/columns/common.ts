@@ -57,7 +57,6 @@ export abstract class PgColumnBuilder<
 			driverParam: T['driverParam'][] | string;
 			enumValues: T['enumValues'];
 			generated: GeneratedColumnConfig<T['data']>;
-			identity: T['identity'];
 		}
 		& (T extends { notNull: true } ? { notNull: true } : {})
 		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),

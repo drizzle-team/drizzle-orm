@@ -517,7 +517,7 @@ export class PgDialect {
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
-		const overridingSql = overridingSystemValue_ === true? sql`overriding system value `: undefined;
+		const overridingSql = overridingSystemValue_ === true ? sql`overriding system value ` : undefined;
 
 		return sql`${withSql}insert into ${table} ${insertOrder} ${overridingSql}values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
@@ -1129,7 +1129,9 @@ export class PgDialect {
 			}));
 		} else {
 			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value as PgColumn, tableAlias)]),
+				Object.entries(tableConfig.columns).map((
+					[key, value],
+				) => [key, aliasedTableColumn(value, tableAlias)]),
 			);
 
 			if (config.where) {

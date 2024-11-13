@@ -12,7 +12,6 @@ export type PgJsonBuilderInitial<TName extends string> = PgJsonBuilder<{
 	driverParam: unknown;
 	enumValues: undefined;
 	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJson'>> extends PgColumnBuilder<
