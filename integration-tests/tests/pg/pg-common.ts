@@ -4278,7 +4278,7 @@ export function tests() {
 				.toSQL();
 
 			expect(query).toEqual({
-				sql: 'select "id", "name" from "mySchema"."users" group by "users"."id", "users"."name"',
+				sql: 'select "id", "name" from "mySchema"."users" group by "mySchema"."users"."id", "mySchema"."users"."name"',
 				params: [],
 			});
 		});

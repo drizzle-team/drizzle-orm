@@ -13,7 +13,6 @@ export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
 	data: Date;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgDate'>> extends PgDateColumnBaseBuilder<T> {
@@ -54,8 +53,6 @@ export type PgDateStringBuilderInitial<TName extends string> = PgDateStringBuild
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
-	identity: undefined;
 }>;
 
 export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgDateString'>>

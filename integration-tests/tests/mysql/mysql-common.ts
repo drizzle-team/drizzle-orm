@@ -3416,7 +3416,7 @@ export function tests(driver?: string) {
 
 			expect(query).toEqual({
 				sql:
-					`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
+					`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`userstest\`.\`id\`, \`mySchema\`.\`userstest\`.\`name\``,
 				params: [],
 			});
 		});
@@ -3498,6 +3498,23 @@ export function tests(driver?: string) {
 			const { db } = ctx.mysql;
 
 			const result = await db.insert(usersTable).values({ name: 'John' }).$returningId();
+
+			expectTypeOf(result).toEqualTypeOf<{
+				id: number;
+			}[]>();
+
+			expect(result).toStrictEqual([{ id: 1 }]);
+		});
+
+		test('insert $returningId: serial as id, not first column', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const usersTableDefNotFirstColumn = mysqlTable('users2', {
+				name: text('name').notNull(),
+				id: serial('id').primaryKey(),
+			});
+
+			const result = await db.insert(usersTableDefNotFirstColumn).values({ name: 'John' }).$returningId();
 
 			expectTypeOf(result).toEqualTypeOf<{
 				id: number;
