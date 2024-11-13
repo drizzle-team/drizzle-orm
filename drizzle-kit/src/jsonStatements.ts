@@ -13,12 +13,7 @@ import {
 	View as PgView,
 	ViewWithOption,
 } from './serializer/pgSchema';
-import {
-	SingleStoreKitInternals,
-	SingleStoreSchema,
-	SingleStoreSquasher,
-	View as SingleStoreView,
-} from './serializer/singlestoreSchema';
+import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import {
 	SQLiteKitInternals,
 	SQLiteSchemaInternal,
@@ -679,10 +674,10 @@ export type JsonCreateMySqlViewStatement = {
 	replace: boolean;
 } & Omit<MySqlView, 'columns' | 'isExisting'>;
 
-export type JsonCreateSingleStoreViewStatement = {
+/* export type JsonCreateSingleStoreViewStatement = {
 	type: 'singlestore_create_view';
 	replace: boolean;
-} & Omit<SingleStoreView, 'columns' | 'isExisting'>;
+} & Omit<SingleStoreView, 'columns' | 'isExisting'>; */
 
 export type JsonCreateSqliteViewStatement = {
 	type: 'sqlite_create_view';
@@ -767,9 +762,9 @@ export type JsonAlterMySqlViewStatement = {
 	type: 'alter_mysql_view';
 } & Omit<MySqlView, 'isExisting'>;
 
-export type JsonAlterSingleStoreViewStatement = {
+/* export type JsonAlterSingleStoreViewStatement = {
 	type: 'alter_singlestore_view';
-} & Omit<SingleStoreView, 'isExisting'>;
+} & Omit<SingleStoreView, 'isExisting'>; */
 
 export type JsonAlterViewStatement =
 	| JsonAlterViewAlterSchemaStatement
@@ -853,8 +848,8 @@ export type JsonStatement =
 	| JsonAlterViewStatement
 	| JsonCreateMySqlViewStatement
 	| JsonAlterMySqlViewStatement
-	| JsonCreateSingleStoreViewStatement
-	| JsonAlterSingleStoreViewStatement
+	/* | JsonCreateSingleStoreViewStatement
+	| JsonAlterSingleStoreViewStatement */
 	| JsonCreateSqliteViewStatement
 	| JsonCreateCheckConstraint
 	| JsonDeleteCheckConstraint
@@ -3354,7 +3349,7 @@ export const prepareMySqlCreateViewJson = (
 	};
 };
 
-export const prepareSingleStoreCreateViewJson = (
+/* export const prepareSingleStoreCreateViewJson = (
 	name: string,
 	definition: string,
 	meta: string,
@@ -3370,7 +3365,7 @@ export const prepareSingleStoreCreateViewJson = (
 		withCheckOption,
 		replace,
 	};
-};
+}; */
 
 export const prepareSqliteCreateViewJson = (
 	name: string,
@@ -3498,77 +3493,8 @@ export const prepareMySqlAlterView = (
 	return { type: 'alter_mysql_view', ...view };
 };
 
-export const prepareSingleStoreAlterView = (
+/* export const prepareSingleStoreAlterView = (
 	view: Omit<SingleStoreView, 'isExisting'>,
 ): JsonAlterSingleStoreViewStatement => {
 	return { type: 'alter_singlestore_view', ...view };
-};
-
-export const prepareAddCompositePrimaryKeySingleStore = (
-	tableName: string,
-	pks: Record<string, string>,
-	// TODO: remove?
-	json1: SingleStoreSchema,
-	json2: SingleStoreSchema,
-): JsonCreateCompositePK[] => {
-	const res: JsonCreateCompositePK[] = [];
-	for (const it of Object.values(pks)) {
-		const unsquashed = SingleStoreSquasher.unsquashPK(it);
-
-		if (
-			unsquashed.columns.length === 1
-			&& json1.tables[tableName]?.columns[unsquashed.columns[0]]?.primaryKey
-		) {
-			continue;
-		}
-
-		res.push({
-			type: 'create_composite_pk',
-			tableName,
-			data: it,
-			constraintName: json2.tables[tableName].compositePrimaryKeys[unsquashed.name].name,
-		} as JsonCreateCompositePK);
-	}
-	return res;
-};
-
-export const prepareDeleteCompositePrimaryKeySingleStore = (
-	tableName: string,
-	pks: Record<string, string>,
-	// TODO: remove?
-	json1: SingleStoreSchema,
-): JsonDeleteCompositePK[] => {
-	return Object.values(pks).map((it) => {
-		return {
-			type: 'delete_composite_pk',
-			tableName,
-			data: it,
-			constraintName: json1.tables[tableName].compositePrimaryKeys[
-				SingleStoreSquasher.unsquashPK(it).name
-			].name,
-		} as JsonDeleteCompositePK;
-	});
-};
-
-export const prepareAlterCompositePrimaryKeySingleStore = (
-	tableName: string,
-	pks: Record<string, { __old: string; __new: string }>,
-	// TODO: remove?
-	json1: SingleStoreSchema,
-	json2: SingleStoreSchema,
-): JsonAlterCompositePK[] => {
-	return Object.values(pks).map((it) => {
-		return {
-			type: 'alter_composite_pk',
-			tableName,
-			old: it.__old,
-			new: it.__new,
-			oldConstraintName: json1.tables[tableName].compositePrimaryKeys[
-				SingleStoreSquasher.unsquashPK(it.__old).name
-			].name,
-			newConstraintName: json2.tables[tableName].compositePrimaryKeys[
-				SingleStoreSquasher.unsquashPK(it.__new).name
-			].name,
-		} as JsonAlterCompositePK;
-	});
-};
+}; */

@@ -1,10 +1,16 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, GeneratedColumnConfig, HasGenerated, MakeColumnConfig } from '~/column-builder.ts';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	GeneratedColumnConfig,
+	HasGenerated,
+	MakeColumnConfig,
+} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SQL } from '~/sql/index.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
-import type { SQL } from '~/sql/index.ts';
 
 export type SingleStoreDecimalBuilderInitial<TName extends string> = SingleStoreDecimalBuilder<{
 	name: TName;
@@ -20,7 +26,10 @@ export class SingleStoreDecimalBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'SingleStoreDecimal'>,
 > extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreDecimalConfig> {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: Partial<GeneratedColumnConfig<unknown>>): HasGenerated<this, {}> {
+	override generatedAlwaysAs(
+		as: SQL<unknown> | (() => SQL) | T['data'],
+		config?: Partial<GeneratedColumnConfig<unknown>>,
+	): HasGenerated<this, {}> {
 		throw new Error('Method not implemented.');
 	}
 	static override readonly [entityKind]: string = 'SingleStoreDecimalBuilder';

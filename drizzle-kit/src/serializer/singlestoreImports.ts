@@ -1,10 +1,10 @@
 import { is } from 'drizzle-orm';
-import { AnySingleStoreTable, SingleStoreTable, SingleStoreView } from 'drizzle-orm/singlestore-core';
+import { AnySingleStoreTable, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnySingleStoreTable[] = [];
-	const views: SingleStoreView[] = [];
+	/* const views: SingleStoreView[] = []; */
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -12,17 +12,17 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 			tables.push(t);
 		}
 
-		if (is(t, SingleStoreView)) {
+		/* if (is(t, SingleStoreView)) {
 			views.push(t);
-		}
+		} */
 	});
 
-	return { tables, views };
+	return { tables /* views  */ };
 };
 
 export const prepareFromSingleStoreImports = async (imports: string[]) => {
 	const tables: AnySingleStoreTable[] = [];
-	const views: SingleStoreView[] = [];
+	/* const views: SingleStoreView[] = []; */
 
 	const { unregister } = await safeRegister();
 	for (let i = 0; i < imports.length; i++) {
@@ -31,8 +31,8 @@ export const prepareFromSingleStoreImports = async (imports: string[]) => {
 		const prepared = prepareFromExports(i0);
 
 		tables.push(...prepared.tables);
-		views.push(...prepared.views);
+		/* views.push(...prepared.views); */
 	}
 	unregister();
-	return { tables: Array.from(new Set(tables)), views };
+	return { tables: Array.from(new Set(tables)) /* , views */ };
 };

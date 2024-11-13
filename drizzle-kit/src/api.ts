@@ -12,7 +12,6 @@ import {
 	roleResolver,
 	schemasResolver,
 	sequencesResolver,
-	singleStoreViewsResolver,
 	sqliteViewsResolver,
 	tablesResolver,
 	viewsResolver,
@@ -396,7 +395,7 @@ export const generateSingleStoreDrizzleJson = async (
 
 	const id = randomUUID();
 
-	const snapshot = generateSingleStoreSnapshot(prepared.tables, prepared.views, casing);
+	const snapshot = generateSingleStoreSnapshot(prepared.tables, /* prepared.views, */ casing);
 
 	return {
 		...snapshot,
@@ -422,7 +421,7 @@ export const generateSingleStoreMigration = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
-		singleStoreViewsResolver,
+		/* singleStoreViewsResolver, */
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -465,7 +464,7 @@ export const pushSingleStoreSchema = async (
 		squashedCur,
 		tablesResolver,
 		columnsResolver,
-		singleStoreViewsResolver,
+		/* singleStoreViewsResolver, */
 		validatedPrev,
 		validatedCur,
 		'push',

@@ -347,7 +347,7 @@ export const introspectSingleStore = async (
 			squashSingleStoreScheme(schema),
 			tablesResolver,
 			columnsResolver,
-			mySqlViewsResolver,
+			/* singleStoreViewsResolver, */
 			drySingleStore,
 			schema,
 		);

@@ -78,97 +78,7 @@ if (!fs.existsSync('tests/push/singlestore')) {
 	fs.mkdirSync('tests/push/singlestore');
 }
 
-test.skip('add check constraint to table', async () => {
-	const schema1 = {
-		test: singlestoreTable('test', {
-			id: int('id').primaryKey(),
-			values: int('values'),
-		}),
-	};
-	const schema2 = {
-		test: singlestoreTable('test', {
-			id: int('id').primaryKey(),
-			values: int('values'),
-		}),
-	};
-
-	const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
-		client,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
-
-	expect(statements).toStrictEqual([
-		{
-			type: 'create_check_constraint',
-			tableName: 'test',
-			schema: '',
-			data: 'some_check1;`test`.`values` < 100',
-		},
-		{
-			data: "some_check2;'test' < 100",
-			schema: '',
-			tableName: 'test',
-			type: 'create_check_constraint',
-		},
-	]);
-	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE `test` ADD CONSTRAINT `some_check1` CHECK (`test`.`values` < 100);',
-		`ALTER TABLE \`test\` ADD CONSTRAINT \`some_check2\` CHECK ('test' < 100);`,
-	]);
-
-	await client.query(`DROP TABLE \`test\`;`);
-});
-
-test.skip('drop check constraint to table', async () => {
-	const schema1 = {
-		test: singlestoreTable('test', {
-			id: int('id').primaryKey(),
-			values: int('values'),
-		}),
-	};
-	const schema2 = {
-		test: singlestoreTable('test', {
-			id: int('id').primaryKey(),
-			values: int('values'),
-		}),
-	};
-
-	const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
-		client,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
-
-	expect(statements).toStrictEqual([
-		{
-			type: 'delete_check_constraint',
-			tableName: 'test',
-			schema: '',
-			constraintName: 'some_check1',
-		},
-		{
-			constraintName: 'some_check2',
-			schema: '',
-			tableName: 'test',
-			type: 'delete_check_constraint',
-		},
-	]);
-	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE `test` DROP CONSTRAINT `some_check1`;',
-		`ALTER TABLE \`test\` DROP CONSTRAINT \`some_check2\`;`,
-	]);
-
-	await client.query(`DROP TABLE \`test\`;`);
-});
-
-test.skip('db has checks. Push with same names', async () => {
+test('db has checks. Push with same names', async () => {
 	const schema1 = {
 		test: singlestoreTable('test', {
 			id: int('id').primaryKey(),
@@ -196,7 +106,8 @@ test.skip('db has checks. Push with same names', async () => {
 	await client.query(`DROP TABLE \`test\`;`);
 });
 
-test.skip('create view', async () => {
+// TODO: Unskip this test when views are implemented
+/* test.skip.skip('create view', async () => {
 	const table = singlestoreTable('test', {
 		id: int('id').primaryKey(),
 	});
@@ -237,9 +148,10 @@ VIEW \`view\` AS (select \`id\` from \`test\`);`,
 	]);
 
 	await client.query(`DROP TABLE \`test\`;`);
-});
+}); */
 
-test.skip('drop view', async () => {
+// TODO: Unskip this test when views are implemented
+/* test.skip('drop view', async () => {
 	const table = singlestoreTable('test', {
 		id: int('id').primaryKey(),
 	});
@@ -271,9 +183,10 @@ test.skip('drop view', async () => {
 	expect(sqlStatements).toStrictEqual(['DROP VIEW `view`;']);
 	await client.query(`DROP TABLE \`test\`;`);
 	await client.query(`DROP VIEW \`view\`;`);
-});
+}); */
 
-test.skip('alter view ".as"', async () => {
+// TODO: Unskip this test when views are implemented
+/* test.skip('alter view ".as"', async () => {
 	const table = singlestoreTable('test', {
 		id: int('id').primaryKey(),
 	});
@@ -307,9 +220,10 @@ test.skip('alter view ".as"', async () => {
 
 	await client.query(`DROP TABLE \`test\`;`);
 	await client.query(`DROP VIEW \`view\`;`);
-});
+}); */
 
-test.skip('alter meta options with distinct in definition', async () => {
+// TODO: Unskip this test when views are implemented
+/* test.skip('alter meta options with distinct in definition', async () => {
 	const table = singlestoreTable('test', {
 		id: int('id').primaryKey(),
 	});
@@ -349,4 +263,4 @@ test.skip('alter meta options with distinct in definition', async () => {
 	).rejects.toThrowError();
 
 	await client.query(`DROP TABLE \`test\`;`);
-});
+}); */

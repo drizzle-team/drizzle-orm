@@ -3083,42 +3083,6 @@ class MySqlAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 	}
 }
 
-class SingleStoreAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'create_composite_pk' && dialect === 'singlestore';
-	}
-
-	convert(statement: JsonCreateCompositePK) {
-		const { name, columns } = SingleStoreSquasher.unsquashPK(statement.data);
-		return `ALTER TABLE \`${statement.tableName}\` ADD PRIMARY KEY(\`${columns.join('`,`')}\`);`;
-	}
-}
-
-class SingleStoreAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'delete_composite_pk' && dialect === 'singlestore';
-	}
-
-	convert(statement: JsonDeleteCompositePK) {
-		const { name, columns } = SingleStoreSquasher.unsquashPK(statement.data);
-		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY;`;
-	}
-}
-
-class SingleStoreAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'alter_composite_pk' && dialect === 'singlestore';
-	}
-
-	convert(statement: JsonAlterCompositePK) {
-		const { name, columns } = SingleStoreSquasher.unsquashPK(statement.old);
-		const { name: newName, columns: newColumns } = SingleStoreSquasher.unsquashPK(
-			statement.new,
-		);
-		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY, ADD PRIMARY KEY(\`${newColumns.join('`,`')}\`);`;
-	}
-}
-
 class SqliteAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_composite_pk' && dialect === 'sqlite';
@@ -4022,11 +3986,8 @@ convertors.push(new MySqlAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new MySqlAlterTableAddPk());
 convertors.push(new MySqlAlterTableAlterCompositePrimaryKeyConvertor());
 
-convertors.push(new SingleStoreAlterTableDeleteCompositePrimaryKeyConvertor());
 convertors.push(new SingleStoreAlterTableDropPk());
-convertors.push(new SingleStoreAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new SingleStoreAlterTableAddPk());
-convertors.push(new SingleStoreAlterTableAlterCompositePrimaryKeyConvertor());
 
 export function fromJson(
 	statements: JsonStatement[],

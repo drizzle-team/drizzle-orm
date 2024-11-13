@@ -1,10 +1,16 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, GeneratedColumnConfig, HasGenerated, MakeColumnConfig } from '~/column-builder.ts';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	GeneratedColumnConfig,
+	HasGenerated,
+	MakeColumnConfig,
+} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SQL } from '~/sql/index.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
-import type { SQL } from '~/sql/index.ts';
 
 export type SingleStoreDateTimeBuilderInitial<TName extends string> = SingleStoreDateTimeBuilder<{
 	name: TName;
@@ -20,7 +26,10 @@ export class SingleStoreDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date'
 	extends SingleStoreColumnBuilder<T, SingleStoreDatetimeConfig>
 {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: Partial<GeneratedColumnConfig<unknown>>): HasGenerated<this, {}> {
+	override generatedAlwaysAs(
+		as: SQL<unknown> | (() => SQL) | T['data'],
+		config?: Partial<GeneratedColumnConfig<unknown>>,
+	): HasGenerated<this, {}> {
 		throw new Error('Method not implemented.');
 	}
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeBuilder';
@@ -85,7 +94,10 @@ export class SingleStoreDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<
 	extends SingleStoreColumnBuilder<T, SingleStoreDatetimeConfig>
 {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: Partial<GeneratedColumnConfig<unknown>>): HasGenerated<this, {}> {
+	override generatedAlwaysAs(
+		as: SQL<unknown> | (() => SQL) | T['data'],
+		config?: Partial<GeneratedColumnConfig<unknown>>,
+	): HasGenerated<this, {}> {
 		throw new Error('Method not implemented.');
 	}
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeStringBuilder';

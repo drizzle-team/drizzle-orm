@@ -24,7 +24,6 @@ import {
 	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
-	JsonAlterSingleStoreViewStatement,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
 	JsonAlterViewStatement,
@@ -35,7 +34,6 @@ import {
 	JsonCreatePgViewStatement,
 	JsonCreatePolicyStatement,
 	JsonCreateReferenceStatement,
-	JsonCreateSingleStoreViewStatement,
 	JsonCreateSqliteViewStatement,
 	JsonCreateUniqueConstraint,
 	JsonDeleteCheckConstraint,
@@ -58,14 +56,12 @@ import {
 	prepareAddCheckConstraint,
 	prepareAddCompositePrimaryKeyMySql,
 	prepareAddCompositePrimaryKeyPg,
-	prepareAddCompositePrimaryKeySingleStore,
 	prepareAddCompositePrimaryKeySqlite,
 	prepareAddUniqueConstraintPg as prepareAddUniqueConstraint,
 	prepareAddValuesToEnumJson,
 	prepareAlterColumnsMysql,
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
-	prepareAlterCompositePrimaryKeySingleStore,
 	prepareAlterCompositePrimaryKeySqlite,
 	prepareAlterIndPolicyJson,
 	prepareAlterPolicyJson,
@@ -83,7 +79,6 @@ import {
 	prepareDeleteCheckConstraint,
 	prepareDeleteCompositePrimaryKeyMySql,
 	prepareDeleteCompositePrimaryKeyPg,
-	prepareDeleteCompositePrimaryKeySingleStore,
 	prepareDeleteCompositePrimaryKeySqlite,
 	prepareDeleteSchemasJson as prepareDropSchemasJson,
 	prepareDeleteUniqueConstraintPg as prepareDeleteUniqueConstraint,
@@ -122,9 +117,7 @@ import {
 	prepareRenameSequenceJson,
 	prepareRenameTableJson,
 	prepareRenameViewJson,
-	prepareSingleStoreAlterView,
 	prepareSingleStoreCreateTableJson,
-	prepareSingleStoreCreateViewJson,
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
 	prepareSqliteCreateViewJson,
@@ -2702,9 +2695,9 @@ export const applySingleStoreSnapshotsDiff = async (
 	columnsResolver: (
 		input: ColumnsResolverInput<Column>,
 	) => Promise<ColumnsResolverOutput<Column>>,
-	viewsResolver: (
+	/* viewsResolver: (
 		input: ResolverInput<ViewSquashed & { schema: '' }>,
-	) => Promise<ResolverOutputWithMoved<ViewSquashed>>,
+	) => Promise<ResolverOutputWithMoved<ViewSquashed>>, */
 	prevFull: SingleStoreSchema,
 	curFull: SingleStoreSchema,
 	action?: 'push' | undefined,
@@ -2722,11 +2715,11 @@ export const applySingleStoreSnapshotsDiff = async (
 	// squash indexes and fks
 
 	// squash uniqueIndexes and uniqueConstraint into constraints object
-	// it should be done for mysql only because it has no diffs for it
+	// it should be done for singlestore only because it has no diffs for it
 
 	// TODO: @AndriiSherman
 	// Add an upgrade to v6 and move all snaphosts to this strcutre
-	// After that we can generate mysql in 1 object directly(same as sqlite)
+	// After that we can generate singlestore in 1 object directly(same as sqlite)
 	for (const tableName in json1.tables) {
 		const table = json1.tables[tableName];
 		for (const indexName in table.indexes) {
@@ -2852,7 +2845,7 @@ export const applySingleStoreSnapshotsDiff = async (
 		},
 	);
 
-	const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
+	/* const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
 
 	const {
 		created: createdViews,
@@ -2883,9 +2876,10 @@ export const applySingleStoreSnapshotsDiff = async (
 		},
 	);
 
-	const diffResult = applyJsonDiff(viewsPatchedSnap1, json2);
+	*/
+	const diffResult = applyJsonDiff(tablesPatchedSnap1, json2); // replace tablesPatchedSnap1 with viewsPatchedSnap1
 
-	const typedResult: DiffResultMysql = diffResultSchemeMysql.parse(diffResult);
+	const typedResult: DiffResultSingleStore = diffResultSchemeSingleStore.parse(diffResult);
 
 	const jsonStatements: JsonStatement[] = [];
 
@@ -2911,15 +2905,10 @@ export const applySingleStoreSnapshotsDiff = async (
 	const alteredTables = typedResult.alteredTablesWithColumns;
 
 	const jsonAddedCompositePKs: JsonCreateCompositePK[] = [];
-	const jsonDeletedCompositePKs: JsonDeleteCompositePK[] = [];
-	const jsonAlteredCompositePKs: JsonAlterCompositePK[] = [];
 
 	const jsonAddedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
 	const jsonDeletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
 	const jsonAlteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
-
-	const jsonCreatedCheckConstraints: JsonCreateCheckConstraint[] = [];
-	const jsonDeletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
 
 	const jsonRenameColumnsStatements: JsonRenameColumnStatement[] = columnRenames
 		.map((it) => prepareRenameColumns(it.table, '', it.renames))
@@ -2953,29 +2942,6 @@ export const applySingleStoreSnapshotsDiff = async (
 		// addedColumns.sort();
 		// deletedColumns.sort();
 		const doPerformDeleteAndCreate = JSON.stringify(addedColumns) !== JSON.stringify(deletedColumns);
-
-		let addedCompositePKs: JsonCreateCompositePK[] = [];
-		let deletedCompositePKs: JsonDeleteCompositePK[] = [];
-		let alteredCompositePKs: JsonAlterCompositePK[] = [];
-
-		addedCompositePKs = prepareAddCompositePrimaryKeySingleStore(
-			it.name,
-			it.addedCompositePKs,
-			prevFull,
-			curFull,
-		);
-		deletedCompositePKs = prepareDeleteCompositePrimaryKeySingleStore(
-			it.name,
-			it.deletedCompositePKs,
-			prevFull,
-		);
-		// }
-		alteredCompositePKs = prepareAlterCompositePrimaryKeySingleStore(
-			it.name,
-			it.alteredCompositePKs,
-			prevFull,
-			curFull,
-		);
 
 		// add logic for unique constraints
 		let addedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
@@ -3030,16 +2996,9 @@ export const applySingleStoreSnapshotsDiff = async (
 			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
 		}
 
-		jsonAddedCompositePKs.push(...addedCompositePKs);
-		jsonDeletedCompositePKs.push(...deletedCompositePKs);
-		jsonAlteredCompositePKs.push(...alteredCompositePKs);
-
 		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
 		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
 		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
-
-		jsonCreatedCheckConstraints.push(...createdCheckConstraints);
-		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);
 	});
 
 	const rColumns = jsonRenameColumnsStatements.map((it) => {
@@ -3117,7 +3076,7 @@ export const applySingleStoreSnapshotsDiff = async (
 		);
 	});
 
-	const createViews: JsonCreateSingleStoreViewStatement[] = [];
+	/* const createViews: JsonCreateSingleStoreViewStatement[] = [];
 	const dropViews: JsonDropViewStatement[] = [];
 	const renameViews: JsonRenameViewStatement[] = [];
 	const alterViews: JsonAlterSingleStoreViewStatement[] = [];
@@ -3181,7 +3140,7 @@ export const applySingleStoreSnapshotsDiff = async (
 				prepareSingleStoreAlterView(view),
 			);
 		}
-	}
+	} */
 
 	jsonStatements.push(...jsonSingleStoreCreateTables);
 
@@ -3189,18 +3148,17 @@ export const applySingleStoreSnapshotsDiff = async (
 	jsonStatements.push(...jsonRenameTables);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
+	/*jsonStatements.push(...createViews);
 	jsonStatements.push(...dropViews);
 	jsonStatements.push(...renameViews);
 	jsonStatements.push(...alterViews);
-
+ */
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
-	jsonStatements.push(...jsonDeletedCheckConstraints);
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
 	jsonStatements.push(...jsonDropIndexesForAllAlteredTables);
 
-	jsonStatements.push(...jsonDeletedCompositePKs);
 	jsonStatements.push(...jsonTableAlternations);
 	jsonStatements.push(...jsonAddedCompositePKs);
 
@@ -3210,17 +3168,12 @@ export const applySingleStoreSnapshotsDiff = async (
 	jsonStatements.push(...jsonAddColumnsStatemets);
 
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
-	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
 
-	// jsonStatements.push(...jsonDeletedCompositePKs);
-	// jsonStatements.push(...jsonAddedCompositePKs);
-	jsonStatements.push(...jsonAlteredCompositePKs);
-
-	jsonStatements.push(...createViews);
+	jsonStatements.push(...jsonAddedCompositePKs);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 

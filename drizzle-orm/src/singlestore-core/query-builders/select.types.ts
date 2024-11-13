@@ -24,7 +24,7 @@ import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
 import type { PreparedQueryHKTBase, PreparedQueryKind, SingleStorePreparedQueryConfig } from '../session.ts';
 /* import type { SingleStoreViewBase } from '../view-base.ts'; */
-import type { SingleStoreViewWithSelection } from '../view.ts';
+/* import type { SingleStoreViewWithSelection } from '../view.ts'; */
 import type { SingleStoreSelectBase, SingleStoreSelectQueryBuilderBase } from './select.ts';
 
 export interface SingleStoreSelectJoinConfig {
@@ -42,11 +42,11 @@ export type BuildAliasTable<TTable extends SingleStoreTable | View, TAlias exten
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'singlestore'>;
 		}>
 	>
-	: TTable extends View ? SingleStoreViewWithSelection<
+	/* : TTable extends View ? SingleStoreViewWithSelection<
 			TAlias,
 			TTable['_']['existing'],
 			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'singlestore'>
-		>
+		> */
 	: never;
 
 export interface SingleStoreSelectConfig {

@@ -11,6 +11,7 @@ import {
 	float,
 	int,
 	mediumint,
+	primaryKey,
 	singlestoreEnum,
 	singlestoreTable,
 	smallint,
@@ -313,6 +314,86 @@ const singlestoreSuite: DialectSuite = {
 	},
 	createTableWithGeneratedConstraint: function(context?: any): Promise<void> {
 		return {} as any;
+	},
+	createCompositePrimaryKey: async function(context: any): Promise<void> {
+		const schema1 = {};
+
+		const schema2 = {
+			table: singlestoreTable('table', {
+				col1: int('col1').notNull(),
+				col2: int('col2').notNull(),
+			}, (t) => ({
+				pk: primaryKey({
+					columns: [t.col1, t.col2],
+				}),
+			})),
+		};
+
+		const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
+			context.client as Connection,
+			schema1,
+			schema2,
+			[],
+			'drizzle',
+			false,
+		);
+
+		expect(statements).toStrictEqual([
+			{
+				type: 'create_table',
+				tableName: 'table',
+				schema: undefined,
+				internals: {
+					indexes: {},
+					tables: {},
+				},
+				compositePKs: ['table_col1_col2_pk;col1,col2'],
+				compositePkName: 'table_col1_col2_pk',
+				uniqueConstraints: [],
+				columns: [
+					{ name: 'col1', type: 'int', primaryKey: false, notNull: true, autoincrement: false },
+					{ name: 'col2', type: 'int', primaryKey: false, notNull: true, autoincrement: false },
+				],
+			},
+		]);
+		expect(sqlStatements).toStrictEqual([
+			'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `table_col1_col2_pk` PRIMARY KEY(`col1`,`col2`)\n);\n',
+		]);
+	},
+	renameTableWithCompositePrimaryKey: async function(context?: any): Promise<void> {
+		const productsCategoriesTable = (tableName: string) => {
+			return singlestoreTable(tableName, {
+				productId: varchar('product_id', { length: 10 }).notNull(),
+				categoryId: varchar('category_id', { length: 10 }).notNull(),
+			}, (t) => ({
+				pk: primaryKey({
+					columns: [t.productId, t.categoryId],
+				}),
+			}));
+		};
+
+		const schema1 = {
+			table: productsCategoriesTable('products_categories'),
+		};
+		const schema2 = {
+			test: productsCategoriesTable('products_to_categories'),
+		};
+
+		const { sqlStatements } = await diffTestSchemasPushSingleStore(
+			context.client as Connection,
+			schema1,
+			schema2,
+			['public.products_categories->public.products_to_categories'],
+			'drizzle',
+			false,
+		);
+
+		// It's not possible to create/alter/drop primary keys in SingleStore
+		expect(sqlStatements).toStrictEqual([
+			'RENAME TABLE `products_categories` TO `products_to_categories`;',
+		]);
+
+		await context.client.query(`DROP TABLE \`products_categories\``);
 	},
 };
 

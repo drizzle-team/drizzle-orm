@@ -18,7 +18,7 @@ import {
 	PgTable,
 	PgView,
 } from 'drizzle-orm/pg-core';
-import { SingleStoreSchema, SingleStoreTable, SingleStoreView } from 'drizzle-orm/singlestore-core';
+import { SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { Connection } from 'mysql2/promise';
@@ -33,7 +33,6 @@ import {
 	roleResolver,
 	schemasResolver,
 	sequencesResolver,
-	singleStoreViewsResolver,
 	sqliteViewsResolver,
 	tablesResolver,
 	viewsResolver,
@@ -102,7 +101,7 @@ export type MysqlSchema = Record<
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
 export type SinglestoreSchema = Record<
 	string,
-	SingleStoreTable<any> | SingleStoreSchema | SingleStoreView
+	SingleStoreTable<any> | SingleStoreSchema /* | SingleStoreView */
 >;
 
 export const testSchemasResolver =
@@ -1548,20 +1547,20 @@ export const diffTestSchemasSingleStore = async (
 ) => {
 	const leftTables = Object.values(left).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
 
-	const leftViews = Object.values(left).filter((it) => is(it, SingleStoreView)) as SingleStoreView[];
+	/* const leftViews = Object.values(left).filter((it) => is(it, SingleStoreView)) as SingleStoreView[]; */
 
 	const rightTables = Object.values(right).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
 
-	const rightViews = Object.values(right).filter((it) => is(it, SingleStoreView)) as SingleStoreView[];
+	/* const rightViews = Object.values(right).filter((it) => is(it, SingleStoreView)) as SingleStoreView[]; */
 
 	const serialized1 = generateSingleStoreSnapshot(
 		leftTables,
-		leftViews,
+		/* leftViews, */
 		casing,
 	);
 	const serialized2 = generateSingleStoreSnapshot(
 		rightTables,
-		rightViews,
+		/* rightViews, */
 		casing,
 	);
 
@@ -1598,7 +1597,7 @@ export const diffTestSchemasSingleStore = async (
 			sn2,
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
-			testViewsResolverMySql(renames),
+			/* testViewsResolverSingleStore(renames), */
 			validatedPrev,
 			validatedCur,
 		);
@@ -1610,7 +1609,7 @@ export const diffTestSchemasSingleStore = async (
 		sn2,
 		tablesResolver,
 		columnsResolver,
-		mySqlViewsResolver,
+		/* singleStoreViewsResolver, */
 		validatedPrev,
 		validatedCur,
 	);
@@ -1643,11 +1642,11 @@ export const diffTestSchemasPushSingleStore = async (
 
 	const leftTables = Object.values(right).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
 
-	const leftViews = Object.values(right).filter((it) => is(it, SingleStoreView)) as SingleStoreView[];
+	/* const leftViews = Object.values(right).filter((it) => is(it, SingleStoreView)) as SingleStoreView[]; */
 
 	const serialized2 = generateSingleStoreSnapshot(
 		leftTables,
-		leftViews,
+		/* leftViews, */
 		casing,
 	);
 
@@ -1684,7 +1683,7 @@ export const diffTestSchemasPushSingleStore = async (
 			sn2,
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
-			testViewsResolverSingleStore(renames),
+			/* testViewsResolverSingleStore(renames), */
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -1696,7 +1695,7 @@ export const diffTestSchemasPushSingleStore = async (
 			sn2,
 			tablesResolver,
 			columnsResolver,
-			singleStoreViewsResolver,
+			/* singleStoreViewsResolver, */
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -1727,9 +1726,9 @@ export const applySingleStoreDiffs = async (
 
 	const tables = Object.values(sn).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
 
-	const views = Object.values(sn).filter((it) => is(it, SingleStoreView)) as SingleStoreView[];
+	/* const views = Object.values(sn).filter((it) => is(it, SingleStoreView)) as SingleStoreView[]; */
 
-	const serialized1 = generateSingleStoreSnapshot(tables, views, casing);
+	const serialized1 = generateSingleStoreSnapshot(tables, /* views, */ casing);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -1751,7 +1750,7 @@ export const applySingleStoreDiffs = async (
 		sn1,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
-		testViewsResolverSingleStore(new Set()),
+		/* testViewsResolverSingleStore(new Set()), */
 		validatedPrev,
 		validatedCur,
 	);
@@ -2464,7 +2463,7 @@ export const introspectSingleStoreToFile = async (
 
 	const afterFileImports = generateSingleStoreSnapshot(
 		response.tables,
-		response.views,
+		/* response.views, */
 		casing,
 	);
 
@@ -2485,7 +2484,7 @@ export const introspectSingleStoreToFile = async (
 
 	const initSnapshot = generateSingleStoreSnapshot(
 		leftTables,
-		response.views,
+		/* response.views, */
 		casing,
 	);
 
@@ -2510,7 +2509,7 @@ export const introspectSingleStoreToFile = async (
 		initSn,
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
-		testViewsResolverSingleStore(new Set()),
+		/* testViewsResolverSingleStore(new Set()), */
 		validatedCurAfterImport,
 		validatedCur,
 	);

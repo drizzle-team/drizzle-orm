@@ -13,12 +13,7 @@ import {
 import chalk from 'chalk';
 import { render } from 'hanji';
 import path, { join } from 'path';
-import {
-	SingleStoreSchema,
-	singlestoreSchema,
-	squashSingleStoreScheme,
-	ViewSquashed as SingleStoreViewSquashed,
-} from 'src/serializer/singlestoreSchema';
+import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
@@ -152,7 +147,7 @@ export const mySqlViewsResolver = async (
 	}
 };
 
-export const singleStoreViewsResolver = async (
+/* export const singleStoreViewsResolver = async (
 	input: ResolverInput<SingleStoreViewSquashed & { schema: '' }>,
 ): Promise<ResolverOutputWithMoved<SingleStoreViewSquashed>> => {
 	try {
@@ -172,7 +167,7 @@ export const singleStoreViewsResolver = async (
 		console.error(e);
 		throw e;
 	}
-};
+}; */
 
 export const sqliteViewsResolver = async (
 	input: ResolverInput<SQLiteView & { schema: '' }>,
@@ -628,7 +623,7 @@ export const prepareSingleStorePush = async (
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
-			mySqlViewsResolver,
+			/* singleStoreViewsResolver, */
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -682,7 +677,7 @@ export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 			squashedCur,
 			tablesResolver,
 			columnsResolver,
-			mySqlViewsResolver,
+			/* singleStoreViewsResolver, */
 			validatedPrev,
 			validatedCur,
 		);

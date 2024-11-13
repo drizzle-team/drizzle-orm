@@ -12,8 +12,8 @@ import type {
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 import type { SQL } from '~/sql/index.ts';
+import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
 export type SingleStoreSerialBuilderInitial<TName extends string> = IsAutoincrement<
 	IsPrimaryKey<
@@ -37,7 +37,10 @@ export class SingleStoreSerialBuilder<T extends ColumnBuilderBaseConfig<'number'
 	extends SingleStoreColumnBuilderWithAutoIncrement<T>
 {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: Partial<GeneratedColumnConfig<unknown>>): HasGenerated<this, {}> {
+	override generatedAlwaysAs(
+		as: SQL<unknown> | (() => SQL) | T['data'],
+		config?: Partial<GeneratedColumnConfig<unknown>>,
+	): HasGenerated<this, {}> {
 		throw new Error('Method not implemented.');
 	}
 	static override readonly [entityKind]: string = 'SingleStoreSerialBuilder';

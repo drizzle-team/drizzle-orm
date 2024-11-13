@@ -34,7 +34,7 @@ import type {
 import type { SingleStoreUpdateConfig } from './query-builders/update.ts';
 import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
-import { SingleStoreViewBase } from './view-base.ts';
+/* import { SingleStoreViewBase } from './view-base.ts'; */
 
 export interface SingleStoreDialectConfig {
 	casing?: Casing;
@@ -268,8 +268,8 @@ export class SingleStoreDialect {
 				&& getTableName(f.field.table)
 					!== (is(table, Subquery)
 						? table._.alias
-						: is(table, SingleStoreViewBase)
-						? table[ViewBaseConfig].name
+						/* : is(table, SingleStoreViewBase)
+						? table[ViewBaseConfig].name */
 						: is(table, SQL)
 						? undefined
 						: getTableName(table))

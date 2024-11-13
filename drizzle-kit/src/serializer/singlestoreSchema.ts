@@ -49,13 +49,13 @@ const viewMeta = object({
 	withCheckOption: enumType(['local', 'cascaded']).optional(),
 }).strict();
 
-export const view = object({
+/* export const view = object({
 	name: string(),
 	columns: record(string(), column),
 	definition: string().optional(),
 	isExisting: boolean(),
 }).strict().merge(viewMeta);
-type SquasherViewMeta = Omit<TypeOf<typeof viewMeta>, 'definer'>;
+type SquasherViewMeta = Omit<TypeOf<typeof viewMeta>, 'definer'>; */
 
 export const kitInternals = object({
 	tables: record(
@@ -90,7 +90,7 @@ export const schemaInternal = object({
 	version: literal('1'),
 	dialect: dialect,
 	tables: record(string(), table),
-	views: record(string(), view).default({}),
+	/* views: record(string(), view).default({}), */
 	_meta: object({
 		tables: record(string(), string()),
 		columns: record(string(), string()),
@@ -108,17 +108,17 @@ const tableSquashed = object({
 	uniqueConstraints: record(string(), string()).default({}),
 }).strict();
 
-const viewSquashed = view.omit({
+/* const viewSquashed = view.omit({
 	algorithm: true,
 	sqlSecurity: true,
 	withCheckOption: true,
-}).extend({ meta: string() });
+}).extend({ meta: string() }); */
 
 export const schemaSquashed = object({
 	version: literal('1'),
 	dialect: dialect,
 	tables: record(string(), tableSquashed),
-	views: record(string(), viewSquashed),
+	/* views: record(string(), viewSquashed), */
 }).strict();
 
 export type Dialect = TypeOf<typeof dialect>;
@@ -131,8 +131,8 @@ export type SingleStoreSchemaSquashed = TypeOf<typeof schemaSquashed>;
 export type Index = TypeOf<typeof index>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
-export type View = TypeOf<typeof view>;
-export type ViewSquashed = TypeOf<typeof viewSquashed>;
+/* export type View = TypeOf<typeof view>; */
+/* export type ViewSquashed = TypeOf<typeof viewSquashed>; */
 
 export const SingleStoreSquasher = {
 	squashIdx: (idx: Index) => {
@@ -167,7 +167,7 @@ export const SingleStoreSquasher = {
 		const [name, columns] = unq.split(';');
 		return { name, columns: columns.split(',') };
 	},
-	squashView: (view: View): string => {
+	/* squashView: (view: View): string => {
 		return `${view.algorithm};${view.sqlSecurity};${view.withCheckOption}`;
 	},
 	unsquashView: (meta: string): SquasherViewMeta => {
@@ -179,7 +179,7 @@ export const SingleStoreSquasher = {
 		};
 
 		return viewMeta.parse(toReturn);
-	},
+	}, */
 };
 
 export const squashSingleStoreScheme = (json: SingleStoreSchema): SingleStoreSchemaSquashed => {
@@ -213,7 +213,7 @@ export const squashSingleStoreScheme = (json: SingleStoreSchema): SingleStoreSch
 		}),
 	);
 
-	const mappedViews = Object.fromEntries(
+	/* const mappedViews = Object.fromEntries(
 		Object.entries(json.views).map(([key, value]) => {
 			const meta = SingleStoreSquasher.squashView(value);
 
@@ -225,13 +225,13 @@ export const squashSingleStoreScheme = (json: SingleStoreSchema): SingleStoreSch
 				meta,
 			}];
 		}),
-	);
+	); */
 
 	return {
 		version: '1',
 		dialect: json.dialect,
 		tables: mappedTables,
-		views: mappedViews,
+		/* views: mappedViews, */
 	};
 };
 
@@ -248,7 +248,7 @@ export const drySingleStore = singlestoreSchema.parse({
 	prevId: '',
 	tables: {},
 	schemas: {},
-	views: {},
+	/* views: {}, */
 	_meta: {
 		schemas: {},
 		tables: {},

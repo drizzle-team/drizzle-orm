@@ -3,17 +3,14 @@ import { is, SQL } from 'drizzle-orm';
 import {
 	AnySingleStoreTable,
 	getTableConfig,
-	getViewConfig,
 	type PrimaryKey as PrimaryKeyORM,
 	SingleStoreDialect,
-	SingleStoreView,
 	uniqueKeyName,
 } from 'drizzle-orm/singlestore-core';
 import { RowDataPacket } from 'mysql2/promise';
 import { withStyle } from '../cli/validations/outputs';
 import { IntrospectStage, IntrospectStatus } from '../cli/views';
 
-import { SingleStoreColumn } from 'drizzle-orm/singlestore-core/columns';
 import { CasingType } from 'src/cli/validations/common';
 import type { DB } from '../utils';
 import {
@@ -24,7 +21,6 @@ import {
 	SingleStoreSchemaInternal,
 	Table,
 	UniqueConstraint,
-	View,
 } from './singlestoreSchema';
 import { sqlToStr } from './utils';
 
@@ -36,12 +32,12 @@ export const indexName = (tableName: string, columns: string[]) => {
 
 export const generateSingleStoreSnapshot = (
 	tables: AnySingleStoreTable[],
-	views: SingleStoreView[],
+	/* views: SingleStoreView[], */
 	casing: CasingType | undefined,
 ): SingleStoreSchemaInternal => {
 	const dialect = new SingleStoreDialect({ casing });
 	const result: Record<string, Table> = {};
-	const resultViews: Record<string, View> = {};
+	/* const resultViews: Record<string, View> = {}; */
 	const internal: SingleStoreKitInternals = { tables: {}, indexes: {} };
 	for (const table of tables) {
 		const {
@@ -295,7 +291,7 @@ export const generateSingleStoreSnapshot = (
 		}
 	}
 
-	for (const view of views) {
+	/* for (const view of views) {
 		const {
 			isExisting,
 			name,
@@ -399,13 +395,13 @@ export const generateSingleStoreSnapshot = (
 			algorithm: algorithm ?? 'undefined', // set default values
 			sqlSecurity: sqlSecurity ?? 'definer', // set default values
 		};
-	}
+	} */
 
 	return {
 		version: '1',
 		dialect: 'singlestore',
 		tables: result,
-		views: resultViews,
+		/* views: resultViews, */
 		_meta: {
 			tables: {},
 			columns: {},
@@ -459,7 +455,7 @@ export const fromDatabase = async (
 	let columnsCount = 0;
 	let tablesCount = new Set();
 	let indexesCount = 0;
-	let viewsCount = 0;
+	/* let viewsCount = 0; */
 
 	const idxs = await db.query(
 		`select * from INFORMATION_SCHEMA.STATISTICS
@@ -634,7 +630,7 @@ export const fromDatabase = async (
   FROM information_schema.table_constraints t
   LEFT JOIN information_schema.key_column_usage k
   USING(constraint_name,table_schema,table_name)
-  WHERE t.constraint_type='PRIMARY KEY'
+  WHERE t.constraint_type='UNIQUE'
       and table_name != '__drizzle_migrations'
       AND t.table_schema = '${inputSchema}'
       ORDER BY ordinal_position`,
@@ -644,8 +640,8 @@ export const fromDatabase = async (
 
 	const tableToPkRows = tablePks as RowDataPacket[];
 	for (const tableToPkRow of tableToPkRows) {
-		const tableName: string = tableToPkRow['TABLE_NAME'];
-		const columnName: string = tableToPkRow['COLUMN_NAME'];
+		const tableName: string = tableToPkRow['table_name'];
+		const columnName: string = tableToPkRow['column_name'];
 		const position: string = tableToPkRow['ordinal_position'];
 
 		if (typeof result[tableName] === 'undefined') {
@@ -707,26 +703,16 @@ export const fromDatabase = async (
 					columns: [columnName],
 				};
 			}
-		} else {
-			if (typeof tableInResult.indexes[constraintName] !== 'undefined') {
-				tableInResult.indexes[constraintName]!.columns.push(columnName);
-			} else {
-				tableInResult.indexes[constraintName] = {
-					name: constraintName,
-					columns: [columnName],
-					isUnique: isUnique,
-				};
-			}
 		}
 	}
 
-	const views = await db.query(
+	/* const views = await db.query(
 		`select * from INFORMATION_SCHEMA.VIEWS WHERE table_schema = '${inputSchema}';`,
-	);
+	); */
 
-	const resultViews: Record<string, View> = {};
+	/* const resultViews: Record<string, View> = {}; */
 
-	viewsCount = views.length;
+	/* viewsCount = views.length;
 	if (progressCallback) {
 		progressCallback('views', viewsCount, 'fetching');
 	}
@@ -759,7 +745,7 @@ export const fromDatabase = async (
 			sqlSecurity,
 			withCheckOption,
 		};
-	}
+	} */
 
 	if (progressCallback) {
 		progressCallback('indexes', indexesCount, 'done');
@@ -771,7 +757,7 @@ export const fromDatabase = async (
 		version: '1',
 		dialect: 'singlestore',
 		tables: result,
-		views: resultViews,
+		/* views: resultViews, */
 		_meta: {
 			tables: {},
 			columns: {},

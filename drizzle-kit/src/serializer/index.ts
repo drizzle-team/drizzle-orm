@@ -65,9 +65,9 @@ export const serializeSingleStore = async (
 	const { prepareFromSingleStoreImports } = await import('./singlestoreImports');
 	const { generateSingleStoreSnapshot } = await import('./singlestoreSerializer');
 
-	const { tables, views } = await prepareFromSingleStoreImports(filenames);
+	const { tables /* views */ } = await prepareFromSingleStoreImports(filenames);
 
-	return generateSingleStoreSnapshot(tables, views, casing);
+	return generateSingleStoreSnapshot(tables, /* views, */ casing);
 };
 
 export const prepareFilenames = (path: string | string[]) => {

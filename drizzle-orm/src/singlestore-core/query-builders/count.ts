@@ -2,7 +2,7 @@ import { entityKind } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { SingleStoreSession } from '../session.ts';
 import type { SingleStoreTable } from '../table.ts';
-import type { SingleStoreViewBase } from '../view-base.ts';
+/* import type { SingleStoreViewBase } from '../view-base.ts'; */
 
 export class SingleStoreCountBuilder<
 	TSession extends SingleStoreSession<any, any, any>,
@@ -15,14 +15,14 @@ export class SingleStoreCountBuilder<
 	private session: TSession;
 
 	private static buildEmbeddedCount(
-		source: SingleStoreTable | SingleStoreViewBase | SQL | SQLWrapper,
+		source: SingleStoreTable | /* SingleStoreViewBase | */ SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
 	}
 
 	private static buildCount(
-		source: SingleStoreTable | SingleStoreViewBase | SQL | SQLWrapper,
+		source: SingleStoreTable | /* SingleStoreViewBase | */ SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`select count(*) as count from ${source}${sql.raw(' where ').if(filters)}${filters}`;
@@ -30,7 +30,7 @@ export class SingleStoreCountBuilder<
 
 	constructor(
 		readonly params: {
-			source: SingleStoreTable | SingleStoreViewBase | SQL | SQLWrapper;
+			source: SingleStoreTable | /* SingleStoreViewBase | */ SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			session: TSession;
 		},

@@ -189,7 +189,7 @@ export const schemaToTypeScript = (
 		{ singlestore: [] as string[] },
 	);
 
-	Object.values(schema.views).forEach((it) => {
+	/* Object.values(schema.views).forEach((it) => {
 		imports.singlestore.push('singlestoreView');
 
 		const columnImports = Object.values(it.columns)
@@ -221,7 +221,7 @@ export const schemaToTypeScript = (
 			});
 
 		imports.singlestore.push(...columnImports);
-	});
+	}); */
 
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const func = 'singlestoreTable';
@@ -272,7 +272,7 @@ export const schemaToTypeScript = (
 		return statement;
 	});
 
-	const viewsStatements = Object.values(schema.views).map((view) => {
+	/* const viewsStatements = Object.values(schema.views).map((view) => {
 		const { columns, name, algorithm, definition, sqlSecurity, withCheckOption } = view;
 		const func = 'singlestoreView';
 		let statement = '';
@@ -300,7 +300,7 @@ export const schemaToTypeScript = (
 		statement += `.as(sql\`${definition?.replaceAll('`', '\\`')}\`);`;
 
 		return statement;
-	});
+	}); */
 
 	const uniqueSingleStoreImports = [
 		'singlestoreTable',
@@ -317,7 +317,7 @@ export const schemaToTypeScript = (
 	let decalrations = '';
 	decalrations += tableStatements.join('\n\n');
 	decalrations += '\n';
-	decalrations += viewsStatements.join('\n\n');
+	/* decalrations += viewsStatements.join('\n\n'); */
 
 	const file = importsTs + decalrations;
 
