@@ -24,3 +24,7 @@ import { users } from './tables.ts';
 		// @ts-expect-error method was already called
 		.where(sql``);
 }
+
+{
+	db.update(users).set({}).where(sql``).limit(1).orderBy(sql``);
+}

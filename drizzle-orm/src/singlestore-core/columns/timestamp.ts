@@ -1,7 +1,8 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, GeneratedColumnConfig, HasGenerated, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SQL } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreDateBaseColumn, SingleStoreDateColumnBaseBuilder } from './date.common.ts';
@@ -19,6 +20,10 @@ export type SingleStoreTimestampBuilderInitial<TName extends string> = SingleSto
 export class SingleStoreTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'SingleStoreTimestamp'>>
 	extends SingleStoreDateColumnBaseBuilder<T, SingleStoreTimestampConfig>
 {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: Partial<GeneratedColumnConfig<unknown>>): HasGenerated<this, {}> {
+		throw new Error('Method not implemented.');
+	}
 	static override readonly [entityKind]: string = 'SingleStoreTimestampBuilder';
 
 	constructor(name: T['name'], config: SingleStoreTimestampConfig | undefined) {
@@ -76,6 +81,10 @@ export type SingleStoreTimestampStringBuilderInitial<TName extends string> = Sin
 export class SingleStoreTimestampStringBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'SingleStoreTimestampString'>,
 > extends SingleStoreDateColumnBaseBuilder<T, SingleStoreTimestampConfig> {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: Partial<GeneratedColumnConfig<unknown>>): HasGenerated<this, {}> {
+		throw new Error('Method not implemented.');
+	}
 	static override readonly [entityKind]: string = 'SingleStoreTimestampStringBuilder';
 
 	constructor(name: T['name'], config: SingleStoreTimestampConfig | undefined) {

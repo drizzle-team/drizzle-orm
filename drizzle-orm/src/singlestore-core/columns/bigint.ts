@@ -1,9 +1,10 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, GeneratedColumnConfig, HasGenerated, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
+import type { SQL } from '~/sql/index.ts';
 
 export type SingleStoreBigInt53BuilderInitial<TName extends string> = SingleStoreBigInt53Builder<{
 	name: TName;
@@ -18,6 +19,10 @@ export type SingleStoreBigInt53BuilderInitial<TName extends string> = SingleStor
 export class SingleStoreBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreBigInt53'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: Partial<GeneratedColumnConfig<unknown>>): HasGenerated<this, {}> {
+		throw new Error('Method not implemented.');
+	}
 	static override readonly [entityKind]: string = 'SingleStoreBigInt53Builder';
 
 	constructor(name: T['name'], unsigned: boolean = false) {
@@ -66,6 +71,10 @@ export type SingleStoreBigInt64BuilderInitial<TName extends string> = SingleStor
 export class SingleStoreBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'SingleStoreBigInt64'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: Partial<GeneratedColumnConfig<unknown>>): HasGenerated<this, {}> {
+		throw new Error('Method not implemented.');
+	}
 	static override readonly [entityKind]: string = 'SingleStoreBigInt64Builder';
 
 	constructor(name: T['name'], unsigned: boolean = false) {

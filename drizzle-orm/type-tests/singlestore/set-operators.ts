@@ -1,9 +1,9 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import { eq } from '~/expressions.ts';
-import { except, intersect, type SingleStoreSetOperator, union, unionAll } from '~/singlestore-core/index.ts';
+import { intersect, type SingleStoreSetOperator, union, unionAll } from '~/singlestore-core/index.ts';
 import { sql } from '~/sql/index.ts';
 import { db } from './db.ts';
-import { cities, classes, newYorkers, users } from './tables.ts';
+import { cities, classes, users } from './tables.ts';
 
 const unionTest = await db
 	.select({ id: users.id })
@@ -54,6 +54,17 @@ const exceptTest = await db
 
 Expect<Equal<{ id: number; homeCity: number }[], typeof exceptTest>>;
 
+const minusTest = await db
+	.select({ id: users.id, homeCity: users.homeCity })
+	.from(users)
+	.minus(
+		db
+			.select({ id: users.id, homeCity: sql`${users.homeCity}`.mapWith(Number) })
+			.from(users),
+	);
+
+Expect<Equal<{ id: number; homeCity: number }[], typeof minusTest>>;
+
 const union2Test = await union(db.select().from(cities), db.select().from(cities), db.select().from(cities));
 
 Expect<Equal<{ id: number; name: string; population: number | null }[], typeof union2Test>>;
@@ -89,7 +100,8 @@ const intersect2Test = await intersect(
 
 Expect<Equal<{ id: number; name: string; population: number | null }[], typeof intersect2Test>>;
 
-const except2Test = await except(
+// TODO Implement views for SingleStore (https://docs.singlestore.com/cloud/reference/sql-reference/data-definition-language-ddl/create-view/)
+/* const except2Test = await except(
 	db.select({
 		userId: newYorkers.userId,
 	})
@@ -99,7 +111,7 @@ const except2Test = await except(
 	}).from(newYorkers),
 );
 
-Expect<Equal<{ userId: number }[], typeof except2Test>>;
+Expect<Equal<{ userId: number }[], typeof except2Test>>; */
 
 const unionfull = await union(db.select().from(users), db.select().from(users)).orderBy(sql``).limit(1).offset(2);
 
@@ -206,7 +218,7 @@ union(
 	// @ts-expect-error
 	db.select({ id: cities.id, name: cities.name }).from(cities),
 	db.select({ id: cities.id }).from(cities),
-	db.select({ id: newYorkers.userId }).from(newYorkers),
+	/* db.select({ id: newYorkers.userId }).from(newYorkers), */
 	db.select({ id: cities.id }).from(cities),
 );
 

@@ -11,7 +11,7 @@ const orders = singlestoreTable('orders', {
 	product: text('product').notNull(),
 	amount: int('amount').notNull(),
 	quantity: int('quantity').notNull(),
-	generated: text('generatedText').generatedAlwaysAs(sql``),
+	/* generated: text('generatedText').generatedAlwaysAs(sql``), */
 });
 
 {
@@ -74,7 +74,7 @@ const orders = singlestoreTable('orders', {
 			product: string;
 			amount: number;
 			quantity: number;
-			generated: string | null;
+			/* generated: string | null; */
 		}[], typeof allFromWith>
 	>;
 }

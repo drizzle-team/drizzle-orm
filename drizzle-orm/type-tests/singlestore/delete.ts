@@ -59,3 +59,7 @@ Expect<Equal<SingleStoreRawQueryResult, typeof deleteReturningPartialPrepared>>;
 		.where(sql``)
 		.where(sql``);
 }
+
+{
+	db.delete(users).where(sql``).limit(1).orderBy(sql``);
+}

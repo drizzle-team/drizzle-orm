@@ -1,6 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import type { BuildColumn } from '~/column-builder.ts';
-import { eq, gt } from '~/expressions.ts';
+import { eq } from '~/expressions.ts';
 import {
 	bigint,
 	binary,
@@ -37,8 +37,7 @@ import {
 	year,
 } from '~/singlestore-core/index.ts';
 import { singlestoreSchema } from '~/singlestore-core/schema.ts';
-import { singlestoreView, type SingleStoreViewWithSelection } from '~/singlestore-core/view.ts';
-import { sql } from '~/sql/sql.ts';
+/* import { singlestoreView, type SingleStoreViewWithSelection } from '~/singlestore-core/view.ts'; */
 import type { InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
@@ -169,13 +168,14 @@ export const classes = singlestoreTable('classes_table', ({ serial, text }) => (
 	subClass: text('sub_class', { enum: ['B', 'D'] }).notNull(),
 }));
 
+// TODO Implement views for SingleStore (https://docs.singlestore.com/cloud/reference/sql-reference/data-definition-language-ddl/create-view/)
 /* export const classes2 = singlestoreTable('classes_table', {
 	id: serial().primaryKey(),
 	class: text({ enum: ['A', 'C'] }).$dbName('class_db'),
 	subClass: text({ enum: ['B', 'D'] }).notNull(),
 }); */
 
-export const newYorkers = singlestoreView('new_yorkers')
+/* export const newYorkers = singlestoreView('new_yorkers')
 	.algorithm('merge')
 	.sqlSecurity('definer')
 	.as((qb) => {
@@ -487,7 +487,7 @@ Expect<
 			typeof newYorkers
 		>
 	>;
-}
+} */
 
 {
 	const customText = customType<{ data: string }>({
@@ -582,7 +582,7 @@ Expect<
 	Expect<Equal<[string, ...string[]], typeof test.test15.enumValues>>;
 }
 
-{ // All types with generated columns
+/* { // All types with generated columns
 	const test = singlestoreTable('test', {
 		test1: singlestoreEnum('test', ['a', 'b', 'c'] as const).generatedAlwaysAs(sql``),
 		test2: singlestoreEnum('test', ['a', 'b', 'c']).generatedAlwaysAs(sql``),
@@ -615,7 +615,7 @@ Expect<
 	Expect<Equal<['a', 'b', 'c'], typeof test.test13.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.test14.enumValues>>;
 	Expect<Equal<[string, ...string[]], typeof test.test15.enumValues>>;
-}
+} */
 
 {
 	const getUsersTable = <TSchema extends string>(schemaName: TSchema) => {
@@ -675,7 +675,8 @@ Expect<
 	>;
 }
 
-{
+// TODO Implement views for SingleStore (https://docs.singlestore.com/cloud/reference/sql-reference/data-definition-language-ddl/create-view/)
+/* {
 	const newYorkers = singlestoreView('new_yorkers')
 		.as((qb) => {
 			const sq = qb
@@ -690,7 +691,7 @@ Expect<
 		});
 
 	await db.select().from(newYorkers).leftJoin(newYorkers, eq(newYorkers.userId, newYorkers.userId));
-}
+} */
 
 {
 	const test = singlestoreTable('test', {

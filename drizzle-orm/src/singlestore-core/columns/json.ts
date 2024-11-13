@@ -1,8 +1,9 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, GeneratedColumnConfig, HasGenerated, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
+import type { SQL } from '~/sql/index.ts';
 
 export type SingleStoreJsonBuilderInitial<TName extends string> = SingleStoreJsonBuilder<{
 	name: TName;
@@ -17,6 +18,10 @@ export type SingleStoreJsonBuilderInitial<TName extends string> = SingleStoreJso
 export class SingleStoreJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SingleStoreJson'>>
 	extends SingleStoreColumnBuilder<T>
 {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	override generatedAlwaysAs(as: T['data'] | SQL<unknown> | (() => SQL), config?: Partial<GeneratedColumnConfig<unknown>>): HasGenerated<this, {}> {
+		throw new Error('Method not implemented.');
+	}
 	static override readonly [entityKind]: string = 'SingleStoreJsonBuilder';
 
 	constructor(name: T['name']) {

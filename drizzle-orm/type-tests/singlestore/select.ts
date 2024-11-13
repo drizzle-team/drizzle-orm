@@ -28,7 +28,7 @@ import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { QueryBuilder, type SingleStoreSelect, type SingleStoreSelectQueryBuilder } from '~/singlestore-core/index.ts';
 import { db } from './db.ts';
-import { cities, classes, newYorkers, users } from './tables.ts';
+import { cities, classes, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -397,7 +397,8 @@ Expect<
 await db.select().from(users).for('update');
 await db.select().from(users).for('share', { skipLocked: true });
 await db.select().from(users).for('update', { noWait: true });
-await db
+// TODO Implement views for SingleStore (https://docs.singlestore.com/cloud/reference/sql-reference/data-definition-language-ddl/create-view/)
+/* await db
 	.select()
 	.from(users)
 	// @ts-expect-error - can't use both skipLocked and noWait
@@ -426,7 +427,7 @@ await db
 			typeof result
 		>
 	>;
-}
+} */
 
 {
 	const query = db.select().from(users).prepare().iterator();
