@@ -103,7 +103,7 @@ test('basic identity by default test', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test.only('basic index test', async () => {
+test('basic index test', async () => {
 	const client = new PGlite();
 
 	const schema = {
