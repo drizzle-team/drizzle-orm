@@ -40,7 +40,9 @@ export type SingleStoreQueryResult<
 	T = any,
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
-export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryConfig> extends SingleStorePreparedQuery<T> {
+export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryConfig>
+	extends SingleStorePreparedQuery<T>
+{
 	static override readonly [entityKind]: string = 'SingleStoreDriverPreparedQuery';
 
 	private rawQuery: QueryOptions;
@@ -300,10 +302,17 @@ export class SingleStoreDriverSession<
 export class SingleStoreDriverTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SingleStoreTransaction<SingleStoreDriverQueryResultHKT, SingleStoreDriverPreparedQueryHKT, TFullSchema, TSchema> {
+> extends SingleStoreTransaction<
+	SingleStoreDriverQueryResultHKT,
+	SingleStoreDriverPreparedQueryHKT,
+	TFullSchema,
+	TSchema
+> {
 	static override readonly [entityKind]: string = 'SingleStoreDriverTransaction';
 
-	override async transaction<T>(transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(
+		transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TSchema>) => Promise<T>,
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new SingleStoreDriverTransaction<TFullSchema, TSchema>(
 			this.dialect,

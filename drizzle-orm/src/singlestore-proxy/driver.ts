@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
@@ -14,9 +15,11 @@ import {
 	SingleStoreRemoteSession,
 } from './session.ts';
 
-export type SingleStoreRemoteDatabase<
+export class SingleStoreRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = SingleStoreDatabase<SingleStoreRemoteQueryResultHKT, SingleStoreRemotePreparedQueryHKT, TSchema>;
+> extends SingleStoreDatabase<SingleStoreRemoteQueryResultHKT, SingleStoreRemotePreparedQueryHKT, TSchema> {
+	static override readonly [entityKind]: string = 'SingleStoreRemoteDatabase';
+}
 
 export type RemoteCallback = (
 	sql: string,
@@ -28,7 +31,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	callback: RemoteCallback,
 	config: DrizzleConfig<TSchema> = {},
 ): SingleStoreRemoteDatabase<TSchema> {
-	const dialect = new SingleStoreDialect();
+	const dialect = new SingleStoreDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -50,5 +53,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new SingleStoreRemoteSession(callback, dialect, schema, { logger });
-	return new SingleStoreDatabase(dialect, session, schema) as SingleStoreRemoteDatabase<TSchema>;
+	return new SingleStoreRemoteDatabase(dialect, session, schema as any, 'default') as SingleStoreRemoteDatabase<
+		TSchema
+	>;
 }

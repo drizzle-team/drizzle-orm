@@ -3,18 +3,22 @@ import type { Connection, Pool } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
-import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
-import type { Mode } from '~/singlestore-core/session.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
+import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
+import type { Mode } from '~/singlestore-core/session.ts';
 import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
 import { DrizzleError } from '../errors.ts';
-import type { SingleStoreDriverClient, SingleStoreDriverPreparedQueryHKT, SingleStoreDriverQueryResultHKT } from './session.ts';
+import type {
+	SingleStoreDriverClient,
+	SingleStoreDriverPreparedQueryHKT,
+	SingleStoreDriverQueryResultHKT,
+} from './session.ts';
 import { SingleStoreDriverSession } from './session.ts';
 
 export interface SingleStoreDriverOptions {

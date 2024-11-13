@@ -15,8 +15,8 @@ import type {
 	SingleStoreTransactionConfig,
 } from '~/singlestore-core/session.ts';
 import { SingleStorePreparedQuery as PreparedQueryBase, SingleStoreSession } from '~/singlestore-core/session.ts';
-import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
+import { fillPlaceholders } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
