@@ -43,7 +43,6 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColu
 	driverParam: unknown;
 	enumValues: string[] | undefined;
 	generated: GeneratedColumnConfig<unknown> | undefined;
-	identity: 'always' | 'byDefault' | undefined;
 }
 
 export type MakeColumnConfig<
@@ -66,7 +65,7 @@ export type MakeColumnConfig<
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
 	generated: T['generated'] extends object ? T['generated'] : undefined;
-	identity: T['identity'];
+	identity: T extends { identity: 'always' } ? 'always' : T extends { identity: 'byDefault' } ? 'byDefault' : undefined;
 } & {};
 
 export type ColumnBuilderTypeConfig<
@@ -85,7 +84,7 @@ export type ColumnBuilderTypeConfig<
 		hasDefault: T extends { hasDefault: infer U } ? U : boolean;
 		enumValues: T['enumValues'];
 		generated: GeneratedColumnConfig<T['data']> | undefined;
-		identity: T['identity'];
+		identity: T extends { identity: infer U } ? U : unknown;
 	}
 	& TTypeConfig
 >;
@@ -106,6 +105,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
 	generatedIdentity: GeneratedIdentityConfig | undefined;
+	identity: 'always' | 'byDefault' | undefined;
 } & TRuntimeConfig;
 
 export interface ColumnBuilderExtraConfig {
@@ -162,12 +162,9 @@ export type IsIdentity<
 	_: {
 		notNull: true;
 		hasDefault: true;
-		generated: { as: any; type: TType };
-		identity: TType ;
+		identity: TType;
 	};
 };
-// always -> user pass overriding and 
-
 export interface ColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,

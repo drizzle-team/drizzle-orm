@@ -1,30 +1,7 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnDataType,
-	GeneratedIdentityConfig,
-	IsIdentity,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnDataType, GeneratedIdentityConfig, IsIdentity } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgSequenceOptions } from '../sequence.ts';
 import { PgColumnBuilder } from './common.ts';
-import type { PgIntegerBuilderInitial } from './integer.ts';
-// import type { Simplify } from '~/index.ts';
-
-
-// type a = Simplify<IsIdentity<PgIntegerBuilderInitial<"always_as_identity">, "always">>;
-type a = IsIdentity<PgIntegerBuilderInitial<"always_as_identity">, "always">;
-
-type a1 = {'_': {
-	identity: undefined
-}}
-
-type a2 = a1 & {'_': {
-	identity: 'always'
-}}
-
-let b: a2;
-b._
-
 
 export abstract class PgIntColumnBaseBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
@@ -53,7 +30,7 @@ export abstract class PgIntColumnBaseBuilder<
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 
-		return this as any;
+		return this as IsIdentity<this, 'always'>;
 	}
 
 	generatedByDefaultAsIdentity(
@@ -75,6 +52,6 @@ export abstract class PgIntColumnBaseBuilder<
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 
-		return this as any;
+		return this as IsIdentity<this, 'byDefault'>;
 	}
 }

@@ -156,35 +156,26 @@ export type MapColumnName<TName extends string, TColumn extends Column, TDBColum
 export type InferModelFromColumns<
 	TColumns extends Record<string, Column>,
 	TInferMode extends 'select' | 'insert' = 'select',
-	TConfig extends { dbColumnNames: boolean, override?: boolean } = { dbColumnNames: false, override: false },
+	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
 > = Simplify<
 	TInferMode extends 'insert' ?
-	& {
-		[
-			Key in keyof TColumns & string as RequiredKeyOnly<
-				MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-				TColumns[Key]
-			>
-		]: GetColumnData<TColumns[Key], 'query'>;
-	}
-	& {
-		[
-			Key in keyof TColumns & string as OptionalKeyOnly<
-				MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-				TColumns[Key],
-				TConfig['override']
-			>
-		]?: GetColumnData<TColumns[Key], 'query'>;
-	}
-			// & {
-			// 	[
-			// 		Key in keyof TColumns & string as IdentityColumns<
-			// 			MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-			// 			TColumns[Key],
-			// 			TConfig['override']
-			// 		>
-			// 	]?: GetColumnData<TColumns[Key], 'query'>;
-			// }
+			& {
+				[
+					Key in keyof TColumns & string as RequiredKeyOnly<
+						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+						TColumns[Key]
+					>
+				]: GetColumnData<TColumns[Key], 'query'>;
+			}
+			& {
+				[
+					Key in keyof TColumns & string as OptionalKeyOnly<
+						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+						TColumns[Key],
+						TConfig['override']
+					>
+				]?: GetColumnData<TColumns[Key], 'query'>;
+			}
 		: {
 			[
 				Key in keyof TColumns & string as MapColumnName<
@@ -211,5 +202,5 @@ export type InferSelectModel<
 
 export type InferInsertModel<
 	TTable extends Table,
-	TConfig extends { dbColumnNames: boolean, override?: boolean } = { dbColumnNames: false, override: false }
+	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
 > = InferModelFromColumns<TTable['_']['columns'], 'insert', TConfig>;

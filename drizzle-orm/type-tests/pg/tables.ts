@@ -54,19 +54,23 @@ import {
 	type PgViewWithSelection,
 } from '~/pg-core/view.ts';
 import { sql } from '~/sql/sql.ts';
-import type { InferInsertModel, InferSelectModel } from '~/table.ts';
+import { InferInsertModel } from '~/table.ts';
+import type { InferSelectModel, Table } from '~/table.ts';
 import { db } from './db.ts';
 
 export const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 
 export const identityColumnsTable = pgTable('identity_columns_table', {
 	// generatedCol: integer('g').generatedAlwaysAs(1),
-	alwaysAsIdentity: integer("always_as_identity").generatedByDefaultAsIdentity(),
+	alwaysAsIdentity: integer('always_as_identity').generatedAlwaysAsIdentity(),
 	// byDefaultAsIdentity: integer('by_default_as_identity').generatedByDefaultAsIdentity(),
 	// name: text('name')
 });
 
-identityColumnsTable.$inferInsert
+type g = InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: false }>;
+
+type h = typeof identityColumnsTable.$inferInsert;
+
 export const users = pgTable(
 	'users_table',
 	{
@@ -122,9 +126,7 @@ export const smallSerialTest = pgTable('cities_table', {
 	id: smallserial('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+});
 
 Expect<
 	Equal<{

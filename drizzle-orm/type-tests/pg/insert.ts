@@ -2,9 +2,10 @@ import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { PgInsert } from '~/pg-core/query-builders/insert.ts';
+import { PgInsertValue } from '~/pg-core/query-builders/insert.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
-import { users, identityColumnsTable } from './tables.ts';
+import { identityColumnsTable, users } from './tables.ts';
 
 const insert = await db
 	.insert(users)
@@ -205,8 +206,10 @@ Expect<
 		.returning();
 }
 
+type hh = PgInsertValue<typeof identityColumnsTable, true>;
+
 db.insert(identityColumnsTable).overridingSystemValue().values([
-	{ alwaysAsIdentity: 3, name: "aa"},
+	{ alwaysAsIdentity: 1 },
 	// { byDefaultAsIdentity: 5, name: "ff"},
 	// { alwaysAsIdentity: 4, byDefaultAsIdentity: 6, name: "sd"},
 ]);
