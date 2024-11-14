@@ -3065,6 +3065,185 @@ export function tests() {
 		expect(users.length).toBeGreaterThan(0);
 	});
 
+	test('update ... from', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		await db.run(sql`drop table if exists \`cities\``);
+		await db.run(sql`drop table if exists \`users2\``);
+		await db.run(sql`
+			create table \`cities\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null
+			)
+		`);
+		await db.run(sql`
+			create table \`users2\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null,
+				\`city_id\` integer references \`cities\`(\`id\`)
+			)
+		`);
+
+		await db.insert(citiesTable).values([
+			{ name: 'New York City' },
+			{ name: 'Seattle' },
+		]);
+		await db.insert(users2Table).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+		]);
+
+		const result = await db
+			.update(users2Table)
+			.set({
+				cityId: citiesTable.id,
+			})
+			.from(citiesTable)
+			.where(and(eq(citiesTable.name, 'Seattle'), eq(users2Table.name, 'John')))
+			.returning();
+
+		expect(result).toStrictEqual([{
+			id: 1,
+			name: 'John',
+			cityId: 2,
+		}]);
+	});
+
+	test('update ... from with alias', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		await db.run(sql`drop table if exists \`users2\``);
+		await db.run(sql`drop table if exists \`cities\``);
+		await db.run(sql`
+			create table \`cities\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null
+			)
+		`);
+		await db.run(sql`
+			create table \`users2\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null,
+				\`city_id\` integer references \`cities\`(\`id\`)
+			)
+		`);
+
+		await db.insert(citiesTable).values([
+			{ name: 'New York City' },
+			{ name: 'Seattle' },
+		]);
+		await db.insert(users2Table).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+		]);
+
+		const cities = alias(citiesTable, 'c');
+		const result = await db
+			.update(users2Table)
+			.set({
+				cityId: cities.id,
+			})
+			.from(cities)
+			.where(and(eq(cities.name, 'Seattle'), eq(users2Table.name, 'John')))
+			.returning();
+
+		expect(result).toStrictEqual([{
+			id: 1,
+			name: 'John',
+			cityId: 2,
+		}]);
+
+		await db.run(sql`drop table if exists \`users2\``);
+	});
+
+	test('update ... from with join', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		const states = sqliteTable('states', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+		const cities = sqliteTable('cities', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+			stateId: integer('state_id').references(() => states.id),
+		});
+		const users = sqliteTable('users', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+			cityId: integer('city_id').notNull().references(() => cities.id),
+		});
+
+		await db.run(sql`drop table if exists \`states\``);
+		await db.run(sql`drop table if exists \`cities\``);
+		await db.run(sql`drop table if exists \`users\``);
+		await db.run(sql`
+			create table \`states\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null
+			)
+		`);
+		await db.run(sql`
+			create table \`cities\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null,
+				\`state_id\` integer references \`states\`(\`id\`)
+			)
+		`);
+		await db.run(sql`
+			create table \`users\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null,
+				\`city_id\` integer not null references \`cities\`(\`id\`)
+			)
+		`);
+
+		await db.insert(states).values([
+			{ name: 'New York' },
+			{ name: 'Washington' },
+		]);
+		await db.insert(cities).values([
+			{ name: 'New York City', stateId: 1 },
+			{ name: 'Seattle', stateId: 2 },
+			{ name: 'London' },
+		]);
+		await db.insert(users).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+			{ name: 'Jack', cityId: 3 },
+		]);
+
+		const result1 = await db
+			.update(users)
+			.set({
+				cityId: cities.id,
+			})
+			.from(cities)
+			.leftJoin(states, eq(cities.stateId, states.id))
+			.where(and(eq(cities.name, 'Seattle'), eq(users.name, 'John')))
+			.returning();
+		const result2 = await db
+			.update(users)
+			.set({
+				cityId: cities.id,
+			})
+			.from(cities)
+			.leftJoin(states, eq(cities.stateId, states.id))
+			.where(and(eq(cities.name, 'London'), eq(users.name, 'Jack')))
+			.returning();
+
+		expect(result1).toStrictEqual([{
+			id: 1,
+			name: 'John',
+			cityId: 2,
+		}]);
+		expect(result2).toStrictEqual([{
+			id: 3,
+			name: 'Jack',
+			cityId: 3,
+		}]);
+	});
+
 	test('insert into ... select', async (ctx) => {
 		const { db } = ctx.sqlite;
 

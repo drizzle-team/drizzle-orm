@@ -4740,6 +4740,175 @@ export function tests() {
 			}]);
 		});
 
+		test('update ... from', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(cities2Table).values([
+				{ name: 'New York City' },
+				{ name: 'Seattle' },
+			]);
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+			]);
+
+			const result = await db
+				.update(users2Table)
+				.set({
+					cityId: cities2Table.id,
+				})
+				.from(cities2Table)
+				.where(and(eq(cities2Table.name, 'Seattle'), eq(users2Table.name, 'John')))
+				.returning();
+
+			expect(result).toStrictEqual([{
+				id: 1,
+				name: 'John',
+				cityId: 2,
+				cities: {
+					id: 2,
+					name: 'Seattle',
+				},
+			}]);
+		});
+
+		test('update ... from with alias', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(cities2Table).values([
+				{ name: 'New York City' },
+				{ name: 'Seattle' },
+			]);
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+			]);
+
+			const users = alias(users2Table, 'u');
+			const cities = alias(cities2Table, 'c');
+			const result = await db
+				.update(users)
+				.set({
+					cityId: cities.id,
+				})
+				.from(cities)
+				.where(and(eq(cities.name, 'Seattle'), eq(users.name, 'John')))
+				.returning();
+
+			expect(result).toStrictEqual([{
+				id: 1,
+				name: 'John',
+				cityId: 2,
+				c: {
+					id: 2,
+					name: 'Seattle',
+				},
+			}]);
+		});
+
+		test('update ... from with join', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const states = pgTable('states', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const cities = pgTable('cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				stateId: integer('state_id').references(() => states.id),
+			});
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').notNull().references(() => cities.id),
+			});
+
+			await db.execute(sql`drop table if exists "states" cascade`);
+			await db.execute(sql`drop table if exists "cities" cascade`);
+			await db.execute(sql`drop table if exists "users" cascade`);
+			await db.execute(sql`
+				create table "states" (
+					"id" serial primary key,
+					"name" text not null
+				)
+			`);
+			await db.execute(sql`
+				create table "cities" (
+					"id" serial primary key,
+					"name" text not null,
+					"state_id" integer references "states"("id")
+				)
+			`);
+			await db.execute(sql`
+				create table "users" (
+					"id" serial primary key,
+					"name" text not null,
+					"city_id" integer not null references "cities"("id")
+				)
+			`);
+
+			await db.insert(states).values([
+				{ name: 'New York' },
+				{ name: 'Washington' },
+			]);
+			await db.insert(cities).values([
+				{ name: 'New York City', stateId: 1 },
+				{ name: 'Seattle', stateId: 2 },
+				{ name: 'London' },
+			]);
+			await db.insert(users).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 3 },
+			]);
+
+			const result1 = await db
+				.update(users)
+				.set({
+					cityId: cities.id,
+				})
+				.from(cities)
+				.leftJoin(states, eq(cities.stateId, states.id))
+				.where(and(eq(cities.name, 'Seattle'), eq(users.name, 'John')))
+				.returning();
+			const result2 = await db
+				.update(users)
+				.set({
+					cityId: cities.id,
+				})
+				.from(cities)
+				.leftJoin(states, eq(cities.stateId, states.id))
+				.where(and(eq(cities.name, 'London'), eq(users.name, 'Jack')))
+				.returning();
+
+			expect(result1).toStrictEqual([{
+				id: 1,
+				name: 'John',
+				cityId: 2,
+				cities: {
+					id: 2,
+					name: 'Seattle',
+					stateId: 2,
+				},
+				states: {
+					id: 2,
+					name: 'Washington',
+				},
+			}]);
+			expect(result2).toStrictEqual([{
+				id: 3,
+				name: 'Jack',
+				cityId: 3,
+				cities: {
+					id: 3,
+					name: 'London',
+					stateId: null,
+				},
+				states: null,
+			}]);
+		});
+
 		test('insert into ... select', async (ctx) => {
 			const { db } = ctx.pg;
 
