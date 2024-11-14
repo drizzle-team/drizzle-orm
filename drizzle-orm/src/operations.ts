@@ -8,7 +8,6 @@ export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends A
 }> ? TKey
 	: never;
 
-	
 export type OptionalKeyOnly<
 	TKey extends string,
 	T extends Column,
@@ -17,24 +16,12 @@ export type OptionalKeyOnly<
 	: T extends {
 		_: {
 			generated: undefined;
-		}
+		};
 	} ? (
 			T['_']['identity'] extends 'always' ? OverrideT extends true ? TKey : never
 				: TKey
 		)
 	: never;
-
-export type IdentityColumns<
-	TKey extends string,
-	T extends Column,
-	OverrideT extends boolean | undefined = false,
-> = TKey extends RequiredKeyOnly<TKey, T> ? never
-	: TKey extends OptionalKeyOnly<TKey, T> ? never
-	: T['_']['identity'] extends 'byDefault' ? TKey
-	: (
-		T['_']['identity'] extends 'always' ? OverrideT extends true ? TKey : never
-			: never
-	);
 
 // TODO: SQL -> SQLWrapper
 export type SelectedFieldsFlat<TColumn extends Column> = Record<

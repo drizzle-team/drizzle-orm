@@ -16,6 +16,7 @@ export type GeneratePossibleGeneratorsColumnType = {
 	generator: AbstractGenerator<any> | undefined;
 	isUnique: boolean;
 	notNull: boolean;
+	generatedIdentityType?: 'always' | 'byDefault' | undefined;
 };
 
 export type GeneratePossibleGeneratorsTableType = Prettify<{

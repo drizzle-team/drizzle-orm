@@ -785,6 +785,14 @@ test("sequential using of 'with'", async () => {
 	expect(suppliers.length).toBe(11);
 });
 
+test('seeding with identity columns', async () => {
+	await seed(db, { identityColumnsTable: schema.identityColumnsTable });
+
+	const result = await db.select().from(schema.identityColumnsTable);
+
+	expect(result.length).toBe(10);
+});
+
 // All data types test -------------------------------
 test('basic seed test for all postgres data types', async () => {
 	await seed(db, { allDataTypes: schema.allDataTypes }, { count: 10000 });

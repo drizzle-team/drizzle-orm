@@ -157,9 +157,32 @@
 			],
 			"outputLogs": "new-only"
 		},
-		"integration-tests#build": {
+		"drizzle-seed#build": {
 			"dependsOn": [
 				"drizzle-orm#build"
+			],
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"README.md",
+				"../README.md",
+				"tsconfig.json",
+				"tsconfig.*.json",
+				"tsup.config.ts",
+				"scripts/build.ts",
+				"scripts/fix-imports.ts",
+				"../tsconfig.json"
+			],
+			"outputs": [
+				"dist/**",
+				"dist-dts/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"integration-tests#build": {
+			"dependsOn": [
+				"drizzle-orm#build",
+				"drizzle-seed#build"
 			],
 			"inputs": [
 				"src/**/*.ts",

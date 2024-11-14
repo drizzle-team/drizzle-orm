@@ -349,3 +349,9 @@ export const weightedRandomTable = schema.table('weighted_random_table', {
 export const weightedRandomWithUniqueGensTable = schema.table('weighted_random_with_unique_gens_table', {
 	weightedRandomWithUniqueGens: varchar('weighted_random_with_unique_gens', { length: 256 }).unique(),
 });
+
+export const identityColumnsTable = schema.table('identity_columns_table', {
+	id: integer('id').generatedAlwaysAsIdentity(),
+	id1: integer('id1'),
+	name: text('name'),
+});

@@ -181,6 +181,7 @@ class SeedService {
 					columnName: col.name,
 					isUnique: col.isUnique,
 					notNull: col.notNull,
+					generatedIdentityType: col.generatedIdentityType,
 					generator: undefined,
 				};
 
@@ -1055,10 +1056,12 @@ class SeedService {
 
 		// console.time("initiate generators");
 		let columnsNumber = 0;
+		let override = false;
 		// console.log("before init")
 		for (const columnName of Object.keys(tableGenerators)) {
 			columnsNumber += 1;
 			columnGenerator = tableGenerators[columnName]!;
+			override = tableGenerators[columnName]?.generatedIdentityType === 'always' ? true : override;
 
 			// columnsGenerators[columnName] = columnGenerator.generator!.execute({
 			//   count,
@@ -1153,6 +1156,7 @@ class SeedService {
 							[key: string]: PgTable | MySqlTable | SQLiteTable;
 						},
 						tableName: tableName as string,
+						override,
 					});
 					generatedValues = [];
 				} else {
@@ -1171,6 +1175,7 @@ class SeedService {
 							[key: string]: PgTable | MySqlTable | SQLiteTable;
 						},
 						tableName: tableName as string,
+						override,
 					});
 				}
 			}
@@ -1191,6 +1196,7 @@ class SeedService {
 		db,
 		schema,
 		tableName,
+		override,
 	}: {
 		generatedValues: {
 			[columnName: string]: number | string | boolean | undefined;
@@ -1203,13 +1209,16 @@ class SeedService {
 			[key: string]: PgTable | MySqlTable | SQLiteTable;
 		};
 		tableName: string;
+		override: boolean;
 	}) => {
 		// console.log(tableName, generatedValues);
 		if (is(db, PgDatabase<any>)) {
 			// console.log("table to insert data:", tableName, ";columns in table:", Object.keys(generatedValues[0]!).length, ";rows to insert:", generatedValues, ";overall parameters:", generatedValues.length * Object.keys(generatedValues[0]!).length);
-			await db
-				.insert((schema as { [key: string]: PgTable })[tableName]!)
-				.values(generatedValues);
+			const query = db.insert((schema as { [key: string]: PgTable })[tableName]!);
+			if (override === true) {
+				return await query.overridingSystemValue().values(generatedValues);
+			}
+			await query.values(generatedValues);
 		} else if (is(db, MySqlDatabase<any, any>)) {
 			// console.log("table to insert data:", tableName, ";columns in table:", Object.keys(generatedValues[0]).length, ";rows to insert:", generatedValues, ";overall parameters:", generatedValues.length * Object.keys(generatedValues[0]).length);
 			await db

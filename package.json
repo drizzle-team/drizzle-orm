@@ -23,7 +23,6 @@
 		"drizzle-kit": "^0.19.13",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"drizzle-orm-old": "npm:drizzle-orm@^0.27.2",
-		"drizzle-seed": "workspace:./drizzle-seed/dist",
 		"eslint": "^8.50.0",
 		"eslint-plugin-drizzle-internal": "link:eslint/eslint-plugin-drizzle-internal",
 		"eslint-plugin-import": "^2.28.1",

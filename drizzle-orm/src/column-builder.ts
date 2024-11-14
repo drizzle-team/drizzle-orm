@@ -107,7 +107,6 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
 	generatedIdentity: GeneratedIdentityConfig | undefined;
-	identity: 'always' | 'byDefault' | undefined;
 } & TRuntimeConfig;
 
 export interface ColumnBuilderExtraConfig {

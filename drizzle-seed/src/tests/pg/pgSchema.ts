@@ -128,3 +128,9 @@ export const details = schema.table('order_detail', {
 		.notNull()
 		.references(() => products.id, { onDelete: 'cascade' }),
 });
+
+export const identityColumnsTable = schema.table('identity_columns_table', {
+	id: integer().generatedAlwaysAsIdentity(),
+	id1: integer().generatedByDefaultAsIdentity(),
+	name: text(),
+});

@@ -9,6 +9,7 @@ export type Column = {
 	enumValues?: string[];
 	isUnique: boolean;
 	notNull: boolean;
+	generatedIdentityType?: 'always' | 'byDefault' | undefined;
 };
 
 export type Table = {

@@ -635,6 +635,7 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 				enumValues: column.enumValues,
 				isUnique: column.isUnique,
 				notNull: column.notNull,
+				generatedIdentityType: column.generatedIdentity?.type,
 			})),
 			primaryKeys: tableConfig.columns
 				.filter((column) => column.primary)
