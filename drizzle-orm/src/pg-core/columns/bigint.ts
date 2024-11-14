@@ -14,7 +14,6 @@ export type PgBigInt53BuilderInitial<TName extends string> = PgBigInt53Builder<{
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBigInt53'>>
@@ -56,7 +55,6 @@ export type PgBigInt64BuilderInitial<TName extends string> = PgBigInt64Builder<{
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBigInt64'>>

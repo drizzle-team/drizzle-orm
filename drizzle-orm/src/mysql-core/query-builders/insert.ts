@@ -16,8 +16,8 @@ import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
-import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
-import type { AnyMySqlColumn, MySqlColumn } from '../columns/common.ts';
+import { mapUpdateSet } from '~/utils.ts';
+import type { AnyMySqlColumn } from '../columns/common.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 import type { MySqlUpdateSetSource } from './update.ts';
 
@@ -210,7 +210,7 @@ export class MySqlInsertBase<
 	/**
 	 * Adds an `on duplicate key update` clause to the query.
 	 *
-	 * Calling this method will update update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
+	 * Calling this method will update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-duplicate-key-update}
 	 *
@@ -252,7 +252,7 @@ export class MySqlInsertBase<
 				returning.push({ field: value, path: [key] });
 			}
 		}
-		this.config.returning = orderSelectedFields<MySqlColumn>(this.config.table[Table.Symbol.Columns]);
+		this.config.returning = returning;
 		return this as any;
 	}
 
