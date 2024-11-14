@@ -7,8 +7,7 @@ export const db = drizzle(pool);
 
 {
 	drizzle(pool);
-	// @ts-expect-error - missing mode
 	drizzle(pool, { schema: {} });
-	drizzle(pool, { schema: {}, mode: 'default' });
-	drizzle(pool, { mode: 'default' });
+	drizzle(pool, { schema: {} });
+	drizzle(pool, {});
 }

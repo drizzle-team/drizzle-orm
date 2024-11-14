@@ -7,8 +7,6 @@ import { SingleStoreDatabase } from './db.ts';
 import type { SingleStoreDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
-export type Mode = 'default';
-
 export interface SingleStoreQueryResultHKT {
 	readonly $brand: 'SingleStoreQueryResultHKT';
 	readonly row: unknown;
@@ -140,9 +138,8 @@ export abstract class SingleStoreTransaction<
 		session: SingleStoreSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
-		mode: Mode,
 	) {
-		super(dialect, session, schema, mode);
+		super(dialect, session, schema);
 	}
 
 	rollback(): never {

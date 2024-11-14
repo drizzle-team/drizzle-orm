@@ -11,9 +11,7 @@ import {
 } from '~/relations.ts';
 import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
-import type { Mode } from '~/singlestore-core/session.ts';
 import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
-import { DrizzleError } from '../errors.ts';
 import type {
 	SingleStoreDriverClient,
 	SingleStoreDriverPreparedQueryHKT,
@@ -37,9 +35,8 @@ export class SingleStoreDriverDriver {
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
-		mode: Mode,
 	): SingleStoreDriverSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new SingleStoreDriverSession(this.client, this.dialect, schema, { logger: this.options.logger, mode });
+		return new SingleStoreDriverSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
 }
 
@@ -53,7 +50,7 @@ export class SingleStoreDriverDatabase<
 
 export type SingleStoreDriverDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
 	& Omit<DrizzleConfig<TSchema>, 'schema'>
-	& ({ schema: TSchema; mode: Mode } | { schema?: undefined; mode?: Mode });
+	& ({ schema: TSchema } | { schema?: undefined });
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
@@ -76,13 +73,6 @@ function construct<
 
 	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
 	if (config.schema) {
-		if (config.mode === undefined) {
-			throw new DrizzleError({
-				message:
-					'You need to specify "mode": "planetscale" or "default" when providing a schema. Read more: https://orm.drizzle.team/docs/rqb#modes',
-			});
-		}
-
 		const tablesConfig = extractTablesRelationalConfig(
 			config.schema,
 			createTableRelationsHelpers,
@@ -94,11 +84,9 @@ function construct<
 		};
 	}
 
-	const mode = config.mode ?? 'default';
-
 	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, { logger });
-	const session = driver.createSession(schema, mode);
-	const db = new SingleStoreDriverDatabase(dialect, session, schema as any, mode) as SingleStoreDriverDatabase<TSchema>;
+	const session = driver.createSession(schema);
+	const db = new SingleStoreDriverDatabase(dialect, session, schema as any) as SingleStoreDriverDatabase<TSchema>;
 	(<any> db).$client = client;
 
 	return db as any;

@@ -18,7 +18,6 @@ import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
 import {
-	type Mode,
 	type PreparedQueryKind,
 	SingleStorePreparedQuery,
 	type SingleStorePreparedQueryConfig,
@@ -185,7 +184,6 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
-	mode: Mode;
 }
 
 export class SingleStoreDriverSession<
@@ -195,7 +193,6 @@ export class SingleStoreDriverSession<
 	static override readonly [entityKind]: string = 'SingleStoreDriverSession';
 
 	private logger: Logger;
-	private mode: Mode;
 
 	constructor(
 		private client: SingleStoreDriverClient,
@@ -205,7 +202,6 @@ export class SingleStoreDriverSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.mode = options.mode;
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
@@ -272,7 +268,6 @@ export class SingleStoreDriverSession<
 			session as SingleStoreSession<any, any, any, any>,
 			this.schema,
 			0,
-			this.mode,
 		);
 		if (config) {
 			const setTransactionConfigSql = this.getSetTransactionSQL(config);
@@ -319,7 +314,6 @@ export class SingleStoreDriverTransaction<
 			this.session,
 			this.schema,
 			this.nestedIndex + 1,
-			this.mode,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
