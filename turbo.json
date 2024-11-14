@@ -1,12 +1,22 @@
 {
 	"$schema": "https://turbo.build/schema.json",
-	"pipeline": {
+	"tasks": {
 		"//#lint": {
-			"inputs": ["**/*.ts", "!**/node_modules", "!**/dist", "!**/dist-dts"],
-			"outputMode": "new-only"
+			"dependsOn": [
+				"^test:types"
+			],
+			"inputs": [
+				"**/*.ts",
+				"!**/node_modules",
+				"!**/dist",
+				"!**/dist-dts"
+			],
+			"outputLogs": "new-only"
 		},
 		"test:types": {
-			"dependsOn": ["^test:types", "^build"],
+			"dependsOn": [
+				"^test:types"
+			],
 			"inputs": [
 				"src/**/*.ts",
 				"tests/**/*.ts",
@@ -14,10 +24,9 @@
 				"tests/tsconfig.json",
 				"../tsconfig.json"
 			],
-			"outputMode": "new-only"
+			"outputLogs": "new-only"
 		},
-		"build": {
-			"dependsOn": ["^build"],
+		"drizzle-orm#build": {
 			"inputs": [
 				"src/**/*.ts",
 				"package.json",
@@ -30,23 +39,146 @@
 				"scripts/fix-imports.ts",
 				"../tsconfig.json"
 			],
-			"outputs": ["dist/**", "dist-dts/**"],
-			"outputMode": "new-only"
+			"outputs": [
+				"dist/**",
+				"dist-dts/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"drizzle-kit#build": {
+			"dependsOn": [
+				"drizzle-orm#build"
+			],
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"README.md",
+				"../README.md",
+				"tsconfig.json",
+				"tsconfig.*.json",
+				"tsup.config.ts",
+				"scripts/build.ts",
+				"scripts/fix-imports.ts",
+				"../tsconfig.json"
+			],
+			"outputs": [
+				"dist/**",
+				"dist-dts/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"drizzle-zod#build": {
+			"dependsOn": [
+				"drizzle-orm#build"
+			],
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"README.md",
+				"../README.md",
+				"tsconfig.json",
+				"tsconfig.*.json",
+				"tsup.config.ts",
+				"scripts/build.ts",
+				"scripts/fix-imports.ts",
+				"../tsconfig.json"
+			],
+			"outputs": [
+				"dist/**",
+				"dist-dts/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"drizzle-typebox#build": {
+			"dependsOn": [
+				"drizzle-orm#build"
+			],
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"README.md",
+				"../README.md",
+				"tsconfig.json",
+				"tsconfig.*.json",
+				"tsup.config.ts",
+				"scripts/build.ts",
+				"scripts/fix-imports.ts",
+				"../tsconfig.json"
+			],
+			"outputs": [
+				"dist/**",
+				"dist-dts/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"drizzle-valibot#build": {
+			"dependsOn": [
+				"drizzle-orm#build"
+			],
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"README.md",
+				"../README.md",
+				"tsconfig.json",
+				"tsconfig.*.json",
+				"tsup.config.ts",
+				"scripts/build.ts",
+				"scripts/fix-imports.ts",
+				"../tsconfig.json"
+			],
+			"outputs": [
+				"dist/**",
+				"dist-dts/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"integration-tests#build": {
+			"dependsOn": [
+				"drizzle-orm#build"
+			],
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"README.md",
+				"../README.md",
+				"tsconfig.json",
+				"tsconfig.*.json",
+				"tsup.config.ts",
+				"scripts/build.ts",
+				"scripts/fix-imports.ts",
+				"../tsconfig.json"
+			],
+			"outputs": [
+				"dist/**",
+				"dist-dts/**"
+			],
+			"outputLogs": "new-only"
 		},
 		"pack": {
-			"dependsOn": ["build", "test:types"],
-			"inputs": ["dist/**"],
-			"outputs": ["package.tgz"],
-			"outputMode": "new-only"
+			"dependsOn": [
+				"build",
+				"test:types"
+			],
+			"inputs": [
+				"dist/**"
+			],
+			"outputs": [
+				"package.tgz"
+			],
+			"outputLogs": "new-only"
 		},
 		"test": {
-			"dependsOn": ["build", "test:types"],
+			"dependsOn": [
+				"build",
+				"test:types"
+			],
 			"inputs": [
 				"tests/**/*.test.ts",
 				"tests/**/*.test.cjs",
 				"tests/**/*.test.mjs"
 			],
-			"outputMode": "new-only"
+			"outputLogs": "new-only"
 		}
 	}
 }
