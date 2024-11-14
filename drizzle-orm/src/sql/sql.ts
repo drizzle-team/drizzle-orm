@@ -1,11 +1,10 @@
 import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { SelectedFields } from '~/operations.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
-import { SelectResult } from '~/query-builders/select.types.ts';
+import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
-import { Assume, Equal } from '~/utils.ts';
+import type { Assume, Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';

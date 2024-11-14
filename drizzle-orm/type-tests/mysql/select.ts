@@ -22,7 +22,7 @@ import {
 	or,
 } from '~/expressions.ts';
 import { alias } from '~/mysql-core/alias.ts';
-import { InferSelectViewModel, param, sql } from '~/sql/sql.ts';
+import { type InferSelectViewModel, param, sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
