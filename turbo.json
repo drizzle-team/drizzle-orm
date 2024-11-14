@@ -3,7 +3,8 @@
 	"tasks": {
 		"//#lint": {
 			"dependsOn": [
-				"^test:types"
+				"^test:types",
+				"drizzle-orm#build"
 			],
 			"inputs": [
 				"**/*.ts",
@@ -15,7 +16,8 @@
 		},
 		"test:types": {
 			"dependsOn": [
-				"^test:types"
+				"^test:types",
+				"drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
