@@ -2,14 +2,14 @@ import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { SelectedFields } from '~/operations.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
+import { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
+import { Assume, Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { Table } from '../table.ts';
-import { Assume, Equal } from '~/utils.ts';
-import { SelectResult } from '~/query-builders/select.types.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -614,7 +614,7 @@ export type ColumnsSelection = Record<string, unknown>;
 export abstract class View<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelection extends ColumnsSelection = ColumnsSelection
+	TSelection extends ColumnsSelection = ColumnsSelection,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'View';
 
@@ -663,13 +663,13 @@ export abstract class View<
 	}
 }
 
-export type InferSelectViewModel<TView extends View> = Equal<TView['_']['selectedFields'], { [x: string]: unknown }> extends true
-	? { [x: string]: unknown }
-	: SelectResult<
-		TView['_']['selectedFields'],
-		'single',
-		Record<TView['_']['name'], 'not-null'>
-	>;
+export type InferSelectViewModel<TView extends View> =
+	Equal<TView['_']['selectedFields'], { [x: string]: unknown }> extends true ? { [x: string]: unknown }
+		: SelectResult<
+			TView['_']['selectedFields'],
+			'single',
+			Record<TView['_']['name'], 'not-null'>
+		>;
 
 // Defined separately from the Column class to resolve circular dependency
 Column.prototype.getSQL = function() {

@@ -1172,22 +1172,26 @@ await db
 		id: integer().primaryKey(),
 		phone: text().notNull(),
 	});
-	const view = pgView('view').as((qb) => qb.select({
-		table: table1,
-		column: table2.age,
-		nested: {
-			column: table3.phone,
-		}
-	}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``));
+	const view = pgView('view').as((qb) =>
+		qb.select({
+			table: table1,
+			column: table2.age,
+			nested: {
+				column: table3.phone,
+			},
+		}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``)
+	);
 	const result = await db.select().from(view);
 
-	Expect<Equal<typeof result, {
-		table: typeof table1.$inferSelect;
-		column: number;
-		nested: {
-			column: string | null;
-		}
-	}[]>>;
+	Expect<
+		Equal<typeof result, {
+			table: typeof table1.$inferSelect;
+			column: number;
+			nested: {
+				column: string | null;
+			};
+		}[]>
+	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
 	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
 }
@@ -1205,22 +1209,26 @@ await db
 		id: integer().primaryKey(),
 		phone: text().notNull(),
 	});
-	const view = pgMaterializedView('view').as((qb) => qb.select({
-		table: table1,
-		column: table2.age,
-		nested: {
-			column: table3.phone,
-		}
-	}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``));
+	const view = pgMaterializedView('view').as((qb) =>
+		qb.select({
+			table: table1,
+			column: table2.age,
+			nested: {
+				column: table3.phone,
+			},
+		}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``)
+	);
 	const result = await db.select().from(view);
 
-	Expect<Equal<typeof result, {
-		table: typeof table1.$inferSelect;
-		column: number;
-		nested: {
-			column: string | null;
-		}
-	}[]>>;
+	Expect<
+		Equal<typeof result, {
+			table: typeof table1.$inferSelect;
+			column: number;
+			nested: {
+				column: string | null;
+			};
+		}[]>
+	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
 	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
 }

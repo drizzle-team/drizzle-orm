@@ -26,7 +26,15 @@ import { InferSelectViewModel, param, sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { int, type MySqlSelect, type MySqlSelectQueryBuilder, mysqlTable, mysqlView, QueryBuilder, text } from '~/mysql-core/index.ts';
+import {
+	int,
+	type MySqlSelect,
+	type MySqlSelectQueryBuilder,
+	mysqlTable,
+	mysqlView,
+	QueryBuilder,
+	text,
+} from '~/mysql-core/index.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
 
@@ -618,22 +626,26 @@ await db
 		id: int().primaryKey(),
 		phone: text().notNull(),
 	});
-	const view = mysqlView('view').as((qb) => qb.select({
-		table: table1,
-		column: table2.age,
-		nested: {
-			column: table3.phone,
-		}
-	}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``));
+	const view = mysqlView('view').as((qb) =>
+		qb.select({
+			table: table1,
+			column: table2.age,
+			nested: {
+				column: table3.phone,
+			},
+		}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``)
+	);
 	const result = await db.select().from(view);
 
-	Expect<Equal<typeof result, {
-		table: typeof table1.$inferSelect;
-		column: number;
-		nested: {
-			column: string | null;
-		}
-	}[]>>;
+	Expect<
+		Equal<typeof result, {
+			table: typeof table1.$inferSelect;
+			column: number;
+			nested: {
+				column: string | null;
+			};
+		}[]>
+	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
 	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
 }

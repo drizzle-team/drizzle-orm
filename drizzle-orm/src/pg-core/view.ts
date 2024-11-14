@@ -301,7 +301,7 @@ export class ManualMaterializedViewBuilder<
 export class PgView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelectedFields extends ColumnsSelection = ColumnsSelection
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends PgViewBase<TName, TExisting, TSelectedFields> {
 	static override readonly [entityKind]: string = 'PgView';
 
@@ -332,7 +332,7 @@ export class PgView<
 export type PgViewWithSelection<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelectedFields extends ColumnsSelection = ColumnsSelection
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > = PgView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
 export const PgMaterializedViewConfig = Symbol.for('drizzle:PgMaterializedViewConfig');
