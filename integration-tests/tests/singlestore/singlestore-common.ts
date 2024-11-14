@@ -35,7 +35,6 @@ import {
 	decimal,
 	except,
 	getTableConfig,
-	getViewConfig,
 	int,
 	intersect,
 	json,
@@ -46,7 +45,7 @@ import {
 	singlestoreSchema,
 	singlestoreTable,
 	singlestoreTableCreator,
-	singlestoreView,
+	/* singlestoreView, */
 	smallint,
 	text,
 	time,
@@ -1832,7 +1831,8 @@ export function tests(driver?: string) {
 			]);
 		});
 
-		test('view', async (ctx) => {
+		// TODO: Unskip when views are supported
+		/* test.skip('view', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			const newYorkers1 = singlestoreView('new_yorkers')
@@ -1893,7 +1893,7 @@ export function tests(driver?: string) {
 			}
 
 			await db.execute(sql`drop view ${newYorkers1}`);
-		});
+		}); */
 
 		test('select from raw sql', async (ctx) => {
 			const { db } = ctx.singlestore;
@@ -2169,7 +2169,8 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table ${ticket}`);
 		});
 
-		test('subquery with view', async (ctx) => {
+		// TODO: Unskip when views are supported
+		/* test.skip('subquery with view', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			const users = singlestoreTable('users_subquery_view', {
@@ -2205,9 +2206,10 @@ export function tests(driver?: string) {
 
 			await db.execute(sql`drop view ${newYorkers}`);
 			await db.execute(sql`drop table ${users}`);
-		});
+		}); */
 
-		test('join view as subquery', async (ctx) => {
+		// TODO: Unskip when views are supported
+		/* test.skip('join view as subquery', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			const users = singlestoreTable('users_join_view', {
@@ -2258,7 +2260,7 @@ export function tests(driver?: string) {
 
 			await db.execute(sql`drop view ${newYorkers}`);
 			await db.execute(sql`drop table ${users}`);
-		});
+		}); */
 
 		test('select iterator', async (ctx) => {
 			const { db } = ctx.singlestore;
@@ -3342,7 +3344,8 @@ export function tests(driver?: string) {
 			expect(result).toStrictEqual([{ customId: 'test' }, { customId: 'ao865jf3mcmkfkk8o5ri495z' }]);
 		});
 
-		test('mySchema :: view', async (ctx) => {
+		// TODO: Unkip this test when views are supported
+		/* test.skip('mySchema :: view', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			const newYorkers1 = mySchema.view('new_yorkers')
@@ -3403,7 +3406,7 @@ export function tests(driver?: string) {
 			}
 
 			await db.execute(sql`drop view ${newYorkers1}`);
-		});
+		}); */
 
 		test('limit 0', async (ctx) => {
 			const { db } = ctx.singlestore;

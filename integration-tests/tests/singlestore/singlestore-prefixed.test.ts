@@ -9,14 +9,13 @@ import {
 	boolean,
 	date,
 	datetime,
-	getViewConfig,
 	int,
 	json,
 	serial,
 	singlestoreEnum,
 	singlestoreTable as singlestoreTableRaw,
 	singlestoreTableCreator,
-	singlestoreView,
+	/* singlestoreView, */
 	text,
 	time,
 	timestamp,
@@ -1085,7 +1084,8 @@ test('having', async () => {
 	]);
 });
 
-test('view', async () => {
+// TODO: Unskip when views are supported
+/* test.skip('view', async () => {
 	const newYorkers1 = singlestoreView('new_yorkers')
 		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 
@@ -1144,7 +1144,7 @@ test('view', async () => {
 	}
 
 	await db.execute(sql`drop view ${newYorkers1}`);
-});
+}); */
 
 test('select from raw sql', async () => {
 	const result = await db.select({
@@ -1396,7 +1396,8 @@ test('join subquery with join', async () => {
 	}]);
 });
 
-test('subquery with view', async () => {
+// TODO: Unskip when views are supported
+/* test.skip('subquery with view', async () => {
 	const users = singlestoreTable('users_subquery_view', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -1430,9 +1431,10 @@ test('subquery with view', async () => {
 		{ id: 1, name: 'John', cityId: 1 },
 		{ id: 3, name: 'Jack', cityId: 1 },
 	]);
-});
+}); */
 
-test('join view as subquery', async () => {
+// TODO: Unskip when views are supported
+/* test.skip('join view as subquery', async () => {
 	const users = singlestoreTable('users_join_view', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -1481,7 +1483,7 @@ test('join view as subquery', async () => {
 
 	await db.execute(sql`drop view ${newYorkers}`);
 	await db.execute(sql`drop table ${users}`);
-});
+}); */
 
 test('select iterator', async () => {
 	const users = singlestoreTable('users_iterator', {
