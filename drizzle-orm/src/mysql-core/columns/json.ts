@@ -11,7 +11,6 @@ export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlJson'>> extends MySqlColumnBuilder<T> {

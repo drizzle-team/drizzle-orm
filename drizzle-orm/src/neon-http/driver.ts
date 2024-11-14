@@ -16,7 +16,7 @@ export interface NeonDriverOptions {
 }
 
 export class NeonHttpDriver {
-	static readonly [entityKind]: string = 'NeonDriver';
+	static readonly [entityKind]: string = 'NeonHttpDriver';
 
 	constructor(
 		private client: NeonHttpClient,

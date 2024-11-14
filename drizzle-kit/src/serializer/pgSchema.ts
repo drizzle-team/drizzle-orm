@@ -1,4 +1,3 @@
-import { vectorOps } from 'src/extensions/vector';
 import { mapValues, originUUID, snapshotVersion } from '../global';
 
 import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
@@ -240,6 +239,7 @@ export const policy = object({
 	using: string().optional(),
 	withCheck: string().optional(),
 	on: string().optional(),
+	schema: string().optional(),
 }).strict();
 
 export const policySquashed = object({
@@ -554,10 +554,7 @@ export const PgSquasher = {
 		return `${idx.name};${
 			idx.columns
 				.map(
-					(c) =>
-						`${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${
-							c.opclass && vectorOps.includes(c.opclass) ? c.opclass : ''
-						}`,
+					(c) => `${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${c.opclass ? c.opclass : ''}`,
 				)
 				.join(',,')
 		};${idx.isUnique};${idx.concurrently};${idx.method};${idx.where};${JSON.stringify(idx.with)}`;
@@ -656,6 +653,16 @@ export const PgSquasher = {
 	},
 	squashPolicyPush: (policy: Policy) => {
 		return `${policy.name}--${policy.as}--${policy.for}--${policy.to?.join(',')}--${policy.on}`;
+	},
+	unsquashPolicyPush: (policy: string): Policy => {
+		const splitted = policy.split('--');
+		return {
+			name: splitted[0],
+			as: splitted[1] as Policy['as'],
+			for: splitted[2] as Policy['for'],
+			to: splitted[3].split(','),
+			on: splitted[4] !== 'undefined' ? splitted[4] : undefined,
+		};
 	},
 	squashPK: (pk: PrimaryKey) => {
 		return `${pk.columns.join(',')};${pk.name}`;

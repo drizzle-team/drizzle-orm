@@ -343,18 +343,9 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 };
 
 export const preparePgPush = async (
-	schemaPath: string | string[],
-	snapshot: PgSchema,
-	schemaFilter: string[],
-	casing: CasingType | undefined,
+	cur: PgSchema,
+	prev: PgSchema,
 ) => {
-	const { prev, cur } = await preparePgDbPushSnapshot(
-		snapshot,
-		schemaPath,
-		casing,
-		schemaFilter,
-	);
-
 	const validatedPrev = pgSchema.parse(prev);
 	const validatedCur = pgSchema.parse(cur);
 
@@ -1087,7 +1078,7 @@ export const writeResult = ({
 
 	if (type === 'custom') {
 		console.log('Prepared empty file for your custom SQL migration!');
-		sql = '-- Custom SQL migration file, put you code below! --';
+		sql = '-- Custom SQL migration file, put your code below! --';
 	}
 
 	journal.entries.push({
