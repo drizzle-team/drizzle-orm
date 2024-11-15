@@ -81,6 +81,13 @@ export class PgSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	/**
 	 * Specify the table, subquery, or other target that you're
 	 * building a select query against.
@@ -115,15 +122,25 @@ export class PgSelectBuilder<
 			fields = getTableColumns<PgTable>(source);
 		}
 
-		return new PgSelectBase({
-			table: source,
-			fields,
-			isPartialSelect,
-			session: this.session,
-			dialect: this.dialect,
-			withList: this.withList,
-			distinct: this.distinct,
-		}) as any;
+		return (this.authToken === undefined
+			? new PgSelectBase({
+				table: source,
+				fields,
+				isPartialSelect,
+				session: this.session,
+				dialect: this.dialect,
+				withList: this.withList,
+				distinct: this.distinct,
+			})
+			: new PgSelectBase({
+				table: source,
+				fields,
+				isPartialSelect,
+				session: this.session,
+				dialect: this.dialect,
+				withList: this.withList,
+				distinct: this.distinct,
+			}).setToken(this.authToken)) as any;
 	}
 }
 
@@ -951,7 +968,7 @@ export class PgSelectBase<
 
 	/** @internal */
 	_prepare(name?: string): PgSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap } = this;
+		const { session, config, dialect, joinsNotNullableMap, authToken } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
@@ -961,7 +978,8 @@ export class PgSelectBase<
 				PreparedQueryConfig & { execute: TResult }
 			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true);
 			query.joinsNotNullableMap = joinsNotNullableMap;
-			return query;
+
+			return authToken === undefined ? query : query.setToken(authToken);
 		});
 	}
 
@@ -976,9 +994,16 @@ export class PgSelectBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 }

@@ -142,9 +142,16 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		return this._toSQL().builtQuery;
 	}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	override execute(): Promise<TResult> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute();
+			return this._prepare().execute(undefined, this.authToken);
 		});
 	}
 }

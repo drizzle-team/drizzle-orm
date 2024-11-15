@@ -46,6 +46,13 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 		private withList?: Subquery[],
 	) {}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	values(value: PgInsertValue<TTable>): PgInsertBase<TTable, TQueryResult>;
 	values(values: PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult>;
 	values(values: PgInsertValue<TTable> | PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult> {
@@ -63,7 +70,11 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 			return result;
 		});
 
-		return new PgInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
+		return this.authToken === undefined
+			? new PgInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList)
+			: new PgInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList).setToken(
+				this.authToken,
+			) as any;
 	}
 }
 
@@ -327,9 +338,16 @@ export class PgInsertBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 
