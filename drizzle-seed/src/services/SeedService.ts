@@ -66,7 +66,8 @@ class SeedService {
 		// console.log("relations:", relations);
 		// sorting table in order which they will be filled up (tables with foreign keys case)
 		// relations = relations.filter(rel => rel.type === "one");
-		const orderedTablesNames = this.getOrderedTablesList(relations);
+		const tablesInOutRelations = this.getTablesInOutRelations(relations);
+		const orderedTablesNames = this.getOrderedTablesList(tablesInOutRelations);
 		tables = tables.sort((tabel1, tabel2) => {
 			const tabel1Order = orderedTablesNames.indexOf(
 					tabel1.name,
@@ -120,6 +121,15 @@ class SeedService {
 							refinements[table.name]!.with as {},
 						)
 					) {
+						if (!tablesInOutRelations[table.name]?.dependantTableNames.has(fkTableName)) {
+							const reason = tablesInOutRelations[table.name]?.selfRelation === true
+								? `"${table.name}" table has self reference`
+								: `"${fkTableName}" table doesn't have reference to "${table.name}" table`;
+							throw new Error(
+								`${reason}. you can't specify "${fkTableName}" as parameter in ${table.name}.with object.`,
+							);
+						}
+
 						idx = tablesPossibleGenerators.findIndex(
 							(table) => table.tableName === fkTableName,
 						);
@@ -246,9 +256,9 @@ class SeedService {
 		return tablesPossibleGenerators;
 	};
 
-	getOrderedTablesList = (relations: Relation[]): string[] => {
+	getOrderedTablesList = (tablesInOutRelations: ReturnType<typeof this.getTablesInOutRelations>): string[] => {
 		// console.time("getOrderedTablesList");
-		const tablesInOutRelations = this.getTablesInOutRelations(relations);
+		// const tablesInOutRelations = this.getTablesInOutRelations(relations);
 
 		const leafTablesNames = Object.entries(tablesInOutRelations)
 			.filter(
@@ -280,11 +290,9 @@ class SeedService {
 				continue;
 			}
 
-			tablesInOutRelations[parent]!.requiredTableNames = new Set(
-				[...tablesInOutRelations[parent]!.requiredTableNames.values()].filter(
-					(tableName) => !orderedTablesNames.includes(tableName),
-				),
-			);
+			for (const orderedTableName of orderedTablesNames) {
+				tablesInOutRelations[parent]!.requiredTableNames.delete(orderedTableName);
+			}
 
 			if (tablesInOutRelations[parent]!.requiredTableNames.size === 0) {
 				orderedTablesNames.push(parent);
