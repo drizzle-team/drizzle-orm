@@ -15,6 +15,17 @@ type EnumHasAtLeastOneValue<TEnum extends [string, ...string[]] | undefined> =
       : false
   : false;
 
+type ColumnIsGeneratedAlwaysAs<TColumn extends Column> =
+  TColumn['_']['generated'] extends infer TGenerated extends { type: string }
+    ? TGenerated['type'] extends 'always'
+      ? true
+      : false
+    : false;
+
+type RemoveNever<T> = {
+  [K in keyof T as T[K] extends never ? never : K]: T[K];
+};
+
 export type GetZodType<
   TData,
   TDataType extends string,
@@ -69,53 +80,120 @@ export type BuildRefine<TColumns extends Record<string, any>> = BuildRefineColum
   }
   : never;
 
-export type BuildSelectSchema<
+type HandleRefinement<
+  TRefinement extends z.ZodTypeAny | ((schema: z.ZodTypeAny) => z.ZodTypeAny),
+  TColumn extends Column
+> = TRefinement extends (schema: z.ZodTypeAny) => z.ZodTypeAny
+  ? TColumn['_']['notNull'] extends true
+    ? ReturnType<TRefinement>
+    : z.ZodNullable<ReturnType<TRefinement>>
+  : TRefinement;
+
+type HandleColumn<
+  TType extends 'select' | 'insert' | 'update',
+  TColumn extends Column
+> = GetZodType<
+    TColumn['_']['data'],
+    TColumn['_']['dataType'],
+    TColumn['_'] extends { enumValues: [string, ...string[]] } ? TColumn['_']['enumValues'] : undefined
+  > extends infer TSchema extends z.ZodTypeAny
+  ? TSchema extends z.ZodAny
+    ? z.ZodAny
+    : TType extends 'select'
+    ? HandleSelectColumn<TSchema, TColumn>
+    : TType extends 'insert'
+    ? HandleInsertColumn<TSchema, TColumn>
+    : TType extends 'update'
+    ? HandleUpdateColumn<TSchema, TColumn>
+    : TSchema
+  : z.ZodAny
+
+type HandleSelectColumn<
+  TSchema extends z.ZodTypeAny,
+  TColumn extends Column
+> = TColumn['_']['notNull'] extends true
+  ? TSchema
+  : z.ZodNullable<TSchema>;
+
+type HandleInsertColumn<
+  TSchema extends z.ZodTypeAny,
+  TColumn extends Column
+> = ColumnIsGeneratedAlwaysAs<TColumn> extends true
+  ? never
+  : TColumn['_']['notNull'] extends true
+    ? TColumn['_']['hasDefault'] extends true
+      ? z.ZodOptional<TSchema>
+      : TSchema
+    : z.ZodOptional<z.ZodNullable<TSchema>>;
+
+type HandleUpdateColumn<
+  TSchema extends z.ZodTypeAny,
+  TColumn extends Column
+> = ColumnIsGeneratedAlwaysAs<TColumn> extends true
+  ? never
+  : TColumn['_']['notNull'] extends true
+    ? z.ZodOptional<TSchema>
+    : z.ZodOptional<z.ZodNullable<TSchema>>;
+
+export type BuildSchema<
+  TType extends 'select' | 'insert' | 'update',
   TColumns extends Record<string, any>,
-  TRefinements extends Record<string, ((schema: z.ZodTypeAny) => z.ZodTypeAny | z.ZodTypeAny)> | undefined
+  TRefinements extends Record<string, any> | undefined
 > = z.ZodObject<
-  Simplify<{
+  Simplify<RemoveNever<{
     [K in keyof TColumns]:
       TColumns[K] extends infer TColumn extends Column
-        ? TRefinements[Assume<K, keyof TRefinements>] extends infer TRefinement extends z.ZodTypeAny | ((schema: z.ZodTypeAny) => z.ZodTypeAny)
-          ? TRefinement extends (schema: z.ZodTypeAny) => z.ZodTypeAny
-            ? TColumn['_']['notNull'] extends true ? ReturnType<TRefinement> : z.ZodNullable<ReturnType<TRefinement>>
-            : TRefinement
-          : GetZodType<
-            TColumn['_']['data'],
-            TColumn['_']['dataType'],
-            TColumn['_'] extends { enumValues: [string, ...string[]] } ? TColumn['_']['enumValues'] : undefined
-          > extends infer TSchema extends z.ZodTypeAny
-            ? TColumn['_']['notNull'] extends true
-                ? TSchema
-                : z.ZodNullable<TSchema>
-              : z.ZodAny
+        ? TRefinements extends object
+          ? TRefinements[Assume<K, keyof TRefinements>] extends infer TRefinement extends z.ZodTypeAny | ((schema: z.ZodTypeAny) => z.ZodTypeAny)
+            ? HandleRefinement<TRefinement, TColumn>
+            : HandleColumn<TType, TColumn>
+          : HandleColumn<TType, TColumn>
         : TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column>
-          ? BuildSelectSchema<TObject, Assume<TRefinements[Assume<K, keyof TRefinements>], Record<string, any>>>
+          ? BuildSchema<
+              TType,
+              TObject,
+              TRefinements extends object
+                ? TRefinements[Assume<K, keyof TRefinements>] extends infer TNestedRefinements extends object
+                  ? TNestedRefinements
+                  : undefined
+                : undefined
+            >
           : z.ZodAny
-  }>,
+  }>>,
   'strip'
 >;
 
 export interface CreateSelectSchema {
-  <TView extends View>(view: TView): BuildSelectSchema<TView['_']['selectedFields'], never>;
+  <TView extends View>(view: TView): BuildSchema<'select', TView['_']['selectedFields'], undefined>;
   <
     TView extends View,
     TRefine extends BuildRefine<TView['_']['selectedFields']>
   >(
     view: TView,
     refine: TRefine
-  ): BuildSelectSchema<TView['_']['selectedFields'], TRefine>;
+  ): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
 
-  <TTable extends Table>(table: TTable): BuildSelectSchema<TTable['_']['columns'], never>;
+  <TTable extends Table>(table: TTable): BuildSchema<'select', TTable['_']['columns'], undefined>;
   <
     TTable extends Table,
     TRefine extends BuildRefine<TTable['_']['columns']>
   >(
     table: TTable,
     refine?: TRefine
-  ): BuildSelectSchema<TTable['_']['columns'], TRefine>;
+  ): BuildSchema<'select', TTable['_']['columns'], TRefine>;
 
   <TEnum extends PgEnum<any>>(enum_: TEnum): z.ZodEnum<TEnum['enumValues']>;
+}
+
+export interface CreateInsertSchema {
+  <TTable extends Table>(table: TTable): BuildSchema<'insert', TTable['_']['columns'], undefined>;
+  <
+    TTable extends Table,
+    TRefine extends BuildRefine<TTable['_']['columns']>
+  >(
+    table: TTable,
+    refine?: TRefine
+  ): BuildSchema<'insert', TTable['_']['columns'], TRefine>;
 }
 
 export interface CreateSchemaFactoryOptions {

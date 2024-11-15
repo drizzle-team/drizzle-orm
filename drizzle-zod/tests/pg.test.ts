@@ -1,7 +1,7 @@
 import { char, date, getViewConfig, integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 import { z } from 'zod';
-import { createSelectSchema } from '../src';
+import { createInsertSchema, createSelectSchema } from '../src';
 import { expectEnumValues, expectSchemaShape } from './utils.ts';
 import { sql } from 'drizzle-orm';
 
@@ -13,6 +13,18 @@ test('table - select', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = z.object({ id: z.number().int(), name: z.string() });
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('table - insert', (t) => {
+	const table = pgTable('test', {
+		id: integer('id').generatedAlwaysAsIdentity().primaryKey(),
+		name: text('name').notNull(),
+		age: integer('age')
+	});
+
+	const result = createInsertSchema(table);
+	const expected = z.object({ name: z.string(), age: z.number().nullable().optional() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -165,161 +177,3 @@ test('refine view - select', (t) => {
 	});
 	expectSchemaShape(t, expected).from(result);
 });
-
-// export const roleEnum = pgEnum('role', ['admin', 'user']);
-
-// const users = pgTable('users', {
-// 	a: integer('a').array(),
-// 	id: serial('id').primaryKey(),
-// 	name: text('name'),
-// 	email: text('email').notNull(),
-// 	birthdayString: date('birthday_string').notNull(),
-// 	birthdayDate: date('birthday_date', { mode: 'date' }).notNull(),
-// 	createdAt: timestamp('created_at').notNull().defaultNow(),
-// 	role: roleEnum('role').notNull(),
-// 	roleText: text('role1', { enum: ['admin', 'user'] }).notNull(),
-// 	roleText2: text('role2', { enum: ['admin', 'user'] }).notNull().default('user'),
-// 	profession: varchar('profession', { length: 20 }).notNull(),
-// 	initials: char('initials', { length: 2 }).notNull(),
-// });
-
-// const testUser = {
-// 	a: [1, 2, 3],
-// 	id: 1,
-// 	name: 'John Doe',
-// 	email: 'john.doe@example.com',
-// 	birthdayString: '1990-01-01',
-// 	birthdayDate: new Date('1990-01-01'),
-// 	createdAt: new Date(),
-// 	role: 'admin',
-// 	roleText: 'admin',
-// 	roleText2: 'admin',
-// 	profession: 'Software Engineer',
-// 	initials: 'JD',
-// };
-
-// test('users insert valid user', () => {
-// 	const schema = createInsertSchema(users);
-
-// 	expected(schema.safeParse(testUser).success).toBeTruthy();
-// });
-
-// test('users insert invalid varchar', () => {
-// 	const schema = createInsertSchema(users);
-
-// 	expected(schema.safeParse({ ...testUser, profession: 'Chief Executive Officer' }).success).toBeFalsy();
-// });
-
-// test('users insert invalid char', () => {
-// 	const schema = createInsertSchema(users);
-
-// 	expected(schema.safeParse({ ...testUser, initials: 'JoDo' }).success).toBeFalsy();
-// });
-
-// test('users insert schema', (t) => {
-// 	const actual = createInsertSchema(users, {
-// 		id: ({ id }) => id.positive(),
-// 		email: ({ email }) => email.email(),
-// 		roleText: z.enum(['user', 'manager', 'admin']),
-// 	});
-
-// 	(() => {
-// 		{
-// 			createInsertSchema(users, {
-// 				// @ts-expected-error (missing property)
-// 				foobar: z.number(),
-// 			});
-// 		}
-
-// 		{
-// 			createInsertSchema(users, {
-// 				// @ts-expected-error (invalid type)
-// 				id: 123,
-// 			});
-// 		}
-// 	});
-
-// 	const expecteded = z.object({
-// 		a: z.array(z.number()).nullable().optional(),
-// 		id: z.number().positive().optional(),
-// 		name: z.string().nullable().optional(),
-// 		email: z.string().email(),
-// 		birthdayString: z.string(),
-// 		birthdayDate: z.date(),
-// 		createdAt: z.date().optional(),
-// 		role: z.enum(['admin', 'user']),
-// 		roleText: z.enum(['user', 'manager', 'admin']),
-// 		roleText2: z.enum(['admin', 'user']).optional(),
-// 		profession: z.string().max(20).min(1),
-// 		initials: z.string().max(2).min(1),
-// 	});
-
-// 	expectedSchemaShape(t, expecteded).from(actual);
-// });
-
-// test('users insert schema w/ defaults', (t) => {
-// 	const actual = createInsertSchema(users);
-
-// 	const expecteded = z.object({
-// 		a: z.array(z.number()).nullable().optional(),
-// 		id: z.number().optional(),
-// 		name: z.string().nullable().optional(),
-// 		email: z.string(),
-// 		birthdayString: z.string(),
-// 		birthdayDate: z.date(),
-// 		createdAt: z.date().optional(),
-// 		role: z.enum(['admin', 'user']),
-// 		roleText: z.enum(['admin', 'user']),
-// 		roleText2: z.enum(['admin', 'user']).optional(),
-// 		profession: z.string().max(20).min(1),
-// 		initials: z.string().max(2).min(1),
-// 	});
-
-// 	expectedSchemaShape(t, expecteded).from(actual);
-// });
-
-// test('users select schema', (t) => {
-// 	const actual = createSelectSchema(users, {
-// 		id: ({ id }) => id.positive(),
-// 		email: ({ email }) => email.email(),
-// 		roleText: z.enum(['user', 'manager', 'admin']),
-// 	});
-
-// 	const expecteded = z.object({
-// 		a: z.array(z.number()).nullable(),
-// 		id: z.number().positive(),
-// 		name: z.string().nullable(),
-// 		email: z.string().email(),
-// 		birthdayString: z.string(),
-// 		birthdayDate: z.date(),
-// 		createdAt: z.date(),
-// 		role: z.enum(['admin', 'user']),
-// 		roleText: z.enum(['user', 'manager', 'admin']),
-// 		roleText2: z.enum(['admin', 'user']),
-// 		profession: z.string().max(20).min(1),
-// 		initials: z.string().max(2).min(1),
-// 	});
-
-// 	expectedSchemaShape(t, expecteded).from(actual);
-// });
-
-// test('users select schema w/ defaults', (t) => {
-// 	const actual = createSelectSchema(users);
-
-// 	const expecteded = z.object({
-// 		a: z.array(z.number()).nullable(),
-// 		id: z.number(),
-// 		name: z.string().nullable(),
-// 		email: z.string(),
-// 		birthdayString: z.string(),
-// 		birthdayDate: z.date(),
-// 		createdAt: z.date(),
-// 		role: z.enum(['admin', 'user']),
-// 		roleText: z.enum(['admin', 'user']),
-// 		roleText2: z.enum(['admin', 'user']),
-// 		profession: z.string().max(20).min(1),
-// 		initials: z.string().max(2).min(1),
-// 	});
-
-// 	expectedSchemaShape(t, expecteded).from(actual);
-// });
