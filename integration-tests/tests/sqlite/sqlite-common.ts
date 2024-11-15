@@ -153,6 +153,9 @@ export function tests() {
 			await db.run(sql`drop table if exists ${orders}`);
 			await db.run(sql`drop table if exists ${bigIntExample}`);
 			await db.run(sql`drop table if exists ${pkExampleTable}`);
+			await db.run(sql`drop table if exists user_notifications_insert_into`);
+			await db.run(sql`drop table if exists users_insert_into`);
+			await db.run(sql`drop table if exists notifications_insert_into`);
 
 			await db.run(sql`
 				create table ${usersTable} (
@@ -3247,42 +3250,42 @@ export function tests() {
 	test('insert into ... select', async (ctx) => {
 		const { db } = ctx.sqlite;
 
-		const notifications = sqliteTable('notifications', {
+		const notifications = sqliteTable('notifications_insert_into', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
 			sentAt: integer('sent_at', { mode: 'timestamp' }).notNull().default(sql`current_timestamp`),
 			message: text('message').notNull(),
 		});
-		const users = sqliteTable('users', {
+		const users = sqliteTable('users_insert_into', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
 			name: text('name').notNull(),
 		});
-		const userNotications = sqliteTable('user_notifications', {
+		const userNotications = sqliteTable('user_notifications_insert_into', {
 			userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 			notificationId: integer('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
 		}, (t) => ({
 			pk: primaryKey({ columns: [t.userId, t.notificationId] }),
 		}));
 
-		await db.run(sql`drop table if exists notifications`);
-		await db.run(sql`drop table if exists users`);
-		await db.run(sql`drop table if exists user_notifications`);
+		await db.run(sql`drop table if exists notifications_insert_into`);
+		await db.run(sql`drop table if exists users_insert_into`);
+		await db.run(sql`drop table if exists user_notifications_insert_into`);
 		await db.run(sql`
-			create table notifications (
+			create table notifications_insert_into (
 				id integer primary key autoincrement,
 				sent_at integer not null default (current_timestamp),
 				message text not null
 			)
 		`);
 		await db.run(sql`
-			create table users (
+			create table users_insert_into (
 				id integer primary key autoincrement,
 				name text not null
 			)
 		`);
 		await db.run(sql`
-			create table user_notifications (
-				user_id integer references users(id) on delete cascade,
-				notification_id integer references notifications(id) on delete cascade,
+			create table user_notifications_insert_into (
+				user_id integer references users_insert_into(id) on delete cascade,
+				notification_id integer references notifications_insert_into(id) on delete cascade,
 				primary key (user_id, notification_id)
 			)
 		`);
