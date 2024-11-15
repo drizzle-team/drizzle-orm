@@ -63,7 +63,7 @@ export const usersTable = sqliteTable('users', {
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`strftime('%s', 'now')`),
 });
 
-const usersOnUpdate = sqliteTable('users_on_update', {
+export const usersOnUpdate = sqliteTable('users_on_update', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	name: text('name').notNull(),
 	updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
@@ -906,6 +906,68 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
+		test('prepared statement with placeholder in .limit', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values({ name: 'John' }).run();
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.where(eq(usersTable.id, sql.placeholder('id')))
+				.limit(sql.placeholder('limit'))
+				.prepare();
+
+			const result = await stmt.all({ id: 1, limit: 1 });
+
+			expect(result).toEqual([{ id: 1, name: 'John' }]);
+			expect(result).toHaveLength(1);
+		});
+
+		test('prepared statement with placeholder in .offset', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).run();
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.limit(sql.placeholder('limit'))
+				.offset(sql.placeholder('offset'))
+				.prepare();
+
+			const result = await stmt.all({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+		});
+
+		test('prepared statement built using $dynamic', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			function withLimitOffset(qb: any) {
+				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
+			}
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).run();
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.$dynamic();
+			withLimitOffset(stmt).prepare('stmt_limit');
+
+			const result = await stmt.all({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+			expect(result).toHaveLength(1);
+		});
+
 		test('select with group by as field', async (ctx) => {
 			const { db } = ctx.sqlite;
 
@@ -1388,7 +1450,7 @@ export function tests() {
 				cityId: integer('city_id').notNull(),
 			}).existing();
 
-			await db.run(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
+			await db.run(sql`create view if not exists new_yorkers as ${getViewConfig(newYorkers1).query}`);
 
 			await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]).run();
 
@@ -1782,7 +1844,7 @@ export function tests() {
 			await db.run(
 				sql`create table ${users} (id integer not null primary key, name text not null, city_id integer not null)`,
 			);
-			await db.run(sql`create view ${newYorkers} as ${getViewConfig(newYorkers).query}`);
+			await db.run(sql`create view if not exists ${newYorkers} as ${getViewConfig(newYorkers).query}`);
 
 			db.insert(users).values([
 				{ name: 'John', cityId: 1 },

@@ -1,4 +1,5 @@
 {
+	"name": "drizzle-root",
 	"private": true,
 	"scripts": {
 		"build:orm": "turbo run build --filter drizzle-orm --color",
@@ -11,7 +12,7 @@
 		"lint": "concurrently -n eslint,dprint \"eslint --ext ts .\" \"dprint check --list-different\""
 	},
 	"devDependencies": {
-		"@arethetypeswrong/cli": "^0.15.3",
+		"@arethetypeswrong/cli": "0.15.3",
 		"@trivago/prettier-plugin-sort-imports": "^4.2.0",
 		"@typescript-eslint/eslint-plugin": "^6.7.3",
 		"@typescript-eslint/experimental-utils": "^5.62.0",
@@ -34,7 +35,7 @@
 		"resolve-tspaths": "^0.8.16",
 		"tsup": "^7.2.0",
 		"tsx": "^4.10.5",
-		"turbo": "^1.10.14",
+		"turbo": "^2.2.3",
 		"typescript": "5.6.3"
 	},
 	"packageManager": "pnpm@9.7.0"

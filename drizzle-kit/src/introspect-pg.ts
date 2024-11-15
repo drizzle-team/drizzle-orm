@@ -11,7 +11,6 @@ import {
 import './@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from './cli/validations/common';
-import { vectorOps } from './extensions/vector';
 import { assertUnreachable } from './global';
 import {
 	CheckConstraint,
@@ -20,10 +19,12 @@ import {
 	Index,
 	PgKitInternals,
 	PgSchemaInternal,
+	Policy,
 	PrimaryKey,
 	UniqueConstraint,
 } from './serializer/pgSchema';
 import { indexName } from './serializer/pgSerializer';
+import { unescapeSingleQuotes } from './utils';
 
 const pgImportsList = new Set([
 	'pgTable',
@@ -339,6 +340,10 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 				(it) => 'check',
 			);
 
+			const policiesImports = Object.values(it.policies).map(
+				(it) => 'pgPolicy',
+			);
+
 			if (it.schema && it.schema !== 'public' && it.schema !== '') {
 				res.pg.push('pgSchema');
 			}
@@ -347,6 +352,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			res.pg.push(...fkImpots);
 			res.pg.push(...pkImports);
 			res.pg.push(...uniqueImports);
+			res.pg.push(...policiesImports);
 			res.pg.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
@@ -417,6 +423,10 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		}
 	});
 
+	if (Object.keys(schema.roles).length > 0) {
+		imports.pg.push('pgRole');
+	}
+
 	const enumStatements = Object.values(schema.enums)
 		.map((it) => {
 			const enumSchema = schemas[it.schema];
@@ -426,7 +436,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			const func = enumSchema ? `${enumSchema}.enum` : 'pgEnum';
 
 			const values = Object.values(it.values)
-				.map((it) => `'${it}'`)
+				.map((it) => `'${unescapeSingleQuotes(it, false)}'`)
 				.join(', ');
 			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
 		})
@@ -468,12 +478,30 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			})\n`;
 		})
 		.join('')
-		.concat('\n');
+		.concat('');
 
 	const schemaStatements = Object.entries(schemas)
 		// .filter((it) => it[0] !== "public")
 		.map((it) => {
 			return `export const ${it[1]} = pgSchema("${it[0]}");\n`;
+		})
+		.join('');
+
+	const rolesNameToTsKey: Record<string, string> = {};
+
+	const rolesStatements = Object.entries(schema.roles)
+		.map((it) => {
+			const fields = it[1];
+			rolesNameToTsKey[fields.name] = it[0];
+			return `export const ${withCasing(it[0], casing)} = pgRole("${fields.name}", ${
+				!fields.createDb && !fields.createRole && fields.inherit
+					? ''
+					: `${
+						`, { ${fields.createDb ? `createDb: true,` : ''}${fields.createRole ? ` createRole: true,` : ''}${
+							!fields.inherit ? ` inherit: false ` : ''
+						}`.trimChar(',')
+					}}`
+			} );\n`;
 		})
 		.join('');
 
@@ -503,11 +531,12 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		if (
 			Object.keys(table.indexes).length > 0
 			|| Object.values(table.foreignKeys).length > 0
+			|| Object.values(table.policies).length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
 			|| Object.keys(table.checkConstraints).length > 0
 		) {
-			statement += ',\n';
+			statement += ', ';
 			statement += '(table) => {\n';
 			statement += '\treturn {\n';
 			statement += createTableIndexes(table.name, Object.values(table.indexes), casing);
@@ -519,6 +548,11 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			statement += createTableUniques(
 				Object.values(table.uniqueConstraints),
 				casing,
+			);
+			statement += createTablePolicies(
+				Object.values(table.policies),
+				casing,
+				rolesNameToTsKey,
 			);
 			statement += createTableChecks(
 				Object.values(table.checkConstraints),
@@ -571,10 +605,15 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 
 	const uniquePgImports = ['pgTable', ...new Set(imports.pg)];
 
-	const importsTs = `import { ${uniquePgImports.join(', ')} } from "drizzle-orm/pg-core"
-  import { sql } from "drizzle-orm"\n\n`;
+	const importsTs = `import { ${
+		uniquePgImports.join(
+			', ',
+		)
+	} } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"\n\n`;
 
 	let decalrations = schemaStatements;
+	decalrations += rolesStatements;
 	decalrations += enumStatements;
 	decalrations += sequencesStatements;
 	decalrations += '\n';
@@ -651,7 +690,9 @@ const mapDefault = (
 	}
 
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	if (lowered.startsWith('integer')) {
@@ -698,18 +739,20 @@ const mapDefault = (
 	if (lowered.startsWith('timestamp')) {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue === 'CURRENT_TIMESTAMP'
-			? '.default(sql`CURRENT_TIMESTAMP`)'
-			: defaultValue
+			: /^'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?'$/.test(defaultValue) // Matches 'YYYY-MM-DD HH:MI:SS', 'YYYY-MM-DD HH:MI:SS.FFFFFF', 'YYYY-MM-DD HH:MI:SS+TZ', 'YYYY-MM-DD HH:MI:SS.FFFFFF+TZ' and 'YYYY-MM-DD HH:MI:SS+HH:MI'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
 	if (lowered.startsWith('time')) {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue
+			: /^'\d{2}:\d{2}(:\d{2})?(\.\d+)?'$/.test(defaultValue) // Matches 'HH:MI', 'HH:MI:SS' and 'HH:MI:SS.FFFFFF'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
@@ -720,15 +763,17 @@ const mapDefault = (
 	if (lowered === 'date') {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue === 'CURRENT_DATE'
-			? `.default(sql\`${defaultValue}\`)`
-			: defaultValue
+			: /^'\d{4}-\d{2}-\d{2}'$/.test(defaultValue) // Matches 'YYYY-MM-DD'
 			? `.default(${defaultValue})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
 	if (lowered.startsWith('text')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	if (lowered.startsWith('jsonb')) {
@@ -762,7 +807,9 @@ const mapDefault = (
 	}
 
 	if (lowered.startsWith('varchar')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	if (lowered.startsWith('point')) {
@@ -782,7 +829,9 @@ const mapDefault = (
 	}
 
 	if (lowered.startsWith('char')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	return '';
@@ -1180,7 +1229,11 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 					} else {
 						return `table.${withCasing(it.expression, casing)}${it.asc ? '.asc()' : '.desc()'}${
 							it.nulls === 'first' ? '.nullsFirst()' : '.nullsLast()'
-						}${it.opclass && vectorOps.includes(it.opclass) ? `.op("${it.opclass}")` : ''}`;
+						}${
+							it.opclass
+								? `.op("${it.opclass}")`
+								: ''
+						}`;
 					}
 				})
 				.join(', ')
@@ -1227,7 +1280,39 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 	return statement;
 };
 
-const createTableUniques = (unqs: UniqueConstraint[], casing: Casing): string => {
+// get a map of db role name to ts key
+// if to by key is in this map - no quotes, otherwise - quotes
+
+const createTablePolicies = (
+	policies: Policy[],
+	casing: Casing,
+	rolesNameToTsKey: Record<string, string> = {},
+): string => {
+	let statement = '';
+
+	policies.forEach((it) => {
+		const idxKey = withCasing(it.name, casing);
+
+		const mappedItTo = it.to?.map((v) => {
+			return rolesNameToTsKey[v] ? withCasing(rolesNameToTsKey[v], casing) : `"${v}"`;
+		});
+
+		statement += `\t\t${idxKey}: `;
+		statement += 'pgPolicy(';
+		statement += `"${it.name}", { `;
+		statement += `as: "${it.as?.toLowerCase()}", for: "${it.for?.toLowerCase()}", to: [${mappedItTo?.join(', ')}]${
+			it.using ? `, using: sql\`${it.using}\`` : ''
+		}${it.withCheck ? `, withCheck: sql\`${it.withCheck}\` ` : ''}`;
+		statement += ` }),\n`;
+	});
+
+	return statement;
+};
+
+const createTableUniques = (
+	unqs: UniqueConstraint[],
+	casing: Casing,
+): string => {
 	let statement = '';
 
 	unqs.forEach((it) => {

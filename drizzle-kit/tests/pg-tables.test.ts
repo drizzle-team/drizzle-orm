@@ -34,8 +34,10 @@ test('add table #1', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 	});
 });
@@ -63,6 +65,8 @@ test('add table #2', async () => {
 			},
 		],
 		compositePKs: [],
+		isRLSEnabled: false,
+		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
 		compositePkName: '',
@@ -103,7 +107,9 @@ test('add table #3', async () => {
 			},
 		],
 		compositePKs: ['id;users_pk'],
+		policies: [],
 		uniqueConstraints: [],
+		isRLSEnabled: false,
 		checkConstraints: [],
 		compositePkName: 'users_pk',
 	});
@@ -124,16 +130,20 @@ test('add table #4', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_table',
 		tableName: 'posts',
+		policies: [],
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		checkConstraints: [],
 		compositePkName: '',
@@ -160,9 +170,11 @@ test('add table #5', async () => {
 		schema: 'folder',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
+		isRLSEnabled: false,
 	});
 });
 
@@ -185,11 +197,14 @@ test('add table #6', async () => {
 		columns: [],
 		compositePKs: [],
 		uniqueConstraints: [],
+		policies: [],
 		compositePkName: '',
 		checkConstraints: [],
+		isRLSEnabled: false,
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
+		policies: [],
 		tableName: 'users1',
 		schema: '',
 	});
@@ -216,8 +231,10 @@ test('add table #7', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		isRLSEnabled: false,
 		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
@@ -273,7 +290,9 @@ test('multiproject schema add table #1', async () => {
 			},
 		],
 		compositePKs: [],
+		policies: [],
 		compositePkName: '',
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		checkConstraints: [],
 	});
@@ -296,6 +315,7 @@ test('multiproject schema drop table #1', async () => {
 		schema: '',
 		tableName: 'prefix_users',
 		type: 'drop_table',
+		policies: [],
 	});
 });
 
@@ -365,8 +385,10 @@ test('add schema + table #1', async () => {
 		type: 'create_table',
 		tableName: 'users',
 		schema: 'folder',
+		policies: [],
 		columns: [],
 		compositePKs: [],
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
@@ -623,6 +645,7 @@ test('drop table + rename schema #1', async () => {
 		type: 'drop_table',
 		tableName: 'users',
 		schema: 'folder2',
+		policies: [],
 	});
 });
 
@@ -650,6 +673,106 @@ test('create table with tsvector', async () => {
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE IF NOT EXISTS "posts" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"title" text NOT NULL,\n\t"description" text NOT NULL\n);\n',
 		`CREATE INDEX IF NOT EXISTS "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
+	]);
+});
+
+test('composite primary key', async () => {
+	const from = {};
+	const to = {
+		table: pgTable('works_to_creators', {
+			workId: integer('work_id').notNull(),
+			creatorId: integer('creator_id').notNull(),
+			classification: text('classification').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.workId, t.creatorId, t.classification],
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE IF NOT EXISTS "works_to_creators" (\n\t"work_id" integer NOT NULL,\n\t"creator_id" integer NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_work_id_creator_id_classification_pk" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
+	]);
+});
+
+test('add column before creating unique constraint', async () => {
+	const from = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const to = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			uq: unique('uq').on(t.name),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" ADD COLUMN "name" text NOT NULL;',
+		'ALTER TABLE "table" ADD CONSTRAINT "uq" UNIQUE("name");',
+	]);
+});
+
+test('alter composite primary key', async () => {
+	const from = {
+		table: pgTable('table', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+			col3: text('col3').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				name: 'table_pk',
+				columns: [t.col1, t.col2],
+			}),
+		})),
+	};
+	const to = {
+		table: pgTable('table', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+			col3: text('col3').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				name: 'table_pk',
+				columns: [t.col2, t.col3],
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" DROP CONSTRAINT "table_pk";\n--> statement-breakpoint\nALTER TABLE "table" ADD CONSTRAINT "table_pk" PRIMARY KEY("col2","col3");',
+	]);
+});
+
+test('add index with op', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}),
+	};
+	const to = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			nameIdx: index().using('gin', t.name.op('gin_trgm_ops')),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE INDEX IF NOT EXISTS "users_name_index" ON "users" USING gin ("name" gin_trgm_ops);',
 	]);
 });
 

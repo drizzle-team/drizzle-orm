@@ -21,6 +21,7 @@ import {
 	applySqliteSnapshotsDiff,
 } from '../../snapshotsDiffer';
 import { prepareOutFolder } from '../../utils';
+import { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import { LibSQLCredentials } from '../validations/libsql';
 import type { MysqlCredentials } from '../validations/mysql';
@@ -30,7 +31,10 @@ import { IntrospectProgress } from '../views';
 import {
 	columnsResolver,
 	enumsResolver,
+	indPolicyResolver,
 	mySqlViewsResolver,
+	policyResolver,
+	roleResolver,
 	schemasResolver,
 	sequencesResolver,
 	sqliteViewsResolver,
@@ -47,6 +51,7 @@ export const introspectPostgres = async (
 	tablesFilter: string[],
 	schemasFilter: string[],
 	prefix: Prefix,
+	entities: Entities,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const db = await preparePostgresDB(credentials);
@@ -79,11 +84,18 @@ export const introspectPostgres = async (
 	};
 
 	const progress = new IntrospectProgress(true);
+
 	const res = await renderWithTask(
 		progress,
-		fromPostgresDatabase(db, filter, schemasFilter, (stage, count, status) => {
-			progress.update(stage, count, status);
-		}),
+		fromPostgresDatabase(
+			db,
+			filter,
+			schemasFilter,
+			entities,
+			(stage, count, status) => {
+				progress.update(stage, count, status);
+			},
+		),
 	);
 
 	const schema = { id: originUUID, prevId: '', ...res } as PgSchema;
@@ -106,6 +118,9 @@ export const introspectPostgres = async (
 			schemasResolver,
 			enumsResolver,
 			sequencesResolver,
+			policyResolver,
+			indPolicyResolver,
+			roleResolver,
 			tablesResolver,
 			columnsResolver,
 			viewsResolver,
@@ -138,14 +153,14 @@ export const introspectPostgres = async (
 			chalk.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
 	render(
 		`[${
 			chalk.green(
 				'✓',
 			)
-		}] You relations file is ready ➜ ${
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)
@@ -249,14 +264,14 @@ export const introspectMysql = async (
 			chalk.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
 	render(
 		`[${
 			chalk.green(
 				'✓',
 			)
-		}] You relations file is ready ➜ ${
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)
@@ -473,14 +488,14 @@ export const introspectLibSQL = async (
 			chalk.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
 	render(
 		`[${
 			chalk.green(
 				'✓',
 			)
-		}] You relations file is ready ➜ ${
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)

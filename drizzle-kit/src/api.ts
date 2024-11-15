@@ -5,7 +5,10 @@ import { PgDatabase } from 'drizzle-orm/pg-core';
 import {
 	columnsResolver,
 	enumsResolver,
+	indPolicyResolver,
 	mySqlViewsResolver,
+	policyResolver,
+	roleResolver,
 	schemasResolver,
 	sequencesResolver,
 	sqliteViewsResolver,
@@ -18,7 +21,9 @@ import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/p
 import { sqlitePushIntrospect } from './cli/commands/sqliteIntrospect';
 import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
 import type { CasingType } from './cli/validations/common';
+import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 import { originUUID } from './global';
+import type { Config } from './index';
 import { fillPgSnapshot } from './migrationPreparator';
 import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
 import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
@@ -47,6 +52,8 @@ export const generateDrizzleJson = (
 		prepared.enums,
 		prepared.schemas,
 		prepared.sequences,
+		prepared.roles,
+		prepared.policies,
 		prepared.views,
 		prepared.matViews,
 		casing,
@@ -78,6 +85,9 @@ export const generateMigration = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
 		viewsResolver,
@@ -92,9 +102,14 @@ export const pushSchema = async (
 	imports: Record<string, unknown>,
 	drizzleInstance: PgDatabase<any>,
 	schemaFilters?: string[],
+	tablesFilter?: string[],
+	extensionsFilters?: Config['extensionsFilters'],
 ) => {
 	const { applyPgSnapshotsDiff } = await import('./snapshotsDiffer');
 	const { sql } = await import('drizzle-orm');
+	const filters = (tablesFilter ?? []).concat(
+		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' }),
+	);
 
 	const db: DB = {
 		query: async (query: string, params?: any[]) => {
@@ -106,8 +121,9 @@ export const pushSchema = async (
 	const cur = generateDrizzleJson(imports);
 	const { schema: prev } = await pgPushIntrospect(
 		db,
-		[],
+		filters,
 		schemaFilters ?? ['public'],
+		undefined,
 	);
 
 	const validatedPrev = pgSchema.parse(prev);
@@ -122,6 +138,9 @@ export const pushSchema = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
 		viewsResolver,

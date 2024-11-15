@@ -1,4 +1,4 @@
-import { type QueryResult, type QueryResultRow, sql, type VercelPool } from '@vercel/postgres';
+import { sql, type VercelPool } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig, IfNotImported, ImportTypeError } from '~/utils.ts';
+import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
 import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
 
 export interface VercelPgDriverOptions {
@@ -75,13 +75,9 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 	return db as any;
 }
 
-type Primitive = string | number | boolean | undefined | null;
-
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TClient extends VercelPgClient =
-		& VercelPool
-		& (<O extends QueryResultRow>(strings: TemplateStringsArray, ...values: Primitive[]) => Promise<QueryResult<O>>),
+	TClient extends VercelPgClient = typeof sql,
 >(
 	...params: IfNotImported<
 		VercelPool,
@@ -103,17 +99,12 @@ export function drizzle<
 ): VercelPgDatabase<TSchema> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (typeof params[0] === 'function') {
-		return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	if (isConfig(params[0])) {
+		const { client, ...drizzleConfig } = params[0] as ({ client?: TClient } & DrizzleConfig<TSchema>);
+		return construct(client ?? sql, drizzleConfig) as any;
 	}
 
-	if (!params[0] || !(params[0] as { client?: TClient }).client) {
-		return construct(sql, params[0] as DrizzleConfig<TSchema> | undefined) as any;
-	}
-
-	const { client, ...drizzleConfig } = params[0] as ({ client?: TClient } & DrizzleConfig<TSchema>);
-	return construct(client ?? sql, drizzleConfig) as any;
+	return construct((params[0] ?? sql) as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 }
 
 export namespace drizzle {
