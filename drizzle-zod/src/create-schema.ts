@@ -1,9 +1,9 @@
-import { z } from 'zod';
+import { optional, z } from 'zod';
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import { columnToSchema } from './column';
 import { isPgEnum, PgEnum } from 'drizzle-orm/pg-core';
 import type { Table, View } from 'drizzle-orm';
-import type { CreateInsertSchema, CreateSchemaFactoryOptions, CreateSelectSchema } from './types';
+import type { CreateInsertSchema, CreateSchemaFactoryOptions, CreateSelectSchema, CreateUpdateSchema } from './types';
 
 function getColumns(tableLike: Table | View) {
   return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
@@ -73,7 +73,13 @@ const insertConditions = {
   never: (column?: Column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
   optional: (column: Column) => !column.notNull || (column.notNull && column.hasDefault),
   nullable: (column: Column) => !column.notNull
-}
+};
+
+const updateConditions = {
+  never: (column?: Column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+  optional: () => true,
+  nullable: (column: Column) => !column.notNull
+};
 
 export const createSelectSchema: CreateSelectSchema = (
   entity: Table | View | PgEnum<[string, ...string[]]>,
@@ -92,6 +98,14 @@ export const createInsertSchema: CreateInsertSchema = (
 ) => {
   const columns = getColumns(entity);
   return handleColumns(columns, refine ?? {}, insertConditions) as any;
+}
+
+export const createUpdateSchema: CreateUpdateSchema = (
+  entity: Table,
+  refine?: Record<string, any>
+) => {
+  const columns = getColumns(entity);
+  return handleColumns(columns, refine ?? {}, updateConditions) as any;
 }
 
 export function createSchemaFactory(options?: CreateSchemaFactoryOptions) {
@@ -114,5 +128,13 @@ export function createSchemaFactory(options?: CreateSchemaFactoryOptions) {
     return handleColumns(columns, refine ?? {}, insertConditions, options) as any;
   }
 
-  return { createSelectSchema, createInsertSchema };
+  const createUpdateSchema: CreateUpdateSchema = (
+    entity: Table,
+    refine?: Record<string, any>
+  ) => {
+    const columns = getColumns(entity);
+    return handleColumns(columns, refine ?? {}, updateConditions, options) as any;
+  }
+
+  return { createSelectSchema, createInsertSchema, createUpdateSchema };
 }

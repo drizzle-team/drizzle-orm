@@ -54,22 +54,32 @@ export type GetZodType<
 
 export type BuildRefineColumns<
   TColumns extends Record<string, any>
-> = Simplify<{
+> = Simplify<RemoveNever<{
   [K in keyof TColumns]:
     TColumns[K] extends infer TColumn extends Column
-      ? GetZodType<
-        TColumn['_']['data'],
-        TColumn['_']['dataType'],
-        TColumn['_'] extends { enumValues: [string, ...string[]] } ? TColumn['_']['enumValues'] : undefined
-      > extends infer TSchema extends z.ZodTypeAny
-        ? TSchema
-        : z.ZodAny
-      : TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column>
-        ? BuildRefineColumns<TObject>
+      ? ColumnIsGeneratedAlwaysAs<TColumn> extends true
+        ? never
+        : GetZodType<
+          TColumn['_']['data'],
+          TColumn['_']['dataType'],
+          TColumn['_'] extends { enumValues: [string, ...string[]] } ? TColumn['_']['enumValues'] : undefined
+        > extends infer TSchema extends z.ZodTypeAny
+          ? TSchema
+          : z.ZodAny
+      : TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View
+        ? BuildRefineColumns<
+          TObject extends Table
+            ? TObject['_']['columns']
+            : TObject extends View
+            ? TObject['_']['selectedFields']
+            : TObject  
+        >
         : TColumns[K]
-}>;
+}>>;
 
-export type BuildRefine<TColumns extends Record<string, any>> = BuildRefineColumns<TColumns> extends infer TBuildColumns
+export type BuildRefine<
+  TColumns extends Record<string, any>
+> = BuildRefineColumns<TColumns> extends infer TBuildColumns
   ? {
     [K in keyof TBuildColumns]?:
       TBuildColumns[K] extends z.ZodTypeAny
@@ -193,11 +203,22 @@ export interface CreateInsertSchema {
   <TTable extends Table>(table: TTable): BuildSchema<'insert', TTable['_']['columns'], undefined>;
   <
     TTable extends Table,
-    TRefine extends BuildRefine<TTable['_']['columns']>
+    TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>
   >(
     table: TTable,
     refine?: TRefine
   ): BuildSchema<'insert', TTable['_']['columns'], TRefine>;
+}
+
+export interface CreateUpdateSchema {
+  <TTable extends Table>(table: TTable): BuildSchema<'update', TTable['_']['columns'], undefined>;
+  <
+    TTable extends Table,
+    TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>
+  >(
+    table: TTable,
+    refine?: TRefine
+  ): BuildSchema<'update', TTable['_']['columns'], TRefine>;
 }
 
 export interface CreateSchemaFactoryOptions {

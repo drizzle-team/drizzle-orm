@@ -1,7 +1,7 @@
 import { char, date, getViewConfig, integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 import { z } from 'zod';
-import { createInsertSchema, createSelectSchema } from '../src';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { expectEnumValues, expectSchemaShape } from './utils.ts';
 import { sql } from 'drizzle-orm';
 
@@ -25,6 +25,21 @@ test('table - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = z.object({ name: z.string(), age: z.number().nullable().optional() });
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('table - update', (t) => {
+	const table = pgTable('test', {
+		id: integer('id').generatedAlwaysAsIdentity().primaryKey(),
+		name: text('name').notNull(),
+		age: integer('age')
+	});
+
+	const result = createUpdateSchema(table);
+	const expected = z.object({
+		name: z.string().optional(),
+		age: z.number().nullable().optional()
+	});
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -123,6 +138,50 @@ test('nullability - select', (t) => {
 	expectSchemaShape(t, expected).from(result);
 });
 
+test('nullability - insert', (t) => {
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().default(1),
+		c4: integer().notNull().default(1),
+		c5: integer().generatedAlwaysAs(1),
+		c6: integer().generatedAlwaysAsIdentity(),
+		c7: integer().generatedByDefaultAsIdentity(),
+	});
+
+	const result = createInsertSchema(table);
+	const expected = z.object({
+		c1: z.number().int().nullable().optional(),
+		c2: z.number().int(),
+		c3: z.number().int().nullable().optional(),
+		c4: z.number().int().optional(),
+		c7: z.number().int().optional(),
+	});
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('nullability - update', (t) => {
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().default(1),
+		c4: integer().notNull().default(1),
+		c5: integer().generatedAlwaysAs(1),
+		c6: integer().generatedAlwaysAsIdentity(),
+		c7: integer().generatedByDefaultAsIdentity(),
+	});
+
+	const result = createUpdateSchema(table);
+	const expected = z.object({
+		c1: z.number().int().nullable().optional(),
+		c2: z.number().int().optional(),
+		c3: z.number().int().nullable().optional(),
+		c4: z.number().int().optional(),
+		c7: z.number().int().optional(),
+	});
+	expectSchemaShape(t, expected).from(result);
+});
+
 test('refine table - select', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
@@ -138,6 +197,46 @@ test('refine table - select', (t) => {
 		c1: z.number().int().nullable(),
 		c2: z.number().int().max(1000),
 		c3: z.string().transform((v) => Number(v))
+	});
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('refine table - insert', (t) => {
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().notNull(),
+		c4: integer().generatedAlwaysAs(1)
+	});
+
+	const result = createInsertSchema(table, {
+		c2: (schema) => schema.max(1000),
+		c3: z.string().transform((v) => Number(v))
+	});
+	const expected = z.object({
+		c1: z.number().int().nullable().optional(),
+		c2: z.number().int().max(1000),
+		c3: z.string().transform((v) => Number(v))
+	});
+	expectSchemaShape(t, expected).from(result);
+});
+
+test('refine table - update', (t) => {
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().notNull(),
+		c4: integer().generatedAlwaysAs(1)
+	});
+
+	const result = createUpdateSchema(table, {
+		c2: (schema) => schema.max(1000),
+		c3: z.string().transform((v) => Number(v)),
+	});
+	const expected = z.object({
+		c1: z.number().int().nullable().optional(),
+		c2: z.number().int().max(1000).optional(),
+		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
