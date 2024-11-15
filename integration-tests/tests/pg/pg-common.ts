@@ -4909,6 +4909,127 @@ export function tests() {
 			}]);
 		});
 
+		test('insert into ... select', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const notifications = pgTable('notifications', {
+				id: serial('id').primaryKey(),
+				sentAt: timestamp('sent_at').notNull().defaultNow(),
+				message: text('message').notNull(),
+			});
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const userNotications = pgTable('user_notifications', {
+				userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+				notificationId: integer('notification_id').notNull().references(() => notifications.id, {
+					onDelete: 'cascade',
+				}),
+			}, (t) => ({
+				pk: primaryKey({ columns: [t.userId, t.notificationId] }),
+			}));
+
+			await db.execute(sql`drop table if exists notifications`);
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(sql`drop table if exists user_notifications`);
+			await db.execute(sql`
+				create table notifications (
+					id serial primary key,
+					sent_at timestamp not null default now(),
+					message text not null
+				)
+			`);
+			await db.execute(sql`
+				create table users (
+					id serial primary key,
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table user_notifications (
+					user_id int references users(id) on delete cascade,
+					notification_id int references notifications(id) on delete cascade,
+					primary key (user_id, notification_id)
+				)
+			`);
+
+			const newNotification = await db
+				.insert(notifications)
+				.values({ message: 'You are one of the 3 lucky winners!' })
+				.returning({ id: notifications.id })
+				.then((result) => result[0]);
+			await db.insert(users).values([
+				{ name: 'Alice' },
+				{ name: 'Bob' },
+				{ name: 'Charlie' },
+				{ name: 'David' },
+				{ name: 'Eve' },
+			]);
+
+			const sentNotifications = await db
+				.insert(userNotications)
+				.select(
+					db
+						.select({
+							userId: users.id,
+							notificationId: sql`${newNotification!.id}`.as('notification_id'),
+						})
+						.from(users)
+						.where(inArray(users.name, ['Alice', 'Charlie', 'Eve']))
+						.orderBy(asc(users.id)),
+				)
+				.returning();
+
+			expect(sentNotifications).toStrictEqual([
+				{ userId: 1, notificationId: newNotification!.id },
+				{ userId: 3, notificationId: newNotification!.id },
+				{ userId: 5, notificationId: newNotification!.id },
+			]);
+		});
+
+		test('insert into ... select with keys in different order', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users1 = pgTable('users1', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const users2 = pgTable('users2', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists users1`);
+			await db.execute(sql`drop table if exists users2`);
+			await db.execute(sql`
+				create table users1 (
+					id serial primary key,
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table users2 (
+					id serial primary key,
+					name text not null
+				)
+			`);
+
+			expect(
+				() =>
+					db
+						.insert(users1)
+						.select(
+							db
+								.select({
+									name: users2.name,
+									id: users2.id,
+								})
+								.from(users2),
+						),
+			).toThrowError();
+		});
+
 		test('policy', () => {
 			{
 				const policy = pgPolicy('test policy');

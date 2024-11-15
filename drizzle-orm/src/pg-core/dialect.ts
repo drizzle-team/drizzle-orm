@@ -17,6 +17,7 @@ import {
 	PgUUID,
 } from '~/pg-core/columns/index.ts';
 import type {
+	AnyPgSelectQueryBuilder,
 	PgDeleteConfig,
 	PgInsertConfig,
 	PgSelectJoinConfig,
@@ -490,7 +491,7 @@ export class PgDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning, withList }: PgInsertConfig): SQL {
+	buildInsertQuery({ table, values: valuesOrSelect, onConflict, returning, withList, select }: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
@@ -500,32 +501,45 @@ export class PgDialect {
 			([, column]) => sql.identifier(this.casing.getColumnCasing(column)),
 		);
 
-		for (const [valueIndex, value] of values.entries()) {
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
-				const colValue = value[fieldName];
-				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
-					// eslint-disable-next-line unicorn/no-negated-condition
-					if (col.defaultFn !== undefined) {
-						const defaultFnResult = col.defaultFn();
-						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
-						valueList.push(defaultValue);
-						// eslint-disable-next-line unicorn/no-negated-condition
-					} else if (!col.default && col.onUpdateFn !== undefined) {
-						const onUpdateFnResult = col.onUpdateFn();
-						const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
-						valueList.push(newValue);
-					} else {
-						valueList.push(sql`default`);
-					}
-				} else {
-					valueList.push(colValue);
-				}
-			}
+		if (select) {
+			const select = valuesOrSelect as AnyPgSelectQueryBuilder | SQL;
 
-			valuesSqlList.push(valueList);
-			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+			if (is(select, SQL)) {
+				valuesSqlList.push(select);
+			} else {
+				valuesSqlList.push(select.getSQL());
+			}
+		} else {
+			const values = valuesOrSelect as Record<string, Param | SQL>[];
+			valuesSqlList.push(sql.raw('values '));
+
+			for (const [valueIndex, value] of values.entries()) {
+				const valueList: (SQLChunk | SQL)[] = [];
+				for (const [fieldName, col] of colEntries) {
+					const colValue = value[fieldName];
+					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+						// eslint-disable-next-line unicorn/no-negated-condition
+						if (col.defaultFn !== undefined) {
+							const defaultFnResult = col.defaultFn();
+							const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							valueList.push(defaultValue);
+							// eslint-disable-next-line unicorn/no-negated-condition
+						} else if (!col.default && col.onUpdateFn !== undefined) {
+							const onUpdateFnResult = col.onUpdateFn();
+							const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+							valueList.push(newValue);
+						} else {
+							valueList.push(sql`default`);
+						}
+					} else {
+						valueList.push(colValue);
+					}
+				}
+
+				valuesSqlList.push(valueList);
+				if (valueIndex < values.length - 1) {
+					valuesSqlList.push(sql`, `);
+				}
 			}
 		}
 
@@ -539,7 +553,7 @@ export class PgDialect {
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
-		return sql`${withSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		return sql`${withSql}insert into ${table} ${insertOrder} ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	buildRefreshMaterializedViewQuery(
