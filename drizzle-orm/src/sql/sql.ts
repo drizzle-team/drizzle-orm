@@ -610,6 +610,8 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 
 export type ColumnsSelection = Record<string, unknown>;
 
+const IsDrizzleView = Symbol.for('drizzle:IsDrizzleView');
+
 export abstract class View<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
@@ -636,6 +638,9 @@ export abstract class View<
 		isAlias: boolean;
 	};
 
+	/** @internal */
+	[IsDrizzleView] = true;
+
 	declare readonly $inferSelect: InferSelectViewModel<View<Assume<TName, string>, TExisting, TSelection>>;
 
 	constructor(
@@ -660,6 +665,10 @@ export abstract class View<
 	getSQL(): SQL<unknown> {
 		return new SQL([this]);
 	}
+}
+
+export function isView(view: unknown): view is View {
+	return typeof view === 'object' && view !== null && IsDrizzleView in view;
 }
 
 export type InferSelectViewModel<TView extends View> =
