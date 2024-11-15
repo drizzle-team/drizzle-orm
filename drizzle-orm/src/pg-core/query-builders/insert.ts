@@ -9,25 +9,28 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { Columns, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
-import type { PgColumn } from '../columns/common.ts';
+import { haveSameKeys, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
+import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[];
+	values: Record<string, Param | SQL>[] | PgInsertSelectQueryBuilder<TTable> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
+	select?: boolean;
 }
 
 export type PgInsertValue<TTable extends PgTable> =
@@ -35,6 +38,10 @@ export type PgInsertValue<TTable extends PgTable> =
 		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
 	}
 	& {};
+
+export type PgInsertSelectQueryBuilder<TTable extends PgTable> = TypedQueryBuilder<
+	{ [K in keyof TTable['$inferInsert']]: AnyPgColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
+>;
 
 export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQueryResultHKT> {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
@@ -75,6 +82,30 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 			: new PgInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList).setToken(
 				this.authToken,
 			) as any;
+	}
+
+	select(selectQuery: (qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable>): PgInsertBase<TTable, TQueryResult>;
+	select(selectQuery: (qb: QueryBuilder) => SQL): PgInsertBase<TTable, TQueryResult>;
+	select(selectQuery: SQL): PgInsertBase<TTable, TQueryResult>;
+	select(selectQuery: PgInsertSelectQueryBuilder<TTable>): PgInsertBase<TTable, TQueryResult>;
+	select(
+		selectQuery:
+			| SQL
+			| PgInsertSelectQueryBuilder<TTable>
+			| ((qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable> | SQL),
+	): PgInsertBase<TTable, TQueryResult> {
+		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+
+		if (
+			!is(select, SQL)
+			&& !haveSameKeys(this.table[Columns], select._.selectedFields)
+		) {
+			throw new Error(
+				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
+			);
+		}
+
+		return new PgInsertBase(this.table, select, this.session, this.dialect, this.withList, true);
 	}
 }
 
@@ -187,9 +218,10 @@ export class PgInsertBase<
 		private session: PgSession,
 		private dialect: PgDialect,
 		withList?: Subquery[],
+		select?: boolean,
 	) {
 		super();
-		this.config = { table, values, withList };
+		this.config = { table, values: values as any, withList, select };
 	}
 
 	/**

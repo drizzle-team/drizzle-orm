@@ -34,11 +34,11 @@ import type {
 	LockConfig,
 	LockStrength,
 	PgCreateSetOperatorFn,
-	PgJoinFn,
 	PgSelectConfig,
 	PgSelectDynamic,
 	PgSelectHKT,
 	PgSelectHKTBase,
+	PgSelectJoinFn,
 	PgSelectPrepare,
 	PgSelectWithout,
 	PgSetOperatorExcludedMethods,
@@ -211,7 +211,7 @@ export abstract class PgSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): PgJoinFn<this, TDynamic, TJoinType> {
+	): PgSelectJoinFn<this, TDynamic, TJoinType> {
 		return (
 			table: PgTable | Subquery | PgViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
