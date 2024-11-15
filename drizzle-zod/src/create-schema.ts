@@ -1,4 +1,4 @@
-import { optional, z } from 'zod';
+import { z } from 'zod';
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import { columnToSchema } from './column';
 import { isPgEnum, PgEnum } from 'drizzle-orm/pg-core';

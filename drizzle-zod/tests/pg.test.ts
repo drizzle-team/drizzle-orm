@@ -1,4 +1,4 @@
-import { char, date, getViewConfig, integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
@@ -294,3 +294,43 @@ test('refine view - select', (t) => {
 	});
 	expectSchemaShape(t, expected).from(result);
 });
+
+/* Disallow unknown keys in table refinement - select */ {
+	const table = pgTable('test', { id: integer() });
+	// @ts-expect-error
+	createSelectSchema(table, { unknown: z.string() });
+}
+
+/* Disallow unknown keys in table refinement - insert */ {
+	const table = pgTable('test', { id: integer() });
+	// @ts-expect-error
+	createInsertSchema(table, { unknown: z.string() });
+}
+
+/* Disallow unknown keys in table refinement - update */ {
+	const table = pgTable('test', { id: integer() });
+	// @ts-expect-error
+	createUpdateSchema(table, { unknown: z.string() });
+}
+
+/* Disallow unknown keys in view qb - select */ {
+	const table = pgTable('test', { id: integer() });
+	const view = pgView('test').as((qb) => qb.select().from(table));
+	const mView = pgMaterializedView('test').as((qb) => qb.select().from(table));
+	const nestedSelect = pgView('test').as((qb) => qb.select({ table }).from(table));
+	// @ts-expect-error
+	createSelectSchema(view, { unknown: z.string() });
+	// @ts-expect-error
+	createSelectSchema(mView, { unknown: z.string() });
+	// @ts-expect-error
+	createSelectSchema(nestedSelect, { table: { unknown: z.string() } });
+}
+
+/* Disallow unknown keys in view columns - select */ {
+	const view = pgView('test', { id: integer() }).as(sql``);
+	const mView = pgView('test', { id: integer() }).as(sql``);
+	// @ts-expect-error
+	createSelectSchema(view, { unknown: z.string() });
+	// @ts-expect-error
+	createSelectSchema(mView, { unknown: z.string() });
+}

@@ -1,7 +1,7 @@
 import type { z } from 'zod';
-import type { Assume, Column, Equal, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
+import type { Assume, Column, DrizzleTypeError, Equal, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type { literalSchema } from './column';
-import { PgEnum } from 'drizzle-orm/pg-core';
+import type { PgEnum } from 'drizzle-orm/pg-core';
 
 type Literal = z.infer<typeof literalSchema>;
 export type Json = Literal | { [key: string]: Json } | Json[];
@@ -175,24 +175,35 @@ export type BuildSchema<
   'strip'
 >;
 
-export interface CreateSelectSchema {
-  <TView extends View>(view: TView): BuildSchema<'select', TView['_']['selectedFields'], undefined>;
-  <
-    TView extends View,
-    TRefine extends BuildRefine<TView['_']['selectedFields']>
-  >(
-    view: TView,
-    refine: TRefine
-  ): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
+type NoUnknownKeys<
+  TRefinement extends Record<string, any>,
+  TCompare extends Record<string, any>
+> = {
+  [K in keyof TRefinement]: K extends keyof TCompare
+    ? TRefinement[K] extends Record<string, z.ZodTypeAny>
+      ? NoUnknownKeys<TRefinement[K], TCompare[K]>
+      : TRefinement[K]
+    : DrizzleTypeError<`Found unknown key in refinement: "${K & string}"`>;
+};
 
+export interface CreateSelectSchema {
   <TTable extends Table>(table: TTable): BuildSchema<'select', TTable['_']['columns'], undefined>;
   <
     TTable extends Table,
     TRefine extends BuildRefine<TTable['_']['columns']>
   >(
     table: TTable,
-    refine?: TRefine
+    refine?: NoUnknownKeys<TRefine, TTable['$inferSelect']>
   ): BuildSchema<'select', TTable['_']['columns'], TRefine>;
+
+  <TView extends View>(view: TView): BuildSchema<'select', TView['_']['selectedFields'], undefined>;
+  <
+    TView extends View,
+    TRefine extends BuildRefine<TView['_']['selectedFields']>
+  >(
+    view: TView,
+    refine: NoUnknownKeys<TRefine, TView['$inferSelect']>
+  ): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
 
   <TEnum extends PgEnum<any>>(enum_: TEnum): z.ZodEnum<TEnum['enumValues']>;
 }
@@ -204,7 +215,7 @@ export interface CreateInsertSchema {
     TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>
   >(
     table: TTable,
-    refine?: TRefine
+    refine?: NoUnknownKeys<TRefine, TTable['$inferInsert']>
   ): BuildSchema<'insert', TTable['_']['columns'], TRefine>;
 }
 
