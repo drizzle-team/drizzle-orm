@@ -57,9 +57,7 @@ export type BuildRefineColumns<
 > = Simplify<RemoveNever<{
   [K in keyof TColumns]:
     TColumns[K] extends infer TColumn extends Column
-      ? ColumnIsGeneratedAlwaysAs<TColumn> extends true
-        ? never
-        : GetZodType<
+      ? GetZodType<
           TColumn['_']['data'],
           TColumn['_']['dataType'],
           TColumn['_'] extends { enumValues: [string, ...string[]] } ? TColumn['_']['enumValues'] : undefined
