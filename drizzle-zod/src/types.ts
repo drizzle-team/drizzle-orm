@@ -148,10 +148,14 @@ export type BuildSchema<
             ? HandleRefinement<TRefinement, TColumn>
             : HandleColumn<TType, TColumn>
           : HandleColumn<TType, TColumn>
-        : TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column>
+        : TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View
           ? BuildSchema<
               TType,
-              TObject,
+              TObject extends Table
+                ? TObject['_']['columns']
+                : TObject extends View
+                ? TObject['_']['selectedFields']
+                : TObject,
               TRefinements extends object
                 ? TRefinements[Assume<K, keyof TRefinements>] extends infer TNestedRefinements extends object
                   ? TNestedRefinements

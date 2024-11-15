@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Column, getTableColumns, getViewSelectedFields, is, isTable, SQL } from 'drizzle-orm';
+import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import { columnToSchema } from './column';
 import { isPgEnum, PgEnum } from 'drizzle-orm/pg-core';
 import type { Table, View } from 'drizzle-orm';
@@ -23,7 +23,8 @@ function handleColumns(
 
   for (const [key, selected] of Object.entries(columns)) {
     if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
-      columnSchemas[key] = handleColumns(selected, refinements[key] ?? {}, conditions, factory);
+      const columns = isTable(selected) || isView(selected) ? getColumns(selected) : selected;
+      columnSchemas[key] = handleColumns(columns, refinements[key] ?? {}, conditions, factory);
       continue;
     }
 

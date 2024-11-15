@@ -81,14 +81,19 @@ test('view with nested fields - select', (t) => {
 	});
 	const view = pgMaterializedView('test').as((qb) => qb.select({
 		id: table.id,
-		profile: {
+		nested: {
 			name: table.name,
 			age: sql``.as('age')
-		}
+		},
+		table
 	}).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: z.number().int(), profile: z.object({ name: z.string(), age: z.any() }) });
+	const expected = z.object({
+		id: z.number().int(),
+		nested: z.object({ name: z.string(), age: z.any() }),
+		table: z.object({ id: z.number().int(), name: z.string() })
+	});
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -154,7 +159,8 @@ test('refine view - select', (t) => {
 			c4: table.c4,
 			c5: table.c5,
 			c6: table.c6
-		}
+		},
+		table
 	}).from(table));
 
 	const result = createSelectSchema(view, {
@@ -163,6 +169,10 @@ test('refine view - select', (t) => {
 		nested: {
 			c5: (schema) => schema.max(1000),
 			c6: z.string().transform((v) => Number(v)),
+		},
+		table: {
+			c2: (schema) => schema.max(1000),
+			c3: z.string().transform((v) => Number(v)),
 		}
 	});
 	const expected = z.object({
@@ -173,6 +183,14 @@ test('refine view - select', (t) => {
 			c4: z.number().int().nullable(),
 			c5: z.number().int().max(1000).nullable(),
 			c6: z.string().transform((v) => Number(v)),
+		}),
+		table: z.object({
+			c1: z.number().int().nullable(),
+			c2: z.number().int().max(1000).nullable(),
+			c3: z.string().transform((v) => Number(v)),
+			c4: z.number().int().nullable(),
+			c5: z.number().int().nullable(),
+			c6: z.number().int().nullable(),
 		})
 	});
 	expectSchemaShape(t, expected).from(result);
