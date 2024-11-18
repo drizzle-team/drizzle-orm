@@ -3,7 +3,8 @@ import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQ
 import { columnToSchema } from './column';
 import { isPgEnum, PgEnum } from 'drizzle-orm/pg-core';
 import type { Table, View } from 'drizzle-orm';
-import type { CreateInsertSchema, CreateSchemaFactoryOptions, CreateSelectSchema, CreateUpdateSchema } from './types';
+import type { CreateInsertSchema, CreateSchemaFactoryOptions, CreateSelectSchema, CreateUpdateSchema } from './schema.types';
+import type { Conditions } from './schema.types.internal';
 
 function getColumns(tableLike: Table | View) {
   return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
@@ -63,22 +64,22 @@ function handleEnum(enum_: PgEnum<any>, factory?: CreateSchemaFactoryOptions) {
   return zod.enum(enum_.enumValues);
 }
 
-const selectConditions = {
+const selectConditions: Conditions = {
   never: () => false,
   optional: () => false,
-  nullable: (column: Column) => !column.notNull
+  nullable: (column) => !column.notNull
 };
 
-const insertConditions = {
-  never: (column?: Column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
-  optional: (column: Column) => !column.notNull || (column.notNull && column.hasDefault),
-  nullable: (column: Column) => !column.notNull
+const insertConditions: Conditions = {
+  never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+  optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
+  nullable: (column) => !column.notNull
 };
 
-const updateConditions = {
-  never: (column?: Column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+const updateConditions: Conditions = {
+  never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
   optional: () => true,
-  nullable: (column: Column) => !column.notNull
+  nullable: (column) => !column.notNull
 };
 
 export const createSelectSchema: CreateSelectSchema = (

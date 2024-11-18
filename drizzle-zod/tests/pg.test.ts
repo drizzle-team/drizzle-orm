@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { expectEnumValues, expectSchemaShape } from './utils.ts';
 import { sql } from 'drizzle-orm';
-import { CONSTANTS, jsonSchema } from '~/column.ts';
+import { jsonSchema } from '~/column.ts';
+import { CONSTANTS } from '~/constants.ts';
 
 const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
 
