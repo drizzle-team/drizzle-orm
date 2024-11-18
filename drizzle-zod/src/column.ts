@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { is } from 'drizzle-orm';
-import { PgArray, PgBigInt53, PgBigSerial53, PgChar, PgDoublePrecision, PgGeometry, PgHalfVector, PgInteger, PgLineABC, PgLineTuple, PgPointObject, PgPointTuple, PgReal, PgSerial, PgSmallInt, PgSmallSerial, PgVarchar, PgVector } from 'drizzle-orm/pg-core';
+import { PgArray, PgBigInt53, PgBigSerial53, PgBinaryVector, PgChar, PgDoublePrecision, PgGeometry, PgGeometryObject, PgHalfVector, PgInteger, PgLineABC, PgLineTuple, PgPointObject, PgPointTuple, PgReal, PgSerial, PgSmallInt, PgSmallSerial, PgSparseVector, PgText, PgUUID, PgVarchar, PgVector } from 'drizzle-orm/pg-core';
 import { MySqlBigInt53, MySqlChar, MySqlColumn, MySqlDecimal, MySqlDouble, MySqlFloat, MySqlInt, MySqlMediumInt, MySqlReal, MySqlSerial, MySqlSmallInt, MySqlText, MySqlTinyInt, MySqlVarChar } from 'drizzle-orm/mysql-core';
-import { SQLiteInteger, SQLiteReal } from 'drizzle-orm/sqlite-core';
+import { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
 import { isAny, isWithEnum } from './utils';
 import type { z as zod } from 'zod';
 import type { Column } from 'drizzle-orm';
@@ -70,7 +70,21 @@ export function columnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 	}
 
   if (!schema) {
-    if (is(column, PgArray)) {
+    // Handle specific types
+    if (is(column, PgGeometry)) {
+      schema = z.tuple([z.number(), z.number()]);
+    } else if (is(column, PgGeometryObject)) {
+      schema = z.object({ x: z.number(), y: z.number() });
+    } else if (isAny(column, [PgHalfVector, PgVector])) {
+      schema = z.array(z.number());
+      schema = column.dimensions ? (schema as z.ZodArray<any>).length(column.dimensions) : schema;
+    } else if (is(column, PgPointTuple)) {
+      schema = z.tuple([z.number(), z.number(), z.number()]);
+    } else if (is(column, PgPointObject)) {
+      schema = z.object({ a: z.number(), b: z.number(), c: z.number() });
+    }
+    // Handle other types
+    else if (is(column, PgArray)) {
       schema = z.array(columnToSchema(column.baseColumn, z));
     } else if (column.dataType === 'array') {
       schema = arrayColumnToSchema(column, z);
@@ -147,7 +161,16 @@ function bigintColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 }
 
 function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
+  if (isAny(column, [PgChar, MySqlChar, PgText, PgVarchar, MySqlVarChar, MySqlText, SQLiteText]) && column.enumValues) {
+    return z.enum(column.enumValues as any);
+  }
+
+  if (is(column, PgUUID)) {
+    return z.string().uuid();
+  }
+
   let max: number | undefined;
+  let regex: RegExp | undefined;
   let fixed = false;
 
   if (is(column, PgVarchar)) {
@@ -159,10 +182,17 @@ function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
   }
 
   if (isAny(column, [PgChar, MySqlChar])) {
+    max = column.length;
     fixed = true;
   }
 
-  const schema = z.string();
+  if (is(column, PgBinaryVector)) {
+    regex = /^[01]+$/;
+    max = column.dimensions;
+  }
+
+  let schema = z.string();
+  schema = regex !== undefined ? schema.regex(regex) : schema;
   return max !== undefined && fixed ? schema.length(max) : max !== undefined ? schema.max(max) : schema;
 }
 

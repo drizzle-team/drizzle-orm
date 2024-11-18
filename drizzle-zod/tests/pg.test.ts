@@ -1,10 +1,10 @@
-import { integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { cidr, integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { expectEnumValues, expectSchemaShape } from './utils.ts';
 import { sql } from 'drizzle-orm';
-import { CONSTANTS } from '~/column.ts';
+import { CONSTANTS, jsonSchema } from '~/column.ts';
 
 const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
 
@@ -298,52 +298,129 @@ test('refine view - select', (t) => {
 	expectSchemaShape(t, expected).from(result);
 });
 
-// test('all data types', (t) => {
-// 	const table = pgTable('test', ({
-// 		bigint,
-// 		bigserial,
-// 		bit,
-// 		boolean,
-// 		date,
-// 		char,
-// 		cidr,
-// 		customType,
-// 		doublePrecision,
-// 		geometry,
-// 		halfvec,
-// 		inet,
-// 		integer,
-// 		interval,
-// 		json,
-// 		jsonb,
-// 		line,
-// 		macaddr,
-// 		macaddr8,
-// 		numeric,
-// 		point,
-// 		real,
-// 		serial,
-// 		smallint,
-// 		smallserial,
-// 		text,
-// 		sparsevec,
-// 		time,
-// 		timestamp,
-// 		uuid,
-// 		varchar,
-// 		vector
-// 	}) => ({
-// 		bigint1: bigint({ mode: 'number' }),
-// 		bigint2: bigint({ mode: 'bigint' }),
-// 	}));
+test('all data types', (t) => {
+	const table = pgTable('test', ({
+		bigint,
+		bigserial,
+		bit,
+		boolean,
+		date,
+		char,
+		cidr,
+		doublePrecision,
+		geometry,
+		halfvec,
+		inet,
+		integer,
+		interval,
+		json,
+		jsonb,
+		line,
+		macaddr,
+		macaddr8,
+		numeric,
+		point,
+		real,
+		serial,
+		smallint,
+		smallserial,
+		text,
+		sparsevec,
+		time,
+		timestamp,
+		uuid,
+		varchar,
+		vector
+	}) => ({
+		bigint1: bigint({ mode: 'number' }).notNull(),
+		bigint2: bigint({ mode: 'bigint' }).notNull(),
+		bigserial1: bigserial({ mode: 'number' }).notNull(),
+		bigserial2: bigserial({ mode: 'bigint' }).notNull(),
+		bit: bit({ dimensions: 5 }).notNull(),
+		boolean : boolean().notNull(),
+		date1: date({ mode: 'date' }).notNull(),
+		date2: date({ mode: 'string' }).notNull(),
+		char1: char({ length: 10 }).notNull(),
+		char2: char({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
+		cidr: cidr().notNull(),
+		doublePrecision: doublePrecision().notNull(),
+		geometry1: geometry({ type: 'point', mode: 'tuple' }).notNull(),
+		geometry2: geometry({ type: 'point', mode: 'xy' }).notNull(),
+		halfvec: halfvec({ dimensions: 3 }).notNull(),
+		inet: inet().notNull(),
+		integer: integer().notNull(),
+		interval: interval().notNull(),
+		json: json().notNull(),
+		jsonb: jsonb().notNull(),
+		line1: line({ mode: 'abc' }).notNull(),
+		line2: line({ mode: 'tuple' }).notNull(),
+		macaddr: macaddr().notNull(),
+		macaddr8: macaddr8().notNull(),
+		numeric: numeric().notNull(),
+		point1: point({ mode: 'xy' }).notNull(),
+		point2: point({ mode: 'tuple' }).notNull(),
+		real: real().notNull(),
+		serial: serial().notNull(),
+		smallint: smallint().notNull(),
+		smallserial: smallserial().notNull(),
+		text1: text().notNull(),
+		text2: text({ enum: ['a', 'b', 'c'] }).notNull(),
+		sparsevec: sparsevec({ dimensions: 3 }).notNull(),
+		time: time().notNull(),
+		timestamp1: timestamp({ mode: 'date' }).notNull(),
+		timestamp2: timestamp({ mode: 'string' }).notNull(),
+		uuid: uuid().notNull(),
+		varchar1: varchar({ length: 10 }).notNull(),
+		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
+		vector: vector({ dimensions: 3 }).notNull(),
+	}));
 
-// 	const result = createSelectSchema(table);
-// 	const expected = z.object({
-// 		bigint1: z.number().int().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).nullable(),
-// 		bigint2: z.bigint().min(INT64_MIN).max(INT64_MAX).nullable(),
-// 	});
-// 	expectSchemaShape(t, expected).from(result);
-// })
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		bigint1: z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int(),
+		bigint2: z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
+		bigserial1: z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int(),
+		bigserial2: z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
+		bit: z.string().regex(/^[01]+$/).max(5),
+		boolean: z.boolean(),
+		date1: z.date(),
+		date2: z.string(),
+		char1: z.string().length(10),
+		char2: z.enum(['a', 'b', 'c']),
+		cidr: z.string(),
+		doublePrecision: z.number().min(CONSTANTS.INT48_MIN).max(CONSTANTS.INT48_MAX),
+		geometry1: z.tuple([z.number(), z.number()]),
+		geometry2: z.object({ x: z.number(), y: z.number() }),
+		halfvec: z.array(z.number()).length(3),
+		inet: z.string(),
+		integer: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		interval: z.string(),
+		json: jsonSchema,
+		jsonb: jsonSchema,
+		line1: z.object({ a: z.number(), b: z.number(), c: z.number() }),
+		line2: z.tuple([z.number(), z.number(), z.number()]),
+		macaddr: z.string(),
+		macaddr8: z.string(),
+		numeric: z.string(),
+		point1: z.object({ x: z.number(), y: z.number() }),
+		point2: z.tuple([z.number(), z.number()]),
+		real: z.number().min(CONSTANTS.INT24_MIN).max(CONSTANTS.INT24_MAX),
+		serial: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		smallint: z.number().min(CONSTANTS.INT16_MIN).max(CONSTANTS.INT16_MAX).int(),
+		smallserial: z.number().min(CONSTANTS.INT16_MIN).max(CONSTANTS.INT16_MAX).int(),
+		text1: z.string(),
+		text2: z.enum(['a', 'b', 'c']),
+		sparsevec: z.string(),
+		time: z.string(),
+		timestamp1: z.date(),
+		timestamp2: z.string(),
+		uuid: z.string().uuid(),
+		varchar1: z.string().max(10),
+		varchar2: z.enum(['a', 'b', 'c']),
+		vector: z.array(z.number()).length(3),
+	});
+	expectSchemaShape(t, expected).from(result);
+})
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });

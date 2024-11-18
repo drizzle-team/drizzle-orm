@@ -33,23 +33,25 @@ export type GetZodType<
 > = EnumHasAtLeastOneValue<TEnumValues> extends true
   ? z.ZodEnum<Assume<TEnumValues, [string, ...string[]]>>
   : TData extends infer TTuple extends [any, ...any[]]
-  ? z.ZodTuple<{ [K in keyof TTuple]: GetZodType<TTuple[K], never, never> }>
+  ? z.ZodTuple<Assume<{ [K in keyof TTuple]: GetZodType<TTuple[K], string, undefined> }, [any, ...any[]]>>
+  : TData extends Date
+  ? z.ZodDate
+  : TData extends Buffer
+  ? z.ZodType<Buffer>
+  : TDataType extends 'array'
+  ? z.ZodArray<GetZodType<Assume<TData, any[]>[number], string, undefined>>
   : TData extends infer TDict extends Record<string, any>
-  ? z.ZodObject<{ [K in keyof TDict]: GetZodType<TDict[K], never, never> }>
+  ? z.ZodObject<{ [K in keyof TDict]: GetZodType<TDict[K], string, undefined> }, 'strip'>
   : TDataType extends 'json'
   ? z.ZodType<Json>
-  : Equal<TData, number> extends true
+  : TData extends number
   ? z.ZodNumber
-  : Equal<TData, bigint> extends true
+  : TData extends bigint
   ? z.ZodBigInt
-  : Equal<TData, boolean> extends true
+  : TData extends boolean
   ? z.ZodBoolean
-  : Equal<TData, string> extends true
+  : TData extends string
   ? z.ZodString
-  : Equal<TData, Date> extends true
-  ? z.ZodDate
-  : Equal<TData, Buffer> extends true
-  ? z.ZodType<Buffer>
   : z.ZodTypeAny;
 
 export type BuildRefineColumns<
