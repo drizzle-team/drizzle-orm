@@ -54,22 +54,25 @@ export class AwsPgDialect extends PgDialect {
 	}
 
 	override buildInsertQuery(
-		{ table, values, onConflict, returning }: PgInsertConfig<PgTable<TableConfig>>,
+		{ table, values, onConflict, returning, select, withList }: PgInsertConfig<PgTable<TableConfig>>,
 	): SQL<unknown> {
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
-		for (const value of values) {
-			for (const fieldName of Object.keys(columns)) {
-				const colValue = value[fieldName];
-				if (
-					is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
-					&& Array.isArray(colValue.value)
-				) {
-					value[fieldName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
+
+		if (!select) {
+			for (const value of (values as Record<string, Param | SQL>[])) {
+				for (const fieldName of Object.keys(columns)) {
+					const colValue = value[fieldName];
+					if (
+						is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
+						&& Array.isArray(colValue.value)
+					) {
+						value[fieldName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
+					}
 				}
 			}
 		}
 
-		return super.buildInsertQuery({ table, values, onConflict, returning });
+		return super.buildInsertQuery({ table, values, onConflict, returning, withList });
 	}
 
 	override buildUpdateSet(table: PgTable<TableConfig>, set: UpdateSet): SQL<unknown> {
