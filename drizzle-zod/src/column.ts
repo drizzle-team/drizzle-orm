@@ -33,6 +33,28 @@ const INT64_MAX = 9223372036854775807n;
 const INT64_UNSIGNED_MAX = 18446744073709551615n;
 
 /** @internal */
+export const CONSTANTS = {
+  INT8_MIN,
+  INT8_MAX,
+  INT8_UNSIGNED_MAX,
+  INT16_MIN,
+  INT16_MAX,
+  INT16_UNSIGNED_MAX,
+  INT24_MIN,
+  INT24_MAX,
+  INT24_UNSIGNED_MAX,
+  INT32_MIN,
+  INT32_MAX,
+  INT32_UNSIGNED_MAX,
+  INT48_MIN,
+  INT48_MAX,
+  INT48_UNSIGNED_MAX,
+  INT64_MIN,
+  INT64_MAX,
+  INT64_UNSIGNED_MAX,
+};
+
+/** @internal */
 export const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 	z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])

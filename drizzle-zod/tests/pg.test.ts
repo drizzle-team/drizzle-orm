@@ -4,6 +4,9 @@ import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { expectEnumValues, expectSchemaShape } from './utils.ts';
 import { sql } from 'drizzle-orm';
+import { CONSTANTS } from '~/column.ts';
+
+const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
 
 test('table - select', (t) => {
 	const table = pgTable('test', {
@@ -12,7 +15,7 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: z.number().int(), name: z.string() });
+	const expected = z.object({ id: integerSchema, name: z.string() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -24,7 +27,7 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({ name: z.string(), age: z.number().nullable().optional() });
+	const expected = z.object({ name: z.string(), age: integerSchema.nullable().optional() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -38,7 +41,7 @@ test('table - update', (t) => {
 	const result = createUpdateSchema(table);
 	const expected = z.object({
 		name: z.string().optional(),
-		age: z.number().nullable().optional()
+		age: integerSchema.nullable().optional()
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -51,7 +54,7 @@ test('view qb - select', (t) => {
 	const view = pgView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: z.number().int(), age: z.any() });
+	const expected = z.object({ id: integerSchema, age: z.any() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -62,7 +65,7 @@ test('view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: z.number().int(), name: z.string() });
+	const expected = z.object({ id: integerSchema, name: z.string() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -74,7 +77,7 @@ test('materialized view qb - select', (t) => {
 	const view = pgMaterializedView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: z.number().int(), age: z.any() });
+	const expected = z.object({ id: integerSchema, age: z.any() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -85,7 +88,7 @@ test('materialized view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: z.number().int(), name: z.string() });
+	const expected = z.object({ id: integerSchema, name: z.string() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -105,9 +108,9 @@ test('view with nested fields - select', (t) => {
 
 	const result = createSelectSchema(view);
 	const expected = z.object({
-		id: z.number().int(),
+		id: integerSchema,
 		nested: z.object({ name: z.string(), age: z.any() }),
-		table: z.object({ id: z.number().int(), name: z.string() })
+		table: z.object({ id: integerSchema, name: z.string() })
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -130,10 +133,10 @@ test('nullability - select', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		c1: z.number().int().nullable(),
-		c2: z.number().int(),
-		c3: z.number().int().nullable(),
-		c4: z.number().int(),
+		c1: integerSchema.nullable(),
+		c2: integerSchema,
+		c3: integerSchema.nullable(),
+		c4: integerSchema,
 	})
 	expectSchemaShape(t, expected).from(result);
 });
@@ -151,11 +154,11 @@ test('nullability - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = z.object({
-		c1: z.number().int().nullable().optional(),
-		c2: z.number().int(),
-		c3: z.number().int().nullable().optional(),
-		c4: z.number().int().optional(),
-		c7: z.number().int().optional(),
+		c1: integerSchema.nullable().optional(),
+		c2: integerSchema,
+		c3: integerSchema.nullable().optional(),
+		c4: integerSchema.optional(),
+		c7: integerSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -173,11 +176,11 @@ test('nullability - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
-		c1: z.number().int().nullable().optional(),
-		c2: z.number().int().optional(),
-		c3: z.number().int().nullable().optional(),
-		c4: z.number().int().optional(),
-		c7: z.number().int().optional(),
+		c1: integerSchema.nullable().optional(),
+		c2: integerSchema.optional(),
+		c3: integerSchema.nullable().optional(),
+		c4: integerSchema.optional(),
+		c7: integerSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -194,8 +197,8 @@ test('refine table - select', (t) => {
 		c3: z.string().transform((v) => Number(v))
 	});
 	const expected = z.object({
-		c1: z.number().int().nullable(),
-		c2: z.number().int().max(1000),
+		c1: integerSchema.nullable(),
+		c2: integerSchema.max(1000),
 		c3: z.string().transform((v) => Number(v))
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -214,8 +217,8 @@ test('refine table - insert', (t) => {
 		c3: z.string().transform((v) => Number(v))
 	});
 	const expected = z.object({
-		c1: z.number().int().nullable().optional(),
-		c2: z.number().int().max(1000),
+		c1: integerSchema.nullable().optional(),
+		c2: integerSchema.max(1000),
 		c3: z.string().transform((v) => Number(v))
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -234,8 +237,8 @@ test('refine table - update', (t) => {
 		c3: z.string().transform((v) => Number(v)),
 	});
 	const expected = z.object({
-		c1: z.number().int().nullable().optional(),
-		c2: z.number().int().max(1000).optional(),
+		c1: integerSchema.nullable().optional(),
+		c2: integerSchema.max(1000).optional(),
 		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -275,25 +278,72 @@ test('refine view - select', (t) => {
 		}
 	});
 	const expected = z.object({
-		c1: z.number().int().nullable(),
-		c2: z.number().int().max(1000).nullable(),
+		c1: integerSchema.nullable(),
+		c2: integerSchema.max(1000).nullable(),
 		c3: z.string().transform((v) => Number(v)),
 		nested: z.object({
-			c4: z.number().int().nullable(),
-			c5: z.number().int().max(1000).nullable(),
+			c4: integerSchema.nullable(),
+			c5: integerSchema.max(1000).nullable(),
 			c6: z.string().transform((v) => Number(v)),
 		}),
 		table: z.object({
-			c1: z.number().int().nullable(),
-			c2: z.number().int().max(1000).nullable(),
+			c1: integerSchema.nullable(),
+			c2: integerSchema.max(1000).nullable(),
 			c3: z.string().transform((v) => Number(v)),
-			c4: z.number().int().nullable(),
-			c5: z.number().int().nullable(),
-			c6: z.number().int().nullable(),
+			c4: integerSchema.nullable(),
+			c5: integerSchema.nullable(),
+			c6: integerSchema.nullable(),
 		})
 	});
 	expectSchemaShape(t, expected).from(result);
 });
+
+// test('all data types', (t) => {
+// 	const table = pgTable('test', ({
+// 		bigint,
+// 		bigserial,
+// 		bit,
+// 		boolean,
+// 		date,
+// 		char,
+// 		cidr,
+// 		customType,
+// 		doublePrecision,
+// 		geometry,
+// 		halfvec,
+// 		inet,
+// 		integer,
+// 		interval,
+// 		json,
+// 		jsonb,
+// 		line,
+// 		macaddr,
+// 		macaddr8,
+// 		numeric,
+// 		point,
+// 		real,
+// 		serial,
+// 		smallint,
+// 		smallserial,
+// 		text,
+// 		sparsevec,
+// 		time,
+// 		timestamp,
+// 		uuid,
+// 		varchar,
+// 		vector
+// 	}) => ({
+// 		bigint1: bigint({ mode: 'number' }),
+// 		bigint2: bigint({ mode: 'bigint' }),
+// 	}));
+
+// 	const result = createSelectSchema(table);
+// 	const expected = z.object({
+// 		bigint1: z.number().int().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).nullable(),
+// 		bigint2: z.bigint().min(INT64_MIN).max(INT64_MAX).nullable(),
+// 	});
+// 	expectSchemaShape(t, expected).from(result);
+// })
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });
