@@ -40,6 +40,7 @@ export function columnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
     // Handle other types
     else if (is(column, PgArray)) {
       schema = z.array(columnToSchema(column.baseColumn, z));
+      schema = column.size ? (schema as z.ZodArray<any>).length(column.size) : schema;
     } else if (column.dataType === 'array') {
       schema = arrayColumnToSchema(column, z);
     } else if (column.dataType === 'number') {

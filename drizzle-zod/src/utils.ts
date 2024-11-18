@@ -19,10 +19,16 @@ export function isWithEnum(column: Column): column is typeof column & { enumValu
 type Literal = z.infer<typeof literalSchema>;
 export type Json = Literal | { [key: string]: Json } | Json[];
 
-export type EnumHasAtLeastOneValue<TEnum extends [string, ...string[]] | undefined> =
-  TEnum extends [infer TString, ...string[]]
+export type IsNever<T> = [T] extends [never] ? true : false;
+
+export type UnwrapArray<T> = T extends (infer U)[] ? UnwrapArray<U> : T;
+
+export type IsArray<T> = T extends any[] ? true : false;
+
+export type ArrayHasAtLeastOneValue<TEnum extends [any, ...any[]] | undefined> =
+  TEnum extends [infer TString, ...any[]]
     ? TString extends `${infer TLiteral}`
-      ? TLiteral extends string
+      ? TLiteral extends any
         ? true
         : false
       : false

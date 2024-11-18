@@ -1,7 +1,7 @@
 import type { z } from 'zod';
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type { RemoveNever, GetSelection } from './utils';
-import type { GetEnumValuesFromColumn, GetZodType, HandleColumn } from './column.types';
+import type { GetBaseColumn, GetEnumValuesFromColumn, GetZodType, HandleColumn } from './column.types';
 
 export interface Conditions {
   never: (column?: Column) => boolean;
@@ -17,7 +17,8 @@ export type BuildRefineColumns<
       ? GetZodType<
           TColumn['_']['data'],
           TColumn['_']['dataType'],
-          GetEnumValuesFromColumn<TColumn>
+          GetEnumValuesFromColumn<TColumn>,
+          GetBaseColumn<TColumn>
         > extends infer TSchema extends z.ZodTypeAny
           ? TSchema
           : z.ZodAny

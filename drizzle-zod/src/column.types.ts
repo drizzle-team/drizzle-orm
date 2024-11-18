@@ -1,25 +1,34 @@
 import type { z } from 'zod';
 import type { Assume, Column } from 'drizzle-orm';
-import type { EnumHasAtLeastOneValue, ColumnIsGeneratedAlwaysAs, Json } from './utils';
+import type { ArrayHasAtLeastOneValue, ColumnIsGeneratedAlwaysAs, Json, IsNever, UnwrapArray, IsArray } from './utils';
 
 export type GetEnumValuesFromColumn<TColumn extends Column> = TColumn['_'] extends { enumValues: [string, ...string[]] } ? TColumn['_']['enumValues'] : undefined
+
+export type GetBaseColumn<TColumn extends Column> = TColumn['_'] extends { baseColumn: Column | never | undefined }
+  ? IsNever<TColumn['_']['baseColumn']> extends false
+    ? TColumn['_']['baseColumn']
+    : undefined
+  : undefined;
 
 export type GetZodType<
   TData,
   TDataType extends string,
   TEnumValues extends [string, ...string[]] | undefined,
-> = EnumHasAtLeastOneValue<TEnumValues> extends true
+  TBaseColumn extends Column | undefined
+> = TBaseColumn extends Column
+  ? z.ZodArray<GetZodType<UnwrapArray<TData>, string, undefined, IsArray<Assume<TData, any[]>[number]> extends true ? TBaseColumn : undefined>>
+  : ArrayHasAtLeastOneValue<TEnumValues> extends true
   ? z.ZodEnum<Assume<TEnumValues, [string, ...string[]]>>
   : TData extends infer TTuple extends [any, ...any[]]
-  ? z.ZodTuple<Assume<{ [K in keyof TTuple]: GetZodType<TTuple[K], string, undefined> }, [any, ...any[]]>>
+  ? z.ZodTuple<Assume<{ [K in keyof TTuple]: GetZodType<TTuple[K], string, undefined, undefined> }, [any, ...any[]]>>
   : TData extends Date
   ? z.ZodDate
   : TData extends Buffer
   ? z.ZodType<Buffer>
   : TDataType extends 'array'
-  ? z.ZodArray<GetZodType<Assume<TData, any[]>[number], string, undefined>>
+  ? z.ZodArray<GetZodType<Assume<TData, any[]>[number], string, undefined, undefined>>
   : TData extends infer TDict extends Record<string, any>
-  ? z.ZodObject<{ [K in keyof TDict]: GetZodType<TDict[K], string, undefined> }, 'strip'>
+  ? z.ZodObject<{ [K in keyof TDict]: GetZodType<TDict[K], string, undefined, undefined> }, 'strip'>
   : TDataType extends 'json'
   ? z.ZodType<Json>
   : TData extends number
@@ -65,7 +74,8 @@ export type HandleColumn<
 > = GetZodType<
     TColumn['_']['data'],
     TColumn['_']['dataType'],
-    GetEnumValuesFromColumn<TColumn>
+    GetEnumValuesFromColumn<TColumn>,
+    GetBaseColumn<TColumn>
   > extends infer TSchema extends z.ZodTypeAny
   ? TSchema extends z.ZodAny
     ? z.ZodAny

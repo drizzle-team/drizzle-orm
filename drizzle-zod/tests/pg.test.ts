@@ -1,4 +1,4 @@
-import { cidr, integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
@@ -11,8 +11,8 @@ const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MA
 
 test('table - select', (t) => {
 	const table = pgTable('test', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
+		id: serial().primaryKey(),
+		name: text().notNull(),
 	});
 
 	const result = createSelectSchema(table);
@@ -22,9 +22,9 @@ test('table - select', (t) => {
 
 test('table - insert', (t) => {
 	const table = pgTable('test', {
-		id: integer('id').generatedAlwaysAsIdentity().primaryKey(),
-		name: text('name').notNull(),
-		age: integer('age')
+		id: integer().generatedAlwaysAsIdentity().primaryKey(),
+		name: text().notNull(),
+		age: integer()
 	});
 
 	const result = createInsertSchema(table);
@@ -34,9 +34,9 @@ test('table - insert', (t) => {
 
 test('table - update', (t) => {
 	const table = pgTable('test', {
-		id: integer('id').generatedAlwaysAsIdentity().primaryKey(),
-		name: text('name').notNull(),
-		age: integer('age')
+		id: integer().generatedAlwaysAsIdentity().primaryKey(),
+		name: text().notNull(),
+		age: integer()
 	});
 
 	const result = createUpdateSchema(table);
@@ -49,8 +49,8 @@ test('table - update', (t) => {
 
 test('view qb - select', (t) => {
 	const table = pgTable('test', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
+		id: serial().primaryKey(),
+		name: text().notNull(),
 	});
 	const view = pgView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
@@ -61,8 +61,8 @@ test('view qb - select', (t) => {
 
 test('view columns - select', (t) => {
 	const view = pgView('test', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
+		id: serial().primaryKey(),
+		name: text().notNull(),
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
@@ -72,8 +72,8 @@ test('view columns - select', (t) => {
 
 test('materialized view qb - select', (t) => {
 	const table = pgTable('test', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
+		id: serial().primaryKey(),
+		name: text().notNull(),
 	});
 	const view = pgMaterializedView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
@@ -84,8 +84,8 @@ test('materialized view qb - select', (t) => {
 
 test('materialized view columns - select', (t) => {
 	const view = pgView('test', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
+		id: serial().primaryKey(),
+		name: text().notNull(),
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
@@ -95,8 +95,8 @@ test('materialized view columns - select', (t) => {
 
 test('view with nested fields - select', (t) => {
 	const table = pgTable('test', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
+		id: serial().primaryKey(),
+		name: text().notNull(),
 	});
 	const view = pgMaterializedView('test').as((qb) => qb.select({
 		id: table.id,
@@ -374,6 +374,8 @@ test('all data types', (t) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
+		array1: integer().array().notNull(),
+		array2: integer().array().array(2).notNull()
 	}));
 
 	const result = createSelectSchema(table);
@@ -419,6 +421,8 @@ test('all data types', (t) => {
 		varchar1: z.string().max(10),
 		varchar2: z.enum(['a', 'b', 'c']),
 		vector: z.array(z.number()).length(3),
+		array1: z.array(integerSchema),
+		array2: z.array(z.array(integerSchema).length(2))
 	});
 	expectSchemaShape(t, expected).from(result);
 })
