@@ -8,6 +8,7 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../s
 import { expectEnumValues, expectSchemaShape } from './utils.ts';
 
 const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
+const textSchema = z.string().max(Number.MAX_SAFE_INTEGER);
 
 test('table - select', (t) => {
 	const table = pgTable('test', {
@@ -16,7 +17,7 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, name: z.string() });
+	const expected = z.object({ id: integerSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -28,7 +29,7 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({ name: z.string(), age: integerSchema.nullable().optional() });
+	const expected = z.object({ name: textSchema, age: integerSchema.nullable().optional() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -41,7 +42,7 @@ test('table - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
-		name: z.string().optional(),
+		name: textSchema.optional(),
 		age: integerSchema.nullable().optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -66,7 +67,7 @@ test('view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: integerSchema, name: z.string() });
+	const expected = z.object({ id: integerSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -89,7 +90,7 @@ test('materialized view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: integerSchema, name: z.string() });
+	const expected = z.object({ id: integerSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -112,8 +113,8 @@ test('view with nested fields - select', (t) => {
 	const result = createSelectSchema(view);
 	const expected = z.object({
 		id: integerSchema,
-		nested: z.object({ name: z.string(), age: z.any() }),
-		table: z.object({ id: integerSchema, name: z.string() }),
+		nested: z.object({ name: textSchema, age: z.any() }),
+		table: z.object({ id: integerSchema, name: textSchema }),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -391,36 +392,36 @@ test('all data types', (t) => {
 		bit: z.string().regex(/^[01]+$/).max(5),
 		boolean: z.boolean(),
 		date1: z.date(),
-		date2: z.string(),
+		date2: z.string().max(Number.MAX_SAFE_INTEGER),
 		char1: z.string().length(10),
 		char2: z.enum(['a', 'b', 'c']),
-		cidr: z.string(),
+		cidr: z.string().max(Number.MAX_SAFE_INTEGER),
 		doublePrecision: z.number().min(CONSTANTS.INT48_MIN).max(CONSTANTS.INT48_MAX),
 		geometry1: z.tuple([z.number(), z.number()]),
 		geometry2: z.object({ x: z.number(), y: z.number() }),
 		halfvec: z.array(z.number()).length(3),
-		inet: z.string(),
+		inet: z.string().max(Number.MAX_SAFE_INTEGER),
 		integer: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
-		interval: z.string(),
+		interval: z.string().max(Number.MAX_SAFE_INTEGER),
 		json: jsonSchema,
 		jsonb: jsonSchema,
 		line1: z.object({ a: z.number(), b: z.number(), c: z.number() }),
 		line2: z.tuple([z.number(), z.number(), z.number()]),
-		macaddr: z.string(),
-		macaddr8: z.string(),
-		numeric: z.string(),
+		macaddr: z.string().max(Number.MAX_SAFE_INTEGER),
+		macaddr8: z.string().max(Number.MAX_SAFE_INTEGER),
+		numeric: z.string().max(Number.MAX_SAFE_INTEGER),
 		point1: z.object({ x: z.number(), y: z.number() }),
 		point2: z.tuple([z.number(), z.number()]),
 		real: z.number().min(CONSTANTS.INT24_MIN).max(CONSTANTS.INT24_MAX),
 		serial: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
 		smallint: z.number().min(CONSTANTS.INT16_MIN).max(CONSTANTS.INT16_MAX).int(),
 		smallserial: z.number().min(CONSTANTS.INT16_MIN).max(CONSTANTS.INT16_MAX).int(),
-		text1: z.string(),
+		text1: z.string().max(Number.MAX_SAFE_INTEGER),
 		text2: z.enum(['a', 'b', 'c']),
-		sparsevec: z.string(),
-		time: z.string(),
+		sparsevec: z.string().max(Number.MAX_SAFE_INTEGER),
+		time: z.string().max(Number.MAX_SAFE_INTEGER),
 		timestamp1: z.date(),
-		timestamp2: z.string(),
+		timestamp2: z.string().max(Number.MAX_SAFE_INTEGER),
 		uuid: z.string().uuid(),
 		varchar1: z.string().max(10),
 		varchar2: z.enum(['a', 'b', 'c']),

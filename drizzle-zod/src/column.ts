@@ -192,5 +192,5 @@ function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 
 	let schema = z.string();
 	schema = regex !== undefined ? schema.regex(regex) : schema;
-	return max !== undefined && fixed ? schema.length(max) : max !== undefined ? schema.max(max) : schema;
+	return max !== undefined && fixed ? schema.length(max) : schema.max(max ?? Number.MAX_SAFE_INTEGER);
 }

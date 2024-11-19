@@ -8,6 +8,7 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../s
 import { expectSchemaShape } from './utils.ts';
 
 const intSchema = z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int();
+const textSchema = z.string().max(Number.MAX_SAFE_INTEGER);
 
 test('table - select', (t) => {
 	const table = sqliteTable('test', {
@@ -16,7 +17,7 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: intSchema, name: z.string() });
+	const expected = z.object({ id: intSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -28,7 +29,7 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({ id: intSchema.optional(), name: z.string(), age: intSchema.nullable().optional() });
+	const expected = z.object({ id: intSchema.optional(), name: textSchema, age: intSchema.nullable().optional() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -42,7 +43,7 @@ test('table - update', (t) => {
 	const result = createUpdateSchema(table);
 	const expected = z.object({
 		id: intSchema.optional(),
-		name: z.string().optional(),
+		name: textSchema.optional(),
 		age: intSchema.nullable().optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -67,7 +68,7 @@ test('view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: intSchema, name: z.string() });
+	const expected = z.object({ id: intSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -90,8 +91,8 @@ test('view with nested fields - select', (t) => {
 	const result = createSelectSchema(view);
 	const expected = z.object({
 		id: intSchema,
-		nested: z.object({ name: z.string(), age: z.any() }),
-		table: z.object({ id: intSchema, name: z.string() }),
+		nested: z.object({ name: textSchema, age: z.any() }),
+		table: z.object({ id: intSchema, name: textSchema }),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -299,9 +300,9 @@ test('all data types', (t) => {
 		integer2: z.boolean(),
 		integer3: z.date(),
 		integer4: z.date(),
-		numeric: z.string(),
+		numeric: z.string().max(Number.MAX_SAFE_INTEGER),
 		real: z.number().min(CONSTANTS.INT48_MIN).max(CONSTANTS.INT48_MAX),
-		text1: z.string(),
+		text1: z.string().max(Number.MAX_SAFE_INTEGER),
 		text2: z.string().max(10),
 		text3: z.enum(['a', 'b', 'c']),
 		text4: jsonSchema,
