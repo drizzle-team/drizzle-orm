@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { is } from 'drizzle-orm';
 import { PgArray, PgBigInt53, PgBigSerial53, PgBinaryVector, PgChar, PgDoublePrecision, PgGeometry, PgGeometryObject, PgHalfVector, PgInteger, PgLineABC, PgLineTuple, PgPointObject, PgPointTuple, PgReal, PgSerial, PgSmallInt, PgSmallSerial, PgSparseVector, PgText, PgUUID, PgVarchar, PgVector } from 'drizzle-orm/pg-core';
-import { MySqlBigInt53, MySqlChar, MySqlColumn, MySqlDecimal, MySqlDouble, MySqlFloat, MySqlInt, MySqlMediumInt, MySqlReal, MySqlSerial, MySqlSmallInt, MySqlText, MySqlTinyInt, MySqlVarChar } from 'drizzle-orm/mysql-core';
+import { MySqlBigInt53, MySqlChar, MySqlColumn, MySqlDecimal, MySqlDouble, MySqlFloat, MySqlInt, MySqlMediumInt, MySqlReal, MySqlSerial, MySqlSmallInt, MySqlText, MySqlTinyInt, MySqlVarChar, MySqlYear } from 'drizzle-orm/mysql-core';
 import { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
 import { isAny, isWithEnum } from './utils';
 import { CONSTANTS } from './constants';
@@ -94,10 +94,14 @@ function numberColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
   } else if (isAny(column, [PgDoublePrecision, MySqlReal, MySqlDouble, SQLiteReal])) {
     min = unsigned ? 0 : CONSTANTS.INT48_MIN;
     max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
-  } else if (isAny(column, [PgBigInt53, PgBigSerial53, MySqlBigInt53, MySqlSerial, MySqlDecimal, SQLiteInteger])) {
+  } else if (isAny(column, [PgBigInt53, PgBigSerial53, MySqlBigInt53, MySqlSerial, SQLiteInteger])) {
     min = unsigned ? 0 : Number.MIN_SAFE_INTEGER;
     max = Number.MAX_SAFE_INTEGER;
-    integer = !is(column, MySqlDecimal);
+    integer = true;
+  } else if (is(column, MySqlYear)) {
+    min = 1901;
+    max = 2155;
+    integer = true;
   } else {
     min = Number.MIN_SAFE_INTEGER;
     max = Number.MAX_SAFE_INTEGER;
