@@ -18,11 +18,7 @@ function getColumns(tableLike: Table | View) {
 function handleColumns(
 	columns: Record<string, any>,
 	refinements: Record<string, any>,
-	conditions: {
-		never: (column?: Column) => boolean;
-		optional: (column: Column) => boolean;
-		nullable: (column: Column) => boolean;
-	},
+	conditions: Conditions,
 	factory?: CreateSchemaFactoryOptions,
 ): z.ZodTypeAny {
 	const columnSchemas: Record<string, z.ZodTypeAny> = {};
