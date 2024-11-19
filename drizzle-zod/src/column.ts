@@ -132,7 +132,7 @@ function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
   let regex: RegExp | undefined;
   let fixed = false;
 
-  if (is(column, PgVarchar)) {
+  if (isAny(column, [PgVarchar, SQLiteText])) {
     max = column.length;
   } else if (is(column, MySqlVarChar)) {
     max = column.length ?? CONSTANTS.INT16_UNSIGNED_MAX;

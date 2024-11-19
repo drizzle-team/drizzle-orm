@@ -1,4 +1,4 @@
-import { int, mediumint, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { int, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
@@ -8,7 +8,8 @@ import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 
 const intSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
-const serialNumberModeSchema = z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int();
+const serialNumberModeSchema = z.number().min(0).max(Number.MAX_SAFE_INTEGER).int();
+const textSchema = z.string().max(CONSTANTS.INT16_UNSIGNED_MAX);
 
 test('table - select', (t) => {
 	const table = mysqlTable('test', {
@@ -17,7 +18,7 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: serialNumberModeSchema, name: z.string() });
+	const expected = z.object({ id: serialNumberModeSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -29,7 +30,7 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({ id: serialNumberModeSchema.optional(), name: z.string(), age: intSchema.nullable().optional() });
+	const expected = z.object({ id: serialNumberModeSchema.optional(), name: textSchema, age: intSchema.nullable().optional() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -43,7 +44,7 @@ test('table - update', (t) => {
 	const result = createUpdateSchema(table);
 	const expected = z.object({
 		id: serialNumberModeSchema.optional(),
-		name: z.string().optional(),
+		name: textSchema.optional(),
 		age: intSchema.nullable().optional()
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -57,7 +58,7 @@ test('view qb - select', (t) => {
 	const view = mysqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: intSchema, age: z.any() });
+	const expected = z.object({ id: serialNumberModeSchema, age: z.any() });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -68,7 +69,7 @@ test('view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: intSchema, name: z.string() });
+	const expected = z.object({ id: serialNumberModeSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -88,9 +89,9 @@ test('view with nested fields - select', (t) => {
 
 	const result = createSelectSchema(view);
 	const expected = z.object({
-		id: intSchema,
-		nested: z.object({ name: z.string(), age: z.any() }),
-		table: z.object({ id: intSchema, name: z.string() })
+		id: serialNumberModeSchema,
+		nested: z.object({ name: textSchema, age: z.any() }),
+		table: z.object({ id: serialNumberModeSchema, name: textSchema })
 	});
 	expectSchemaShape(t, expected).from(result);
 });
