@@ -141,10 +141,10 @@ export abstract class PgTransaction<
 
 	setTransaction(config: PgTransactionConfig): Promise<void> {
 		const setTransactionConfigSql = this.getTransactionConfigSQL(config);
-    if (setTransactionConfigSql) {
-      return this.session.execute(sql`set transaction ${setTransactionConfigSql}`);
-    }
-    return Promise.resolve();
+		if (setTransactionConfigSql) {
+			return this.session.execute(sql`set transaction ${setTransactionConfigSql}`);
+		}
+		return Promise.resolve();
 	}
 
 	abstract override transaction<T>(
