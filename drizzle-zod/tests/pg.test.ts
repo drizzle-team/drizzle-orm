@@ -1,11 +1,11 @@
+import { sql } from 'drizzle-orm';
 import { integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 import { z } from 'zod';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
-import { expectEnumValues, expectSchemaShape } from './utils.ts';
-import { sql } from 'drizzle-orm';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { expectEnumValues, expectSchemaShape } from './utils.ts';
 
 const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
 
@@ -24,7 +24,7 @@ test('table - insert', (t) => {
 	const table = pgTable('test', {
 		id: integer().generatedAlwaysAsIdentity().primaryKey(),
 		name: text().notNull(),
-		age: integer()
+		age: integer(),
 	});
 
 	const result = createInsertSchema(table);
@@ -36,13 +36,13 @@ test('table - update', (t) => {
 	const table = pgTable('test', {
 		id: integer().generatedAlwaysAsIdentity().primaryKey(),
 		name: text().notNull(),
-		age: integer()
+		age: integer(),
 	});
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
 		name: z.string().optional(),
-		age: integerSchema.nullable().optional()
+		age: integerSchema.nullable().optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -98,20 +98,22 @@ test('view with nested fields - select', (t) => {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});
-	const view = pgMaterializedView('test').as((qb) => qb.select({
-		id: table.id,
-		nested: {
-			name: table.name,
-			age: sql``.as('age')
-		},
-		table
-	}).from(table));
+	const view = pgMaterializedView('test').as((qb) =>
+		qb.select({
+			id: table.id,
+			nested: {
+				name: table.name,
+				age: sql``.as('age'),
+			},
+			table,
+		}).from(table)
+	);
 
 	const result = createSelectSchema(view);
 	const expected = z.object({
 		id: integerSchema,
 		nested: z.object({ name: z.string(), age: z.any() }),
-		table: z.object({ id: integerSchema, name: z.string() })
+		table: z.object({ id: integerSchema, name: z.string() }),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -138,7 +140,7 @@ test('nullability - select', (t) => {
 		c2: integerSchema,
 		c3: integerSchema.nullable(),
 		c4: integerSchema,
-	})
+	});
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -195,12 +197,12 @@ test('refine table - select', (t) => {
 
 	const result = createSelectSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	const expected = z.object({
 		c1: integerSchema.nullable(),
 		c2: integerSchema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -210,17 +212,17 @@ test('refine table - insert', (t) => {
 		c1: integer(),
 		c2: integer().notNull(),
 		c3: integer().notNull(),
-		c4: integer().generatedAlwaysAs(1)
+		c4: integer().generatedAlwaysAs(1),
 	});
 
 	const result = createInsertSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	const expected = z.object({
 		c1: integerSchema.nullable().optional(),
 		c2: integerSchema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -230,7 +232,7 @@ test('refine table - update', (t) => {
 		c1: integer(),
 		c2: integer().notNull(),
 		c3: integer().notNull(),
-		c4: integer().generatedAlwaysAs(1)
+		c4: integer().generatedAlwaysAs(1),
 	});
 
 	const result = createUpdateSchema(table, {
@@ -254,17 +256,19 @@ test('refine view - select', (t) => {
 		c5: integer(),
 		c6: integer(),
 	});
-	const view = pgView('test').as((qb) => qb.select({
-		c1: table.c1,
-		c2: table.c2,
-		c3: table.c3,
-		nested: {
-			c4: table.c4,
-			c5: table.c5,
-			c6: table.c6
-		},
-		table
-	}).from(table));
+	const view = pgView('test').as((qb) =>
+		qb.select({
+			c1: table.c1,
+			c2: table.c2,
+			c3: table.c3,
+			nested: {
+				c4: table.c4,
+				c5: table.c5,
+				c6: table.c6,
+			},
+			table,
+		}).from(table)
+	);
 
 	const result = createSelectSchema(view, {
 		c2: (schema) => schema.max(1000),
@@ -276,7 +280,7 @@ test('refine view - select', (t) => {
 		table: {
 			c2: (schema) => schema.max(1000),
 			c3: z.string().transform((v) => Number(v)),
-		}
+		},
 	});
 	const expected = z.object({
 		c1: integerSchema.nullable(),
@@ -294,7 +298,7 @@ test('refine view - select', (t) => {
 			c4: integerSchema.nullable(),
 			c5: integerSchema.nullable(),
 			c6: integerSchema.nullable(),
-		})
+		}),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -331,14 +335,14 @@ test('all data types', (t) => {
 		timestamp,
 		uuid,
 		varchar,
-		vector
+		vector,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
 		bigserial1: bigserial({ mode: 'number' }).notNull(),
 		bigserial2: bigserial({ mode: 'bigint' }).notNull(),
 		bit: bit({ dimensions: 5 }).notNull(),
-		boolean : boolean().notNull(),
+		boolean: boolean().notNull(),
 		date1: date({ mode: 'date' }).notNull(),
 		date2: date({ mode: 'string' }).notNull(),
 		char1: char({ length: 10 }).notNull(),
@@ -375,7 +379,7 @@ test('all data types', (t) => {
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
 		array1: integer().array().notNull(),
-		array2: integer().array().array(2).notNull()
+		array2: integer().array().array(2).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -422,10 +426,10 @@ test('all data types', (t) => {
 		varchar2: z.enum(['a', 'b', 'c']),
 		vector: z.array(z.number()).length(3),
 		array1: z.array(integerSchema),
-		array2: z.array(z.array(integerSchema).length(2))
+		array2: z.array(z.array(integerSchema).length(2)),
 	});
 	expectSchemaShape(t, expected).from(result);
-})
+});
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });

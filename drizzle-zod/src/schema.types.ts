@@ -1,52 +1,52 @@
-import type { z } from 'zod';
-import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { Table, View } from 'drizzle-orm';
-import type { BuildSchema, BuildRefine, NoUnknownKeys } from './schema.types.internal';
+import type { PgEnum } from 'drizzle-orm/pg-core';
+import type { z } from 'zod';
+import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal';
 
 export interface CreateSelectSchema {
-  <TTable extends Table>(table: TTable): BuildSchema<'select', TTable['_']['columns'], undefined>;
-  <
-    TTable extends Table,
-    TRefine extends BuildRefine<TTable['_']['columns']>
-  >(
-    table: TTable,
-    refine?: NoUnknownKeys<TRefine, TTable['$inferSelect']>
-  ): BuildSchema<'select', TTable['_']['columns'], TRefine>;
+	<TTable extends Table>(table: TTable): BuildSchema<'select', TTable['_']['columns'], undefined>;
+	<
+		TTable extends Table,
+		TRefine extends BuildRefine<TTable['_']['columns']>,
+	>(
+		table: TTable,
+		refine?: NoUnknownKeys<TRefine, TTable['$inferSelect']>,
+	): BuildSchema<'select', TTable['_']['columns'], TRefine>;
 
-  <TView extends View>(view: TView): BuildSchema<'select', TView['_']['selectedFields'], undefined>;
-  <
-    TView extends View,
-    TRefine extends BuildRefine<TView['_']['selectedFields']>
-  >(
-    view: TView,
-    refine: NoUnknownKeys<TRefine, TView['$inferSelect']>
-  ): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
+	<TView extends View>(view: TView): BuildSchema<'select', TView['_']['selectedFields'], undefined>;
+	<
+		TView extends View,
+		TRefine extends BuildRefine<TView['_']['selectedFields']>,
+	>(
+		view: TView,
+		refine: NoUnknownKeys<TRefine, TView['$inferSelect']>,
+	): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
 
-  <TEnum extends PgEnum<any>>(enum_: TEnum): z.ZodEnum<TEnum['enumValues']>;
+	<TEnum extends PgEnum<any>>(enum_: TEnum): z.ZodEnum<TEnum['enumValues']>;
 }
 
 export interface CreateInsertSchema {
-  <TTable extends Table>(table: TTable): BuildSchema<'insert', TTable['_']['columns'], undefined>;
-  <
-    TTable extends Table,
-    TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>
-  >(
-    table: TTable,
-    refine?: NoUnknownKeys<TRefine, TTable['$inferInsert']>
-  ): BuildSchema<'insert', TTable['_']['columns'], TRefine>;
+	<TTable extends Table>(table: TTable): BuildSchema<'insert', TTable['_']['columns'], undefined>;
+	<
+		TTable extends Table,
+		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>,
+	>(
+		table: TTable,
+		refine?: NoUnknownKeys<TRefine, TTable['$inferInsert']>,
+	): BuildSchema<'insert', TTable['_']['columns'], TRefine>;
 }
 
 export interface CreateUpdateSchema {
-  <TTable extends Table>(table: TTable): BuildSchema<'update', TTable['_']['columns'], undefined>;
-  <
-    TTable extends Table,
-    TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>
-  >(
-    table: TTable,
-    refine?: TRefine
-  ): BuildSchema<'update', TTable['_']['columns'], TRefine>;
+	<TTable extends Table>(table: TTable): BuildSchema<'update', TTable['_']['columns'], undefined>;
+	<
+		TTable extends Table,
+		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>,
+	>(
+		table: TTable,
+		refine?: TRefine,
+	): BuildSchema<'update', TTable['_']['columns'], TRefine>;
 }
 
 export interface CreateSchemaFactoryOptions {
-  zodInstance?: any;
+	zodInstance?: any;
 }

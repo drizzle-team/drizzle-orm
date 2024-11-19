@@ -1,11 +1,11 @@
+import { sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { test } from 'vitest';
 import { z } from 'zod';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
-import { expectSchemaShape } from './utils.ts';
-import { sql } from 'drizzle-orm';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { expectSchemaShape } from './utils.ts';
 
 const intSchema = z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int();
 
@@ -24,7 +24,7 @@ test('table - insert', (t) => {
 	const table = sqliteTable('test', {
 		id: int().primaryKey({ autoIncrement: true }),
 		name: text().notNull(),
-		age: int()
+		age: int(),
 	});
 
 	const result = createInsertSchema(table);
@@ -36,14 +36,14 @@ test('table - update', (t) => {
 	const table = sqliteTable('test', {
 		id: int().primaryKey({ autoIncrement: true }),
 		name: text().notNull(),
-		age: int()
+		age: int(),
 	});
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
 		id: intSchema.optional(),
 		name: z.string().optional(),
-		age: intSchema.nullable().optional()
+		age: intSchema.nullable().optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -76,20 +76,22 @@ test('view with nested fields - select', (t) => {
 		id: int().primaryKey({ autoIncrement: true }),
 		name: text().notNull(),
 	});
-	const view = sqliteView('test').as((qb) => qb.select({
-		id: table.id,
-		nested: {
-			name: table.name,
-			age: sql``.as('age')
-		},
-		table
-	}).from(table));
+	const view = sqliteView('test').as((qb) =>
+		qb.select({
+			id: table.id,
+			nested: {
+				name: table.name,
+				age: sql``.as('age'),
+			},
+			table,
+		}).from(table)
+	);
 
 	const result = createSelectSchema(view);
 	const expected = z.object({
 		id: intSchema,
 		nested: z.object({ name: z.string(), age: z.any() }),
-		table: z.object({ id: intSchema, name: z.string() })
+		table: z.object({ id: intSchema, name: z.string() }),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -108,7 +110,7 @@ test('nullability - select', (t) => {
 		c2: intSchema,
 		c3: intSchema.nullable(),
 		c4: intSchema,
-	})
+	});
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -159,12 +161,12 @@ test('refine table - select', (t) => {
 
 	const result = createSelectSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable(),
 		c2: intSchema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -174,17 +176,17 @@ test('refine table - insert', (t) => {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
-		c4: int().generatedAlwaysAs(1)
+		c4: int().generatedAlwaysAs(1),
 	});
 
 	const result = createInsertSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable().optional(),
 		c2: intSchema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -194,7 +196,7 @@ test('refine table - update', (t) => {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
-		c4: int().generatedAlwaysAs(1)
+		c4: int().generatedAlwaysAs(1),
 	});
 
 	const result = createUpdateSchema(table, {
@@ -218,17 +220,19 @@ test('refine view - select', (t) => {
 		c5: int(),
 		c6: int(),
 	});
-	const view = sqliteView('test').as((qb) => qb.select({
-		c1: table.c1,
-		c2: table.c2,
-		c3: table.c3,
-		nested: {
-			c4: table.c4,
-			c5: table.c5,
-			c6: table.c6
-		},
-		table
-	}).from(table));
+	const view = sqliteView('test').as((qb) =>
+		qb.select({
+			c1: table.c1,
+			c2: table.c2,
+			c3: table.c3,
+			nested: {
+				c4: table.c4,
+				c5: table.c5,
+				c6: table.c6,
+			},
+			table,
+		}).from(table)
+	);
 
 	const result = createSelectSchema(view, {
 		c2: (schema) => schema.max(1000),
@@ -240,7 +244,7 @@ test('refine view - select', (t) => {
 		table: {
 			c2: (schema) => schema.max(1000),
 			c3: z.string().transform((v) => Number(v)),
-		}
+		},
 	});
 	const expected = z.object({
 		c1: intSchema.nullable(),
@@ -258,7 +262,7 @@ test('refine view - select', (t) => {
 			c4: intSchema.nullable(),
 			c5: intSchema.nullable(),
 			c6: intSchema.nullable(),
-		})
+		}),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -269,7 +273,7 @@ test('all data types', (t) => {
 		integer,
 		numeric,
 		real,
-		text
+		text,
 	}) => ({
 		blob1: blob({ mode: 'buffer' }).notNull(),
 		blob2: blob({ mode: 'bigint' }).notNull(),
@@ -300,10 +304,10 @@ test('all data types', (t) => {
 		text1: z.string(),
 		text2: z.string().max(10),
 		text3: z.enum(['a', 'b', 'c']),
-		text4: jsonSchema
+		text4: jsonSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
-})
+});
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = sqliteTable('test', { id: int() });

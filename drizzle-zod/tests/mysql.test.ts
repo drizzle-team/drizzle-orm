@@ -1,11 +1,11 @@
+import { sql } from 'drizzle-orm';
 import { int, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { test } from 'vitest';
 import { z } from 'zod';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
-import { expectSchemaShape } from './utils.ts';
-import { sql } from 'drizzle-orm';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { expectSchemaShape } from './utils.ts';
 
 const intSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
 const serialNumberModeSchema = z.number().min(0).max(Number.MAX_SAFE_INTEGER).int();
@@ -26,11 +26,15 @@ test('table - insert', (t) => {
 	const table = mysqlTable('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
-		age: int()
+		age: int(),
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({ id: serialNumberModeSchema.optional(), name: textSchema, age: intSchema.nullable().optional() });
+	const expected = z.object({
+		id: serialNumberModeSchema.optional(),
+		name: textSchema,
+		age: intSchema.nullable().optional(),
+	});
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -38,14 +42,14 @@ test('table - update', (t) => {
 	const table = mysqlTable('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
-		age: int()
+		age: int(),
 	});
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
 		id: serialNumberModeSchema.optional(),
 		name: textSchema.optional(),
-		age: intSchema.nullable().optional()
+		age: intSchema.nullable().optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -78,20 +82,22 @@ test('view with nested fields - select', (t) => {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});
-	const view = mysqlView('test').as((qb) => qb.select({
-		id: table.id,
-		nested: {
-			name: table.name,
-			age: sql``.as('age')
-		},
-		table
-	}).from(table));
+	const view = mysqlView('test').as((qb) =>
+		qb.select({
+			id: table.id,
+			nested: {
+				name: table.name,
+				age: sql``.as('age'),
+			},
+			table,
+		}).from(table)
+	);
 
 	const result = createSelectSchema(view);
 	const expected = z.object({
 		id: serialNumberModeSchema,
 		nested: z.object({ name: textSchema, age: z.any() }),
-		table: z.object({ id: serialNumberModeSchema, name: textSchema })
+		table: z.object({ id: serialNumberModeSchema, name: textSchema }),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -110,7 +116,7 @@ test('nullability - select', (t) => {
 		c2: intSchema,
 		c3: intSchema.nullable(),
 		c4: intSchema,
-	})
+	});
 	expectSchemaShape(t, expected).from(result);
 });
 
@@ -161,12 +167,12 @@ test('refine table - select', (t) => {
 
 	const result = createSelectSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable(),
 		c2: intSchema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -176,17 +182,17 @@ test('refine table - insert', (t) => {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
-		c4: int().generatedAlwaysAs(1)
+		c4: int().generatedAlwaysAs(1),
 	});
 
 	const result = createInsertSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable().optional(),
 		c2: intSchema.max(1000),
-		c3: z.string().transform((v) => Number(v))
+		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -196,7 +202,7 @@ test('refine table - update', (t) => {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
-		c4: int().generatedAlwaysAs(1)
+		c4: int().generatedAlwaysAs(1),
 	});
 
 	const result = createUpdateSchema(table, {
@@ -220,17 +226,19 @@ test('refine view - select', (t) => {
 		c5: int(),
 		c6: int(),
 	});
-	const view = mysqlView('test').as((qb) => qb.select({
-		c1: table.c1,
-		c2: table.c2,
-		c3: table.c3,
-		nested: {
-			c4: table.c4,
-			c5: table.c5,
-			c6: table.c6
-		},
-		table
-	}).from(table));
+	const view = mysqlView('test').as((qb) =>
+		qb.select({
+			c1: table.c1,
+			c2: table.c2,
+			c3: table.c3,
+			nested: {
+				c4: table.c4,
+				c5: table.c5,
+				c6: table.c6,
+			},
+			table,
+		}).from(table)
+	);
 
 	const result = createSelectSchema(view, {
 		c2: (schema) => schema.max(1000),
@@ -242,7 +250,7 @@ test('refine view - select', (t) => {
 		table: {
 			c2: (schema) => schema.max(1000),
 			c3: z.string().transform((v) => Number(v)),
-		}
+		},
 	});
 	const expected = z.object({
 		c1: intSchema.nullable(),
@@ -260,7 +268,7 @@ test('refine view - select', (t) => {
 			c4: intSchema.nullable(),
 			c5: intSchema.nullable(),
 			c6: intSchema.nullable(),
-		})
+		}),
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -296,7 +304,7 @@ test('all data types', (t) => {
 		bigint3: bigint({ unsigned: true, mode: 'number' }).notNull(),
 		bigint4: bigint({ unsigned: true, mode: 'bigint' }).notNull(),
 		binary: binary({ length: 10 }).notNull(),
-		boolean : boolean().notNull(),
+		boolean: boolean().notNull(),
 		char1: char({ length: 10 }).notNull(),
 		char2: char({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		date1: date({ mode: 'date' }).notNull(),
@@ -329,7 +337,7 @@ test('all data types', (t) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		varbinary: varbinary({ length: 10 }).notNull(),
-		year: year().notNull()
+		year: year().notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -372,10 +380,10 @@ test('all data types', (t) => {
 		varchar1: z.string().max(10),
 		varchar2: z.enum(['a', 'b', 'c']),
 		varbinary: z.string(),
-		year: z.number().min(1901).max(2155).int()
+		year: z.number().min(1901).max(2155).int(),
 	});
 	expectSchemaShape(t, expected).from(result);
-})
+});
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = mysqlTable('test', { id: int() });

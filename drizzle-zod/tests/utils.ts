@@ -23,6 +23,6 @@ export function expectEnumValues<T extends [string, ...string[]]>(t: TaskContext
 	return {
 		from(actual: z.ZodEnum<T>) {
 			expect(actual._def.values).toStrictEqual(expected._def.values);
-		}
+		},
 	};
 }
