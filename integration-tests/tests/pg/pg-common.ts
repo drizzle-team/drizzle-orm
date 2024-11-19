@@ -2795,6 +2795,15 @@ export function tests() {
 
 			expect(result).toEqual([{ id: 1, balance: 90 }]);
 
+      // test that empty config is treated as no config
+      await db.transaction(async (tx) => {
+				await tx.update(users).set({ balance: result[0]!.balance - product.price }).where(eq(users.id, user.id));
+				await tx.update(products).set({ stock: product.stock - 2 }).where(eq(products.id, product.id));
+      }, {});
+
+      const updated = await db.select().from(users);
+      expect(updated).toEqual([{ id: 1, balance: 80 }]);
+
 			await db.execute(sql`drop table ${users}`);
 			await db.execute(sql`drop table ${products}`);
 		});

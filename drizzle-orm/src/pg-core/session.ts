@@ -125,7 +125,7 @@ export abstract class PgTransaction<
 	}
 
 	/** @internal */
-	getTransactionConfigSQL(config: PgTransactionConfig): SQL {
+	getTransactionConfigSQL(config: PgTransactionConfig): SQL | undefined {
 		const chunks: string[] = [];
 		if (config.isolationLevel) {
 			chunks.push(`isolation level ${config.isolationLevel}`);
@@ -136,11 +136,15 @@ export abstract class PgTransaction<
 		if (typeof config.deferrable === 'boolean') {
 			chunks.push(config.deferrable ? 'deferrable' : 'not deferrable');
 		}
-		return sql.raw(chunks.join(' '));
+		return chunks.length ? sql.raw(chunks.join(' ')) : undefined;
 	}
 
 	setTransaction(config: PgTransactionConfig): Promise<void> {
-		return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+		const setTransactionConfigSql = this.getTransactionConfigSQL(config);
+    if (setTransactionConfigSql) {
+      return this.session.execute(sql`set transaction ${setTransactionConfigSql}`);
+    }
+    return Promise.resolve();
 	}
 
 	abstract override transaction<T>(
