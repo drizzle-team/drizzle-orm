@@ -55,8 +55,8 @@
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"peerDependencies": {
-		"drizzle-orm": ">=0.23.13",
-		"valibot": ">=0.20"
+		"drizzle-orm": ">=0.36.0",
+		"valibot": ">=1.0.0-beta.7"
 	},
 	"devDependencies": {
 		"@rollup/plugin-typescript": "^11.1.0",
@@ -65,7 +65,7 @@
 		"drizzle-orm": "link:../drizzle-orm/dist",
 		"rimraf": "^5.0.0",
 		"rollup": "^3.20.7",
-		"valibot": "^0.30.0",
+		"valibot": "1.0.0-beta.7",
 		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "^1.6.0",
 		"zx": "^7.2.2"
