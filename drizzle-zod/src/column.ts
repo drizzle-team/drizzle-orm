@@ -65,23 +65,27 @@ export function columnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 
 	if (!schema) {
 		// Handle specific types
-		if (is(column, PgGeometry)) {
+		if (isAny(column, [PgGeometry, PgPointTuple])) {
 			schema = z.tuple([z.number(), z.number()]);
-		} else if (is(column, PgGeometryObject)) {
+		} else if (isAny(column, [PgGeometryObject, PgPointObject])) {
 			schema = z.object({ x: z.number(), y: z.number() });
 		} else if (isAny(column, [PgHalfVector, PgVector])) {
 			schema = z.array(z.number());
 			schema = column.dimensions ? (schema as z.ZodArray<any>).length(column.dimensions) : schema;
-		} else if (is(column, PgPointTuple)) {
+		} else if (is(column, PgLineTuple)) {
 			schema = z.tuple([z.number(), z.number(), z.number()]);
-		} else if (is(column, PgPointObject)) {
-			schema = z.object({ a: z.number(), b: z.number(), c: z.number() });
+		} else if (is(column, PgLineABC)) {
+			schema = z.object({
+				a: z.number(),
+				b: z.number(),
+				c: z.number(),
+			});
 		} // Handle other types
 		else if (is(column, PgArray)) {
 			schema = z.array(columnToSchema(column.baseColumn, z));
 			schema = column.size ? (schema as z.ZodArray<any>).length(column.size) : schema;
 		} else if (column.dataType === 'array') {
-			schema = arrayColumnToSchema(column, z);
+			schema = z.array(z.any());
 		} else if (column.dataType === 'number') {
 			schema = numberColumnToSchema(column, z);
 		} else if (column.dataType === 'bigint') {
@@ -93,7 +97,7 @@ export function columnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 		} else if (column.dataType === 'string') {
 			schema = stringColumnToSchema(column, z);
 		} else if (column.dataType === 'json') {
-			schema = jsonColumnToSchema(column, z);
+			schema = jsonSchema;
 		} else if (column.dataType === 'custom') {
 			schema = z.any();
 		} else if (column.dataType === 'buffer') {
@@ -160,10 +164,6 @@ function bigintColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 }
 
 function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
-	if (isAny(column, [PgChar, MySqlChar, PgText, PgVarchar, MySqlVarChar, MySqlText, SQLiteText]) && column.enumValues) {
-		return z.enum(column.enumValues as any);
-	}
-
 	if (is(column, PgUUID)) {
 		return z.string().uuid();
 	}
@@ -193,48 +193,4 @@ function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 	let schema = z.string();
 	schema = regex !== undefined ? schema.regex(regex) : schema;
 	return max !== undefined && fixed ? schema.length(max) : max !== undefined ? schema.max(max) : schema;
-}
-
-function arrayColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
-	let schema!: z.ZodTypeAny;
-
-	if (is(column, PgLineTuple)) {
-		schema = z.tuple([
-			z.number(),
-			z.number(),
-			z.number(),
-		]);
-	} else if (isAny(column, [PgPointTuple, PgGeometry])) {
-		schema = z.tuple([
-			z.number(),
-			z.number(),
-		]);
-	} else if (isAny(column, [PgHalfVector, PgVector])) {
-		schema = z.array(z.number());
-	} else {
-		schema = z.array(z.any());
-	}
-
-	return schema;
-}
-
-function jsonColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
-	let schema!: z.ZodTypeAny;
-
-	if (is(column, PgLineABC)) {
-		schema = z.object({
-			a: z.number(),
-			b: z.number(),
-			c: z.number(),
-		});
-	} else if (isAny(column, [PgPointObject, PgGeometry])) {
-		schema = z.object({
-			x: z.number(),
-			y: z.number(),
-		});
-	} else {
-		schema = jsonSchema;
-	}
-
-	return schema;
 }
