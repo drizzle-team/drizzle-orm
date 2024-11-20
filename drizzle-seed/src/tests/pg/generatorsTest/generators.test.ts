@@ -8,6 +8,8 @@ import { reset, seed } from '../../../index.ts';
 import * as schema from './pgSchema.ts';
 
 import { sql } from 'drizzle-orm';
+import cities from '../../../datasets/cityNames.ts';
+import countries from '../../../datasets/countries.ts';
 import firstNames from '../../../datasets/firstNames.ts';
 import lastNames from '../../../datasets/lastNames.ts';
 
@@ -977,7 +979,7 @@ test('country unique generator test', async () => {
 	// countryUniqueTable-----------------------------------------------------------------------------------
 	await seed(db, { countryUniqueTable: schema.countryUniqueTable }).refine((funcs) => ({
 		countryUniqueTable: {
-			count: 167,
+			count: countries.length,
 			columns: {
 				countryUnique: funcs.country({ isUnique: true }),
 			},
@@ -992,7 +994,7 @@ test('country unique generator test', async () => {
 	await expect(
 		seed(db, { countryUniqueTable: schema.countryUniqueTable }).refine((funcs) => ({
 			countryUniqueTable: {
-				count: 168,
+				count: countries.length + 1,
 				columns: {
 					countryUnique: funcs.country({ isUnique: true }),
 				},
@@ -1023,7 +1025,7 @@ test('city unique generator test', async () => {
 	await reset(db, { cityUniqueTable: schema.cityUniqueTable });
 	await seed(db, { cityUniqueTable: schema.cityUniqueTable }).refine((funcs) => ({
 		cityUniqueTable: {
-			count: 42984,
+			count: cities.length,
 			columns: {
 				cityUnique: funcs.city({ isUnique: true }),
 			},
@@ -1038,7 +1040,7 @@ test('city unique generator test', async () => {
 	await expect(
 		seed(db, { cityUniqueTable: schema.cityUniqueTable }).refine((funcs) => ({
 			cityUniqueTable: {
-				count: 42985,
+				count: cities.length + 1,
 				columns: {
 					cityUnique: funcs.city({ isUnique: true }),
 				},

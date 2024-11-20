@@ -557,7 +557,7 @@ export class PgDialect {
 
 		const overridingSql = overridingSystemValue_ === true ? sql`overriding system value ` : undefined;
 
-		return sql`${withSql}insert into ${table} ${insertOrder} ${overridingSql}values ${valuesSql}${onConflictSql}${returningSql}`;
+		return sql`${withSql}insert into ${table} ${insertOrder} ${overridingSql}${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	buildRefreshMaterializedViewQuery(

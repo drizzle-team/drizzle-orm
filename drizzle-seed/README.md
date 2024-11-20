@@ -584,7 +584,7 @@ generates integers with given range.
 await seed(db, schema, { count: 1000 }).refine((funcs) => ({
   products: {
     columns: {
-      unitsInStock: funcs.number({
+      unitsInStock: funcs.int({
         minValue: 0,
         maxValue: 100,
         isUnique: false,
@@ -682,7 +682,9 @@ await seed(db, schema, { count: 1000 }).refine((funcs) => ({
 
 #### **year**
 
-generates years. ("2024")
+generates years.
+
+example of generated value: "2024"
 
 ```ts
 await seed(db, schema, { count: 1000 }).refine((funcs) => ({
@@ -742,7 +744,7 @@ await seed(db, schema, { count: 1000 }).refine((funcs) => ({
 
 generates time intervals.
 
-interval example: "1 years 12 days 5 minutes"
+example of generated value: "1 years 12 days 5 minutes"
 
 `isUnique` - property that controls if generated values gonna be unique or not.
 
@@ -921,7 +923,7 @@ generates city's names.
 await seed(db, schema, { count: 1000 }).refine((funcs) => ({
   users: {
     columns: {
-      city: funcs.cityName({ isUnique: false }),
+      city: funcs.city({ isUnique: false }),
     },
   },
 }));

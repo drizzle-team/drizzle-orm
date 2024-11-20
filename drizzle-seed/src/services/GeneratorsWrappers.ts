@@ -76,7 +76,7 @@ function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
 
 // Generators Classes -----------------------------------------------------------------------------------------------------------------------
 export class GenerateWeightedCount extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateWeightedCount';
+	static override readonly [entityKind]: string = 'GenerateWeightedCount';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -114,7 +114,7 @@ export class GenerateWeightedCount extends AbstractGenerator<{}> {
 }
 
 export class HollowGenerator extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'HollowGenerator';
+	static override readonly [entityKind]: string = 'HollowGenerator';
 
 	init() {}
 
@@ -124,7 +124,7 @@ export class HollowGenerator extends AbstractGenerator<{}> {
 export class GenerateDefault extends AbstractGenerator<{
 	defaultValue: unknown;
 }> {
-	static readonly [entityKind]: string = 'GenerateDefault';
+	static override readonly [entityKind]: string = 'GenerateDefault';
 
 	init() {}
 
@@ -141,7 +141,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 		isUnique?: boolean;
 	}
 > {
-	static readonly [entityKind]: string = 'GenerateValuesFromArray';
+	static override readonly [entityKind]: string = 'GenerateValuesFromArray';
 
 	public weightedCountSeed: number | undefined = undefined;
 	public maxRepeatedValuesCount?: number | { weight: number; count: number | number[] }[] = undefined;
@@ -398,7 +398,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 }
 
 export class GenerateSelfRelationsValuesFromArray extends AbstractGenerator<{ values: (number | string | boolean)[] }> {
-	static readonly [entityKind]: string = 'GenerateSelfRelationsValuesFromArray';
+	static override readonly [entityKind]: string = 'GenerateSelfRelationsValuesFromArray';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -438,7 +438,7 @@ export class GenerateSelfRelationsValuesFromArray extends AbstractGenerator<{ va
 }
 
 export class GenerateIntPrimaryKey extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateIntPrimaryKey';
+	static override readonly [entityKind]: string = 'GenerateIntPrimaryKey';
 
 	public maxValue?: number | bigint;
 
@@ -465,7 +465,7 @@ export class GenerateNumber extends AbstractGenerator<
 		isUnique?: boolean;
 	} | undefined
 > {
-	static readonly [entityKind]: string = 'GenerateNumber';
+	static override readonly [entityKind]: string = 'GenerateNumber';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -529,7 +529,7 @@ export class GenerateUniqueNumber extends AbstractGenerator<
 		isUnique?: boolean;
 	} | undefined
 > {
-	static readonly [entityKind]: string = 'GenerateUniqueNumber';
+	static override readonly [entityKind]: string = 'GenerateUniqueNumber';
 
 	private state: {
 		genUniqueIntObj: GenerateUniqueInt;
@@ -581,7 +581,7 @@ export class GenerateInt extends AbstractGenerator<{
 	maxValue?: number | bigint;
 	isUnique?: boolean;
 }> {
-	static readonly [entityKind]: string = 'GenerateInt';
+	static override readonly [entityKind]: string = 'GenerateInt';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -606,7 +606,7 @@ export class GenerateInt extends AbstractGenerator<{
 		}
 
 		if (minValue === undefined) {
-			minValue = maxValue === undefined ? -1000 : -maxValue;
+			minValue = -maxValue;
 		}
 
 		if (typeof minValue === 'number' && typeof maxValue === 'number') {
@@ -655,7 +655,7 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 	maxValue?: number | bigint;
 	isUnique?: boolean;
 }> {
-	static readonly [entityKind]: string = 'GenerateUniqueInt';
+	static override readonly [entityKind]: string = 'GenerateUniqueInt';
 
 	public genMaxRepeatedValuesCount: GenerateDefault | GenerateWeightedCount | undefined;
 	public skipCheck?: boolean = false;
@@ -833,7 +833,7 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 }
 
 export class GenerateBoolean extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateBoolean';
+	static override readonly [entityKind]: string = 'GenerateBoolean';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -858,7 +858,7 @@ export class GenerateBoolean extends AbstractGenerator<{}> {
 }
 
 export class GenerateDate extends AbstractGenerator<{ minDate?: string | Date; maxDate?: string | Date }> {
-	static readonly [entityKind]: string = 'GenerateDate';
+	static override readonly [entityKind]: string = 'GenerateDate';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -946,7 +946,7 @@ export class GenerateDate extends AbstractGenerator<{ minDate?: string | Date; m
 // }
 
 export class GenerateTime extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateTime';
+	static override readonly [entityKind]: string = 'GenerateTime';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -1008,7 +1008,7 @@ export class GenerateTime extends AbstractGenerator<{}> {
 //   }
 
 export class GenerateTimestampInt extends AbstractGenerator<{ unitOfTime?: 'seconds' | 'milliseconds' }> {
-	static readonly [entityKind]: string = 'GenerateTimestampInt';
+	static override readonly [entityKind]: string = 'GenerateTimestampInt';
 
 	private state: {
 		generateTimestampObj: GenerateTimestamp;
@@ -1041,7 +1041,7 @@ export class GenerateTimestampInt extends AbstractGenerator<{ unitOfTime?: 'seco
 }
 
 export class GenerateTimestamp extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateTimestamp';
+	static override readonly [entityKind]: string = 'GenerateTimestamp';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -1083,7 +1083,7 @@ export class GenerateTimestamp extends AbstractGenerator<{}> {
 }
 
 export class GenerateDatetime extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateDatetime';
+	static override readonly [entityKind]: string = 'GenerateDatetime';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -1125,7 +1125,7 @@ export class GenerateDatetime extends AbstractGenerator<{}> {
 }
 
 export class GenerateYear extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateYear';
+	static override readonly [entityKind]: string = 'GenerateYear';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -1158,7 +1158,7 @@ export class GenerateYear extends AbstractGenerator<{}> {
 }
 
 export class GenerateJson extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateJson';
+	static override readonly [entityKind]: string = 'GenerateJson';
 
 	private state: {
 		emailGeneratorObj: GenerateEmail;
@@ -1277,7 +1277,7 @@ export class GenerateJson extends AbstractGenerator<{}> {
 //   }
 
 export class GenerateEnum extends AbstractGenerator<{ enumValues: (string | number | boolean)[] }> {
-	static readonly [entityKind]: string = 'GenerateEnum';
+	static override readonly [entityKind]: string = 'GenerateEnum';
 
 	private state: {
 		enumValuesGenerator: GenerateValuesFromArray;
@@ -1300,7 +1300,7 @@ export class GenerateEnum extends AbstractGenerator<{ enumValues: (string | numb
 }
 
 export class GenerateInterval extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateInterval';
+	static override readonly [entityKind]: string = 'GenerateInterval';
 
 	private state: { rng: prand.RandomGenerator } | undefined;
 	override uniqueVersionOfGen = GenerateUniqueInterval;
@@ -1363,7 +1363,7 @@ export class GenerateInterval extends AbstractGenerator<{ isUnique?: boolean }> 
 }
 
 export class GenerateUniqueInterval extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateUniqueInterval';
+	static override readonly [entityKind]: string = 'GenerateUniqueInterval';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -1433,7 +1433,7 @@ export class GenerateUniqueInterval extends AbstractGenerator<{ isUnique?: boole
 }
 
 export class GenerateString extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateString';
+	static override readonly [entityKind]: string = 'GenerateString';
 
 	private state: { rng: prand.RandomGenerator } | undefined;
 	override uniqueVersionOfGen = GenerateUniqueString;
@@ -1482,7 +1482,7 @@ export class GenerateString extends AbstractGenerator<{ isUnique?: boolean }> {
 }
 
 export class GenerateUniqueString extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateUniqueString';
+	static override readonly [entityKind]: string = 'GenerateUniqueString';
 
 	private state: { rng: prand.RandomGenerator } | undefined;
 	public override isUnique = true;
@@ -1527,7 +1527,7 @@ export class GenerateUniqueString extends AbstractGenerator<{ isUnique?: boolean
 export class GenerateFirstName extends AbstractGenerator<{
 	isUnique?: boolean;
 }> {
-	static readonly [entityKind]: string = 'GenerateFirstName';
+	static override readonly [entityKind]: string = 'GenerateFirstName';
 
 	override timeSpent: number = 0;
 	private state: {
@@ -1567,7 +1567,7 @@ export class GenerateFirstName extends AbstractGenerator<{
 export class GenerateUniqueFirstName extends AbstractGenerator<{
 	isUnique?: boolean;
 }> {
-	static readonly [entityKind]: string = 'GenerateUniqueFirstName';
+	static override readonly [entityKind]: string = 'GenerateUniqueFirstName';
 
 	private state: {
 		genIndicesObj: GenerateUniqueInt;
@@ -1600,7 +1600,7 @@ export class GenerateUniqueFirstName extends AbstractGenerator<{
 }
 
 export class GenerateLastName extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateLastName';
+	static override readonly [entityKind]: string = 'GenerateLastName';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -1633,7 +1633,7 @@ export class GenerateLastName extends AbstractGenerator<{ isUnique?: boolean }> 
 }
 
 export class GenerateUniqueLastName extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateUniqueLastName';
+	static override readonly [entityKind]: string = 'GenerateUniqueLastName';
 
 	private state: {
 		genIndicesObj: GenerateUniqueInt;
@@ -1666,7 +1666,7 @@ export class GenerateUniqueLastName extends AbstractGenerator<{ isUnique?: boole
 export class GenerateFullName extends AbstractGenerator<{
 	isUnique?: boolean;
 }> {
-	static readonly [entityKind]: string = 'GenerateFullName';
+	static override readonly [entityKind]: string = 'GenerateFullName';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -1709,7 +1709,7 @@ export class GenerateFullName extends AbstractGenerator<{
 export class GenerateUniqueFullName extends AbstractGenerator<{
 	isUnique?: boolean;
 }> {
-	static readonly [entityKind]: string = 'GenerateUniqueFullName';
+	static override readonly [entityKind]: string = 'GenerateUniqueFullName';
 
 	private state: {
 		fullnameSet: Set<string>;
@@ -1763,7 +1763,7 @@ export class GenerateUniqueFullName extends AbstractGenerator<{
 }
 
 export class GenerateEmail extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateEmail';
+	static override readonly [entityKind]: string = 'GenerateEmail';
 
 	private state: {
 		genIndicesObj: GenerateUniqueInt;
@@ -1820,7 +1820,7 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 	prefixes?: string[];
 	generatedDigitsNumbers?: number | number[];
 }> {
-	static readonly [entityKind]: string = 'GeneratePhoneNumber';
+	static override readonly [entityKind]: string = 'GeneratePhoneNumber';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -1993,7 +1993,7 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 }
 
 export class GenerateCountry extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateCountry';
+	static override readonly [entityKind]: string = 'GenerateCountry';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2029,7 +2029,7 @@ export class GenerateCountry extends AbstractGenerator<{ isUnique?: boolean }> {
 }
 
 export class GenerateUniqueCountry extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateUniqueCountry';
+	static override readonly [entityKind]: string = 'GenerateUniqueCountry';
 
 	private state: {
 		genIndicesObj: GenerateUniqueInt;
@@ -2060,7 +2060,7 @@ export class GenerateUniqueCountry extends AbstractGenerator<{ isUnique?: boolea
 }
 
 export class GenerateJobTitle extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateJobTitle';
+	static override readonly [entityKind]: string = 'GenerateJobTitle';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2085,7 +2085,7 @@ export class GenerateJobTitle extends AbstractGenerator<{}> {
 }
 
 export class GenerateStreetAdddress extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateStreetAdddress';
+	static override readonly [entityKind]: string = 'GenerateStreetAdddress';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2130,7 +2130,7 @@ export class GenerateStreetAdddress extends AbstractGenerator<{ isUnique?: boole
 }
 
 export class GenerateUniqueStreetAdddress extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateUniqueStreetAdddress';
+	static override readonly [entityKind]: string = 'GenerateUniqueStreetAdddress';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2215,7 +2215,7 @@ export class GenerateUniqueStreetAdddress extends AbstractGenerator<{ isUnique?:
 }
 
 export class GenerateCity extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateCity';
+	static override readonly [entityKind]: string = 'GenerateCity';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2249,7 +2249,7 @@ export class GenerateCity extends AbstractGenerator<{ isUnique?: boolean }> {
 }
 
 export class GenerateUniqueCity extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateUniqueCity';
+	static override readonly [entityKind]: string = 'GenerateUniqueCity';
 
 	private state: {
 		genIndicesObj: GenerateUniqueInt;
@@ -2280,7 +2280,7 @@ export class GenerateUniqueCity extends AbstractGenerator<{ isUnique?: boolean }
 }
 
 export class GeneratePostcode extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GeneratePostcode';
+	static override readonly [entityKind]: string = 'GeneratePostcode';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2333,7 +2333,7 @@ export class GeneratePostcode extends AbstractGenerator<{ isUnique?: boolean }> 
 }
 
 export class GenerateUniquePostcode extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateUniquePostcode';
+	static override readonly [entityKind]: string = 'GenerateUniquePostcode';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2410,7 +2410,7 @@ export class GenerateUniquePostcode extends AbstractGenerator<{ isUnique?: boole
 }
 
 export class GenerateState extends AbstractGenerator<{}> {
-	static readonly [entityKind]: string = 'GenerateState';
+	static override readonly [entityKind]: string = 'GenerateState';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2435,7 +2435,7 @@ export class GenerateState extends AbstractGenerator<{}> {
 }
 
 export class GenerateCompanyName extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateCompanyName';
+	static override readonly [entityKind]: string = 'GenerateCompanyName';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2499,7 +2499,7 @@ export class GenerateCompanyName extends AbstractGenerator<{ isUnique?: boolean 
 }
 
 export class GenerateUniqueCompanyName extends AbstractGenerator<{ isUnique?: boolean }> {
-	static readonly [entityKind]: string = 'GenerateUniqueCompanyName';
+	static override readonly [entityKind]: string = 'GenerateUniqueCompanyName';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2603,7 +2603,7 @@ export class GenerateUniqueCompanyName extends AbstractGenerator<{ isUnique?: bo
 }
 
 export class GenerateLoremIpsum extends AbstractGenerator<{ sentencesCount?: number }> {
-	static readonly [entityKind]: string = 'GenerateLoremIpsum';
+	static override readonly [entityKind]: string = 'GenerateLoremIpsum';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2632,7 +2632,7 @@ export class GenerateLoremIpsum extends AbstractGenerator<{ sentencesCount?: num
 }
 
 export class WeightedRandomGenerator extends AbstractGenerator<{ weight: number; value: AbstractGenerator<any> }[]> {
-	static readonly [entityKind]: string = 'WeightedRandomGenerator';
+	static override readonly [entityKind]: string = 'WeightedRandomGenerator';
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -2701,7 +2701,7 @@ export class GeneratePoint extends AbstractGenerator<{
 	minYValue?: number;
 	maxYValue?: number;
 }> {
-	static readonly [entityKind]: string = 'GeneratePoint';
+	static override readonly [entityKind]: string = 'GeneratePoint';
 
 	private state: {
 		xCoordinateGen: GenerateNumber;
@@ -2761,7 +2761,7 @@ export class GenerateUniquePoint extends AbstractGenerator<{
 	maxYValue?: number;
 	isUnique?: boolean;
 }> {
-	static readonly [entityKind]: string = 'GenerateUniquePoint';
+	static override readonly [entityKind]: string = 'GenerateUniquePoint';
 
 	private state: {
 		xCoordinateGen: GenerateUniqueNumber;
@@ -2814,7 +2814,7 @@ export class GenerateLine extends AbstractGenerator<{
 	minCValue?: number;
 	maxCValue?: number;
 }> {
-	static readonly [entityKind]: string = 'GenerateLine';
+	static override readonly [entityKind]: string = 'GenerateLine';
 
 	private state: {
 		aCoefficientGen: GenerateNumber;
@@ -2891,7 +2891,7 @@ export class GenerateUniqueLine extends AbstractGenerator<{
 	maxCValue?: number;
 	isUnique?: boolean;
 }> {
-	static readonly [entityKind]: string = 'GenerateUniqueLine';
+	static override readonly [entityKind]: string = 'GenerateUniqueLine';
 
 	private state: {
 		aCoefficientGen: GenerateUniqueNumber;
@@ -3384,7 +3384,7 @@ export const generatorsFuncs = {
 	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
 	 *    users: {
 	 *      columns: {
-	 *        city: funcs.cityName({isUnique: false})
+	 *        city: funcs.city({isUnique: false})
 	 *      },
 	 *    },
 	 *  }));
