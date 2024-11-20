@@ -31,10 +31,11 @@ export type ArrayHasAtLeastOneValue<TEnum extends [any, ...any[]] | undefined> =
 	: false
 	: false;
 
-export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['generated'] extends
-	infer TGenerated extends { type: string } ? TGenerated['type'] extends 'always' ? true
-	: false
-	: false;
+export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['generated'] extends undefined
+	? false
+		: TColumn['_']['generated'] extends infer TGenerated extends { type: string } ? TGenerated['type'] extends 'byDefault' ? false
+		: true
+		: true;
 
 export type RemoveNever<T> = {
 	[K in keyof T as T[K] extends never ? never : K]: T[K];

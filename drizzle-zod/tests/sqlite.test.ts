@@ -1,11 +1,11 @@
-import { sql } from 'drizzle-orm';
+import { Equal, sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
-import { expectSchemaShape } from './utils.ts';
+import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int();
 const textSchema = z.string().max(Number.MAX_SAFE_INTEGER);
@@ -19,6 +19,7 @@ test('table - select', (t) => {
 	const result = createSelectSchema(table);
 	const expected = z.object({ id: intSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('table - insert', (t) => {
@@ -31,6 +32,7 @@ test('table - insert', (t) => {
 	const result = createInsertSchema(table);
 	const expected = z.object({ id: intSchema.optional(), name: textSchema, age: intSchema.nullable().optional() });
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('table - update', (t) => {
@@ -47,6 +49,7 @@ test('table - update', (t) => {
 		age: intSchema.nullable().optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('view qb - select', (t) => {
@@ -59,6 +62,7 @@ test('view qb - select', (t) => {
 	const result = createSelectSchema(view);
 	const expected = z.object({ id: intSchema, age: z.any() });
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('view columns - select', (t) => {
@@ -70,6 +74,7 @@ test('view columns - select', (t) => {
 	const result = createSelectSchema(view);
 	const expected = z.object({ id: intSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('view with nested fields - select', (t) => {
@@ -95,6 +100,7 @@ test('view with nested fields - select', (t) => {
 		table: z.object({ id: intSchema, name: textSchema }),
 	});
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('nullability - select', (t) => {
@@ -113,6 +119,7 @@ test('nullability - select', (t) => {
 		c4: intSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('nullability - insert', (t) => {
@@ -132,6 +139,7 @@ test('nullability - insert', (t) => {
 		c4: intSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('nullability - update', (t) => {
@@ -151,6 +159,7 @@ test('nullability - update', (t) => {
 		c4: intSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('refine table - select', (t) => {
@@ -170,6 +179,7 @@ test('refine table - select', (t) => {
 		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('refine table - insert', (t) => {
@@ -190,6 +200,7 @@ test('refine table - insert', (t) => {
 		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('refine table - update', (t) => {
@@ -210,6 +221,7 @@ test('refine table - update', (t) => {
 		c3: z.string().transform((v) => Number(v)),
 	});
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('refine view - select', (t) => {
@@ -266,6 +278,7 @@ test('refine view - select', (t) => {
 		}),
 	});
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('all data types', (t) => {
@@ -308,6 +321,7 @@ test('all data types', (t) => {
 		text4: jsonSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
 /* Disallow unknown keys in table refinement - select */ {
