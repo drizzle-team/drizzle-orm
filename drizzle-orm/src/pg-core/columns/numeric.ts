@@ -12,7 +12,6 @@ export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNumeric'>> extends PgColumnBuilder<

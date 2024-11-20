@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.36.1",
+	"version": "0.36.3",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -63,7 +63,7 @@
 		"@xata.io/client": "*",
 		"better-sqlite3": ">=7",
 		"bun-types": "*",
-		"expo-sqlite": ">=13.2.0",
+		"expo-sqlite": ">=14.0.0",
 		"knex": "*",
 		"kysely": "*",
 		"mysql2": ">=2",
@@ -186,7 +186,7 @@
 		"better-sqlite3": "^8.4.0",
 		"bun-types": "^0.6.6",
 		"cpy": "^10.1.0",
-		"expo-sqlite": "^13.2.0",
+		"expo-sqlite": "^14.0.0",
 		"knex": "^2.4.2",
 		"kysely": "^0.25.0",
 		"mysql2": "^3.3.3",
