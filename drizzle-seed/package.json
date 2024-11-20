@@ -34,6 +34,9 @@
 			"default": "./index.mjs"
 		}
 	},
+	"peerDependencies": {
+		"drizzle-orm": ">=0.36.4"
+	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {
 			"optional": true
