@@ -8,7 +8,7 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../s
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int();
-const textSchema = z.string().max(Number.MAX_SAFE_INTEGER);
+const textSchema = z.string();
 
 test('table - select', (t) => {
 	const table = sqliteTable('test', {
@@ -313,9 +313,9 @@ test('all data types', (t) => {
 		integer2: z.boolean(),
 		integer3: z.date(),
 		integer4: z.date(),
-		numeric: z.string().max(Number.MAX_SAFE_INTEGER),
+		numeric: z.string(),
 		real: z.number().min(CONSTANTS.INT48_MIN).max(CONSTANTS.INT48_MAX),
-		text1: z.string().max(Number.MAX_SAFE_INTEGER),
+		text1: z.string(),
 		text2: z.string().max(10),
 		text3: z.enum(['a', 'b', 'c']),
 		text4: jsonSchema,
