@@ -186,7 +186,15 @@ function stringColumnToSchema(column: Column): v.GenericSchema {
 	} else if (is(column, MySqlVarChar)) {
 		max = column.length ?? CONSTANTS.INT16_UNSIGNED_MAX;
 	} else if (is(column, MySqlText)) {
-		max = CONSTANTS.INT16_UNSIGNED_MAX;
+		if (column.textType === 'longtext') {
+			max = CONSTANTS.INT32_UNSIGNED_MAX;
+		} else if (column.textType === 'mediumtext') {
+			max = CONSTANTS.INT24_UNSIGNED_MAX;
+		} else if (column.textType === 'text') {
+			max = CONSTANTS.INT16_UNSIGNED_MAX;
+		} else {
+			max = CONSTANTS.INT8_UNSIGNED_MAX;
+		}
 	}
 
 	if (isAny(column, [PgChar, MySqlChar])) {
@@ -200,13 +208,13 @@ function stringColumnToSchema(column: Column): v.GenericSchema {
 	}
 
   const actions: any[] = [];
-  if (regex) {
-    actions.push(v.regex(regex));
-  }
   if (max && fixed) {
     actions.push(v.length(max));
   } else if (max) {
     actions.push(v.maxLength(max));
+  }
+	if (regex) {
+    actions.push(v.regex(regex));
   }
 	return actions.length > 0 ? v.pipe(v.string(), ...actions) : v.string();
 }
