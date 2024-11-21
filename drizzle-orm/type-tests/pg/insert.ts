@@ -5,7 +5,7 @@ import { boolean, pgTable, QueryBuilder, serial, text } from '~/pg-core/index.ts
 import type { PgInsert } from '~/pg-core/query-builders/insert.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
-import { users } from './tables.ts';
+import { identityColumnsTable, users } from './tables.ts';
 
 const insert = await db
 	.insert(users)
@@ -276,4 +276,24 @@ Expect<
 	db.insert(users1).select(db.select().from(users2));
 	// @ts-expect-error tables have different keys
 	db.insert(users1).select(() => db.select().from(users2));
+}
+
+{
+	db.insert(identityColumnsTable).values([
+		{ byDefaultAsIdentity: 4, name: 'fdf' },
+	]);
+
+	// @ts-expect-error
+	db.insert(identityColumnsTable).values([
+		{ alwaysAsIdentity: 2 },
+	]);
+
+	db.insert(identityColumnsTable).overridingSystemValue().values([
+		{ alwaysAsIdentity: 2 },
+	]);
+
+	// @ts-expect-error
+	db.insert(identityColumnsTable).values([
+		{ generatedCol: 2 },
+	]);
 }
