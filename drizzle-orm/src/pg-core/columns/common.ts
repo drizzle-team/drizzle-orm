@@ -4,7 +4,6 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
-	GeneratedColumnConfig,
 	HasGenerated,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
@@ -56,7 +55,6 @@ export abstract class PgColumnBuilder<
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
 			enumValues: T['enumValues'];
-			generated: GeneratedColumnConfig<T['data']>;
 		}
 		& (T extends { notNull: true } ? { notNull: true } : {})
 		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),

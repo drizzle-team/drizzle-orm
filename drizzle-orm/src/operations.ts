@@ -1,5 +1,4 @@
 import type { AnyColumn, Column } from './column.ts';
-import type { GeneratedColumnConfig } from './index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { Table } from './table.ts';
 
@@ -12,13 +11,16 @@ export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends A
 export type OptionalKeyOnly<
 	TKey extends string,
 	T extends Column,
+	OverrideT extends boolean | undefined = false,
 > = TKey extends RequiredKeyOnly<TKey, T> ? never
 	: T extends {
 		_: {
-			generated: infer G;
+			generated: undefined;
 		};
-	} ? G extends GeneratedColumnConfig<any> ? G['type'] extends 'always' ? never : TKey
-		: TKey
+	} ? (
+			T['_']['identity'] extends 'always' ? OverrideT extends true ? TKey : never
+				: TKey
+		)
 	: never;
 
 // TODO: SQL -> SQLWrapper
