@@ -30,37 +30,6 @@ export abstract class AbstractGenerator<T = {}> {
 	abstract generate(params: { i: number }): number | string | boolean | unknown | undefined | void;
 }
 
-// type OptionalSpread<T,GT> =
-//   T extends undefined
-//   ? []
-//   : [T];
-
-// function createGenerator<T, GT extends AbstractGenerator<T>>(
-//   generatorConstructor: new ({ }: T) => GT
-// ) {
-//   return (...args: OptionalSpread<T, GT>): GT => {
-//     if (params === undefined) params = {} as T;
-//     return new generatorConstructor(params);
-//   };
-// }
-
-// function foo<T = undefined>(...args: OptionalSpread<T>) {
-//   const arg = args[0] // Type of: T = undefined
-//   return arg;
-// }
-
-// foo(1)
-
-// function createGenerator<IsRequired extends boolean = false, T = any>(
-//   generatorConstructor: new ({ }: T) => AbstractGenerator<T>
-// ) {
-//   return (...args: IsRequired extends true ? [T] : ([] | [T])): AbstractGenerator<T> => {
-//     let params = args[0];
-//     if (params === undefined) params = {} as T;
-//     return new generatorConstructor(params);
-//   };
-// }
-
 function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
 	generatorConstructor: new(params: T) => GeneratorType,
 ) {
@@ -150,8 +119,6 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 		values:
 			| (number | string | boolean | undefined)[]
 			| { weight: number; values: (number | string | boolean | undefined)[] }[];
-		// valuesCount: { [key: string | number]: number };
-		// indicesCount: { [key: number]: number };
 		genIndicesObj: GenerateUniqueInt | undefined;
 		genIndicesObjList: GenerateUniqueInt[] | undefined;
 		valuesWeightedIndices: number[] | undefined;
@@ -244,16 +211,6 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 		const { params, isUnique, notNull, weightedCountSeed } = this;
 
 		const values = params.values;
-		// let values;
-		// if (typeof this.params.values[0] === "object") {
-		//   values = this.params.values.slice();
-		// }
-		// else {
-		//   values = this.params.values;
-		// }
-
-		// const valuesCount = {};
-		// const indicesCount = {};
 
 		let valuesWeightedIndices;
 		if (typeof values[0] === 'object') {
@@ -268,9 +225,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 					indicesCounter[valueIdx]! += 1;
 				}
 
-				// console.log(values, indicesCounter)
 				for (const [idx, value] of values.entries()) {
-					// console.log((value as { values: (number | string | boolean | undefined)[] }).values.length)
 					if ((value as { values: (number | string | boolean | undefined)[] }).values.length < indicesCounter[idx]!) {
 						throw new Error(
 							'weighted values arrays is too small to generate values with specified probability for unique not null column.'
@@ -328,28 +283,22 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 
 	generate() {
 		const t0 = new Date();
-		// let { maxRepeatedValuesCount } = this;
 
 		if (this.state === undefined) {
 			throw new Error('state is not defined.');
 		}
 
-		// logic for this generator
 		let idx: number,
 			value: string | number | boolean | undefined;
 		let valueIdx: number;
 
 		if (this.state.valuesWeightedIndices === undefined) {
 			if (this.state.genIndicesObj === undefined) {
-				// isUnique !== true
 				[idx, this.state.rng] = prand.uniformIntDistribution(0, this.state.values.length - 1, this.state.rng);
 			} else {
-				// isUnique === true
 				idx = this.state.genIndicesObj.generate() as number;
-				// console.log("maxRepeatedValuesCount:", this.maxRepeatedValuesCount, "idx:", idx)
 			}
 
-			// [idx, this.rng] = prand.uniformIntDistribution(0, this.values!.length - 1, this.rng!);
 			value = (this.state.values as (number | string | boolean | undefined)[])[idx];
 		} else {
 			// weighted values
@@ -370,27 +319,6 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 			}
 			value = currValues[idx];
 		}
-
-		// if (maxRepeatedValuesCount !== undefined) {
-		//   if (this.state.valuesCount[value as string | number] === undefined) {
-		//     this.state.valuesCount[value as string | number] = this.state.genMaxRepeatedValuesCount!.generate() as number;
-		//   }
-		//   this.state.valuesCount![value as string | number] -= 1;
-
-		//   // this.state.indicesCount[idx] = this.state.valuesCount[value as string | number];
-		// console.log("indicesCount", this.state.indicesCount)
-
-		//   if (this.state.valuesCount![value as string | number] === 0) {
-		//     if (this.state.valuesWeightedIndices !== undefined) {
-		//       // this.values!.splice(idx, 1);
-		//       const currValues = (this.state.values![valueIdx!] as { weight: number, values: (number | string | boolean | undefined)[] }).values;
-		//       currValues.splice(idx, 1);
-		//       if (currValues.length === 0) {
-		//         this.state.values!.splice(valueIdx!, 1);
-		//       }
-		//     }
-		//   }
-		// }
 
 		this.timeSpent += (Date.now() - t0.getTime()) / 1000;
 		return value;
@@ -423,14 +351,12 @@ export class GenerateSelfRelationsValuesFromArray extends AbstractGenerator<{ va
 		}
 
 		const { values } = this.params;
-		// logic for this generator
 		let idx: number;
 
 		if (i < this.state.firstValuesCount) {
 			this.state.firstValues.push(values[i]!);
 			return values[i];
 		} else {
-			// i >= this.state.firstValuesCount
 			[idx, this.state.rng] = prand.uniformIntDistribution(0, this.state.firstValues.length - 1, this.state.rng);
 			return this.state.firstValues[idx];
 		}
@@ -487,7 +413,6 @@ export class GenerateNumber extends AbstractGenerator<
 		}
 
 		let { minValue, maxValue, precision } = this.params;
-		// logic for this generator
 		if (precision === undefined) {
 			precision = 100;
 		}
@@ -719,9 +644,6 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 
 		if (this.state.intervals.length === 0) {
 			if (this.skipCheck === false) {
-				// console.log(`i:${i}`);
-				// console.log("integersCount", integersCount, "maxValue", maxValue)
-				// console.log("maxValue", this.state.maxValue, "minValue", this.state.minValue, this.skipCheck)
 				throw new RangeError(
 					'generateUniqueInt: count exceeds max number of unique integers in given range(min, max), try to increase range.',
 				);
@@ -772,8 +694,6 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 			this.state!.integersCount.set(numb, this.state!.integersCount.get(numb)! - 1);
 		}
 
-		// console.log("integersCount", this.state.integersCount);
-
 		if (this.state!.integersCount.get(numb) === undefined || this.state!.integersCount.get(numb) === 0) {
 			if (numb === currMinNumb) {
 				intervalsToAdd = numb + 1 <= currMaxNumb ? [[numb + 1, currMaxNumb]] : [];
@@ -786,11 +706,9 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 				];
 			}
 
-			// delete intervals[intervalIdx];
 			const t0 = new Date();
 			this.state!.intervals[intervalIdx] = this.state!.intervals[this.state!.intervals.length - 1]!;
 			this.state?.intervals.pop();
-			// this.state!.intervals.splice(intervalIdx, 1);
 			this.timeSpent += (Date.now() - t0.getTime()) / 1000;
 			this.state!.intervals.push(...intervalsToAdd);
 		}
@@ -808,7 +726,6 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 			this.state!.integersCount.set(numb, this.state!.integersCount.get(numb)! - 1);
 		}
 
-		// console.log("integersCount", this.state.integersCount);
 		if (this.state!.integersCount.get(numb) === undefined || this.state!.integersCount.get(numb) === 0) {
 			if (numb === currMinNumb) {
 				intervalsToAdd = numb + BigInt(1) <= currMaxNumb ? [[numb + BigInt(1), currMaxNumb]] : [];
@@ -821,8 +738,6 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 				];
 			}
 
-			// delete intervals[intervalIdx];
-			// this.state!.intervals.splice(intervalIdx, 1);
 			this.state!.intervals[intervalIdx] = this.state!.intervals[this.state!.intervals.length - 1]!;
 			this.state?.intervals.pop();
 			this.state!.intervals.push(...intervalsToAdd);
@@ -871,9 +786,6 @@ export class GenerateDate extends AbstractGenerator<{ minDate?: string | Date; m
 
 		let { minDate, maxDate } = this.params;
 		const anchorDate = new Date('2024-05-08');
-		// const formatter = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit", });
-		// anchorDate.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit", })
-		// fourYearsInMilliseconds
 		const deltaMilliseconds = 4 * 31536000000;
 
 		if (typeof minDate === 'string') {
@@ -917,34 +829,9 @@ export class GenerateDate extends AbstractGenerator<{ minDate?: string | Date; m
 		if (this.dataType === 'string') {
 			return date.toISOString().replace(/T.+/, '');
 		}
-		// this.dataType === "date"
 		return date;
 	}
 }
-
-// export class GenerateDateString extends AbstractGenerator<{}> {
-//   private state: {
-//     dateGen: GenerateDate
-//   } | undefined;
-
-//   init({ seed }: { seed: number }) {
-//     const dateGen = new GenerateDate({});
-//     dateGen.init({ seed });
-
-//     this.state = { dateGen };
-//   }
-
-//   generate() {
-//     if (this.state === undefined) {
-//       throw new Error("state is not defined.");
-//     }
-
-//     const date = this.state.dateGen.generate();
-
-//     return date.toISOString().replace(/T.+/, "");
-//   }
-// }
-
 export class GenerateTime extends AbstractGenerator<{}> {
 	static override readonly [entityKind]: string = 'GenerateTime';
 
@@ -979,34 +866,6 @@ export class GenerateTime extends AbstractGenerator<{}> {
 		return date.toISOString().replace(/(\d{4}-\d{2}-\d{2}T)|(\.\d{3}Z)/g, '');
 	}
 }
-
-// export class GenerateTimestampString extends AbstractGenerator<{}> {
-//   private state: {
-//     generateTimestampObj: GenerateTimestamp;
-//   } | undefined;
-
-//   init({ seed }: { seed: number }) {
-//     const generateTimestampObj = new GenerateTimestamp({});
-//     generateTimestampObj.init({ seed });
-
-//     this.state = { generateTimestampObj };
-//   }
-
-//   generate() {
-//     if (this.state === undefined) {
-//       throw new Error("state is not defined.");
-//     }
-
-//     let date: Date;
-//     date = this.state.generateTimestampObj.generate();
-
-//     return date
-//       .toISOString()
-//       .replace("T", " ")
-//       .replace(/\.\d{3}Z/, "");
-
-//   }
-
 export class GenerateTimestampInt extends AbstractGenerator<{ unitOfTime?: 'seconds' | 'milliseconds' }> {
 	static override readonly [entityKind]: string = 'GenerateTimestampInt';
 
@@ -1258,24 +1117,6 @@ export class GenerateJson extends AbstractGenerator<{}> {
 	}
 }
 
-// export class GenerateJsonb extends AbstractGenerator<{}> {
-//   private state: { jsonGeneratorObj: GenerateJson } | undefined;
-
-//   init({ count, seed }: { count: number, seed: number }) {
-//     const jsonGeneratorObj = new GenerateJson({});
-//     jsonGeneratorObj.init({ count, seed });
-
-//     this.state = { jsonGeneratorObj };
-//   }
-
-//   generate({ i }: { i: number }) {
-//     if (this.state === undefined) {
-//       throw new Error("state is not defined.");
-//     }
-//     return this.state.jsonGeneratorObj.generate({ i })
-//     // return JSON.parse(this.state.jsonGeneratorObj.generate({ i }));
-//   }
-
 export class GenerateEnum extends AbstractGenerator<{ enumValues: (string | number | boolean)[] }> {
 	static override readonly [entityKind]: string = 'GenerateEnum';
 
@@ -1336,20 +1177,12 @@ export class GenerateInterval extends AbstractGenerator<{ isUnique?: boolean }> 
 		[monthsNumb, this.state.rng] = prand.uniformIntDistribution(0, 12, this.state.rng);
 
 		[daysNumb, this.state.rng] = prand.uniformIntDistribution(1, 29, this.state.rng);
-		// [randVal, this.state.rng] = prand.uniformIntDistribution(0, 1, this.state.rng);
-		// daysNumb = randVal === 0 ? 0 : daysNumb;
 
 		[hoursNumb, this.state.rng] = prand.uniformIntDistribution(0, 24, this.state.rng);
-		// [randVal, this.state.rng] = prand.uniformIntDistribution(0, 1, this.state.rng);
-		// hoursNumb = randVal === 0 ? 0 : hoursNumb;
 
 		[minutesNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
-		// [randVal, this.state.rng] = prand.uniformIntDistribution(0, 1, this.state.rng);
-		// minutesNumb = randVal === 0 ? 0 : minutesNumb;
 
 		[secondsNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
-		// [randVal, this.state.rng] = prand.uniformIntDistribution(0, 1, this.state.rng);
-		// secondsNumb = randVal === 0 ? 0 : secondsNumb;
 
 		interval = `${yearsNumb === 0 ? '' : `${yearsNumb} years `}`
 			+ `${monthsNumb === 0 ? '' : `${monthsNumb} months `}`
@@ -1398,22 +1231,10 @@ export class GenerateUniqueInterval extends AbstractGenerator<{ isUnique?: boole
 		for (;;) {
 			[yearsNumb, this.state.rng] = prand.uniformIntDistribution(0, 5, this.state.rng);
 			[monthsNumb, this.state.rng] = prand.uniformIntDistribution(0, 12, this.state.rng);
-
 			[daysNumb, this.state.rng] = prand.uniformIntDistribution(1, 29, this.state.rng);
-			// [randVal, this.state.rng] = prand.uniformIntDistribution(0, 1, this.state.rng);
-			// daysNumb = randVal === 0 ? 0 : daysNumb;
-
 			[hoursNumb, this.state.rng] = prand.uniformIntDistribution(0, 24, this.state.rng);
-			// [randVal, this.state.rng] = prand.uniformIntDistribution(0, 1, this.state.rng);
-			// hoursNumb = randVal === 0 ? 0 : hoursNumb;
-
 			[minutesNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
-			// [randVal, this.state.rng] = prand.uniformIntDistribution(0, 1, this.state.rng);
-			// minutesNumb = randVal === 0 ? 0 : minutesNumb;
-
 			[secondsNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
-			// [randVal, this.state.rng] = prand.uniformIntDistribution(0, 1, this.state.rng);
-			// secondsNumb = randVal === 0 ? 0 : secondsNumb;
 
 			interval = `${yearsNumb === 0 ? '' : `${yearsNumb} years `}`
 				+ `${monthsNumb === 0 ? '' : `${monthsNumb} months `}`
@@ -1575,11 +1396,9 @@ export class GenerateUniqueFirstName extends AbstractGenerator<{
 	public override isUnique = true;
 
 	init({ count, seed }: { count: number; seed: number }) {
-		// console.log("1-------", count, firstNames.length)
 		if (count > firstNames.length) {
 			throw new Error('count exceeds max number of unique first names.');
 		}
-		// console.log("2-------")
 		const genIndicesObj = new GenerateUniqueInt({ minValue: 0, maxValue: firstNames.length - 1 });
 		genIndicesObj.init({ count, seed });
 
@@ -1895,8 +1714,6 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 		}
 
 		if (new Set(prefixesArray).size !== prefixesArray.length) {
-			// prefixesArray.forEach(prefix => console.log(prefix))
-			// console.log(prefixesArray.length - new Set(prefixesArray).size)
 			throw new Error('prefixes are not unique.');
 		}
 

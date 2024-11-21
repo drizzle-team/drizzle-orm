@@ -49,17 +49,6 @@ const benchmark = ({ generatorName, generator, count = 100000, seed = 1 }: {
 	seed?: number;
 }) => {
 	generator.init({ count, seed });
-	// if (generator.uniqueVersionOfGen !== undefined && generator.isUnique === true) {
-	//     const uniqueGen = new generator.uniqueVersionOfGen({ ...generator.params });
-	//     uniqueGen.init({
-	//         count,
-	//         seed
-	//     });
-	//     uniqueGen.isUnique = generator.isUnique;
-	//     uniqueGen.dataType = generator.dataType;
-
-	//     generator = uniqueGen;
-	// }
 
 	let timeSpentToInit = 0, timeSpent = 0;
 	const t0 = new Date();

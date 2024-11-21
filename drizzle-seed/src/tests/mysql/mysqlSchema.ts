@@ -1,29 +1,3 @@
-// import { serial, int, varchar, mysqlTable } from "drizzle-orm/mysql-core";
-
-// export const schema = mysqlSchema("public");
-
-// export const users = mysqlTable("users", {
-//     id: int("id").autoincrement().primaryKey(),
-//     name: varchar("name", { length: 256 }),
-//     email: varchar("email", { length: 256 }),
-//     phone: varchar("phone", { length: 256 }),
-//     password: varchar("password", { length: 256 })
-// });
-
-// export const posts = mysqlTable("posts", {
-//     id: int("id").autoincrement().primaryKey(),
-//     title: varchar("title", { length: 256 }),
-//     content: varchar("content", { length: 256 }),
-//     userId: int("user_id").references(() => users.id)
-// });
-
-// export const comments = mysqlTable("comments", {
-//     id: serial("id").primaryKey(),
-//     content: varchar("content", { length: 256 }),
-//     postId: int("post_id").references(() => posts.id),
-//     userId: int("user_id").references(() => users.id)
-// });
-
 import type { AnyMySqlColumn } from 'drizzle-orm/mysql-core';
 import { float, int, mysqlTable, text, timestamp, varchar } from 'drizzle-orm/mysql-core';
 

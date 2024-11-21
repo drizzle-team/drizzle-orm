@@ -18,8 +18,6 @@ console.log('database connection was established successfully.');
 	migrate(db, { migrationsFolder: path.join(__dirname, '../../../sqliteMigrations') });
 	console.log('database was migrated.');
 
-	// await seed(db, schema, { count: 100000, seed: 1 });
-
 	const titlesOfCourtesy = ['Ms.', 'Mrs.', 'Dr.'];
 	const unitsOnOrders = [0, 10, 20, 30, 50, 60, 70, 80, 100];
 	const reorderLevels = [0, 5, 10, 15, 20, 25, 30];

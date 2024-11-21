@@ -81,14 +81,3 @@ export const fillTemplate = ({ template, placeholdersCount, values, defaultValue
 
 	return resultStr;
 };
-
-// let count = 0;
-// for (let i = 0; i < 3; i++) {
-//     for (let j = 0; j < 3; j++) {
-//         for (let k = 0; k < 3; k++) {
-//             console.log([i, j, k], "===", fastCartesianProduct([[0, 1, 2], [0, 1, 2], [0, 1, 2]], count));
-//             count++;
-//         }
-
-//     }
-// }

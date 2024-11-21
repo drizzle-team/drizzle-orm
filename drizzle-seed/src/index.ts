@@ -44,9 +44,6 @@ type InferCallbackType<
 						column in keyof SCHEMA[table] as SCHEMA[table][column] extends PgColumn ? column
 							: never
 					]?: AbstractGenerator<any>;
-					//   ReturnType<
-					//   (typeof generatorsFuncs)[keyof typeof generatorsFuncs]
-					// >
 				};
 				with?: {
 					[
@@ -79,9 +76,6 @@ type InferCallbackType<
 							column in keyof SCHEMA[table] as SCHEMA[table][column] extends MySqlColumn ? column
 								: never
 						]?: AbstractGenerator<any>;
-						// ReturnType<
-						//   (typeof generatorsFuncs)[keyof typeof generatorsFuncs]
-						// >;
 					};
 					with?: {
 						[
@@ -114,9 +108,6 @@ type InferCallbackType<
 							column in keyof SCHEMA[table] as SCHEMA[table][column] extends SQLiteColumn ? column
 								: never
 						]?: AbstractGenerator<any>;
-						// ReturnType<
-						//   (typeof generatorsFuncs)[keyof typeof generatorsFuncs]
-						// >;
 					};
 					with?: {
 						[
@@ -196,50 +187,6 @@ class SeedPromise<
 		await seedFunc(this.db, this.schema, this.options, refinements);
 	}
 }
-// type DrizzleStudioColumnType = {
-//   default?: unknown,
-//   autoincrement: boolean,
-//   name: string,
-//   type: string,
-//   primaryKey: boolean,
-//   notNull: boolean,
-// };
-
-// export type DrizzleStudioObjectType = {
-//   schemas: {
-//     [schemaName: string]: {
-//       tables: {
-//         [tableName: string]: {
-//           name: string,
-//           type: string,
-//           indexes: {}, //TODO change to real type
-//           schema: string,
-//           columns: {
-//             [columnName: string]: DrizzleStudioColumnType
-//           },
-//           foreignKeys: {}, //TODO change to real type
-//           compositePrimaryKeys: {}, //TODO change to real type
-//           uniqueConstraints: {}, //TODO change to real type
-//         }
-//       },
-//       views: {
-//         [viewName: string]: {
-//           name: string,
-//           type: string,
-//           indexes: {}, //TODO change to real type
-//           schema: string,
-//           columns: {
-//             [columnName: string]: DrizzleStudioColumnType
-//           },
-//           foreignKeys: {}, //TODO change to real type
-//           compositePrimaryKeys: {}, //TODO change to real type
-//           uniqueConstraints: {}, //TODO change to real type
-//         }
-//       },
-//       enums: {}
-//     }
-//   }
-// };
 
 export function getGeneratorsFunctions() {
 	return generatorsFuncs;
@@ -254,8 +201,6 @@ export async function seedForDrizzleStudio(
 		options?: { count?: number; seed?: number };
 	},
 ) {
-	// where can I find primary keys?
-	// where can I find relations?
 	const generatedSchemas: {
 		[schemaName: string]: {
 			tables: {
@@ -297,7 +242,6 @@ export async function seedForDrizzleStudio(
 			? schemasRefinements[schemaName]
 			: undefined;
 
-		// console.log("tables:", tables)
 		const generatedTablesGenerators = seedService.generatePossibleGenerators(
 			sqlDialect,
 			tables,
@@ -305,9 +249,7 @@ export async function seedForDrizzleStudio(
 			refinements,
 			options,
 		);
-		// console.log("generatedTablesGenerators:", generatedTablesGenerators[0]?.columnsPossibleGenerators)
 
-		// console.time("generateTablesValues");
 		const generatedTables = await seedService.generateTablesValues(
 			relations,
 			generatedTablesGenerators,
@@ -315,7 +257,6 @@ export async function seedForDrizzleStudio(
 			undefined,
 			{ ...options, preserveData: true, insertDataInDb: false },
 		);
-		// console.log("generatedTables:", generatedTables)
 
 		generatedSchemas[schemaName] = { tables: generatedTables };
 	}
@@ -336,13 +277,13 @@ export async function seedForDrizzleStudio(
  *
  * @example
  * ```ts
- * //base seeding
+ * // base seeding
  * await seed(db, schema);
  *
- * //seeding with count specified
+ * // seeding with count specified
  * await seed(db, schema, { count: 100000 });
  *
- * //seeding with count and seed specified
+ * // seeding with count and seed specified
  * await seed(db, schema, { count: 100000, seed: 1 });
  *
  * //seeding using refine
@@ -400,7 +341,6 @@ const seedFunc = async (
 	options: { count?: number; seed?: number } = {},
 	refinements?: RefinementsType,
 ) => {
-	// console.time("seedFunc");
 	if (is(db, PgDatabase<any>)) {
 		const { pgSchema } = filterPgTables(schema);
 
@@ -416,7 +356,6 @@ const seedFunc = async (
 	} else {
 		throw new Error('given db is not supported.');
 	}
-	// console.timeEnd("seedFunc");
 };
 
 /**
@@ -543,7 +482,6 @@ const seedPostgres = async (
 		options,
 	);
 
-	// console.time("generateTablesValues");
 	await seedService.generateTablesValues(
 		relations,
 		generatedTablesGenerators,
@@ -551,14 +489,6 @@ const seedPostgres = async (
 		schema,
 		options,
 	);
-	// console.timeEnd("generateTablesValues");
-
-	// for (const generatedTable of generatedTables) {
-	//   await db
-	//     .insert(schema[generatedTable.tableName])
-	//     .values(generatedTable.rows)
-	//     .execute();
-	// }
 };
 
 const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
@@ -653,7 +583,6 @@ const resetMySql = async (
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
 		const dbTableName = getTableName(table);
-		// console.log(config)
 		return dbTableName;
 	});
 
@@ -661,7 +590,6 @@ const resetMySql = async (
 
 	for (const tableName of tablesToTruncate) {
 		const sqlQuery = `truncate \`${tableName}\`;`;
-		// console.log(sqlQuery)
 		await db.execute(sql.raw(sqlQuery));
 	}
 
@@ -709,13 +637,6 @@ const seedMySql = async (
 		schema,
 		options,
 	);
-
-	// for (const generatedTable of generatedTables) {
-	//   await db
-	//     .insert(schema[generatedTable.tableName])
-	//     .values(generatedTable.rows)
-	//     .execute();
-	// }
 };
 
 const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
@@ -809,7 +730,6 @@ const resetSqlite = async (
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
 		const dbTableName = getTableName(table);
-		// console.log(config)
 		return dbTableName;
 	});
 
@@ -817,7 +737,6 @@ const resetSqlite = async (
 
 	for (const tableName of tablesToTruncate) {
 		const sqlQuery = `delete from \`${tableName}\`;`;
-		// console.log(sqlQuery)
 		await db.run(sql.raw(sqlQuery));
 	}
 
@@ -865,13 +784,6 @@ const seedSqlite = async (
 		schema,
 		options,
 	);
-
-	// for (const generatedTable of generatedTables) {
-	//   await db
-	//     .insert(schema[generatedTable.tableName])
-	//     .values(generatedTable.rows)
-	//     .execute();
-	// }
 };
 
 const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
@@ -956,3 +868,6 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 
 	return { tables, relations };
 };
+
+export { default as firstNames } from './datasets/firstNames.ts';
+export { default as lastNames } from './datasets/lastNames.ts';

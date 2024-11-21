@@ -63,19 +63,18 @@ class SeedService {
 		let tablePossibleGenerators: Prettify<GeneratePossibleGeneratorsTableType>;
 		const customSeed = options?.seed === undefined ? 0 : options.seed;
 
-		// console.log("relations:", relations);
 		// sorting table in order which they will be filled up (tables with foreign keys case)
 		// relations = relations.filter(rel => rel.type === "one");
 		const tablesInOutRelations = this.getTablesInOutRelations(relations);
 		const orderedTablesNames = this.getOrderedTablesList(tablesInOutRelations);
-		tables = tables.sort((tabel1, tabel2) => {
-			const tabel1Order = orderedTablesNames.indexOf(
-					tabel1.name,
+		tables = tables.sort((table1, table2) => {
+			const table1Order = orderedTablesNames.indexOf(
+					table1.name,
 				),
-				tabel2Order = orderedTablesNames.indexOf(
-					tabel2.name,
+				table2Order = orderedTablesNames.indexOf(
+					table2.name,
 				);
-			return tabel1Order - tabel2Order;
+			return table1Order - table2Order;
 		});
 
 		const tablesPossibleGenerators: Prettify<
@@ -104,8 +103,6 @@ class SeedService {
 				}
 			}
 
-			// console.time("generatePossibleGenerators_refinements section");
-			// console.log(refinements)
 			if (refinements !== undefined && refinements[table.name] !== undefined) {
 				if (refinements[table.name]!.count !== undefined) {
 					tablesPossibleGenerators[i]!.count = refinements[table.name]!.count;
@@ -151,18 +148,13 @@ class SeedService {
 
 								weightedCountSeed = customSeed
 									+ generateHashFromString(`${table.name}.${fkTableName}`);
-								// const repeatedValuesCount = this.getCountFromWeightedCount(weightedRepeatedValuesCount, seed);
 
-								// refinements![table.name].with![fkTableName] = repeatedValuesCount;
-								// console.time("getWeightedWithCount")
 								newTableWithCount = this.getWeightedWithCount(
 									weightedRepeatedValuesCount,
 									(tablesPossibleGenerators[i]!.withCount
 										|| tablesPossibleGenerators[i]!.count)!,
 									weightedCountSeed,
 								);
-								// console.timeEnd("getWeightedWithCount")
-								// console.log("newTableWithCount:", newTableWithCount)
 							}
 
 							if (
@@ -176,14 +168,10 @@ class SeedService {
 								repeatedValuesCount: refinements[table.name]!.with![fkTableName]!,
 								weightedCountSeed,
 							};
-
-							// tablesPossibleGenerators[idx].withFromTableName = table.name;
 						}
 					}
 				}
 			}
-			// console.timeEnd("generatePossibleGenerators_refinements section");
-			// console.time("generatePossibleGenerators_generatorPick section");
 			tablePossibleGenerators = tablesPossibleGenerators[i]!;
 			for (const col of table.columns) {
 				// col.myType = typeMap[col._type as keyof typeof typeMap];
@@ -202,7 +190,6 @@ class SeedService {
 					&& refinements[table.name]!.columns[col.name] !== undefined
 				) {
 					const genObj = refinements[table.name]!.columns[col.name]!;
-					// if (genObj instanceof GenerateValuesFromArray)
 					// for now only GenerateValuesFromArray support notNull property
 					genObj.notNull = col.notNull;
 
@@ -236,7 +223,6 @@ class SeedService {
 				}
 
 				if (columnPossibleGenerator.generator === undefined) {
-					// console.log("column:", col);
 					throw new Error(
 						`column with type ${col.columnType} is not supported for now.`,
 					);
@@ -247,19 +233,13 @@ class SeedService {
 				tablePossibleGenerators.columnsPossibleGenerators.push(
 					columnPossibleGenerator,
 				);
-				// console.log("column:", col, columnPossibleGenerator.generator)
 			}
-			// console.timeEnd("generatePossibleGenerators_generatorPick section");
 		}
 
-		// console.timeEnd("generatePossibleGenerators");
 		return tablesPossibleGenerators;
 	};
 
 	getOrderedTablesList = (tablesInOutRelations: ReturnType<typeof this.getTablesInOutRelations>): string[] => {
-		// console.time("getOrderedTablesList");
-		// const tablesInOutRelations = this.getTablesInOutRelations(relations);
-
 		const leafTablesNames = Object.entries(tablesInOutRelations)
 			.filter(
 				(tableRel) =>
@@ -269,17 +249,10 @@ class SeedService {
 			)
 			.map((tableRel) => tableRel[0]);
 
-		// console.log("leafTablesNames", leafTablesNames);
 		const orderedTablesNames: string[] = [];
-		// BFS
 		let parent: string, children: string[];
 		for (let i = 0; leafTablesNames.length !== 0; i++) {
-			// console.log(i);
-			// console.log("leafTablesNames", leafTablesNames);
-			// console.log("orderedTablesNames", orderedTablesNames);
 			parent = leafTablesNames.shift() as string;
-
-			// console.log(parent, tablesInOutRelations[parent].requiredTableNames)
 
 			if (orderedTablesNames.includes(parent)) {
 				continue;
@@ -301,18 +274,9 @@ class SeedService {
 				continue;
 			}
 
-			// children = relations
-			//   .filter((rel) => rel.refTable === parent)
-			//   .map((rel) => rel.table)
-			//   .filter((child) => child !== parent);
-
 			children = [...tablesInOutRelations[parent]!.dependantTableNames];
-			// console.log("children", children);
-			// console.log("children1", tablesInOutRelations[parent].dependantTableNames);
 			leafTablesNames.push(...children);
 		}
-		// console.log("orderedTablesNames", orderedTablesNames);
-		// console.timeEnd("getOrderedTablesList");
 		return orderedTablesNames;
 	};
 
@@ -371,14 +335,12 @@ class SeedService {
 		count: number,
 		seed: number,
 	) => {
-		// const gen = (new GenerateWeightedCount({})).execute({ weightedCount, count, seed });
 		const gen = new GenerateWeightedCount({});
 		gen.init({ count: weightedCount, seed });
 		let weightedWithCount = 0;
 		for (let i = 0; i < count; i++) {
 			weightedWithCount += gen.generate();
 		}
-		// gen.return();
 
 		return weightedWithCount;
 	};
@@ -867,7 +829,6 @@ class SeedService {
 		// TODO: now I'm generating tablesInOutRelations twice, first time in generatePossibleGenerators and second time here. maybe should generate it once instead.
 		const tablesInOutRelations = this.getTablesInOutRelations(relations);
 		for (const table of tablesGenerators) {
-			// console.log("tableName:", table)
 			tableCount = table.count === undefined ? options?.count || this.defaultCountForTable : table.count;
 
 			tableGenerators = {};
@@ -887,7 +848,6 @@ class SeedService {
 					))
 					: (customSeed + generateHashFromString(`${table.tableName}.${col.columnName}`));
 
-				// console.log(pRNGSeed);
 				tableGenerators[col.columnName] = {
 					pRNGSeed,
 					...col,
@@ -978,11 +938,6 @@ class SeedService {
 				? false
 				: true;
 
-			// if (table.tableName === "products") {
-			//   console.log("tableGenerators:", tableGenerators);
-			//   console.log("name:", tableGenerators["name"].generator?.params)
-			// }
-			// console.time("generateColumnsValuesByGenerators");
 			tableValues = await this.generateColumnsValuesByGenerators({
 				tableGenerators,
 				db,
@@ -992,7 +947,6 @@ class SeedService {
 				preserveData,
 				insertDataInDb,
 			});
-			// console.timeEnd("generateColumnsValuesByGenerators");
 
 			if (preserveData === true) {
 				tablesValues.push({
@@ -1014,11 +968,8 @@ class SeedService {
 						tablesInOutRelations[table.tableName] !== undefined && tablesInOutRelations[table.tableName]!.in > 0,
 				);
 			}
-
-			// console.timeEnd("generateOneTableValues");
 		}
 
-		// console.log("tablesValues", tablesValues);
 		return tablesValues;
 	};
 
@@ -1048,33 +999,19 @@ class SeedService {
 			count = this.defaultCountForTable;
 		}
 
-		// console.log("count:", count);
 		let columnGenerator: (typeof tableGenerators)[string];
-		// const columnsGenerators: {
-		//   [columnName: string]: Generator<
-		//     number | string | boolean | unknown,
-		//     void,
-		//     unknown
-		//   >;
-		// } = {};
 		const columnsGenerators: {
 			[columnName: string]: AbstractGenerator<any>;
 		} = {};
 		let generatedValues: { [columnName: string]: number | string | boolean | undefined }[] = [];
 
-		// console.time("initiate generators");
 		let columnsNumber = 0;
 		let override = false;
-		// console.log("before init")
 		for (const columnName of Object.keys(tableGenerators)) {
 			columnsNumber += 1;
 			columnGenerator = tableGenerators[columnName]!;
 			override = tableGenerators[columnName]?.generatedIdentityType === 'always' ? true : override;
 
-			// columnsGenerators[columnName] = columnGenerator.generator!.execute({
-			//   count,
-			//   seed: columnGenerator.pRNGSeed,
-			// });
 			columnsGenerators[columnName] = columnGenerator.generator!;
 			columnsGenerators[columnName]!.init({
 				count,
@@ -1097,14 +1034,7 @@ class SeedService {
 
 				columnsGenerators[columnName] = uniqueGen;
 			}
-
-			// console.log("col:", columnName, columnsGenerators[columnName]);
 		}
-		// if (tableName === "products") {
-		//   // console.log("tableGenerators:", tableGenerators);
-		//   console.log("name:", (tableGenerators["name"].generator as GenerateValuesFromArray))
-		// }
-		// console.timeEnd("initiate generators");
 		let maxParametersNumber: number;
 		if (is(db, PgDatabase<any>)) {
 			maxParametersNumber = is(db._.session, PgliteSession)
@@ -1119,12 +1049,10 @@ class SeedService {
 		const maxBatchSize = Math.floor(maxParametersNumber / columnsNumber);
 		batchSize = batchSize > maxBatchSize ? maxBatchSize : batchSize;
 
-		// console.time("columnsGenerators");
 		if (
 			insertDataInDb === true
 			&& (db === undefined || schema === undefined || tableName === undefined)
 		) {
-			// console.log(db, schema, tableName);
 			throw new Error('db or schema or tableName is undefined.');
 		}
 
@@ -1145,7 +1073,6 @@ class SeedService {
 					| string
 					| number
 					| boolean;
-				// console.log("generatedValue:", generatedValue);
 				row[columnName as keyof typeof row] = generatedValue;
 			}
 
@@ -1189,13 +1116,6 @@ class SeedService {
 			}
 		}
 
-		// for (const columnName of Object.keys(columnsGenerators)) {
-		//   console.log(
-		//     `timeSpent to generate ${columnName}:`,
-		//     columnsGenerators[columnName]!.timeSpent
-		//   );
-		// }
-
 		return preserveData === true ? generatedValues : [];
 	};
 
@@ -1219,21 +1139,17 @@ class SeedService {
 		tableName: string;
 		override: boolean;
 	}) => {
-		// console.log(tableName, generatedValues);
 		if (is(db, PgDatabase<any>)) {
-			// console.log("table to insert data:", tableName, ";columns in table:", Object.keys(generatedValues[0]!).length, ";rows to insert:", generatedValues, ";overall parameters:", generatedValues.length * Object.keys(generatedValues[0]!).length);
 			const query = db.insert((schema as { [key: string]: PgTable })[tableName]!);
 			if (override === true) {
 				return await query.overridingSystemValue().values(generatedValues);
 			}
 			await query.values(generatedValues);
 		} else if (is(db, MySqlDatabase<any, any>)) {
-			// console.log("table to insert data:", tableName, ";columns in table:", Object.keys(generatedValues[0]).length, ";rows to insert:", generatedValues, ";overall parameters:", generatedValues.length * Object.keys(generatedValues[0]).length);
 			await db
 				.insert((schema as { [key: string]: MySqlTable })[tableName]!)
 				.values(generatedValues);
 		} else if (is(db, BaseSQLiteDatabase<any, any>)) {
-			// console.log("table to insert data:", tableName, ";columns in table:", Object.keys(generatedValues[0]).length, ";rows to insert:", generatedValues.length, ";overall parameters:", generatedValues.length * Object.keys(generatedValues[0]).length);
 			await db
 				.insert((schema as { [key: string]: SQLiteTable })[tableName]!)
 				.values(generatedValues);

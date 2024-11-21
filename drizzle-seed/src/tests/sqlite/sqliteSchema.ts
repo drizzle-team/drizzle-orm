@@ -1,27 +1,3 @@
-// import { integer, text, sqliteTable } from "drizzle-orm/sqlite-core";
-
-// export const users = sqliteTable("users", {
-//     id: integer("id").primaryKey(),
-//     name: text("name", { length: 256 }),
-//     email: text("email", { length: 256 }),
-//     phone: text("phone", { length: 256 }),
-//     password: text("password", { length: 256 })
-// });
-
-// export const posts = sqliteTable("posts", {
-//     id: integer("id").primaryKey(),
-//     title: text("title", { length: 256 }),
-//     content: text("content", { length: 256 }),
-//     userId: integer("user_id").references(() => users.id)
-// });
-
-// export const comments = sqliteTable("comments", {
-//     id: integer("id").primaryKey(),
-//     content: text("content", { length: 256 }),
-//     postId: integer("post_id").references(() => posts.id),
-//     userId: integer("user_id").references(() => users.id)
-// });
-
 import { foreignKey, integer, numeric, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const customers = sqliteTable('customer', {

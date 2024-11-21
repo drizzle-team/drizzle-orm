@@ -2,10 +2,8 @@ import { PGlite } from '@electric-sql/pglite';
 import { sql } from 'drizzle-orm';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
-import { reset, seed } from 'drizzle-seed';
+import { firstNames, lastNames, reset, seed } from 'drizzle-seed';
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
-import firstNames from './firstNames.ts';
-import lastNames from './lastNames.ts';
 import * as schema from './pgSchema.ts';
 
 let client: PGlite;
