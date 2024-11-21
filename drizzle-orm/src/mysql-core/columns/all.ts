@@ -15,7 +15,7 @@ import { mediumint } from './mediumint.ts';
 import { real } from './real.ts';
 import { serial } from './serial.ts';
 import { smallint } from './smallint.ts';
-import { text } from './text.ts';
+import { text, longtext, mediumtext, tinytext } from './text.ts';
 import { time } from './time.ts';
 import { timestamp } from './timestamp.ts';
 import { tinyint } from './tinyint.ts';
@@ -49,6 +49,9 @@ export function getMySqlColumnBuilders() {
 		varbinary,
 		varchar,
 		year,
+		longtext,
+		mediumtext,
+		tinytext,
 	};
 }
 
