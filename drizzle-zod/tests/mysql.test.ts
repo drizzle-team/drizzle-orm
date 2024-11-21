@@ -312,6 +312,9 @@ test('all data types', (t) => {
 		varchar,
 		varbinary,
 		year,
+		longtext,
+		mediumtext,
+		tinytext
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -352,6 +355,12 @@ test('all data types', (t) => {
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		varbinary: varbinary({ length: 10 }).notNull(),
 		year: year().notNull(),
+		longtext1: longtext().notNull(),
+		longtext2: longtext({ enum: ['a', 'b', 'c'] }).notNull(),
+		mediumtext1: mediumtext().notNull(),
+		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
+		tinytext1: tinytext().notNull(),
+		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -395,6 +404,12 @@ test('all data types', (t) => {
 		varchar2: z.enum(['a', 'b', 'c']),
 		varbinary: z.string(),
 		year: z.number().min(1901).max(2155).int(),
+		longtext1: z.string().max(CONSTANTS.INT32_UNSIGNED_MAX),
+		longtext2: z.enum(['a', 'b', 'c']),
+		mediumtext1: z.string().max(CONSTANTS.INT24_UNSIGNED_MAX),
+		mediumtext2: z.enum(['a', 'b', 'c']),
+		tinytext1: z.string().max(CONSTANTS.INT8_UNSIGNED_MAX),
+		tinytext2: z.enum(['a', 'b', 'c']),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

@@ -177,7 +177,15 @@ function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 	} else if (is(column, MySqlVarChar)) {
 		max = column.length ?? CONSTANTS.INT16_UNSIGNED_MAX;
 	} else if (is(column, MySqlText)) {
-		max = CONSTANTS.INT16_UNSIGNED_MAX;
+		if (column.textType === 'longtext') {
+			max = CONSTANTS.INT32_UNSIGNED_MAX;
+		} else if (column.textType === 'mediumtext') {
+			max = CONSTANTS.INT24_UNSIGNED_MAX;
+		} else if (column.textType === 'text') {
+			max = CONSTANTS.INT16_UNSIGNED_MAX;
+		} else {
+			max = CONSTANTS.INT8_UNSIGNED_MAX;
+		}
 	}
 
 	if (isAny(column, [PgChar, MySqlChar])) {
