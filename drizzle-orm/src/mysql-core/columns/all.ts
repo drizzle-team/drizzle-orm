@@ -15,7 +15,7 @@ import { mediumint } from './mediumint.ts';
 import { real } from './real.ts';
 import { serial } from './serial.ts';
 import { smallint } from './smallint.ts';
-import { text, longtext, mediumtext, tinytext } from './text.ts';
+import { longtext, mediumtext, text, tinytext } from './text.ts';
 import { time } from './time.ts';
 import { timestamp } from './timestamp.ts';
 import { tinyint } from './tinyint.ts';
