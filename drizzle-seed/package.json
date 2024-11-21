@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-seed",
-	"version": "0.0.2",
+	"version": "0.1.1",
 	"main": "index.js",
 	"type": "module",
 	"scripts": {
@@ -17,9 +17,37 @@
 		"start:sqlite": "npx tsx ./src/tests/northwind/sqliteTest.ts",
 		"benchmark": "npx tsx ./src/tests/benchmarks/generatorsBenchmark.ts"
 	},
-	"author": "",
-	"license": "ISC",
-	"description": "",
+	"author": "Drizzle Team",
+	"license": "Apache-2.0",
+	"bugs": {
+		"url": "https://github.com/drizzle-team/drizzle-orm/issues"
+	},
+	"keywords": [
+		"drizzle",
+		"orm",
+		"pg",
+		"mysql",
+		"postgresql",
+		"postgres",
+		"sqlite",
+		"database",
+		"sql",
+		"typescript",
+		"ts",
+		"drizzle-orm",
+		"drizzle-seed",
+		"seeding",
+		"seed"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+	},
+	"publishConfig": {
+		"provenance": true
+	},
+	"sideEffects": false,
+	"description": "A package to seed your database using Drizzle ORM",
 	"exports": {
 		".": {
 			"import": {
