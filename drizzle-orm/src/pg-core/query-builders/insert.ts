@@ -63,6 +63,13 @@ export class PgInsertBuilder<
 		private overridingSystemValue_?: boolean,
 	) {}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true>, 'overridingSystemValue'> {
 		this.overridingSystemValue_ = true;
 		return this as any;
@@ -87,15 +94,25 @@ export class PgInsertBuilder<
 			return result;
 		});
 
-		return new PgInsertBase(
-			this.table,
-			mappedValues,
-			this.session,
-			this.dialect,
-			this.withList,
-			false,
-			this.overridingSystemValue_,
-		);
+		return this.authToken === undefined
+			? new PgInsertBase(
+				this.table,
+				mappedValues,
+				this.session,
+				this.dialect,
+				this.withList,
+				false,
+				this.overridingSystemValue_,
+			)
+			: new PgInsertBase(
+				this.table,
+				mappedValues,
+				this.session,
+				this.dialect,
+				this.withList,
+				false,
+				this.overridingSystemValue_,
+			).setToken(this.authToken) as any;
 	}
 
 	select(selectQuery: (qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable>): PgInsertBase<TTable, TQueryResult>;
@@ -385,9 +402,16 @@ export class PgInsertBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 
