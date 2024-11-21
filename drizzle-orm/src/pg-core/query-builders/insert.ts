@@ -63,16 +63,16 @@ export class PgInsertBuilder<
 		private overridingSystemValue_?: boolean,
 	) {}
 
-	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true>, 'overridingSystemValue'> {
-		this.overridingSystemValue_ = true;
-		return this as any;
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
 	}
 
-	values(value: PgInsertValue<TTable, OverrideT>): PgInsertBase<TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable, OverrideT>[]): PgInsertBase<TTable, TQueryResult>;
-	values(
-		values: PgInsertValue<TTable, OverrideT> | PgInsertValue<TTable, OverrideT>[],
-	): PgInsertBase<TTable, TQueryResult> {
+	values(value: PgInsertValue<TTable>): PgInsertBase<TTable, TQueryResult>;
+	values(values: PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult>;
+	values(values: PgInsertValue<TTable> | PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -87,15 +87,25 @@ export class PgInsertBuilder<
 			return result;
 		});
 
-		return new PgInsertBase(
-			this.table,
-			mappedValues,
-			this.session,
-			this.dialect,
-			this.withList,
-			false,
-			this.overridingSystemValue_,
-		);
+		return this.authToken === undefined
+			? new PgInsertBase(
+				this.table,
+				mappedValues,
+				this.session,
+				this.dialect,
+				this.withList,
+				false,
+				this.overridingSystemValue_,
+			)
+			: new PgInsertBase(
+				this.table,
+				mappedValues,
+				this.session,
+				this.dialect,
+				this.withList,
+				false,
+				this.overridingSystemValue_,
+			).setToken(this.authToken) as any;
 	}
 
 	select(selectQuery: (qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable>): PgInsertBase<TTable, TQueryResult>;
@@ -385,9 +395,16 @@ export class PgInsertBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 

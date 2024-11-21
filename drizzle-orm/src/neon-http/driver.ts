@@ -40,10 +40,66 @@ export class NeonHttpDriver {
 	}
 }
 
+function wrap<T extends object>(
+	target: T,
+	token: string,
+	cb: (target: any, p: string | symbol, res: any) => any,
+	deep?: boolean,
+) {
+	return new Proxy(target, {
+		get(target, p) {
+			const element = target[p as keyof typeof p];
+			if (typeof element !== 'function' && (typeof element !== 'object' || element === null)) return element;
+
+			if (deep) return wrap(element, token, cb);
+			if (p === 'query') return wrap(element, token, cb, true);
+
+			return new Proxy(element as any, {
+				apply(target, thisArg, argArray) {
+					const res = target.call(thisArg, ...argArray);
+					if ('setToken' in res && typeof res.setToken === 'function') {
+						res.setToken(token);
+					}
+					return cb(target, p, res);
+				},
+			});
+		},
+	});
+}
+
 export class NeonHttpDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<NeonHttpQueryResultHKT, TSchema> {
 	static override readonly [entityKind]: string = 'NeonHttpDatabase';
+
+	$withAuth(
+		token: string,
+	): Omit<
+		this,
+		Exclude<
+			keyof this,
+			| '$count'
+			| 'delete'
+			| 'select'
+			| 'selectDistinct'
+			| 'selectDistinctOn'
+			| 'update'
+			| 'insert'
+			| 'with'
+			| 'query'
+			| 'execute'
+			| 'refreshMaterializedView'
+		>
+	> {
+		this.authToken = token;
+
+		return wrap(this, token, (target, p, res) => {
+			if (p === 'with') {
+				return wrap(res, token, (_, __, res) => res);
+			}
+			return res;
+		});
+	}
 
 	/** @internal */
 	declare readonly session: NeonHttpSession<TSchema, ExtractTablesWithRelations<TSchema>>;
