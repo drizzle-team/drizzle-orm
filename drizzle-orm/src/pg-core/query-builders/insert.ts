@@ -70,9 +70,16 @@ export class PgInsertBuilder<
 		return this;
 	}
 
-	values(value: PgInsertValue<TTable>): PgInsertBase<TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable> | PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult> {
+	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true>, 'overridingSystemValue'> {
+		this.overridingSystemValue_ = true;
+		return this as any;
+	}
+
+	values(value: PgInsertValue<TTable, OverrideT>): PgInsertBase<TTable, TQueryResult>;
+	values(values: PgInsertValue<TTable, OverrideT>[]): PgInsertBase<TTable, TQueryResult>;
+	values(
+		values: PgInsertValue<TTable, OverrideT> | PgInsertValue<TTable, OverrideT>[],
+	): PgInsertBase<TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
