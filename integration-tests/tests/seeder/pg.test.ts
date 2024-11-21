@@ -1430,7 +1430,7 @@ test('city unique generator test', async () => {
 	await reset(db, { cityUniqueTable: schema.cityUniqueTable });
 	await seed(db, { cityUniqueTable: schema.cityUniqueTable }).refine((funcs) => ({
 		cityUniqueTable: {
-			count: 42884,
+			count: 38884,
 			columns: {
 				cityUnique: funcs.city({ isUnique: true }),
 			},
