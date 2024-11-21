@@ -15,7 +15,8 @@
 		"start:pg": "npx tsx ./src/tests/northwind/pgTest.ts",
 		"start:mysql": "npx tsx ./src/tests/northwind/mysqlTest.ts",
 		"start:sqlite": "npx tsx ./src/tests/northwind/sqliteTest.ts",
-		"benchmark": "npx tsx ./src/tests/benchmarks/generatorsBenchmark.ts"
+		"benchmark": "npx tsx ./src/tests/benchmarks/generatorsBenchmark.ts",
+		"publish": "npm publish package.tgz"
 	},
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
