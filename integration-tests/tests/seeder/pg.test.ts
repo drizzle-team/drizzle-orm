@@ -609,6 +609,16 @@ const createAllGeneratorsTables = async () => {
 			);    
 		`,
 	);
+
+	await db.execute(
+		sql`
+			CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."identity_columns_table" (
+							"id" integer GENERATED ALWAYS AS IDENTITY,
+							"id1" integer,
+							"name" text
+						); 
+		`,
+	);
 };
 
 beforeAll(async () => {
@@ -616,7 +626,7 @@ beforeAll(async () => {
 
 	db = drizzle(client);
 
-	await db.execute(sql`CREATE SCHEMA "seeder_lib_pg";`);
+	await db.execute(sql`CREATE SCHEMA IF NOT EXISTS "seeder_lib_pg";`);
 
 	await createNorthwindTables();
 	await createAllDataTypesTable();
