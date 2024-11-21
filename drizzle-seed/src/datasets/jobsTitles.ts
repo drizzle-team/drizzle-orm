@@ -1,3 +1,6 @@
+/**
+ * The original source for the job titles data was taken from https://www.kaggle.com/datasets/ravindrasinghrana/job-description-dataset
+ */
 export default [
 	'Digital marketing specialist',
 	'Web developer',

@@ -1,3 +1,6 @@
+/**
+ * The original data was taken from the сopycat library: https://github.com/supabase-community/copycat/blob/main/src/locales/en/address/street_suffix.ts
+ */
 export default [
 	'Alley',
 	'Avenue',

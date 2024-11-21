@@ -1,3 +1,6 @@
+/**
+ * Data was generated, using https://www.lipsum.com/
+ */
 export default [
 	'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
 	'Nam porta quis ex a blandit.',

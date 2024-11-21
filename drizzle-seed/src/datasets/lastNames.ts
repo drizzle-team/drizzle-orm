@@ -1,3 +1,6 @@
+/**
+ * The original source for last names data was taken from https://www.kaggle.com/datasets/fivethirtyeight/fivethirtyeight-most-common-name-dataset?resource=download&select=surnames.csv
+ */
 export default [
 	'Smith',
 	'Johnson',

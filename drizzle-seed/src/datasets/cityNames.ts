@@ -1,3 +1,7 @@
+/**
+ * The original source for cities names data was taken from https://www.kaggle.com/datasets/juanmah/world-cities
+ * We've excluded a few countries and their cities from this list because we don't think they should ever appear in any list
+ */
 export default [
 	'Humpata',
 	'Qunghirot',
