@@ -13,13 +13,19 @@ export const fastCartesianProduct = (sets: (number | string | boolean | object)[
 	return resultList;
 };
 
+const sumArray = (weights: number[]) => {
+	const scale = 1e10;
+	const scaledSum = weights.reduce((acc, currVal) => acc + Math.round(currVal * scale), 0);
+	return scaledSum / scale;
+};
+
 /**
  * @param weights positive number in range [0, 1], that represents probabilities to choose index of array. Example: weights = [0.2, 0.8]
  * @param [accuracy=100] approximate number of elements in returning array
  * @returns Example: with weights = [0.2, 0.8] and accuracy = 10 returning array of indices gonna equal this: [0, 0, 1, 1, 1, 1, 1, 1, 1, 1]
  */
 export const getWeightedIndices = (weights: number[], accuracy = 100) => {
-	const weightsSum = Math.round(weights.reduce((acc, currVal) => acc + currVal, 0));
+	const weightsSum = sumArray(weights);
 	if (weightsSum !== 1) {
 		throw new Error(`sum of all weights don't equal to 1; ${weightsSum} !== 1`);
 	}
