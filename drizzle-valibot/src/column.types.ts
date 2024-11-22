@@ -16,11 +16,11 @@ export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { read
 
 export type ExtractAdditionalProperties<TColumn extends Column> = {
 	max: TColumn['_']['columnType'] extends 'PgVarchar' | 'SQLiteText' | 'PgChar' | 'MySqlChar'
-		? Assume<TColumn, PgVarchar<any>>['_']['length']
+		? Assume<TColumn['_'], { length: number | undefined }>['length']
 		: TColumn['_']['columnType'] extends 'MySqlText' | 'MySqlVarChar'
 		? number
 		: TColumn['_']['columnType'] extends 'PgBinaryVector' | 'PgHalfVector' | 'PgVector'
-		? Assume<TColumn, PgBinaryVector<any>>['_']['dimensions']
+		? Assume<TColumn['_'], { dimensions: number }>['dimensions']
 		: TColumn['_']['columnType'] extends 'PgArray'
 		? Assume<TColumn['_'], { size: number | undefined }>['size']
 		: undefined;
@@ -40,8 +40,6 @@ type BuildArraySchema<
 	: TPipelines extends [infer TFirst extends any[]]
 	? BuildArraySchema<RemovePipeIfNoElements<v.SchemaWithPipe<[v.ArraySchema<TWrapped, undefined>, ...TFirst]>>, []>
 	: TWrapped;
-
-type A = [number] extends [infer T1, ...infer T2] ? T2 : [];
 
 export type GetValibotType<
 	TData,
