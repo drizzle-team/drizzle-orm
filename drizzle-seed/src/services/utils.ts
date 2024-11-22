@@ -27,7 +27,9 @@ const sumArray = (weights: number[]) => {
 export const getWeightedIndices = (weights: number[], accuracy = 100) => {
 	const weightsSum = sumArray(weights);
 	if (weightsSum !== 1) {
-		throw new Error(`sum of all weights don't equal to 1; ${weightsSum} !== 1`);
+		throw new Error(
+			`The weights for the Weighted Random feature must add up to exactly 1. Please review your weights to ensure they total 1 before proceeding`,
+		);
 	}
 
 	// const accuracy = 100;

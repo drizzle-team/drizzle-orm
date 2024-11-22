@@ -130,14 +130,14 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 		const { values } = this.params;
 		const { maxRepeatedValuesCount, notNull, isUnique } = this;
 		if (values.length === 0) {
-			throw new Error('values length equals zero.');
+			throw new Error('Values length equals zero.');
 		}
 
 		if (
 			typeof values[0] === 'object'
 			&& !(values as { weight: number; values: any[] }[]).every((val) => val.values.length !== 0)
 		) {
-			throw new Error('one of weighted values length equals zero.');
+			throw new Error('One of weighted values length equals zero.');
 		}
 
 		if (
@@ -169,7 +169,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 					&& maxRepeatedValuesCount * allValuesCount < count)
 			)
 		) {
-			throw new Error("(maxRepeatedValuesCount * values.length) < count. can't fill notNull column with null values.");
+			throw new Error("Can't fill notNull column with null values.");
 		}
 
 		if (
@@ -183,7 +183,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 					))
 			)
 		) {
-			throw new Error("maxRepeatedValuesCount can't be greater than 1 if column is unique.");
+			throw new Error("Can't be greater than 1 if column is unique.");
 		}
 
 		if (
@@ -193,14 +193,14 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 			)
 		) {
 			// console.log(maxRepeatedValuesCount, values.length, allValuesCount, count)
-			throw new Error('there are no enough values to fill unique column.');
+			throw new Error('There are no enough values to fill unique column.');
 		}
 	}
 
 	init({ count, seed }: { count: number; seed: number }) {
 		if (this.params.isUnique !== undefined) {
 			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
+				throw new Error('Specifying non unique generator to unique column.');
 			}
 
 			this.isUnique = this.params.isUnique;

@@ -531,7 +531,7 @@ test('valuesFromArray unique generator test', async () => {
 				},
 			},
 		})),
-	).rejects.toThrow('there are no enough values to fill unique column.');
+	).rejects.toThrow('There are no enough values to fill unique column.');
 
 	await expect(
 		seed(db, { valuesFromArrayUniqueTable: schema.valuesFromArrayUniqueTable }, { seed: 1 }).refine((funcs) => ({
@@ -552,7 +552,7 @@ test('valuesFromArray unique generator test', async () => {
 				},
 			},
 		})),
-	).rejects.toThrow('there are no enough values to fill unique column.');
+	).rejects.toThrow('There are no enough values to fill unique column.');
 });
 
 test('intPrimaryKey generator test', async () => {
@@ -1368,5 +1368,7 @@ test('weightedRandom with unique gens generator test', async () => {
 				},
 			},
 		})),
-	).rejects.toThrow("sum of all weights don't equal to 1; 1.1 !== 1");
+	).rejects.toThrow(
+		'The weights for the Weighted Random feature must add up to exactly 1. Please review your weights to ensure they total 1 before proceeding',
+	);
 });
