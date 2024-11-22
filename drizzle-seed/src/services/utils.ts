@@ -19,7 +19,7 @@ export const fastCartesianProduct = (sets: (number | string | boolean | object)[
  * @returns Example: with weights = [0.2, 0.8] and accuracy = 10 returning array of indices gonna equal this: [0, 0, 1, 1, 1, 1, 1, 1, 1, 1]
  */
 export const getWeightedIndices = (weights: number[], accuracy = 100) => {
-	const weightsSum = weights.reduce((acc, currVal) => acc + currVal, 0);
+	const weightsSum = Math.round(weights.reduce((acc, currVal) => acc + currVal, 0));
 	if (weightsSum !== 1) {
 		throw new Error(`sum of all weights don't equal to 1; ${weightsSum} !== 1`);
 	}
