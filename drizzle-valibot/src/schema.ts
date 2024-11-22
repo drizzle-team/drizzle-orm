@@ -3,11 +3,7 @@ import type { Table, View } from 'drizzle-orm';
 import { isPgEnum, PgEnum } from 'drizzle-orm/pg-core';
 import * as v from 'valibot';
 import { columnToSchema, mapEnumValues } from './column';
-import type {
-	CreateInsertSchema,
-	CreateSelectSchema,
-	CreateUpdateSchema,
-} from './schema.types';
+import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from './schema.types';
 import type { Conditions } from './schema.types.internal';
 
 function getColumns(tableLike: Table | View) {
@@ -67,10 +63,10 @@ export const createSelectSchema: CreateSelectSchema = (
 	}
 	const columns = getColumns(entity);
 	return handleColumns(columns, refine ?? {}, {
-    never: () => false,
-    optional: () => false,
-    nullable: (column) => !column.notNull,
-  }) as any;
+		never: () => false,
+		optional: () => false,
+		nullable: (column) => !column.notNull,
+	}) as any;
 };
 
 export const createInsertSchema: CreateInsertSchema = (
@@ -79,10 +75,10 @@ export const createInsertSchema: CreateInsertSchema = (
 ) => {
 	const columns = getColumns(entity);
 	return handleColumns(columns, refine ?? {}, {
-    never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
-    optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
-    nullable: (column) => !column.notNull,
-  }) as any;
+		never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+		optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
+		nullable: (column) => !column.notNull,
+	}) as any;
 };
 
 export const createUpdateSchema: CreateUpdateSchema = (
@@ -91,8 +87,8 @@ export const createUpdateSchema: CreateUpdateSchema = (
 ) => {
 	const columns = getColumns(entity);
 	return handleColumns(columns, refine ?? {}, {
-    never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
-    optional: () => true,
-    nullable: (column) => !column.notNull,
-  }) as any;
+		never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+		optional: () => true,
+		nullable: (column) => !column.notNull,
+	}) as any;
 };

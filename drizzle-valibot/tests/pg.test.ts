@@ -1,7 +1,7 @@
 import { Equal, sql } from 'drizzle-orm';
 import { integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
-import { test } from 'vitest';
 import * as v from 'valibot';
+import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
@@ -196,7 +196,7 @@ test('nullability - update', (t) => {
 		c4: v.optional(integerSchema),
 		c7: v.optional(integerSchema),
 	});
-	table.c5.generated?.type
+	table.c5.generated?.type;
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -291,11 +291,11 @@ test('refine view - select', (t) => {
 		c3: v.pipe(v.string(), v.transform((v) => Number(v))),
 		nested: {
 			c5: (schema) => v.pipe(schema, v.maxValue(1000)),
-		  c6: v.pipe(v.string(), v.transform((v) => Number(v))),
+			c6: v.pipe(v.string(), v.transform((v) => Number(v))),
 		},
 		table: {
 			c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-		  c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+			c3: v.pipe(v.string(), v.transform((v) => Number(v))),
 		},
 	});
 	const expected = v.object({
@@ -397,14 +397,19 @@ test('all data types', (t) => {
 		vector: vector({ dimensions: 3 }).notNull(),
 		array1: integer().array().notNull(),
 		array2: integer().array().array(2).notNull(),
-    array3: varchar({ length: 10 }).array().array(2).notNull(),
+		array3: varchar({ length: 10 }).array().array(2).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
 	const expected = v.object({
 		bigint1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
 		bigint2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
-		bigserial1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
+		bigserial1: v.pipe(
+			v.number(),
+			v.minValue(Number.MIN_SAFE_INTEGER),
+			v.maxValue(Number.MAX_SAFE_INTEGER),
+			v.integer(),
+		),
 		bigserial2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
 		bit: v.pipe(v.string(), v.regex(/^[01]+$/), v.maxLength(5 as number)),
 		boolean: v.boolean(),

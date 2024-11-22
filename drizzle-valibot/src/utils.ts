@@ -27,21 +27,20 @@ export type ArrayHasAtLeastOneValue<TEnum extends [any, ...any[]] | undefined> =
 	: false
 	: false;
 
-export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['generated'] extends undefined
-	? false
-		: TColumn['_']['generated'] extends infer TGenerated extends { type: string } ? TGenerated['type'] extends 'byDefault' ? false
+export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['generated'] extends undefined ? false
+	: TColumn['_']['generated'] extends infer TGenerated extends { type: string }
+		? TGenerated['type'] extends 'byDefault' ? false
 		: true
-		: true;
+	: true;
 
 export type RemoveNever<T> = {
 	[K in keyof T as T[K] extends never ? never : K]: T[K];
 };
 
 export type RemoveNeverElements<T extends any[]> = T extends [infer First, ...infer Rest]
-  ? IsNever<First> extends true
-    ? RemoveNeverElements<Rest>
-    : [First, ...RemoveNeverElements<Rest>]
-  : [];
+	? IsNever<First> extends true ? RemoveNeverElements<Rest>
+	: [First, ...RemoveNeverElements<Rest>]
+	: [];
 
 export type GetSelection<T extends SelectedFieldsFlat<Column> | Table | View> = T extends Table ? T['_']['columns']
 	: T extends View ? T['_']['selectedFields']

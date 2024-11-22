@@ -23,7 +23,9 @@ export function expectSchemaShape<T extends v.ObjectSchema<v.ObjectEntries, unde
 				for (let i = 0; i < actualEntry.pipe.length; i++) {
 					const actualPipeElement = actualEntry.pipe[i];
 					const expectedPipeElement = expectedEntry.pipe[i];
-					expect(onlySpecifiedKeys(actualPipeElement, keys)).toStrictEqual(onlySpecifiedKeys(expectedPipeElement, keys));
+					expect(onlySpecifiedKeys(actualPipeElement, keys)).toStrictEqual(
+						onlySpecifiedKeys(expectedPipeElement, keys),
+					);
 				}
 			}
 		},

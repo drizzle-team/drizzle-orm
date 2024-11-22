@@ -50,14 +50,14 @@ import type { Json } from './utils';
 
 export const literalSchema = v.union([v.string(), v.number(), v.boolean(), v.null()]);
 export const jsonSchema: v.GenericSchema<Json> = v.union([
-  literalSchema,
-  v.array(v.lazy(() => jsonSchema)),
-  v.record(v.string(), v.lazy(() => jsonSchema))
+	literalSchema,
+	v.array(v.lazy(() => jsonSchema)),
+	v.record(v.string(), v.lazy(() => jsonSchema)),
 ]);
 export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer);
 
 export function mapEnumValues(values: string[]) {
-  return values.reduce((acc, value) => ({ ...acc, [value]: value }), {})
+	return values.reduce((acc, value) => ({ ...acc, [value]: value }), {});
 }
 
 /** @internal */
@@ -76,16 +76,16 @@ export function columnToSchema(column: Column): v.GenericSchema {
 			schema = v.object({ x: v.number(), y: v.number() });
 		} else if (isAny(column, [PgHalfVector, PgVector])) {
 			schema = v.array(v.number());
-			schema = column.dimensions ? v.pipe((schema as v.ArraySchema<any, any>), v.length(column.dimensions)) : schema;
+			schema = column.dimensions ? v.pipe(schema as v.ArraySchema<any, any>, v.length(column.dimensions)) : schema;
 		} else if (is(column, PgLineTuple)) {
 			schema = v.tuple([v.number(), v.number(), v.number()]);
-      v.array(v.array(v.number()));
+			v.array(v.array(v.number()));
 		} else if (is(column, PgLineABC)) {
 			schema = v.object({ a: v.number(), b: v.number(), c: v.number() });
 		} // Handle other types
 		else if (is(column, PgArray)) {
 			schema = v.array(columnToSchema(column.baseColumn));
-			schema = column.size ? v.pipe((schema as v.ArraySchema<any, any>), v.length(column.size)) : schema;
+			schema = column.size ? v.pipe(schema as v.ArraySchema<any, any>, v.length(column.size)) : schema;
 		} else if (column.dataType === 'array') {
 			schema = v.array(v.any());
 		} else if (column.dataType === 'number') {
@@ -153,10 +153,10 @@ function numberColumnToSchema(column: Column): v.GenericSchema {
 		max = Number.MAX_SAFE_INTEGER;
 	}
 
-  const actions: any[] = [v.minValue(min), v.maxValue(max)];
-  if (integer) {
-    actions.push(v.integer());
-  }
+	const actions: any[] = [v.minValue(min), v.maxValue(max)];
+	if (integer) {
+		actions.push(v.integer());
+	}
 	return v.pipe(v.number(), ...actions);
 }
 
@@ -207,14 +207,14 @@ function stringColumnToSchema(column: Column): v.GenericSchema {
 		max = column.dimensions;
 	}
 
-  const actions: any[] = [];
+	const actions: any[] = [];
 	if (regex) {
-    actions.push(v.regex(regex));
-  }
-  if (max && fixed) {
-    actions.push(v.length(max));
-  } else if (max) {
-    actions.push(v.maxLength(max));
-  }
+		actions.push(v.regex(regex));
+	}
+	if (max && fixed) {
+		actions.push(v.length(max));
+	} else if (max) {
+		actions.push(v.maxLength(max));
+	}
 	return actions.length > 0 ? v.pipe(v.string(), ...actions) : v.string();
 }

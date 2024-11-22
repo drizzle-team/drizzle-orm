@@ -1,13 +1,18 @@
 import { Equal, sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
-import { test } from 'vitest';
 import * as v from 'valibot';
+import { test } from 'vitest';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
-const intSchema = v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer());
+const intSchema = v.pipe(
+	v.number(),
+	v.minValue(Number.MIN_SAFE_INTEGER),
+	v.maxValue(Number.MAX_SAFE_INTEGER),
+	v.integer(),
+);
 const textSchema = v.string();
 
 test('table - select', (t) => {

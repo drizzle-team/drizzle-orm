@@ -1,6 +1,12 @@
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type * as v from 'valibot';
-import type { ExtractAdditionalProperties, GetBaseColumn, GetEnumValuesFromColumn, GetValibotType, HandleColumn } from './column.types';
+import type {
+	ExtractAdditionalProperties,
+	GetBaseColumn,
+	GetEnumValuesFromColumn,
+	GetValibotType,
+	HandleColumn,
+} from './column.types';
 import type { GetSelection, RemoveNever } from './utils';
 
 export interface Conditions {
@@ -44,28 +50,24 @@ type HandleRefinement<
 	TType extends 'select' | 'insert' | 'update',
 	TRefinement extends v.GenericSchema | ((schema: v.GenericSchema) => v.GenericSchema),
 	TColumn extends Column,
-> = TRefinement extends (schema: any) => v.GenericSchema
-	? (
-		TColumn['_']['notNull'] extends true
-			? ReturnType<TRefinement>
+> = TRefinement extends (schema: any) => v.GenericSchema ? (
+		TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
 			: v.NullableSchema<ReturnType<TRefinement>, undefined>
-		) extends infer TSchema
-			? TType extends 'update'
-				? v.OptionalSchema<Assume<TSchema, v.GenericSchema>, undefined>
-				: TSchema
-			: v.AnySchema
+	) extends infer TSchema ? TType extends 'update' ? v.OptionalSchema<Assume<TSchema, v.GenericSchema>, undefined>
+		: TSchema
+	: v.AnySchema
 	: TRefinement;
 
 type IsRefinementDefined<TRefinements, TKey extends string> = TKey extends keyof TRefinements
-	? TRefinements[TKey] extends v.GenericSchema | ((schema: any) => any)
-		? true
-		: false
+	? TRefinements[TKey] extends v.GenericSchema | ((schema: any) => any) ? true
+	: false
 	: false;
 
 export type BuildSchema<
 	TType extends 'select' | 'insert' | 'update',
 	TColumns extends Record<string, any>,
 	TRefinements extends Record<string, any> | undefined,
+	// @ts-ignore false-positive
 > = v.ObjectSchema<
 	Simplify<
 		RemoveNever<
@@ -89,7 +91,7 @@ export type BuildSchema<
 			}
 		>
 	>,
-  undefined
+	undefined
 >;
 
 export type NoUnknownKeys<

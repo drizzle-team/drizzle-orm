@@ -1,14 +1,24 @@
 import { Equal, sql } from 'drizzle-orm';
 import { int, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
-import { test } from 'vitest';
 import * as v from 'valibot';
+import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
-const intSchema = v.pipe(v.number(), v.minValue(CONSTANTS.INT32_MIN as number), v.maxValue(CONSTANTS.INT32_MAX as number), v.integer())
-const serialNumberModeSchema = v.pipe(v.number(), v.minValue(0 as number), v.maxValue(Number.MAX_SAFE_INTEGER as number), v.integer());
+const intSchema = v.pipe(
+	v.number(),
+	v.minValue(CONSTANTS.INT32_MIN as number),
+	v.maxValue(CONSTANTS.INT32_MAX as number),
+	v.integer(),
+);
+const serialNumberModeSchema = v.pipe(
+	v.number(),
+	v.minValue(0 as number),
+	v.maxValue(Number.MAX_SAFE_INTEGER as number),
+	v.integer(),
+);
 const textSchema = v.pipe(v.string(), v.maxLength(CONSTANTS.INT16_UNSIGNED_MAX as number));
 
 test('table - select', (t) => {
@@ -313,7 +323,7 @@ test('all data types', (t) => {
 		year,
 		longtext,
 		mediumtext,
-		tinytext
+		tinytext,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
