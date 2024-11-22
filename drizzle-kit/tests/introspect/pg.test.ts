@@ -892,3 +892,22 @@ test('multiple policies with roles from schema', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('default-function-call', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		foo: pgTable('foo', {
+			bar: text('bar').default(sql`md5('baz')`),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'default-functions-call',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
