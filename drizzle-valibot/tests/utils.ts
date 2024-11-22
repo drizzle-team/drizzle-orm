@@ -30,7 +30,7 @@ export function expectSchemaShape<T extends v.ObjectSchema<v.ObjectEntries, unde
 	};
 }
 
-export function expectEnumValues<T extends v.EnumSchema<v.Enum, undefined>>(t: TaskContext, expected: T) {
+export function expectEnumValues<T extends v.EnumSchema<any, undefined>>(t: TaskContext, expected: T) {
 	return {
 		from(actual: T) {
 			expect(actual.enum).toStrictEqual(expected.enum);

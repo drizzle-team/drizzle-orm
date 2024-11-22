@@ -208,13 +208,13 @@ function stringColumnToSchema(column: Column): v.GenericSchema {
 	}
 
   const actions: any[] = [];
+	if (regex) {
+    actions.push(v.regex(regex));
+  }
   if (max && fixed) {
     actions.push(v.length(max));
   } else if (max) {
     actions.push(v.maxLength(max));
-  }
-	if (regex) {
-    actions.push(v.regex(regex));
   }
 	return actions.length > 0 ? v.pipe(v.string(), ...actions) : v.string();
 }
