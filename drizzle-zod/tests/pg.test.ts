@@ -397,6 +397,7 @@ test('all data types', (t) => {
 		vector: vector({ dimensions: 3 }).notNull(),
 		array1: integer().array().notNull(),
 		array2: integer().array().array(2).notNull(),
+		array3: varchar({ length: 10 }).array().array(2).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -444,6 +445,7 @@ test('all data types', (t) => {
 		vector: z.array(z.number()).length(3),
 		array1: z.array(integerSchema),
 		array2: z.array(z.array(integerSchema).length(2)),
+		array3: z.array(z.array(z.string().max(10)).length(2)),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

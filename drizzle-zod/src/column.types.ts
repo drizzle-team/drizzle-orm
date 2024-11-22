@@ -1,6 +1,6 @@
 import type { Assume, Column } from 'drizzle-orm';
 import type { z } from 'zod';
-import type { ArrayHasAtLeastOneValue, ColumnIsGeneratedAlwaysAs, IsArray, IsNever, Json, UnwrapArray } from './utils';
+import type { ArrayHasAtLeastOneValue, ColumnIsGeneratedAlwaysAs, IsNever, Json } from './utils';
 
 export type GetEnumValuesFromColumn<TColumn extends Column> = TColumn['_'] extends { enumValues: [string, ...string[]] }
 	? TColumn['_']['enumValues']
@@ -18,10 +18,10 @@ export type GetZodType<
 	TBaseColumn extends Column | undefined,
 > = TBaseColumn extends Column ? z.ZodArray<
 		GetZodType<
-			UnwrapArray<TData>,
-			string,
-			undefined,
-			IsArray<Assume<TData, any[]>[number]> extends true ? TBaseColumn : undefined
+			TBaseColumn['_']['data'],
+			TBaseColumn['_']['dataType'],
+			GetEnumValuesFromColumn<TBaseColumn>,
+			GetBaseColumn<TBaseColumn>
 		>
 	>
 	: ArrayHasAtLeastOneValue<TEnumValues> extends true ? z.ZodEnum<Assume<TEnumValues, [string, ...string[]]>>
