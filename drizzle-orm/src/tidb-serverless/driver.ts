@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { TiDBServerlessPreparedQueryHKT, TiDBServerlessQueryResultHKT } from './session.ts';
 import { TiDBServerlessSession } from './session.ts';
 
@@ -62,23 +62,19 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends Connection = Connection,
 >(
-	...params: IfNotImported<
-		Config,
-		[ImportTypeError<'@tidbcloud/serverless'>],
-		[
-			TClient | string,
-		] | [
-			TClient | string,
-			DrizzleConfig<TSchema>,
-		] | [
-			& ({
-				connection: string | Config;
-			} | {
-				client: TClient;
-			})
-			& DrizzleConfig<TSchema>,
-		]
-	>
+	...params: [
+		TClient | string,
+	] | [
+		TClient | string,
+		DrizzleConfig<TSchema>,
+	] | [
+		& ({
+			connection: string | Config;
+		} | {
+			client: TClient;
+		})
+		& DrizzleConfig<TSchema>,
+	]
 ): TiDBServerlessDatabase<TSchema> & {
 	$client: TClient;
 } {

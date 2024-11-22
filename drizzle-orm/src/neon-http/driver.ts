@@ -8,7 +8,7 @@ import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/relations.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
 export interface NeonDriverOptions {
@@ -158,25 +158,21 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends NeonQueryFunction<any, any> = NeonQueryFunction<false, false>,
 >(
-	...params: IfNotImported<
-		HTTPTransactionOptions<boolean, boolean>,
-		[ImportTypeError<'@neondatabase/serverless'>],
-		[
-			TClient | string,
-		] | [
-			TClient | string,
-			DrizzleConfig<TSchema>,
-		] | [
-			(
-				& DrizzleConfig<TSchema>
-				& ({
-					connection: string | ({ connectionString: string } & HTTPTransactionOptions<boolean, boolean>);
-				} | {
-					client: TClient;
-				})
-			),
-		]
-	>
+	...params: [
+		TClient | string,
+	] | [
+		TClient | string,
+		DrizzleConfig<TSchema>,
+	] | [
+		(
+			& DrizzleConfig<TSchema>
+			& ({
+				connection: string | ({ connectionString: string } & HTTPTransactionOptions<boolean, boolean>);
+			} | {
+				client: TClient;
+			})
+		),
+	]
 ): NeonHttpDatabase<TSchema> & {
 	$client: TClient;
 } {
