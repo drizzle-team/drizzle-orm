@@ -4,7 +4,6 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
-	GeneratedColumnConfig,
 	HasGenerated,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
@@ -56,7 +55,6 @@ export abstract class PgColumnBuilder<
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
 			enumValues: T['enumValues'];
-			generated: GeneratedColumnConfig<T['data']>;
 		}
 		& (T extends { notNull: true } ? { notNull: true } : {})
 		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
@@ -83,13 +81,17 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this> {
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this, {
+		type: 'always';
+	}> {
 		this.config.generated = {
 			as,
 			type: 'always',
 			mode: 'stored',
 		};
-		return this as any;
+		return this as HasGenerated<this, {
+			type: 'always';
+		}>;
 	}
 
 	/** @internal */

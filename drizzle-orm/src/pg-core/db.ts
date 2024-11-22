@@ -597,6 +597,8 @@ export class PgDatabase<
 		return new PgRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
+	protected authToken?: string;
+
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 	): PgRaw<PgQueryResultKind<TQueryResult, TRow>> {
@@ -611,7 +613,7 @@ export class PgDatabase<
 			false,
 		);
 		return new PgRaw(
-			() => prepared.execute(),
+			() => prepared.execute(undefined, this.authToken),
 			sequel,
 			builtQuery,
 			(result) => prepared.mapResult(result, true),

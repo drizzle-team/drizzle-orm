@@ -12,7 +12,6 @@ export type PgBinaryVectorBuilderInitial<TName extends string> = PgBinaryVectorB
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgBinaryVectorBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgBinaryVector'>>
