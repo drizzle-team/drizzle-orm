@@ -356,6 +356,8 @@ const seedFunc = async (
 	} else {
 		throw new Error('given db is not supported.');
 	}
+
+	return;
 };
 
 /**
