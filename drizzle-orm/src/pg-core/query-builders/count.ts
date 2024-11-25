@@ -7,6 +7,7 @@ export class PgCountBuilder<
 	TSession extends PgSession<any, any, any>,
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
+	private token?: string;
 
 	static override readonly [entityKind] = 'PgCountBuilder';
 	[Symbol.toStringTag] = 'PgCountBuilder';
@@ -46,11 +47,16 @@ export class PgCountBuilder<
 		);
 	}
 
+	/** @intrnal */
+	setToken(token: string) {
+		this.token = token;
+	}
+
 	then<TResult1 = number, TResult2 = never>(
 		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
 	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.count(this.sql))
+		return Promise.resolve(this.session.count(this.sql, this.token))
 			.then(
 				onfulfilled,
 				onrejected,
@@ -58,7 +64,7 @@ export class PgCountBuilder<
 	}
 
 	catch(
-		onRejected?: ((reason: any) => never | PromiseLike<never>) | null | undefined,
+		onRejected?: ((reason: any) => any) | null | undefined,
 	): Promise<number> {
 		return this.then(undefined, onRejected);
 	}

@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
+			'tests/seeder/**/*.test.ts',
 			'tests/extensions/postgis/**/*',
 			'tests/relational/**/*.test.ts',
 			'tests/pg/**/*.test.ts',
@@ -28,7 +29,6 @@ export default defineConfig({
 					'tests/mysql/tidb-serverless.test.ts',
 					'tests/mysql/mysql-planetscale.test.ts',
 					'tests/sqlite/libsql.test.ts',
-					'tests/mysql/tidb-serverless.test.ts',
 					'tests/sqlite/libsql-batch.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
@@ -58,6 +58,7 @@ export default defineConfig({
 			// move back after decide on speed
 			'tests/sqlite/libsql-ws.test.ts',
 			'tests/sqlite/libsql-http.test.ts',
+			'tests/mysql/tidb-serverless.test.ts',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',

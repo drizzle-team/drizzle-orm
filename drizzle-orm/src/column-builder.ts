@@ -43,7 +43,6 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColu
 	data: unknown;
 	driverParam: unknown;
 	enumValues: string[] | undefined;
-	generated: GeneratedColumnConfig<unknown> | undefined;
 }
 
 export type MakeColumnConfig<
@@ -65,7 +64,11 @@ export type MakeColumnConfig<
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
-	generated: T['generated'] extends object ? T['generated'] : undefined;
+	identity: T extends { identity: 'always' } ? 'always' : T extends { identity: 'byDefault' } ? 'byDefault' : undefined;
+	generated: T extends { generated: infer G } ? unknown extends G ? undefined
+		: G extends undefined ? undefined
+		: G
+		: undefined;
 } & {};
 
 export type ColumnBuilderTypeConfig<
@@ -83,7 +86,8 @@ export type ColumnBuilderTypeConfig<
 		notNull: T extends { notNull: infer U } ? U : boolean;
 		hasDefault: T extends { hasDefault: infer U } ? U : boolean;
 		enumValues: T['enumValues'];
-		generated: GeneratedColumnConfig<T['data']> | undefined;
+		identity: T extends { identity: infer U } ? U : unknown;
+		generated: T extends { generated: infer G } ? G extends undefined ? unknown : G : unknown;
 	}
 	& TTypeConfig
 >;
@@ -153,17 +157,16 @@ export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}
 	};
 };
 
-export type IsIdentityByDefault<
+export type IsIdentity<
 	T extends ColumnBuilderBase,
 	TType extends 'always' | 'byDefault',
 > = T & {
 	_: {
 		notNull: true;
 		hasDefault: true;
-		generated: { as: any; type: TType };
+		identity: TType;
 	};
 };
-
 export interface ColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
@@ -295,7 +298,9 @@ export abstract class ColumnBuilder<
 	abstract generatedAlwaysAs(
 		as: SQL | T['data'] | (() => SQL),
 		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this>;
+	): HasGenerated<this, {
+		type: 'always';
+	}>;
 
 	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
 	setName(name: string) {

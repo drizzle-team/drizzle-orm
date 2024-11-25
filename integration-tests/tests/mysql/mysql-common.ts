@@ -3416,7 +3416,7 @@ export function tests(driver?: string) {
 
 			expect(query).toEqual({
 				sql:
-					`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
+					`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`userstest\`.\`id\`, \`mySchema\`.\`userstest\`.\`name\``,
 				params: [],
 			});
 		});
@@ -3498,6 +3498,23 @@ export function tests(driver?: string) {
 			const { db } = ctx.mysql;
 
 			const result = await db.insert(usersTable).values({ name: 'John' }).$returningId();
+
+			expectTypeOf(result).toEqualTypeOf<{
+				id: number;
+			}[]>();
+
+			expect(result).toStrictEqual([{ id: 1 }]);
+		});
+
+		test('insert $returningId: serial as id, not first column', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const usersTableDefNotFirstColumn = mysqlTable('users2', {
+				name: text('name').notNull(),
+				id: serial('id').primaryKey(),
+			});
+
+			const result = await db.insert(usersTableDefNotFirstColumn).values({ name: 'John' }).$returningId();
 
 			expectTypeOf(result).toEqualTypeOf<{
 				id: number;
@@ -3960,5 +3977,127 @@ export function tests(driver?: string) {
 
 			await db.execute(sql`drop table users`);
 		});
+	});
+
+	test('insert into ... select', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const notifications = mysqlTable('notifications', {
+			id: serial('id').primaryKey(),
+			sentAt: timestamp('sent_at').notNull().defaultNow(),
+			message: text('message').notNull(),
+		});
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const userNotications = mysqlTable('user_notifications', {
+			userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+			notificationId: int('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
+		}, (t) => ({
+			pk: primaryKey({ columns: [t.userId, t.notificationId] }),
+		}));
+
+		await db.execute(sql`drop table if exists ${notifications}`);
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`drop table if exists ${userNotications}`);
+		await db.execute(sql`
+			create table ${notifications} (
+				\`id\` serial primary key,
+				\`sent_at\` timestamp not null default now(),
+				\`message\` text not null
+			)
+		`);
+		await db.execute(sql`
+			create table ${users} (
+				\`id\` serial primary key,
+				\`name\` text not null
+			)
+		`);
+		await db.execute(sql`
+			create table ${userNotications} (
+				\`user_id\` int references users(id) on delete cascade,
+				\`notification_id\` int references notifications(id) on delete cascade,
+				primary key (user_id, notification_id)
+			)
+		`);
+
+		await db
+			.insert(notifications)
+			.values({ message: 'You are one of the 3 lucky winners!' });
+		const newNotification = await db
+			.select({ id: notifications.id })
+			.from(notifications)
+			.then((result) => result[0]);
+
+		await db.insert(users).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+			{ name: 'David' },
+			{ name: 'Eve' },
+		]);
+
+		await db
+			.insert(userNotications)
+			.select(
+				db
+					.select({
+						userId: users.id,
+						notificationId: sql`(${newNotification!.id})`.as('notification_id'),
+					})
+					.from(users)
+					.where(inArray(users.name, ['Alice', 'Charlie', 'Eve']))
+					.orderBy(asc(users.id)),
+			);
+		const sentNotifications = await db.select().from(userNotications);
+
+		expect(sentNotifications).toStrictEqual([
+			{ userId: 1, notificationId: newNotification!.id },
+			{ userId: 3, notificationId: newNotification!.id },
+			{ userId: 5, notificationId: newNotification!.id },
+		]);
+	});
+
+	test('insert into ... select with keys in different order', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users1 = mysqlTable('users1', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users2 = mysqlTable('users2', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${users1}`);
+		await db.execute(sql`drop table if exists ${users2}`);
+		await db.execute(sql`
+			create table ${users1} (
+				\`id\` serial primary key,
+				\`name\` text not null
+			)
+		`);
+		await db.execute(sql`
+			create table ${users2} (
+				\`id\` serial primary key,
+				\`name\` text not null
+			)
+		`);
+
+		expect(
+			() =>
+				db
+					.insert(users1)
+					.select(
+						db
+							.select({
+								name: users2.name,
+								id: users2.id,
+							})
+							.from(users2),
+					),
+		).toThrowError();
 	});
 }

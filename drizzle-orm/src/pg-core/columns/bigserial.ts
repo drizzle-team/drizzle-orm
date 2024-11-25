@@ -20,7 +20,6 @@ export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
 			data: number;
 			driverParam: number;
 			enumValues: undefined;
-			generated: undefined;
 		}>
 	>
 >;
@@ -71,7 +70,6 @@ export type PgBigSerial64BuilderInitial<TName extends string> = NotNull<
 			data: bigint;
 			driverParam: string;
 			enumValues: undefined;
-			generated: undefined;
 		}>
 	>
 >;
