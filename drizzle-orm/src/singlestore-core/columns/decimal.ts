@@ -24,11 +24,14 @@ export type SingleStoreDecimalBuilderInitial<TName extends string> = SingleStore
 
 export class SingleStoreDecimalBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'SingleStoreDecimal'>,
-> extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreDecimalConfig> {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+> extends SingleStoreColumnBuilderWithAutoIncrement<
+	T,
+	SingleStoreDecimalConfig
+> {
+	/** @internal */
 	override generatedAlwaysAs(
-		as: SQL<unknown> | (() => SQL) | T['data'],
-		config?: Partial<GeneratedColumnConfig<unknown>>,
+		_as: T['data'] | SQL<unknown> | (() => SQL),
+		_config?: Partial<GeneratedColumnConfig<unknown>>,
 	): HasGenerated<this, {}> {
 		throw new Error('Method not implemented.');
 	}
@@ -52,9 +55,9 @@ export class SingleStoreDecimalBuilder<
 	}
 }
 
-export class SingleStoreDecimal<T extends ColumnBaseConfig<'string', 'SingleStoreDecimal'>>
-	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDecimalConfig>
-{
+export class SingleStoreDecimal<
+	T extends ColumnBaseConfig<'string', 'SingleStoreDecimal'>,
+> extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDecimalConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDecimal';
 
 	readonly precision: number | undefined = this.config.precision;
@@ -89,7 +92,13 @@ export function decimal<TName extends string>(
 	name: TName,
 	config?: SingleStoreDecimalConfig,
 ): SingleStoreDecimalBuilderInitial<TName>;
-export function decimal(a?: string | SingleStoreDecimalConfig, b: SingleStoreDecimalConfig = {}) {
-	const { name, config } = getColumnNameAndConfig<SingleStoreDecimalConfig>(a, b);
+export function decimal(
+	a?: string | SingleStoreDecimalConfig,
+	b: SingleStoreDecimalConfig = {},
+) {
+	const { name, config } = getColumnNameAndConfig<SingleStoreDecimalConfig>(
+		a,
+		b,
+	);
 	return new SingleStoreDecimalBuilder(name, config);
 }

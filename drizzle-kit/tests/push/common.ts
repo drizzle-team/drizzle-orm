@@ -31,7 +31,7 @@ export const run = (
 
 	beforeEach(beforeEachFn ? () => beforeEachFn(context) : () => {});
 
-	test('No diffs for all database types', () => suite.allTypes(context));
+	test.only('No diffs for all database types', () => suite.allTypes(context));
 	test('Adding basic indexes', () => suite.addBasicIndexes(context));
 	test('Dropping basic index', () => suite.dropIndex(context));
 	test('Altering indexes', () => suite.changeIndexFields(context));

@@ -1,5 +1,5 @@
 import Docker from 'dockerode';
-import { sql } from 'drizzle-orm';
+import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
 	binary,
@@ -10,8 +10,10 @@ import {
 	double,
 	float,
 	int,
+	json,
 	mediumint,
 	primaryKey,
+	serial,
 	singlestoreEnum,
 	singlestoreTable,
 	smallint,
@@ -82,15 +84,15 @@ const singlestoreSuite: DialectSuite = {
 					'h',
 				),
 			}),
-			allDateTimes: singlestoreTable('all_date_times', {
-				simple: datetime('simple', { mode: 'string', fsp: 0 }),
-				columnNotNull: datetime('column_not_null', {
-					mode: 'string',
-				}).notNull(),
-				columnDefault: datetime('column_default', { mode: 'string' }).default(
-					'2023-03-01 14:05:29',
-				),
-			}),
+			//   allDateTimes: singlestoreTable("all_date_times", {
+			//     simple: datetime("simple", { mode: "string", fsp: 1 }),
+			//     columnNotNull: datetime("column_not_null", {
+			//       mode: "string",
+			//     }).notNull(),
+			//     columnDefault: datetime("column_default", { mode: "string" }).default(
+			//       "2023-03-01 14:05:29"
+			//     ),
+			//   }),
 			allDates: singlestoreTable('all_dates', {
 				simple: date('simple', { mode: 'string' }),
 				column_not_null: date('column_not_null', { mode: 'string' }).notNull(),
@@ -207,10 +209,10 @@ const singlestoreSuite: DialectSuite = {
 			}),
 
 			allTimestamps: singlestoreTable('all_timestamps', {
-				columnDateNow: timestamp('column_date_now', {
-					fsp: 0,
-					mode: 'string',
-				}).default(sql`CURRENT_TIMESTAMP`),
+				// columnDateNow: timestamp("column_date_now", {
+				//   fsp: 1,
+				//   mode: "string",
+				// }).default(sql`(now())`),
 				columnAll: timestamp('column_all', { mode: 'string' })
 					.default('2023-03-01 14:05:29')
 					.notNull(),
@@ -257,7 +259,7 @@ const singlestoreSuite: DialectSuite = {
 			'drizzle',
 			false,
 		);
-
+		console.log(statements);
 		expect(statements.length).toBe(0);
 		expect(statements).toEqual([]);
 

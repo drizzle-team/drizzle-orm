@@ -3041,9 +3041,9 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT ${statement.oldConstraintName};\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT ${statement.newConstraintName} PRIMARY KEY(${
-			newColumns.join(',')
-		});`;
+		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.oldConstraintName}";\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.newConstraintName}" PRIMARY KEY("${
+			newColumns.join('","')
+		}");`;
 	}
 }
 
