@@ -17,9 +17,10 @@ export type BuildRefineColumns<
 			[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column ? GetTypeboxType<
 					TColumn['_']['data'],
 					TColumn['_']['dataType'],
+					TColumn['_']['columnType'],
 					GetEnumValuesFromColumn<TColumn>,
 					GetBaseColumn<TColumn>
-				> extends infer TSchema extends t.TAny ? TSchema
+				> extends infer TSchema extends t.TSchema ? TSchema
 				: t.TAny
 				: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View
 					? BuildRefineColumns<GetSelection<TObject>>
@@ -81,7 +82,7 @@ export type NoUnknownKeys<
 	TCompare extends Record<string, any>,
 > = {
 	[K in keyof TRefinement]: K extends keyof TCompare
-		? TRefinement[K] extends Record<string, t.TSchema> ? NoUnknownKeys<TRefinement[K], TCompare[K]>
+		? TRefinement[K] extends t.TSchema ? TRefinement[K] : TRefinement[K] extends Record<string, t.TSchema> ? NoUnknownKeys<TRefinement[K], TCompare[K]>
 		: TRefinement[K]
 		: DrizzleTypeError<`Found unknown key in refinement: "${K & string}"`>;
 };

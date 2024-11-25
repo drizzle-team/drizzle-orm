@@ -11,29 +11,32 @@ export type GetBaseColumn<TColumn extends Column> = TColumn['_'] extends { baseC
 	: undefined
 	: undefined;
 
-export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { readonly [K in TEnumValues[number]]: K };
+export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K in TEnumValues[number]]: K };
 
 export type GetTypeboxType<
 	TData,
 	TDataType extends string,
+  TColumnType extends string,
 	TEnumValues extends [string, ...string[]] | undefined,
 	TBaseColumn extends Column | undefined,
-> = TBaseColumn extends Column ? t.TArray<
+> = TColumnType extends 'MySqlTinyInt' | 'PgSmallInt' | 'PgSmallSerial' | 'MySqlSmallInt' | 'MySqlMediumInt' | 'PgInteger' | 'PgSerial' | 'MySqlInt' | 'PgBigInt53' | 'PgBigSerial53' | 'MySqlBigInt53' | 'MySqlSerial' | 'SQLiteInteger' | 'MySqlYear' ? t.TInteger
+  : TBaseColumn extends Column ? t.TArray<
 		GetTypeboxType<
 			TBaseColumn['_']['data'],
 			TBaseColumn['_']['dataType'],
+      TBaseColumn['_']['columnType'],
 			GetEnumValuesFromColumn<TBaseColumn>,
 			GetBaseColumn<TBaseColumn>
 		>
 	>
 	: ArrayHasAtLeastOneValue<TEnumValues> extends true ? t.TEnum<EnumValuesToEnum<Assume<TEnumValues, [string, ...string[]]>>>
 	: TData extends infer TTuple extends [any, ...any[]]
-		? t.TTuple<Assume<{ [K in keyof TTuple]: GetTypeboxType<TTuple[K], string, undefined, undefined> }, [any, ...any[]]>>
+		? t.TTuple<Assume<{ [K in keyof TTuple]: GetTypeboxType<TTuple[K], string, string, undefined, undefined> }, [any, ...any[]]>>
 	: TData extends Date ? t.TDate
 	: TData extends Buffer ? BufferSchema
-	: TDataType extends 'array' ? t.TArray<GetTypeboxType<Assume<TData, any[]>[number], string, undefined, undefined>>
+	: TDataType extends 'array' ? t.TArray<GetTypeboxType<Assume<TData, any[]>[number], string, string, undefined, undefined>>
 	: TData extends infer TDict extends Record<string, any>
-		? t.TObject<{ [K in keyof TDict]: GetTypeboxType<TDict[K], string, undefined, undefined> }>
+		? t.TObject<{ [K in keyof TDict]: GetTypeboxType<TDict[K], string, string, undefined, undefined> }>
 	: TDataType extends 'json' ? JsonSchema
 	: TData extends number ? t.TNumber
 	: TData extends bigint ? t.TBigInt
@@ -68,6 +71,7 @@ export type HandleColumn<
 > = GetTypeboxType<
 	TColumn['_']['data'],
 	TColumn['_']['dataType'],
+  TColumn['_']['columnType'],
 	GetEnumValuesFromColumn<TColumn>,
 	GetBaseColumn<TColumn>
 > extends infer TSchema extends t.TSchema ? TSchema extends t.TAny ? t.TAny

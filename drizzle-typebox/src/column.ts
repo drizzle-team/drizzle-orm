@@ -2,7 +2,7 @@ import { CreateType, Kind, Type as t,  } from '@sinclair/typebox';
 import { CONSTANTS } from './constants';
 import { isColumnType, isWithEnum } from './utils';
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
-import type { TSchema, Type as typebox } from '@sinclair/typebox';
+import type { StringOptions, TSchema, Type as typebox } from '@sinclair/typebox';
 import type { BufferSchema, JsonSchema } from './utils';
 import type {
 	MySqlBigInt53,
@@ -175,10 +175,11 @@ function bigintColumnToSchema(column: Column, t: typeof typebox): TSchema {
 function stringColumnToSchema(column: Column, t: typeof typebox): TSchema {
 	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
 		return t.String({ format: 'uuid' });
+	} else if (isColumnType<PgBinaryVector<ColumnBaseConfig<'string', 'PgBinaryVector'> & { dimensions: number }>>(column, ['PgBinaryVector'])) {
+		return t.RegExp(/^[01]+$/, column.dimensions ? { maxLength: column.dimensions } : undefined);
 	}
 
 	let max: number | undefined;
-	let regex: RegExp | undefined;
 	let fixed = false;
 
 	if (isColumnType<PgVarchar<any> | SQLiteText<any>>(column, ['PgVarchar', 'SQLiteText'])) {
@@ -202,16 +203,14 @@ function stringColumnToSchema(column: Column, t: typeof typebox): TSchema {
 		fixed = true;
 	}
 
-	if (isColumnType<PgBinaryVector<any>>(column, ['PgBinaryVector'])) {
-		regex = /^[01]+$/;
-		max = column.dimensions;
+	const options: Partial<StringOptions> = {};
+
+	if (max !== undefined && fixed) {
+		options.minLength = max;
+		options.maxLength = max;
+	} else if (max !== undefined) {
+		options.maxLength = max;
 	}
 
-  const options = {
-    pattern: regex !== undefined ? regex.source : undefined,
-    ...(
-      max !== undefined && fixed ? { minLength: max, maxLength: max } : max !== undefined ? { maxLength: max } : {}
-    )
-  };
-  return t.String(Object.values(options).filter((value) => value !== undefined).length > 0 ? options : undefined);
+  return t.String(Object.keys(options).length > 0 ? options : undefined);
 }
