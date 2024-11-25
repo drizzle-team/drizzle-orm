@@ -354,8 +354,12 @@ const seedFunc = async (
 
 		await seedSqlite(db, sqliteSchema, options, refinements);
 	} else {
-		throw new Error('given db is not supported.');
+		throw new Error(
+			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
+		);
 	}
+
+	return;
 };
 
 /**
@@ -432,7 +436,9 @@ export async function reset<
 			await resetSqlite(db, sqliteSchema);
 		}
 	} else {
-		throw new Error('given db is not supported.');
+		throw new Error(
+			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
+		);
 	}
 }
 

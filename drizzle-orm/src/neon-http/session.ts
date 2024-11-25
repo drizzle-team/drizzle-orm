@@ -38,7 +38,14 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		super(query);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async execute(placeholderValues: Record<string, unknown> | undefined): Promise<T['execute']>;
+	/** @internal */
+	async execute(placeholderValues: Record<string, unknown> | undefined, token?: string): Promise<T['execute']>;
+	/** @internal */
+	async execute(
+		placeholderValues: Record<string, unknown> | undefined = {},
+		token: string | undefined = this.authToken,
+	): Promise<T['execute']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 
 		this.logger.logQuery(this.query.sql, params);
@@ -46,10 +53,28 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		const { fields, client, query, customResultMapper } = this;
 
 		if (!fields && !customResultMapper) {
-			return client(query.sql, params, rawQueryConfig);
+			return client(
+				query.sql,
+				params,
+				token === undefined
+					? rawQueryConfig
+					: {
+						...rawQueryConfig,
+						authToken: token,
+					},
+			);
 		}
 
-		const result = await client(query.sql, params, queryConfig);
+		const result = await client(
+			query.sql,
+			params,
+			token === undefined
+				? queryConfig
+				: {
+					...queryConfig,
+					authToken: token,
+				},
+		);
 
 		return this.mapResult(result);
 	}
@@ -71,13 +96,26 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
-		return this.client(this.query.sql, params, rawQueryConfig).then((result) => result.rows);
+		return this.client(
+			this.query.sql,
+			params,
+			this.authToken === undefined ? rawQueryConfig : {
+				...rawQueryConfig,
+				authToken: this.authToken,
+			},
+		).then((result) => result.rows);
 	}
 
-	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
+	values(placeholderValues: Record<string, unknown> | undefined): Promise<T['values']>;
+	/** @internal */
+	values(placeholderValues: Record<string, unknown> | undefined, token?: string): Promise<T['values']>;
+	/** @internal */
+	values(placeholderValues: Record<string, unknown> | undefined = {}, token?: string): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
-		return this.client(this.query.sql, params, { arrayMode: true, fullResults: true }).then((result) => result.rows);
+		return this.client(this.query.sql, params, { arrayMode: true, fullResults: true, authToken: token }).then((
+			result,
+		) => result.rows);
 	}
 
 	/** @internal */
@@ -125,7 +163,9 @@ export class NeonHttpSession<
 		);
 	}
 
-	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
+	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+		queries: T,
+	) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: NeonQueryPromise<any, true>[] = [];
 
@@ -143,7 +183,7 @@ export class NeonHttpSession<
 
 		const batchResults = await this.client.transaction(builtQueries, queryConfig);
 
-		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
+		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true)) as any;
 	}
 
 	// change return type to QueryRows<true>
@@ -161,8 +201,12 @@ export class NeonHttpSession<
 		return this.client(query, params, { arrayMode: false, fullResults: true });
 	}
 
-	override async count(sql: SQL): Promise<number> {
-		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
+	override async count(sql: SQL): Promise<number>;
+	/** @internal */
+	override async count(sql: SQL, token?: string): Promise<number>;
+	/** @internal */
+	override async count(sql: SQL, token?: string): Promise<number> {
+		const res = await this.execute<{ rows: [{ count: string }] }>(sql, token);
 
 		return Number(
 			res['rows'][0]['count'],
