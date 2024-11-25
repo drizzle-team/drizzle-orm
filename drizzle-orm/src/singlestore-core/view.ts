@@ -183,26 +183,27 @@ export type SingleStoreViewWithSelection<
 	TSelectedFields extends ColumnsSelection,
 > = SingleStoreView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
-/** @internal */
-export function singlestoreViewWithSchema(
-	name: string,
-	selection: Record<string, SingleStoreColumnBuilderBase> | undefined,
-	schema: string | undefined,
-): ViewBuilder | ManualViewBuilder {
-	if (selection) {
-		return new ManualViewBuilder(name, selection, schema);
-	}
-	return new ViewBuilder(name, schema);
-}
+// TODO: needs to be implemented differently compared to MySQL.
+// /** @internal */
+// export function singlestoreViewWithSchema(
+// 	name: string,
+// 	selection: Record<string, SingleStoreColumnBuilderBase> | undefined,
+// 	schema: string | undefined,
+// ): ViewBuilder | ManualViewBuilder {
+// 	if (selection) {
+// 		return new ManualViewBuilder(name, selection, schema);
+// 	}
+// 	return new ViewBuilder(name, schema);
+// }
 
-export function singlestoreView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function singlestoreView<TName extends string, TColumns extends Record<string, SingleStoreColumnBuilderBase>>(
-	name: TName,
-	columns: TColumns,
-): ManualViewBuilder<TName, TColumns>;
-export function singlestoreView(
-	name: string,
-	selection?: Record<string, SingleStoreColumnBuilderBase>,
-): ViewBuilder | ManualViewBuilder {
-	return singlestoreViewWithSchema(name, selection, undefined);
-}
+// export function singlestoreView<TName extends string>(name: TName): ViewBuilder<TName>;
+// export function singlestoreView<TName extends string, TColumns extends Record<string, SingleStoreColumnBuilderBase>>(
+// 	name: TName,
+// 	columns: TColumns,
+// ): ManualViewBuilder<TName, TColumns>;
+// export function singlestoreView(
+// 	name: string,
+// 	selection?: Record<string, SingleStoreColumnBuilderBase>,
+// ): ViewBuilder | ManualViewBuilder {
+// 	return singlestoreViewWithSchema(name, selection, undefined);
+// }

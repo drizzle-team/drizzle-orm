@@ -5,6 +5,7 @@ import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasDefault,
+	HasGenerated,
 	IsAutoincrement,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
@@ -13,6 +14,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
@@ -44,14 +46,15 @@ export abstract class SingleStoreColumnBuilder<
 	}
 
 	// TODO: Implement generated columns for SingleStore (https://docs.singlestore.com/cloud/create-a-database/using-persistent-computed-columns/)
-	/* generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: SingleStoreGeneratedColumnConfig): HasGenerated<this> {
+	/** @internal */
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: SingleStoreGeneratedColumnConfig): HasGenerated<this> {
 		this.config.generated = {
 			as,
 			type: 'always',
 			mode: config?.mode ?? 'virtual',
 		};
 		return this as any;
-	} */
+	}
 
 	/** @internal */
 	abstract build<TTableName extends string>(

@@ -1,14 +1,7 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	GeneratedColumnConfig,
-	HasGenerated,
-	MakeColumnConfig,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import type { SQL } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreDateBaseColumn, SingleStoreDateColumnBaseBuilder } from './date.common.ts';
@@ -26,18 +19,10 @@ export type SingleStoreTimestampBuilderInitial<TName extends string> = SingleSto
 export class SingleStoreTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'SingleStoreTimestamp'>>
 	extends SingleStoreDateColumnBaseBuilder<T, SingleStoreTimestampConfig>
 {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override generatedAlwaysAs(
-		as: SQL<unknown> | (() => SQL) | T['data'],
-		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
-		throw new Error('Method not implemented.');
-	}
 	static override readonly [entityKind]: string = 'SingleStoreTimestampBuilder';
 
-	constructor(name: T['name'], config: SingleStoreTimestampConfig | undefined) {
+	constructor(name: T['name']) {
 		super(name, 'date', 'SingleStoreTimestamp');
-		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
@@ -60,12 +45,8 @@ export class SingleStoreTimestamp<T extends ColumnBaseConfig<'date', 'SingleStor
 {
 	static override readonly [entityKind]: string = 'SingleStoreTimestamp';
 
-	readonly fsp: number | undefined = this.config.fsp;
-
 	getSQLType(): string {
-		const hidePrecision = this.fsp === undefined || this.fsp === 0;
-		const precision = hidePrecision ? '' : `(${this.fsp})`;
-		return `timestamp${precision}`;
+		return `timestamp`;
 	}
 
 	override mapFromDriverValue(value: string): Date {
@@ -90,18 +71,10 @@ export type SingleStoreTimestampStringBuilderInitial<TName extends string> = Sin
 export class SingleStoreTimestampStringBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'SingleStoreTimestampString'>,
 > extends SingleStoreDateColumnBaseBuilder<T, SingleStoreTimestampConfig> {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override generatedAlwaysAs(
-		as: SQL<unknown> | (() => SQL) | T['data'],
-		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
-		throw new Error('Method not implemented.');
-	}
 	static override readonly [entityKind]: string = 'SingleStoreTimestampStringBuilder';
 
-	constructor(name: T['name'], config: SingleStoreTimestampConfig | undefined) {
+	constructor(name: T['name']) {
 		super(name, 'string', 'SingleStoreTimestampString');
-		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
@@ -124,20 +97,13 @@ export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string', 'Si
 {
 	static override readonly [entityKind]: string = 'SingleStoreTimestampString';
 
-	readonly fsp: number | undefined = this.config.fsp;
-
 	getSQLType(): string {
-		const hidePrecision = this.fsp === undefined || this.fsp === 0;
-		const precision = hidePrecision ? '' : `(${this.fsp})`;
-		return `timestamp${precision}`;
+		return `timestamp`;
 	}
 }
 
-export type TimestampFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-
 export interface SingleStoreTimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> {
 	mode?: TMode;
-	fsp?: TimestampFsp;
 }
 
 export function timestamp(): SingleStoreTimestampBuilderInitial<''>;
@@ -153,7 +119,7 @@ export function timestamp<TName extends string, TMode extends SingleStoreTimesta
 export function timestamp(a?: string | SingleStoreTimestampConfig, b: SingleStoreTimestampConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreTimestampConfig | undefined>(a, b);
 	if (config?.mode === 'string') {
-		return new SingleStoreTimestampStringBuilder(name, config);
+		return new SingleStoreTimestampStringBuilder(name);
 	}
-	return new SingleStoreTimestampBuilder(name, config);
+	return new SingleStoreTimestampBuilder(name);
 }

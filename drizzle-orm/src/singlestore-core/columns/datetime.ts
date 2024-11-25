@@ -25,18 +25,18 @@ export type SingleStoreDateTimeBuilderInitial<TName extends string> = SingleStor
 export class SingleStoreDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'SingleStoreDateTime'>>
 	extends SingleStoreColumnBuilder<T, SingleStoreDatetimeConfig>
 {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	/** @internal */
+	// TODO: we need to add a proper support for SingleStore
 	override generatedAlwaysAs(
-		as: SQL<unknown> | (() => SQL) | T['data'],
-		config?: Partial<GeneratedColumnConfig<unknown>>,
+		_as: SQL<unknown> | (() => SQL) | T['data'],
+		_config?: Partial<GeneratedColumnConfig<unknown>>,
 	): HasGenerated<this, {}> {
 		throw new Error('Method not implemented.');
 	}
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeBuilder';
 
-	constructor(name: T['name'], config: SingleStoreDatetimeConfig | undefined) {
+	constructor(name: T['name']) {
 		super(name, 'date', 'SingleStoreDateTime');
-		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
@@ -55,20 +55,15 @@ export class SingleStoreDateTime<T extends ColumnBaseConfig<'date', 'SingleStore
 {
 	static override readonly [entityKind]: string = 'SingleStoreDateTime';
 
-	readonly fsp: number | undefined;
-
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
 		config: SingleStoreDateTimeBuilder<T>['config'],
 	) {
 		super(table, config);
-		this.fsp = config.fsp;
 	}
 
 	getSQLType(): string {
-		const hidePrecision = this.fsp === undefined || this.fsp === 0;
-		const precision = hidePrecision ? '' : `(${this.fsp})`;
-		return `datetime${precision}`;
+		return `datetime`;
 	}
 
 	override mapToDriverValue(value: Date): unknown {
@@ -93,18 +88,18 @@ export type SingleStoreDateTimeStringBuilderInitial<TName extends string> = Sing
 export class SingleStoreDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreDateTimeString'>>
 	extends SingleStoreColumnBuilder<T, SingleStoreDatetimeConfig>
 {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	/** @internal */
+	// TODO: we need to add a proper support for SingleStore
 	override generatedAlwaysAs(
-		as: SQL<unknown> | (() => SQL) | T['data'],
-		config?: Partial<GeneratedColumnConfig<unknown>>,
+		_as: SQL<unknown> | (() => SQL) | T['data'],
+		_config?: Partial<GeneratedColumnConfig<unknown>>,
 	): HasGenerated<this, {}> {
 		throw new Error('Method not implemented.');
 	}
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeStringBuilder';
 
-	constructor(name: T['name'], config: SingleStoreDatetimeConfig | undefined) {
+	constructor(name: T['name']) {
 		super(name, 'string', 'SingleStoreDateTimeString');
-		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
@@ -123,28 +118,20 @@ export class SingleStoreDateTimeString<T extends ColumnBaseConfig<'string', 'Sin
 {
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeString';
 
-	readonly fsp: number | undefined;
-
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
 		config: SingleStoreDateTimeStringBuilder<T>['config'],
 	) {
 		super(table, config);
-		this.fsp = config.fsp;
 	}
 
 	getSQLType(): string {
-		const hidePrecision = this.fsp === undefined || this.fsp === 0;
-		const precision = hidePrecision ? '' : `(${this.fsp})`;
-		return `datetime${precision}`;
+		return `datetime`;
 	}
 }
 
-export type DatetimeFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-
 export interface SingleStoreDatetimeConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {
 	mode?: TMode;
-	fsp?: DatetimeFsp;
 }
 
 export function datetime(): SingleStoreDateTimeBuilderInitial<''>;
@@ -160,7 +147,7 @@ export function datetime<TName extends string, TMode extends SingleStoreDatetime
 export function datetime(a?: string | SingleStoreDatetimeConfig, b?: SingleStoreDatetimeConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreDatetimeConfig | undefined>(a, b);
 	if (config?.mode === 'string') {
-		return new SingleStoreDateTimeStringBuilder(name, config);
+		return new SingleStoreDateTimeStringBuilder(name);
 	}
-	return new SingleStoreDateTimeBuilder(name, config);
+	return new SingleStoreDateTimeBuilder(name);
 }

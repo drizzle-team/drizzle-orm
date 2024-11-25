@@ -83,7 +83,7 @@ const usersTable = singlestoreTable('userstest', {
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: json('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { fsp: 6 }).notNull().defaultNow(),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 const users2Table = singlestoreTable('users2', {
@@ -101,18 +101,18 @@ const usersOnUpdate = singlestoreTable('users_on_update', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	updateCounter: int('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
-	updatedAt: datetime('updated_at', { mode: 'date', fsp: 6 }).$onUpdateFn(() => new Date()),
+	updatedAt: datetime('updated_at', { mode: 'date' }).$onUpdateFn(() => new Date()),
 	alwaysNull: text('always_null').$type<string | null>().$onUpdateFn(() => null), // need to add $type because $onUpdate add a default value
 });
 
 const datesTable = singlestoreTable('datestable', {
 	date: date('date'),
 	dateAsString: date('date_as_string', { mode: 'string' }),
-	time: time('time', { fsp: 1 }),
-	datetime: datetime('datetime', { fsp: 6 }),
-	datetimeAsString: datetime('datetime_as_string', { fsp: 6, mode: 'string' }),
-	timestamp: timestamp('timestamp', { fsp: 6 }),
-	timestampAsString: timestamp('timestamp_as_string', { fsp: 6, mode: 'string' }),
+	time: time('time'),
+	datetime: datetime('datetime'),
+	datetimeAsString: datetime('datetime_as_string', { mode: 'string' }),
+	timestamp: timestamp('timestamp'),
+	timestampAsString: timestamp('timestamp_as_string', { mode: 'string' }),
 	year: year('year'),
 });
 
@@ -163,7 +163,7 @@ const usersMySchemaTable = mySchema.table('userstest', {
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: json('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { fsp: 6 }).notNull().defaultNow(),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 const users2MySchemaTable = mySchema.table('users2', {
@@ -2371,8 +2371,8 @@ export function tests(driver?: string) {
 				`,
 			);
 			const datesTable = singlestoreTable('datestable', {
-				datetimeUTC: datetime('datetime_utc', { fsp: 6, mode: 'date' }),
-				datetime: datetime('datetime', { fsp: 6 }),
+				datetimeUTC: datetime('datetime_utc', { mode: 'date' }),
+				datetime: datetime('datetime'),
 			});
 
 			const dateObj = new Date('2022-11-11');

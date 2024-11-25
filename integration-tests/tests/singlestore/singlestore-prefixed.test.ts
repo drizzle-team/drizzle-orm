@@ -76,7 +76,7 @@ const usersTable = singlestoreTable('userstest', {
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: json('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { fsp: 6 }).notNull().defaultNow(),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 const users2Table = singlestoreTable('users2', {
@@ -640,9 +640,9 @@ test('insert + select all possible dates', async () => {
 	const datesTable = singlestoreTable('datestable', {
 		date: date('date'),
 		dateAsString: date('date_as_string', { mode: 'string' }),
-		time: time('time', { fsp: 1 }),
-		datetime: datetime('datetime', { fsp: 6 }),
-		datetimeAsString: datetime('datetime_as_string', { fsp: 6, mode: 'string' }),
+		time: time('time'),
+		datetime: datetime('datetime'),
+		datetimeAsString: datetime('datetime_as_string', { mode: 'string' }),
 		year: year('year'),
 	});
 

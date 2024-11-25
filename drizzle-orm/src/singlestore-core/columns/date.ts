@@ -1,14 +1,7 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	GeneratedColumnConfig,
-	HasGenerated,
-	MakeColumnConfig,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import type { SQL } from '~/sql/index.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
@@ -25,13 +18,6 @@ export type SingleStoreDateBuilderInitial<TName extends string> = SingleStoreDat
 export class SingleStoreDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'SingleStoreDate'>>
 	extends SingleStoreColumnBuilder<T>
 {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override generatedAlwaysAs(
-		as: SQL<unknown> | (() => SQL) | T['data'],
-		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
-		throw new Error('Method not implemented.');
-	}
 	static override readonly [entityKind]: string = 'SingleStoreDateBuilder';
 
 	constructor(name: T['name']) {
@@ -81,13 +67,6 @@ export type SingleStoreDateStringBuilderInitial<TName extends string> = SingleSt
 export class SingleStoreDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreDateString'>>
 	extends SingleStoreColumnBuilder<T>
 {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override generatedAlwaysAs(
-		as: SQL<unknown> | (() => SQL) | T['data'],
-		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
-		throw new Error('Method not implemented.');
-	}
 	static override readonly [entityKind]: string = 'SingleStoreDateStringBuilder';
 
 	constructor(name: T['name']) {

@@ -1,14 +1,7 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	GeneratedColumnConfig,
-	HasGenerated,
-	MakeColumnConfig,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import type { SQL } from '~/sql/index.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
@@ -28,13 +21,6 @@ export class SingleStoreDecimalBuilder<
 	T,
 	SingleStoreDecimalConfig
 > {
-	/** @internal */
-	override generatedAlwaysAs(
-		_as: T['data'] | SQL<unknown> | (() => SQL),
-		_config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
-		throw new Error('Method not implemented.');
-	}
 	static override readonly [entityKind]: string = 'SingleStoreDecimalBuilder';
 
 	constructor(name: T['name'], config: SingleStoreDecimalConfig | undefined) {

@@ -1,14 +1,7 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	GeneratedColumnConfig,
-	HasGenerated,
-	MakeColumnConfig,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import type { SQL } from '~/sql/index.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
@@ -25,13 +18,6 @@ export type SingleStoreDoubleBuilderInitial<TName extends string> = SingleStoreD
 export class SingleStoreDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreDouble'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreDoubleConfig>
 {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override generatedAlwaysAs(
-		as: T['data'] | SQL<unknown> | (() => SQL),
-		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
-		throw new Error('Method not implemented.');
-	}
 	static override readonly [entityKind]: string = 'SingleStoreDoubleBuilder';
 
 	constructor(name: T['name'], config: SingleStoreDoubleConfig | undefined) {

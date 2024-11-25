@@ -1,15 +1,7 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	GeneratedColumnConfig,
-	HasGenerated,
-	MakeColumnConfig,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import type { SQL } from '~/sql/index.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type SingleStoreTimeBuilderInitial<TName extends string> = SingleStoreTimeBuilder<{
@@ -24,25 +16,15 @@ export type SingleStoreTimeBuilderInitial<TName extends string> = SingleStoreTim
 
 export class SingleStoreTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreTime'>>
 	extends SingleStoreColumnBuilder<
-		T,
-		TimeConfig
+		T
 	>
 {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override generatedAlwaysAs(
-		as: SQL<unknown> | (() => SQL) | T['data'],
-		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
-		throw new Error('Method not implemented.');
-	}
 	static override readonly [entityKind]: string = 'SingleStoreTimeBuilder';
 
 	constructor(
 		name: T['name'],
-		config: TimeConfig | undefined,
 	) {
 		super(name, 'string', 'SingleStoreTime');
-		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
@@ -58,30 +40,16 @@ export class SingleStoreTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 
 
 export class SingleStoreTime<
 	T extends ColumnBaseConfig<'string', 'SingleStoreTime'>,
-> extends SingleStoreColumn<T, TimeConfig> {
+> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreTime';
 
-	readonly fsp: number | undefined = this.config.fsp;
-
 	getSQLType(): string {
-		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
-		return `time${precision}`;
+		return `time`;
 	}
 }
 
-export type TimeConfig = {
-	fsp?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
-};
-
 export function time(): SingleStoreTimeBuilderInitial<''>;
-export function time(
-	config?: TimeConfig,
-): SingleStoreTimeBuilderInitial<''>;
-export function time<TName extends string>(
-	name: TName,
-	config?: TimeConfig,
-): SingleStoreTimeBuilderInitial<TName>;
-export function time(a?: string | TimeConfig, b?: TimeConfig) {
-	const { name, config } = getColumnNameAndConfig<TimeConfig>(a, b);
-	return new SingleStoreTimeBuilder(name, config);
+export function time<TName extends string>(name: TName): SingleStoreTimeBuilderInitial<TName>;
+export function time(name?: string) {
+	return new SingleStoreTimeBuilder(name ?? '');
 }
