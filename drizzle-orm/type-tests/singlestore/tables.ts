@@ -91,11 +91,12 @@ Expect<
 				notNull: true;
 				hasDefault: true;
 				isPrimaryKey: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
 				isAutoincrement: true;
 				hasRuntimeDefault: false;
+				enumValues: undefined;
+				baseColumn: never;
+				identity: undefined;
+				generated: undefined;
 			}, object>;
 			name: SingleStoreColumn<{
 				name: 'name_db';
@@ -107,11 +108,12 @@ Expect<
 				notNull: true;
 				hasDefault: false;
 				isPrimaryKey: false;
-				enumValues: [string, ...string[]];
-				baseColumn: never;
-				generated: undefined;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				enumValues: [string, ...string[]];
+				baseColumn: never;
+				identity: undefined;
+				generated: undefined;
 			}, object>;
 			population: SingleStoreColumn<{
 				name: 'population';
@@ -123,11 +125,12 @@ Expect<
 				notNull: false;
 				hasDefault: true;
 				isPrimaryKey: false;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				enumValues: undefined;
+				baseColumn: never;
+				identity: undefined;
+				generated: undefined;
 			}, object>;
 		},
 		typeof cities._.columns
@@ -500,7 +503,6 @@ Expect<
 	Expect<
 		Equal<
 			{
-				brand: 'Column';
 				name: 'name';
 				tableName: 'table';
 				dataType: 'custom';
@@ -509,13 +511,15 @@ Expect<
 				driverParam: unknown;
 				notNull: true;
 				hasDefault: false;
-				enumValues: undefined;
-				baseColumn: never;
-				dialect: 'singlestore';
-				generated: undefined;
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				enumValues: undefined;
+				baseColumn: never;
+				identity: undefined;
+				generated: undefined;
+				brand: 'Column';
+				dialect: 'singlestore';
 			},
 			Simplify<BuildColumn<'table', typeof t, 'singlestore'>['_']>
 		>
