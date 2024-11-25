@@ -64,16 +64,30 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 		private withList?: Subquery[],
 	) {}
 
+	private authToken?: string;
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	set(
 		values: PgUpdateSetSource<TTable>,
 	): PgUpdateWithout<PgUpdateBase<TTable, TQueryResult>, false, 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'> {
-		return new PgUpdateBase<TTable, TQueryResult>(
-			this.table,
-			mapUpdateSet(this.table, values),
-			this.session,
-			this.dialect,
-			this.withList,
-		);
+		return this.authToken === undefined
+			? new PgUpdateBase<TTable, TQueryResult>(
+				this.table,
+				mapUpdateSet(this.table, values),
+				this.session,
+				this.dialect,
+				this.withList,
+			)
+			: new PgUpdateBase<TTable, TQueryResult>(
+				this.table,
+				mapUpdateSet(this.table, values),
+				this.session,
+				this.dialect,
+				this.withList,
+			).setToken(this.authToken);
 	}
 }
 
@@ -534,8 +548,15 @@ export class PgUpdateBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return this._prepare().execute(placeholderValues, this.authToken);
 	};
 
 	$dynamic(): PgUpdateDynamic<this> {

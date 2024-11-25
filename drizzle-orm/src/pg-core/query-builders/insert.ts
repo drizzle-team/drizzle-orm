@@ -8,7 +8,7 @@ import type {
 	PgSession,
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
-import type { PgTable } from '~/pg-core/table.ts';
+import type { PgTable, TableConfig } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
@@ -16,6 +16,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
+import type { InferInsertModel } from '~/table.ts';
 import { Columns, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { haveSameKeys, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
@@ -31,11 +32,15 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 	select?: boolean;
+	overridingSystemValue_?: boolean;
 }
 
-export type PgInsertValue<TTable extends PgTable> =
+export type PgInsertValue<TTable extends PgTable<TableConfig>, OverrideT extends boolean = false> =
 	& {
-		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
+		[Key in keyof InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>]:
+			| InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]
+			| SQL
+			| Placeholder;
 	}
 	& {};
 
@@ -43,7 +48,11 @@ export type PgInsertSelectQueryBuilder<TTable extends PgTable> = TypedQueryBuild
 	{ [K in keyof TTable['$inferInsert']]: AnyPgColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
 >;
 
-export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQueryResultHKT> {
+export class PgInsertBuilder<
+	TTable extends PgTable,
+	TQueryResult extends PgQueryResultHKT,
+	OverrideT extends boolean = false,
+> {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
 
 	constructor(
@@ -51,11 +60,26 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 		private session: PgSession,
 		private dialect: PgDialect,
 		private withList?: Subquery[],
+		private overridingSystemValue_?: boolean,
 	) {}
 
-	values(value: PgInsertValue<TTable>): PgInsertBase<TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable> | PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult> {
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
+	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true>, 'overridingSystemValue'> {
+		this.overridingSystemValue_ = true;
+		return this as any;
+	}
+
+	values(value: PgInsertValue<TTable, OverrideT>): PgInsertBase<TTable, TQueryResult>;
+	values(values: PgInsertValue<TTable, OverrideT>[]): PgInsertBase<TTable, TQueryResult>;
+	values(
+		values: PgInsertValue<TTable, OverrideT> | PgInsertValue<TTable, OverrideT>[],
+	): PgInsertBase<TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -70,7 +94,25 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 			return result;
 		});
 
-		return new PgInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
+		return this.authToken === undefined
+			? new PgInsertBase(
+				this.table,
+				mappedValues,
+				this.session,
+				this.dialect,
+				this.withList,
+				false,
+				this.overridingSystemValue_,
+			)
+			: new PgInsertBase(
+				this.table,
+				mappedValues,
+				this.session,
+				this.dialect,
+				this.withList,
+				false,
+				this.overridingSystemValue_,
+			).setToken(this.authToken) as any;
 	}
 
 	select(selectQuery: (qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable>): PgInsertBase<TTable, TQueryResult>;
@@ -208,9 +250,10 @@ export class PgInsertBase<
 		private dialect: PgDialect,
 		withList?: Subquery[],
 		select?: boolean,
+		overridingSystemValue_?: boolean,
 	) {
 		super();
-		this.config = { table, values: values as any, withList, select };
+		this.config = { table, values: values as any, withList, select, overridingSystemValue_ };
 	}
 
 	/**
@@ -359,9 +402,16 @@ export class PgInsertBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 

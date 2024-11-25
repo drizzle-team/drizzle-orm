@@ -232,9 +232,16 @@ export class PgDeleteBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: string;
+	/** @internal */
+	setToken(token: string) {
+		this.authToken = token;
+		return this;
+	}
+
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 
