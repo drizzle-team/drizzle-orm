@@ -20,6 +20,7 @@ export type GetTypeboxType<
 	TEnumValues extends [string, ...string[]] | undefined,
 	TBaseColumn extends Column | undefined,
 > = TColumnType extends 'MySqlTinyInt' | 'PgSmallInt' | 'PgSmallSerial' | 'MySqlSmallInt' | 'MySqlMediumInt' | 'PgInteger' | 'PgSerial' | 'MySqlInt' | 'PgBigInt53' | 'PgBigSerial53' | 'MySqlBigInt53' | 'MySqlSerial' | 'SQLiteInteger' | 'MySqlYear' ? t.TInteger
+  : TColumnType extends 'PgBinaryVector' ? t.TRegExp
   : TBaseColumn extends Column ? t.TArray<
 		GetTypeboxType<
 			TBaseColumn['_']['data'],

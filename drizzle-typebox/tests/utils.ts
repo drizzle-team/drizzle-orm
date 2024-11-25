@@ -21,7 +21,7 @@ export function expectSchemaShape<T extends t.TObject>(t: TaskContext, expected:
 	};
 }
 
-export function expectEnumValues<T extends t.TEnum>(t: TaskContext, expected: T) {
+export function expectEnumValues<T extends t.TEnum<any>>(t: TaskContext, expected: T) {
 	return {
 		from(actual: T) {
 			expect(actual.anyOf).toStrictEqual(expected.anyOf);
