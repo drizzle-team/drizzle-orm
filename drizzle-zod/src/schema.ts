@@ -1,8 +1,8 @@
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
-import type { Table, View } from 'drizzle-orm';
-import { isPgEnum, PgEnum } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { columnToSchema } from './column';
+import { isPgEnum } from './utils';
+import type { Table, View } from 'drizzle-orm';
 import type {
 	CreateInsertSchema,
 	CreateSchemaFactoryOptions,
@@ -10,6 +10,7 @@ import type {
 	CreateUpdateSchema,
 } from './schema.types';
 import type { Conditions } from './schema.types.internal';
+import type { PgEnum } from 'drizzle-orm/pg-core';
 
 function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
