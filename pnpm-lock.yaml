@@ -424,8 +424,8 @@ importers:
         specifier: ^11.1.0
         version: 11.1.1(rollup@3.27.2)(tslib@2.6.2)(typescript@5.6.3)
       '@sinclair/typebox':
-        specifier: ^0.29.6
-        version: 0.29.6
+        specifier: ^0.34.8
+        version: 0.34.8
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -3624,8 +3624,8 @@ packages:
   '@sinclair/typebox@0.27.8':
     resolution: {integrity: sha512-+Fj43pSMwJs4KRrH/938Uf+uAELIgVBmQzg/q1YG10djyfA3TnrU8N8XzqCh/okZdszqBQTZf96idMfE5lnwTA==}
 
-  '@sinclair/typebox@0.29.6':
-    resolution: {integrity: sha512-aX5IFYWlMa7tQ8xZr3b2gtVReCvg7f3LEhjir/JAjX2bJCMVJA5tIPv30wTD4KDfcwMd7DDYY3hFDeGmOgtrZQ==}
+  '@sinclair/typebox@0.34.8':
+    resolution: {integrity: sha512-PuVkV/MmJOsjem7FIlmuPhd2Owvq4v+ZVvN6wxWuT1NduGDzz2jlc4xIvPQSUE0yS13BRaYOVNq9rnIOkucGVA==}
 
   '@sindresorhus/is@4.6.0':
     resolution: {integrity: sha512-t09vSN3MdfsyCHoFcTRCH/iUtG7OJ0CsjzB8cjAmKc/va/kIgeDI/TxsigdncE/4be734m0cvIYwNaV4i2XqAw==}
@@ -14020,7 +14020,7 @@ snapshots:
 
   '@sinclair/typebox@0.27.8': {}
 
-  '@sinclair/typebox@0.29.6': {}
+  '@sinclair/typebox@0.34.8': {}
 
   '@sindresorhus/is@4.6.0': {}
 
