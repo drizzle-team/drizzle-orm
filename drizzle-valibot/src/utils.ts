@@ -1,20 +1,17 @@
-import { is } from 'drizzle-orm';
-import type { Column, DrizzleEntityClass, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
+import type { Column, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
 import type * as v from 'valibot';
 import type { literalSchema } from './column';
+import type { PgEnum } from 'drizzle-orm/pg-core';
 
-export function isAny<T extends DrizzleEntityClass<any>[]>(value: unknown, type: T): value is InstanceType<T[number]> {
-	for (let i = 0; i < type.length; i++) {
-		if (is(value, type[i]!)) {
-			return true;
-		}
-	}
-	return false;
+export function isColumnType<T extends Column>(column: Column, columnTypes: string[]): column is T {
+	return columnTypes.includes(column.columnType);
 }
 
 export function isWithEnum(column: Column): column is typeof column & { enumValues: [string, ...string[]] } {
 	return 'enumValues' in column && Array.isArray(column.enumValues) && column.enumValues.length > 0;
 }
+
+export const isPgEnum: (entity: any) => entity is PgEnum<[string, ...string[]]> = isWithEnum as any;
 
 type Literal = v.InferOutput<typeof literalSchema>;
 export type Json = Literal | { [key: string]: Json } | Json[];

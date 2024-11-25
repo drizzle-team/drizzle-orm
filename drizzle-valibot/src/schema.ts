@@ -1,8 +1,9 @@
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
-import type { Table, View } from 'drizzle-orm';
-import { isPgEnum, PgEnum } from 'drizzle-orm/pg-core';
 import * as v from 'valibot';
 import { columnToSchema, mapEnumValues } from './column';
+import { isPgEnum } from './utils';
+import type { Table, View } from 'drizzle-orm';
+import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from './schema.types';
 import type { Conditions } from './schema.types.internal';
 
