@@ -10,7 +10,6 @@ import {
 	int,
 	mediumint,
 	singlestoreTable,
-	singlestoreView,
 	smallint,
 	text,
 	tinyint,

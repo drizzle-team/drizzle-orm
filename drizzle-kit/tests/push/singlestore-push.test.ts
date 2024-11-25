@@ -1,6 +1,5 @@
 import Docker from 'dockerode';
-import { sql } from 'drizzle-orm';
-import { int, singlestoreTable, singlestoreView } from 'drizzle-orm/singlestore-core';
+import { int, singlestoreTable } from 'drizzle-orm/singlestore-core';
 import fs from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
@@ -65,6 +64,7 @@ beforeAll(async () => {
 		throw lastError;
 	}
 
+	await client.query('DROP DATABASE IF EXISTS drizzle;');
 	await client.query('CREATE DATABASE drizzle;');
 	await client.query('USE drizzle;');
 });

@@ -428,6 +428,7 @@ run(
 			throw lastError;
 		}
 
+		await context.client.query(`DROP DATABASE IF EXISTS \`drizzle\`;`);
 		await context.client.query('CREATE DATABASE drizzle;');
 		await context.client.query('USE drizzle;');
 	},
