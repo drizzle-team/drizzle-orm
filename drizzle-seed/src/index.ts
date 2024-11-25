@@ -18,13 +18,13 @@ import type { Relation, Table } from './types/tables.ts';
 
 type InferCallbackType<
 	DB extends
-		| PgDatabase<any>
+		| PgDatabase<any, any>
 		| MySqlDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable;
 	},
-> = DB extends PgDatabase<any> ? SCHEMA extends {
+> = DB extends PgDatabase<any, any> ? SCHEMA extends {
 		[key: string]:
 			| PgTable
 			| PgSchema
@@ -124,7 +124,7 @@ type InferCallbackType<
 
 class SeedPromise<
 	DB extends
-		| PgDatabase<any>
+		| PgDatabase<any, any>
 		| MySqlDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
@@ -311,7 +311,7 @@ export async function seedForDrizzleStudio(
  */
 export function seed<
 	DB extends
-		| PgDatabase<any>
+		| PgDatabase<any, any>
 		| MySqlDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
@@ -328,7 +328,7 @@ export function seed<
 }
 
 const seedFunc = async (
-	db: PgDatabase<any> | MySqlDatabase<any, any> | BaseSQLiteDatabase<any, any>,
+	db: PgDatabase<any, any> | MySqlDatabase<any, any> | BaseSQLiteDatabase<any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -341,7 +341,7 @@ const seedFunc = async (
 	options: { count?: number; seed?: number } = {},
 	refinements?: RefinementsType,
 ) => {
-	if (is(db, PgDatabase<any>)) {
+	if (is(db, PgDatabase<any, any>)) {
 		const { pgSchema } = filterPgTables(schema);
 
 		await seedPostgres(db, pgSchema, options, refinements);
@@ -404,7 +404,7 @@ const seedFunc = async (
  */
 export async function reset<
 	DB extends
-		| PgDatabase<any>
+		| PgDatabase<any, any>
 		| MySqlDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
@@ -417,7 +417,7 @@ export async function reset<
 			| any;
 	},
 >(db: DB, schema: SCHEMA) {
-	if (is(db, PgDatabase<any>)) {
+	if (is(db, PgDatabase<any, any>)) {
 		const { pgSchema } = filterPgTables(schema);
 
 		if (Object.entries(pgSchema).length > 0) {
@@ -444,7 +444,7 @@ export async function reset<
 
 // Postgres-----------------------------------------------------------------------------------------------------------
 const resetPostgres = async (
-	db: PgDatabase<any>,
+	db: PgDatabase<any, any>,
 	schema: { [key: string]: PgTable },
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_, table]) => {
@@ -474,7 +474,7 @@ const filterPgTables = (schema: {
 };
 
 const seedPostgres = async (
-	db: PgDatabase<any>,
+	db: PgDatabase<any, any>,
 	schema: { [key: string]: PgTable },
 	options: { count?: number; seed?: number } = {},
 	refinements?: RefinementsType,
