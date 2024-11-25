@@ -127,3 +127,23 @@ export function max<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColu
 export function min<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColumn ? T['_']['data'] : string) | null> {
 	return sql`min(${expression})`.mapWith(is(expression, Column) ? expression : String) as any;
 }
+
+/**
+ * Returns subfields such as year or hour from date/time values.
+ * 
+ * ## NOTE
+ * The `field` parameter will vary depending on the SQL dialect used.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Get the month from the `employedAt` column
+ * db.select({ month: extract('MONTH', employees.employedAt) }).from(employees)
+ *
+ * // Get all employees that were employed in January
+ * db.select().from(employees).where(eq(extract('MONTH', employees.employedAt), 1))
+ * ```
+ */
+export function extract(field: string, expression: SQLWrapper): SQL<number> {
+	return sql`extract(${field} from ${expression})`.mapWith(Number);
+}
