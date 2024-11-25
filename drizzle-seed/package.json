@@ -7,6 +7,7 @@
 		"build": "tsx scripts/build.ts",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"test": "vitest --config ./src/tests/vitest.config.ts",
+		"test:types": "cd src/type-tests && tsc",
 		"generate-for-tests:pg": "drizzle-kit generate --config=./src/tests/pg/drizzle.config.ts",
 		"generate-for-tests:mysql": "drizzle-kit generate --config=./src/tests/mysql/drizzle.config.ts",
 		"generate-for-tests:sqlite": "drizzle-kit generate --config=./src/tests/sqlite/drizzle.config.ts",
