@@ -54,7 +54,7 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date', 'PgTimestamp'>> exte
 	}
 
 	getSQLType(): string {
-		const precision = this.precision === undefined ? '' : ` (${this.precision})`;
+		const precision = this.precision === undefined ? '' : `(${this.precision})`;
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
