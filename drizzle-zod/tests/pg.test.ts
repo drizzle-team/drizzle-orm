@@ -1,7 +1,7 @@
-import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { char, date, integer, pgEnum, pgTable, pgView, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { z } from 'zod';
-import { createInsertSchema, createSelectSchema } from '../src';
+import { createExistingViewSchema, createInsertSchema, createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils.ts';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
@@ -20,6 +20,21 @@ const users = pgTable('users', {
 	profession: varchar('profession', { length: 20 }).notNull(),
 	initials: char('initials', { length: 2 }).notNull(),
 });
+
+const usersView = pgView("vwUsers", {
+	a: integer('a').array(),
+	id: serial('id').primaryKey(),
+	name: text('name'),
+	email: text('email').notNull(),
+	birthdayString: date('birthday_string').notNull(),
+	birthdayDate: date('birthday_date', { mode: 'date' }).notNull(),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
+	role: roleEnum('role').notNull(),
+	roleText: text('role1', { enum: ['admin', 'user'] }).notNull(),
+	roleText2: text('role2', { enum: ['admin', 'user'] }).notNull().default('user'),
+	profession: varchar('profession', { length: 20 }).notNull(),
+	initials: char('initials', { length: 2 }).notNull(),
+}).existing();
 
 const testUser = {
 	a: [1, 2, 3],
@@ -143,6 +158,52 @@ test('users select schema', (t) => {
 
 test('users select schema w/ defaults', (t) => {
 	const actual = createSelectSchema(users);
+
+	const expected = z.object({
+		a: z.array(z.number()).nullable(),
+		id: z.number(),
+		name: z.string().nullable(),
+		email: z.string(),
+		birthdayString: z.string(),
+		birthdayDate: z.date(),
+		createdAt: z.date(),
+		role: z.enum(['admin', 'user']),
+		roleText: z.enum(['admin', 'user']),
+		roleText2: z.enum(['admin', 'user']),
+		profession: z.string().max(20).min(1),
+		initials: z.string().max(2).min(1),
+	});
+
+	expectSchemaShape(t, expected).from(actual);
+});
+
+test('users view schema', (t) => {
+	const actual = createExistingViewSchema(usersView, {
+		id: ({ id }) => id.positive(),
+		email: ({ email }) => email.email(),
+		roleText: z.enum(['user', 'manager', 'admin']),
+	});
+
+	const expected = z.object({
+		a: z.array(z.number()).nullable(),
+		id: z.number().positive(),
+		name: z.string().nullable(),
+		email: z.string().email(),
+		birthdayString: z.string(),
+		birthdayDate: z.date(),
+		createdAt: z.date(),
+		role: z.enum(['admin', 'user']),
+		roleText: z.enum(['user', 'manager', 'admin']),
+		roleText2: z.enum(['admin', 'user']),
+		profession: z.string().max(20).min(1),
+		initials: z.string().max(2).min(1),
+	});
+
+	expectSchemaShape(t, expected).from(actual);
+});
+
+test('users view schema w/ defaults', (t) => {
+	const actual = createExistingViewSchema(usersView);
 
 	const expected = z.object({
 		a: z.array(z.number()).nullable(),
