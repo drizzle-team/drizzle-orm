@@ -8,7 +8,7 @@ import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/relations.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { type DrizzleConfig, isConfig, type NeonAuthToken } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
 export interface NeonDriverOptions {
@@ -42,7 +42,7 @@ export class NeonHttpDriver {
 
 function wrap<T extends object>(
 	target: T,
-	token: NeonAuthToken,
+	token: Exclude<HTTPQueryOptions<true, true>['authToken'], undefined>,
 	cb: (target: any, p: string | symbol, res: any) => any,
 	deep?: boolean,
 ) {
