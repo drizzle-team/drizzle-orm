@@ -51,6 +51,7 @@ export class PgCountBuilder<
 	/** @intrnal */
 	setToken(token?: NeonAuthToken) {
 		this.token = token;
+		return this;
 	}
 
 	then<TResult1 = number, TResult2 = never>(
