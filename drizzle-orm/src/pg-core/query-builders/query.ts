@@ -11,7 +11,7 @@ import {
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import type { KnownKeysOnly } from '~/utils.ts';
+import type { KnownKeysOnly, NeonAuthToken } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgPreparedQuery, PgSession, PreparedQueryConfig } from '../session.ts';
 import type { PgTable } from '../table.ts';
@@ -142,9 +142,9 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		return this._toSQL().builtQuery;
 	}
 
-	private authToken?: string;
+	private authToken?: NeonAuthToken;
 	/** @internal */
-	setToken(token: string) {
+	setToken(token?: NeonAuthToken) {
 		this.authToken = token;
 		return this;
 	}

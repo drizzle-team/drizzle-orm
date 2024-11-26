@@ -1,5 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import type { NeonAuthToken } from '~/utils.ts';
 import type { PgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
@@ -7,7 +8,7 @@ export class PgCountBuilder<
 	TSession extends PgSession<any, any, any>,
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
-	private token?: string;
+	private token?: NeonAuthToken;
 
 	static override readonly [entityKind] = 'PgCountBuilder';
 	[Symbol.toStringTag] = 'PgCountBuilder';
@@ -48,7 +49,7 @@ export class PgCountBuilder<
 	}
 
 	/** @intrnal */
-	setToken(token: string) {
+	setToken(token?: NeonAuthToken) {
 		this.token = token;
 	}
 

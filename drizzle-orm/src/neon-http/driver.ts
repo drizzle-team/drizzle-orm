@@ -8,7 +8,7 @@ import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/relations.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig, type NeonAuthToken } from '~/utils.ts';
 import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
 export interface NeonDriverOptions {
@@ -42,7 +42,7 @@ export class NeonHttpDriver {
 
 function wrap<T extends object>(
 	target: T,
-	token: string,
+	token: NeonAuthToken,
 	cb: (target: any, p: string | symbol, res: any) => any,
 	deep?: boolean,
 ) {
@@ -57,7 +57,7 @@ function wrap<T extends object>(
 			return new Proxy(element as any, {
 				apply(target, thisArg, argArray) {
 					const res = target.call(thisArg, ...argArray);
-					if ('setToken' in res && typeof res.setToken === 'function') {
+					if (typeof res === 'object' && res !== null && 'setToken' in res && typeof res.setToken === 'function') {
 						res.setToken(token);
 					}
 					return cb(target, p, res);
@@ -73,7 +73,7 @@ export class NeonHttpDatabase<
 	static override readonly [entityKind]: string = 'NeonHttpDatabase';
 
 	$withAuth(
-		token: string,
+		token: NeonAuthToken,
 	): Omit<
 		this,
 		Exclude<
