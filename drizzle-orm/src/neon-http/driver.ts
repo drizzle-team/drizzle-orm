@@ -1,4 +1,4 @@
-import type { HTTPTransactionOptions, NeonQueryFunction } from '@neondatabase/serverless';
+import type { HTTPQueryOptions, HTTPTransactionOptions, NeonQueryFunction } from '@neondatabase/serverless';
 import { neon, types } from '@neondatabase/serverless';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
@@ -73,7 +73,7 @@ export class NeonHttpDatabase<
 	static override readonly [entityKind]: string = 'NeonHttpDatabase';
 
 	$withAuth(
-		token: NeonAuthToken,
+		token: Exclude<HTTPQueryOptions<true, true>['authToken'], undefined>,
 	): Omit<
 		this,
 		Exclude<
