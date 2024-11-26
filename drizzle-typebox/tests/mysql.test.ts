@@ -1,6 +1,6 @@
 import { Type as t } from '@sinclair/typebox';
 import { Equal, sql } from 'drizzle-orm';
-import { int, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
@@ -19,6 +19,19 @@ const textSchema = t.String({ maxLength: CONSTANTS.INT16_UNSIGNED_MAX });
 
 test('table - select', (tc) => {
 	const table = mysqlTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = t.Object({ id: serialNumberModeSchema, name: textSchema });
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('table in schema - select', (tc) => {
+	const schema = mysqlSchema('test');
+	const table = schema.table('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});

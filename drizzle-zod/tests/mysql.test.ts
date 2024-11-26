@@ -1,5 +1,5 @@
 import { Equal, sql } from 'drizzle-orm';
-import { int, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { jsonSchema } from '~/column.ts';
@@ -20,6 +20,19 @@ test('table - select', (t) => {
 	const result = createSelectSchema(table);
 	const expected = z.object({ id: serialNumberModeSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('table in schema - select', (tc) => {
+	const schema = mysqlSchema('test');
+	const table = schema.table('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = z.object({ id: serialNumberModeSchema, name: textSchema });
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 

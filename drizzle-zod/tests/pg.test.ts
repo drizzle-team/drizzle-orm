@@ -1,5 +1,5 @@
 import { Equal, sql } from 'drizzle-orm';
-import { integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgMaterializedView, pgSchema, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { jsonSchema } from '~/column.ts';
@@ -19,6 +19,19 @@ test('table - select', (t) => {
 	const result = createSelectSchema(table);
 	const expected = z.object({ id: integerSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('table in schema - select', (tc) => {
+	const schema = pgSchema('test');
+	const table = schema.table('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = z.object({ id: integerSchema, name: textSchema });
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
