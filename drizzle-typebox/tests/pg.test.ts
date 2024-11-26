@@ -196,7 +196,6 @@ test('nullability - update', (tc) => {
 		c4: t.Optional(integerSchema),
 		c7: t.Optional(integerSchema),
 	});
-	table.c5.generated?.type
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
