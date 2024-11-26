@@ -183,7 +183,7 @@ test('refine table - select', (t) => {
 		c2: intSchema.max(1000),
 		c3: z.string().transform((v) => Number(v)),
 	});
-	
+
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -314,7 +314,7 @@ test('all data types', (t) => {
 		year,
 		longtext,
 		mediumtext,
-		tinytext
+		tinytext,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),

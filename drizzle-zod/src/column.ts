@@ -1,9 +1,4 @@
-import { z } from 'zod';
-import { CONSTANTS } from './constants';
-import { isColumnType, isWithEnum } from './utils';
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
-import type { z as zod } from 'zod';
-import type { Json } from './utils';
 import type {
 	MySqlBigInt53,
 	MySqlChar,
@@ -43,6 +38,11 @@ import type {
 	PgVector,
 } from 'drizzle-orm/pg-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
+import { z } from 'zod';
+import type { z as zod } from 'zod';
+import { CONSTANTS } from './constants';
+import { isColumnType, isWithEnum } from './utils';
+import type { Json } from './utils';
 
 export const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
@@ -62,7 +62,9 @@ export function columnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 		// Handle specific types
 		if (isColumnType<PgGeometry<any> | PgPointTuple<any>>(column, ['PgGeometry', 'PgPointTuple'])) {
 			schema = z.tuple([z.number(), z.number()]);
-		} else if (isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])) {
+		} else if (
+			isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])
+		) {
 			schema = z.object({ x: z.number(), y: z.number() });
 		} else if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
 			schema = z.array(z.number());
@@ -117,22 +119,48 @@ function numberColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 		min = unsigned ? 0 : CONSTANTS.INT8_MIN;
 		max = unsigned ? CONSTANTS.INT8_UNSIGNED_MAX : CONSTANTS.INT8_MAX;
 		integer = true;
-	} else if (isColumnType<PgSmallInt<any> | PgSmallSerial<any> | MySqlSmallInt<any>>(column, ['PgSmallInt', 'PgSmallSerial', 'MySqlSmallInt'])) {
+	} else if (
+		isColumnType<PgSmallInt<any> | PgSmallSerial<any> | MySqlSmallInt<any>>(column, [
+			'PgSmallInt',
+			'PgSmallSerial',
+			'MySqlSmallInt',
+		])
+	) {
 		min = unsigned ? 0 : CONSTANTS.INT16_MIN;
 		max = unsigned ? CONSTANTS.INT16_UNSIGNED_MAX : CONSTANTS.INT16_MAX;
 		integer = true;
-	} else if (isColumnType<PgReal<any> | MySqlFloat<any> | MySqlMediumInt<any>>(column, ['PgReal', 'MySqlFloat', 'MySqlMediumInt'])) {
+	} else if (
+		isColumnType<PgReal<any> | MySqlFloat<any> | MySqlMediumInt<any>>(column, [
+			'PgReal',
+			'MySqlFloat',
+			'MySqlMediumInt',
+		])
+	) {
 		min = unsigned ? 0 : CONSTANTS.INT24_MIN;
 		max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
 		integer = isColumnType(column, ['MySqlMediumInt']);
-	} else if (isColumnType<PgInteger<any> | PgSerial<any> | MySqlInt<any>>(column, ['PgInteger', 'PgSerial', 'MySqlInt'])) {
+	} else if (
+		isColumnType<PgInteger<any> | PgSerial<any> | MySqlInt<any>>(column, ['PgInteger', 'PgSerial', 'MySqlInt'])
+	) {
 		min = unsigned ? 0 : CONSTANTS.INT32_MIN;
 		max = unsigned ? CONSTANTS.INT32_UNSIGNED_MAX : CONSTANTS.INT32_MAX;
 		integer = true;
-	} else if (isColumnType<PgDoublePrecision<any> | MySqlReal<any> | MySqlDouble<any> | SQLiteReal<any>>(column, ['PgDoublePrecision', 'MySqlReal', 'MySqlDouble', 'SQLiteReal'])) {
+	} else if (
+		isColumnType<PgDoublePrecision<any> | MySqlReal<any> | MySqlDouble<any> | SQLiteReal<any>>(column, [
+			'PgDoublePrecision',
+			'MySqlReal',
+			'MySqlDouble',
+			'SQLiteReal',
+		])
+	) {
 		min = unsigned ? 0 : CONSTANTS.INT48_MIN;
 		max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
-	} else if (isColumnType<PgBigInt53<any> | PgBigSerial53<any> | MySqlBigInt53<any> | MySqlSerial<any> | SQLiteInteger<any>>(column, ['PgBigInt53', 'PgBigSerial53', 'MySqlBigInt53', 'MySqlSerial', 'SQLiteInteger'])) {
+	} else if (
+		isColumnType<PgBigInt53<any> | PgBigSerial53<any> | MySqlBigInt53<any> | MySqlSerial<any> | SQLiteInteger<any>>(
+			column,
+			['PgBigInt53', 'PgBigSerial53', 'MySqlBigInt53', 'MySqlSerial', 'SQLiteInteger'],
+		)
+	) {
 		unsigned = unsigned || isColumnType(column, ['MySqlSerial']);
 		min = unsigned ? 0 : Number.MIN_SAFE_INTEGER;
 		max = Number.MAX_SAFE_INTEGER;

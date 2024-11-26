@@ -1,7 +1,7 @@
 import type { Column, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
+import type { PgEnum } from 'drizzle-orm/pg-core';
 import type * as v from 'valibot';
 import type { literalSchema } from './column';
-import type { PgEnum } from 'drizzle-orm/pg-core';
 
 export function isColumnType<T extends Column>(column: Column, columnTypes: string[]): column is T {
 	return columnTypes.includes(column.columnType);

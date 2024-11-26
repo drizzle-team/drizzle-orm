@@ -1,7 +1,7 @@
 import type { Column, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
+import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { z } from 'zod';
 import type { literalSchema } from './column';
-import type { PgEnum } from 'drizzle-orm/pg-core';
 
 export function isColumnType<T extends Column>(column: Column, columnTypes: string[]): column is T {
 	return columnTypes.includes(column.columnType);
@@ -24,11 +24,11 @@ export type ArrayHasAtLeastOneValue<TEnum extends [any, ...any[]] | undefined> =
 	: false
 	: false;
 
-export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['generated'] extends undefined
-	? false
-		: TColumn['_']['generated'] extends infer TGenerated extends { type: string } ? TGenerated['type'] extends 'byDefault' ? false
+export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['generated'] extends undefined ? false
+	: TColumn['_']['generated'] extends infer TGenerated extends { type: string }
+		? TGenerated['type'] extends 'byDefault' ? false
 		: true
-		: true;
+	: true;
 
 export type RemoveNever<T> = {
 	[K in keyof T as T[K] extends never ? never : K]: T[K];
