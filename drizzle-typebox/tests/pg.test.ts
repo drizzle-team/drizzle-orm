@@ -1,7 +1,7 @@
+import { Type as t } from '@sinclair/typebox';
 import { Equal, sql } from 'drizzle-orm';
 import { integer, pgEnum, pgMaterializedView, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
-import { Type as t } from '@sinclair/typebox';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';

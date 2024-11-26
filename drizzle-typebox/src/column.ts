@@ -1,9 +1,6 @@
-import { CreateType, Kind, Type as t,  } from '@sinclair/typebox';
-import { CONSTANTS } from './constants';
-import { isColumnType, isWithEnum } from './utils';
-import type { Column, ColumnBaseConfig } from 'drizzle-orm';
+import { CreateType, Kind, Type as t } from '@sinclair/typebox';
 import type { StringOptions, TSchema, Type as typebox } from '@sinclair/typebox';
-import type { BufferSchema, JsonSchema } from './utils';
+import type { Column, ColumnBaseConfig } from 'drizzle-orm';
 import type {
 	MySqlBigInt53,
 	MySqlChar,
@@ -43,10 +40,14 @@ import type {
 	PgVector,
 } from 'drizzle-orm/pg-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
-
+import { CONSTANTS } from './constants';
+import { isColumnType, isWithEnum } from './utils';
+import type { BufferSchema, JsonSchema } from './utils';
 
 export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]);
-export const jsonSchema: JsonSchema = t.Recursive((self) => t.Union([literalSchema, t.Array(self), t.Record(t.String(), self)])) as any;
+export const jsonSchema: JsonSchema = t.Recursive((self) =>
+	t.Union([literalSchema, t.Array(self), t.Record(t.String(), self)])
+) as any;
 export const bufferSchema: BufferSchema = CreateType({ [Kind]: 'Buffer', type: 'buffer' }) as any;
 
 export function mapEnumValues(values: string[]) {
@@ -65,13 +66,20 @@ export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 		// Handle specific types
 		if (isColumnType<PgGeometry<any> | PgPointTuple<any>>(column, ['PgGeometry', 'PgPointTuple'])) {
 			schema = t.Tuple([t.Number(), t.Number()]);
-		} else if (isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])) {
+		} else if (
+			isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])
+		) {
 			schema = t.Object({ x: t.Number(), y: t.Number() });
 		} else if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
-			schema = t.Array(t.Number(), column.dimensions ? {
-        minItems: column.dimensions,
-        maxItems: column.dimensions
-      } : undefined);
+			schema = t.Array(
+				t.Number(),
+				column.dimensions
+					? {
+						minItems: column.dimensions,
+						maxItems: column.dimensions,
+					}
+					: undefined,
+			);
 		} else if (isColumnType<PgLineTuple<any>>(column, ['PgLine'])) {
 			schema = t.Tuple([t.Number(), t.Number(), t.Number()]);
 		} else if (isColumnType<PgLineABC<any>>(column, ['PgLineABC'])) {
@@ -82,10 +90,15 @@ export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 			});
 		} // Handle other types
 		else if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
-			schema = t.Array(columnToSchema(column.baseColumn, t), column.size ? {
-        minItems: column.size,
-        maxItems: column.size
-      } : undefined);
+			schema = t.Array(
+				columnToSchema(column.baseColumn, t),
+				column.size
+					? {
+						minItems: column.size,
+						maxItems: column.size,
+					}
+					: undefined,
+			);
 		} else if (column.dataType === 'array') {
 			schema = t.Array(t.Any());
 		} else if (column.dataType === 'number') {
@@ -124,22 +137,48 @@ function numberColumnToSchema(column: Column, t: typeof typebox): TSchema {
 		min = unsigned ? 0 : CONSTANTS.INT8_MIN;
 		max = unsigned ? CONSTANTS.INT8_UNSIGNED_MAX : CONSTANTS.INT8_MAX;
 		integer = true;
-	} else if (isColumnType<PgSmallInt<any> | PgSmallSerial<any> | MySqlSmallInt<any>>(column, ['PgSmallInt', 'PgSmallSerial', 'MySqlSmallInt'])) {
+	} else if (
+		isColumnType<PgSmallInt<any> | PgSmallSerial<any> | MySqlSmallInt<any>>(column, [
+			'PgSmallInt',
+			'PgSmallSerial',
+			'MySqlSmallInt',
+		])
+	) {
 		min = unsigned ? 0 : CONSTANTS.INT16_MIN;
 		max = unsigned ? CONSTANTS.INT16_UNSIGNED_MAX : CONSTANTS.INT16_MAX;
 		integer = true;
-	} else if (isColumnType<PgReal<any> | MySqlFloat<any> | MySqlMediumInt<any>>(column, ['PgReal', 'MySqlFloat', 'MySqlMediumInt'])) {
+	} else if (
+		isColumnType<PgReal<any> | MySqlFloat<any> | MySqlMediumInt<any>>(column, [
+			'PgReal',
+			'MySqlFloat',
+			'MySqlMediumInt',
+		])
+	) {
 		min = unsigned ? 0 : CONSTANTS.INT24_MIN;
 		max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
 		integer = isColumnType(column, ['MySqlMediumInt']);
-	} else if (isColumnType<PgInteger<any> | PgSerial<any> | MySqlInt<any>>(column, ['PgInteger', 'PgSerial', 'MySqlInt'])) {
+	} else if (
+		isColumnType<PgInteger<any> | PgSerial<any> | MySqlInt<any>>(column, ['PgInteger', 'PgSerial', 'MySqlInt'])
+	) {
 		min = unsigned ? 0 : CONSTANTS.INT32_MIN;
 		max = unsigned ? CONSTANTS.INT32_UNSIGNED_MAX : CONSTANTS.INT32_MAX;
 		integer = true;
-	} else if (isColumnType<PgDoublePrecision<any> | MySqlReal<any> | MySqlDouble<any> | SQLiteReal<any>>(column, ['PgDoublePrecision', 'MySqlReal', 'MySqlDouble', 'SQLiteReal'])) {
+	} else if (
+		isColumnType<PgDoublePrecision<any> | MySqlReal<any> | MySqlDouble<any> | SQLiteReal<any>>(column, [
+			'PgDoublePrecision',
+			'MySqlReal',
+			'MySqlDouble',
+			'SQLiteReal',
+		])
+	) {
 		min = unsigned ? 0 : CONSTANTS.INT48_MIN;
 		max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
-	} else if (isColumnType<PgBigInt53<any> | PgBigSerial53<any> | MySqlBigInt53<any> | MySqlSerial<any> | SQLiteInteger<any>>(column, ['PgBigInt53', 'PgBigSerial53', 'MySqlBigInt53', 'MySqlSerial', 'SQLiteInteger'])) {
+	} else if (
+		isColumnType<PgBigInt53<any> | PgBigSerial53<any> | MySqlBigInt53<any> | MySqlSerial<any> | SQLiteInteger<any>>(
+			column,
+			['PgBigInt53', 'PgBigSerial53', 'MySqlBigInt53', 'MySqlSerial', 'SQLiteInteger'],
+		)
+	) {
 		unsigned = unsigned || isColumnType(column, ['MySqlSerial']);
 		min = unsigned ? 0 : Number.MIN_SAFE_INTEGER;
 		max = Number.MAX_SAFE_INTEGER;
@@ -153,12 +192,11 @@ function numberColumnToSchema(column: Column, t: typeof typebox): TSchema {
 		max = Number.MAX_SAFE_INTEGER;
 	}
 
-  const key = integer ? 'Integer' : 'Number';
-  return t[key]({
-    minimum: min,
-    maximum: max,
-    
-  });
+	const key = integer ? 'Integer' : 'Number';
+	return t[key]({
+		minimum: min,
+		maximum: max,
+	});
 }
 
 function bigintColumnToSchema(column: Column, t: typeof typebox): TSchema {
@@ -167,15 +205,19 @@ function bigintColumnToSchema(column: Column, t: typeof typebox): TSchema {
 	let max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
 
 	return t.BigInt({
-    minimum: min,
-    maximum: max
-  });
+		minimum: min,
+		maximum: max,
+	});
 }
 
 function stringColumnToSchema(column: Column, t: typeof typebox): TSchema {
 	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
 		return t.String({ format: 'uuid' });
-	} else if (isColumnType<PgBinaryVector<ColumnBaseConfig<'string', 'PgBinaryVector'> & { dimensions: number }>>(column, ['PgBinaryVector'])) {
+	} else if (
+		isColumnType<PgBinaryVector<ColumnBaseConfig<'string', 'PgBinaryVector'> & { dimensions: number }>>(column, [
+			'PgBinaryVector',
+		])
+	) {
 		return t.RegExp(/^[01]+$/, column.dimensions ? { maxLength: column.dimensions } : undefined);
 	}
 
@@ -212,5 +254,5 @@ function stringColumnToSchema(column: Column, t: typeof typebox): TSchema {
 		options.maxLength = max;
 	}
 
-  return t.String(Object.keys(options).length > 0 ? options : undefined);
+	return t.String(Object.keys(options).length > 0 ? options : undefined);
 }

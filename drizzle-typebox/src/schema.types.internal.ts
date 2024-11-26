@@ -1,5 +1,5 @@
-import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type * as t from '@sinclair/typebox';
+import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type { GetBaseColumn, GetEnumValuesFromColumn, GetTypeboxType, HandleColumn } from './column.types';
 import type { GetSelection, RemoveNever } from './utils';
 
@@ -81,8 +81,8 @@ export type NoUnknownKeys<
 	TRefinement extends Record<string, any>,
 	TCompare extends Record<string, any>,
 > = {
-	[K in keyof TRefinement]: K extends keyof TCompare
-		? TRefinement[K] extends t.TSchema ? TRefinement[K] : TRefinement[K] extends Record<string, t.TSchema> ? NoUnknownKeys<TRefinement[K], TCompare[K]>
+	[K in keyof TRefinement]: K extends keyof TCompare ? TRefinement[K] extends t.TSchema ? TRefinement[K]
+		: TRefinement[K] extends Record<string, t.TSchema> ? NoUnknownKeys<TRefinement[K], TCompare[K]>
 		: TRefinement[K]
 		: DrizzleTypeError<`Found unknown key in refinement: "${K & string}"`>;
 };

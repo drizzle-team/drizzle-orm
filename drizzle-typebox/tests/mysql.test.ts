@@ -1,19 +1,19 @@
+import { Type as t } from '@sinclair/typebox';
 import { Equal, sql } from 'drizzle-orm';
 import { int, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { test } from 'vitest';
-import { Type as t } from '@sinclair/typebox';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = t.Integer({
-  minimum: CONSTANTS.INT32_MIN,
-  maximum: CONSTANTS.INT32_MAX
+	minimum: CONSTANTS.INT32_MIN,
+	maximum: CONSTANTS.INT32_MAX,
 });
 const serialNumberModeSchema = t.Integer({
-  minimum: 0,
-  maximum: Number.MAX_SAFE_INTEGER
+	minimum: 0,
+	maximum: Number.MAX_SAFE_INTEGER,
 });
 const textSchema = t.String({ maxLength: CONSTANTS.INT16_UNSIGNED_MAX });
 
@@ -189,7 +189,7 @@ test('refine table - select', (tc) => {
 		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
-	
+
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -320,7 +320,7 @@ test('all data types', (tc) => {
 		year,
 		longtext,
 		mediumtext,
-		tinytext
+		tinytext,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),

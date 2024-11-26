@@ -1,8 +1,8 @@
+import type * as t from '@sinclair/typebox';
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import type * as t from '@sinclair/typebox';
-import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal';
 import type { EnumValuesToEnum } from './column.types';
+import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal';
 
 export interface CreateSelectSchema {
 	<TTable extends Table>(table: TTable): BuildSchema<'select', TTable['_']['columns'], undefined>;

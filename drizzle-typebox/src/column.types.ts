@@ -1,6 +1,13 @@
-import type { Assume, Column } from 'drizzle-orm';
 import type * as t from '@sinclair/typebox';
-import type { ArrayHasAtLeastOneValue, BufferSchema, ColumnIsGeneratedAlwaysAs, IsNever, Json, JsonSchema } from './utils';
+import type { Assume, Column } from 'drizzle-orm';
+import type {
+	ArrayHasAtLeastOneValue,
+	BufferSchema,
+	ColumnIsGeneratedAlwaysAs,
+	IsNever,
+	Json,
+	JsonSchema,
+} from './utils';
 
 export type GetEnumValuesFromColumn<TColumn extends Column> = TColumn['_'] extends { enumValues: [string, ...string[]] }
 	? TColumn['_']['enumValues']
@@ -16,26 +23,43 @@ export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K i
 export type GetTypeboxType<
 	TData,
 	TDataType extends string,
-  TColumnType extends string,
+	TColumnType extends string,
 	TEnumValues extends [string, ...string[]] | undefined,
 	TBaseColumn extends Column | undefined,
-> = TColumnType extends 'MySqlTinyInt' | 'PgSmallInt' | 'PgSmallSerial' | 'MySqlSmallInt' | 'MySqlMediumInt' | 'PgInteger' | 'PgSerial' | 'MySqlInt' | 'PgBigInt53' | 'PgBigSerial53' | 'MySqlBigInt53' | 'MySqlSerial' | 'SQLiteInteger' | 'MySqlYear' ? t.TInteger
-  : TColumnType extends 'PgBinaryVector' ? t.TRegExp
-  : TBaseColumn extends Column ? t.TArray<
-		GetTypeboxType<
-			TBaseColumn['_']['data'],
-			TBaseColumn['_']['dataType'],
-      TBaseColumn['_']['columnType'],
-			GetEnumValuesFromColumn<TBaseColumn>,
-			GetBaseColumn<TBaseColumn>
+> = TColumnType extends
+	| 'MySqlTinyInt'
+	| 'PgSmallInt'
+	| 'PgSmallSerial'
+	| 'MySqlSmallInt'
+	| 'MySqlMediumInt'
+	| 'PgInteger'
+	| 'PgSerial'
+	| 'MySqlInt'
+	| 'PgBigInt53'
+	| 'PgBigSerial53'
+	| 'MySqlBigInt53'
+	| 'MySqlSerial'
+	| 'SQLiteInteger'
+	| 'MySqlYear' ? t.TInteger
+	: TColumnType extends 'PgBinaryVector' ? t.TRegExp
+	: TBaseColumn extends Column ? t.TArray<
+			GetTypeboxType<
+				TBaseColumn['_']['data'],
+				TBaseColumn['_']['dataType'],
+				TBaseColumn['_']['columnType'],
+				GetEnumValuesFromColumn<TBaseColumn>,
+				GetBaseColumn<TBaseColumn>
+			>
 		>
-	>
-	: ArrayHasAtLeastOneValue<TEnumValues> extends true ? t.TEnum<EnumValuesToEnum<Assume<TEnumValues, [string, ...string[]]>>>
-	: TData extends infer TTuple extends [any, ...any[]]
-		? t.TTuple<Assume<{ [K in keyof TTuple]: GetTypeboxType<TTuple[K], string, string, undefined, undefined> }, [any, ...any[]]>>
+	: ArrayHasAtLeastOneValue<TEnumValues> extends true
+		? t.TEnum<EnumValuesToEnum<Assume<TEnumValues, [string, ...string[]]>>>
+	: TData extends infer TTuple extends [any, ...any[]] ? t.TTuple<
+			Assume<{ [K in keyof TTuple]: GetTypeboxType<TTuple[K], string, string, undefined, undefined> }, [any, ...any[]]>
+		>
 	: TData extends Date ? t.TDate
 	: TData extends Buffer ? BufferSchema
-	: TDataType extends 'array' ? t.TArray<GetTypeboxType<Assume<TData, any[]>[number], string, string, undefined, undefined>>
+	: TDataType extends 'array'
+		? t.TArray<GetTypeboxType<Assume<TData, any[]>[number], string, string, undefined, undefined>>
 	: TData extends infer TDict extends Record<string, any>
 		? t.TObject<{ [K in keyof TDict]: GetTypeboxType<TDict[K], string, string, undefined, undefined> }>
 	: TDataType extends 'json' ? JsonSchema
@@ -72,7 +96,7 @@ export type HandleColumn<
 > = GetTypeboxType<
 	TColumn['_']['data'],
 	TColumn['_']['dataType'],
-  TColumn['_']['columnType'],
+	TColumn['_']['columnType'],
 	GetEnumValuesFromColumn<TColumn>,
 	GetBaseColumn<TColumn>
 > extends infer TSchema extends t.TSchema ? TSchema extends t.TAny ? t.TAny

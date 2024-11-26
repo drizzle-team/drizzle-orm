@@ -1,7 +1,7 @@
+import { Type as t } from '@sinclair/typebox';
 import { Equal, sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { test } from 'vitest';
-import { Type as t } from '@sinclair/typebox';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
@@ -30,7 +30,11 @@ test('table - insert', (tc) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = t.Object({ id: t.Optional(intSchema), name: textSchema, age: t.Optional(t.Union([intSchema, t.Null()])) });
+	const expected = t.Object({
+		id: t.Optional(intSchema),
+		name: textSchema,
+		age: t.Optional(t.Union([intSchema, t.Null()])),
+	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });

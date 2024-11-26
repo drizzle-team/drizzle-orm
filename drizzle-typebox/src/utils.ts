@@ -1,7 +1,7 @@
-import type { Column, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
-import type { literalSchema } from './column';
-import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { Kind, Static, TSchema } from '@sinclair/typebox';
+import type { Column, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
+import type { PgEnum } from 'drizzle-orm/pg-core';
+import type { literalSchema } from './column';
 
 export function isColumnType<T extends Column>(column: Column, columnTypes: string[]): column is T {
 	return columnTypes.includes(column.columnType);
@@ -16,14 +16,14 @@ export const isPgEnum: (entity: any) => entity is PgEnum<[string, ...string[]]> 
 type Literal = Static<typeof literalSchema>;
 export type Json = Literal | { [key: string]: Json } | Json[];
 export interface JsonSchema extends TSchema {
-  [Kind]: 'Union';
-  static: Json;
-  anyOf: Json;
+	[Kind]: 'Union';
+	static: Json;
+	anyOf: Json;
 }
 export interface BufferSchema extends TSchema {
-  [Kind]: 'Buffer';
-  static: Buffer;
-  type: 'buffer';
+	[Kind]: 'Buffer';
+	static: Buffer;
+	type: 'buffer';
 }
 
 export type IsNever<T> = [T] extends [never] ? true : false;
@@ -34,11 +34,11 @@ export type ArrayHasAtLeastOneValue<TEnum extends [any, ...any[]] | undefined> =
 	: false
 	: false;
 
-export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['generated'] extends undefined
-	? false
-		: TColumn['_']['generated'] extends infer TGenerated extends { type: string } ? TGenerated['type'] extends 'byDefault' ? false
+export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['generated'] extends undefined ? false
+	: TColumn['_']['generated'] extends infer TGenerated extends { type: string }
+		? TGenerated['type'] extends 'byDefault' ? false
 		: true
-		: true;
+	: true;
 
 export type RemoveNever<T> = {
 	[K in keyof T as T[K] extends never ? never : K]: T[K];
