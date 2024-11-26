@@ -4,12 +4,24 @@ export type Column = {
 	name: string;
 	dataType: string;
 	columnType: string;
+	size?: number;
 	default?: any;
 	hasDefault: boolean;
 	enumValues?: string[];
 	isUnique: boolean;
 	notNull: boolean;
 	generatedIdentityType?: 'always' | 'byDefault' | undefined;
+	baseColumn?: {
+		name: string;
+		dataType: string;
+		columnType: string;
+		size?: number;
+		default?: any;
+		hasDefault: boolean;
+		isUnique: boolean;
+		notNull: boolean;
+		baseColumn?: Column['baseColumn'];
+	};
 };
 
 export type Table = {

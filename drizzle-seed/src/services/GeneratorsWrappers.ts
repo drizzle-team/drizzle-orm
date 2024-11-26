@@ -22,12 +22,55 @@ export abstract class AbstractGenerator<T = {}> {
 	public uniqueVersionOfGen?: new(params: T) => AbstractGenerator<T>;
 	public dataType?: string;
 	public timeSpent?: number;
+	public arraySize?: number;
 
 	constructor(public params: T) {}
 
 	abstract init(params: { count: number | { weight: number; count: number | number[] }[]; seed: number }): void;
 
 	abstract generate(params: { i: number }): number | string | boolean | unknown | undefined | void;
+
+	getEntityKind(): string {
+		const constructor = this.constructor as typeof AbstractGenerator;
+		return constructor[entityKind];
+	}
+
+	replaceIfUnique({ count, seed }: { count: number; seed: number }) {
+		if (
+			this.uniqueVersionOfGen !== undefined
+			&& this.isUnique === true
+		) {
+			const uniqueGen = new this.uniqueVersionOfGen({
+				...this.params,
+			});
+			uniqueGen.init({
+				count,
+				seed,
+			});
+			uniqueGen.isUnique = this.isUnique;
+			uniqueGen.dataType = this.dataType;
+
+			return uniqueGen;
+		}
+		return;
+	}
+
+	replaceIfArray({ count, seed }: { count: number; seed: number }) {
+		if (!(this.getEntityKind() === 'GenerateArray') && this.arraySize !== undefined) {
+			const uniqueGen = this.replaceIfUnique({ count, seed });
+			const arrayGen = new GenerateArray(
+				{
+					baseColumnGen: uniqueGen === undefined ? this : uniqueGen,
+					size: this.arraySize,
+				},
+			);
+			arrayGen.init({ count, seed });
+
+			return arrayGen;
+		}
+
+		return;
+	}
 }
 
 function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
@@ -44,6 +87,25 @@ function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
 }
 
 // Generators Classes -----------------------------------------------------------------------------------------------------------------------
+export class GenerateArray extends AbstractGenerator<{ baseColumnGen: AbstractGenerator<any>; size?: number }> {
+	static override readonly [entityKind]: string = 'GenerateArray';
+	public override arraySize = 10;
+
+	init({ count, seed }: { count: number; seed: number }) {
+		this.arraySize = this.params.size === undefined ? this.arraySize : this.params.size;
+		this.params.baseColumnGen.init({ count: count * this.arraySize, seed });
+	}
+
+	generate() {
+		const array = [];
+		for (let i = 0; i < this.arraySize; i++) {
+			array.push(this.params.baseColumnGen.generate({ i }));
+		}
+
+		return array;
+	}
+}
+
 export class GenerateWeightedCount extends AbstractGenerator<{}> {
 	static override readonly [entityKind]: string = 'GenerateWeightedCount';
 
@@ -92,10 +154,15 @@ export class HollowGenerator extends AbstractGenerator<{}> {
 
 export class GenerateDefault extends AbstractGenerator<{
 	defaultValue: unknown;
+	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GenerateDefault';
 
-	init() {}
+	init() {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+	}
 
 	generate() {
 		return this.params.defaultValue;
@@ -108,6 +175,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 			| (number | string | boolean | undefined)[]
 			| { weight: number; values: (number | string | boolean | undefined)[] }[];
 		isUnique?: boolean;
+		arraySize?: number;
 	}
 > {
 	static override readonly [entityKind]: string = 'GenerateValuesFromArray';
@@ -205,6 +273,11 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 
 			this.isUnique = this.params.isUnique;
 		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
 		this.checks({ count });
 
 		let { maxRepeatedValuesCount } = this;
@@ -389,6 +462,7 @@ export class GenerateNumber extends AbstractGenerator<
 		maxValue?: number;
 		precision?: number;
 		isUnique?: boolean;
+		arraySize?: number;
 	} | undefined
 > {
 	static override readonly [entityKind]: string = 'GenerateNumber';
@@ -410,6 +484,10 @@ export class GenerateNumber extends AbstractGenerator<
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		let { minValue, maxValue, precision } = this.params;
@@ -505,6 +583,7 @@ export class GenerateInt extends AbstractGenerator<{
 	minValue?: number | bigint;
 	maxValue?: number | bigint;
 	isUnique?: boolean;
+	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GenerateInt';
 
@@ -522,6 +601,10 @@ export class GenerateInt extends AbstractGenerator<{
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		let { minValue, maxValue } = this.params;
@@ -747,7 +830,7 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 	}
 }
 
-export class GenerateBoolean extends AbstractGenerator<{}> {
+export class GenerateBoolean extends AbstractGenerator<{ arraySize?: number }> {
 	static override readonly [entityKind]: string = 'GenerateBoolean';
 
 	private state: {
@@ -755,6 +838,10 @@ export class GenerateBoolean extends AbstractGenerator<{}> {
 	} | undefined;
 
 	init({ seed }: { seed: number }) {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
 		const rng = prand.xoroshiro128plus(seed);
 
 		this.state = { rng };
@@ -772,7 +859,11 @@ export class GenerateBoolean extends AbstractGenerator<{}> {
 	}
 }
 
-export class GenerateDate extends AbstractGenerator<{ minDate?: string | Date; maxDate?: string | Date }> {
+export class GenerateDate extends AbstractGenerator<{
+	minDate?: string | Date;
+	maxDate?: string | Date;
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateDate';
 
 	private state: {
@@ -785,6 +876,12 @@ export class GenerateDate extends AbstractGenerator<{ minDate?: string | Date; m
 		const rng = prand.xoroshiro128plus(seed);
 
 		let { minDate, maxDate } = this.params;
+		const { arraySize } = this.params;
+
+		if (arraySize !== undefined) {
+			this.arraySize = arraySize;
+		}
+
 		const anchorDate = new Date('2024-05-08');
 		const deltaMilliseconds = 4 * 31536000000;
 
@@ -832,7 +929,7 @@ export class GenerateDate extends AbstractGenerator<{ minDate?: string | Date; m
 		return date;
 	}
 }
-export class GenerateTime extends AbstractGenerator<{}> {
+export class GenerateTime extends AbstractGenerator<{ arraySize?: number }> {
 	static override readonly [entityKind]: string = 'GenerateTime';
 
 	private state: {
@@ -840,6 +937,10 @@ export class GenerateTime extends AbstractGenerator<{}> {
 	} | undefined;
 
 	init({ seed }: { seed: number }) {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
 		const rng = prand.xoroshiro128plus(seed);
 
 		this.state = { rng };
@@ -899,7 +1000,7 @@ export class GenerateTimestampInt extends AbstractGenerator<{ unitOfTime?: 'seco
 	}
 }
 
-export class GenerateTimestamp extends AbstractGenerator<{}> {
+export class GenerateTimestamp extends AbstractGenerator<{ arraySize?: number }> {
 	static override readonly [entityKind]: string = 'GenerateTimestamp';
 
 	private state: {
@@ -907,6 +1008,10 @@ export class GenerateTimestamp extends AbstractGenerator<{}> {
 	} | undefined;
 
 	init({ seed }: { seed: number }) {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
 		const rng = prand.xoroshiro128plus(seed);
 
 		this.state = { rng };
@@ -941,7 +1046,7 @@ export class GenerateTimestamp extends AbstractGenerator<{}> {
 	}
 }
 
-export class GenerateDatetime extends AbstractGenerator<{}> {
+export class GenerateDatetime extends AbstractGenerator<{ arraySize?: number }> {
 	static override readonly [entityKind]: string = 'GenerateDatetime';
 
 	private state: {
@@ -949,6 +1054,10 @@ export class GenerateDatetime extends AbstractGenerator<{}> {
 	} | undefined;
 
 	init({ seed }: { seed: number }) {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
 		const rng = prand.xoroshiro128plus(seed);
 
 		this.state = { rng };
@@ -983,7 +1092,7 @@ export class GenerateDatetime extends AbstractGenerator<{}> {
 	}
 }
 
-export class GenerateYear extends AbstractGenerator<{}> {
+export class GenerateYear extends AbstractGenerator<{ arraySize?: number }> {
 	static override readonly [entityKind]: string = 'GenerateYear';
 
 	private state: {
@@ -991,6 +1100,10 @@ export class GenerateYear extends AbstractGenerator<{}> {
 	} | undefined;
 
 	init({ seed }: { seed: number }) {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
 		const rng = prand.xoroshiro128plus(seed);
 
 		this.state = { rng };
@@ -1016,7 +1129,7 @@ export class GenerateYear extends AbstractGenerator<{}> {
 	}
 }
 
-export class GenerateJson extends AbstractGenerator<{}> {
+export class GenerateJson extends AbstractGenerator<{ arraySize?: number }> {
 	static override readonly [entityKind]: string = 'GenerateJson';
 
 	private state: {
@@ -1030,6 +1143,10 @@ export class GenerateJson extends AbstractGenerator<{}> {
 	} | undefined;
 
 	init({ count, seed }: { count: number; seed: number }) {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
 		const emailGeneratorObj = new GenerateEmail({});
 		emailGeneratorObj.init({ count, seed });
 
@@ -1140,7 +1257,10 @@ export class GenerateEnum extends AbstractGenerator<{ enumValues: (string | numb
 	}
 }
 
-export class GenerateInterval extends AbstractGenerator<{ isUnique?: boolean }> {
+export class GenerateInterval extends AbstractGenerator<{
+	isUnique?: boolean;
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateInterval';
 
 	private state: { rng: prand.RandomGenerator } | undefined;
@@ -1153,6 +1273,10 @@ export class GenerateInterval extends AbstractGenerator<{ isUnique?: boolean }> 
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
@@ -1253,7 +1377,10 @@ export class GenerateUniqueInterval extends AbstractGenerator<{ isUnique?: boole
 	}
 }
 
-export class GenerateString extends AbstractGenerator<{ isUnique?: boolean }> {
+export class GenerateString extends AbstractGenerator<{
+	isUnique?: boolean;
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateString';
 
 	private state: { rng: prand.RandomGenerator } | undefined;
@@ -1266,6 +1393,10 @@ export class GenerateString extends AbstractGenerator<{ isUnique?: boolean }> {
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
@@ -1347,6 +1478,7 @@ export class GenerateUniqueString extends AbstractGenerator<{ isUnique?: boolean
 
 export class GenerateFirstName extends AbstractGenerator<{
 	isUnique?: boolean;
+	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GenerateFirstName';
 
@@ -1363,6 +1495,10 @@ export class GenerateFirstName extends AbstractGenerator<{
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
@@ -1418,7 +1554,10 @@ export class GenerateUniqueFirstName extends AbstractGenerator<{
 	}
 }
 
-export class GenerateLastName extends AbstractGenerator<{ isUnique?: boolean }> {
+export class GenerateLastName extends AbstractGenerator<{
+	isUnique?: boolean;
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateLastName';
 
 	private state: {
@@ -1433,6 +1572,10 @@ export class GenerateLastName extends AbstractGenerator<{ isUnique?: boolean }> 
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
@@ -1484,6 +1627,7 @@ export class GenerateUniqueLastName extends AbstractGenerator<{ isUnique?: boole
 
 export class GenerateFullName extends AbstractGenerator<{
 	isUnique?: boolean;
+	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GenerateFullName';
 
@@ -1499,6 +1643,10 @@ export class GenerateFullName extends AbstractGenerator<{
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
@@ -1581,7 +1729,9 @@ export class GenerateUniqueFullName extends AbstractGenerator<{
 	}
 }
 
-export class GenerateEmail extends AbstractGenerator<{}> {
+export class GenerateEmail extends AbstractGenerator<{
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateEmail';
 
 	private state: {
@@ -1595,6 +1745,10 @@ export class GenerateEmail extends AbstractGenerator<{}> {
 		const domainsArray = emailDomains;
 		const adjectivesArray = adjectives;
 		const namesArray = firstNames;
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
 
 		const maxUniqueEmailsNumber = adjectivesArray.length * namesArray.length * domainsArray.length;
 		if (count > maxUniqueEmailsNumber) {
@@ -1638,6 +1792,7 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 	template?: string;
 	prefixes?: string[];
 	generatedDigitsNumbers?: number | number[];
+	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GeneratePhoneNumber';
 
@@ -1653,7 +1808,11 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 
 	init({ count, seed }: { count: number; seed: number }) {
 		let { generatedDigitsNumbers } = this.params;
-		const { prefixes, template } = this.params;
+		const { prefixes, template, arraySize } = this.params;
+
+		if (arraySize !== undefined) {
+			this.arraySize = arraySize;
+		}
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -1809,7 +1968,10 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 	}
 }
 
-export class GenerateCountry extends AbstractGenerator<{ isUnique?: boolean }> {
+export class GenerateCountry extends AbstractGenerator<{
+	isUnique?: boolean;
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateCountry';
 
 	private state: {
@@ -1824,6 +1986,10 @@ export class GenerateCountry extends AbstractGenerator<{ isUnique?: boolean }> {
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
@@ -1876,7 +2042,9 @@ export class GenerateUniqueCountry extends AbstractGenerator<{ isUnique?: boolea
 	}
 }
 
-export class GenerateJobTitle extends AbstractGenerator<{}> {
+export class GenerateJobTitle extends AbstractGenerator<{
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateJobTitle';
 
 	private state: {
@@ -1884,6 +2052,10 @@ export class GenerateJobTitle extends AbstractGenerator<{}> {
 	} | undefined;
 
 	init({ seed }: { seed: number }) {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
 		const rng = prand.xoroshiro128plus(seed);
 
 		this.state = { rng };
@@ -1901,7 +2073,10 @@ export class GenerateJobTitle extends AbstractGenerator<{}> {
 	}
 }
 
-export class GenerateStreetAdddress extends AbstractGenerator<{ isUnique?: boolean }> {
+export class GenerateStreetAdddress extends AbstractGenerator<{
+	isUnique?: boolean;
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateStreetAdddress';
 
 	private state: {
@@ -1917,6 +2092,10 @@ export class GenerateStreetAdddress extends AbstractGenerator<{ isUnique?: boole
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
@@ -2031,7 +2210,10 @@ export class GenerateUniqueStreetAdddress extends AbstractGenerator<{ isUnique?:
 	}
 }
 
-export class GenerateCity extends AbstractGenerator<{ isUnique?: boolean }> {
+export class GenerateCity extends AbstractGenerator<{
+	isUnique?: boolean;
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateCity';
 
 	private state: {
@@ -2046,6 +2228,10 @@ export class GenerateCity extends AbstractGenerator<{ isUnique?: boolean }> {
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
@@ -2096,7 +2282,10 @@ export class GenerateUniqueCity extends AbstractGenerator<{ isUnique?: boolean }
 	}
 }
 
-export class GeneratePostcode extends AbstractGenerator<{ isUnique?: boolean }> {
+export class GeneratePostcode extends AbstractGenerator<{
+	isUnique?: boolean;
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GeneratePostcode';
 
 	private state: {
@@ -2112,6 +2301,10 @@ export class GeneratePostcode extends AbstractGenerator<{ isUnique?: boolean }> 
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
@@ -2226,7 +2419,9 @@ export class GenerateUniquePostcode extends AbstractGenerator<{ isUnique?: boole
 	}
 }
 
-export class GenerateState extends AbstractGenerator<{}> {
+export class GenerateState extends AbstractGenerator<{
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateState';
 
 	private state: {
@@ -2234,6 +2429,10 @@ export class GenerateState extends AbstractGenerator<{}> {
 	} | undefined;
 
 	init({ seed }: { seed: number }) {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
 		const rng = prand.xoroshiro128plus(seed);
 
 		this.state = { rng };
@@ -2251,7 +2450,10 @@ export class GenerateState extends AbstractGenerator<{}> {
 	}
 }
 
-export class GenerateCompanyName extends AbstractGenerator<{ isUnique?: boolean }> {
+export class GenerateCompanyName extends AbstractGenerator<{
+	isUnique?: boolean;
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateCompanyName';
 
 	private state: {
@@ -2267,6 +2469,10 @@ export class GenerateCompanyName extends AbstractGenerator<{ isUnique?: boolean 
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
@@ -2419,7 +2625,10 @@ export class GenerateUniqueCompanyName extends AbstractGenerator<{ isUnique?: bo
 	}
 }
 
-export class GenerateLoremIpsum extends AbstractGenerator<{ sentencesCount?: number }> {
+export class GenerateLoremIpsum extends AbstractGenerator<{
+	sentencesCount?: number;
+	arraySize?: number;
+}> {
 	static override readonly [entityKind]: string = 'GenerateLoremIpsum';
 
 	private state: {
@@ -2427,6 +2636,10 @@ export class GenerateLoremIpsum extends AbstractGenerator<{ sentencesCount?: num
 	} | undefined;
 
 	init({ seed }: { seed: number }) {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
 		const rng = prand.xoroshiro128plus(seed);
 		if (this.params.sentencesCount === undefined) this.params.sentencesCount = 1;
 
@@ -2517,6 +2730,7 @@ export class GeneratePoint extends AbstractGenerator<{
 	maxXValue?: number;
 	minYValue?: number;
 	maxYValue?: number;
+	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GeneratePoint';
 
@@ -2533,6 +2747,10 @@ export class GeneratePoint extends AbstractGenerator<{
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const xCoordinateGen = new GenerateNumber({
@@ -2630,6 +2848,7 @@ export class GenerateLine extends AbstractGenerator<{
 	maxBValue?: number;
 	minCValue?: number;
 	maxCValue?: number;
+	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GenerateLine';
 
@@ -2647,6 +2866,10 @@ export class GenerateLine extends AbstractGenerator<{
 			}
 
 			this.isUnique = this.params.isUnique;
+		}
+
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
 		}
 
 		const aCoefficientGen = new GenerateNumber({

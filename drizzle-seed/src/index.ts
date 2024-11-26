@@ -3,7 +3,7 @@ import { entityKind, getTableName, is, sql } from 'drizzle-orm';
 import type { MySqlColumn, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { getTableConfig as getMysqlTableConfig, MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core';
 
-import type { PgColumn, PgSchema } from 'drizzle-orm/pg-core';
+import type { PgArray, PgColumn, PgSchema } from 'drizzle-orm/pg-core';
 import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle-orm/pg-core';
 
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
@@ -14,7 +14,7 @@ import { generatorsFuncs } from './services/GeneratorsWrappers.ts';
 import seedService from './services/SeedService.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
 import type { RefinementsType } from './types/seedService.ts';
-import type { Relation, Table } from './types/tables.ts';
+import type { Column, Relation, Table } from './types/tables.ts';
 
 type InferCallbackType<
 	DB extends
@@ -560,18 +560,41 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 			}),
 		);
 
+		const getAllBaseColumns = (
+			baseColumn: PgArray<any, any>['baseColumn'] & { baseColumn?: PgArray<any, any>['baseColumn'] },
+		): Column['baseColumn'] => {
+			const baseColumnResult: Column['baseColumn'] = {
+				name: baseColumn.name,
+				columnType: baseColumn.columnType.replace('Pg', '').toLowerCase(),
+				dataType: baseColumn.dataType,
+				size: (baseColumn as PgArray<any, any>).size,
+				hasDefault: baseColumn.hasDefault,
+				default: baseColumn.default,
+				isUnique: baseColumn.isUnique,
+				notNull: baseColumn.notNull,
+				baseColumn: baseColumn.baseColumn === undefined ? undefined : getAllBaseColumns(baseColumn.baseColumn),
+			};
+
+			return baseColumnResult;
+		};
+
+		// console.log(tableConfig.columns);
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
 				columnType: column.columnType.replace('Pg', '').toLowerCase(),
 				dataType: column.dataType,
+				size: (column as PgArray<any, any>).size,
 				hasDefault: column.hasDefault,
 				default: column.default,
 				enumValues: column.enumValues,
 				isUnique: column.isUnique,
 				notNull: column.notNull,
 				generatedIdentityType: column.generatedIdentity?.type,
+				baseColumn: ((column as PgArray<any, any>).baseColumn === undefined)
+					? undefined
+					: getAllBaseColumns((column as PgArray<any, any>).baseColumn),
 			})),
 			primaryKeys: tableConfig.columns
 				.filter((column) => column.primary)
@@ -579,6 +602,7 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		});
 	}
 
+	// console.log(tables[0]?.columns)
 	return { tables, relations };
 };
 
