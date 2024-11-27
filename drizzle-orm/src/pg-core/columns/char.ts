@@ -16,7 +16,6 @@ export type PgCharBuilderInitial<
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;
-	generated: undefined;
 	length: TLength;
 }>;
 

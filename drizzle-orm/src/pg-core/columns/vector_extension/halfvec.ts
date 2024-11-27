@@ -12,7 +12,6 @@ export type PgHalfVectorBuilderInitial<TName extends string, TDimensions extends
 	data: number[];
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 	dimensions: TDimensions;
 }>;
 

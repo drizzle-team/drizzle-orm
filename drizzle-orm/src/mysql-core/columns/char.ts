@@ -16,7 +16,6 @@ export type MySqlCharBuilderInitial<
 	data: TEnum[number];
 	driverParam: number | string;
 	enumValues: TEnum;
-	generated: undefined;
 	length: TLength;
 }>;
 

@@ -12,7 +12,6 @@ export type PgBinaryVectorBuilderInitial<TName extends string, TDimensions exten
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 	dimensions: TDimensions;
 }>;
 

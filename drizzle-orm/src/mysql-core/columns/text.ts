@@ -14,7 +14,6 @@ export type MySqlTextBuilderInitial<TName extends string, TEnum extends [string,
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;
-	generated: undefined;
 }>;
 
 export class MySqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlText'>> extends MySqlColumnBuilder<

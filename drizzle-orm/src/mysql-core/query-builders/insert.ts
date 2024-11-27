@@ -10,23 +10,26 @@ import type {
 	PreparedQueryKind,
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferModelFromColumns } from '~/table.ts';
-import { Table } from '~/table.ts';
-import { mapUpdateSet } from '~/utils.ts';
+import { Columns, Table } from '~/table.ts';
+import { haveSameKeys, mapUpdateSet } from '~/utils.ts';
 import type { AnyMySqlColumn } from '../columns/common.ts';
+import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 import type { MySqlUpdateSetSource } from './update.ts';
 
 export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[];
+	values: Record<string, Param | SQL>[] | MySqlInsertSelectQueryBuilder<TTable> | SQL;
 	ignore: boolean;
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
+	select?: boolean;
 }
 
 export type AnyMySqlInsertConfig = MySqlInsertConfig<MySqlTable>;
@@ -36,6 +39,10 @@ export type MySqlInsertValue<TTable extends MySqlTable> =
 		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
 	}
 	& {};
+
+export type MySqlInsertSelectQueryBuilder<TTable extends MySqlTable> = TypedQueryBuilder<
+	{ [K in keyof TTable['$inferInsert']]: AnyMySqlColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
+>;
 
 export class MySqlInsertBuilder<
 	TTable extends MySqlTable,
@@ -77,6 +84,32 @@ export class MySqlInsertBuilder<
 		});
 
 		return new MySqlInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
+	}
+
+	select(
+		selectQuery: (qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable>,
+	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	select(selectQuery: (qb: QueryBuilder) => SQL): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	select(selectQuery: SQL): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	select(selectQuery: MySqlInsertSelectQueryBuilder<TTable>): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	select(
+		selectQuery:
+			| SQL
+			| MySqlInsertSelectQueryBuilder<TTable>
+			| ((qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable> | SQL),
+	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
+		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+
+		if (
+			!is(select, SQL)
+			&& !haveSameKeys(this.table[Columns], select._.selectedFields)
+		) {
+			throw new Error(
+				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
+			);
+		}
+
+		return new MySqlInsertBase(this.table, select, this.shouldIgnore, this.session, this.dialect, true);
 	}
 }
 
@@ -202,15 +235,16 @@ export class MySqlInsertBase<
 		ignore: boolean,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
+		select?: boolean,
 	) {
 		super();
-		this.config = { table, values, ignore };
+		this.config = { table, values: values as any, select, ignore };
 	}
 
 	/**
 	 * Adds an `on duplicate key update` clause to the query.
 	 *
-	 * Calling this method will update update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
+	 * Calling this method will update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-duplicate-key-update}
 	 *

@@ -12,7 +12,6 @@ export type PgVectorBuilderInitial<TName extends string, TDimensions extends num
 	data: number[];
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 	dimensions: TDimensions;
 }>;
 

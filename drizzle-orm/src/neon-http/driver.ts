@@ -8,7 +8,7 @@ import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/relations.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
 export interface NeonDriverOptions {
@@ -16,7 +16,7 @@ export interface NeonDriverOptions {
 }
 
 export class NeonHttpDriver {
-	static readonly [entityKind]: string = 'NeonDriver';
+	static readonly [entityKind]: string = 'NeonHttpDriver';
 
 	constructor(
 		private client: NeonHttpClient,
@@ -40,10 +40,66 @@ export class NeonHttpDriver {
 	}
 }
 
+function wrap<T extends object>(
+	target: T,
+	token: string,
+	cb: (target: any, p: string | symbol, res: any) => any,
+	deep?: boolean,
+) {
+	return new Proxy(target, {
+		get(target, p) {
+			const element = target[p as keyof typeof p];
+			if (typeof element !== 'function' && (typeof element !== 'object' || element === null)) return element;
+
+			if (deep) return wrap(element, token, cb);
+			if (p === 'query') return wrap(element, token, cb, true);
+
+			return new Proxy(element as any, {
+				apply(target, thisArg, argArray) {
+					const res = target.call(thisArg, ...argArray);
+					if ('setToken' in res && typeof res.setToken === 'function') {
+						res.setToken(token);
+					}
+					return cb(target, p, res);
+				},
+			});
+		},
+	});
+}
+
 export class NeonHttpDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends PgDatabase<NeonHttpQueryResultHKT, TSchema> {
 	static override readonly [entityKind]: string = 'NeonHttpDatabase';
+
+	$withAuth(
+		token: string,
+	): Omit<
+		this,
+		Exclude<
+			keyof this,
+			| '$count'
+			| 'delete'
+			| 'select'
+			| 'selectDistinct'
+			| 'selectDistinctOn'
+			| 'update'
+			| 'insert'
+			| 'with'
+			| 'query'
+			| 'execute'
+			| 'refreshMaterializedView'
+		>
+	> {
+		this.authToken = token;
+
+		return wrap(this, token, (target, p, res) => {
+			if (p === 'with') {
+				return wrap(res, token, (_, __, res) => res);
+			}
+			return res;
+		});
+	}
 
 	/** @internal */
 	declare readonly session: NeonHttpSession<TSchema, ExtractTablesWithRelations<TSchema>>;
@@ -102,25 +158,21 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends NeonQueryFunction<any, any> = NeonQueryFunction<false, false>,
 >(
-	...params: IfNotImported<
-		HTTPTransactionOptions<boolean, boolean>,
-		[ImportTypeError<'@neondatabase/serverless'>],
-		[
-			TClient | string,
-		] | [
-			TClient | string,
-			DrizzleConfig<TSchema>,
-		] | [
-			(
-				& DrizzleConfig<TSchema>
-				& ({
-					connection: string | ({ connectionString: string } & HTTPTransactionOptions<boolean, boolean>);
-				} | {
-					client: TClient;
-				})
-			),
-		]
-	>
+	...params: [
+		TClient | string,
+	] | [
+		TClient | string,
+		DrizzleConfig<TSchema>,
+	] | [
+		(
+			& DrizzleConfig<TSchema>
+			& ({
+				connection: string | ({ connectionString: string } & HTTPTransactionOptions<boolean, boolean>);
+			} | {
+				client: TClient;
+			})
+		),
+	]
 ): NeonHttpDatabase<TSchema> & {
 	$client: TClient;
 } {

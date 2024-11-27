@@ -156,7 +156,7 @@ export type MapColumnName<TName extends string, TColumn extends Column, TDBColum
 export type InferModelFromColumns<
 	TColumns extends Record<string, Column>,
 	TInferMode extends 'select' | 'insert' = 'select',
-	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
+	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
 > = Simplify<
 	TInferMode extends 'insert' ?
 			& {
@@ -171,7 +171,8 @@ export type InferModelFromColumns<
 				[
 					Key in keyof TColumns & string as OptionalKeyOnly<
 						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-						TColumns[Key]
+						TColumns[Key],
+						TConfig['override']
 					>
 				]?: GetColumnData<TColumns[Key], 'query'>;
 			}
@@ -201,5 +202,5 @@ export type InferSelectModel<
 
 export type InferInsertModel<
 	TTable extends Table,
-	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
+	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
 > = InferModelFromColumns<TTable['_']['columns'], 'insert', TConfig>;

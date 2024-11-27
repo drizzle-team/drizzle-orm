@@ -16,7 +16,6 @@ export type PgVarcharBuilderInitial<
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;
-	generated: undefined;
 	length: TLength;
 }>;
 
