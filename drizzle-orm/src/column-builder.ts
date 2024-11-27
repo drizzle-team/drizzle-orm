@@ -320,7 +320,16 @@ export type BuildColumn<
 	: TDialect extends 'mysql' ? MySqlColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
-			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+			Simplify<
+				Omit<
+					TBuilder['_'],
+					| keyof MakeColumnConfig<TBuilder['_'], TTableName>
+					| 'brand'
+					| 'dialect'
+					| 'primaryKeyHasDefault'
+					| 'mysqlColumnBuilderBrand'
+				>
+			>
 		>
 	: TDialect extends 'sqlite' ? SQLiteColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
