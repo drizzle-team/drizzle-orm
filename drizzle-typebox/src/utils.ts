@@ -34,7 +34,8 @@ export type ArrayHasAtLeastOneValue<TEnum extends [any, ...any[]] | undefined> =
 	: false
 	: false;
 
-export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['generated'] extends undefined ? false
+export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['identity'] extends 'always' ? true
+	: TColumn['_']['generated'] extends undefined ? false
 	: TColumn['_']['generated'] extends infer TGenerated extends { type: string }
 		? TGenerated['type'] extends 'byDefault' ? false
 		: true
