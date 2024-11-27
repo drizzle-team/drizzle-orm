@@ -1,4 +1,4 @@
-import { CreateType, Kind, Type as t } from '@sinclair/typebox';
+import { Kind, Type as t, TypeRegistry } from '@sinclair/typebox';
 import type { StringOptions, TSchema, Type as typebox } from '@sinclair/typebox';
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
 import type {
@@ -48,7 +48,8 @@ export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Nul
 export const jsonSchema: JsonSchema = t.Recursive((self) =>
 	t.Union([literalSchema, t.Array(self), t.Record(t.String(), self)])
 ) as any;
-export const bufferSchema: BufferSchema = CreateType({ [Kind]: 'Buffer', type: 'buffer' }) as any;
+TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer);
+export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
 
 export function mapEnumValues(values: string[]) {
 	return values.reduce((acc, value) => ({ ...acc, [value]: value }), {});
