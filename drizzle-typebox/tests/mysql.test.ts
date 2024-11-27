@@ -1,5 +1,5 @@
 import { Type as t } from '@sinclair/typebox';
-import { Equal, sql } from 'drizzle-orm';
+import { type Equal, sql } from 'drizzle-orm';
 import { int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';

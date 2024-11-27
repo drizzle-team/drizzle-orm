@@ -1,7 +1,12 @@
 import type { Assume, Column } from 'drizzle-orm';
-import { PgArray, PgBinaryVector, PgVarchar } from 'drizzle-orm/pg-core';
 import type * as v from 'valibot';
-import type { ArrayHasAtLeastOneValue, ColumnIsGeneratedAlwaysAs, IsNever, Json, RemoveNeverElements } from './utils';
+import type {
+	ArrayHasAtLeastOneValue,
+	ColumnIsGeneratedAlwaysAs,
+	IsNever,
+	Json,
+	RemoveNeverElements,
+} from './utils.ts';
 
 export type GetEnumValuesFromColumn<TColumn extends Column> = TColumn['_'] extends { enumValues: [string, ...string[]] }
 	? TColumn['_']['enumValues']

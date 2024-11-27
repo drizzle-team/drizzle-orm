@@ -3,15 +3,15 @@ import type { TSchema } from '@sinclair/typebox';
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import { columnToSchema, mapEnumValues } from './column';
+import { columnToSchema, mapEnumValues } from './column.ts';
+import type { Conditions } from './schema.types.internal.ts';
 import type {
 	CreateInsertSchema,
 	CreateSchemaFactoryOptions,
 	CreateSelectSchema,
 	CreateUpdateSchema,
-} from './schema.types';
-import type { Conditions } from './schema.types.internal';
-import { isPgEnum } from './utils';
+} from './schema.types.ts';
+import { isPgEnum } from './utils.ts';
 
 function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
@@ -39,7 +39,7 @@ function handleColumns(
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = !!column ? columnToSchema(column, factory?.typeboxInstance ?? t) : t.Any();
+		const schema = column ? columnToSchema(column, factory?.typeboxInstance ?? t) : t.Any();
 		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
 
 		if (conditions.never(column)) {

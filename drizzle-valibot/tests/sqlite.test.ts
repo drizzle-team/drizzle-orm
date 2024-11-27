@@ -1,4 +1,4 @@
-import { Equal, sql } from 'drizzle-orm';
+import { type Equal, sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import * as v from 'valibot';
 import { test } from 'vitest';
@@ -176,12 +176,12 @@ test('refine table - select', (t) => {
 
 	const result = createSelectSchema(table, {
 		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	const expected = v.object({
 		c1: v.nullable(intSchema),
 		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -197,12 +197,12 @@ test('refine table - insert', (t) => {
 
 	const result = createInsertSchema(table, {
 		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	const expected = v.object({
 		c1: v.optional(v.nullable(intSchema)),
 		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -218,12 +218,12 @@ test('refine table - update', (t) => {
 
 	const result = createUpdateSchema(table, {
 		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	const expected = v.object({
 		c1: v.optional(v.nullable(intSchema)),
 		c2: v.optional(v.pipe(intSchema, v.maxValue(1000))),
-		c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -254,29 +254,29 @@ test('refine view - select', (t) => {
 
 	const result = createSelectSchema(view, {
 		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+		c3: v.pipe(v.string(), v.transform(Number)),
 		nested: {
 			c5: (schema) => v.pipe(schema, v.maxValue(1000)),
-			c6: v.pipe(v.string(), v.transform((v) => Number(v))),
+			c6: v.pipe(v.string(), v.transform(Number)),
 		},
 		table: {
 			c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-			c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+			c3: v.pipe(v.string(), v.transform(Number)),
 		},
 	});
 	const expected = v.object({
 		c1: v.nullable(intSchema),
 		c2: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-		c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+		c3: v.pipe(v.string(), v.transform(Number)),
 		nested: v.object({
 			c4: v.nullable(intSchema),
 			c5: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-			c6: v.pipe(v.string(), v.transform((v) => Number(v))),
+			c6: v.pipe(v.string(), v.transform(Number)),
 		}),
 		table: v.object({
 			c1: v.nullable(intSchema),
 			c2: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-			c3: v.pipe(v.string(), v.transform((v) => Number(v))),
+			c3: v.pipe(v.string(), v.transform(Number)),
 			c4: v.nullable(intSchema),
 			c5: v.nullable(intSchema),
 			c6: v.nullable(intSchema),

@@ -40,15 +40,15 @@ import type {
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 import type { z as zod } from 'zod';
-import { CONSTANTS } from './constants';
-import { isColumnType, isWithEnum } from './utils';
-import type { Json } from './utils';
+import { CONSTANTS } from './constants.ts';
+import { isColumnType, isWithEnum } from './utils.ts';
+import type { Json } from './utils.ts';
 
 export const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 	z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
 );
-export const bufferSchema: z.ZodType<Buffer> = z.custom<Buffer>((v) => v instanceof Buffer);
+export const bufferSchema: z.ZodType<Buffer> = z.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 
 /** @internal */
 export function columnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
@@ -180,8 +180,8 @@ function numberColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 
 function bigintColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 	const unsigned = column.getSQLType().includes('unsigned');
-	let min = unsigned ? 0n : CONSTANTS.INT64_MIN;
-	let max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
+	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
+	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
 
 	return z.bigint().min(min).max(max);
 }
@@ -222,6 +222,6 @@ function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 	}
 
 	let schema = z.string();
-	schema = regex !== undefined ? schema.regex(regex) : schema;
-	return max !== undefined && fixed ? schema.length(max) : max !== undefined ? schema.max(max) : schema;
+	schema = regex ? schema.regex(regex) : schema;
+	return max && fixed ? schema.length(max) : max ? schema.max(max) : schema;
 }

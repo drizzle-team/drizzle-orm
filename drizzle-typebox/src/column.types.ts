@@ -1,13 +1,6 @@
 import type * as t from '@sinclair/typebox';
 import type { Assume, Column } from 'drizzle-orm';
-import type {
-	ArrayHasAtLeastOneValue,
-	BufferSchema,
-	ColumnIsGeneratedAlwaysAs,
-	IsNever,
-	Json,
-	JsonSchema,
-} from './utils';
+import type { ArrayHasAtLeastOneValue, BufferSchema, ColumnIsGeneratedAlwaysAs, IsNever, JsonSchema } from './utils.ts';
 
 export type GetEnumValuesFromColumn<TColumn extends Column> = TColumn['_'] extends { enumValues: [string, ...string[]] }
 	? TColumn['_']['enumValues']

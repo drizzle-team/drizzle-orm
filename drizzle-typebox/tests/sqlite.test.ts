@@ -1,5 +1,5 @@
 import { Type as t } from '@sinclair/typebox';
-import { Equal, sql } from 'drizzle-orm';
+import { type Equal, sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { test } from 'vitest';
 import { bufferSchema, jsonSchema } from '~/column.ts';

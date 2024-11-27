@@ -40,19 +40,19 @@ import type {
 	PgVector,
 } from 'drizzle-orm/pg-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
-import { CONSTANTS } from './constants';
-import { isColumnType, isWithEnum } from './utils';
-import type { BufferSchema, JsonSchema } from './utils';
+import { CONSTANTS } from './constants.ts';
+import { isColumnType, isWithEnum } from './utils.ts';
+import type { BufferSchema, JsonSchema } from './utils.ts';
 
 export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]);
 export const jsonSchema: JsonSchema = t.Recursive((self) =>
 	t.Union([literalSchema, t.Array(self), t.Record(t.String(), self)])
 ) as any;
-TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer);
+TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
 
 export function mapEnumValues(values: string[]) {
-	return values.reduce((acc, value) => ({ ...acc, [value]: value }), {});
+	return Object.fromEntries(values.map((value) => [value, value]));
 }
 
 /** @internal */
@@ -202,8 +202,8 @@ function numberColumnToSchema(column: Column, t: typeof typebox): TSchema {
 
 function bigintColumnToSchema(column: Column, t: typeof typebox): TSchema {
 	const unsigned = column.getSQLType().includes('unsigned');
-	let min = unsigned ? 0n : CONSTANTS.INT64_MIN;
-	let max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
+	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
+	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
 
 	return t.BigInt({
 		minimum: min,

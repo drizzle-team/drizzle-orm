@@ -1,7 +1,7 @@
 import type { Kind, Static, TSchema } from '@sinclair/typebox';
 import type { Column, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import type { literalSchema } from './column';
+import type { literalSchema } from './column.ts';
 
 export function isColumnType<T extends Column>(column: Column, columnTypes: string[]): column is T {
 	return columnTypes.includes(column.columnType);

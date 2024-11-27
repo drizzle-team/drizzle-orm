@@ -6,8 +6,8 @@ import type {
 	GetEnumValuesFromColumn,
 	GetValibotType,
 	HandleColumn,
-} from './column.types';
-import type { GetSelection, RemoveNever } from './utils';
+} from './column.types.ts';
+import type { GetSelection, RemoveNever } from './utils.ts';
 
 export interface Conditions {
 	never: (column?: Column) => boolean;

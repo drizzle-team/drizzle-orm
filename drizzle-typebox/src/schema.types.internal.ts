@@ -1,7 +1,7 @@
 import type * as t from '@sinclair/typebox';
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
-import type { GetBaseColumn, GetEnumValuesFromColumn, GetTypeboxType, HandleColumn } from './column.types';
-import type { GetSelection, RemoveNever } from './utils';
+import type { GetBaseColumn, GetEnumValuesFromColumn, GetTypeboxType, HandleColumn } from './column.types.ts';
+import type { GetSelection, RemoveNever } from './utils.ts';
 
 export interface Conditions {
 	never: (column?: Column) => boolean;

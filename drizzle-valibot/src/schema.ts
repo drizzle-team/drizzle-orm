@@ -2,10 +2,10 @@ import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQ
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
 import * as v from 'valibot';
-import { columnToSchema, mapEnumValues } from './column';
-import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from './schema.types';
-import type { Conditions } from './schema.types.internal';
-import { isPgEnum } from './utils';
+import { columnToSchema, mapEnumValues } from './column.ts';
+import type { Conditions } from './schema.types.internal.ts';
+import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from './schema.types.ts';
+import { isPgEnum } from './utils.ts';
 
 function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
@@ -32,7 +32,7 @@ function handleColumns(
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = !!column ? columnToSchema(column) : v.any();
+		const schema = column ? columnToSchema(column) : v.any();
 		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
 
 		if (conditions.never(column)) {

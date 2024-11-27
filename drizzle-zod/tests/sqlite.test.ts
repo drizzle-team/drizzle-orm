@@ -1,4 +1,4 @@
-import { Equal, sql } from 'drizzle-orm';
+import { type Equal, sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { test } from 'vitest';
 import { z } from 'zod';
@@ -171,12 +171,12 @@ test('refine table - select', (t) => {
 
 	const result = createSelectSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform((v) => Number(v)),
+		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable(),
 		c2: intSchema.max(1000),
-		c3: z.string().transform((v) => Number(v)),
+		c3: z.string().transform(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -192,12 +192,12 @@ test('refine table - insert', (t) => {
 
 	const result = createInsertSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform((v) => Number(v)),
+		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable().optional(),
 		c2: intSchema.max(1000),
-		c3: z.string().transform((v) => Number(v)),
+		c3: z.string().transform(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -213,12 +213,12 @@ test('refine table - update', (t) => {
 
 	const result = createUpdateSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform((v) => Number(v)),
+		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable().optional(),
 		c2: intSchema.max(1000).optional(),
-		c3: z.string().transform((v) => Number(v)),
+		c3: z.string().transform(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -249,29 +249,29 @@ test('refine view - select', (t) => {
 
 	const result = createSelectSchema(view, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform((v) => Number(v)),
+		c3: z.string().transform(Number),
 		nested: {
 			c5: (schema) => schema.max(1000),
-			c6: z.string().transform((v) => Number(v)),
+			c6: z.string().transform(Number),
 		},
 		table: {
 			c2: (schema) => schema.max(1000),
-			c3: z.string().transform((v) => Number(v)),
+			c3: z.string().transform(Number),
 		},
 	});
 	const expected = z.object({
 		c1: intSchema.nullable(),
 		c2: intSchema.max(1000).nullable(),
-		c3: z.string().transform((v) => Number(v)),
+		c3: z.string().transform(Number),
 		nested: z.object({
 			c4: intSchema.nullable(),
 			c5: intSchema.max(1000).nullable(),
-			c6: z.string().transform((v) => Number(v)),
+			c6: z.string().transform(Number),
 		}),
 		table: z.object({
 			c1: intSchema.nullable(),
 			c2: intSchema.max(1000).nullable(),
-			c3: z.string().transform((v) => Number(v)),
+			c3: z.string().transform(Number),
 			c4: intSchema.nullable(),
 			c5: intSchema.nullable(),
 			c6: intSchema.nullable(),

@@ -39,9 +39,9 @@ import type {
 } from 'drizzle-orm/pg-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
 import * as v from 'valibot';
-import { CONSTANTS } from './constants';
-import { isColumnType, isWithEnum } from './utils';
-import type { Json } from './utils';
+import { CONSTANTS } from './constants.ts';
+import { isColumnType, isWithEnum } from './utils.ts';
+import type { Json } from './utils.ts';
 
 export const literalSchema = v.union([v.string(), v.number(), v.boolean(), v.null()]);
 export const jsonSchema: v.GenericSchema<Json> = v.union([
@@ -49,10 +49,10 @@ export const jsonSchema: v.GenericSchema<Json> = v.union([
 	v.array(v.lazy(() => jsonSchema)),
 	v.record(v.string(), v.lazy(() => jsonSchema)),
 ]);
-export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer);
+export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 
 export function mapEnumValues(values: string[]) {
-	return values.reduce((acc, value) => ({ ...acc, [value]: value }), {});
+	return Object.fromEntries(values.map((value) => [value, value]));
 }
 
 /** @internal */
@@ -185,8 +185,8 @@ function numberColumnToSchema(column: Column): v.GenericSchema {
 
 function bigintColumnToSchema(column: Column): v.GenericSchema {
 	const unsigned = column.getSQLType().includes('unsigned');
-	let min = unsigned ? 0n : CONSTANTS.INT64_MIN;
-	let max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
+	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
+	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
 
 	return v.pipe(v.bigint(), v.minValue(min), v.maxValue(max));
 }

@@ -4,7 +4,6 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
-	GeneratedColumnConfig,
 	HasGenerated,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
