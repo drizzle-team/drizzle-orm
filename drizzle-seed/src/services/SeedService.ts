@@ -192,6 +192,13 @@ class SeedService {
 					const genObj = refinements[table.name]!.columns[col.name]!;
 					// TODO: for now only GenerateValuesFromArray support notNull property
 					genObj.notNull = col.notNull;
+					if (col.dataType === 'array') {
+						if (col.baseColumn?.dataType === 'array' && col.baseColumn?.columnType === 'array') {
+							throw new Error("for now you can't specify generators for columns of dimensition greater than 1.");
+						}
+
+						genObj.baseColumnDataType = col.baseColumn?.dataType;
+					}
 
 					columnPossibleGenerator.generator = genObj;
 				} else if (Object.hasOwn(foreignKeyColumns, col.name)) {
@@ -227,6 +234,7 @@ class SeedService {
 
 				columnPossibleGenerator.generator.isUnique = col.isUnique;
 				columnPossibleGenerator.generator.dataType = col.dataType;
+
 				tablePossibleGenerators.columnsPossibleGenerators.push(
 					columnPossibleGenerator,
 				);
@@ -343,10 +351,13 @@ class SeedService {
 	};
 
 	// TODO: revise serial part generators
+
 	pickGeneratorForPostgresColumn = (
 		table: Table,
 		col: Column,
 	) => {
+		let generator: AbstractGenerator<any> | undefined;
+
 		// INT ------------------------------------------------------------------------------------------------------------
 		if (
 			(col.columnType.includes('serial')
@@ -355,7 +366,10 @@ class SeedService {
 				|| col.columnType.includes('bigint'))
 			&& table.primaryKeys.includes(col.name)
 		) {
-			const generator = new GenerateIntPrimaryKey({});
+			generator = new GenerateIntPrimaryKey({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
@@ -401,16 +415,22 @@ class SeedService {
 			&& !col.columnType.includes('interval')
 			&& !col.columnType.includes('point')
 		) {
-			const generator = new GenerateInt({
+			generator = new GenerateInt({
 				minValue,
 				maxValue,
 			});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
 		if (col.columnType.includes('serial')) {
-			const generator = new GenerateIntPrimaryKey({});
-			generator.maxValue = maxValue;
+			generator = new GenerateIntPrimaryKey({});
+
+			(generator as GenerateIntPrimaryKey).maxValue = maxValue;
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
@@ -421,7 +441,10 @@ class SeedService {
 			|| col.columnType === 'decimal'
 			|| col.columnType === 'numeric'
 		) {
-			const generator = new GenerateNumber({});
+			generator = new GenerateNumber({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
@@ -432,7 +455,10 @@ class SeedService {
 				|| col.columnType === 'char')
 			&& table.primaryKeys.includes(col.name)
 		) {
-			const generator = new GenerateUniqueString({});
+			generator = new GenerateUniqueString({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
@@ -442,7 +468,10 @@ class SeedService {
 				|| col.columnType === 'char')
 			&& col.name.toLowerCase().includes('name')
 		) {
-			const generator = new GenerateFirstName({});
+			generator = new GenerateFirstName({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
@@ -452,7 +481,10 @@ class SeedService {
 				|| col.columnType === 'char')
 			&& col.name.toLowerCase().includes('email')
 		) {
-			const generator = new GenerateEmail({});
+			generator = new GenerateEmail({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
@@ -462,35 +494,53 @@ class SeedService {
 			|| col.columnType === 'char'
 		) {
 			// console.log(col, table)
-			const generator = new GenerateString({});
+			generator = new GenerateString({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
 		// BOOLEAN
 		if (col.columnType === 'boolean') {
-			const generator = new GenerateBoolean({});
+			generator = new GenerateBoolean({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
 		// DATE, TIME, TIMESTAMP
 		if (col.columnType.includes('date')) {
-			const generator = new GenerateDate({});
+			generator = new GenerateDate({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
 		if (col.columnType === 'time') {
-			const generator = new GenerateTime({});
+			generator = new GenerateTime({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
 		if (col.columnType.includes('timestamp')) {
-			const generator = new GenerateTimestamp({});
+			generator = new GenerateTimestamp({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
 		// JSON, JSONB
 		if (col.columnType === 'json' || col.columnType === 'jsonb') {
-			const generator = new GenerateJson({});
+			generator = new GenerateJson({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
@@ -501,26 +551,38 @@ class SeedService {
 
 		// ENUM
 		if (col.enumValues !== undefined) {
-			const generator = new GenerateEnum({
+			generator = new GenerateEnum({
 				enumValues: col.enumValues,
 			});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
 		// INTERVAL
 		if (col.columnType === 'interval') {
-			const generator = new GenerateInterval({});
+			generator = new GenerateInterval({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
 		// POINT, LINE
 		if (col.columnType.includes('point')) {
-			const generator = new GeneratePoint({});
+			generator = new GeneratePoint({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
 		if (col.columnType.includes('line')) {
-			const generator = new GenerateLine({});
+			generator = new GenerateLine({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
@@ -530,11 +592,14 @@ class SeedService {
 			if (baseColumnGen === undefined) {
 				throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
 			}
-			const generator = new GenerateArray({ baseColumnGen, size: col.size });
+			generator = new GenerateArray({ baseColumnGen, size: col.size });
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
 			return generator;
 		}
 
-		return;
+		return generator;
 	};
 
 	pickGeneratorForMysqlColumn = (
@@ -985,7 +1050,7 @@ class SeedService {
 		count,
 		preserveData = true,
 		insertDataInDb = true,
-		batchSize = 10000,
+		batchSize = 1,
 	}: {
 		tableGenerators: Prettify<TableGeneratorsType>;
 		db?:

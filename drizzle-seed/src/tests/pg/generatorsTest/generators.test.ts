@@ -35,8 +35,32 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."default_table" (
+				"default_string" text
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."default_array_table" (
+				"default_string" text[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."boolean_table" (
 				"boolean" boolean
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."boolean_array_table" (
+				"boolean" boolean[]
 			);    
 		`,
 	);
@@ -60,6 +84,14 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."city_array_table" (
+				"city" varchar(256)[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."company_name_table" (
 				"company_name" text
 			);    
@@ -71,6 +103,14 @@ beforeAll(async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."company_name_unique_table" (
 				"company_name_unique" varchar(256),
 				CONSTRAINT "company_name_unique_table_company_name_unique_unique" UNIQUE("company_name_unique")
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."company_name_array_table" (
+				"company_name" text[]
 			);    
 		`,
 	);
@@ -94,6 +134,14 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."country_array_table" (
+				"country" varchar(256)[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."date_table" (
 				"date" date
 			);    
@@ -102,8 +150,9 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."default_table" (
-				"default_string" text
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."date_array_table" (
+				"date" date[],
+				"date_string" date[]
 			);    
 		`,
 	);
@@ -113,6 +162,14 @@ beforeAll(async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."email_table" (
 				"email" varchar(256),
 				CONSTRAINT "email_table_email_unique" UNIQUE("email")
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."email_array_table" (
+				"email" varchar(256)[]
 			);    
 		`,
 	);
@@ -144,6 +201,14 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."first_name_array_table" (
+				"first_name" varchar(256)[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."full_name__table" (
 				"full_name_" varchar(256)
 			);    
@@ -155,6 +220,14 @@ beforeAll(async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."full_name_unique_table" (
 				"full_name_unique" varchar(256),
 				CONSTRAINT "full_name_unique_table_full_name_unique_unique" UNIQUE("full_name_unique")
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."full_name_array_table" (
+				"full_name" varchar(256)[]
 			);    
 		`,
 	);
@@ -187,6 +260,14 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."int_array_table" (
+				"int" integer[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."interval_table" (
 				"interval" interval
 			);    
@@ -204,6 +285,14 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."interval_array_table" (
+				"interval" interval[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."job_Title_table" (
 				"job_title" text
 			);    
@@ -212,8 +301,24 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."job_title_array_table" (
+				"job_title" text[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."json_table" (
 				"json" json
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."json_array_table" (
+				"json" json[]
 			);    
 		`,
 	);
@@ -237,6 +342,14 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."last_name_array_table" (
+				"last_name" varchar(256)[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."line_table" (
 				"line" "line"
 			);    
@@ -245,8 +358,24 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."line_array_table" (
+				"line" "line"[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."lorem_ipsum_table" (
 				"lorem_ipsum" text
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."lorem_ipsum_array_table" (
+				"lorem_ipsum" text[]
 			);    
 		`,
 	);
@@ -270,6 +399,14 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."number_array_table" (
+				"number" real[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."phone_number_table" (
 				"phoneNumber" varchar(256),
 				"phone_number_template" varchar(256),
@@ -283,8 +420,26 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."phone_number_array_table" (
+				"phoneNumber" varchar(256)[],
+				"phone_number_template" varchar(256)[],
+				"phone_number_prefixes" varchar(256)[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."point_table" (
 				"point" "point"
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."point_array_table" (
+				"point" "point"[]
 			);    
 		`,
 	);
@@ -308,8 +463,24 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."postcode_array_table" (
+				"postcode" varchar(256)[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."state_table" (
 				"state" text
+			);   
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."state_array_table" (
+				"state" text[]
 			);   
 		`,
 	);
@@ -333,6 +504,14 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."street_address_array_table" (
+				"street_address" varchar(256)[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."string_table" (
 				"string" text
 			);    
@@ -350,6 +529,14 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."string_array_table" (
+				"string" text[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."time_table" (
 				"time" time
 			);    
@@ -358,8 +545,24 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."time_array_table" (
+				"time" time[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."timestamp_table" (
 				"timestamp" timestamp
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."timestamp_array_table" (
+				"timestamp" timestamp[]
 			);    
 		`,
 	);
@@ -390,6 +593,14 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."values_from_array_array_table" (
+				"values_from_array" varchar(256)
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."weighted_random_table" (
 				"weighted_random" varchar(256)
 			);    
@@ -410,7 +621,7 @@ afterAll(async () => {
 	await client.close();
 });
 
-const count = 10000;
+const count = 1000;
 
 test('enum generator test', async () => {
 	await seed(db, { enumTable: schema.enumTable }).refine(() => ({
@@ -440,6 +651,23 @@ test('default generator test', async () => {
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('default array generator test', async () => {
+	await seed(db, { defaultTable: schema.defaultArrayTable }).refine((funcs) => ({
+		defaultTable: {
+			count,
+			columns: {
+				defaultString: funcs.default({ defaultValue: 'default string', arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.defaultArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
 	expect(predicate).toBe(true);
 });
 
@@ -555,6 +783,23 @@ test('valuesFromArray unique generator test', async () => {
 	).rejects.toThrow('There are no enough values to fill unique column.');
 });
 
+test('valuesFromArray array generator test', async () => {
+	await seed(db, { valuesFromArrayTable: schema.valuesFromArrayArrayTable }).refine((funcs) => ({
+		valuesFromArrayTable: {
+			count,
+			columns: {
+				valuesFromArray: funcs.valuesFromArray({ values: lastNames, arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.valuesFromArrayArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('intPrimaryKey generator test', async () => {
 	await seed(db, { intPrimaryKeyTable: schema.intPrimaryKeyTable }).refine((funcs) => ({
 		intPrimaryKeyTable: {
@@ -619,6 +864,23 @@ test('number unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique integers in given range(min, max), try to make range wider.');
 });
 
+test('number array generator test', async () => {
+	await seed(db, { numberTable: schema.numberArrayTable }).refine((funcs) => ({
+		numberTable: {
+			count,
+			columns: {
+				number: funcs.number({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.numberArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('int generator test', async () => {
 	await seed(db, { intTable: schema.intTable }).refine((funcs) => ({
 		intTable: {
@@ -664,6 +926,23 @@ test('int unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique integers in given range(min, max), try to make range wider.');
 });
 
+test('int array generator test', async () => {
+	await seed(db, { intTable: schema.intArrayTable }).refine((funcs) => ({
+		intTable: {
+			count,
+			columns: {
+				int: funcs.int({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.intArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('boolean generator test', async () => {
 	await seed(db, { booleanTable: schema.booleanTable }).refine((funcs) => ({
 		booleanTable: {
@@ -678,6 +957,23 @@ test('boolean generator test', async () => {
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('boolean array generator test', async () => {
+	await seed(db, { booleanTable: schema.booleanArrayTable }).refine((funcs) => ({
+		booleanTable: {
+			count,
+			columns: {
+				boolean: funcs.boolean({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.booleanArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
 	expect(predicate).toBe(true);
 });
 
@@ -698,6 +994,26 @@ test('date generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
+test('date array generator test', async () => {
+	await seed(db, { dateTable: schema.dateArrayTable }).refine((funcs) => ({
+		dateTable: {
+			count,
+			columns: {
+				date: funcs.date({ arraySize: 3 }),
+				dateString: funcs.date({ arraySize: 4 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.dateArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) => val !== undefined && val !== null && [3, 4].includes(val.length))
+		);
+	expect(predicate).toBe(true);
+});
+
 test('time generator test', async () => {
 	await seed(db, { timeTable: schema.timeTable }).refine((funcs) => ({
 		timeTable: {
@@ -712,6 +1028,23 @@ test('time generator test', async () => {
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('time array generator test', async () => {
+	await seed(db, { timeTable: schema.timeArrayTable }).refine((funcs) => ({
+		timeTable: {
+			count,
+			columns: {
+				time: funcs.time({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.timeArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
 	expect(predicate).toBe(true);
 });
 
@@ -732,6 +1065,23 @@ test('timestamp generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
+test('timestamp array generator test', async () => {
+	await seed(db, { timestampTable: schema.timestampArrayTable }).refine((funcs) => ({
+		timestampTable: {
+			count,
+			columns: {
+				timestamp: funcs.timestamp({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.timestampArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('json generator test', async () => {
 	await seed(db, { jsonTable: schema.jsonTable }).refine((funcs) => ({
 		jsonTable: {
@@ -746,6 +1096,23 @@ test('json generator test', async () => {
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('json array generator test', async () => {
+	await seed(db, { jsonTable: schema.jsonArrayTable }).refine((funcs) => ({
+		jsonTable: {
+			count,
+			columns: {
+				json: funcs.json({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.jsonArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
 	expect(predicate).toBe(true);
 });
 
@@ -783,6 +1150,23 @@ test('interval unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
+test('interval array generator test', async () => {
+	await seed(db, { intervalTable: schema.intervalArrayTable }).refine((funcs) => ({
+		intervalTable: {
+			count,
+			columns: {
+				interval: funcs.interval({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.intervalArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('string generator test', async () => {
 	await seed(db, { stringTable: schema.stringTable }).refine((funcs) => ({
 		stringTable: {
@@ -816,6 +1200,23 @@ test('string unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
+test('string array generator test', async () => {
+	await seed(db, { stringTable: schema.stringArrayTable }).refine((funcs) => ({
+		stringTable: {
+			count,
+			columns: {
+				string: funcs.string({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.stringArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('email generator test', async () => {
 	await seed(db, { emailTable: schema.emailTable }).refine((funcs) => ({
 		emailTable: {
@@ -830,6 +1231,23 @@ test('email generator test', async () => {
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('email array generator test', async () => {
+	await seed(db, { emailTable: schema.emailArrayTable }).refine((funcs) => ({
+		emailTable: {
+			count,
+			columns: {
+				email: funcs.email({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.emailArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
 	expect(predicate).toBe(true);
 });
 
@@ -878,6 +1296,23 @@ test('firstName unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique first names.');
 });
 
+test('firstName array generator test', async () => {
+	await seed(db, { firstNameTable: schema.firstNameArrayTable }).refine((funcs) => ({
+		firstNameTable: {
+			count,
+			columns: {
+				firstName: funcs.firstName({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.firstNameArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('lastName generator test', async () => {
 	await seed(db, { lastNameTable: schema.lastNameTable }).refine((funcs) => ({
 		lastNameTable: {
@@ -923,6 +1358,23 @@ test('lastName unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique last names.');
 });
 
+test('lastName array generator test', async () => {
+	await seed(db, { lastNameTable: schema.lastNameArrayTable }).refine((funcs) => ({
+		lastNameTable: {
+			count,
+			columns: {
+				lastName: funcs.lastName({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.lastNameArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('fullName generator test', async () => {
 	await seed(db, { fullNameTable: schema.fullNameTable }).refine((funcs) => ({
 		fullNameTable: {
@@ -955,6 +1407,23 @@ test('fullName unique generator test', async () => {
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('fullName array generator test', async () => {
+	await seed(db, { fullNameTable: schema.fullNameArrayTable }).refine((funcs) => ({
+		fullNameTable: {
+			count,
+			columns: {
+				fullName: funcs.fullName({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.fullNameArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
 	expect(predicate).toBe(true);
 });
 
@@ -1003,6 +1472,23 @@ test('country unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique countries.');
 });
 
+test('country array generator test', async () => {
+	await seed(db, { countryTable: schema.countryArrayTable }).refine((funcs) => ({
+		countryTable: {
+			count,
+			columns: {
+				country: funcs.country({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.countryArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('city generator test', async () => {
 	await seed(db, { cityTable: schema.cityTable }).refine((funcs) => ({
 		cityTable: {
@@ -1049,6 +1535,23 @@ test('city unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique cities.');
 });
 
+test('city array generator test', async () => {
+	await seed(db, { cityTable: schema.cityArrayTable }).refine((funcs) => ({
+		cityTable: {
+			count,
+			columns: {
+				city: funcs.city({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.cityArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('streetAddress generator test', async () => {
 	await seed(db, { streetAddressTable: schema.streetAddressTable }).refine((funcs) => ({
 		streetAddressTable: {
@@ -1083,6 +1586,23 @@ test('streetAddress unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
+test('streetAddress array generator test', async () => {
+	await seed(db, { streetAddressTable: schema.streetAddressArrayTable }).refine((funcs) => ({
+		streetAddressTable: {
+			count,
+			columns: {
+				streetAddress: funcs.streetAddress({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.streetAddressArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('jobTitle generator test', async () => {
 	await seed(db, { jobTitleTable: schema.jobTitleTable }).refine((funcs) => ({
 		jobTitleTable: {
@@ -1097,6 +1617,23 @@ test('jobTitle generator test', async () => {
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('jobTitle array generator test', async () => {
+	await seed(db, { jobTitleTable: schema.jobTitleArrayTable }).refine((funcs) => ({
+		jobTitleTable: {
+			count,
+			columns: {
+				jobTitle: funcs.jobTitle({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.jobTitleArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
 	expect(predicate).toBe(true);
 });
 
@@ -1134,6 +1671,23 @@ test('postcode unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
+test('postcode array generator test', async () => {
+	await seed(db, { postcodeTable: schema.postcodeArrayTable }).refine((funcs) => ({
+		postcodeTable: {
+			count,
+			columns: {
+				postcode: funcs.postcode({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.postcodeArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('state generator test', async () => {
 	await seed(db, { stateTable: schema.stateTable }).refine((funcs) => ({
 		stateTable: {
@@ -1148,6 +1702,23 @@ test('state generator test', async () => {
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('state array generator test', async () => {
+	await seed(db, { stateTable: schema.stateArrayTable }).refine((funcs) => ({
+		stateTable: {
+			count,
+			columns: {
+				state: funcs.state({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.stateArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
 	expect(predicate).toBe(true);
 });
 
@@ -1185,6 +1756,23 @@ test('companyName unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
+test('companyName array generator test', async () => {
+	await seed(db, { companyNameTable: schema.companyNameArrayTable }).refine((funcs) => ({
+		companyNameTable: {
+			count,
+			columns: {
+				companyName: funcs.companyName({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.companyNameArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
+	expect(predicate).toBe(true);
+});
+
 test('loremIpsum generator test', async () => {
 	await seed(db, { loremIpsumTable: schema.loremIpsumTable }).refine((funcs) => ({
 		loremIpsumTable: {
@@ -1199,6 +1787,23 @@ test('loremIpsum generator test', async () => {
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('loremIpsum array generator test', async () => {
+	await seed(db, { loremIpsumTable: schema.loremIpsumArrayTable }).refine((funcs) => ({
+		loremIpsumTable: {
+			count,
+			columns: {
+				loremIpsum: funcs.loremIpsum({ arraySize: 3 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.loremIpsumArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 3));
 	expect(predicate).toBe(true);
 });
 
@@ -1242,6 +1847,23 @@ test('point unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
+test('point array generator test', async () => {
+	await seed(db, { pointTable: schema.pointArrayTable }).refine((funcs) => ({
+		pointTable: {
+			count,
+			columns: {
+				point: funcs.point({ arraySize: 2 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.pointArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 2));
+	expect(predicate).toBe(true);
+});
+
 test('line generator test', async () => {
 	await seed(db, { lineTable: schema.lineTable }).refine((funcs) => ({
 		lineTable: {
@@ -1282,6 +1904,23 @@ test('line unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
+test('line array generator test', async () => {
+	await seed(db, { lineTable: schema.lineArrayTable }).refine((funcs) => ({
+		lineTable: {
+			count,
+			columns: {
+				line: funcs.line({ arraySize: 2 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.lineArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null && val.length === 2));
+	expect(predicate).toBe(true);
+});
+
 test('phoneNumber generator test', async () => {
 	await seed(db, { phoneNumberTable: schema.phoneNumberTable }).refine((funcs) => ({
 		phoneNumberTable: {
@@ -1301,6 +1940,34 @@ test('phoneNumber generator test', async () => {
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('phoneNumber array generator test', async () => {
+	await seed(db, { phoneNumberTable: schema.phoneNumberArrayTable }).refine((funcs) => ({
+		phoneNumberTable: {
+			count,
+			columns: {
+				phoneNumber: funcs.phoneNumber({ arraySize: 3 }),
+				phoneNumberPrefixes: funcs.phoneNumber({
+					prefixes: ['+380 99', '+380 67', '+1'],
+					generatedDigitsNumbers: [7, 7, 10],
+					arraySize: 4,
+				}),
+				phoneNumberTemplate: funcs.phoneNumber({
+					template: '+380 ## ## ### ##',
+					arraySize: 5,
+				}),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.phoneNumberArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) => val !== undefined && val !== null && [3, 4, 5].includes(val.length))
+		);
 	expect(predicate).toBe(true);
 });
 

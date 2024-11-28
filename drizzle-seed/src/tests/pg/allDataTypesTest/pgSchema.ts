@@ -60,3 +60,38 @@ export const allDataTypes = schema.table('all_data_types', {
 	lineTuple: line('line_tuple', { mode: 'tuple' }),
 	moodEnum: moodEnum('mood_enum'),
 });
+
+export const allArrayDataTypes = schema.table('all_array_data_types', {
+	integerArray: integer('integer_array').array(),
+	smallintArray: smallint('smallint_array').array(),
+	bigintegerArray: bigint('bigint_array', { mode: 'bigint' }).array(),
+	bigintNumberArray: bigint('bigint_number_array', { mode: 'number' }).array(),
+	booleanArray: boolean('boolean_array').array(),
+	textArray: text('text_array').array(),
+	varcharArray: varchar('varchar_array', { length: 256 }).array(),
+	charArray: char('char_array', { length: 256 }).array(),
+	numericArray: numeric('numeric_array').array(),
+	decimalArray: decimal('decimal_array').array(),
+	realArray: real('real_array').array(),
+	doublePrecisionArray: doublePrecision('double_precision_array').array(),
+	jsonArray: json('json_array').array(),
+	jsonbArray: jsonb('jsonb_array').array(),
+	timeArray: time('time_array').array(),
+	timestampDateArray: timestamp('timestamp_date_array', { mode: 'date' }).array(),
+	timestampStringArray: timestamp('timestamp_string_array', { mode: 'string' }).array(),
+	dateStringArray: date('date_string_array', { mode: 'string' }).array(),
+	dateArray: date('date_array', { mode: 'date' }).array(),
+	intervalArray: interval('interval_array').array(),
+	pointArray: point('point_array', { mode: 'xy' }).array(),
+	pointTupleArray: point('point_tuple_array', { mode: 'tuple' }).array(),
+	lineArray: line('line_array', { mode: 'abc' }).array(),
+	lineTupleArray: line('line_tuple_array', { mode: 'tuple' }).array(),
+	moodEnumArray: moodEnum('mood_enum_array').array(),
+});
+
+export const ndArrays = schema.table('nd_arrays', {
+	integer1DArray: integer('integer_1d_array').array(3),
+	integer2DArray: integer('integer_2d_array').array(3).array(4),
+	integer3DArray: integer('integer_3d_array').array(3).array(4).array(5),
+	integer4DArray: integer('integer_4d_array').array(3).array(4).array(5).array(6),
+});

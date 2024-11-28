@@ -23,6 +23,7 @@ export abstract class AbstractGenerator<T = {}> {
 	public dataType?: string;
 	public timeSpent?: number;
 	public arraySize?: number;
+	public baseColumnDataType?: string;
 
 	constructor(public params: T) {}
 
@@ -58,9 +59,11 @@ export abstract class AbstractGenerator<T = {}> {
 	replaceIfArray({ count, seed }: { count: number; seed: number }) {
 		if (!(this.getEntityKind() === 'GenerateArray') && this.arraySize !== undefined) {
 			const uniqueGen = this.replaceIfUnique({ count, seed });
+			const baseColumnGen = uniqueGen === undefined ? this : uniqueGen;
+			baseColumnGen.dataType = this.baseColumnDataType;
 			const arrayGen = new GenerateArray(
 				{
-					baseColumnGen: uniqueGen === undefined ? this : uniqueGen,
+					baseColumnGen,
 					size: this.arraySize,
 				},
 			);

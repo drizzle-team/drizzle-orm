@@ -14,7 +14,7 @@ beforeAll(async () => {
 
 	db = drizzle(client);
 
-	await db.execute(sql`CREATE SCHEMA "seeder_lib_pg";`);
+	await db.execute(sql`CREATE SCHEMA if not exists "seeder_lib_pg";`);
 
 	await db.execute(
 		sql`
@@ -33,10 +33,10 @@ beforeAll(async () => {
 				"smallint" smallint,
 				"bigint" bigint,
 				"bigint_number" bigint,
-				"serial" serial NOT NULL,
-				"smallserial" "smallserial" NOT NULL,
+				"serial" serial,
+				"smallserial" smallserial,
 				"bigserial" bigserial,
-				"bigserial_number" bigserial NOT NULL,
+				"bigserial_number" bigserial,
 				"boolean" boolean,
 				"text" text,
 				"varchar" varchar(256),
@@ -61,6 +61,49 @@ beforeAll(async () => {
 			);
 		`,
 	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."all_array_data_types" (
+				"integer_array" integer[],
+				"smallint_array" smallint[],
+				"bigint_array" bigint[],
+				"bigint_number_array" bigint[],
+				"boolean_array" boolean[],
+				"text_array" text[],
+				"varchar_array" varchar(256)[],
+				"char_array" char(256)[],
+				"numeric_array" numeric[],
+				"decimal_array" numeric[],
+				"real_array" real[],
+				"double_precision_array" double precision[],
+				"json_array" json[],
+				"jsonb_array" jsonb[],
+				"time_array" time[],
+				"timestamp_date_array" timestamp[],
+				"timestamp_string_array" timestamp[],
+				"date_string_array" date[],
+				"date_array" date[],
+				"interval_array" interval[],
+				"point_array" "point"[],
+				"point_tuple_array" "point"[],
+				"line_array" "line"[],
+				"line_tuple_array" "line"[],
+				"mood_enum_array" "seeder_lib_pg"."mood_enum"[]
+			);
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."nd_arrays" (
+				"integer_1d_array" integer[3],
+				"integer_2d_array" integer[3][4],
+				"integer_3d_array" integer[3][4][5],
+				"integer_4d_array" integer[3][4][5][6]
+			);
+		`,
+	);
 });
 
 afterAll(async () => {
@@ -68,11 +111,48 @@ afterAll(async () => {
 });
 
 test('all data types test', async () => {
-	await seed(db, schema, { count: 10000 });
+	await seed(db, { allDataTypes: schema.allDataTypes }, { count: 10000 });
 
 	const allDataTypes = await db.select().from(schema.allDataTypes);
-	// every value in each 10 rows does not equal undefined.
+	// every value in each rows does not equal undefined.
 	const predicate = allDataTypes.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
 
 	expect(predicate).toBe(true);
+});
+
+test('all array data types test', async () => {
+	await seed(db, { allArrayDataTypes: schema.allArrayDataTypes }, { count: 1000 });
+
+	const allArrayDataTypes = await db.select().from(schema.allArrayDataTypes);
+	// every value in each rows does not equal undefined.
+	const predicate = allArrayDataTypes.every((row) =>
+		Object.values(row).every((val) => val !== undefined && val !== null && val.length === 10)
+	);
+
+	expect(predicate).toBe(true);
+});
+
+test('nd arrays', async () => {
+	await seed(db, { ndArrays: schema.ndArrays }, { count: 1000 });
+
+	const ndArrays = await db.select().from(schema.ndArrays);
+	// every value in each rows does not equal undefined.
+	const predicate0 = ndArrays.every((row) =>
+		Object.values(row).every((val) => val !== undefined && val !== null && val.length !== 0)
+	);
+	let predicate1 = true, predicate2 = true, predicate3 = true, predicate4 = true;
+
+	for (const row of ndArrays) {
+		predicate1 = predicate1 && (row.integer1DArray?.length === 3);
+
+		predicate2 = predicate2 && (row.integer2DArray?.length === 4) && (row.integer2DArray[0]?.length === 3);
+
+		predicate3 = predicate3 && (row.integer3DArray?.length === 5) && (row.integer3DArray[0]?.length === 4)
+			&& (row.integer3DArray[0][0]?.length === 3);
+
+		predicate4 = predicate4 && (row.integer4DArray?.length === 6) && (row.integer4DArray[0]?.length === 5)
+			&& (row.integer4DArray[0][0]?.length === 4) && (row.integer4DArray[0][0][0]?.length === 3);
+	}
+
+	expect(predicate0 && predicate1 && predicate2 && predicate3 && predicate4).toBe(true);
 });

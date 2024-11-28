@@ -11,17 +11,7 @@ export type Column = {
 	isUnique: boolean;
 	notNull: boolean;
 	generatedIdentityType?: 'always' | 'byDefault' | undefined;
-	baseColumn?: {
-		name: string;
-		dataType: string;
-		columnType: string;
-		size?: number;
-		default?: any;
-		hasDefault: boolean;
-		isUnique: boolean;
-		notNull: boolean;
-		baseColumn?: Column['baseColumn'];
-	};
+	baseColumn?: Omit<Column, 'generatedIdentityType'>;
 };
 
 export type Table = {

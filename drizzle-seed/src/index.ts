@@ -569,6 +569,7 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 				dataType: baseColumn.dataType,
 				size: (baseColumn as PgArray<any, any>).size,
 				hasDefault: baseColumn.hasDefault,
+				enumValues: baseColumn.enumValues,
 				default: baseColumn.default,
 				isUnique: baseColumn.isUnique,
 				notNull: baseColumn.notNull,
