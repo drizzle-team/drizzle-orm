@@ -44,9 +44,18 @@ export class SQLJsSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
+		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query, this.logger, fields, executeMethod, isResponseInArrayMode);
+		return new PreparedQuery(
+			stmt,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	override prepareOneTimeQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
