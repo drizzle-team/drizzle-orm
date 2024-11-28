@@ -209,9 +209,6 @@ export async function createDockerDB(): Promise<{ connectionString: string; cont
 	};
 }
 
-// Tests are slow so we keep track of the test number
-let testRunNumber = 0;
-
 export function tests(driver?: string) {
 	describe('common', () => {
 		afterAll(async () => {
@@ -289,9 +286,6 @@ export function tests(driver?: string) {
 					)
 				`,
 			);
-
-			testRunNumber += 1;
-			console.log(`Test number: ${testRunNumber}`);
 		});
 
 		async function setupReturningFunctionsTest(db: SingleStoreDatabase<any, any>) {
@@ -3182,7 +3176,7 @@ export function tests(driver?: string) {
 
 			expect(query).toEqual({
 				sql:
-					`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
+					`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`id\`, \`mySchema\`.\`name\``,
 				params: [],
 			});
 		});

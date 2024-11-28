@@ -3,9 +3,9 @@ import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { SingleStoreDriverDatabase } from '~/singlestore/driver.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
 import type { SingleStoreDialect } from './dialect.ts';
 import { SingleStoreCountBuilder } from './query-builders/count.ts';
 import {
@@ -15,7 +15,6 @@ import {
 	SingleStoreSelectBuilder,
 	SingleStoreUpdateBuilder,
 } from './query-builders/index.ts';
-import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
 	PreparedQueryHKTBase,
@@ -42,11 +41,9 @@ export class SingleStoreDatabase<
 		readonly tableNamesMap: Record<string, string>;
 	};
 
-	query: TFullSchema extends Record<string, never>
-		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
-		};
+	// We are waiting for SingleStore support for `json_array` function
+	/**@inrernal */
+	query: unknown;
 
 	constructor(
 		/** @internal */
@@ -67,20 +64,21 @@ export class SingleStoreDatabase<
 				tableNamesMap: {},
 			};
 		this.query = {} as typeof this['query'];
-		if (this._.schema) {
-			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this.query as SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
-					new RelationalQueryBuilder(
-						schema!.fullSchema,
-						this._.schema,
-						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as SingleStoreTable,
-						columns,
-						dialect,
-						session,
-					);
-			}
-		}
+		// this.queryNotSupported = true;
+		// if (this._.schema) {
+		// 	for (const [tableName, columns] of Object.entries(this._.schema)) {
+		// 		(this.query as SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
+		// 			new RelationalQueryBuilder(
+		// 				schema!.fullSchema,
+		// 				this._.schema,
+		// 				this._.tableNamesMap,
+		// 				schema!.fullSchema[tableName] as SingleStoreTable,
+		// 				columns,
+		// 				dialect,
+		// 				session,
+		// 			);
+		// 	}
+		// }
 	}
 
 	/**
@@ -484,16 +482,7 @@ export class SingleStoreDatabase<
 export type SingleStoreWithReplicas<Q> = Q & { $primary: Q };
 
 export const withReplicas = <
-	HKT extends SingleStoreQueryResultHKT,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-	Q extends SingleStoreDatabase<
-		HKT,
-		TPreparedQueryHKT,
-		TFullSchema,
-		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
-	>,
+	Q extends SingleStoreDriverDatabase,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],

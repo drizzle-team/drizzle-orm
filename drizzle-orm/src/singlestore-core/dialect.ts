@@ -717,7 +717,7 @@ export class SingleStoreDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`JSON_BUILD_OBJECT(${
+			let field = sql`JSON_TO_ARRAY(${
 				sql.join(
 					selection.map(({ field, tsKey, isJson }) =>
 						isJson
