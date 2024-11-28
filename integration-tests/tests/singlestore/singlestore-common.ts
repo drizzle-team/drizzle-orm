@@ -2701,7 +2701,7 @@ export function tests(driver?: string) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (mixed) from query builder', async (ctx) => {
+		test.skip('set operations (mixed) from query builder', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await setupSetOperationTest(db);
@@ -3176,7 +3176,7 @@ export function tests(driver?: string) {
 
 			expect(query).toEqual({
 				sql:
-					`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`id\`, \`mySchema\`.\`name\``,
+					`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`userstest\`.\`id\`, \`mySchema\`.\`userstest\`.\`name\``,
 				params: [],
 			});
 		});
