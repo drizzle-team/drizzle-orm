@@ -3,7 +3,6 @@ import type { MySqlTable } from 'drizzle-orm/mysql-core';
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { PgDatabase } from 'drizzle-orm/pg-core';
-import { PgliteSession } from 'drizzle-orm/pglite';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import type {
@@ -1037,7 +1036,8 @@ class SeedService {
 		}
 		let maxParametersNumber: number;
 		if (is(db, PgDatabase<any>)) {
-			maxParametersNumber = is(db._.session, PgliteSession)
+			// @ts-ignore
+			maxParametersNumber = db.constructor[entityKind] === 'PgliteDatabase'
 				? this.postgresPgLiteMaxParametersNumber
 				: this.postgresMaxParametersNumber;
 		} else if (is(db, MySqlDatabase<any, any>)) {
