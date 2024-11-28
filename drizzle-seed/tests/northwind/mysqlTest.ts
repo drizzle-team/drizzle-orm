@@ -7,7 +7,7 @@ import mysql from 'mysql2/promise';
 
 import * as schema from './mysqlSchema.ts';
 
-import { seed } from '../../index.ts';
+import { seed } from '../../src/index.ts';
 
 const { Mysql_HOST, Mysql_PORT, Mysql_DATABASE, Mysql_USER, Mysql_PASSWORD } = process.env;
 

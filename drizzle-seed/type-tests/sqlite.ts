@@ -1,7 +1,7 @@
 import { drizzle as betterSqlite3Drizzle } from 'drizzle-orm/better-sqlite3';
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { reset, seed } from '../index.ts';
+import { reset, seed } from '../src/index.ts';
 
 const mysqlUsers = sqliteTable('users', {
 	id: int().primaryKey(),

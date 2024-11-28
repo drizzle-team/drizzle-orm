@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { seed } from '../../../index.ts';
+import { seed } from '../../../src/index.ts';
 import * as schema from './sqliteSchema.ts';
 
 let client: BetterSqlite3.Database;

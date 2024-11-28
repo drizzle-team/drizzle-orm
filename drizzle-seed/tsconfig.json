@@ -44,5 +44,5 @@
 		}
 	},
 	"exclude": ["**/dist", "src/schemaTest.ts", "src/test.ts"],
-	"include": ["src", "*.ts"]
+	"include": ["src", "*.ts", "tests"]
 }

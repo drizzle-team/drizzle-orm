@@ -3,9 +3,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'./src/tests/pg/**/*.test.ts',
-			'./src/tests/mysql/**/*.test.ts',
-			'./src/tests/sqlite/**/*.test.ts',
+			'./tests/pg/**/*.test.ts',
+			'./tests/mysql/**/*.test.ts',
+			'./tests/sqlite/**/*.test.ts',
 		],
 		exclude: [],
 		typecheck: {

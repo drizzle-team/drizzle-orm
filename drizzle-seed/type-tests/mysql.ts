@@ -1,7 +1,7 @@
 import type { MySqlColumn } from 'drizzle-orm/mysql-core';
 import { int, mysqlTable, text } from 'drizzle-orm/mysql-core';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
-import { reset, seed } from '../index.ts';
+import { reset, seed } from '../src/index.ts';
 
 const mysqlUsers = mysqlTable('users', {
 	id: int().primaryKey().autoincrement(),

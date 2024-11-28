@@ -1,4 +1,4 @@
-import lastNames from '../../datasets/lastNames.ts';
+import lastNames from '../../src/datasets/lastNames.ts';
 import {
 	GenerateBoolean,
 	GenerateCity,
@@ -40,7 +40,7 @@ import {
 	GenerateValuesFromArray,
 	GenerateYear,
 	WeightedRandomGenerator,
-} from '../../services/GeneratorsWrappers.ts';
+} from '../../src/services/GeneratorsWrappers.ts';
 
 const benchmark = ({ generatorName, generator, count = 100000, seed = 1 }: {
 	generatorName: string;

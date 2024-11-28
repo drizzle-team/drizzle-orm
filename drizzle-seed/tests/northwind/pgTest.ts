@@ -1,22 +1,33 @@
 import 'dotenv/config';
 import path from 'path';
 
-import betterSqlite3 from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { Pool as PgPool } from 'pg';
 
-import { seed } from '../../index.ts';
-import * as schema from './sqliteSchema.ts';
+import { seed } from '../../src/index.ts';
+import * as schema from './pgSchema.ts';
 
-const { Sqlite_PATH } = process.env;
-const sqliteDb = betterSqlite3(Sqlite_PATH);
-const db = drizzle(sqliteDb);
+const { PG_HOST, PG_PORT, PG_DATABASE, PG_USER, PG_PASSWORD } = process.env;
+
+const pgPool = new PgPool({
+	host: PG_HOST,
+	port: Number(PG_PORT) || 5432,
+	database: PG_DATABASE,
+	user: PG_USER,
+	password: PG_PASSWORD,
+	// ssl: true
+});
+
+const db = drizzle(pgPool);
 
 console.log('database connection was established successfully.');
 
 (async () => {
-	migrate(db, { migrationsFolder: path.join(__dirname, '../../../sqliteMigrations') });
+	await migrate(db, { migrationsFolder: path.join(__dirname, '../../../pgMigrations') });
 	console.log('database was migrated.');
+
+	// await seed(db, schema, { count: 100000, seed: 1 });
 
 	const titlesOfCourtesy = ['Ms.', 'Mrs.', 'Dr.'];
 	const unitsOnOrders = [0, 10, 20, 30, 50, 60, 70, 80, 100];
@@ -159,4 +170,6 @@ console.log('database connection was established successfully.');
 			},
 		},
 	}));
+
+	await pgPool.end();
 })().then();

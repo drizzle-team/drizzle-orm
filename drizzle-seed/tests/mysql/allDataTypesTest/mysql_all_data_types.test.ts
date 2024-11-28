@@ -7,7 +7,7 @@ import type { Connection } from 'mysql2/promise';
 import { createConnection } from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { seed } from '../../../index.ts';
+import { seed } from '../../../src/index.ts';
 import * as schema from './mysqlSchema.ts';
 
 let mysqlContainer: Docker.Container;

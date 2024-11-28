@@ -4,14 +4,14 @@ import { PGlite } from '@electric-sql/pglite';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 
-import { reset, seed } from '../../../index.ts';
+import { reset, seed } from '../../../src/index.ts';
 import * as schema from './pgSchema.ts';
 
 import { sql } from 'drizzle-orm';
-import cities from '../../../datasets/cityNames.ts';
-import countries from '../../../datasets/countries.ts';
-import firstNames from '../../../datasets/firstNames.ts';
-import lastNames from '../../../datasets/lastNames.ts';
+import cities from '../../../src/datasets/cityNames.ts';
+import countries from '../../../src/datasets/countries.ts';
+import firstNames from '../../../src/datasets/firstNames.ts';
+import lastNames from '../../../src/datasets/lastNames.ts';
 
 let client: PGlite;
 let db: PgliteDatabase;

@@ -3,7 +3,7 @@ import type { PgColumn } from 'drizzle-orm/pg-core';
 import { integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { drizzle as pgliteDrizzle } from 'drizzle-orm/pglite';
 import { drizzle as postgresJsDrizzle } from 'drizzle-orm/postgres-js';
-import { reset, seed } from '../index.ts';
+import { reset, seed } from '../src/index.ts';
 
 const pgUsers = pgTable('users', {
 	id: integer().primaryKey().generatedAlwaysAsIdentity(),

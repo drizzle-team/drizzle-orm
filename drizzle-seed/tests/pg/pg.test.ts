@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
-import { reset, seed } from '../../index.ts';
+import { reset, seed } from '../../src/index.ts';
 import * as schema from './pgSchema.ts';
 
 let client: PGlite;
