@@ -22,7 +22,7 @@ export default defineConfig([
 		],
 		external: [
 			/^drizzle-orm\/?/,
-			'zod',
+			'@sinclair/typebox',
 		],
 		plugins: [
 			typescript({

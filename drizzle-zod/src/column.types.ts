@@ -1,6 +1,6 @@
 import type { Assume, Column } from 'drizzle-orm';
 import type { z } from 'zod';
-import type { ArrayHasAtLeastOneValue, ColumnIsGeneratedAlwaysAs, IsNever, Json } from './utils';
+import type { ArrayHasAtLeastOneValue, ColumnIsGeneratedAlwaysAs, IsNever, Json } from './utils.ts';
 
 export type GetEnumValuesFromColumn<TColumn extends Column> = TColumn['_'] extends { enumValues: [string, ...string[]] }
 	? TColumn['_']['enumValues']

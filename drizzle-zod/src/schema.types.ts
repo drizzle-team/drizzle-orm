@@ -1,7 +1,7 @@
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { z } from 'zod';
-import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal';
+import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
 export interface CreateSelectSchema {
 	<TTable extends Table>(table: TTable): BuildSchema<'select', TTable['_']['columns'], undefined>;
