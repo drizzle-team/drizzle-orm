@@ -9,6 +9,13 @@ import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
+export type MySqlTableExtraConfigValue =
+	| AnyIndexBuilder
+	| CheckBuilder
+	| ForeignKeyBuilder
+	| PrimaryKeyBuilder
+	| UniqueConstraintBuilder;
+
 export type MySqlTableExtraConfig = Record<
 	string,
 	| AnyIndexBuilder
@@ -62,7 +69,9 @@ export function mysqlTableWithSchema<
 >(
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: MySqlColumnBuilders) => TColumnsMap),
-	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig) | undefined,
+	extraConfig:
+		| ((self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
+		| undefined,
 	schema: TSchemaName,
 	baseName = name,
 ): MySqlTableWithColumns<{
@@ -100,15 +109,16 @@ export function mysqlTableWithSchema<
 	>;
 
 	if (extraConfig) {
-		table[MySqlTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (
-			self: Record<string, MySqlColumn>,
-		) => MySqlTableExtraConfig;
+		table[MySqlTable.Symbol.ExtraConfigBuilder] = extraConfig as any;
 	}
 
 	return table;
 }
 
 export interface MySqlTableFn<TSchemaName extends string | undefined = undefined> {
+	/**
+	 * @deprecated This overload is deprecated. Use the other method overload instead.
+	 */
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
@@ -123,6 +133,9 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		dialect: 'mysql';
 	}>;
 
+	/**
+	 * @deprecated This overload is deprecated. Use the other method overload instead.
+	 */
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
@@ -136,14 +149,44 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
 	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (
+			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mysql'>,
+		) => MySqlTableExtraConfigValue[],
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
+		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'sqlite'>) => MySqlTableExtraConfigValue[],
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
 }
 
 export const mysqlTable: MySqlTableFn = (name, columns, extraConfig) => {
-	return mysqlTableWithSchema(name, columns, extraConfig, undefined, name);
+	return mysqlTableWithSchema(name, columns, extraConfig as any, undefined, name);
 };
 
 export function mysqlTableCreator(customizeTableName: (name: string) => string): MySqlTableFn {
 	return (name, columns, extraConfig) => {
-		return mysqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return mysqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig as any, undefined, name);
 	};
 }
