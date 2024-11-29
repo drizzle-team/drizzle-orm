@@ -900,5 +900,7 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 	return { tables, relations };
 };
 
+export { default as cities } from './datasets/cityNames.ts';
+export { default as countries } from './datasets/countries.ts';
 export { default as firstNames } from './datasets/firstNames.ts';
 export { default as lastNames } from './datasets/lastNames.ts';
