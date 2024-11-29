@@ -4636,6 +4636,47 @@ export function tests() {
 			]);
 		});
 
+		test('proper json and jsonb handling (sql operator)', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const jsonTable = pgTable('json_table', {
+				json: json('json').$type<{ name: string; age: number }>(),
+				jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
+			});
+
+			await db.execute(sql`drop table if exists ${jsonTable}`);
+
+			await db.execute(sql`create table ${jsonTable} (json json, jsonb jsonb)`);
+
+			await db.execute(
+				sql`insert into ${jsonTable} ("json", "jsonb") values (${{ name: 'Tom', age: 75 }}, ${{
+					name: 'Pete',
+					age: 23,
+				}})`,
+			);
+
+			const result = await db.select().from(jsonTable);
+
+			const justNames = await db.select({
+				name1: sql<string>`${jsonTable.json}->>'name'`.as('name1'),
+				name2: sql<string>`${jsonTable.jsonb}->>'name'`.as('name2'),
+			}).from(jsonTable);
+
+			expect(result).toStrictEqual([
+				{
+					json: { name: 'Tom', age: 75 },
+					jsonb: { name: 'Pete', age: 23 },
+				},
+			]);
+
+			expect(justNames).toStrictEqual([
+				{
+					name1: 'Tom',
+					name2: 'Pete',
+				},
+			]);
+		});
+
 		test('set json/jsonb fields with objects and retrieve with the ->> operator', async (ctx) => {
 			const { db } = ctx.pg;
 

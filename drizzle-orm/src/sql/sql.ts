@@ -279,6 +279,10 @@ export class SQL<T = unknown> implements SQLWrapper {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
 
+			if (typeof chunk === 'object' && chunk.toString() === '[object Object]') {
+				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [JSON.stringify(chunk)] };
+			}
+
 			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
 		}));
 	}
