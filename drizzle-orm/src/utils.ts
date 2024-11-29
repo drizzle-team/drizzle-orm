@@ -1,3 +1,4 @@
+import { CasingCache } from './casing.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
@@ -159,6 +160,8 @@ export interface DrizzleTypeError<T extends string> {
 
 export type ValueOrArray<T> = T | T[];
 
+export type ObjectToArray<T> = T[keyof T][];
+
 /** @internal */
 export function applyMixins(baseClass: any, extendedClasses: any[]) {
 	for (const extendedClass of extendedClasses) {
@@ -310,4 +313,18 @@ export function isConfig(data: any): boolean {
 	if (Object.keys(data).length === 0) return true;
 
 	return false;
+}
+
+/** @internal */
+export function mapColumnsToName(columns: (Column | SQL)[], casing: CasingCache | undefined) {
+	const copy = Array.from(columns).filter((column) => is(column, Column));
+	if (!casing) return copy.map((column) => ({ beforeCasing: column.name, afterCasing: column.name }));
+	return copy.map((column) => ({ beforeCasing: column.name, afterCasing: casing.getColumnCasing(column) }));
+}
+
+export function constraintNameWithCasing(name: string, colNames: { beforeCasing: string; afterCasing: string }[]) {
+	for (const colName of colNames) {
+		name = name.replace(colName.beforeCasing, colName.afterCasing);
+	}
+	return name;
 }

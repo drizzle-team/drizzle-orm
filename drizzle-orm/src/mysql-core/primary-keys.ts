@@ -1,3 +1,4 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
 import { MySqlTable } from './table.ts';
@@ -40,8 +41,8 @@ export class PrimaryKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: MySqlTable): PrimaryKey {
-		return new PrimaryKey(table, this.columns, this.name);
+	build(table: MySqlTable, casing?: CasingCache): PrimaryKey {
+		return new PrimaryKey(table, this.columns, this.name, casing);
 	}
 }
 
@@ -51,13 +52,19 @@ export class PrimaryKey {
 	readonly columns: MySqlColumn[];
 	readonly name?: string;
 
-	constructor(readonly table: MySqlTable, columns: MySqlColumn[], name?: string) {
+	constructor(readonly table: MySqlTable, columns: MySqlColumn[], name?: string, private casing?: CasingCache) {
 		this.columns = columns;
 		this.name = name;
 	}
 
 	getName(): string {
 		return this.name
-			?? `${this.table[MySqlTable.Symbol.Name]}_${this.columns.map((column) => column.name).join('_')}_pk`;
+			?? `${this.table[MySqlTable.Symbol.Name]}_${
+				(
+					this.casing
+						? this.columns.map((column) => this.casing!.getColumnCasing(column))
+						: this.columns.map((column) => column.name)
+				).join('_')
+			}_pk`;
 	}
 }

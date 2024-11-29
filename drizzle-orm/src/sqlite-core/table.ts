@@ -16,14 +16,7 @@ export type SQLiteTableExtraConfigValue =
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder;
 
-export type SQLiteTableExtraConfig = Record<
-	string,
-	| IndexBuilder
-	| CheckBuilder
-	| ForeignKeyBuilder
-	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder
->;
+export type SQLiteTableExtraConfig = Record<string, SQLiteTableExtraConfigValue>;
 
 export type TableConfig = TableConfigBase<SQLiteColumn<any>>;
 
@@ -46,7 +39,7 @@ export class SQLiteTable<T extends TableConfig = TableConfig> extends Table<T> {
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
-		| ((self: Record<string, SQLiteColumn>) => SQLiteTableExtraConfig)
+		| ((self: Record<string, SQLiteColumn>) => SQLiteTableExtraConfig | SQLiteTableExtraConfigValue[])
 		| undefined = undefined;
 }
 

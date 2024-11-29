@@ -16,14 +16,7 @@ export type MySqlTableExtraConfigValue =
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder;
 
-export type MySqlTableExtraConfig = Record<
-	string,
-	| AnyIndexBuilder
-	| CheckBuilder
-	| ForeignKeyBuilder
-	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder
->;
+export type MySqlTableExtraConfig = Record<string, MySqlTableExtraConfigValue>;
 
 export type TableConfig = TableConfigBase<MySqlColumn>;
 
@@ -48,7 +41,7 @@ export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
-		| ((self: Record<string, MySqlColumn>) => MySqlTableExtraConfig)
+		| ((self: Record<string, MySqlColumn>) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
 		| undefined = undefined;
 }
 
