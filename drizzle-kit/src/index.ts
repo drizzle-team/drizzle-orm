@@ -209,6 +209,10 @@ export type Config =
 			dialect: Verify<Dialect, 'sqlite'>;
 			driver: Verify<Driver, 'expo'>;
 		}
+		| {
+			dialect: Verify<Dialect, 'sqlite'>;
+			driver: Verify<Driver, 'durable-sqlite'>;
+		}
 		| {}
 	);
 
