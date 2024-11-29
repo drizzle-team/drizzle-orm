@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import { hexStringToBuffer } from '../utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
@@ -79,6 +80,9 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 	}
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
+		if (typeof value === 'string' && this.getSQLType() === 'blob') {
+			value = hexStringToBuffer(value);
+		}
 		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
 	}
 

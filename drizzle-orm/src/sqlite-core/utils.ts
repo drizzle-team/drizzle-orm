@@ -63,3 +63,14 @@ export function getViewConfig<
 		// ...view[SQLiteViewConfig],
 	};
 }
+
+export function hexStringToBuffer(hexString: string): Buffer {
+	const numChunks = Math.ceil(hexString.length / 2);
+	const chunks = Array.from<number>({ length: numChunks });
+
+	for (let i = 0; i < numChunks; ++i) {
+		chunks[i] = Number.parseInt(hexString.slice(2 * i, 2 * i + 2), 16);
+	}
+
+	return Buffer.from(chunks);
+}
