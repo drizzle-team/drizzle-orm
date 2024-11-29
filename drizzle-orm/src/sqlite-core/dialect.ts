@@ -711,7 +711,9 @@ export abstract class SQLiteDialect {
 				sql.join(
 					selection.map(({ field }) =>
 						is(field, SQLiteColumn)
-							? sql.identifier(this.casing.getColumnCasing(field))
+							? field.getSQLType() === 'blob'
+								? sql.raw(`hex("${field.name}")`)
+								: sql.identifier(this.casing.getColumnCasing(field))
 							: is(field, SQL.Aliased)
 							? field.sql
 							: field
