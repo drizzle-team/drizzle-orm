@@ -1,7 +1,7 @@
 import { CasingCache } from '~/casing.ts';
 import { is } from '~/entity.ts';
 import { Table } from '~/table.ts';
-import { type Casing, type ObjectToArray } from '~/utils.ts';
+import type { Casing, ObjectToArray } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';

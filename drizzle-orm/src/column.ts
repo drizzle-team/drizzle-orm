@@ -8,12 +8,9 @@ import type {
 } from './column-builder.ts';
 import { entityKind } from './entity.ts';
 import type { MySqlDatabase } from './mysql-core/db.ts';
-import type { MySqlDialect } from './mysql-core/dialect.ts';
 import type { PgDatabase } from './pg-core/db.ts';
-import type { PgDialect } from './pg-core/dialect.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { BaseSQLiteDatabase } from './sqlite-core/db.ts';
-import type { SQLiteDialect } from './sqlite-core/dialect.ts';
 import type { Table } from './table.ts';
 import type { Casing, Update } from './utils.ts';
 

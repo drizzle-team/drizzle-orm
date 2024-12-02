@@ -1,4 +1,4 @@
-import { CasingCache } from './casing.ts';
+import type { CasingCache } from './casing.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
@@ -317,7 +317,7 @@ export function isConfig(data: any): boolean {
 
 /** @internal */
 export function mapColumnsToName(columns: (Column | SQL)[], casing: CasingCache | undefined) {
-	const copy = Array.from(columns).filter((column) => is(column, Column));
+	const copy = [...columns].filter((column) => is(column, Column));
 	if (!casing) return copy.map((column) => ({ beforeCasing: column.name, afterCasing: column.name }));
 	return copy.map((column) => ({ beforeCasing: column.name, afterCasing: casing.getColumnCasing(column) }));
 }
