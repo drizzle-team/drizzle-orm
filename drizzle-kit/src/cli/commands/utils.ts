@@ -127,6 +127,7 @@ export type GenerateConfig = {
 	custom: boolean;
 	bundle: boolean;
 	casing?: CasingType;
+	driver: Driver;
 };
 
 export const prepareGenerateConfig = async (
