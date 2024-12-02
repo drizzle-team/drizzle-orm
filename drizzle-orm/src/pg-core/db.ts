@@ -21,7 +21,7 @@ import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelation
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
+import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
 import type { PgColumn } from './columns/index.ts';
 import { PgCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
@@ -597,7 +597,7 @@ export class PgDatabase<
 		return new PgRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
-	protected authToken?: string;
+	protected authToken?: NeonAuthToken;
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
