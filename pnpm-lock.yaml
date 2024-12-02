@@ -40,7 +40,7 @@ importers:
         version: link:drizzle-orm/dist
       drizzle-orm-old:
         specifier: npm:drizzle-orm@^0.27.2
-        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241004.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.3)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@types/better-sqlite3@7.6.12)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.5.0)(bun-types@1.0.3)(knex@2.5.1(better-sqlite3@11.5.0)(mysql2@3.11.0)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.11.0)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7)
+        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241112.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.3)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@types/better-sqlite3@7.6.12)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.5.0)(bun-types@1.0.3)(knex@2.5.1(better-sqlite3@11.5.0)(mysql2@3.11.0)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.11.0)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7)
       eslint:
         specifier: ^8.50.0
         version: 8.50.0
@@ -304,8 +304,8 @@ importers:
         specifier: ^3.549.0
         version: 3.583.0
       '@cloudflare/workers-types':
-        specifier: ^4.20230904.0
-        version: 4.20240512.0
+        specifier: ^4.20241112.0
+        version: 4.20241112.0
       '@electric-sql/pglite':
         specifier: ^0.2.12
         version: 0.2.12
@@ -2041,14 +2041,14 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@cloudflare/workers-types@4.20240512.0':
-    resolution: {integrity: sha512-o2yTEWg+YK/I1t/Me+dA0oarO0aCbjibp6wSeaw52DSE9tDyKJ7S+Qdyw/XsMrKn4t8kF6f/YOba+9O4MJfW9w==}
-
   '@cloudflare/workers-types@4.20240524.0':
     resolution: {integrity: sha512-GpSr4uE7y39DU9f0+wmrL76xd03wn0jy1ClITaa3ZZltKjirAV8TW1GzHrvvKyVGx6u3lekrFnB1HzVHsCYHDQ==}
 
   '@cloudflare/workers-types@4.20241004.0':
     resolution: {integrity: sha512-3LrPvtecs4umknOF1bTPNLHUG/ZjeSE6PYBQ/tbO7lwaVhjZTaTugiaCny2byrZupBlVNuubQVktcAgMfw0C1A==}
+
+  '@cloudflare/workers-types@4.20241112.0':
+    resolution: {integrity: sha512-Q4p9bAWZrX14bSCKY9to19xl0KMU7nsO5sJ2cTVspHoypsjPUMeQCsjHjmsO2C4Myo8/LPeDvmqFmkyNAPPYZw==}
 
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
@@ -12821,11 +12821,11 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20240712.0':
     optional: true
 
-  '@cloudflare/workers-types@4.20240512.0': {}
-
   '@cloudflare/workers-types@4.20240524.0': {}
 
   '@cloudflare/workers-types@4.20241004.0': {}
+
+  '@cloudflare/workers-types@4.20241112.0': {}
 
   '@colors/colors@1.5.0':
     optional: true
@@ -16980,10 +16980,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241004.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.3)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@types/better-sqlite3@7.6.12)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.5.0)(bun-types@1.0.3)(knex@2.5.1(better-sqlite3@11.5.0)(mysql2@3.11.0)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.11.0)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7):
+  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241112.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.3)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@types/better-sqlite3@7.6.12)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.5.0)(bun-types@1.0.3)(knex@2.5.1(better-sqlite3@11.5.0)(mysql2@3.11.0)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.11.0)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.583.0
-      '@cloudflare/workers-types': 4.20241004.0
+      '@cloudflare/workers-types': 4.20241112.0
       '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@neondatabase/serverless': 0.10.3
       '@opentelemetry/api': 1.8.0
