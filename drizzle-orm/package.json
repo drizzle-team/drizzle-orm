@@ -29,6 +29,7 @@
 		"orm",
 		"pg",
 		"mysql",
+		"singlestore",
 		"postgresql",
 		"postgres",
 		"sqlite",

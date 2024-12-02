@@ -10,6 +10,7 @@ export default defineConfig({
 			'tests/relational/**/*.test.ts',
 			'tests/pg/**/*.test.ts',
 			'tests/mysql/**/*.test.ts',
+			'tests/singlestore/**/*.test.ts',
 			'tests/sqlite/**/*.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
@@ -58,6 +59,8 @@ export default defineConfig({
 			'tests/sqlite/libsql-ws.test.ts',
 			'tests/sqlite/libsql-http.test.ts',
 			'tests/mysql/tidb-serverless.test.ts',
+			// waiting for json_array from singlestore team
+			'tests/relational/singlestore.test.ts',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
