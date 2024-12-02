@@ -10,7 +10,7 @@ export class SingleStoreSchema<TName extends string = string> {
 	) {}
 
 	table: SingleStoreTableFn<TName> = (name, columns, extraConfig) => {
-		return singlestoreTableWithSchema(name, columns, extraConfig, this.schemaName);
+		return singlestoreTableWithSchema(name, columns, extraConfig as any, this.schemaName);
 	};
 	/*
 	view = ((name, columns) => {
