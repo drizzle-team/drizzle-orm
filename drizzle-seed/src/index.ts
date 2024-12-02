@@ -451,7 +451,7 @@ const resetPostgres = async (
 		const config = getPgTableConfig(table);
 		config.schema = config.schema === undefined ? 'public' : config.schema;
 
-		return `${config.schema}.${config.name}`;
+		return `"${config.schema}"."${config.name}"`;
 	});
 
 	await db.execute(sql.raw(`truncate ${tablesToTruncate.join(',')} cascade;`));
@@ -603,7 +603,6 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		});
 	}
 
-	// console.log(tables[0]?.columns)
 	return { tables, relations };
 };
 

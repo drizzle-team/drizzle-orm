@@ -22,6 +22,7 @@ import {
 	text,
 	time,
 	timestamp,
+	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -59,6 +60,7 @@ export const allDataTypes = schema.table('all_data_types', {
 	line: line('line', { mode: 'abc' }),
 	lineTuple: line('line_tuple', { mode: 'tuple' }),
 	moodEnum: moodEnum('mood_enum'),
+	uuid: uuid('uuid'),
 });
 
 export const allArrayDataTypes = schema.table('all_array_data_types', {

@@ -34,6 +34,7 @@ import {
 	GenerateTime,
 	GenerateTimestamp,
 	GenerateUniqueString,
+	GenerateUUID,
 	GenerateValuesFromArray,
 	GenerateWeightedCount,
 	GenerateYear,
@@ -204,10 +205,6 @@ class SeedService {
 				} else if (Object.hasOwn(foreignKeyColumns, col.name)) {
 					// TODO: I might need to assign repeatedValuesCount to column there instead of doing so in generateTablesValues
 					columnPossibleGenerator.generator = new HollowGenerator({});
-				} else if (col.hasDefault && col.default !== undefined) {
-					columnPossibleGenerator.generator = new GenerateDefault({
-						defaultValue: col.default,
-					});
 				} // TODO: rewrite pickGeneratorFor... using new col properties: isUnique and notNull
 				else if (connectionType === 'postgresql') {
 					columnPossibleGenerator.generator = this.pickGeneratorForPostgresColumn(
@@ -227,6 +224,7 @@ class SeedService {
 				}
 
 				if (columnPossibleGenerator.generator === undefined) {
+					console.log(col);
 					throw new Error(
 						`column with type ${col.columnType} is not supported for now.`,
 					);
@@ -501,6 +499,15 @@ class SeedService {
 			return generator;
 		}
 
+		// UUID
+		if (col.columnType === 'uuid') {
+			generator = new GenerateUUID({});
+
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
+			return generator;
+		}
+
 		// BOOLEAN
 		if (col.columnType === 'boolean') {
 			generator = new GenerateBoolean({});
@@ -596,6 +603,13 @@ class SeedService {
 
 			generator.isUnique = col.isUnique;
 			generator.dataType = col.dataType;
+			return generator;
+		}
+
+		if (col.hasDefault && col.default !== undefined) {
+			generator = new GenerateDefault({
+				defaultValue: col.default,
+			});
 			return generator;
 		}
 
@@ -770,6 +784,13 @@ class SeedService {
 			return generator;
 		}
 
+		if (col.hasDefault && col.default !== undefined) {
+			const generator = new GenerateDefault({
+				defaultValue: col.default,
+			});
+			return generator;
+		}
+
 		return;
 	};
 
@@ -854,6 +875,13 @@ class SeedService {
 
 		if (col.columnType === 'timestamp' || col.columnType === 'timestamp_ms') {
 			const generator = new GenerateTimestamp({});
+			return generator;
+		}
+
+		if (col.hasDefault && col.default !== undefined) {
+			const generator = new GenerateDefault({
+				defaultValue: col.default,
+			});
 			return generator;
 		}
 

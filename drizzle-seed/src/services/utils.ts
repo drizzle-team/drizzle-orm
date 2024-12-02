@@ -89,3 +89,13 @@ export const fillTemplate = ({ template, placeholdersCount, values, defaultValue
 
 	return resultStr;
 };
+
+// is variable is object-like.
+// Example:
+// isObject({f: 4}) === true;
+// isObject([1,2,3]) === false;
+// isObject(new Set()) === false;
+export const isObject = (value: any) => {
+	if (value !== null && value !== undefined && value.constructor === Object) return true;
+	return false;
+};

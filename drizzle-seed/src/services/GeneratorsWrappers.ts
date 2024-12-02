@@ -12,7 +12,7 @@ import loremIpsumSentences from '../datasets/loremIpsumSentences.ts';
 import phonesInfo from '../datasets/phonesInfo.ts';
 import states from '../datasets/states.ts';
 import streetSuffix from '../datasets/streetSuffix.ts';
-import { fastCartesianProduct, fillTemplate, getWeightedIndices } from './utils.ts';
+import { fastCartesianProduct, fillTemplate, getWeightedIndices, isObject } from './utils.ts';
 
 export abstract class AbstractGenerator<T = {}> {
 	static readonly [entityKind]: string = 'AbstractGenerator';
@@ -205,7 +205,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 		}
 
 		if (
-			typeof values[0] === 'object'
+			isObject(values[0])
 			&& !(values as { weight: number; values: any[] }[]).every((val) => val.values.length !== 0)
 		) {
 			throw new Error('One of weighted values length equals zero.');
@@ -226,7 +226,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 		}
 
 		let allValuesCount = values.length;
-		if (typeof values[0] === 'object') {
+		if (isObject(values[0])) {
 			allValuesCount = (values as { values: any[] }[]).reduce((acc, currVal) => acc + currVal.values.length, 0);
 		}
 
@@ -234,9 +234,9 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 			notNull === true
 			&& maxRepeatedValuesCount !== undefined
 			&& (
-				(typeof values[0] !== 'object' && typeof maxRepeatedValuesCount === 'number'
+				(!isObject(values[0]) && typeof maxRepeatedValuesCount === 'number'
 					&& maxRepeatedValuesCount * values.length < count)
-				|| (typeof values[0] === 'object' && typeof maxRepeatedValuesCount === 'number'
+				|| (isObject(values[0]) && typeof maxRepeatedValuesCount === 'number'
 					&& maxRepeatedValuesCount * allValuesCount < count)
 			)
 		) {
@@ -259,8 +259,8 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 
 		if (
 			isUnique === true && notNull === true && (
-				(typeof values[0] !== 'object' && values.length < count)
-				|| (typeof values[0] === 'object' && allValuesCount < count)
+				(!isObject(values[0]) && values.length < count)
+				|| (isObject(values[0]) && allValuesCount < count)
 			)
 		) {
 			// console.log(maxRepeatedValuesCount, values.length, allValuesCount, count)
@@ -289,7 +289,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 		const values = params.values;
 
 		let valuesWeightedIndices;
-		if (typeof values[0] === 'object') {
+		if (isObject(values[0])) {
 			valuesWeightedIndices = getWeightedIndices((values as { weight: number }[]).map((val) => val.weight));
 			if (isUnique === true && notNull === true) {
 				let idx: number, valueIdx: number, rng = prand.xoroshiro128plus(seed);
@@ -335,12 +335,12 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 		let genIndicesObjList: GenerateUniqueInt[] | undefined;
 
 		if (maxRepeatedValuesCount !== undefined) {
-			if (typeof values[0] !== 'object') {
+			if (!isObject(values[0])) {
 				genIndicesObj = new GenerateUniqueInt({ minValue: 0, maxValue: values.length - 1 });
 				genIndicesObj.genMaxRepeatedValuesCount = genMaxRepeatedValuesCount;
 				genIndicesObj.skipCheck = true;
 				genIndicesObj.init({ count, seed });
-			} else if (typeof values[0] === 'object') {
+			} else if (isObject(values[0])) {
 				genIndicesObjList = [];
 				for (const obj of values as { weight: number; values: (number | string | boolean | undefined)[] }[]) {
 					const genIndicesObj = new GenerateUniqueInt({ minValue: 0, maxValue: obj.values.length - 1 });
@@ -1476,6 +1476,54 @@ export class GenerateUniqueString extends AbstractGenerator<{ isUnique?: boolean
 		}
 
 		return currStr.slice(0, 4) + uniqueStr + currStr.slice(4);
+	}
+}
+
+export class GenerateUUID extends AbstractGenerator<{
+	arraySize?: number;
+}> {
+	static override readonly [entityKind]: string = 'GenerateUUID';
+
+	public override isUnique = true;
+
+	private state: { rng: prand.RandomGenerator } | undefined;
+
+	init({ seed }: { seed: number }) {
+		if (this.params.arraySize !== undefined) {
+			this.arraySize = this.params.arraySize;
+		}
+
+		const rng = prand.xoroshiro128plus(seed);
+		this.state = { rng };
+	}
+
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+		// TODO generate uuid using string generator
+		const stringChars = '1234567890abcdef';
+		let idx: number,
+			currStr: string;
+		const strLength = 36;
+
+		// uuid v4
+		const uuidTemplate = '########-####-4###-####-############';
+		currStr = '';
+		for (let i = 0; i < strLength; i++) {
+			[idx, this.state.rng] = prand.uniformIntDistribution(
+				0,
+				stringChars.length - 1,
+				this.state.rng,
+			);
+
+			if (uuidTemplate[i] === '#') {
+				currStr += stringChars[idx];
+				continue;
+			}
+			currStr += uuidTemplate[i];
+		}
+		return currStr;
 	}
 }
 

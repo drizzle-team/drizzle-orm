@@ -57,7 +57,8 @@ beforeAll(async () => {
 				"point_tuple" "point",
 				"line" "line",
 				"line_tuple" "line",
-				"mood_enum" "seeder_lib_pg"."mood_enum"
+				"mood_enum" "seeder_lib_pg"."mood_enum",
+				"uuid" "uuid"
 			);
 		`,
 	);
