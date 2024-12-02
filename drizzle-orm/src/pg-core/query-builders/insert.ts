@@ -19,7 +19,7 @@ import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { Columns, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { haveSameKeys, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -63,9 +63,9 @@ export class PgInsertBuilder<
 		private overridingSystemValue_?: boolean,
 	) {}
 
-	private authToken?: string;
+	private authToken?: NeonAuthToken;
 	/** @internal */
-	setToken(token: string) {
+	setToken(token?: NeonAuthToken) {
 		this.authToken = token;
 		return this;
 	}
@@ -94,25 +94,15 @@ export class PgInsertBuilder<
 			return result;
 		});
 
-		return this.authToken === undefined
-			? new PgInsertBase(
-				this.table,
-				mappedValues,
-				this.session,
-				this.dialect,
-				this.withList,
-				false,
-				this.overridingSystemValue_,
-			)
-			: new PgInsertBase(
-				this.table,
-				mappedValues,
-				this.session,
-				this.dialect,
-				this.withList,
-				false,
-				this.overridingSystemValue_,
-			).setToken(this.authToken) as any;
+		return new PgInsertBase(
+			this.table,
+			mappedValues,
+			this.session,
+			this.dialect,
+			this.withList,
+			false,
+			this.overridingSystemValue_,
+		).setToken(this.authToken) as any;
 	}
 
 	select(selectQuery: (qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable>): PgInsertBase<TTable, TQueryResult>;
@@ -402,9 +392,9 @@ export class PgInsertBase<
 		return this._prepare(name);
 	}
 
-	private authToken?: string;
+	private authToken?: NeonAuthToken;
 	/** @internal */
-	setToken(token: string) {
+	setToken(token?: NeonAuthToken) {
 		this.authToken = token;
 		return this;
 	}

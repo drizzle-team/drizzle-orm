@@ -328,3 +328,5 @@ export function constraintNameWithCasing(name: string, colNames: { beforeCasing:
 	}
 	return name;
 }
+
+export type NeonAuthToken = string | (() => string | Promise<string>);
