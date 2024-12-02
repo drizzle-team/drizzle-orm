@@ -132,6 +132,7 @@ export type GenerateConfig = {
 	custom: boolean;
 	bundle: boolean;
 	casing?: CasingType;
+	driver?: Driver;
 };
 
 export const prepareGenerateConfig = async (
@@ -178,8 +179,9 @@ export const prepareGenerateConfig = async (
 		breakpoints: breakpoints ?? true,
 		schema: schema,
 		out: out || 'drizzle',
-		bundle: driver === 'expo',
+		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		casing,
+		driver,
 	};
 };
 

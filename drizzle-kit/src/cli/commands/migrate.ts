@@ -43,7 +43,7 @@ import {
 } from '../../snapshotsDiffer';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
-import { CasingType, Prefix } from '../validations/common';
+import { CasingType, Driver, Prefix } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import {
 	isRenamePromptItem,
@@ -753,6 +753,7 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 			breakpoints: config.breakpoints,
 			bundle: config.bundle,
 			prefixMode: config.prefix,
+			driver: config.driver,
 		});
 	} catch (e) {
 		console.error(e);
@@ -1201,6 +1202,7 @@ export const writeResult = ({
 	bundle = false,
 	type = 'none',
 	prefixMode,
+	driver,
 }: {
 	cur: CommonSchema;
 	sqlStatements: string[];
@@ -1212,6 +1214,7 @@ export const writeResult = ({
 	name?: string;
 	bundle?: boolean;
 	type?: 'introspect' | 'custom' | 'none';
+	driver?: Driver;
 }) => {
 	if (type === 'none') {
 		console.log(schema(cur));
@@ -1269,9 +1272,9 @@ export const writeResult = ({
 
 	fs.writeFileSync(`${outFolder}/${tag}.sql`, sql);
 
-	// js file with .sql imports for React Native / Expo
+	// js file with .sql imports for React Native / Expo and Durable Sqlite Objects
 	if (bundle) {
-		const js = embeddedMigrations(journal);
+		const js = embeddedMigrations(journal, driver);
 		fs.writeFileSync(`${outFolder}/migrations.js`, js);
 	}
 
@@ -1288,9 +1291,11 @@ export const writeResult = ({
 	);
 };
 
-export const embeddedMigrations = (journal: Journal) => {
-	let content =
-		'// This file is required for Expo/React Native SQLite migrations - https://orm.drizzle.team/quick-sqlite/expo\n\n';
+export const embeddedMigrations = (journal: Journal, driver?: Driver) => {
+	let content = driver === 'expo'
+		? '// This file is required for Expo/React Native SQLite migrations - https://orm.drizzle.team/quick-sqlite/expo\n\n'
+		: '';
+
 	content += "import journal from './meta/_journal.json';\n";
 	journal.entries.forEach((entry) => {
 		content += `import m${entry.idx.toString().padStart(4, '0')} from './${entry.tag}.sql';\n`;
