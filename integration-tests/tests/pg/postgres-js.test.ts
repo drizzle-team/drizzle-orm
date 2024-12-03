@@ -422,6 +422,37 @@ test('test mode string for timestamp with timezone in different timezone', async
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
+test('sql tagged function accepts Date object', async () => {
+	const timestampTable = pgTable('timestamp_test', {
+		id: serial('id').primaryKey(),
+		recorded_at: timestamp('recorded_at', { mode: 'date', precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${timestampTable}`);
+
+	await db.execute(sql`
+		create table ${timestampTable} (
+			id serial primary key,
+			recorded_at timestamp(3) not null
+		)
+	`);
+
+	const sampleDate = new Date('2023-06-15T14:30:00.789Z');
+
+	try {
+		await db.execute<{ id: number; recorded_at: string }>(
+			sql`select * from ${timestampTable} where ${timestampTable.recorded_at} = ${sampleDate}`
+		);
+		// If we reach here, the query didn't throw an error
+		expect(true).toBe(true);
+	} catch (error) {
+		// If an error is thrown, the test should fail
+		expect(error).toBeUndefined();
+	}
+
+	await db.execute(sql`drop table if exists ${timestampTable}`);
+});
+
 skipTests([
 	'migrator : default migration strategy',
 	'migrator : migrate with custom schema',
