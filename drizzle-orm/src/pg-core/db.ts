@@ -670,7 +670,7 @@ export const withReplicas = <
 		select,
 		selectDistinct,
 		selectDistinctOn,
-    $with,
+		$with,
 		with: _with,
 		get query() {
 			return getReplica(replicas).query;
