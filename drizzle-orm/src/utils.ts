@@ -311,3 +311,5 @@ export function isConfig(data: any): boolean {
 
 	return false;
 }
+
+export type NeonAuthToken = string | (() => string | Promise<string>);

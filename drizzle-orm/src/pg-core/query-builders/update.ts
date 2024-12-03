@@ -25,7 +25,14 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { type Assume, getTableLikeName, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import {
+	type Assume,
+	getTableLikeName,
+	mapUpdateSet,
+	type NeonAuthToken,
+	orderSelectedFields,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
@@ -64,6 +71,12 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 		private withList?: Subquery[],
 	) {}
 
+	private authToken?: NeonAuthToken;
+	setToken(token: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	set(
 		values: PgUpdateSetSource<TTable>,
 	): PgUpdateWithout<PgUpdateBase<TTable, TQueryResult>, false, 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'> {
@@ -73,7 +86,7 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 			this.session,
 			this.dialect,
 			this.withList,
-		);
+		).setToken(this.authToken);
 	}
 }
 
@@ -534,8 +547,15 @@ export class PgUpdateBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return this._prepare().execute(placeholderValues, this.authToken);
 	};
 
 	$dynamic(): PgUpdateDynamic<this> {
