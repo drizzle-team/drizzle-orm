@@ -55,9 +55,34 @@ import {
 } from '~/pg-core/view.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel } from '~/table.ts';
+import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+
+export const identityColumnsTable = pgTable('identity_columns_table', {
+	generatedCol: integer('generated_col').generatedAlwaysAs(1),
+	alwaysAsIdentity: integer('always_as_identity').generatedAlwaysAsIdentity(),
+	byDefaultAsIdentity: integer('by_default_as_identity').generatedByDefaultAsIdentity(),
+	name: text('name'),
+});
+
+Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferSelect']>>;
+Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferSelect']>>;
+Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferInsert']>>;
+Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferInsert']>>;
+Expect<
+	Equal<
+		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
+		Simplify<typeof identityColumnsTable['$inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+	>
+>;
+Expect<
+	Equal<
+		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
+		Simplify<typeof identityColumnsTable['_']['inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+	>
+>;
 
 export const users = pgTable(
 	'users_table',
@@ -114,9 +139,7 @@ export const smallSerialTest = pgTable('cities_table', {
 	id: smallserial('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+});
 
 Expect<
 	Equal<{
@@ -207,6 +230,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -223,6 +247,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -266,6 +291,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -282,6 +308,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -323,6 +350,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -339,6 +367,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -380,6 +409,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -396,6 +426,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -427,6 +458,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -443,6 +475,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -474,6 +507,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -490,6 +524,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -536,6 +571,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -552,6 +588,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -598,6 +635,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -614,6 +652,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -658,6 +697,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -674,6 +714,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -718,6 +759,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -734,6 +776,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -765,6 +808,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -781,6 +825,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -812,6 +857,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -828,6 +874,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -943,6 +990,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -959,6 +1007,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				notNull: true;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -975,6 +1024,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				notNull: true;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -991,6 +1041,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;

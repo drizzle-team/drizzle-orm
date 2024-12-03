@@ -14,7 +14,6 @@ export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuild
 	data: bigint;
 	driverParam: Buffer;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQLiteBigInt'>>
@@ -41,8 +40,19 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> 
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer | Uint8Array): bigint {
-		return BigInt(Buffer.isBuffer(value) ? value.toString() : String.fromCodePoint(...value));
+	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): bigint {
+		if (Buffer.isBuffer(value)) {
+			return BigInt(value.toString());
+		}
+
+		// for sqlite durable objects
+		// eslint-disable-next-line no-instanceof/no-instanceof
+		if (value instanceof ArrayBuffer) {
+			const decoder = new TextDecoder();
+			return BigInt(decoder.decode(value));
+		}
+
+		return BigInt(String.fromCodePoint(...value));
 	}
 
 	override mapToDriverValue(value: bigint): Buffer {
@@ -57,7 +67,6 @@ export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonB
 	data: unknown;
 	driverParam: Buffer;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteBlobJson'>>
@@ -87,8 +96,19 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer | Uint8Array): T['data'] {
-		return JSON.parse(Buffer.isBuffer(value) ? value.toString() : String.fromCodePoint(...value));
+	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {
+		if (Buffer.isBuffer(value)) {
+			return JSON.parse(value.toString());
+		}
+
+		// for sqlite durable objects
+		// eslint-disable-next-line no-instanceof/no-instanceof
+		if (value instanceof ArrayBuffer) {
+			const decoder = new TextDecoder();
+			return JSON.parse(decoder.decode(value));
+		}
+
+		return JSON.parse(String.fromCodePoint(...value));
 	}
 
 	override mapToDriverValue(value: T['data']): Buffer {
@@ -103,7 +123,6 @@ export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBuf
 	data: Buffer;
 	driverParam: Buffer;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'SQLiteBlobBuffer'>>

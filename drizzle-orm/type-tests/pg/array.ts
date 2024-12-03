@@ -21,6 +21,7 @@ import { integer, pgTable } from '~/pg-core/index.ts';
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;

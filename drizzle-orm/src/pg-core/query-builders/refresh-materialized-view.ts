@@ -12,6 +12,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
+import type { NeonAuthToken } from '~/utils';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
@@ -92,9 +93,16 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 		return this._prepare(name);
 	}
 
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 }
