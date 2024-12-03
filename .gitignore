@@ -10,3 +10,7 @@ dist.new
 .rollup.cache
 dist-dts
 rollup.config-*.mjs
+*.log
+.DS_Store
+drizzle-seed/src/test.ts
+drizzle-seed/src/schemaTest.ts

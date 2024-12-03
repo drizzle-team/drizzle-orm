@@ -4,6 +4,7 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
+	HasGenerated,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
@@ -15,9 +16,11 @@ import type { Update } from '~/utils.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
+import type { SQL } from '~/sql/sql.ts';
+import { iife } from '~/tracing-utils.ts';
+import type { PgIndexOpClass } from '../indexes.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
-import { iife } from '~/tracing-utils.ts';
 
 export interface ReferenceConfig {
 	ref: () => PgColumn;
@@ -42,7 +45,7 @@ export abstract class PgColumnBuilder<
 {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
-	static readonly [entityKind]: string = 'PgColumnBuilder';
+	static override readonly [entityKind]: string = 'PgColumnBuilder';
 
 	array(size?: number): PgArrayBuilder<
 		& {
@@ -78,6 +81,19 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this, {
+		type: 'always';
+	}> {
+		this.config.generated = {
+			as,
+			type: 'always',
+			mode: 'stored',
+		};
+		return this as HasGenerated<this, {
+			type: 'always';
+		}>;
+	}
+
 	/** @internal */
 	buildForeignKeys(column: PgColumn, table: PgTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
@@ -105,6 +121,13 @@ export abstract class PgColumnBuilder<
 	abstract build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgColumn<MakeColumnConfig<T, TTableName>>;
+
+	/** @internal */
+	buildExtraConfigColumn<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): ExtraConfigColumn {
+		return new ExtraConfigColumn(table, this.config);
+	}
 }
 
 // To understand how to use `PgColumn` and `PgColumn`, see `Column` and `AnyColumn` documentation.
@@ -113,7 +136,7 @@ export abstract class PgColumn<
 	TRuntimeConfig extends object = {},
 	TTypeConfig extends object = {},
 > extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }> {
-	static readonly [entityKind]: string = 'PgColumn';
+	static override readonly [entityKind]: string = 'PgColumn';
 
 	constructor(
 		override readonly table: PgTable,
@@ -124,6 +147,103 @@ export abstract class PgColumn<
 		}
 		super(table, config);
 	}
+}
+
+export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
+
+export class ExtraConfigColumn<
+	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+> extends PgColumn<T, IndexedExtraConfigType> {
+	static override readonly [entityKind]: string = 'ExtraConfigColumn';
+
+	override getSQLType(): string {
+		return this.getSQLType();
+	}
+
+	indexConfig: IndexedExtraConfigType = {
+		order: this.config.order ?? 'asc',
+		nulls: this.config.nulls ?? 'last',
+		opClass: this.config.opClass,
+	};
+	defaultConfig: IndexedExtraConfigType = {
+		order: 'asc',
+		nulls: 'last',
+		opClass: undefined,
+	};
+
+	asc(): Omit<this, 'asc' | 'desc'> {
+		this.indexConfig.order = 'asc';
+		return this;
+	}
+
+	desc(): Omit<this, 'asc' | 'desc'> {
+		this.indexConfig.order = 'desc';
+		return this;
+	}
+
+	nullsFirst(): Omit<this, 'nullsFirst' | 'nullsLast'> {
+		this.indexConfig.nulls = 'first';
+		return this;
+	}
+
+	nullsLast(): Omit<this, 'nullsFirst' | 'nullsLast'> {
+		this.indexConfig.nulls = 'last';
+		return this;
+	}
+
+	/**
+	 * ### PostgreSQL documentation quote
+	 *
+	 * > An operator class with optional parameters can be specified for each column of an index.
+	 * The operator class identifies the operators to be used by the index for that column.
+	 * For example, a B-tree index on four-byte integers would use the int4_ops class;
+	 * this operator class includes comparison functions for four-byte integers.
+	 * In practice the default operator class for the column's data type is usually sufficient.
+	 * The main point of having operator classes is that for some data types, there could be more than one meaningful ordering.
+	 * For example, we might want to sort a complex-number data type either by absolute value or by real part.
+	 * We could do this by defining two operator classes for the data type and then selecting the proper class when creating an index.
+	 * More information about operator classes check:
+	 *
+	 * ### Useful links
+	 * https://www.postgresql.org/docs/current/sql-createindex.html
+	 *
+	 * https://www.postgresql.org/docs/current/indexes-opclass.html
+	 *
+	 * https://www.postgresql.org/docs/current/xindex.html
+	 *
+	 * ### Additional types
+	 * If you have the `pg_vector` extension installed in your database, you can use the
+	 * `vector_l2_ops`, `vector_ip_ops`, `vector_cosine_ops`, `vector_l1_ops`, `bit_hamming_ops`, `bit_jaccard_ops`, `halfvec_l2_ops`, `sparsevec_l2_ops` options, which are predefined types.
+	 *
+	 * **You can always specify any string you want in the operator class, in case Drizzle doesn't have it natively in its types**
+	 *
+	 * @param opClass
+	 * @returns
+	 */
+	op(opClass: PgIndexOpClass): Omit<this, 'op'> {
+		this.indexConfig.opClass = opClass;
+		return this;
+	}
+}
+
+export class IndexedColumn {
+	static readonly [entityKind]: string = 'IndexedColumn';
+	constructor(
+		name: string | undefined,
+		keyAsName: boolean,
+		type: string,
+		indexConfig: IndexedExtraConfigType,
+	) {
+		this.name = name;
+		this.keyAsName = keyAsName;
+		this.type = type;
+		this.indexConfig = indexConfig;
+	}
+
+	name: string | undefined;
+	keyAsName: boolean;
+	type: string;
+	indexConfig: IndexedExtraConfigType;
 }
 
 export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = PgColumn<
@@ -174,7 +294,7 @@ export class PgArray<
 > extends PgColumn<T> {
 	readonly size: number | undefined;
 
-	static readonly [entityKind]: string = 'PgArray';
+	static override readonly [entityKind]: string = 'PgArray';
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,

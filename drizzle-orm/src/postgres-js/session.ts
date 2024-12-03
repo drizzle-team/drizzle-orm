@@ -5,7 +5,7 @@ import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
@@ -13,7 +13,7 @@ import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'PostgresJsPreparedQuery';
+	static override readonly [entityKind]: string = 'PostgresJsPreparedQuery';
 
 	constructor(
 		private client: Sql,
@@ -21,6 +21,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
@@ -78,6 +79,11 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 			});
 		});
 	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
+	}
 }
 
 export interface PostgresJsSessionOptions {
@@ -89,7 +95,7 @@ export class PostgresJsSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<PostgresJsQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PostgresJsSession';
+	static override readonly [entityKind]: string = 'PostgresJsSession';
 
 	logger: Logger;
 
@@ -108,9 +114,18 @@ export class PostgresJsSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
-		return new PostgresJsPreparedQuery(this.client, query.sql, query.params, this.logger, fields, customResultMapper);
+		return new PostgresJsPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	query(query: string, params: unknown[]): Promise<RowList<Row[]>> {
@@ -149,7 +164,7 @@ export class PostgresJsTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<PostgresJsQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PostgresJsTransaction';
+	static override readonly [entityKind]: string = 'PostgresJsTransaction';
 
 	constructor(
 		dialect: PgDialect,
@@ -165,13 +180,18 @@ export class PostgresJsTransaction<
 		transaction: (tx: PostgresJsTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return this.session.client.savepoint((client) => {
-			const session = new PostgresJsSession(client, this.dialect, this.schema, this.session.options);
-			const tx = new PostgresJsTransaction(this.dialect, session, this.schema);
+			const session = new PostgresJsSession<TransactionSql, TFullSchema, TSchema>(
+				client,
+				this.dialect,
+				this.schema,
+				this.session.options,
+			);
+			const tx = new PostgresJsTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 			return transaction(tx);
 		}) as Promise<T>;
 	}
 }
 
-export interface PostgresJsQueryResultHKT extends QueryResultHKT {
+export interface PostgresJsQueryResultHKT extends PgQueryResultHKT {
 	type: RowList<Assume<this['row'], Row>[]>;
 }

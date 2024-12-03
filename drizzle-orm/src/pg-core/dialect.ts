@@ -1,10 +1,23 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
+import {
+	PgColumn,
+	PgDate,
+	PgDateString,
+	PgJson,
+	PgJsonb,
+	PgNumeric,
+	PgTime,
+	PgTimestamp,
+	PgTimestampString,
+	PgUUID,
+} from '~/pg-core/columns/index.ts';
 import type {
+	AnyPgSelectQueryBuilder,
 	PgDeleteConfig,
 	PgInsertConfig,
 	PgSelectJoinConfig,
@@ -35,16 +48,27 @@ import {
 	sql,
 	type SQLChunk,
 } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
-import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { Subquery } from '~/subquery.ts';
+import { getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView } from './view.ts';
 
+export interface PgDialectConfig {
+	casing?: Casing;
+}
+
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
+
+	/** @internal */
+	readonly casing: CasingCache;
+
+	constructor(config?: PgDialectConfig) {
+		this.casing = new CasingCache(config?.casing);
+	}
 
 	async migrate(migrations: MigrationMeta[], session: PgSession, config: string | MigrationConfig): Promise<void> {
 		const migrationsTable = typeof config === 'string'
@@ -104,7 +128,7 @@ export class PgDialect {
 
 		const withSqlChunks = [sql`with `];
 		for (const [i, w] of queries.entries()) {
-			withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
 			if (i < queries.length - 1) {
 				withSqlChunks.push(sql`, `);
 			}
@@ -126,34 +150,50 @@ export class PgDialect {
 	}
 
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
-		const setEntries = Object.entries(set);
+		const tableColumns = table[Table.Symbol.Columns];
 
-		const setSize = setEntries.length;
-		return sql.join(
-			setEntries
-				.flatMap(([colName, value], i): SQL[] => {
-					const col: PgColumn = table[Table.Symbol.Columns][colName]!;
-					const res = sql`${sql.identifier(col.name)} = ${value}`;
-					if (i < setSize - 1) {
-						return [res, sql.raw(', ')];
-					}
-					return [res];
-				}),
+		const columnNames = Object.keys(tableColumns).filter((colName) =>
+			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
 		);
+
+		const setSize = columnNames.length;
+		return sql.join(columnNames.flatMap((colName, i) => {
+			const col = tableColumns[colName]!;
+
+			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+
+			if (i < setSize - 1) {
+				return [res, sql.raw(', ')];
+			}
+			return [res];
+		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList }: PgUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, from, joins }: PgUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
+
+		const tableName = table[PgTable.Symbol.Name];
+		const tableSchema = table[PgTable.Symbol.Schema];
+		const origTableName = table[PgTable.Symbol.OriginalName];
+		const alias = tableName === origTableName ? undefined : tableName;
+		const tableSql = sql`${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
+			sql.identifier(origTableName)
+		}${alias && sql` ${sql.identifier(alias)}`}`;
 
 		const setSql = this.buildUpdateSet(table, set);
 
+		const fromSql = from && sql.join([sql.raw(' from '), this.buildFromTable(from)]);
+
+		const joinsSql = this.buildJoins(joins);
+
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${withSql}update ${tableSql} set ${setSql}${fromSql}${joinsSql}${whereSql}${returningSql}`;
 	}
 
 	/**
@@ -187,7 +227,7 @@ export class PgDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, PgColumn)) {
-										return sql.identifier(c.name);
+										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
 								}),
@@ -202,7 +242,7 @@ export class PgDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(field.name));
+						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					} else {
 						chunk.push(field);
 					}
@@ -216,6 +256,67 @@ export class PgDialect {
 			});
 
 		return sql.join(chunks);
+	}
+
+	private buildJoins(joins: PgSelectJoinConfig[] | undefined): SQL | undefined {
+		if (!joins || joins.length === 0) {
+			return undefined;
+		}
+
+		const joinsArray: SQL[] = [];
+
+		for (const [index, joinMeta] of joins.entries()) {
+			if (index === 0) {
+				joinsArray.push(sql` `);
+			}
+			const table = joinMeta.table;
+			const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
+
+			if (is(table, PgTable)) {
+				const tableName = table[PgTable.Symbol.Name];
+				const tableSchema = table[PgTable.Symbol.Schema];
+				const origTableName = table[PgTable.Symbol.OriginalName];
+				const alias = tableName === origTableName ? undefined : joinMeta.alias;
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
+					}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+				);
+			} else if (is(table, View)) {
+				const viewName = table[ViewBaseConfig].name;
+				const viewSchema = table[ViewBaseConfig].schema;
+				const origViewName = table[ViewBaseConfig].originalName;
+				const alias = viewName === origViewName ? undefined : joinMeta.alias;
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
+					}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+				);
+			} else {
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+				);
+			}
+			if (index < joins.length - 1) {
+				joinsArray.push(sql` `);
+			}
+		}
+
+		return sql.join(joinsArray);
+	}
+
+	private buildFromTable(
+		table: SQL | Subquery | PgViewBase | PgTable | undefined,
+	): SQL | Subquery | PgViewBase | PgTable | undefined {
+		if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+			let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
+			if (table[Table.Symbol.Schema]) {
+				fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
+			}
+			return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
+		}
+
+		return table;
 	}
 
 	buildSelectQuery(
@@ -242,7 +343,7 @@ export class PgDialect {
 				is(f.field, Column)
 				&& getTableName(f.field.table)
 					!== (is(table, Subquery)
-						? table[SubqueryConfig].alias
+						? table._.alias
 						: is(table, PgViewBase)
 						? table[ViewBaseConfig].name
 						: is(table, SQL)
@@ -273,60 +374,9 @@ export class PgDialect {
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
-		const tableSql = (() => {
-			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
-				if (table[Table.Symbol.Schema]) {
-					fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
-				}
-				return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
-			}
+		const tableSql = this.buildFromTable(table);
 
-			return table;
-		})();
-
-		const joinsArray: SQL[] = [];
-
-		if (joins) {
-			for (const [index, joinMeta] of joins.entries()) {
-				if (index === 0) {
-					joinsArray.push(sql` `);
-				}
-				const table = joinMeta.table;
-				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
-
-				if (is(table, PgTable)) {
-					const tableName = table[PgTable.Symbol.Name];
-					const tableSchema = table[PgTable.Symbol.Schema];
-					const origTableName = table[PgTable.Symbol.OriginalName];
-					const alias = tableName === origTableName ? undefined : joinMeta.alias;
-					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
-							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
-					);
-				} else if (is(table, View)) {
-					const viewName = table[ViewBaseConfig].name;
-					const viewSchema = table[ViewBaseConfig].schema;
-					const origViewName = table[ViewBaseConfig].originalName;
-					const alias = viewName === origViewName ? undefined : joinMeta.alias;
-					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
-							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
-						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
-					);
-				} else {
-					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
-					);
-				}
-				if (index < joins.length - 1) {
-					joinsArray.push(sql` `);
-				}
-			}
-		}
-
-		const joinsSql = sql.join(joinsArray);
+		const joinsSql = this.buildJoins(joins);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
@@ -342,7 +392,9 @@ export class PgDialect {
 			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -428,7 +480,9 @@ export class PgDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
 
 		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
@@ -437,35 +491,57 @@ export class PgDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning, withList }: PgInsertConfig): SQL {
+	buildInsertQuery(
+		{ table, values: valuesOrSelect, onConflict, returning, withList, select, overridingSystemValue_ }: PgInsertConfig,
+	): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, PgColumn][] = Object.entries(columns);
+		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const insertOrder = colEntries.map(
+			([, column]) => sql.identifier(this.casing.getColumnCasing(column)),
+		);
 
-		for (const [valueIndex, value] of values.entries()) {
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
-				const colValue = value[fieldName];
-				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
-					// eslint-disable-next-line unicorn/no-negated-condition
-					if (col.defaultFn !== undefined) {
-						const defaultFnResult = col.defaultFn();
-						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
-						valueList.push(defaultValue);
-					} else {
-						valueList.push(sql`default`);
-					}
-				} else {
-					valueList.push(colValue);
-				}
+		if (select) {
+			const select = valuesOrSelect as AnyPgSelectQueryBuilder | SQL;
+
+			if (is(select, SQL)) {
+				valuesSqlList.push(select);
+			} else {
+				valuesSqlList.push(select.getSQL());
 			}
+		} else {
+			const values = valuesOrSelect as Record<string, Param | SQL>[];
+			valuesSqlList.push(sql.raw('values '));
 
-			valuesSqlList.push(valueList);
-			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+			for (const [valueIndex, value] of values.entries()) {
+				const valueList: (SQLChunk | SQL)[] = [];
+				for (const [fieldName, col] of colEntries) {
+					const colValue = value[fieldName];
+					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+						// eslint-disable-next-line unicorn/no-negated-condition
+						if (col.defaultFn !== undefined) {
+							const defaultFnResult = col.defaultFn();
+							const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							valueList.push(defaultValue);
+							// eslint-disable-next-line unicorn/no-negated-condition
+						} else if (!col.default && col.onUpdateFn !== undefined) {
+							const onUpdateFnResult = col.onUpdateFn();
+							const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+							valueList.push(newValue);
+						} else {
+							valueList.push(sql`default`);
+						}
+					} else {
+						valueList.push(colValue);
+					}
+				}
+
+				valuesSqlList.push(valueList);
+				if (valueIndex < values.length - 1) {
+					valuesSqlList.push(sql`, `);
+				}
 			}
 		}
 
@@ -479,7 +555,9 @@ export class PgDialect {
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
-		return sql`${withSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		const overridingSql = overridingSystemValue_ === true ? sql`overriding system value ` : undefined;
+
+		return sql`${withSql}insert into ${table} ${insertOrder} ${overridingSql}${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	buildRefreshMaterializedViewQuery(
@@ -492,17 +570,15 @@ export class PgDialect {
 	}
 
 	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
-		if (
-			is(encoder, PgJsonb) || is(encoder, PgJson)
-		) {
+		if (is(encoder, PgJsonb) || is(encoder, PgJson)) {
 			return 'json';
 		} else if (is(encoder, PgNumeric)) {
 			return 'decimal';
 		} else if (is(encoder, PgTime)) {
 			return 'time';
-		} else if (is(encoder, PgTimestamp)) {
+		} else if (is(encoder, PgTimestamp) || is(encoder, PgTimestampString)) {
 			return 'timestamp';
-		} else if (is(encoder, PgDate)) {
+		} else if (is(encoder, PgDate) || is(encoder, PgDateString)) {
 			return 'date';
 		} else if (is(encoder, PgUUID)) {
 			return 'uuid';
@@ -511,12 +587,14 @@ export class PgDialect {
 		}
 	}
 
-	sqlToQuery(sql: SQL): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
+			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			prepareTyping: this.prepareTyping,
+			invokeSource,
 		});
 	}
 
@@ -1089,7 +1167,9 @@ export class PgDialect {
 			}));
 		} else {
 			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
+				Object.entries(tableConfig.columns).map((
+					[key, value],
+				) => [key, aliasedTableColumn(value, tableAlias)]),
 			);
 
 			if (config.where) {
@@ -1200,7 +1280,7 @@ export class PgDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(

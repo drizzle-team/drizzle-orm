@@ -1,7 +1,7 @@
 import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
-import type { Assume, ValidateShape } from '~/utils.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteTable, SQLiteTableWithColumns } from '~/sqlite-core/table.ts';
+import type { Assume, ValidateShape } from '~/utils.ts';
 
 import type {
 	SelectedFields as SelectFieldsBase,
@@ -24,9 +24,9 @@ import type {
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { SQLitePreparedQuery } from '../session.ts';
-import type { SQLiteSelectBase, SQLiteSelectQueryBuilderBase } from './select.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import type { SQLiteViewWithSelection } from '../view.ts';
+import type { SQLiteSelectBase, SQLiteSelectQueryBuilderBase } from './select.ts';
 
 export interface SQLiteSelectJoinConfig {
 	on: SQL | undefined;
@@ -72,7 +72,7 @@ export interface SQLiteSelectConfig {
 	}[];
 }
 
-export type SQLiteJoin<
+export type SQLiteSelectJoin<
 	T extends AnySQLiteSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
@@ -103,7 +103,7 @@ export type SQLiteJoin<
 	>
 	: never;
 
-export type SQLiteJoinFn<
+export type SQLiteSelectJoinFn<
 	T extends AnySQLiteSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
@@ -113,7 +113,7 @@ export type SQLiteJoinFn<
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-) => SQLiteJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+) => SQLiteSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectFieldsFlatBase<SQLiteColumn>;
 

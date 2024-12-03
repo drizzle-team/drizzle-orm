@@ -28,7 +28,7 @@ export class SQLiteD1Session<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'async', D1Result, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteD1Session';
+	static override readonly [entityKind]: string = 'SQLiteD1Session';
 
 	private logger: Logger;
 
@@ -46,13 +46,22 @@ export class SQLiteD1Session<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): D1PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
-		return new D1PreparedQuery(stmt, query, this.logger, fields, executeMethod, customResultMapper);
+		return new D1PreparedQuery(
+			stmt,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
-	/*override */ async batch<U extends BatchItem, T extends Readonly<[U, ...U[]]>>(queries: T) {
+	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: D1PreparedStatement[] = [];
 
@@ -70,88 +79,8 @@ export class SQLiteD1Session<
 			}
 		}
 
-		// const queryToType: (
-		// 	| { mode: 'all' }
-		// 	| {
-		// 		mode: 'all_mapped';
-		// 		config: { fields: SelectedFieldsOrdered; joinsNotNullableMap?: Record<string, boolean> };
-		// 	}
-		// 	| { mode: 'get' }
-		// 	| { mode: 'values' }
-		// 	| { mode: 'raw' }
-		// 	| { mode: 'rqb'; mapper: any }
-		// )[] = [];
-
-		// const builtQueries: D1PreparedStatement[] = queries.map((query) => {
-		// 	if (is(query, SQLiteSelectBase<any, 'async', any, any, any>)) {
-		// 		const prepared = query.prepare() as D1PreparedQuery;
-		// 		prepared.fields === undefined
-		// 			? queryToType.push({ mode: 'all' })
-		// 			: queryToType.push({
-		// 				mode: 'all_mapped',
-		// 				config: { fields: prepared.fields, joinsNotNullableMap: prepared.joinsNotNullableMap },
-		// 			});
-		// 		return prepared.stmt.bind(...prepared.params);
-		// 	} else if (
-		// 		is(query, SQLiteInsertBase<any, 'async', any, any>) || is(query, SQLiteUpdateBase<any, 'async', any, any>)
-		// 		|| is(query, SQLiteDeleteBase<any, 'async', any, any>)
-		// 	) {
-		// 		const prepared = query.prepare() as D1PreparedQuery;
-		// 		queryToType.push(
-		// 			query.config.returning
-		// 				? {
-		// 					mode: 'all_mapped',
-		// 					config: { fields: query.config.returning },
-		// 				}
-		// 				: { mode: 'raw' },
-		// 		);
-		// 		return prepared.stmt.bind(...prepared.params);
-		// 	} else if (is(query, SQLiteRaw)) {
-		// 		const builtQuery = this.dialect.sqlToQuery(query.getSQL());
-		// 		queryToType.push(
-		// 			query.config.action === 'run' ? { mode: 'raw' } : { mode: query.config.action },
-		// 		);
-		// 		return this.client.prepare(builtQuery.sql).bind(...builtQuery.params);
-		// 	} else if (is(query, SQLiteRelationalQuery)) {
-		// 		const preparedRqb = query.prepare() as D1PreparedQuery;
-		// 		queryToType.push({ mode: 'rqb', mapper: preparedRqb.customResultMapper });
-		// 		return preparedRqb.stmt.bind(...preparedRqb.params);
-		// 	}
-		// 	throw new DrizzleError({ message: 'You can use only drizzle queries in D1 batch API' });
-		// });
-
 		const batchResults = await this.client.batch<any>(builtQueries);
 		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
-
-		// const res = this.client.batch<any>(builtQueries).then((stmt) =>
-		// 	stmt.map(({ results }, index) => {
-		// 		const action = queryToType[index]!;
-		// 		if (action.mode === 'all') {
-		// 			return results;
-		// 		}
-		// 		if (action.mode === 'all_mapped') {
-		// 			const mappedRows = this.d1ToRawMapping(results);
-		// 			return mappedRows!.map((row) => {
-		// 				return mapResultRow(
-		// 					action.config.fields,
-		// 					row,
-		// 					action.config.joinsNotNullableMap,
-		// 				);
-		// 			});
-		// 		}
-		// 		if (action.mode === 'get') {
-		// 			return results![0] as unknown[];
-		// 		}
-		// 		if (action.mode === 'values') {
-		// 			return this.d1ToRawMapping(results);
-		// 		}
-		// 		if (action.mode === 'raw') {
-		// 			return stmt[index];
-		// 		}
-		// 		return action.mapper(this.d1ToRawMapping(results));
-		// 	})
-		// );
-		// return res;
 	}
 
 	override extractRawAllValueFromBatchResult(result: unknown): unknown {
@@ -187,7 +116,7 @@ export class D1Transaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'async', D1Result, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'D1Transaction';
+	static override readonly [entityKind]: string = 'D1Transaction';
 
 	override async transaction<T>(transaction: (tx: D1Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
@@ -220,9 +149,9 @@ function d1ToRawMapping(results: any) {
 }
 
 export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
-	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
+	{ type: 'async'; run: D1Response; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'D1PreparedQuery';
+	static override readonly [entityKind]: string = 'D1PreparedQuery';
 
 	/** @internal */
 	customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown;
@@ -239,6 +168,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		private logger: Logger,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		private _isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
 		super('async', executeMethod, query);
@@ -247,7 +177,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		this.stmt = stmt;
 	}
 
-	run(placeholderValues?: Record<string, unknown>): Promise<D1Result> {
+	run(placeholderValues?: Record<string, unknown>): Promise<D1Response> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.bind(...params).run();
@@ -323,5 +253,10 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.bind(...params).raw();
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }

@@ -11,7 +11,7 @@ import {
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import type { KnownKeysOnly } from '~/utils.ts';
+import type { KnownKeysOnly, NeonAuthToken } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgPreparedQuery, PgSession, PreparedQueryConfig } from '../session.ts';
 import type { PgTable } from '../table.ts';
@@ -65,7 +65,7 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'pg'>, SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgRelationalQuery';
+	static override readonly [entityKind]: string = 'PgRelationalQuery';
 
 	declare readonly _: {
 		readonly dialect: 'pg';
@@ -95,6 +95,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 				builtQuery,
 				undefined,
 				name,
+				true,
 				(rawRows, mapColumnValue) => {
 					const rows = rawRows.map((row) =>
 						mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
@@ -141,9 +142,16 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		return this._toSQL().builtQuery;
 	}
 
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	override execute(): Promise<TResult> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute();
+			return this._prepare().execute(undefined, this.authToken);
 		});
 	}
 }

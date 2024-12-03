@@ -20,7 +20,7 @@ import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
 	applyMixins,
@@ -39,12 +39,12 @@ import type {
 	SelectedFields,
 	SetOperatorRightSelect,
 	SQLiteCreateSetOperatorFn,
-	SQLiteJoinFn,
 	SQLiteSelectConfig,
 	SQLiteSelectDynamic,
 	SQLiteSelectExecute,
 	SQLiteSelectHKT,
 	SQLiteSelectHKTBase,
+	SQLiteSelectJoinFn,
 	SQLiteSelectPrepare,
 	SQLiteSelectWithout,
 	SQLiteSetOperatorExcludedMethods,
@@ -99,7 +99,7 @@ export class SQLiteSelectBuilder<
 		} else if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
-				Object.keys(source[SubqueryConfig].selection).map((
+				Object.keys(source._.selectedFields).map((
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
@@ -137,7 +137,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'SQLiteSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'SQLiteSelectQueryBuilder';
 
 	override readonly _: {
 		readonly dialect: 'sqlite';
@@ -193,7 +193,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): SQLiteJoinFn<this, TDynamic, TJoinType> {
+	): SQLiteSelectJoinFn<this, TDynamic, TJoinType> {
 		return (
 			table: SQLiteTable | Subquery | SQLiteViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
@@ -214,7 +214,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 				}
 				if (typeof tableName === 'string' && !is(table, SQL)) {
 					const selection = is(table, Subquery)
-						? table[SubqueryConfig].selection
+						? table._.selectedFields
 						: is(table, View)
 						? table[ViewBaseConfig].selectedFields
 						: table[Table.Symbol.Columns];
@@ -854,7 +854,7 @@ export class SQLiteSelectBase<
 	TResult,
 	TSelectedFields
 > implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper {
-	static readonly [entityKind]: string = 'SQLiteSelect';
+	static override readonly [entityKind]: string = 'SQLiteSelect';
 
 	/** @internal */
 	_prepare(isOneTimeQuery = true): SQLiteSelectPrepare<this> {
@@ -866,6 +866,7 @@ export class SQLiteSelectBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			fieldsList,
 			'all',
+			true,
 		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query as ReturnType<this['prepare']>;

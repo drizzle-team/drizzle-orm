@@ -72,10 +72,12 @@ beforeAll(async () => {
 	do {
 		try {
 			client = postgres(connectionString, {
+				max: 1,
 				onnotice: () => {
 					// disable notices
 				},
 			});
+			await client`select 1`;
 			connected = true;
 			break;
 		} catch (e) {

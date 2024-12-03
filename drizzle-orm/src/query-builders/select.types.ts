@@ -1,5 +1,5 @@
-import type { ChangeColumnTableName, Dialect } from '~/column-builder.ts';
-import type { AnyColumn, Column, GetColumnData, UpdateColConfig } from '~/column.ts';
+import type { ChangeColumnTableName, ColumnDataType, Dialect } from '~/column-builder.ts';
+import type { AnyColumn, Column, ColumnBaseConfig, GetColumnData, UpdateColConfig } from '~/column.ts';
 import type { SelectedFields } from '~/operations.ts';
 import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -17,9 +17,12 @@ export type ApplyNullability<T, TNullability extends JoinNullability> = TNullabi
 export type ApplyNullabilityToColumn<TColumn extends Column, TNullability extends JoinNullability> =
 	TNullability extends 'not-null' ? TColumn
 		: Column<
-			UpdateColConfig<TColumn['_'], {
-				notNull: TNullability extends 'nullable' ? false : TColumn['_']['notNull'];
-			}>
+			Assume<
+				UpdateColConfig<TColumn['_'], {
+					notNull: TNullability extends 'nullable' ? false : TColumn['_']['notNull'];
+				}>,
+				ColumnBaseConfig<ColumnDataType, string>
+			>
 		>;
 
 export type ApplyNotNullMapToJoins<TResult, TNullabilityMap extends Record<string, JoinNullability>> =
@@ -103,7 +106,7 @@ export type AppendToResult<
 	TSelectedFields extends SelectedFields<Column, Table>,
 	TOldSelectMode extends SelectMode,
 > = TOldSelectMode extends 'partial' ? TResult
-	: TOldSelectMode extends 'single' ? 
+	: TOldSelectMode extends 'single' ?
 			& (TTableName extends string ? Record<TTableName, TResult> : TResult)
 			& (TJoinedName extends string ? Record<TJoinedName, TSelectedFields> : TSelectedFields)
 	: TResult & (TJoinedName extends string ? Record<TJoinedName, TSelectedFields> : TSelectedFields);
@@ -112,7 +115,7 @@ export type BuildSubquerySelection<
 	TSelection extends ColumnsSelection,
 	TNullability extends Record<string, JoinNullability>,
 > = TSelection extends never ? any
-	: 
+	:
 		& {
 			[Key in keyof TSelection]: TSelection[Key] extends SQL
 				? DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>

@@ -27,7 +27,7 @@ export class SQLiteRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'async', SqliteRemoteResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteRemoteSession';
+	static override readonly [entityKind]: string = 'SQLiteRemoteSession';
 
 	private logger: Logger;
 
@@ -46,9 +46,18 @@ export class SQLiteRemoteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): RemotePreparedQuery<T> {
-		return new RemotePreparedQuery(this.client, query, this.logger, fields, executeMethod, customResultMapper);
+		return new RemotePreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
@@ -99,7 +108,7 @@ export class SQLiteProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'async', SqliteRemoteResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteProxyTransaction';
+	static override readonly [entityKind]: string = 'SQLiteProxyTransaction';
 
 	override async transaction<T>(
 		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
@@ -121,7 +130,7 @@ export class SQLiteProxyTransaction<
 export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
 	{ type: 'async'; run: SqliteRemoteResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
+	static override readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
 
 	private method: SQLiteExecuteMethod;
 
@@ -131,6 +140,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		private _isResponseInArrayMode: boolean,
 		/** @internal */ public customResultMapper?: (
 			rows: unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
@@ -148,7 +158,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run').then((t) => t.rows) as Promise<
+		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run') as Promise<
 			SqliteRemoteResult
 		>;
 	}
@@ -227,5 +237,10 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		this.logger.logQuery(this.query.sql, params);
 		const clientResult = await (this.client as AsyncRemoteCallback)(this.query.sql, params, 'values');
 		return clientResult.rows as T[];
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }

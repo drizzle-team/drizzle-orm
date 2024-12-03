@@ -8,7 +8,7 @@ export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 export async function migrate<TSchema extends Record<string, unknown>>(
 	db: PgRemoteDatabase<TSchema>,
 	callback: ProxyMigrator,
-	config: string | MigrationConfig,
+	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
 
@@ -28,7 +28,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		hash: string;
 		created_at: string;
 	}>(
-		sql`SELECT id, hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`
+		sql`SELECT id, hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
 	);
 
 	const lastDbMigration = dbMigrations[0] ?? undefined;

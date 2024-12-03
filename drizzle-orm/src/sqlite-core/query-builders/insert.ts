@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
@@ -9,24 +10,30 @@ import type { IndexColumn } from '~/sqlite-core/indexes.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
-import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
-import type { SQLiteColumn } from '../columns/common.ts';
+import { Columns, Table } from '~/table.ts';
+import { type DrizzleTypeError, haveSameKeys, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
+import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteUpdateSetSource } from './update.ts';
 
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[];
+	values: Record<string, Param | SQL>[] | SQLiteInsertSelectQueryBuilder<TTable> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
+	select?: boolean;
 }
 
 export type SQLiteInsertValue<TTable extends SQLiteTable> = Simplify<
 	{
 		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
 	}
+>;
+
+export type SQLiteInsertSelectQueryBuilder<TTable extends SQLiteTable> = TypedQueryBuilder<
+	{ [K in keyof TTable['$inferInsert']]: AnySQLiteColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
 >;
 
 export class SQLiteInsertBuilder<
@@ -69,6 +76,32 @@ export class SQLiteInsertBuilder<
 		// }
 
 		return new SQLiteInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
+	}
+
+	select(
+		selectQuery: (qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable>,
+	): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	select(selectQuery: (qb: QueryBuilder) => SQL): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	select(selectQuery: SQL): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	select(selectQuery: SQLiteInsertSelectQueryBuilder<TTable>): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	select(
+		selectQuery:
+			| SQL
+			| SQLiteInsertSelectQueryBuilder<TTable>
+			| ((qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable> | SQL),
+	): SQLiteInsertBase<TTable, TResultType, TRunResult> {
+		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+
+		if (
+			!is(select, SQL)
+			&& !haveSameKeys(this.table[Columns], select._.selectedFields)
+		) {
+			throw new Error(
+				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
+			);
+		}
+
+		return new SQLiteInsertBase(this.table, select, this.session, this.dialect, this.withList, true);
 	}
 }
 
@@ -121,7 +154,11 @@ export type SQLiteInsertReturningAll<
 
 export type SQLiteInsertOnConflictDoUpdateConfig<T extends AnySQLiteInsert> = {
 	target: IndexColumn | IndexColumn[];
+	/** @deprecated - use either `targetWhere` or `setWhere` */
 	where?: SQL;
+	// TODO: add tests for targetWhere and setWhere
+	targetWhere?: SQL;
+	setWhere?: SQL;
 	set: SQLiteUpdateSetSource<T['_']['table']>;
 };
 
@@ -195,7 +232,7 @@ export class SQLiteInsertBase<
 > extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
 	implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper
 {
-	static readonly [entityKind]: string = 'SQLiteInsert';
+	static override readonly [entityKind]: string = 'SQLiteInsert';
 
 	/** @internal */
 	config: SQLiteInsertConfig<TTable>;
@@ -206,9 +243,10 @@ export class SQLiteInsertBase<
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 		withList?: Subquery[],
+		select?: boolean,
 	) {
 		super();
-		this.config = { table, values, withList };
+		this.config = { table, values: values as any, withList, select };
 	}
 
 	/**
@@ -305,10 +343,17 @@ export class SQLiteInsertBase<
 	 * ```
 	 */
 	onConflictDoUpdate(config: SQLiteInsertOnConflictDoUpdateConfig<this>): this {
+		if (config.where && (config.targetWhere || config.setWhere)) {
+			throw new Error(
+				'You cannot use both "where" and "targetWhere"/"setWhere" at the same time - "where" is deprecated, use "targetWhere" or "setWhere" instead.',
+			);
+		}
+		const whereSql = config.where ? sql` where ${config.where}` : undefined;
+		const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
+		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
 		const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
-		const whereSql = config.where ? sql` where ${config.where}` : sql``;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`${targetSql} do update set ${setSql}${whereSql}`;
+		this.config.onConflict = sql`${targetSql}${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
 		return this;
 	}
 
@@ -328,6 +373,7 @@ export class SQLiteInsertBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
+			true,
 		) as SQLiteInsertPrepare<this>;
 	}
 
