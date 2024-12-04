@@ -60,9 +60,32 @@ plugins:
   - drizzle
 ```
 
-## Rules
+For flat config
 
-**enforce-delete-with-where**: Enforce using `delete` with the`.where()` clause in the `.delete()` statement. Most of the time, you don't need to delete all rows in the table and require some kind of `WHERE` statements.
+```ts
+import ts from 'typescript-eslint';
+import drizzle from 'eslint-plugin-drizzle';
+
+export default ts.config(
+  // add the following line
+  drizzle.configs.flat.recommended,
+);
+```
+
+## Rules
+<!-- begin auto-generated rules list -->
+
+💼 Configurations enabled in.\
+🌐 Set in the `all` configuration.\
+✅ Set in the `recommended` configuration.\
+🔧 Automatically fixable by the [`--fix` CLI option](https://eslint.org/docs/user-guide/command-line-interface#--fix).
+
+| Name                                                                 | Description                                                                                  | 💼   | 🔧 |
+| :------------------------------------------------------------------- | :------------------------------------------------------------------------------------------- | :--- | :- |
+| [enforce-delete-with-where](docs/rules/enforce-delete-with-where.md) | Enforce that `delete` method is used with `where` to avoid deleting all the rows in a table. | 🌐 ✅ | 🔧 |
+| [enforce-update-with-where](docs/rules/enforce-update-with-where.md) | Enforce that `update` method is used with `where` to avoid deleting all the rows in a table. | 🌐 ✅ | 🔧 |
+
+<!-- end auto-generated rules list -->
 
 Optionally, you can define a `drizzleObjectName` in the plugin options that accept a `string` or `string[]`. This is useful when you have objects or classes with a delete method that's not from Drizzle. Such a `delete` method will trigger the ESLint rule. To avoid that, you can define the name of the Drizzle object that you use in your codebase (like db) so that the rule would only trigger if the delete method comes from this object:
 

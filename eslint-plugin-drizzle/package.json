@@ -2,11 +2,12 @@
 	"name": "eslint-plugin-drizzle",
 	"version": "0.2.3",
 	"description": "Eslint plugin for drizzle users to avoid common pitfalls",
-	"main": "src/index.js",
+	"main": "dist/index.js",
 	"scripts": {
 		"test": "vitest run",
-		"build": "tsc -b && pnpm cpy readme.md dist/",
-		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"build": "tsc -b",
+		"docs": "eslint-doc-generator",
+		"pack": "npm pack && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz"
 	},
 	"keywords": [
@@ -18,18 +19,23 @@
 	"author": "Drizzle Team",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/drizzle-team/drizzle-orm/tree/main/eslint-plugin-drizzle.git"
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git#main",
+		"directory": "eslint-plugin-drizzle"
 	},
 	"license": "Apache-2.0",
+	"dependencies": {
+		"@typescript-eslint/utils": "^8"
+	},
 	"devDependencies": {
 		"@types/node": "^20.10.1",
-		"@typescript-eslint/parser": "^6.10.0",
-		"@typescript-eslint/rule-tester": "^6.10.0",
-		"@typescript-eslint/utils": "^6.10.0",
-		"cpy-cli": "^5.0.0",
-		"eslint": "^8.53.0",
+		"@typescript-eslint/parser": "^8",
+		"@typescript-eslint/rule-tester": "^8",
+		"eslint": "^8 || ^9",
+		"eslint-doc-generator": "^1.7.1",
+		"eslint-plugin-eslint-plugin": "^6.2.0",
 		"typescript": "^5.2.2",
-		"vitest": "^1.6.0"
+		"typescript-eslint": "^8",
+		"vitest": "^2.0.4"
 	},
 	"peerDependencies": {
 		"eslint": ">=8.0.0"
