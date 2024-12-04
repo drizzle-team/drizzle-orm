@@ -5471,7 +5471,7 @@ export function tests() {
 		test('ignore generated columns in insert', async (ctx) => {
 			const { db } = ctx.pg;
 
-			const users = pgTable('users', {
+			const users = pgTable('users_ignore_generated_columns_in_insert', {
 				id: integer().generatedAlwaysAsIdentity(),
 				otherId: integer('other_id').generatedByDefaultAsIdentity(),
 				firstName: text('first_name').notNull(),
