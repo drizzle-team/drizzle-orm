@@ -949,18 +949,21 @@ export const fromDatabase = async (
 
 	const checkConstraints = await db.query(
 		`SELECT 
-    tc.table_name, 
-    tc.constraint_name, 
-    cc.check_clause
-FROM 
-    information_schema.table_constraints tc
-JOIN 
-    information_schema.check_constraints cc 
-    ON tc.constraint_name = cc.constraint_name
-WHERE 
-    tc.constraint_schema = '${inputSchema}'
-AND 
-    tc.constraint_type = 'CHECK';`,
+				tc.table_name, 
+				tc.constraint_name, 
+				cc.check_clause
+		FROM 
+				information_schema.table_constraints tc
+		JOIN 
+				information_schema.check_constraints cc 
+				ON 
+					tc.constraint_name = cc.constraint_name
+				AND
+					tc.constraint_schema = cc.constraint_schema
+		WHERE 
+				tc.constraint_schema = '${inputSchema}'
+		AND 
+				tc.constraint_type = 'CHECK';`,
 	);
 
 	checksCount += checkConstraints.length;
@@ -968,12 +971,13 @@ AND
 		progressCallback('checks', checksCount, 'fetching');
 	}
 	for (const checkConstraintRow of checkConstraints) {
-		const constraintName = checkConstraintRow['CONSTRAINT_NAME'];
-		const constraintValue = checkConstraintRow['CHECK_CLAUSE'];
-		const tableName = checkConstraintRow['TABLE_NAME'];
+
+		// account for possible case differences in column name returns
+		const constraintName = checkConstraintRow['CONSTRAINT_NAME'] || checkConstraintRow['constraint_name'];
+    const constraintValue = checkConstraintRow['CHECK_CLAUSE'] || checkConstraintRow['check_clause'];
+    const tableName = checkConstraintRow['TABLE_NAME'] || checkConstraintRow['table_name'];
 
 		const tableInResult = result[tableName];
-		// if (typeof tableInResult === 'undefined') continue;
 
 		tableInResult.checkConstraint[constraintName] = {
 			name: constraintName,
