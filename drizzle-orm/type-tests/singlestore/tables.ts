@@ -81,57 +81,69 @@ export const cities = singlestoreTable('cities_table', {
 Expect<
 	Equal<
 		{
-			id: SingleStoreColumn<{
-				name: 'id';
-				tableName: 'cities_table';
-				dataType: 'number';
-				columnType: 'SingleStoreSerial';
-				data: number;
-				driverParam: number;
-				notNull: true;
-				hasDefault: true;
-				isPrimaryKey: true;
-				isAutoincrement: true;
-				hasRuntimeDefault: false;
-				enumValues: undefined;
-				baseColumn: never;
-				identity: undefined;
-				generated: undefined;
-			}, object>;
-			name: SingleStoreColumn<{
-				name: 'name_db';
-				tableName: 'cities_table';
-				dataType: 'string';
-				columnType: 'SingleStoreText';
-				data: string;
-				driverParam: string;
-				notNull: true;
-				hasDefault: false;
-				isPrimaryKey: false;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				enumValues: [string, ...string[]];
-				baseColumn: never;
-				identity: undefined;
-				generated: undefined;
-			}, object>;
-			population: SingleStoreColumn<{
-				name: 'population';
-				tableName: 'cities_table';
-				dataType: 'number';
-				columnType: 'SingleStoreInt';
-				data: number;
-				driverParam: string | number;
-				notNull: false;
-				hasDefault: true;
-				isPrimaryKey: false;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				enumValues: undefined;
-				baseColumn: never;
-				identity: undefined;
-				generated: undefined;
-			}, object>;
+			id: SingleStoreColumn<
+				{
+					name: 'id';
+					tableName: 'cities_table';
+					dataType: 'number';
+					columnType: 'SingleStoreSerial';
+					data: number;
+					driverParam: number;
+					notNull: true;
+					hasDefault: true;
+					isPrimaryKey: true;
+					isAutoincrement: true;
+					hasRuntimeDefault: false;
+					enumValues: undefined;
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{}
+			>;
+			name: SingleStoreColumn<
+				{
+					name: 'name_db';
+					tableName: 'cities_table';
+					dataType: 'string';
+					columnType: 'SingleStoreText';
+					data: string;
+					driverParam: string;
+					notNull: true;
+					hasDefault: false;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: [string, ...string[]];
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{}
+			>;
+			population: SingleStoreColumn<
+				{
+					name: 'population';
+					tableName: 'cities_table';
+					dataType: 'number';
+					columnType: 'SingleStoreInt';
+					data: number;
+					driverParam: string | number;
+					notNull: false;
+					hasDefault: true;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: undefined;
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{}
+			>;
 		},
 		typeof cities._.columns
 	>
@@ -500,6 +512,7 @@ Expect<
 	});
 
 	const t = customText('name').notNull();
+
 	Expect<
 		Equal<
 			{
@@ -519,6 +532,7 @@ Expect<
 				identity: undefined;
 				generated: undefined;
 				brand: 'Column';
+				singlestoreColumnBuilderBrand: 'SingleStoreCustomColumnBuilderBrand';
 				dialect: 'singlestore';
 			},
 			Simplify<BuildColumn<'table', typeof t, 'singlestore'>['_']>

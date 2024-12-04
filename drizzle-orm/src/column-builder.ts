@@ -342,11 +342,19 @@ export type BuildColumn<
 			{},
 			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
 		>
-	: TDialect extends 'singlestore'
-		? SingleStoreColumn<
+	: TDialect extends 'singlestore' ? SingleStoreColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
-			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+			Simplify<
+				Omit<
+					TBuilder['_'],
+					| keyof MakeColumnConfig<TBuilder['_'], TTableName>
+					| 'brand'
+					| 'dialect'
+					| 'primaryKeyHasDefault'
+					| 'mysqlColumnBuilderBrand'
+				>
+			>
 		>
 	: never;
 
