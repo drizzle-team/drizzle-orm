@@ -24,7 +24,14 @@ import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
+import {
+	applyMixins,
+	getTableColumns,
+	getTableLikeName,
+	haveSameKeys,
+	type NeonAuthToken,
+	type ValueOrArray,
+} from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
@@ -81,9 +88,9 @@ export class PgSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	private authToken?: string;
+	private authToken?: NeonAuthToken;
 	/** @internal */
-	setToken(token: string) {
+	setToken(token?: NeonAuthToken) {
 		this.authToken = token;
 		return this;
 	}
@@ -122,25 +129,15 @@ export class PgSelectBuilder<
 			fields = getTableColumns<PgTable>(source);
 		}
 
-		return (this.authToken === undefined
-			? new PgSelectBase({
-				table: source,
-				fields,
-				isPartialSelect,
-				session: this.session,
-				dialect: this.dialect,
-				withList: this.withList,
-				distinct: this.distinct,
-			})
-			: new PgSelectBase({
-				table: source,
-				fields,
-				isPartialSelect,
-				session: this.session,
-				dialect: this.dialect,
-				withList: this.withList,
-				distinct: this.distinct,
-			}).setToken(this.authToken)) as any;
+		return (new PgSelectBase({
+			table: source,
+			fields,
+			isPartialSelect,
+			session: this.session,
+			dialect: this.dialect,
+			withList: this.withList,
+			distinct: this.distinct,
+		}).setToken(this.authToken)) as any;
 	}
 }
 
@@ -979,7 +976,7 @@ export class PgSelectBase<
 			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true);
 			query.joinsNotNullableMap = joinsNotNullableMap;
 
-			return authToken === undefined ? query : query.setToken(authToken);
+			return query.setToken(authToken);
 		});
 	}
 
@@ -994,9 +991,9 @@ export class PgSelectBase<
 		return this._prepare(name);
 	}
 
-	private authToken?: string;
+	private authToken?: NeonAuthToken;
 	/** @internal */
-	setToken(token: string) {
+	setToken(token?: NeonAuthToken) {
 		this.authToken = token;
 		return this;
 	}

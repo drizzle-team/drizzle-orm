@@ -2,6 +2,7 @@ import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
+import type { SingleStoreColumn } from './singlestore-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
 import type { Assume, Simplify } from './utils.ts';
@@ -17,7 +18,7 @@ export type ColumnDataType =
 	| 'custom'
 	| 'buffer';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'common';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common';
 
 export type GeneratedStorageMode = 'virtual' | 'stored';
 
@@ -341,6 +342,12 @@ export type BuildColumn<
 			{},
 			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
 		>
+	: TDialect extends 'singlestore'
+		? SingleStoreColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+		>
 	: never;
 
 export type BuildIndexColumn<
@@ -381,5 +388,6 @@ export type BuildExtraConfigColumns<
 export type ChangeColumnTableName<TColumn extends Column, TAlias extends string, TDialect extends Dialect> =
 	TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: never;

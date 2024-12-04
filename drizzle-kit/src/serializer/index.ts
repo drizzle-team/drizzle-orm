@@ -6,6 +6,7 @@ import { CasingType } from 'src/cli/validations/common';
 import { error } from '../cli/views';
 import type { MySqlSchemaInternal } from './mysqlSchema';
 import type { PgSchemaInternal } from './pgSchema';
+import { SingleStoreSchemaInternal } from './singlestoreSchema';
 import type { SQLiteSchemaInternal } from './sqliteSchema';
 
 export const serializeMySql = async (
@@ -51,6 +52,22 @@ export const serializeSQLite = async (
 	const { generateSqliteSnapshot } = await import('./sqliteSerializer');
 	const { tables, views } = await prepareFromSqliteImports(filenames);
 	return generateSqliteSnapshot(tables, views, casing);
+};
+
+export const serializeSingleStore = async (
+	path: string | string[],
+	casing: CasingType | undefined,
+): Promise<SingleStoreSchemaInternal> => {
+	const filenames = prepareFilenames(path);
+
+	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+
+	const { prepareFromSingleStoreImports } = await import('./singlestoreImports');
+	const { generateSingleStoreSnapshot } = await import('./singlestoreSerializer');
+
+	const { tables /* views */ } = await prepareFromSingleStoreImports(filenames);
+
+	return generateSingleStoreSnapshot(tables, /* views, */ casing);
 };
 
 export const prepareFilenames = (path: string | string[]) => {

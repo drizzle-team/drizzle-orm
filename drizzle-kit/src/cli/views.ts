@@ -32,7 +32,13 @@ export const schema = (schema: CommonSchema): string => {
 		.map((t) => {
 			const columnsCount = Object.values(t.columns).length;
 			const indexesCount = Object.values(t.indexes).length;
-			const foreignKeys = Object.values(t.foreignKeys).length;
+			let foreignKeys: number = 0;
+			// Singlestore doesn't have foreign keys
+			if (schema.dialect !== 'singlestore') {
+				// @ts-expect-error
+				foreignKeys = Object.values(t.foreignKeys).length;
+			}
+
 			return `${chalk.bold.blue(t.name)} ${
 				chalk.gray(
 					`${columnsCount} columns ${indexesCount} indexes ${foreignKeys} fks`,
