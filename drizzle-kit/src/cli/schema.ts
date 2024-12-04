@@ -702,7 +702,7 @@ export const studio = command({
 			console.log();
 			console.log(
 				withStyle.fullWarning(
-					'Drizzle Studio is currently in Beta. If you find anything that is not working as expected or should be improved, feel free to create an issue on GitHub: https://github.com/drizzle-team/drizzle-kit-mirror/issues/new or write to us on Discord: https://discord.gg/WcRKz2FFxN',
+					'Drizzle Studio is currently in Beta. If you find anything that is not working as expected or should be improved, feel free to create an issue on GitHub: https://github.com/drizzle-team/drizzle-orm/issues/new or write to us on Discord: https://discord.gg/WcRKz2FFxN',
 				),
 			);
 
