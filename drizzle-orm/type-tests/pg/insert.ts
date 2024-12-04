@@ -1,7 +1,7 @@
 import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { boolean, pgTable, QueryBuilder, serial, text } from '~/pg-core/index.ts';
+import { boolean, integer, pgTable, QueryBuilder, serial, text } from '~/pg-core/index.ts';
 import type { PgInsert } from '~/pg-core/query-builders/insert.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
@@ -219,6 +219,10 @@ Expect<
 		admin: boolean('admin').notNull().default(false),
 		phoneNumber: text('phone_number'),
 	});
+	const users3 = pgTable('users3', {
+		id: integer().generatedAlwaysAsIdentity().primaryKey(),
+		name: text().notNull(),
+	});
 
 	const qb = new QueryBuilder();
 
@@ -259,6 +263,37 @@ Expect<
 			qb.select({
 				name: sql`${users2.firstName} || ' ' || ${users2.lastName}`.as('name'),
 				admin: users2.admin,
+			}).from(users2),
+		);
+
+	db
+		.insert(users1)
+		.select(
+			// @ts-expect-error `unknown` is an unknown column
+			qb.select({
+				name: users2.firstName,
+				admin: users2.admin,
+				unknown: sql``.as('unknown'),
+			}).from(users2),
+		);
+
+	db
+		.insert(users3)
+		.select(
+			// @ts-expect-error `id` is a generated column
+			qb.select({
+				id: sql``.as('id'),
+				name: users2.firstName,
+			}).from(users2),
+		);
+
+	db
+		.insert(users3)
+		.overridingSystemValue()
+		.select(
+			qb.select({
+				id: sql``.as('id'),
+				name: users2.firstName,
 			}).from(users2),
 		);
 
