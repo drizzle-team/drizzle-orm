@@ -9,7 +9,7 @@ export const getTablesFilterByExtensions = ({
 			extensionsFilters.includes('postgis')
 			&& dialect === 'postgresql'
 		) {
-			return ['!geography_columns', '!geometry_columns', '!spatial_ref_sys'];
+			return ['!geography_columns', '!geometry_columns', '!spatial_ref_sys', '!raster_columns', '!raster_columns'];
 		}
 	}
 	return [];
