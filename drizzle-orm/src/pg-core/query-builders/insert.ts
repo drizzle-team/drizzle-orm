@@ -59,7 +59,7 @@ type NoUnknownKeysInInsertSelection<
 	TSelection extends PgInsertSelection<any, any>,
 	OverrideT extends boolean = false,
 > = {
-	[K in keyof TSelection]: K extends keyof (OverrideT extends true ? TTable['$inferSelect'] : TTable['$inferInsert'])
+	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>
 		? TSelection[K]
 		: K extends keyof TTable['$inferSelect'] ? DrizzleTypeError<
 				`Column "${
