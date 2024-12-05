@@ -12,6 +12,7 @@ import type {
 	TSchema,
 	TString,
 	TUnion,
+	TUnsafe,
 } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import {
@@ -98,6 +99,7 @@ type GetTypeboxType<TColumn extends Column> = TColumn['_']['dataType'] extends i
 	: TDataType extends 'string' ? TString
 	: TDataType extends 'boolean' ? TBoolean
 	: TDataType extends 'date' ? TDate
+	: TDataType extends 'buffer' ? TUnion<[TString, TUnsafe<Buffer>]>
 	: TAny
 	: never;
 

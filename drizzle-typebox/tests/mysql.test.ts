@@ -44,6 +44,7 @@ const testTable = mysqlTable('test', {
 	bigint: bigint('bigint', { mode: 'bigint' }).notNull(),
 	bigintNumber: bigint('bigintNumber', { mode: 'number' }).notNull(),
 	binary: binary('binary').notNull(),
+	binaryStr: binary('binaryStr').notNull(),
 	boolean: boolean('boolean').notNull(),
 	char: char('char', { length: 4 }).notNull(),
 	charEnum: char('char', { enum: ['a', 'b', 'c'] }).notNull(),
@@ -77,6 +78,7 @@ const testTable = mysqlTable('test', {
 	timestampString: timestamp('timestampString', { mode: 'string' }).notNull(),
 	tinyint: tinyint('tinyint').notNull(),
 	varbinary: varbinary('varbinary', { length: 200 }).notNull(),
+	varbinaryStr: varbinary('varbinaryStr', { length: 200 }).notNull(),
 	varchar: varchar('varchar', { length: 200 }).notNull(),
 	varcharEnum: varchar('varcharEnum', {
 		length: 1,
@@ -89,7 +91,8 @@ const testTable = mysqlTable('test', {
 const testTableRow = {
 	bigint: BigInt(1),
 	bigintNumber: 1,
-	binary: 'binary',
+	binary: Buffer.from('binary'),
+	binaryStr: 'binary',
 	boolean: true,
 	char: 'char',
 	charEnum: 'a',
@@ -120,7 +123,8 @@ const testTableRow = {
 	timestamp: new Date(),
 	timestampString: new Date().toISOString(),
 	tinyint: 1,
-	varbinary: 'A'.repeat(200),
+	varbinary: Buffer.from('A'.repeat(200)),
+	varbinaryStr: 'A'.repeat(200),
 	varchar: 'A'.repeat(200),
 	varcharEnum: 'a',
 	year: 2021,
@@ -163,7 +167,8 @@ test('insert schema', (t) => {
 	const expected = Type.Object({
 		bigint: Type.BigInt(),
 		bigintNumber: Type.Number(),
-		binary: Type.String(),
+		binary: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
+		binaryStr: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
 		boolean: Type.Boolean(),
 		char: Type.String({ minLength: 4, maxLength: 4 }),
 		charEnum: Type.Union([Type.Literal('a'), Type.Literal('b'), Type.Literal('c')]),
@@ -214,7 +219,8 @@ test('insert schema', (t) => {
 		timestamp: Type.Date(),
 		timestampString: Type.String(),
 		tinyint: Type.Number(),
-		varbinary: Type.String({ maxLength: 200 }),
+		varbinary: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
+		varbinaryStr: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
 		varchar: Type.String({ maxLength: 200 }),
 		varcharEnum: Type.Union([
 			Type.Literal('a'),
@@ -234,7 +240,8 @@ test('select schema', (t) => {
 	const expected = Type.Object({
 		bigint: Type.BigInt(),
 		bigintNumber: Type.Number(),
-		binary: Type.String(),
+		binary: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
+		binaryStr: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
 		boolean: Type.Boolean(),
 		char: Type.String({ minLength: 4, maxLength: 4 }),
 		charEnum: Type.Union([
@@ -290,7 +297,8 @@ test('select schema', (t) => {
 		timestamp: Type.Date(),
 		timestampString: Type.String(),
 		tinyint: Type.Number(),
-		varbinary: Type.String({ maxLength: 200 }),
+		varbinaryStr: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
+		varbinary: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
 		varchar: Type.String({ maxLength: 200 }),
 		varcharEnum: Type.Union([
 			Type.Literal('a'),
@@ -312,7 +320,8 @@ test('select schema w/ refine', (t) => {
 	const expected = Type.Object({
 		bigint: Type.BigInt({ minimum: 0n }),
 		bigintNumber: Type.Number(),
-		binary: Type.String(),
+		binary: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
+		binaryStr: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
 		boolean: Type.Boolean(),
 		char: Type.String({ minLength: 5, maxLength: 5 }),
 		charEnum: Type.Union([Type.Literal('a'), Type.Literal('b'), Type.Literal('c')]),
@@ -363,7 +372,8 @@ test('select schema w/ refine', (t) => {
 		timestamp: Type.Date(),
 		timestampString: Type.String(),
 		tinyint: Type.Number(),
-		varbinary: Type.String({ maxLength: 200 }),
+		varbinary: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
+		varbinaryStr: Type.Union([Type.String(), Type.Unsafe<Buffer>()]),
 		varchar: Type.String({ maxLength: 200 }),
 		varcharEnum: Type.Union([
 			Type.Literal('a'),

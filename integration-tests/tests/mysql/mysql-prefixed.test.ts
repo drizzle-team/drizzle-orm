@@ -20,6 +20,8 @@ import {
 	timestamp,
 	uniqueIndex,
 	year,
+	binary,
+	varbinary,
 } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
@@ -1596,3 +1598,104 @@ test('update undefined', async () => {
 
 	await db.execute(sql`drop table ${users}`);
 });
+
+test('binary column should accept buffer', async () => {
+	await db.execute(sql`drop table if exists \`binary_table\``);
+	await db.execute(
+		sql`
+			create table \`binary_table\` (
+				\`binary\` binary(11) not null
+			)
+		`
+	);
+
+	const binaryTable = mysqlTable('binary_table', {
+		binary: binary('binary').notNull(),
+	});
+
+	const data = { binary: Buffer.from('hello world') }
+
+	await db.insert(binaryTable).values(data);
+
+	const res = await db.select().from(binaryTable);
+
+	expect(res).toEqual([data]);
+
+	await db.execute(sql`drop table if exists \`binary_table\``);
+});
+
+test('binary column should accept string', async () => {
+	await db.execute(sql`drop table if exists \`binary_table\``);
+	await db.execute(
+		sql`
+			create table \`binary_table\` (
+				\`binary\` binary(11) not null
+			)
+		`
+	);
+
+	const binaryTable = mysqlTable('binary_table', {
+		binary: binary('binary').notNull(),
+	});
+
+	const data = { binary: 'hello world' }
+
+	await db.insert(binaryTable).values(data);
+
+	const res = await db.select().from(binaryTable);
+
+	expect(res).toEqual([{ binary: Buffer.from(data.binary) }]);
+
+	await db.execute(sql`drop table if exists \`binary_table\``);
+});
+
+test('varbinary column should accept buffer', async () => {
+	await db.execute(sql`drop table if exists \`varbinary_table\``);
+	await db.execute(
+		sql`
+			create table \`varbinary_table\` (
+				\`varbinary\` varbinary(11) not null
+			)
+		`
+	);
+
+	const varbinaryTable = mysqlTable('varbinary_table', {
+		varbinary: varbinary('varbinary', { length: 11 }).notNull(),
+	});
+
+	const data = { varbinary: Buffer.from('hello world') }
+
+	await db.insert(varbinaryTable).values(data);
+
+	const res = await db.select().from(varbinaryTable);
+
+	expect(res).toEqual([data]);
+
+	await db.execute(sql`drop table if exists \`varbinary_table\``);
+});
+
+test('varbinary column should accept string', async () => {
+	await db.execute(sql`drop table if exists \`varbinary_table\``);
+	await db.execute(
+		sql`
+			create table \`varbinary_table\` (
+				\`varbinary\` varbinary(11) not null
+			)
+		`
+	);
+
+	const varbinaryTable = mysqlTable('varbinary_table', {
+		varbinary: varbinary('varbinary', { length: 11 }).notNull(),
+	});
+
+	const data = { varbinary: 'hello world' }
+
+	await db.insert(varbinaryTable).values(data);
+
+	const res = await db.select().from(varbinaryTable);
+
+	expect(res).toEqual([{ varbinary: Buffer.from(data.varbinary) }]);
+
+	await db.execute(sql`drop table if exists \`varbinary_table\``);
+});
+
