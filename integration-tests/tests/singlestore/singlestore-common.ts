@@ -3427,7 +3427,7 @@ export function tests(driver?: string) {
 		});
 
 		test('query with aliased column', async (ctx) => {
-			const { db } = ctx.sqlite;
+			const { db } = ctx.singlestore;
 			const query = db.select({ id: usersTable.id.as('user_id') }).from(usersTable);
 
 			expect(query.toSQL()).toEqual({
