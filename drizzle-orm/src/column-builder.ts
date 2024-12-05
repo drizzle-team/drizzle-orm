@@ -352,7 +352,7 @@ export type BuildColumn<
 					| 'brand'
 					| 'dialect'
 					| 'primaryKeyHasDefault'
-					| 'mysqlColumnBuilderBrand'
+					| 'singlestoreColumnBuilderBrand'
 				>
 			>
 		>
