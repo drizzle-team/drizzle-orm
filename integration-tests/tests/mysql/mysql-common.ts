@@ -4100,4 +4100,14 @@ export function tests(driver?: string) {
 					),
 		).toThrowError();
 	});
+
+	test('query with aliased column', async (ctx) => {
+		const { db } = ctx.mysql;
+		const query = db.select({ id: usersTable.id.as('user_id') }).from(usersTable);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'select \`id\` as \`user_id\` from \`userstest\`',
+			params: [],
+		});
+	});
 }

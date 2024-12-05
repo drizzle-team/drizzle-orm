@@ -5503,5 +5503,15 @@ export function tests() {
 				{ id: 1, otherId: 10, firstName: 'John', lastName: 'Doe', name: 'John Doe' },
 			]);
 		});
+
+		test('query with aliased column', async (ctx) => {
+			const { db } = ctx.pg;
+			const query = db.select({ id: usersTable.id.as('user_id') }).from(usersTable);
+
+			expect(query.toSQL()).toEqual({
+				sql: 'select "id" as "user_id" from "users"',
+				params: [],
+			});
+		});
 	});
 }

@@ -124,6 +124,10 @@ export abstract class Column<
 		return value;
 	}
 
+	as(name: string): SQL.Aliased<GetColumnData<this, 'query'>> {
+		return this.getSQL().mapWith(this.mapFromDriverValue).as(name);
+	}
+
 	nameWithCasing(
 		casing: Casing | PgDatabase<any> | MySqlDatabase<any, any> | BaseSQLiteDatabase<'sync' | 'async', any>,
 	): string {
