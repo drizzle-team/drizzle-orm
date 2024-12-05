@@ -693,7 +693,7 @@ test('composite primary key', async () => {
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "works_to_creators" (\n\t"work_id" integer NOT NULL,\n\t"creator_id" integer NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_work_id_creator_id_classification_pk" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
+		'CREATE TABLE "works_to_creators" (\n\t"work_id" integer NOT NULL,\n\t"creator_id" integer NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_work_id_creator_id_classification_pk" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
 	]);
 });
 
@@ -772,7 +772,7 @@ test('add index with op', async () => {
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE INDEX IF NOT EXISTS "users_name_index" ON "users" USING gin ("name" gin_trgm_ops);',
+		'CREATE INDEX "users_name_index" ON "users" USING gin ("name" gin_trgm_ops);',
 	]);
 });
 

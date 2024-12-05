@@ -958,7 +958,7 @@ const pgSuite: DialectSuite = {
 			},
 		]);
 		expect(sqlStatements).toStrictEqual([
-			'CREATE TABLE IF NOT EXISTS "table" (\n\t"col1" integer NOT NULL,\n\t"col2" integer NOT NULL,\n\tCONSTRAINT "table_col1_col2_pk" PRIMARY KEY("col1","col2")\n);\n',
+			'CREATE TABLE "table" (\n\t"col1" integer NOT NULL,\n\t"col2" integer NOT NULL,\n\tCONSTRAINT "table_col1_col2_pk" PRIMARY KEY("col1","col2")\n);\n',
 		]);
 	},
 
@@ -2258,7 +2258,7 @@ test('Column with same name as enum', async () => {
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "table2" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"status" "status" DEFAULT \'inactive\'\n);\n',
+		'CREATE TABLE "table2" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"status" "status" DEFAULT \'inactive\'\n);\n',
 		'ALTER TABLE "table1" ADD COLUMN "status" "status" DEFAULT \'inactive\';',
 	]);
 });
