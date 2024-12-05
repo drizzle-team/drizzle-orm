@@ -48,20 +48,22 @@ export abstract class PgColumnBuilder<
 
 	static override readonly [entityKind]: string = 'PgColumnBuilder';
 
-	array(size?: number): PgArrayBuilder<
-		& {
-			name: T['name'];
-			dataType: 'array';
-			columnType: 'PgArray';
-			data: T['data'][];
-			driverParam: T['driverParam'][] | string;
-			enumValues: T['enumValues'];
-		}
-		& (T extends { notNull: true } ? { notNull: true } : {})
-		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
-		T
-	> {
-		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size);
+	array(size?: number): this extends infer TThis ? PgArrayBuilder<
+			& {
+				name: T['name'];
+				dataType: 'array';
+				columnType: 'PgArray';
+				data: TThis extends { _: { $type: infer U } } ? U[] : T['data'][];
+				driverParam: T['driverParam'][] | string;
+				enumValues: T['enumValues'];
+			}
+			& (T extends { notNull: true } ? { notNull: true } : {})
+			& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
+			T
+		>
+		: never
+	{
+		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size) as any;
 	}
 
 	references(
