@@ -45,7 +45,7 @@ export class MySqlVarCharBuilder<
 }
 
 export class MySqlVarChar<T extends ColumnBaseConfig<'string', 'MySqlVarChar'> & { length?: number | undefined }>
-	extends MySqlColumn<T, MySqlVarCharConfig<T['enumValues'], T['length']>>
+	extends MySqlColumn<T, MySqlVarCharConfig<T['enumValues'], T['length']>, { length: T['length'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlVarChar';
 
