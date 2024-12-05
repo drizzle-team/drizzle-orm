@@ -79,7 +79,7 @@ export interface PgSelectConfig {
 	}[];
 }
 
-export type PgJoin<
+export type PgSelectJoin<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
@@ -108,7 +108,7 @@ export type PgJoin<
 	>
 	: never;
 
-export type PgJoinFn<
+export type PgSelectJoinFn<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
@@ -118,7 +118,7 @@ export type PgJoinFn<
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-) => PgJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn>;
 

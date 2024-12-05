@@ -125,12 +125,12 @@ const pgSuite: DialectSuite = {
 		expect(sqlStatements).toStrictEqual([
 			'DROP INDEX "indx";',
 			'DROP INDEX "indx1";',
-			// 'DROP INDEX "indx2";',
+			'DROP INDEX "indx2";',
 			'DROP INDEX "indx3";',
 			'CREATE INDEX "indx4" ON "users" USING btree (lower(id)) WHERE true;',
 			'CREATE INDEX "indx" ON "users" USING btree ("name" DESC NULLS LAST);',
 			'CREATE INDEX "indx1" ON "users" USING btree ("name" DESC NULLS LAST) WHERE false;',
-			// 'CREATE INDEX "indx2" ON "users" USING btree ("name" test) WHERE true;',
+			'CREATE INDEX "indx2" ON "users" USING btree ("name" test) WHERE true;',
 			'CREATE INDEX "indx3" ON "users" USING btree (lower("id")) WHERE true;',
 		]);
 	},

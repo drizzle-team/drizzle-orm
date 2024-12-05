@@ -114,7 +114,7 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 		.filter(([, value]) => value !== undefined)
 		.map(([key, value]) => {
 			// eslint-disable-next-line unicorn/prefer-ternary
-			if (is(value, SQL)) {
+			if (is(value, SQL) || is(value, Column)) {
 				return [key, value];
 			} else {
 				return [key, new Param(value, table[Table.Symbol.Columns][key])];
@@ -128,7 +128,7 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 	return Object.fromEntries(entries);
 }
 
-export type UpdateSet = Record<string, SQL | Param | null | undefined>;
+export type UpdateSet = Record<string, SQL | Param | AnyColumn | null | undefined>;
 
 export type OneOrMany<T> = T | T[];
 
@@ -186,6 +186,10 @@ export type Writable<T> = {
 
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
+}
+
+export function getViewSelectedFields<T extends View>(view: T): T['_']['selectedFields'] {
+	return view[ViewBaseConfig].selectedFields;
 }
 
 /** @internal */
@@ -311,3 +315,5 @@ export function isConfig(data: any): boolean {
 
 	return false;
 }
+
+export type NeonAuthToken = string | (() => string | Promise<string>);

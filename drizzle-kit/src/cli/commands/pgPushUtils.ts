@@ -250,7 +250,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 				}
 			}
 		}
-		const stmnt = fromJson([statement], 'postgresql');
+		const stmnt = fromJson([statement], 'postgresql', 'push');
 		if (typeof stmnt !== 'undefined') {
 			statementsToExecute.push(...stmnt);
 		}
