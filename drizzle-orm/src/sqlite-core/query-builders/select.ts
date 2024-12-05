@@ -637,7 +637,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	groupBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
 	): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
-	groupBy(...columns: (SQLiteColumn | SQL)[]): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
+	groupBy(...columns: (SQLiteColumn | SQL | SQL.Aliased)[]): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
 	groupBy(
 		...columns:
 			| [(aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
