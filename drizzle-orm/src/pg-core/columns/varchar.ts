@@ -7,8 +7,8 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgVarcharBuilderInitial<
 	TName extends string,
-	TLength extends number | undefined,
 	TEnum extends [string, ...string[]],
+	TLength extends number | undefined,
 > = PgVarcharBuilder<{
 	name: TName;
 	dataType: 'string';
@@ -19,16 +19,16 @@ export type PgVarcharBuilderInitial<
 	length: TLength;
 }>;
 
-export class PgVarcharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgVarchar'> & { length: number | undefined }>
-	extends PgColumnBuilder<
-		T,
-		{ length: T['length']; enumValues: T['enumValues'] },
-		{ length: T['length'] }
-	>
-{
+export class PgVarcharBuilder<
+	T extends ColumnBuilderBaseConfig<'string', 'PgVarchar'> & { length?: number | undefined },
+> extends PgColumnBuilder<
+	T,
+	{ length: T['length']; enumValues: T['enumValues'] },
+	{ length: T['length'] }
+> {
 	static override readonly [entityKind]: string = 'PgVarcharBuilder';
 
-	constructor(name: T['name'], config: PgVarcharConfig<T['length'], T['enumValues']>) {
+	constructor(name: T['name'], config: PgVarcharConfig<T['enumValues'], T['length']>) {
 		super(name, 'string', 'PgVarchar');
 		this.config.length = config.length;
 		this.config.enumValues = config.enum;
@@ -45,7 +45,7 @@ export class PgVarcharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgVar
 	}
 }
 
-export class PgVarchar<T extends ColumnBaseConfig<'string', 'PgVarchar'> & { length: number | undefined }>
+export class PgVarchar<T extends ColumnBaseConfig<'string', 'PgVarchar'> & { length?: number | undefined }>
 	extends PgColumn<T, { length: T['length']; enumValues: T['enumValues'] }, { length: T['length'] }>
 {
 	static override readonly [entityKind]: string = 'PgVarchar';
@@ -59,30 +59,30 @@ export class PgVarchar<T extends ColumnBaseConfig<'string', 'PgVarchar'> & { len
 }
 
 export interface PgVarcharConfig<
-	TLength extends number | undefined = number | undefined,
 	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
+	TLength extends number | undefined = number | undefined,
 > {
-	length?: TLength;
 	enum?: TEnum;
+	length?: TLength;
 }
 
-export function varchar(): PgVarcharBuilderInitial<'', undefined, [string, ...string[]]>;
+export function varchar(): PgVarcharBuilderInitial<'', [string, ...string[]], undefined>;
 export function varchar<
 	U extends string,
-	L extends number | undefined,
 	T extends Readonly<[U, ...U[]]>,
+	L extends number | undefined,
 >(
-	config?: PgVarcharConfig<L, T | Writable<T>>,
-): PgVarcharBuilderInitial<'', L, Writable<T>>;
+	config?: PgVarcharConfig<T | Writable<T>, L>,
+): PgVarcharBuilderInitial<'', Writable<T>, L>;
 export function varchar<
 	TName extends string,
-	L extends number | undefined,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
+	L extends number | undefined,
 >(
 	name: TName,
-	config?: PgVarcharConfig<L, T | Writable<T>>,
-): PgVarcharBuilderInitial<TName, L, Writable<T>>;
+	config?: PgVarcharConfig<T | Writable<T>, L>,
+): PgVarcharBuilderInitial<TName, Writable<T>, L>;
 export function varchar(a?: string | PgVarcharConfig, b: PgVarcharConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<PgVarcharConfig>(a, b);
 	return new PgVarcharBuilder(name, config as any);

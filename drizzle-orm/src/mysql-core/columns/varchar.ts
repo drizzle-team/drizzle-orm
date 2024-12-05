@@ -7,8 +7,8 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlVarCharBuilderInitial<
 	TName extends string,
-	TLength extends number | undefined,
 	TEnum extends [string, ...string[]],
+	TLength extends number | undefined,
 > = MySqlVarCharBuilder<
 	{
 		name: TName;
@@ -22,12 +22,12 @@ export type MySqlVarCharBuilderInitial<
 >;
 
 export class MySqlVarCharBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'MySqlVarChar'> & { length: number | undefined },
-> extends MySqlColumnBuilder<T, MySqlVarCharConfig<T['length'], T['enumValues']>> {
+	T extends ColumnBuilderBaseConfig<'string', 'MySqlVarChar'> & { length?: number | undefined },
+> extends MySqlColumnBuilder<T, MySqlVarCharConfig<T['enumValues'], T['length']>> {
 	static override readonly [entityKind]: string = 'MySqlVarCharBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: MySqlVarCharConfig<T['length'], T['enumValues']>) {
+	constructor(name: T['name'], config: MySqlVarCharConfig<T['enumValues'], T['length']>) {
 		super(name, 'string', 'MySqlVarChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
@@ -44,8 +44,8 @@ export class MySqlVarCharBuilder<
 	}
 }
 
-export class MySqlVarChar<T extends ColumnBaseConfig<'string', 'MySqlVarChar'> & { length: number | undefined }>
-	extends MySqlColumn<T, MySqlVarCharConfig<T['length'], T['enumValues']>>
+export class MySqlVarChar<T extends ColumnBaseConfig<'string', 'MySqlVarChar'> & { length?: number | undefined }>
+	extends MySqlColumn<T, MySqlVarCharConfig<T['enumValues'], T['length']>>
 {
 	static override readonly [entityKind]: string = 'MySqlVarChar';
 
@@ -59,25 +59,25 @@ export class MySqlVarChar<T extends ColumnBaseConfig<'string', 'MySqlVarChar'> &
 }
 
 export interface MySqlVarCharConfig<
-	TLength extends number | undefined = number | undefined,
 	TEnum extends string[] | readonly string[] | undefined = string[] | readonly string[] | undefined,
+	TLength extends number | undefined = number | undefined,
 > {
-	length: TLength;
 	enum?: TEnum;
+	length?: TLength;
 }
 
-export function varchar<U extends string, L extends number | undefined, T extends Readonly<[U, ...U[]]>>(
-	config: MySqlVarCharConfig<L, T | Writable<T>>,
-): MySqlVarCharBuilderInitial<'', L, Writable<T>>;
+export function varchar<U extends string, T extends Readonly<[U, ...U[]]>, L extends number | undefined>(
+	config: MySqlVarCharConfig<T | Writable<T>, L>,
+): MySqlVarCharBuilderInitial<'', Writable<T>, L>;
 export function varchar<
 	TName extends string,
-	L extends number | undefined,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
+	L extends number | undefined,
 >(
 	name: TName,
-	config: MySqlVarCharConfig<L, T | Writable<T>>,
-): MySqlVarCharBuilderInitial<TName, L, Writable<T>>;
+	config: MySqlVarCharConfig<T | Writable<T>, L>,
+): MySqlVarCharBuilderInitial<TName, Writable<T>, L>;
 export function varchar(a?: string | MySqlVarCharConfig, b?: MySqlVarCharConfig): any {
 	const { name, config } = getColumnNameAndConfig<MySqlVarCharConfig>(a, b);
 	return new MySqlVarCharBuilder(name, config as any);

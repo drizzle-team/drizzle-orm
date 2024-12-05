@@ -7,8 +7,8 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlCharBuilderInitial<
 	TName extends string,
-	TLength extends number | undefined,
 	TEnum extends [string, ...string[]],
+	TLength extends number | undefined,
 > = MySqlCharBuilder<{
 	name: TName;
 	dataType: 'string';
@@ -19,16 +19,16 @@ export type MySqlCharBuilderInitial<
 	length: TLength;
 }>;
 
-export class MySqlCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlChar'> & { length: number | undefined }>
-	extends MySqlColumnBuilder<
-		T,
-		MySqlCharConfig<T['length'], T['enumValues']>,
-		{ length: T['length'] }
-	>
-{
+export class MySqlCharBuilder<
+	T extends ColumnBuilderBaseConfig<'string', 'MySqlChar'> & { length?: number | undefined },
+> extends MySqlColumnBuilder<
+	T,
+	MySqlCharConfig<T['enumValues'], T['length']>,
+	{ length?: T['length'] }
+> {
 	static override readonly [entityKind]: string = 'MySqlCharBuilder';
 
-	constructor(name: T['name'], config: MySqlCharConfig<T['length'], T['enumValues']>) {
+	constructor(name: T['name'], config: MySqlCharConfig<T['enumValues'], T['length']>) {
 		super(name, 'string', 'MySqlChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
@@ -45,8 +45,8 @@ export class MySqlCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 	}
 }
 
-export class MySqlChar<T extends ColumnBaseConfig<'string', 'MySqlChar'> & { length: number | undefined }>
-	extends MySqlColumn<T, MySqlCharConfig<T['length'], T['enumValues']>, { length: T['length'] }>
+export class MySqlChar<T extends ColumnBaseConfig<'string', 'MySqlChar'> & { length?: number | undefined }>
+	extends MySqlColumn<T, MySqlCharConfig<T['enumValues'], T['length']>, { length?: T['length'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlChar';
 
@@ -59,26 +59,26 @@ export class MySqlChar<T extends ColumnBaseConfig<'string', 'MySqlChar'> & { len
 }
 
 export interface MySqlCharConfig<
-	TLength extends number | undefined = number | undefined,
 	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
+	TLength extends number | undefined = number | undefined,
 > {
-	length?: TLength;
 	enum?: TEnum;
+	length?: TLength;
 }
 
-export function char(): MySqlCharBuilderInitial<'', undefined, [string, ...string[]]>;
-export function char<U extends string, L extends number | undefined, T extends Readonly<[U, ...U[]]>>(
-	config?: MySqlCharConfig<L, T | Writable<T>>,
-): MySqlCharBuilderInitial<'', L, Writable<T>>;
+export function char(): MySqlCharBuilderInitial<'', [string, ...string[]], undefined>;
+export function char<U extends string, T extends Readonly<[U, ...U[]]>, L extends number | undefined>(
+	config?: MySqlCharConfig<T | Writable<T>, L>,
+): MySqlCharBuilderInitial<'', Writable<T>, L>;
 export function char<
 	TName extends string,
 	U extends string,
-	L extends number | undefined,
 	T extends Readonly<[U, ...U[]]>,
+	L extends number | undefined,
 >(
 	name: TName,
-	config?: MySqlCharConfig<L, T | Writable<T>>,
-): MySqlCharBuilderInitial<TName, L, Writable<T>>;
+	config?: MySqlCharConfig<T | Writable<T>, L>,
+): MySqlCharBuilderInitial<TName, Writable<T>, L>;
 export function char(a?: string | MySqlCharConfig, b: MySqlCharConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<MySqlCharConfig>(a, b);
 	return new MySqlCharBuilder(name, config as any);
