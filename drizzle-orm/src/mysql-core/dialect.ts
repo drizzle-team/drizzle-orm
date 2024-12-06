@@ -244,6 +244,18 @@ export class MySqlDialect {
 		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
 	}
 
+	private buildIndex({
+		indexes,
+		indexFor,
+	}: {
+		indexes: string[] | undefined;
+		indexFor: 'USE' | 'FORCE' | 'IGNORE';
+	}): SQL | undefined {
+		return indexes && indexes.length > 0
+			? sql` ${sql.raw(indexFor)} INDEX (${sql.raw(indexes.join(`, `))})`
+			: undefined;
+	}
+
 	buildSelectQuery(
 		{
 			withList,
@@ -260,6 +272,9 @@ export class MySqlDialect {
 			lockingClause,
 			distinct,
 			setOperators,
+			useIndex,
+			forceIndex,
+			ignoreIndex,
 		}: MySqlSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
@@ -319,10 +334,15 @@ export class MySqlDialect {
 					const tableSchema = table[MySqlTable.Symbol.Schema];
 					const origTableName = table[MySqlTable.Symbol.OriginalName];
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
+					const useIndexSql = this.buildIndex({ indexes: joinMeta.useIndex, indexFor: 'USE' });
+					const forceIndexSql = this.buildIndex({ indexes: joinMeta.forceIndex, indexFor: 'FORCE' });
+					const ignoreIndexSql = this.buildIndex({ indexes: joinMeta.ignoreIndex, indexFor: 'IGNORE' });
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origTableName)}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${
+							alias && sql` ${sql.identifier(alias)}`
+						} on ${joinMeta.on}`,
 					);
 				} else if (is(table, View)) {
 					const viewName = table[ViewBaseConfig].name;
@@ -359,6 +379,12 @@ export class MySqlDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
+		const useIndexSql = this.buildIndex({ indexes: useIndex, indexFor: 'USE' });
+
+		const forceIndexSql = this.buildIndex({ indexes: forceIndex, indexFor: 'FORCE' });
+
+		const ignoreIndexSql = this.buildIndex({ indexes: ignoreIndex, indexFor: 'IGNORE' });
+
 		let lockingClausesSql;
 		if (lockingClause) {
 			const { config, strength } = lockingClause;
@@ -371,7 +397,7 @@ export class MySqlDialect {
 		}
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);

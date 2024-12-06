@@ -66,3 +66,21 @@ export function getViewConfig<
 		...view[MySqlViewConfig],
 	};
 }
+
+export function convertIndexToString({
+	table,
+	indexes,
+}: {
+	table: MySqlTable;
+	indexes: (UniqueConstraintBuilder | IndexBuilder | string)[];
+}) {
+	return indexes.map((idx) => {
+		if (typeof idx === 'object') {
+			return is(idx, UniqueConstraintBuilder)
+				? idx.build(table).getName()!
+				: idx.config.name;
+		} else {
+			return idx;
+		}
+	});
+}
