@@ -54,7 +54,7 @@ import {
 	ResolveSelectNamed,
 	schema,
 } from '../views';
-import { GenerateConfig } from './utils';
+import { ExportConfig, GenerateConfig } from './utils';
 
 export type Named = {
 	name: string;
@@ -363,6 +363,44 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			breakpoints: config.breakpoints,
 			prefixMode: config.prefix,
 		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareAndExportPg = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
+
+	try {
+		const { prev, cur } = await preparePgMigrationSnapshot(
+			[], // no snapshots before
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = pgSchema.parse(prev);
+		const validatedCur = pgSchema.parse(cur);
+
+		const squashedPrev = squashPgScheme(validatedPrev);
+		const squashedCur = squashPgScheme(validatedCur);
+
+		const { sqlStatements } = await applyPgSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			schemasResolver,
+			enumsResolver,
+			sequencesResolver,
+			policyResolver,
+			indPolicyResolver,
+			roleResolver,
+			tablesResolver,
+			columnsResolver,
+			viewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
 	} catch (e) {
 		console.error(e);
 	}
@@ -697,6 +735,38 @@ export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 	}
 };
 
+export const prepareAndExportMysql = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
+
+	try {
+		const { prev, cur, custom } = await prepareMySqlMigrationSnapshot(
+			[],
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = mysqlSchema.parse(prev);
+		const validatedCur = mysqlSchema.parse(cur);
+
+		const squashedPrev = squashMysqlScheme(validatedPrev);
+		const squashedCur = squashMysqlScheme(validatedCur);
+
+		const { sqlStatements, statements, _meta } = await applyMysqlSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			mySqlViewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
+	} catch (e) {
+		console.error(e);
+	}
+};
+
 export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
@@ -760,6 +830,38 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	}
 };
 
+export const prepareAndExportSqlite = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
+
+	try {
+		const { prev, cur } = await prepareSqliteMigrationSnapshot(
+			[],
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = sqliteSchema.parse(prev);
+		const validatedCur = sqliteSchema.parse(cur);
+
+		const squashedPrev = squashSqliteScheme(validatedPrev);
+		const squashedCur = squashSqliteScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			sqliteViewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
+	} catch (e) {
+		console.error(e);
+	}
+};
+
 export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
@@ -817,6 +919,38 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 			bundle: config.bundle,
 			prefixMode: config.prefix,
 		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareAndExportLibSQL = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
+
+	try {
+		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
+			[],
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = sqliteSchema.parse(prev);
+		const validatedCur = sqliteSchema.parse(cur);
+
+		const squashedPrev = squashSqliteScheme(validatedPrev);
+		const squashedCur = squashSqliteScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			sqliteViewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
 	} catch (e) {
 		console.error(e);
 	}
