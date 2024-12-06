@@ -4,6 +4,7 @@
 		"outDir": "dist",
 		"baseUrl": ".",
 		"declaration": true,
+		"noEmit": true,
 		"paths": {
 			"~/*": ["src/*"]
 		}
