@@ -1,3 +1,4 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
 import type { PgColumn } from './columns/index.ts';
@@ -32,8 +33,8 @@ export class UniqueConstraintBuilder {
 	}
 
 	/** @internal */
-	build(table: PgTable): UniqueConstraint {
-		return new UniqueConstraint(table, this.columns, this.nullsNotDistinctConfig, this.name);
+	build(table: PgTable, casing?: CasingCache): UniqueConstraint {
+		return new UniqueConstraint(table, this.columns, this.nullsNotDistinctConfig, this.name, casing);
 	}
 }
 
@@ -61,9 +62,21 @@ export class UniqueConstraint {
 	readonly name?: string;
 	readonly nullsNotDistinct: boolean = false;
 
-	constructor(readonly table: PgTable, columns: PgColumn[], nullsNotDistinct: boolean, name?: string) {
+	constructor(
+		readonly table: PgTable,
+		columns: PgColumn[],
+		nullsNotDistinct: boolean,
+		name?: string,
+		casing?: CasingCache,
+	) {
 		this.columns = columns;
-		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
+		this.name = name
+			?? uniqueKeyName(
+				this.table,
+				casing
+					? this.columns.map((column) => casing.getColumnCasing(column))
+					: this.columns.map((column) => column.name),
+			);
 		this.nullsNotDistinct = nullsNotDistinct;
 	}
 
