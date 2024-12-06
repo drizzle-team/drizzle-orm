@@ -11,7 +11,7 @@ import { ColumnBuilder } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { Casing, Update } from '~/utils.ts';
+import type { Casing, Simplify, Update } from '~/utils.ts';
 
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
@@ -48,7 +48,7 @@ export abstract class PgColumnBuilder<
 
 	static override readonly [entityKind]: string = 'PgColumnBuilder';
 
-	array(size?: number): this extends infer TThis ? PgArrayBuilder<
+	array<TSize extends number | undefined = undefined>(size?: TSize): this extends infer TThis ? PgArrayBuilder<
 			& {
 				name: T['name'];
 				dataType: 'array';
@@ -56,6 +56,8 @@ export abstract class PgColumnBuilder<
 				data: TThis extends { _: { $type: infer U } } ? U[] : T['data'][];
 				driverParam: T['driverParam'][] | string;
 				enumValues: T['enumValues'];
+				size: TSize;
+				baseBuilder: T;
 			}
 			& (T extends { notNull: true } ? { notNull: true } : {})
 			& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
@@ -63,7 +65,7 @@ export abstract class PgColumnBuilder<
 		>
 		: never
 	{
-		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size) as any;
+		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size as any) as any;
 	}
 
 	references(
@@ -258,17 +260,33 @@ export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType
 	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
 >;
 
+export type PgArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array', 'PgArray'> & {
+	size: number | undefined;
+	baseBuilder: ColumnBuilderBaseConfig<ColumnDataType, string>;
+};
+
 export class PgArrayBuilder<
-	T extends ColumnBuilderBaseConfig<'array', 'PgArray'>,
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends PgArrayColumnBuilderBaseConfig,
+	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string> | PgArrayColumnBuilderBaseConfig,
 > extends PgColumnBuilder<
 	T,
 	{
-		baseBuilder: PgColumnBuilder<TBase>;
-		size: number | undefined;
+		baseBuilder: TBase extends PgArrayColumnBuilderBaseConfig ? PgArrayBuilder<
+				TBase,
+				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
+					: never
+			>
+			: PgColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
+		size: T['size'];
 	},
 	{
-		baseBuilder: PgColumnBuilder<TBase>;
+		baseBuilder: TBase extends PgArrayColumnBuilderBaseConfig ? PgArrayBuilder<
+				TBase,
+				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
+					: never
+			>
+			: PgColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
+		size: T['size'];
 	}
 > {
 	static override readonly [entityKind] = 'PgArrayBuilder';
@@ -276,7 +294,7 @@ export class PgArrayBuilder<
 	constructor(
 		name: string,
 		baseBuilder: PgArrayBuilder<T, TBase>['config']['baseBuilder'],
-		size: number | undefined,
+		size: T['size'],
 	) {
 		super(name, 'array', 'PgArray');
 		this.config.baseBuilder = baseBuilder;
@@ -286,9 +304,9 @@ export class PgArrayBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgArray<MakeColumnConfig<T, TTableName>, TBase> {
+	): PgArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase> {
 		const baseColumn = this.config.baseBuilder.build(table);
-		return new PgArray<MakeColumnConfig<T, TTableName>, TBase>(
+		return new PgArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase>(
 			table as AnyPgTable<{ name: MakeColumnConfig<T, TTableName>['tableName'] }>,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 			baseColumn,
@@ -297,10 +315,13 @@ export class PgArrayBuilder<
 }
 
 export class PgArray<
-	T extends ColumnBaseConfig<'array', 'PgArray'>,
+	T extends ColumnBaseConfig<'array', 'PgArray'> & {
+		size: number | undefined;
+		baseBuilder: ColumnBuilderBaseConfig<ColumnDataType, string>;
+	},
 	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string>,
-> extends PgColumn<T> {
-	readonly size: number | undefined;
+> extends PgColumn<T, {}, { size: T['size']; baseBuilder: T['baseBuilder'] }> {
+	readonly size: T['size'];
 
 	static override readonly [entityKind]: string = 'PgArray';
 

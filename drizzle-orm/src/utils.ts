@@ -191,6 +191,10 @@ export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
 
+export function getViewSelectedFields<T extends View>(view: T): T['_']['selectedFields'] {
+	return view[ViewBaseConfig].selectedFields;
+}
+
 /** @internal */
 export function getTableLikeName(table: TableLike): string | undefined {
 	return is(table, Subquery)
