@@ -32,7 +32,7 @@ export class CasingCache {
 	/** @internal */
 	cache: Record<string, string> = {};
 	private cachedTables: Record<string, true> = {};
-	private convert: (input: string) => string;
+	convert: (input: string) => string;
 
 	constructor(casing?: Casing) {
 		this.convert = casing === 'snake_case'
