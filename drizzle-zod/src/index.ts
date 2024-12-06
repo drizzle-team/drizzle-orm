@@ -9,7 +9,7 @@ import {
 	type Table,
 } from 'drizzle-orm';
 import { MySqlChar, MySqlVarBinary, MySqlVarChar } from 'drizzle-orm/mysql-core';
-import { type PgArray, PgChar, PgUUID, PgVarchar } from 'drizzle-orm/pg-core';
+import { type PgArray, PgChar, PgPointTuple, PgUUID, PgVarchar, PgVector } from 'drizzle-orm/pg-core';
 import { SQLiteText } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 
@@ -43,9 +43,9 @@ type MaybeOptional<
 type GetZodType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? z.ZodAny
 	: TDataType extends 'json' ? z.ZodType<Json>
+	: TDataType extends 'array' ? DetermineArrayType<TColumn>
 	: TColumn extends { enumValues: [string, ...string[]] }
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? z.ZodString : z.ZodEnum<TColumn['enumValues']>
-	: TDataType extends 'array' ? z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>>
 	: TDataType extends 'bigint' ? z.ZodBigInt
 	: TDataType extends 'number' ? z.ZodNumber
 	: TDataType extends 'string' ? z.ZodString
@@ -53,6 +53,26 @@ type GetZodType<TColumn extends Column> = TColumn['_']['dataType'] extends infer
 	: TDataType extends 'date' ? z.ZodDate
 	: z.ZodAny
 	: never;
+
+
+type MapPrimitiveToZod<T> =
+	T extends number ? z.ZodNumber
+	: T extends string ? z.ZodString
+	: T extends boolean ? z.ZodBoolean
+	: never;
+
+type MaPrimitiveTupleToZod<T extends [...any[]]> =
+	T extends [infer Inner, ...infer Rest] ? [MapPrimitiveToZod<Inner>, ...MaPrimitiveTupleToZod<Rest>]
+	: []
+
+
+type DetermineArrayType<TColumn extends Column> =
+	Assume<TColumn['_'], { baseColumn: Column }>['baseColumn'] extends never ?
+		TColumn["_"]["data"] extends [any, ...any[]] ? z.ZodTuple<MaPrimitiveTupleToZod<TColumn["_"]["data"]>>
+		: TColumn["_"]["data"] extends (infer Inner)[] ? z.ZodArray<MapPrimitiveToZod<Inner>>
+		: never
+	: z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>>;
+
 
 type ValueOrUpdater<T, TUpdaterArg> = T | ((arg: TUpdaterArg) => T);
 
@@ -206,7 +226,14 @@ function mapColumnToSchema(column: Column): z.ZodTypeAny {
 			type = z.any();
 		} else if (column.dataType === 'json') {
 			type = jsonSchema;
+		} else if (is(column, PgVector)) {
+			type = z.array(z.number());
+		} else if (is(column, PgPointTuple)) {
+			type = z.tuple([z.number(), z.number()]);
 		} else if (column.dataType === 'array') {
+			if (!("baseColumn" in column) || !column["baseColumn"]) {
+				throw new Error(`Expected name: ${column.name}, type: ${column.columnType} to be an array column with a base column but there is no base colum.`);
+			}
 			type = z.array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
 		} else if (column.dataType === 'number') {
 			type = z.number();
