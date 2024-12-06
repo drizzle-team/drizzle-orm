@@ -190,6 +190,20 @@ beforeAll(async () => {
 			);    
 		`,
 	);
+
+	await db.execute(
+		sql`
+			create table "seeder_lib_pg"."user"
+			(
+			    id          serial
+			        primary key,
+			    name        text,
+			    "invitedBy" integer
+			        constraint "user_invitedBy_user_id_fk"
+			            references "seeder_lib_pg"."user"
+			);
+		`,
+	);
 });
 
 afterEach(async () => {
@@ -360,4 +374,14 @@ test('seeding with identity columns', async () => {
 	const result = await db.select().from(schema.identityColumnsTable);
 
 	expect(result.length).toBe(10);
+});
+
+test('seeding with self relation', async () => {
+	await seed(db, { user: schema.user });
+
+	const result = await db.select().from(schema.user);
+
+	expect(result.length).toBe(10);
+	const predicate = result.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
 });

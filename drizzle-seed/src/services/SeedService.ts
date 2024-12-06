@@ -1171,8 +1171,8 @@ class SeedService {
 				? false
 				: true;
 
-			preserveData = options?.preserveCyclicTablesData === true
-				&& table.columnsPossibleGenerators.some((colGen) => colGen.isCyclic === true);
+			preserveData = preserveData || (options?.preserveCyclicTablesData === true
+				&& table.columnsPossibleGenerators.some((colGen) => colGen.isCyclic === true));
 
 			tableValues = await this.generateColumnsValuesByGenerators({
 				tableGenerators,

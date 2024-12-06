@@ -663,6 +663,9 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 const isRelationCyclic = (
 	startRel: RelationWithReferences,
 ) => {
+	// self relation
+	if (startRel.table === startRel.refTable) return false;
+
 	// DFS
 	const targetTable = startRel.table;
 	const queue = [startRel];
@@ -865,10 +868,12 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 
 	const isCyclicRelations = relations.map(
 		(relI) => {
-			// if (relations.some((relj) => reli.table === relj.refTable && reli.refTable === relj.table)) {
+			const tableRel = tableRelations[relI.table]!.find((relJ) => relJ.refTable === relI.refTable)!;
 			if (isRelationCyclic(relI)) {
+				tableRel['isCyclic'] = true;
 				return { ...relI, isCyclic: true };
 			}
+			tableRel['isCyclic'] = false;
 			return { ...relI, isCyclic: false };
 		},
 	);
@@ -1050,10 +1055,12 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 
 	const isCyclicRelations = relations.map(
 		(relI) => {
+			const tableRel = tableRelations[relI.table]!.find((relJ) => relJ.refTable === relI.refTable)!;
 			if (isRelationCyclic(relI)) {
-				// if (relations.some((relj) => reli.table === relj.refTable && reli.refTable === relj.table)) {
+				tableRel['isCyclic'] = true;
 				return { ...relI, isCyclic: true };
 			}
+			tableRel['isCyclic'] = false;
 			return { ...relI, isCyclic: false };
 		},
 	);

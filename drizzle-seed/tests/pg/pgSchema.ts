@@ -25,7 +25,7 @@
 // });
 
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { integer, numeric, pgSchema, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { integer, numeric, pgSchema, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export const schema = pgSchema('seeder_lib_pg');
 
@@ -134,3 +134,12 @@ export const identityColumnsTable = schema.table('identity_columns_table', {
 	id1: integer().generatedByDefaultAsIdentity(),
 	name: text(),
 });
+
+export const user = schema.table(
+	'user',
+	{
+		id: serial().primaryKey(),
+		name: text(),
+		invitedBy: integer().references((): AnyPgColumn => user.id),
+	},
+);
