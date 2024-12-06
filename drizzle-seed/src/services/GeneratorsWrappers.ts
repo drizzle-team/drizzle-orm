@@ -27,7 +27,20 @@ export abstract class AbstractGenerator<T = {}> {
 
 	constructor(public params: T) {}
 
-	abstract init(params: { count: number | { weight: number; count: number | number[] }[]; seed: number }): void;
+	init(params: { count: number | { weight: number; count: number | number[] }[]; seed: number }): void;
+	init() {
+		if ((this.params as any).arraySize !== undefined) {
+			this.arraySize = (this.params as any).arraySize;
+		}
+
+		if ((this.params as any).isUnique !== undefined) {
+			if ((this.params as any).isUnique === false && this.isUnique === true) {
+				throw new Error('specifying non unique generator to unique column.');
+			}
+
+			this.isUnique = (this.params as any).isUnique;
+		}
+	}
 
 	abstract generate(params: { i: number }): number | string | boolean | unknown | undefined | void;
 
@@ -94,7 +107,8 @@ export class GenerateArray extends AbstractGenerator<{ baseColumnGen: AbstractGe
 	static override readonly [entityKind]: string = 'GenerateArray';
 	public override arraySize = 10;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 		this.arraySize = this.params.size === undefined ? this.arraySize : this.params.size;
 		this.params.baseColumnGen.init({ count: count * this.arraySize, seed });
 	}
@@ -118,7 +132,7 @@ export class GenerateWeightedCount extends AbstractGenerator<{}> {
 		weightedCount: { weight: number; count: number | number[] }[];
 	} | undefined;
 
-	init({ seed, count }: { count: { weight: number; count: number | number[] }[]; seed: number }) {
+	override init({ seed, count }: { count: { weight: number; count: number | number[] }[]; seed: number }) {
 		const rng = prand.xoroshiro128plus(seed);
 		const weightedIndices = getWeightedIndices(count.map((val) => val.weight));
 		this.state = { rng, weightedIndices, weightedCount: count };
@@ -150,7 +164,7 @@ export class GenerateWeightedCount extends AbstractGenerator<{}> {
 export class HollowGenerator extends AbstractGenerator<{}> {
 	static override readonly [entityKind]: string = 'HollowGenerator';
 
-	init() {}
+	override init() {}
 
 	generate() {}
 }
@@ -160,12 +174,6 @@ export class GenerateDefault extends AbstractGenerator<{
 	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GenerateDefault';
-
-	init() {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
-	}
 
 	generate() {
 		return this.params.defaultValue;
@@ -268,18 +276,8 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 		}
 	}
 
-	init({ count, seed }: { count: number; seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('Specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		this.checks({ count });
 
@@ -410,7 +408,7 @@ export class GenerateSelfRelationsValuesFromArray extends AbstractGenerator<{ va
 		firstValues: (string | number | boolean)[];
 	} | undefined;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		let rng = prand.xoroshiro128plus(seed);
 
 		// generate 15-40 % values with the same value as reference column
@@ -444,7 +442,7 @@ export class GenerateIntPrimaryKey extends AbstractGenerator<{}> {
 
 	public maxValue?: number | bigint;
 
-	init({ count }: { count: number; seed: number }) {
+	override init({ count }: { count: number; seed: number }) {
 		if (this.maxValue !== undefined && count > this.maxValue) {
 			throw new Error('count exceeds max number for this column type.');
 		}
@@ -466,7 +464,7 @@ export class GenerateNumber extends AbstractGenerator<
 		precision?: number;
 		isUnique?: boolean;
 		arraySize?: number;
-	} | undefined
+	}
 > {
 	static override readonly [entityKind]: string = 'GenerateNumber';
 
@@ -478,20 +476,8 @@ export class GenerateNumber extends AbstractGenerator<
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueNumber;
 
-	init({ seed }: { seed: number }) {
-		if (this.params === undefined) this.params = {};
-
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { seed: number; count: number }) {
+		super.init({ count, seed });
 
 		let { minValue, maxValue, precision } = this.params;
 		if (precision === undefined) {
@@ -533,7 +519,7 @@ export class GenerateUniqueNumber extends AbstractGenerator<
 		maxValue?: number;
 		precision?: number;
 		isUnique?: boolean;
-	} | undefined
+	}
 > {
 	static override readonly [entityKind]: string = 'GenerateUniqueNumber';
 
@@ -545,8 +531,7 @@ export class GenerateUniqueNumber extends AbstractGenerator<
 	} | undefined;
 	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
-		if (this.params === undefined) this.params = {};
+	override init({ count, seed }: { count: number; seed: number }) {
 		let { minValue, maxValue, precision } = this.params;
 
 		if (precision === undefined) {
@@ -597,18 +582,8 @@ export class GenerateInt extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueInt;
 
-	init({ seed }: { count: number; seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		let { minValue, maxValue } = this.params;
 
@@ -680,7 +655,7 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 	public override isUnique = true;
 	public override timeSpent = 0;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		const rng = prand.xoroshiro128plus(seed);
 		let { minValue, maxValue } = this.params;
 
@@ -840,10 +815,8 @@ export class GenerateBoolean extends AbstractGenerator<{ arraySize?: number }> {
 		rng: prand.RandomGenerator;
 	} | undefined;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -875,15 +848,11 @@ export class GenerateDate extends AbstractGenerator<{
 		maxDate: Date;
 	} | undefined;
 
-	init({ seed }: { seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 		const rng = prand.xoroshiro128plus(seed);
 
 		let { minDate, maxDate } = this.params;
-		const { arraySize } = this.params;
-
-		if (arraySize !== undefined) {
-			this.arraySize = arraySize;
-		}
 
 		const anchorDate = new Date('2024-05-08');
 		const deltaMilliseconds = 4 * 31536000000;
@@ -939,10 +908,8 @@ export class GenerateTime extends AbstractGenerator<{ arraySize?: number }> {
 		rng: prand.RandomGenerator;
 	} | undefined;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -977,10 +944,10 @@ export class GenerateTimestampInt extends AbstractGenerator<{ unitOfTime?: 'seco
 		generateTimestampObj: GenerateTimestamp;
 	} | undefined;
 
-	init({ seed }: { seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		const generateTimestampObj = new GenerateTimestamp({});
 		generateTimestampObj.dataType = 'date';
-		generateTimestampObj.init({ seed });
+		generateTimestampObj.init({ count, seed });
 
 		this.state = { generateTimestampObj };
 	}
@@ -1010,10 +977,8 @@ export class GenerateTimestamp extends AbstractGenerator<{ arraySize?: number }>
 		rng: prand.RandomGenerator;
 	} | undefined;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -1056,10 +1021,8 @@ export class GenerateDatetime extends AbstractGenerator<{ arraySize?: number }> 
 		rng: prand.RandomGenerator;
 	} | undefined;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -1102,10 +1065,8 @@ export class GenerateYear extends AbstractGenerator<{ arraySize?: number }> {
 		rng: prand.RandomGenerator;
 	} | undefined;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -1145,19 +1106,18 @@ export class GenerateJson extends AbstractGenerator<{ arraySize?: number }> {
 		seed: number;
 	} | undefined;
 
-	init({ count, seed }: { count: number; seed: number }) {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const emailGeneratorObj = new GenerateEmail({});
 		emailGeneratorObj.init({ count, seed });
 
 		const nameGeneratorObj = new GenerateFirstName({});
-		nameGeneratorObj.init({ seed });
+		nameGeneratorObj.init({ count, seed });
 
 		const booleanGeneratorObj = new GenerateBoolean({});
 		booleanGeneratorObj.init({
+			count,
 			seed,
 		});
 
@@ -1170,7 +1130,7 @@ export class GenerateJson extends AbstractGenerator<{ arraySize?: number }> {
 
 		const dateGeneratorObj = new GenerateDate({});
 		dateGeneratorObj.dataType = 'string';
-		dateGeneratorObj.init({ seed });
+		dateGeneratorObj.init({ count, seed });
 
 		const visitedCountriesNumberGeneratorObj = new GenerateInt({ minValue: 0, maxValue: 4 });
 		visitedCountriesNumberGeneratorObj.init(
@@ -1244,7 +1204,7 @@ export class GenerateEnum extends AbstractGenerator<{ enumValues: (string | numb
 		enumValuesGenerator: GenerateValuesFromArray;
 	} | undefined;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		const { enumValues } = this.params;
 		const enumValuesGenerator = new GenerateValuesFromArray({ values: enumValues });
 		enumValuesGenerator.init({ count, seed });
@@ -1269,18 +1229,8 @@ export class GenerateInterval extends AbstractGenerator<{
 	private state: { rng: prand.RandomGenerator } | undefined;
 	override uniqueVersionOfGen = GenerateUniqueInterval;
 
-	init({ seed }: { count: number; seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 		this.state = { rng };
@@ -1329,8 +1279,9 @@ export class GenerateUniqueInterval extends AbstractGenerator<{ isUnique?: boole
 		rng: prand.RandomGenerator;
 		intervalSet: Set<string>;
 	} | undefined;
+	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		const maxUniqueIntervalsNumber = 6 * 13 * 29 * 25 * 61 * 61;
 		if (count > maxUniqueIntervalsNumber) {
 			throw new RangeError(`count exceeds max number of unique intervals(${maxUniqueIntervalsNumber})`);
@@ -1389,18 +1340,8 @@ export class GenerateString extends AbstractGenerator<{
 	private state: { rng: prand.RandomGenerator } | undefined;
 	override uniqueVersionOfGen = GenerateUniqueString;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 		this.state = { rng };
@@ -1442,7 +1383,7 @@ export class GenerateUniqueString extends AbstractGenerator<{ isUnique?: boolean
 	private state: { rng: prand.RandomGenerator } | undefined;
 	public override isUnique = true;
 
-	init({ seed }: { seed: number }) {
+	override init({ seed }: { seed: number }) {
 		const rng = prand.xoroshiro128plus(seed);
 		this.state = { rng };
 	}
@@ -1488,10 +1429,8 @@ export class GenerateUUID extends AbstractGenerator<{
 
 	private state: { rng: prand.RandomGenerator } | undefined;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 		this.state = { rng };
@@ -1539,18 +1478,8 @@ export class GenerateFirstName extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueFirstName;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -1582,7 +1511,7 @@ export class GenerateUniqueFirstName extends AbstractGenerator<{
 	} | undefined;
 	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		if (count > firstNames.length) {
 			throw new Error('count exceeds max number of unique first names.');
 		}
@@ -1616,18 +1545,8 @@ export class GenerateLastName extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueLastName;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -1653,7 +1572,7 @@ export class GenerateUniqueLastName extends AbstractGenerator<{ isUnique?: boole
 	} | undefined;
 	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		if (count > lastNames.length) {
 			throw new Error('count exceeds max number of unique last names.');
 		}
@@ -1687,18 +1606,8 @@ export class GenerateFullName extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueFullName;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -1736,7 +1645,7 @@ export class GenerateUniqueFullName extends AbstractGenerator<{
 	public override isUnique = true;
 	public override timeSpent = 0;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		const t0 = new Date();
 
 		const maxUniqueFullNamesNumber = firstNames.length * lastNames.length;
@@ -1792,14 +1701,12 @@ export class GenerateEmail extends AbstractGenerator<{
 	public override timeSpent: number = 0;
 	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
+
 		const domainsArray = emailDomains;
 		const adjectivesArray = adjectives;
 		const namesArray = firstNames;
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
 
 		const maxUniqueEmailsNumber = adjectivesArray.length * namesArray.length * domainsArray.length;
 		if (count > maxUniqueEmailsNumber) {
@@ -1857,13 +1764,11 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 	} | undefined;
 	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
-		let { generatedDigitsNumbers } = this.params;
-		const { prefixes, template, arraySize } = this.params;
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
-		if (arraySize !== undefined) {
-			this.arraySize = arraySize;
-		}
+		let { generatedDigitsNumbers } = this.params;
+		const { prefixes, template } = this.params;
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -2030,18 +1935,8 @@ export class GenerateCountry extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueCountry;
 
-	init({ seed }: { count: number; seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -2070,7 +1965,7 @@ export class GenerateUniqueCountry extends AbstractGenerator<{ isUnique?: boolea
 	} | undefined;
 	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		if (count > countries.length) {
 			throw new Error('count exceeds max number of unique countries.');
 		}
@@ -2102,10 +1997,8 @@ export class GenerateJobTitle extends AbstractGenerator<{
 		rng: prand.RandomGenerator;
 	} | undefined;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -2136,18 +2029,8 @@ export class GenerateStreetAdddress extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueStreetAdddress;
 
-	init({ seed }: { count: number; seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 		const possStreetNames = [firstNames, lastNames];
@@ -2188,8 +2071,9 @@ export class GenerateUniqueStreetAdddress extends AbstractGenerator<{ isUnique?:
 			arraysToChooseFrom: string[][];
 		}[];
 	} | undefined;
+	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		const streetNumberStrs = Array.from({ length: 999 }, (_, i) => String(i + 1));
 		const maxUniqueStreetnamesNumber = streetNumberStrs.length * firstNames.length * streetSuffix.length
 			+ streetNumberStrs.length * firstNames.length * streetSuffix.length;
@@ -2272,18 +2156,8 @@ export class GenerateCity extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueCity;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -2310,7 +2184,7 @@ export class GenerateUniqueCity extends AbstractGenerator<{ isUnique?: boolean }
 	} | undefined;
 	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		if (count > cityNames.length) {
 			throw new Error('count exceeds max number of unique cities.');
 		}
@@ -2345,18 +2219,8 @@ export class GeneratePostcode extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniquePostcode;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 		const templates = ['#####', '#####-####'];
@@ -2406,8 +2270,9 @@ export class GenerateUniquePostcode extends AbstractGenerator<{ isUnique?: boole
 			maxUniquePostcodeNumber: number;
 		}[];
 	} | undefined;
+	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		const maxUniquePostcodeNumber = Math.pow(10, 5) + Math.pow(10, 9);
 		if (count > maxUniquePostcodeNumber) {
 			throw new RangeError(
@@ -2479,10 +2344,8 @@ export class GenerateState extends AbstractGenerator<{
 		rng: prand.RandomGenerator;
 	} | undefined;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 
@@ -2513,18 +2376,8 @@ export class GenerateCompanyName extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueCompanyName;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 		const templates = [
@@ -2586,16 +2439,9 @@ export class GenerateUniqueCompanyName extends AbstractGenerator<{ isUnique?: bo
 			arraysToChooseFrom: string[][];
 		}[];
 	} | undefined;
+	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
+	override init({ count, seed }: { count: number; seed: number }) {
 		const maxUniqueCompanyNameNumber = lastNames.length * companyNameSuffixes.length + Math.pow(lastNames.length, 2)
 			+ Math.pow(lastNames.length, 2) + Math.pow(lastNames.length, 3);
 		if (count > maxUniqueCompanyNameNumber) {
@@ -2686,10 +2532,8 @@ export class GenerateLoremIpsum extends AbstractGenerator<{
 		rng: prand.RandomGenerator;
 	} | undefined;
 
-	init({ seed }: { seed: number }) {
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
 		if (this.params.sentencesCount === undefined) this.params.sentencesCount = 1;
@@ -2720,7 +2564,7 @@ export class WeightedRandomGenerator extends AbstractGenerator<{ weight: number;
 		weightedIndices: number[];
 	} | undefined;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		const weights = this.params.map((weightedGen) => weightedGen.weight);
 		const weightedIndices = getWeightedIndices(weights);
 
@@ -2791,32 +2635,22 @@ export class GeneratePoint extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniquePoint;
 
-	init({ seed }: { count: number; seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const xCoordinateGen = new GenerateNumber({
 			minValue: this.params.minXValue,
 			maxValue: this.params.maxXValue,
 			precision: 10,
 		});
-		xCoordinateGen.init({ seed });
+		xCoordinateGen.init({ count, seed });
 
 		const yCoordinateGen = new GenerateNumber({
 			minValue: this.params.minYValue,
 			maxValue: this.params.maxYValue,
 			precision: 10,
 		});
-		yCoordinateGen.init({ seed });
+		yCoordinateGen.init({ count, seed });
 
 		this.state = { xCoordinateGen, yCoordinateGen };
 	}
@@ -2853,8 +2687,9 @@ export class GenerateUniquePoint extends AbstractGenerator<{
 		xCoordinateGen: GenerateUniqueNumber;
 		yCoordinateGen: GenerateUniqueNumber;
 	} | undefined;
+	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		const xCoordinateGen = new GenerateUniqueNumber({
 			minValue: this.params.minXValue,
 			maxValue: this.params.maxXValue,
@@ -2910,39 +2745,29 @@ export class GenerateLine extends AbstractGenerator<{
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueLine;
 
-	init({ seed }: { count: number; seed: number }) {
-		if (this.params.isUnique !== undefined) {
-			if (this.params.isUnique === false && this.isUnique === true) {
-				throw new Error('specifying non unique generator to unique column.');
-			}
-
-			this.isUnique = this.params.isUnique;
-		}
-
-		if (this.params.arraySize !== undefined) {
-			this.arraySize = this.params.arraySize;
-		}
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 
 		const aCoefficientGen = new GenerateNumber({
 			minValue: this.params.minAValue,
 			maxValue: this.params.maxAValue,
 			precision: 10,
 		});
-		aCoefficientGen.init({ seed });
+		aCoefficientGen.init({ count, seed });
 
 		const bCoefficientGen = new GenerateNumber({
 			minValue: this.params.minBValue,
 			maxValue: this.params.maxBValue,
 			precision: 10,
 		});
-		bCoefficientGen.init({ seed });
+		bCoefficientGen.init({ count, seed });
 
 		const cCoefficientGen = new GenerateNumber({
 			minValue: this.params.minCValue,
 			maxValue: this.params.maxCValue,
 			precision: 10,
 		});
-		cCoefficientGen.init({ seed });
+		cCoefficientGen.init({ count, seed });
 
 		this.state = { aCoefficientGen, bCoefficientGen, cCoefficientGen };
 	}
@@ -2989,8 +2814,9 @@ export class GenerateUniqueLine extends AbstractGenerator<{
 		bCoefficientGen: GenerateUniqueNumber;
 		cCoefficientGen: GenerateUniqueNumber;
 	} | undefined;
+	public override isUnique = true;
 
-	init({ count, seed }: { count: number; seed: number }) {
+	override init({ count, seed }: { count: number; seed: number }) {
 		const aCoefficientGen = new GenerateUniqueNumber({
 			minValue: this.params.minAValue,
 			maxValue: this.params.maxAValue,

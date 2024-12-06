@@ -10,6 +10,7 @@ export type Column = {
 	enumValues?: string[];
 	isUnique: boolean;
 	notNull: boolean;
+	primary: boolean;
 	generatedIdentityType?: 'always' | 'byDefault' | undefined;
 	baseColumn?: Omit<Column, 'generatedIdentityType'>;
 };
@@ -30,6 +31,8 @@ export type Relation = {
 	// refSchema: string;
 	refColumns: string[];
 };
+
+export type RelationWithReferences = Relation & { isCyclic?: boolean; refTableRels: RelationWithReferences[] };
 
 export type Prettify<T> =
 	& {

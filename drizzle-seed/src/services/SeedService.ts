@@ -1,9 +1,9 @@
-import { entityKind, is } from 'drizzle-orm';
-import type { MySqlTable } from 'drizzle-orm/mysql-core';
+import { entityKind, eq, is } from 'drizzle-orm';
+import type { MySqlTable, MySqlTableWithColumns } from 'drizzle-orm/mysql-core';
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';
-import type { PgTable } from 'drizzle-orm/pg-core';
+import type { PgTable, PgTableWithColumns } from 'drizzle-orm/pg-core';
 import { PgDatabase } from 'drizzle-orm/pg-core';
-import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
+import type { SQLiteTable, SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import type {
 	GeneratePossibleGeneratorsColumnType,
@@ -11,7 +11,7 @@ import type {
 	RefinementsType,
 	TableGeneratorsType,
 } from '../types/seedService.ts';
-import type { Column, Prettify, Relation, Table } from '../types/tables.ts';
+import type { Column, Prettify, Relation, RelationWithReferences, Table } from '../types/tables.ts';
 import type { AbstractGenerator } from './GeneratorsWrappers.ts';
 import {
 	GenerateArray,
@@ -40,7 +40,7 @@ import {
 	GenerateYear,
 	HollowGenerator,
 } from './GeneratorsWrappers.ts';
-import { generateHashFromString } from './utils.ts';
+import { equalSets, generateHashFromString } from './utils.ts';
 
 class SeedService {
 	static readonly [entityKind]: string = 'SeedService';
@@ -56,7 +56,8 @@ class SeedService {
 	generatePossibleGenerators = (
 		connectionType: 'postgresql' | 'mysql' | 'sqlite',
 		tables: Table[],
-		relations: Relation[],
+		relations: (Relation & { isCyclic: boolean })[],
+		tableRelations: { [tableName: string]: RelationWithReferences[] },
 		refinements?: RefinementsType,
 		options?: { count?: number; seed?: number },
 	) => {
@@ -66,9 +67,17 @@ class SeedService {
 
 		// sorting table in order which they will be filled up (tables with foreign keys case)
 		// relations = relations.filter(rel => rel.type === "one");
-		const tablesInOutRelations = this.getTablesInOutRelations(relations);
+		const { tablesInOutRelations } = this.getInfoFromRelations(relations);
 		const orderedTablesNames = this.getOrderedTablesList(tablesInOutRelations);
 		tables = tables.sort((table1, table2) => {
+			const rel = relations.find((rel) => rel.table === table1.name && rel.refTable === table2.name);
+			if (rel === undefined) return 0;
+
+			if (rel.isCyclic) {
+				const reverseRel = relations.find((rel) => rel.table === table2.name && rel.refTable === table1.name);
+				return this.cyclicTablesCompare(table1, table2, rel, reverseRel);
+			}
+
 			const table1Order = orderedTablesNames.indexOf(
 					table1.name,
 				),
@@ -180,8 +189,12 @@ class SeedService {
 					columnName: col.name,
 					isUnique: col.isUnique,
 					notNull: col.notNull,
+					primary: col.primary,
 					generatedIdentityType: col.generatedIdentityType,
 					generator: undefined,
+					isCyclic: false,
+					wasDefinedBefore: false,
+					wasRefined: false,
 				};
 
 				if (
@@ -202,8 +215,24 @@ class SeedService {
 					}
 
 					columnPossibleGenerator.generator = genObj;
+					columnPossibleGenerator.wasRefined = true;
 				} else if (Object.hasOwn(foreignKeyColumns, col.name)) {
 					// TODO: I might need to assign repeatedValuesCount to column there instead of doing so in generateTablesValues
+					const cyclicRelation = tableRelations[table.name]!.find((rel) =>
+						rel.isCyclic === true
+						&& rel.columns.includes(col.name)
+					);
+
+					if (cyclicRelation !== undefined) {
+						columnPossibleGenerator.isCyclic = true;
+					}
+					const predicate = cyclicRelation !== undefined && col.notNull === false;
+
+					if (predicate === true) {
+						columnPossibleGenerator.generator = new GenerateDefault({ defaultValue: null });
+						columnPossibleGenerator.wasDefinedBefore = true;
+					}
+
 					columnPossibleGenerator.generator = new HollowGenerator({});
 				} // TODO: rewrite pickGeneratorFor... using new col properties: isUnique and notNull
 				else if (connectionType === 'postgresql') {
@@ -242,7 +271,45 @@ class SeedService {
 		return tablesPossibleGenerators;
 	};
 
-	getOrderedTablesList = (tablesInOutRelations: ReturnType<typeof this.getTablesInOutRelations>): string[] => {
+	cyclicTablesCompare = (
+		table1: Table,
+		table2: Table,
+		relation: Relation & { isCyclic: boolean },
+		reverseRelation: Relation & { isCyclic: boolean } | undefined,
+	) => {
+		// TODO: revise
+		const hasTable1NotNullColumns = relation.columns.some((colIName) =>
+			table1.columns.find((colJ) => colJ.name === colIName)?.notNull === true
+		);
+
+		if (reverseRelation !== undefined) {
+			const hasTable2NotNullColumns = reverseRelation.columns.some((colIName) =>
+				table2.columns.find((colJ) => colJ.name === colIName)?.notNull === true
+			);
+
+			if (hasTable1NotNullColumns && hasTable2NotNullColumns) {
+				throw new Error(
+					`The '${table1.name}' and '${table2.name}' tables have not null foreign keys. You can't seed cyclic tables with not null foreign key columns.`,
+				);
+			}
+
+			if (hasTable1NotNullColumns) return 1;
+			else if (hasTable2NotNullColumns) return -1;
+			return 0;
+		}
+
+		if (hasTable1NotNullColumns) {
+			return 1;
+		}
+		return 0;
+
+		// if (hasTable1NotNullColumns) return 1;
+		// else if (hasTable2NotNullColumns) return -1;
+	};
+
+	getOrderedTablesList = (
+		tablesInOutRelations: ReturnType<typeof this.getInfoFromRelations>['tablesInOutRelations'],
+	): string[] => {
 		const leafTablesNames = Object.entries(tablesInOutRelations)
 			.filter(
 				(tableRel) =>
@@ -270,7 +337,13 @@ class SeedService {
 				tablesInOutRelations[parent]!.requiredTableNames.delete(orderedTableName);
 			}
 
-			if (tablesInOutRelations[parent]!.requiredTableNames.size === 0) {
+			if (
+				tablesInOutRelations[parent]!.requiredTableNames.size === 0
+				|| equalSets(
+					tablesInOutRelations[parent]!.requiredTableNames,
+					tablesInOutRelations[parent]!.dependantTableNames,
+				)
+			) {
 				orderedTablesNames.push(parent);
 			} else {
 				leafTablesNames.push(parent);
@@ -283,7 +356,7 @@ class SeedService {
 		return orderedTablesNames;
 	};
 
-	getTablesInOutRelations = (relations: Relation[]) => {
+	getInfoFromRelations = (relations: (Relation & { isCyclic: boolean })[]) => {
 		const tablesInOutRelations: {
 			[tableName: string]: {
 				out: number;
@@ -295,7 +368,13 @@ class SeedService {
 			};
 		} = {};
 
+		// const cyclicRelations: { [cyclicTableName: string]: Relation & { isCyclic: boolean } } = {};
+
 		for (const rel of relations) {
+			// if (rel.isCyclic) {
+			// 	cyclicRelations[rel.table] = rel;
+			// }
+
 			if (tablesInOutRelations[rel.table] === undefined) {
 				tablesInOutRelations[rel.table] = {
 					out: 0,
@@ -330,7 +409,7 @@ class SeedService {
 			}
 		}
 
-		return tablesInOutRelations;
+		return { tablesInOutRelations };
 	};
 
 	getWeightedWithCount = (
@@ -888,15 +967,63 @@ class SeedService {
 		return;
 	};
 
+	filterCyclicTables = (tablesGenerators: ReturnType<typeof this.generatePossibleGenerators>) => {
+		const filteredTablesGenerators = tablesGenerators.filter((tableGen) =>
+			tableGen.columnsPossibleGenerators.some((columnGen) =>
+				columnGen.isCyclic === true && columnGen.wasDefinedBefore === true
+			)
+		);
+
+		const tablesUniqueNotNullColumn: { [tableName: string]: { uniqueNotNullColName: string } } = {};
+
+		for (const [idx, tableGen] of filteredTablesGenerators.entries()) {
+			const uniqueNotNullColName = filteredTablesGenerators[idx]!.columnsPossibleGenerators.find((colGen) =>
+				colGen.primary === true
+				|| (colGen.isUnique === true
+					&& colGen.notNull === true)
+			)?.columnName;
+			if (uniqueNotNullColName === undefined) {
+				throw new Error(
+					`Table '${tableGen.tableName}' does not have primary or (unique and notNull) column. Can't seed table with cyclic relation.`,
+				);
+			}
+			tablesUniqueNotNullColumn[tableGen.tableName] = { uniqueNotNullColName };
+
+			filteredTablesGenerators[idx]!.columnsPossibleGenerators = tableGen.columnsPossibleGenerators.filter((colGen) =>
+				(colGen.isCyclic === true && colGen.wasDefinedBefore === true) || colGen.columnName === uniqueNotNullColName
+			).map((colGen) => {
+				const newColGen = { ...colGen };
+				newColGen.wasDefinedBefore = false;
+				return newColGen;
+			});
+		}
+
+		return { filteredTablesGenerators, tablesUniqueNotNullColumn };
+	};
+
 	generateTablesValues = async (
-		relations: Relation[],
+		relations: (Relation & { isCyclic: boolean })[],
 		tablesGenerators: ReturnType<typeof this.generatePossibleGenerators>,
 		db?:
 			| PgDatabase<any>
 			| MySqlDatabase<any, any>
 			| BaseSQLiteDatabase<any, any>,
 		schema?: { [key: string]: PgTable | MySqlTable | SQLiteTable },
-		options?: { count?: number; seed?: number; preserveData?: boolean; insertDataInDb?: boolean },
+		options?: {
+			count?: number;
+			seed?: number;
+			preserveData?: boolean;
+			preserveCyclicTablesData?: boolean;
+			insertDataInDb?: boolean;
+			updateDataInDb?: boolean;
+			tablesValues?: {
+				tableName: string;
+				rows: {
+					[columnName: string]: string | number | boolean | undefined;
+				}[];
+			}[];
+			tablesUniqueNotNullColumn?: { [tableName: string]: { uniqueNotNullColName: string } };
+		},
 	) => {
 		// console.time(
 		//   "generateTablesValues-----------------------------------------------------"
@@ -913,18 +1040,20 @@ class SeedService {
 		let tablesValues: {
 			tableName: string;
 			rows: typeof tableValues;
-		}[] = [];
+		}[] = options?.tablesValues === undefined ? [] : options.tablesValues;
 
 		let pRNGSeed: number;
 		// relations = relations.filter(rel => rel.type === "one");
-		let filteredRelations: Relation[];
+		let filteredRelations: typeof relations;
 
-		let preserveData: boolean, insertDataInDb: boolean = true;
+		let preserveData: boolean, insertDataInDb: boolean = true, updateDataInDb: boolean = false;
 		if (options?.preserveData !== undefined) preserveData = options.preserveData;
 		if (options?.insertDataInDb !== undefined) insertDataInDb = options.insertDataInDb;
+		if (options?.updateDataInDb !== undefined) updateDataInDb = options.updateDataInDb;
+		if (updateDataInDb === true) insertDataInDb = false;
 
 		// TODO: now I'm generating tablesInOutRelations twice, first time in generatePossibleGenerators and second time here. maybe should generate it once instead.
-		const tablesInOutRelations = this.getTablesInOutRelations(relations);
+		const { tablesInOutRelations } = this.getInfoFromRelations(relations);
 		for (const table of tablesGenerators) {
 			tableCount = table.count === undefined ? options?.count || this.defaultCountForTable : table.count;
 
@@ -965,15 +1094,18 @@ class SeedService {
 
 					for (let colIdx = 0; colIdx < rel.columns.length; colIdx++) {
 						let refColumnValues: (string | number | boolean)[];
-						let hasSelfRelation: boolean;
+						let hasSelfRelation: boolean = false;
 						let repeatedValuesCount:
 								| number
 								| { weight: number; count: number | number[] }[]
 								| undefined,
 							weightedCountSeed: number | undefined;
-						let genObj: AbstractGenerator<any>;
+						let genObj: AbstractGenerator<any> | undefined;
 
-						if (rel.table === rel.refTable) {
+						if (
+							rel.table === rel.refTable
+							&& tableGenerators[rel.columns[colIdx]!]?.wasRefined === false
+						) {
 							const refColName = rel.refColumns[colIdx] as string;
 							pRNGSeed = generateHashFromString(
 								`${table.tableName}.${refColName}`,
@@ -996,11 +1128,13 @@ class SeedService {
 							genObj = new GenerateSelfRelationsValuesFromArray({
 								values: refColumnValues,
 							});
-						} else {
+						} else if (
+							tableGenerators[rel.columns[colIdx]!]?.wasDefinedBefore === false
+							&& tableGenerators[rel.columns[colIdx]!]?.wasRefined === false
+						) {
 							refColumnValues = tablesValues
 								.find((val) => val.tableName === rel.refTable)!
 								.rows!.map((row) => row[rel.refColumns[colIdx]!]!);
-							hasSelfRelation = false;
 
 							if (
 								table.withFromTable[rel.refTable] !== undefined
@@ -1018,7 +1152,9 @@ class SeedService {
 						}
 
 						// console.log(rel.columns[colIdx], tableGenerators)
-						tableGenerators[rel.columns[colIdx]!]!.generator = genObj;
+						if (genObj !== undefined) {
+							tableGenerators[rel.columns[colIdx]!]!.generator = genObj;
+						}
 						tableGenerators[rel.columns[colIdx]!] = {
 							...tableGenerators[rel.columns[colIdx]!]!,
 							hasSelfRelation,
@@ -1035,6 +1171,9 @@ class SeedService {
 				? false
 				: true;
 
+			preserveData = options?.preserveCyclicTablesData === true
+				&& table.columnsPossibleGenerators.some((colGen) => colGen.isCyclic === true);
+
 			tableValues = await this.generateColumnsValuesByGenerators({
 				tableGenerators,
 				db,
@@ -1043,6 +1182,10 @@ class SeedService {
 				count: tableCount,
 				preserveData,
 				insertDataInDb,
+				updateDataInDb,
+				uniqueNotNullColName: options?.tablesUniqueNotNullColumn === undefined
+					? undefined
+					: options?.tablesUniqueNotNullColumn[table.tableName]?.uniqueNotNullColName,
 			});
 
 			if (preserveData === true) {
@@ -1078,7 +1221,9 @@ class SeedService {
 		count,
 		preserveData = true,
 		insertDataInDb = true,
-		batchSize = 1,
+		updateDataInDb = false,
+		uniqueNotNullColName,
+		batchSize = 10000,
 	}: {
 		tableGenerators: Prettify<TableGeneratorsType>;
 		db?:
@@ -1090,10 +1235,16 @@ class SeedService {
 		count?: number;
 		preserveData?: boolean;
 		insertDataInDb?: boolean;
+		updateDataInDb?: boolean;
+		uniqueNotNullColName?: string;
 		batchSize?: number;
 	}) => {
 		if (count === undefined) {
 			count = this.defaultCountForTable;
+		}
+
+		if (updateDataInDb === true) {
+			batchSize = 1;
 		}
 
 		let columnGenerator: (typeof tableGenerators)[string];
@@ -1141,7 +1292,7 @@ class SeedService {
 		batchSize = batchSize > maxBatchSize ? maxBatchSize : batchSize;
 
 		if (
-			insertDataInDb === true
+			(insertDataInDb === true || updateDataInDb === true)
 			&& (db === undefined || schema === undefined || tableName === undefined)
 		) {
 			throw new Error('db or schema or tableName is undefined.');
@@ -1168,41 +1319,75 @@ class SeedService {
 			}
 
 			if (
-				insertDataInDb === true
+				(insertDataInDb === true || updateDataInDb === true)
 				&& ((i + 1) % batchSize === 0 || i === count - 1)
 			) {
 				if (preserveData === false) {
-					await this.insertInDb({
-						generatedValues,
-						db: db as
-							| PgDatabase<any>
-							| MySqlDatabase<any, any>
-							| BaseSQLiteDatabase<any, any>,
-						schema: schema as {
-							[key: string]: PgTable | MySqlTable | SQLiteTable;
-						},
-						tableName: tableName as string,
-						override,
-					});
+					if (insertDataInDb === true) {
+						await this.insertInDb({
+							generatedValues,
+							db: db as
+								| PgDatabase<any, any>
+								| MySqlDatabase<any, any>
+								| BaseSQLiteDatabase<any, any>,
+							schema: schema as {
+								[key: string]: PgTable | MySqlTable | SQLiteTable;
+							},
+							tableName: tableName as string,
+							override,
+						});
+					} else if (updateDataInDb === true) {
+						await this.updateDb({
+							generatedValues,
+							db: db as
+								| PgDatabase<any, any>
+								| MySqlDatabase<any, any>
+								| BaseSQLiteDatabase<any, any>,
+							schema: schema as {
+								[key: string]: PgTable | MySqlTable | SQLiteTable;
+							},
+							tableName: tableName as string,
+							uniqueNotNullColName: uniqueNotNullColName as string,
+						});
+					}
+
 					generatedValues = [];
 				} else {
 					const batchCount = Math.floor(i / batchSize);
 
-					await this.insertInDb({
-						generatedValues: generatedValues.slice(
-							batchSize * batchCount,
-							batchSize * (batchCount + 1),
-						),
-						db: db as
-							| PgDatabase<any>
-							| MySqlDatabase<any, any>
-							| BaseSQLiteDatabase<any, any>,
-						schema: schema as {
-							[key: string]: PgTable | MySqlTable | SQLiteTable;
-						},
-						tableName: tableName as string,
-						override,
-					});
+					if (insertDataInDb === true) {
+						await this.insertInDb({
+							generatedValues: generatedValues.slice(
+								batchSize * batchCount,
+								batchSize * (batchCount + 1),
+							),
+							db: db as
+								| PgDatabase<any, any>
+								| MySqlDatabase<any, any>
+								| BaseSQLiteDatabase<any, any>,
+							schema: schema as {
+								[key: string]: PgTable | MySqlTable | SQLiteTable;
+							},
+							tableName: tableName as string,
+							override,
+						});
+					} else if (updateDataInDb === true) {
+						await this.updateDb({
+							generatedValues: generatedValues.slice(
+								batchSize * batchCount,
+								batchSize * (batchCount + 1),
+							),
+							db: db as
+								| PgDatabase<any, any>
+								| MySqlDatabase<any, any>
+								| BaseSQLiteDatabase<any, any>,
+							schema: schema as {
+								[key: string]: PgTable | MySqlTable | SQLiteTable;
+							},
+							tableName: tableName as string,
+							uniqueNotNullColName: uniqueNotNullColName as string,
+						});
+					}
 				}
 			}
 		}
@@ -1221,7 +1406,7 @@ class SeedService {
 			[columnName: string]: number | string | boolean | undefined;
 		}[];
 		db:
-			| PgDatabase<any>
+			| PgDatabase<any, any>
 			| MySqlDatabase<any, any>
 			| BaseSQLiteDatabase<any, any>;
 		schema: {
@@ -1244,6 +1429,45 @@ class SeedService {
 			await db
 				.insert((schema as { [key: string]: SQLiteTable })[tableName]!)
 				.values(generatedValues);
+		}
+	};
+
+	updateDb = async ({
+		generatedValues,
+		db,
+		schema,
+		tableName,
+		uniqueNotNullColName,
+	}: {
+		generatedValues: {
+			[columnName: string]: number | string | boolean | undefined;
+		}[];
+		db:
+			| PgDatabase<any, any>
+			| MySqlDatabase<any, any>
+			| BaseSQLiteDatabase<any, any>;
+		schema: {
+			[key: string]: PgTable | MySqlTable | SQLiteTable;
+		};
+		tableName: string;
+		uniqueNotNullColName: string;
+	}) => {
+		if (is(db, PgDatabase<any>)) {
+			const table = (schema as { [key: string]: PgTableWithColumns<any> })[tableName]!;
+			const uniqueNotNullCol = table[uniqueNotNullColName];
+			await db.update(table).set(generatedValues[0]!).where(
+				eq(uniqueNotNullCol, generatedValues[0]![uniqueNotNullColName]),
+			);
+		} else if (is(db, MySqlDatabase<any, any>)) {
+			const table = (schema as { [key: string]: MySqlTableWithColumns<any> })[tableName]!;
+			await db.update(table).set(generatedValues[0]!).where(
+				eq(table[uniqueNotNullColName], generatedValues[0]![uniqueNotNullColName]),
+			);
+		} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+			const table = (schema as { [key: string]: SQLiteTableWithColumns<any> })[tableName]!;
+			await db.update(table).set(generatedValues[0]!).where(
+				eq(table[uniqueNotNullColName], generatedValues[0]![uniqueNotNullColName]),
+			);
 		}
 	};
 }
