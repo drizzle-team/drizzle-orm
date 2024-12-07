@@ -10,6 +10,7 @@ import {
 	float,
 	int,
 	mediumint,
+	mysqlEnum,
 	mysqlTable,
 	mysqlView,
 	serial,
@@ -293,4 +294,26 @@ test('handle unsigned numerical types', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+test('instrospect strings with single quotes', async () => {
+	const schema = {
+		columns: mysqlTable('columns', {
+			enum: mysqlEnum('my_enum', ['escape\'s quotes "', 'escape\'s quotes 2 "']).default('escape\'s quotes "'),
+			text: text('text').default('escape\'s quotes " '),
+			varchar: varchar('varchar', { length: 255 }).default('escape\'s quotes " '),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'introspect-strings-with-single-quotes',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	await client.query(`drop table columns;`);
 });

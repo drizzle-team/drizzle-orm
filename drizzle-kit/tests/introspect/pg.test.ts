@@ -255,8 +255,12 @@ test('instrospect all column types', async () => {
 			time2: time('time2').defaultNow(),
 			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()),
 			timestamp2: timestamp('timestamp2', { withTimezone: true, precision: 6 }).defaultNow(),
+			timestamp3: timestamp('timestamp3', { withTimezone: true, precision: 6 }).default(
+				sql`timezone('utc'::text, now())`,
+			),
 			date1: date('date1').default('2024-01-01'),
 			date2: date('date2').defaultNow(),
+			date3: date('date3').default(sql`CURRENT_TIMESTAMP`),
 			uuid1: uuid('uuid1').default('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'),
 			uuid2: uuid('uuid2').defaultRandom(),
 			inet: inet('inet').default('127.0.0.1'),
@@ -412,6 +416,29 @@ test('introspect enum with similar name to native type', async () => {
 		client,
 		schema,
 		'introspect-enum-with-similar-name-to-native-type',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('instrospect strings with single quotes', async () => {
+	const client = new PGlite();
+
+	const myEnum = pgEnum('my_enum', ['escape\'s quotes " ']);
+	const schema = {
+		enum_: myEnum,
+		columns: pgTable('columns', {
+			enum: myEnum('my_enum').default('escape\'s quotes " '),
+			text: text('text').default('escape\'s quotes " '),
+			varchar: varchar('varchar').default('escape\'s quotes " '),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-strings-with-single-quotes',
 	);
 
 	expect(statements.length).toBe(0);

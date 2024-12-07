@@ -1,6 +1,6 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { gt, inArray } from '~/expressions.ts';
+import { gt, inArray, like } from '~/expressions.ts';
 import { int, mysqlTable, serial, text } from '~/mysql-core/index.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
@@ -77,4 +77,7 @@ const orders = mysqlTable('orders', {
 			generated: string | null;
 		}[], typeof allFromWith>
 	>;
+
+	const regionalSalesWith = db.$with('regional_sales_with').as(db.select().from(regionalSales));
+	db.with(regionalSalesWith).select().from(regionalSalesWith).where(like(regionalSalesWith.totalSales, 'abc'));
 }

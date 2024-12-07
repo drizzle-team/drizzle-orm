@@ -15,6 +15,7 @@ import {
 	mediumint,
 	mysqlEnum,
 	mysqlTable,
+	primaryKey,
 	serial,
 	smallint,
 	text,
@@ -29,7 +30,7 @@ import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { diffTestSchemasMysql, diffTestSchemasPushMysql } from 'tests/schemaDiffer';
 import { v4 as uuid } from 'uuid';
-import { expect } from 'vitest';
+import { expect, test } from 'vitest';
 import { DialectSuite, run } from './common';
 
 async function createDockerDB(context: any): Promise<string> {
@@ -662,6 +663,88 @@ const mysqlSuite: DialectSuite = {
 	},
 	createTableWithGeneratedConstraint: function(context?: any): Promise<void> {
 		return {} as any;
+	},
+	createCompositePrimaryKey: async function(context: any): Promise<void> {
+		const schema1 = {};
+
+		const schema2 = {
+			table: mysqlTable('table', {
+				col1: int('col1').notNull(),
+				col2: int('col2').notNull(),
+			}, (t) => ({
+				pk: primaryKey({
+					columns: [t.col1, t.col2],
+				}),
+			})),
+		};
+
+		const { statements, sqlStatements } = await diffTestSchemasPushMysql(
+			context.client as Connection,
+			schema1,
+			schema2,
+			[],
+			'drizzle',
+			false,
+		);
+
+		expect(statements).toStrictEqual([
+			{
+				type: 'create_table',
+				tableName: 'table',
+				schema: undefined,
+				internals: {
+					indexes: {},
+					tables: {},
+				},
+				compositePKs: ['table_col1_col2_pk;col1,col2'],
+				compositePkName: 'table_col1_col2_pk',
+				uniqueConstraints: [],
+				checkConstraints: [],
+				columns: [
+					{ name: 'col1', type: 'int', primaryKey: false, notNull: true, autoincrement: false },
+					{ name: 'col2', type: 'int', primaryKey: false, notNull: true, autoincrement: false },
+				],
+			},
+		]);
+		expect(sqlStatements).toStrictEqual([
+			'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `table_col1_col2_pk` PRIMARY KEY(`col1`,`col2`)\n);\n',
+		]);
+	},
+	renameTableWithCompositePrimaryKey: async function(context?: any): Promise<void> {
+		const productsCategoriesTable = (tableName: string) => {
+			return mysqlTable(tableName, {
+				productId: varchar('product_id', { length: 10 }).notNull(),
+				categoryId: varchar('category_id', { length: 10 }).notNull(),
+			}, (t) => ({
+				pk: primaryKey({
+					columns: [t.productId, t.categoryId],
+				}),
+			}));
+		};
+
+		const schema1 = {
+			table: productsCategoriesTable('products_categories'),
+		};
+		const schema2 = {
+			test: productsCategoriesTable('products_to_categories'),
+		};
+
+		const { sqlStatements } = await diffTestSchemasPushMysql(
+			context.client as Connection,
+			schema1,
+			schema2,
+			['public.products_categories->public.products_to_categories'],
+			'drizzle',
+			false,
+		);
+
+		expect(sqlStatements).toStrictEqual([
+			'RENAME TABLE `products_categories` TO `products_to_categories`;',
+			'ALTER TABLE `products_to_categories` DROP PRIMARY KEY;',
+			'ALTER TABLE `products_to_categories` ADD PRIMARY KEY(`product_id`,`category_id`);',
+		]);
+
+		await context.client.query(`DROP TABLE \`products_categories\``);
 	},
 };
 
