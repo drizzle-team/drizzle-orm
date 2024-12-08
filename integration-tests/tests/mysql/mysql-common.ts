@@ -1846,7 +1846,7 @@ export function tests(driver?: string) {
 			}
 			{
 				const query = db.select().from(users2Table).for('update', { noWait: true }).toSQL();
-				expect(query.sql).toMatch(/ for update no wait$/);
+				expect(query.sql).toMatch(/ for update nowait$/);
 			}
 		});
 
