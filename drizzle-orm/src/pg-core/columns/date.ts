@@ -38,11 +38,11 @@ export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColu
 	}
 
 	override mapFromDriverValue(value: string): Date {
-		return new Date(value);
+		return new Date(value.replace(' ', 'T') + 'Z');
 	}
 
 	override mapToDriverValue(value: Date): string {
-		return value.toISOString();
+		return value.toISOString().replace('T', ' ').replace('Z', '');;
 	}
 }
 
