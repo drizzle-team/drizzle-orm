@@ -55,8 +55,10 @@ There are several ways you can provide feedback:
 ```bash
 # https://github.com/nvm-sh/nvm#install--update-script
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-nvm install 18.13.0
-nvm use 18.13.0
+nvm install 18.14.0
+nvm use 18.14.0
+
+node -v # should print `18.14.0`
 ```
 
 ### <a name="installing-pnpm"></a> Installing pnpm
@@ -157,7 +159,7 @@ In specific case, groupBy was responding with unreadable error
 ### <a name="project-structure-orm"></a> Project structure
 
 - 📂 `pg-core/`, `mysql-core/`, `sqlite-core/`
-  
+
   core packages for each dialect with all the main logic for relation and query builder
 
 - 📂 `sql/`
