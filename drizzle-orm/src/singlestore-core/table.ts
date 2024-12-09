@@ -102,7 +102,26 @@ export function singlestoreTableWithSchema<
 
 export interface SingleStoreTableFn<TSchemaName extends string | undefined = undefined> {
 	/**
-	 * @deprecated This overload is deprecated. Use the other method overload instead.
+	 * @deprecated The third parameter of singlestoreTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
 	 */
 	<
 		TTableName extends string,
@@ -119,7 +138,26 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 	}>;
 
 	/**
-	 * @deprecated This overload is deprecated. Use the other method overload instead.
+	 * @deprecated The third parameter of singlestoreTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
 	 */
 	<
 		TTableName extends string,
@@ -142,7 +180,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		name: TTableName,
 		columns: TColumnsMap,
 		extraConfig?: (
-			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'singlestore'>,
+			self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>,
 		) => SingleStoreTableExtraConfigValue[],
 	): SingleStoreTableWithColumns<{
 		name: TTableName;
@@ -157,9 +195,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 	>(
 		name: TTableName,
 		columns: (columnTypes: SingleStoreColumnBuilders) => TColumnsMap,
-		extraConfig?: (
-			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'singlestore'>,
-		) => SingleStoreTableExtraConfigValue[],
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfigValue[],
 	): SingleStoreTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;

@@ -37,6 +37,7 @@ import {
 	foreignKey,
 	getTableConfig,
 	getViewConfig,
+	index,
 	int,
 	intersect,
 	intersectAll,
@@ -3928,6 +3929,37 @@ export function tests(driver?: string) {
 				.limit(-1);
 
 			expect(users.length).toBeGreaterThan(0);
+		});
+
+		test('define constraints as array', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const table = mysqlTable('name', {
+				id: int(),
+			}, (t) => [
+				index('name').on(t.id),
+				primaryKey({ columns: [t.id], name: 'custom' }),
+			]);
+
+			const { indexes, primaryKeys } = getTableConfig(table);
+
+			expect(indexes.length).toBe(1);
+			expect(primaryKeys.length).toBe(1);
+		});
+
+		test('define constraints as array inside third param', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const table = mysqlTable('name', {
+				id: int(),
+			}, (t) => [
+				[index('name').on(t.id), primaryKey({ columns: [t.id], name: 'custom' })],
+			]);
+
+			const { indexes, primaryKeys } = getTableConfig(table);
+
+			expect(indexes.length).toBe(1);
+			expect(primaryKeys.length).toBe(1);
 		});
 
 		test('update with limit and order by', async (ctx) => {
