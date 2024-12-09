@@ -496,10 +496,17 @@ export class PgDialect {
 	): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
+		const colEntries: [string, PgColumn][] = Object.entries(columns);
 
-		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
+		const colFilteredEntries: [string, PgColumn][] = select && !is(valuesOrSelect, SQL)
+			? Object
+				.keys((valuesOrSelect as AnyPgSelectQueryBuilder)._.selectedFields)
+				.map((key) => [key, columns[key]] as [string, PgColumn])
+			: overridingSystemValue_
+			? colEntries
+			: colEntries.filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntries.map(
+		const insertOrder = colFilteredEntries.map(
 			([, column]) => sql.identifier(this.casing.getColumnCasing(column)),
 		);
 
@@ -517,7 +524,7 @@ export class PgDialect {
 
 			for (const [valueIndex, value] of values.entries()) {
 				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntries) {
+				for (const [fieldName, col] of colFilteredEntries) {
 					const colValue = value[fieldName];
 					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
 						// eslint-disable-next-line unicorn/no-negated-condition
