@@ -2871,6 +2871,7 @@ export const generatorsFuncs = {
 	/**
 	 * generates same given value each time the generator is called.
 	 * @param defaultValue - value you want to generate
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -2889,6 +2890,7 @@ export const generatorsFuncs = {
 	 * generates values from given array
 	 * @param values - array of values you want to generate. can be array of weighted values.
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -2950,6 +2952,7 @@ export const generatorsFuncs = {
 	 * precision equals 10 means that values will be accurate to one tenth (1.2, 34.6);
 	 * precision equals 100 means that values will be accurate to one hundredth (1.23, 34.67).
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -2971,6 +2974,7 @@ export const generatorsFuncs = {
 	 * @param minValue - lower border of range.
 	 * @param maxValue - upper border of range.
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -2989,6 +2993,7 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates boolean values(true or false)
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3008,6 +3013,7 @@ export const generatorsFuncs = {
 	 * generates date within given range.
 	 * @param minDate - lower border of range.
 	 * @param maxDate - upper border of range.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3025,6 +3031,8 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates time in 24 hours style.
+	 * @param arraySize - number of elements in each one-dimensional array.
+	 *
 	 * @example
 	 * ```ts
 	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
@@ -3041,6 +3049,8 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates timestamps.
+	 * @param arraySize - number of elements in each one-dimensional array.
+	 *
 	 * @example
 	 * ```ts
 	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
@@ -3057,6 +3067,8 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates datetime objects.
+	 * @param arraySize - number of elements in each one-dimensional array.
+	 *
 	 * @example
 	 * ```ts
 	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
@@ -3073,6 +3085,8 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates years.
+	 * @param arraySize - number of elements in each one-dimensional array.
+	 *
 	 * @example
 	 * ```ts
 	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
@@ -3089,6 +3103,7 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates json objects with fixed structure.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * json structure can equal this:
 	 * ```
@@ -3133,6 +3148,7 @@ export const generatorsFuncs = {
 	 * interval example: "1 years 12 days 5 minutes"
 	 *
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 * @example
 	 * ```ts
 	 * await seed(db, schema, { count: 1000 }).refine((funcs) => ({
@@ -3150,6 +3166,7 @@ export const generatorsFuncs = {
 	/**
 	 * generates random strings.
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3166,8 +3183,29 @@ export const generatorsFuncs = {
 	// uniqueString: createGenerator(GenerateUniqueString),
 
 	/**
+	 * generates v4 UUID strings if arraySize is not specified, or v4 UUID 1D arrays if it is.
+	 *
+	 * @param arraySize - number of elements in each one-dimensional array.
+	 *
+	 * @example
+	 * ```ts
+	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
+	 *    users: {
+	 *      columns: {
+	 *        uuid: funcs.uuid({
+	 *          arraySize: 4
+	 *        })
+	 *      },
+	 *    },
+	 *  }));
+	 * ```
+	 */
+	uuid: createGenerator(GenerateUUID),
+
+	/**
 	 * generates person's first names.
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3186,6 +3224,7 @@ export const generatorsFuncs = {
 	/**
 	 * generates person's last names.
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3204,6 +3243,7 @@ export const generatorsFuncs = {
 	/**
 	 * generates person's full names.
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3221,6 +3261,7 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates unique emails.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3237,6 +3278,7 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates unique phone numbers.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @param template - phone number template, where all '#' symbols will be substituted with generated digits.
 	 * @param prefixes - array of any string you want to be your phone number prefixes.(not compatible with template property)
@@ -3277,6 +3319,7 @@ export const generatorsFuncs = {
 	/**
 	 * generates country's names.
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3295,6 +3338,7 @@ export const generatorsFuncs = {
 	/**
 	 * generates city's names.
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3313,6 +3357,7 @@ export const generatorsFuncs = {
 	/**
 	 * generates street address.
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3330,6 +3375,7 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates job titles.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3348,6 +3394,7 @@ export const generatorsFuncs = {
 	 * generates postal codes.
 	 *
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3365,6 +3412,7 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates states of America.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3383,6 +3431,7 @@ export const generatorsFuncs = {
 	 * generates company's names.
 	 *
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3402,6 +3451,7 @@ export const generatorsFuncs = {
 	 * generates 'lorem ipsum' text sentences.
 	 *
 	 * @param sentencesCount - number of sentences you want to generate as one generated value(string).
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3424,6 +3474,7 @@ export const generatorsFuncs = {
 	 * @param maxXValue - upper bound of range for x coordinate.
 	 * @param minYValue - lower bound of range for y coordinate.
 	 * @param maxYValue - upper bound of range for y coordinate.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts
@@ -3457,6 +3508,7 @@ export const generatorsFuncs = {
 	 * @param maxBValue - upper bound of range for y parameter.
 	 * @param minCValue - lower bound of range for y parameter.
 	 * @param maxCValue - upper bound of range for y parameter.
+	 * @param arraySize - number of elements in each one-dimensional array.
 	 *
 	 * @example
 	 * ```ts

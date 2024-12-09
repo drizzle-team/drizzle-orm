@@ -615,6 +615,22 @@ beforeAll(async () => {
 			);    
 		`,
 	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."uuid_table" (
+				"uuid" uuid
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."uuid_array_table" (
+				"uuid" uuid[]
+			);    
+		`,
+	);
 });
 
 afterAll(async () => {
@@ -2038,4 +2054,44 @@ test('weightedRandom with unique gens generator test', async () => {
 	).rejects.toThrow(
 		'The weights for the Weighted Random feature must add up to exactly 1. Please review your weights to ensure they total 1 before proceeding',
 	);
+});
+
+test('uuid generator test', async () => {
+	await reset(db, { uuidTable: schema.uuidTable });
+	await seed(db, { uuidTable: schema.uuidTable }).refine((funcs) => ({
+		uuidTable: {
+			count,
+			columns: {
+				uuid: funcs.uuid(),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.uuidTable);
+	// every value in each row does not equal undefined.
+	let predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+
+	const uuidStrsSet = new Set<string>(data.map((row) => row.uuid!));
+	predicate = uuidStrsSet.size === data.length;
+	expect(predicate).toBe(true);
+});
+
+test('uuid array generator test', async () => {
+	await reset(db, { uuidArrayTable: schema.uuidArrayTable });
+	await seed(db, { uuidArrayTable: schema.uuidArrayTable }).refine((funcs) => ({
+		uuidArrayTable: {
+			count,
+			columns: {
+				uuid: funcs.uuid({ arraySize: 4 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.uuidArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
 });

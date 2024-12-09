@@ -11,6 +11,7 @@ import {
 	text,
 	time,
 	timestamp,
+	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -310,4 +311,12 @@ export const weightedRandomTable = schema.table('weighted_random_table', {
 
 export const weightedRandomWithUniqueGensTable = schema.table('weighted_random_with_unique_gens_table', {
 	weightedRandomWithUniqueGens: varchar('weighted_random_with_unique_gens', { length: 256 }).unique(),
+});
+
+export const uuidTable = schema.table('uuid_table', {
+	uuid: uuid('uuid'),
+});
+
+export const uuidArrayTable = schema.table('uuid_array_table', {
+	uuid: uuid('uuid').array(),
 });
