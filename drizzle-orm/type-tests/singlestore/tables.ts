@@ -512,7 +512,6 @@ Expect<
 	});
 
 	const t = customText('name').notNull();
-
 	Expect<
 		Equal<
 			{
