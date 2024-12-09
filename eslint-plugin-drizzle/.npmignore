@@ -1,0 +1,6 @@
+*
+
+# Include package files
+!dist/**/*
+!package.json
+!README.md
