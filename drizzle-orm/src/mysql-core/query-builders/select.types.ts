@@ -122,7 +122,8 @@ export type MySqlJoinFn<
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-	onIndex?: TJoinedTable extends MySqlTable ? IndexConfig : 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views.',
+	onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
+		: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 ) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<MySqlColumn>;

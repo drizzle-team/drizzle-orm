@@ -89,7 +89,7 @@ export class MySqlSelectBuilder<
 	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
 		source: TFrom,
 		onIndex?: TFrom extends MySqlTable ? IndexConfig
-			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views.',
+			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 	): CreateMySqlSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
@@ -229,7 +229,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 			table: MySqlTable | Subquery | MySqlViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 			onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
-				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views.',
+				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
