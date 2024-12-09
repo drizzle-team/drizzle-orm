@@ -5,11 +5,6 @@ export default defineConfig({
 	test: {
 		include: [
 			'tests/**/*.test.ts',
-			// Need to test it first before pushing changes
-			// 'tests/singlestore-schemas.test.ts',
-			// 'tests/singlestore-views.test.ts',
-			// 'tests/push/singlestore-push.test.ts',
-			// 'tests/push/singlestore.test.ts',
 		],
 
 		// This one was excluded because we need to modify an API for SingleStore-generated columns.
