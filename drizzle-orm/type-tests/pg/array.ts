@@ -25,7 +25,9 @@ import { integer, pgTable } from '~/pg-core/index.ts';
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
-				}
+				},
+				{},
+				{}
 			>,
 			typeof table['a']['_']['baseColumn']
 		>
