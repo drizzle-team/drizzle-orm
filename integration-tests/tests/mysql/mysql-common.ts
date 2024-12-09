@@ -4139,11 +4139,7 @@ export function tests(driver?: string) {
 		const users = mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
-		}, () => {
-			return {
-				usersTableNameIndex,
-			};
-		});
+		}, () => [usersTableNameIndex]);
 		const usersTableNameIndex = index('users_name_index').on(users.name);
 
 		await db.execute(sql`drop table if exists ${users}`);
@@ -4173,17 +4169,73 @@ export function tests(driver?: string) {
 		expect(result).toEqual([{ id: 4, name: 'David' }]);
 	});
 
+	test('MySqlTable :: select with `use index` hint on 1 index', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		}, () => [usersTableNameIndex]);
+		const usersTableNameIndex = index('users_name_index').on(users.name);
+
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`
+			create table ${users} (
+				\`id\` serial primary key,
+				\`name\` varchar(100) not null
+			)
+		`);
+		await db.execute(sql`create index users_name_index ON users(name)`);
+
+		const query = db.select()
+			.from(users, {
+				useIndex: usersTableNameIndex,
+			})
+			.where(eq(users.name, 'David'))
+			.toSQL();
+
+		expect(query.sql).to.include('USE INDEX (users_name_index)');
+	});
+
+	test('MySqlTable :: select with `use index` hint on multiple indexes', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+			age: int('age').notNull(),
+		}, () => [usersTableNameIndex, usersTableAgeIndex]);
+		const usersTableNameIndex = index('users_name_index').on(users.name);
+		const usersTableAgeIndex = index('users_age_index').on(users.age);
+
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`
+			create table ${users} (
+				\`id\` serial primary key,
+				\`name\` varchar(100) not null,
+				\`age\` int not null
+			)
+		`);
+		await db.execute(sql`create index users_name_index ON users(name)`);
+		await db.execute(sql`create index users_age_index ON users(age)`);
+
+		const query = db.select()
+			.from(users, {
+				useIndex: [usersTableNameIndex, usersTableAgeIndex],
+			})
+			.where(eq(users.name, 'David'))
+			.toSQL();
+
+		expect(query.sql).to.include('USE INDEX (users_name_index, users_age_index)');
+	});
+
 	test('MySqlTable :: select with `use index` hint on not existed index', async (ctx) => {
 		const { db } = ctx.mysql;
 
 		const users = mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
-		}, () => {
-			return {
-				usersTableNameIndex,
-			};
-		});
+		}, () => [usersTableNameIndex]);
 		const usersTableNameIndex = index('users_name_index').on(users.name);
 
 		await db.execute(sql`drop table if exists ${users}`);
@@ -4219,12 +4271,7 @@ export function tests(driver?: string) {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 			age: int('age').notNull(),
-		}, () => {
-			return {
-				usersTableNameIndex,
-				usersTableAgeIndex,
-			};
-		});
+		}, () => [usersTableNameIndex, usersTableAgeIndex]);
 		const usersTableNameIndex = index('users_name_index').on(users.name);
 		const usersTableAgeIndex = index('users_age_index').on(users.age);
 
@@ -4269,11 +4316,7 @@ export function tests(driver?: string) {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
 			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-		}, () => {
-			return {
-				postsTableUserIdIndex,
-			};
-		});
+		}, () => [postsTableUserIdIndex]);
 		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
 
 		await db.execute(sql`drop table if exists ${posts}`);
@@ -4328,6 +4371,108 @@ export function tests(driver?: string) {
 		expect(result).toEqual([{ userId: 4, name: 'David', postId: 4, text: 'David post' }]);
 	});
 
+	test('MySqlTable :: select with join `use index` hint on 1 index', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
+
+		await db.execute(sql`drop table if exists ${posts}`);
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`
+			create table ${users} (
+				\`id\` serial primary key,
+				\`name\` varchar(100) not null
+			)
+		`);
+		await db.execute(sql`
+			create table ${posts} (
+				\`id\` serial primary key,
+				\`text\` varchar(100) not null,
+				\`user_id\` int not null references users(id) on delete cascade
+			)
+		`);
+		await db.execute(sql`create index posts_user_id_index ON posts(user_id)`);
+
+		const query = db.select({
+			userId: users.id,
+			name: users.name,
+			postId: posts.id,
+			text: posts.text,
+		})
+			.from(users)
+			.leftJoin(posts, eq(users.id, posts.userId), {
+				useIndex: postsTableUserIdIndex,
+			})
+			.where(and(
+				eq(users.name, 'David'),
+				eq(posts.text, 'David post'),
+			)).toSQL();
+
+		expect(query.sql).to.include('USE INDEX (posts_user_id_index)');
+	});
+
+	test('MySqlTable :: select with join `use index` hint on multiple indexes', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+		}, () => [postsTableUserIdIndex, postsTableTextIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
+		const postsTableTextIndex = index('posts_text_index').on(posts.text);
+
+		await db.execute(sql`drop table if exists ${posts}`);
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`
+			create table ${users} (
+				\`id\` serial primary key,
+				\`name\` varchar(100) not null
+			)
+		`);
+		await db.execute(sql`
+			create table ${posts} (
+				\`id\` serial primary key,
+				\`text\` varchar(100) not null,
+				\`user_id\` int not null references users(id) on delete cascade
+			)
+		`);
+		await db.execute(sql`create index posts_user_id_index ON posts(user_id)`);
+		await db.execute(sql`create index posts_text_index ON posts(text)`);
+
+		const query = db.select({
+			userId: users.id,
+			name: users.name,
+			postId: posts.id,
+			text: posts.text,
+		})
+			.from(users)
+			.leftJoin(posts, eq(users.id, posts.userId), {
+				useIndex: [postsTableUserIdIndex, postsTableTextIndex],
+			})
+			.where(and(
+				eq(users.name, 'David'),
+				eq(posts.text, 'David post'),
+			)).toSQL();
+
+		expect(query.sql).to.include('USE INDEX (posts_user_id_index, posts_text_index)');
+	});
+
 	test('MySqlTable :: select with join `use index` hint on not existed index', async (ctx) => {
 		const { db } = ctx.mysql;
 
@@ -4340,11 +4485,7 @@ export function tests(driver?: string) {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
 			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-		}, () => {
-			return {
-				postsTableUserIdIndex,
-			};
-		});
+		}, () => [postsTableUserIdIndex]);
 		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
 
 		await db.execute(sql`drop table if exists ${posts}`);
@@ -4410,12 +4551,7 @@ export function tests(driver?: string) {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
 			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-		}, () => {
-			return {
-				postsTableUserIdIndex,
-				postsTableTextIndex,
-			};
-		});
+		}, () => [postsTableUserIdIndex, postsTableTextIndex]);
 		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
 		const postsTableTextIndex = index('posts_text_index').on(posts.text);
 
@@ -4484,11 +4620,7 @@ export function tests(driver?: string) {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
 			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-		}, () => {
-			return {
-				postsTableUserIdIndex,
-			};
-		});
+		}, () => [postsTableUserIdIndex]);
 		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
 
 		await db.execute(sql`drop table if exists ${posts}`);
@@ -4552,11 +4684,7 @@ export function tests(driver?: string) {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
 			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-		}, () => {
-			return {
-				postsTableUserIdIndex,
-			};
-		});
+		}, () => [postsTableUserIdIndex]);
 		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
 
 		await db.execute(sql`drop table if exists ${posts}`);
@@ -4575,22 +4703,6 @@ export function tests(driver?: string) {
 			)
 		`);
 		await db.execute(sql`create index posts_user_id_index ON posts(user_id)`);
-
-		await db.insert(users).values([
-			{ name: 'Alice' },
-			{ name: 'Bob' },
-			{ name: 'Charlie' },
-			{ name: 'David' },
-			{ name: 'Eve' },
-		]);
-
-		await db.insert(posts).values([
-			{ text: 'Alice post', userId: 1 },
-			{ text: 'Bob post', userId: 2 },
-			{ text: 'Charlie post', userId: 3 },
-			{ text: 'David post', userId: 4 },
-			{ text: 'Eve post', userId: 5 },
-		]);
 
 		const sq = db.select().from(posts).where(eq(posts.userId, 1)).as('sq');
 
@@ -4615,11 +4727,7 @@ export function tests(driver?: string) {
 		const users = mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
-		}, () => {
-			return {
-				usersTableNameIndex,
-			};
-		});
+		}, () => [usersTableNameIndex]);
 
 		const usersTableNameIndex = index('users_name_index').on(users.name);
 
@@ -4634,14 +4742,6 @@ export function tests(driver?: string) {
 		`);
 		await db.execute(sql`create index users_name_index ON users(name)`);
 		await db.execute(sql`create view ${usersView} as select * from ${users}`);
-
-		await db.insert(users).values([
-			{ name: 'Alice' },
-			{ name: 'Bob' },
-			{ name: 'Charlie' },
-			{ name: 'David' },
-			{ name: 'Eve' },
-		]);
 
 		// @ts-expect-error
 		const query = db.select().from(usersView, {
@@ -4659,11 +4759,7 @@ export function tests(driver?: string) {
 		const users = mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
-		}, () => {
-			return {
-				usersTableNameIndex,
-			};
-		});
+		}, () => [usersTableNameIndex]);
 		const usersTableNameIndex = index('users_name_index').on(users.name);
 
 		await db.execute(sql`drop table if exists ${users}`);
@@ -4674,14 +4770,6 @@ export function tests(driver?: string) {
 			)
 		`);
 		await db.execute(sql`create index users_name_index ON users(name)`);
-
-		await db.insert(users).values([
-			{ name: 'Alice' },
-			{ name: 'Bob' },
-			{ name: 'Charlie' },
-			{ name: 'David' },
-			{ name: 'Eve' },
-		]);
 
 		const sq = db.select().from(users).as('sq');
 

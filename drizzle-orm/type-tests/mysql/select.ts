@@ -655,46 +655,59 @@ await db
 	const table1 = mysqlTable('table1', {
 		id: int().primaryKey(),
 		name: text().notNull(),
-	}, () => {
-		return { table1NameIndex };
-	});
+	}, () => [table1NameIndex]);
 	const table1NameIndex = index('table1_name_index').on(table1.name);
 
 	const table2 = mysqlTable('table2', {
 		id: int().primaryKey(),
 		age: int().notNull(),
 		table1Id: int().references(() => table1.id).notNull(),
-	}, () => {
-		return { table2AgeIndex };
-	});
-	const table2AgeIndex = index('table1_name_index').on(table2.age);
+	}, () => [table2AgeIndex, table2Table1Index]);
+	const table2AgeIndex = index('table2_name_index').on(table2.age);
+	const table2Table1Index = index('table2_table1_index').on(table2.table1Id);
 
 	const view = mysqlView('view').as((qb) => qb.select().from(table2));
 	const sq = db.select().from(table2, { useIndex: ['posts_text_index'] }).as('sq');
 
 	await db.select().from(table1, {
+		useIndex: table1NameIndex,
+		forceIndex: table1NameIndex,
+		ignoreIndex: table1NameIndex,
+	});
+	await db.select().from(table1, {
 		useIndex: [table1NameIndex],
 		forceIndex: [table1NameIndex],
 		ignoreIndex: [table1NameIndex],
 	});
+	await db.select().from(table1, {
+		useIndex: table1NameIndex,
+		// @ts-expect-error
+		table1NameIndex,
+		forceIndex: table1NameIndex,
+		ignoreIndex: table1NameIndex,
+	});
+
 	// @ts-expect-error
 	await db.select().from(view, {
-		useIndex: [table1NameIndex],
-		forceIndex: [table1NameIndex],
-		ignoreIndex: [table1NameIndex],
-	});
-	// @ts-expect-error
-	await db.select().from(sq, {
-		useIndex: [table1NameIndex],
-		forceIndex: [table1NameIndex],
+		useIndex: table1NameIndex,
+		forceIndex: table1NameIndex,
+		table1NameIndex,
 		ignoreIndex: [table1NameIndex],
 	});
 
-	const join = await db.select().from(table1)
+	// @ts-expect-error
+	await db.select().from(sq, {
+		useIndex: table1NameIndex,
+		forceIndex: table1NameIndex,
+		table1NameIndex,
+		ignoreIndex: [table1NameIndex],
+	});
+
+	const join1 = await db.select().from(table1)
 		.leftJoin(table2, eq(table1.id, table2.table1Id), {
-			useIndex: [table2AgeIndex],
-			forceIndex: [table2AgeIndex],
-			ignoreIndex: [table2AgeIndex],
+			useIndex: table2AgeIndex,
+			forceIndex: table2AgeIndex,
+			ignoreIndex: table2AgeIndex,
 		});
 
 	Expect<
@@ -710,12 +723,36 @@ await db
 					table1Id: number;
 				} | null;
 			}[],
-			typeof join
+			typeof join1
 		>
 	>;
 
-	const sqJoin = await db.select().from(table1, {
-		useIndex: [table1NameIndex],
+	const join2 = await db.select().from(table1)
+		.leftJoin(table2, eq(table1.id, table2.table1Id), {
+			useIndex: [table2AgeIndex, table2Table1Index],
+			forceIndex: [table2AgeIndex, table2Table1Index],
+			ignoreIndex: [table2AgeIndex, table2Table1Index],
+		});
+
+	Expect<
+		Equal<
+			{
+				table1: {
+					id: number;
+					name: string;
+				};
+				table2: {
+					id: number;
+					age: number;
+					table1Id: number;
+				} | null;
+			}[],
+			typeof join2
+		>
+	>;
+
+	const sqJoin1 = await db.select().from(table1, {
+		useIndex: table1NameIndex,
 	})
 		.leftJoin(sq, eq(table1.id, sq.table1Id));
 
@@ -732,23 +769,47 @@ await db
 					table1Id: number;
 				} | null;
 			}[],
-			typeof sqJoin
+			typeof sqJoin1
+		>
+	>;
+
+	const sqJoin2 = await db.select().from(table1, {
+		useIndex: [table1NameIndex, table1NameIndex],
+	})
+		.leftJoin(sq, eq(table1.id, sq.table1Id));
+
+	Expect<
+		Equal<
+			{
+				table1: {
+					id: number;
+					name: string;
+				};
+				sq: {
+					id: number;
+					age: number;
+					table1Id: number;
+				} | null;
+			}[],
+			typeof sqJoin2
 		>
 	>;
 
 	await db.select().from(table1)
 		// @ts-expect-error
 		.leftJoin(view, eq(table1.id, view.table1Id), {
-			useIndex: [table2AgeIndex],
-			forceIndex: [table2AgeIndex],
-			ignoreIndex: [table2AgeIndex],
+			useIndex: table2AgeIndex,
+			forceIndex: table2AgeIndex,
+			table2Table1Index,
+			ignoreIndex: [table2AgeIndex, table2Table1Index],
 		});
 
 	await db.select().from(table1)
 		// @ts-expect-error
 		.leftJoin(sq, eq(table1.id, sq.table1Id), {
-			useIndex: [table2AgeIndex],
-			forceIndex: [table2AgeIndex],
-			ignoreIndex: [table2AgeIndex],
+			useIndex: table2AgeIndex,
+			forceIndex: table2AgeIndex,
+			table2Table1Index,
+			ignoreIndex: [table2AgeIndex, table2Table1Index],
 		});
 }

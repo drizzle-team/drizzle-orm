@@ -25,7 +25,7 @@ import type { ValueOrArray } from '~/utils.ts';
 import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { IndexBuilder } from '../indexes.ts';
-import { convertIndexToString } from '../utils.ts';
+import { convertIndexToString, toArray } from '../utils.ts';
 import { MySqlViewBase } from '../view-base.ts';
 import type {
 	AnyMySqlSelect,
@@ -50,9 +50,9 @@ import type {
 export type IndexForHint = IndexBuilder | string;
 
 export type IndexConfig = {
-	useIndex?: IndexForHint[];
-	forceIndex?: IndexForHint[];
-	ignoreIndex?: IndexForHint[];
+	useIndex?: IndexForHint | IndexForHint[];
+	forceIndex?: IndexForHint | IndexForHint[];
+	ignoreIndex?: IndexForHint | IndexForHint[];
 };
 
 export class MySqlSelectBuilder<
@@ -122,13 +122,13 @@ export class MySqlSelectBuilder<
 		let ignoreIndex: string[] = [];
 		if (is(source, MySqlTable) && onIndex && typeof onIndex !== 'string') {
 			if (onIndex.useIndex) {
-				useIndex = convertIndexToString(onIndex.useIndex);
+				useIndex = convertIndexToString(toArray(onIndex.useIndex));
 			}
 			if (onIndex.forceIndex) {
-				forceIndex = convertIndexToString(onIndex.forceIndex);
+				forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
 			}
 			if (onIndex.ignoreIndex) {
-				ignoreIndex = convertIndexToString(onIndex.ignoreIndex);
+				ignoreIndex = convertIndexToString(toArray(onIndex.ignoreIndex));
 			}
 		}
 
@@ -273,13 +273,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 			let ignoreIndex: string[] = [];
 			if (is(table, MySqlTable) && onIndex && typeof onIndex !== 'string') {
 				if (onIndex.useIndex) {
-					useIndex = convertIndexToString(onIndex.useIndex);
+					useIndex = convertIndexToString(toArray(onIndex.useIndex));
 				}
 				if (onIndex.forceIndex) {
-					forceIndex = convertIndexToString(onIndex.forceIndex);
+					forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
 				}
 				if (onIndex.ignoreIndex) {
-					ignoreIndex = convertIndexToString(onIndex.ignoreIndex);
+					ignoreIndex = convertIndexToString(toArray(onIndex.ignoreIndex));
 				}
 			}
 
