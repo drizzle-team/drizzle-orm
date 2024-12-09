@@ -21,11 +21,10 @@ import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
-import { orderSelectedFields } from '~/utils.ts';
+import type { ValueOrArray } from '~/utils.ts';
+import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { IndexBuilder } from '../indexes.ts';
-import type { UniqueConstraintBuilder } from '../unique-constraint.ts';
 import { convertIndexToString } from '../utils.ts';
 import { MySqlViewBase } from '../view-base.ts';
 import type {
@@ -48,12 +47,12 @@ import type {
 	SetOperatorRightSelect,
 } from './select.types.ts';
 
-type Index = UniqueConstraintBuilder | IndexBuilder | string;
+export type IndexForHint = IndexBuilder | string;
 
 export type IndexConfig = {
-	useIndex?: Index[];
-	forceIndex?: Index[];
-	ignoreIndex?: Index[];
+	useIndex?: IndexForHint[];
+	forceIndex?: IndexForHint[];
+	ignoreIndex?: IndexForHint[];
 };
 
 export class MySqlSelectBuilder<
@@ -89,7 +88,8 @@ export class MySqlSelectBuilder<
 
 	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
 		source: TFrom,
-		onIndex?: IndexConfig,
+		onIndex?: TFrom extends MySqlTable ? IndexConfig
+			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views.',
 	): CreateMySqlSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
@@ -120,15 +120,15 @@ export class MySqlSelectBuilder<
 		let useIndex: string[] = [];
 		let forceIndex: string[] = [];
 		let ignoreIndex: string[] = [];
-		if (is(source, MySqlTable) && onIndex) {
+		if (is(source, MySqlTable) && onIndex && typeof onIndex !== 'string') {
 			if (onIndex.useIndex) {
-				useIndex = convertIndexToString({ table: source, indexes: onIndex.useIndex });
+				useIndex = convertIndexToString(onIndex.useIndex);
 			}
 			if (onIndex.forceIndex) {
-				forceIndex = convertIndexToString({ table: source, indexes: onIndex.forceIndex });
+				forceIndex = convertIndexToString(onIndex.forceIndex);
 			}
 			if (onIndex.ignoreIndex) {
-				ignoreIndex = convertIndexToString({ table: source, indexes: onIndex.ignoreIndex! });
+				ignoreIndex = convertIndexToString(onIndex.ignoreIndex);
 			}
 		}
 
@@ -223,10 +223,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
 	): MySqlJoinFn<this, TDynamic, TJoinType> {
-		return (
+		return <
+			TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+		>(
 			table: MySqlTable | Subquery | MySqlViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
-			onIndex?: IndexConfig,
+			onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
+				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views.',
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
@@ -268,15 +271,15 @@ export abstract class MySqlSelectQueryBuilderBase<
 			let useIndex: string[] = [];
 			let forceIndex: string[] = [];
 			let ignoreIndex: string[] = [];
-			if (is(table, MySqlTable) && onIndex) {
+			if (is(table, MySqlTable) && onIndex && typeof onIndex !== 'string') {
 				if (onIndex.useIndex) {
-					useIndex = convertIndexToString({ table, indexes: onIndex.useIndex });
+					useIndex = convertIndexToString(onIndex.useIndex);
 				}
 				if (onIndex.forceIndex) {
-					forceIndex = convertIndexToString({ table, indexes: onIndex.forceIndex });
+					forceIndex = convertIndexToString(onIndex.forceIndex);
 				}
 				if (onIndex.ignoreIndex) {
-					ignoreIndex = convertIndexToString({ table, indexes: onIndex.ignoreIndex! });
+					ignoreIndex = convertIndexToString(onIndex.ignoreIndex);
 				}
 			}
 

@@ -9,6 +9,7 @@ import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
+import type { IndexForHint } from './query-builders/select.ts';
 import { MySqlTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import { MySqlViewConfig } from './view-common.ts';
@@ -67,20 +68,8 @@ export function getViewConfig<
 	};
 }
 
-export function convertIndexToString({
-	table,
-	indexes,
-}: {
-	table: MySqlTable;
-	indexes: (UniqueConstraintBuilder | IndexBuilder | string)[];
-}) {
+export function convertIndexToString(indexes: IndexForHint[]) {
 	return indexes.map((idx) => {
-		if (typeof idx === 'object') {
-			return is(idx, UniqueConstraintBuilder)
-				? idx.build(table).getName()!
-				: idx.config.name;
-		} else {
-			return idx;
-		}
+		return typeof idx === 'object' ? idx.config.name : idx;
 	});
 }
