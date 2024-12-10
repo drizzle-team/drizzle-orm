@@ -55,7 +55,6 @@ export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
 }
 
-/** @internal */
 export function columnToSchema(column: Column): v.GenericSchema {
 	let schema!: v.GenericSchema;
 
