@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { beforeEach, describe, it } from 'vitest';
+import { relations } from '~/_relations';
 import { drizzle } from '~/better-sqlite3';
-import { relations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 import { alias, integer, sqliteTable, text, union } from '~/sqlite-core';
 
@@ -131,7 +131,7 @@ describe('sqlite to camel case', () => {
 	});
 
 	it('query (find first)', ({ expect }) => {
-		const query = db.query.users.findFirst({
+		const query = db._query.users.findFirst({
 			columns: {
 				id: true,
 				age: true,
@@ -159,7 +159,7 @@ describe('sqlite to camel case', () => {
 	});
 
 	it('query (find many)', ({ expect }) => {
-		const query = db.query.users.findMany({
+		const query = db._query.users.findMany({
 			columns: {
 				id: true,
 				age: true,

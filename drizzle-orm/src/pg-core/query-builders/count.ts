@@ -5,7 +5,7 @@ import type { PgTable } from '../table.ts';
 
 export class PgCountBuilder<
 	TSession extends PgSession<any, any, any>,
-> extends SQL<number> implements Promise<number>, SQLWrapper {
+> extends SQL<number> implements Promise<number>, SQLWrapper<number> {
 	private sql: SQL<number>;
 	private token?: string;
 

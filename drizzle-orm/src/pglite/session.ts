@@ -1,4 +1,5 @@
 import type { PGlite, QueryOptions, Results, Row, Transaction } from '@electric-sql/pglite';
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -6,15 +7,17 @@ import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
+import type { AnyRelations, TablesRelationalConfig } from '~/relations';
 
 export type PgliteClient = PGlite;
 
-export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
+export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
+	extends PgPreparedQuery<T>
+{
 	static override readonly [entityKind]: string = 'PglitePreparedQuery';
 
 	private rawQueryConfig: QueryOptions;
@@ -28,7 +31,10 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+		) => T['execute'],
+		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super({ sql: queryString, params });
 		this.rawQueryConfig = {
@@ -52,6 +58,8 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
+
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.queryString, params);
@@ -62,11 +70,23 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 			return client.query<any[]>(queryString, params, rawQueryConfig);
 		}
 
-		const result = await client.query<any[][]>(queryString, params, queryConfig);
+		const result = await client.query<any[]>(queryString, params, queryConfig);
 
 		return customResultMapper
-			? customResultMapper(result.rows)
+			? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows)
 			: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+	}
+
+	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		const params = fillPlaceholders(this.params, placeholderValues);
+
+		this.logger.logQuery(this.queryString, params);
+
+		const { rawQueryConfig, client, customResultMapper, queryString } = this;
+
+		const result = await client.query<Record<string, unknown>>(queryString, params, rawQueryConfig);
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -87,8 +107,10 @@ export interface PgliteSessionOptions {
 
 export class PgliteSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgSession<PgliteQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgSession<PgliteQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
 	static override readonly [entityKind]: string = 'PgliteSession';
 
 	private logger: Logger;
@@ -96,7 +118,8 @@ export class PgliteSession<
 	constructor(
 		private client: PgliteClient | Transaction,
 		dialect: PgDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: AnyRelations | undefined,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: PgliteSessionOptions = {},
 	) {
 		super(dialect);
@@ -122,18 +145,43 @@ export class PgliteSession<
 		);
 	}
 
+	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		name: string | undefined,
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+	): PgPreparedQuery<T> {
+		return new PglitePreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			name,
+			false,
+			customResultMapper,
+			true,
+		);
+	}
+
 	override async transaction<T>(
-		transaction: (tx: PgliteTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: PgliteTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		return (this.client as PgliteClient).transaction(async (client) => {
-			const session = new PgliteSession<TFullSchema, TSchema>(
+			const session = new PgliteSession<TFullSchema, TRelations, TTablesConfig, TSchema>(
 				client,
 				this.dialect,
+				this.relations,
 				this.schema,
 				this.options,
 			);
-			const tx = new PgliteTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+			const tx = new PgliteTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+				this.dialect,
+				session,
+				this.relations,
+				this.schema,
+			);
 			if (config) {
 				await tx.setTransaction(config);
 			}
@@ -151,15 +199,20 @@ export class PgliteSession<
 
 export class PgliteTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgTransaction<PgliteQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgTransaction<PgliteQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
 	static override readonly [entityKind]: string = 'PgliteTransaction';
 
-	override async transaction<T>(transaction: (tx: PgliteTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(
+		transaction: (tx: PgliteTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new PgliteTransaction<TFullSchema, TSchema>(
+		const tx = new PgliteTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
 			this.dialect,
 			this.session,
+			this.relations,
 			this.schema,
 			this.nestedIndex + 1,
 		);

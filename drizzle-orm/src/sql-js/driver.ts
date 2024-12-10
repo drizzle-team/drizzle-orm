@@ -1,11 +1,7 @@
 import type { Database } from 'sql.js';
+import * as V1 from '~/_relations.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -13,12 +9,16 @@ import { SQLJsSession } from './session.ts';
 
 export type SQLJsDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = BaseSQLiteDatabase<'sync', void, TSchema>;
+	TRelations extends AnyRelations = EmptyRelations,
+> = BaseSQLiteDatabase<'sync', void, TSchema, TRelations>;
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
 	client: Database,
 	config: DrizzleConfig<TSchema> = {},
-): SQLJsDatabase<TSchema> {
+): SQLJsDatabase<TSchema, TRelations> {
 	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -27,11 +27,11 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
+		const tablesConfig = V1.extractTablesRelationalConfig(
 			config.schema,
-			createTableRelationsHelpers,
+			V1.createTableRelationsHelpers,
 		);
 		schema = {
 			fullSchema: config.schema,
@@ -40,6 +40,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SQLJsSession(client, dialect, schema, { logger });
-	return new BaseSQLiteDatabase('sync', dialect, session, schema) as SQLJsDatabase<TSchema>;
+	const relations = config.relations;
+	const session = new SQLJsSession(client, dialect, relations, schema, { logger });
+	return new BaseSQLiteDatabase('sync', dialect, session, relations, schema) as SQLJsDatabase<TSchema, TRelations>;
 }

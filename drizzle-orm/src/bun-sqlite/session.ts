@@ -1,10 +1,11 @@
 /// <reference types="bun-types" />
 
 import type { Database, Statement as BunStatement } from 'bun:sqlite';
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -26,8 +27,10 @@ type Statement = BunStatement<any>;
 
 export class SQLiteBunSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteSession<'sync', void, TFullSchema, TRelations, TTablesConfig, TSchema> {
 	static override readonly [entityKind]: string = 'SQLiteBunSession';
 
 	private logger: Logger;
@@ -35,7 +38,8 @@ export class SQLiteBunSession<
 	constructor(
 		private client: Database,
 		dialect: SQLiteSyncDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: AnyRelations | undefined,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		options: SQLiteBunSessionOptions = {},
 	) {
 		super(dialect);
@@ -65,11 +69,30 @@ export class SQLiteBunSession<
 		);
 	}
 
+	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+	): PreparedQuery<T, true> {
+		const stmt = this.client.prepare(query.sql);
+		return new PreparedQuery(
+			stmt,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			false,
+			customResultMapper,
+			true,
+		);
+	}
+
 	override transaction<T>(
-		transaction: (tx: SQLiteBunTransaction<TFullSchema, TSchema>) => T,
+		transaction: (tx: SQLiteBunTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
-		const tx = new SQLiteBunTransaction('sync', this.dialect, this, this.schema);
+		const tx = new SQLiteBunTransaction('sync', this.dialect, this, this.relations, this.schema);
 		let result: T | undefined;
 		const nativeTx = this.client.transaction(() => {
 			result = transaction(tx);
@@ -81,13 +104,24 @@ export class SQLiteBunSession<
 
 export class SQLiteBunTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteTransaction<'sync', void, TFullSchema, TRelations, TTablesConfig, TSchema> {
 	static override readonly [entityKind]: string = 'SQLiteBunTransaction';
 
-	override transaction<T>(transaction: (tx: SQLiteBunTransaction<TFullSchema, TSchema>) => T): T {
+	override transaction<T>(
+		transaction: (tx: SQLiteBunTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+	): T {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new SQLiteBunTransaction('sync', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new SQLiteBunTransaction(
+			'sync',
+			this.dialect,
+			this.session,
+			this.relations,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 		this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = transaction(tx);
@@ -100,9 +134,11 @@ export class SQLiteBunTransaction<
 	}
 }
 
-export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
-> {
+export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, TIsRqbV2 extends boolean = false>
+	extends PreparedQueryBase<
+		{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
+	>
+{
 	static override readonly [entityKind]: string = 'SQLiteBunPreparedQuery';
 
 	constructor(
@@ -112,7 +148,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][]) => unknown,
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+		) => unknown,
+		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super('sync', executeMethod, query);
 	}
@@ -124,6 +163,8 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
+		if (this.isRqbV2Query) return this.allRqbV2(placeholderValues);
+
 		const { fields, query, logger, joinsNotNullableMap, stmt, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -134,13 +175,15 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const rows = this.values(placeholderValues) as unknown[][];
 
 		if (customResultMapper) {
-			return customResultMapper(rows) as T['all'];
+			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
 		}
 
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
+		if (this.isRqbV2Query) return this.getRqbV2(placeholderValues);
+
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		const row = this.stmt.values(...params)[0];
@@ -155,10 +198,35 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		}
 
 		if (customResultMapper) {
-			return customResultMapper([row]) as T['get'];
+			return (customResultMapper as (rows: unknown[][]) => unknown)([row]) as T['get'];
 		}
 
 		return mapResultRow(fields!, row, joinsNotNullableMap);
+	}
+
+	private allRqbV2(placeholderValues?: Record<string, unknown>): T['all'] {
+		const { query, logger, stmt, customResultMapper } = this;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+
+		logger.logQuery(query.sql, params);
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
+			stmt.all(...params) as Record<string, unknown>[],
+		);
+	}
+
+	private getRqbV2(placeholderValues?: Record<string, unknown>): T['get'] {
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
+
+		const { stmt, customResultMapper } = this;
+
+		const row = stmt.get(...params) as Record<string, unknown>;
+		if (row === undefined) return row;
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
+			[row],
+		);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {

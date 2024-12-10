@@ -6,7 +6,7 @@ import type { SQLiteView } from '../view.ts';
 
 export class SQLiteCountBuilder<
 	TSession extends SQLiteSession<any, any, any, any>,
-> extends SQL<number> implements Promise<number>, SQLWrapper {
+> extends SQL<number> implements Promise<number>, SQLWrapper<number> {
 	private sql: SQL<number>;
 
 	static override readonly [entityKind] = 'SQLiteCountBuilderAsync';

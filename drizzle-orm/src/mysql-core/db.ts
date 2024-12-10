@@ -1,12 +1,14 @@
 import type { ResultSetHeader } from 'mysql2/promise';
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { MySqlDialect } from './dialect.ts';
+import { _RelationalQueryBuilder } from './query-builders/_query.ts';
 import { MySqlCountBuilder } from './query-builders/count.ts';
 import {
 	MySqlDeleteBase,
@@ -33,47 +35,66 @@ import type { MySqlViewBase } from './view-base.ts';
 export class MySqlDatabase<
 	TQueryResult extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = {},
-	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
+	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'MySqlDatabase';
 
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
 		readonly fullSchema: TFullSchema;
+		readonly relations: TRelations;
 		readonly tableNamesMap: Record<string, string>;
 	};
 
-	query: TFullSchema extends Record<string, never>
+	/** @deprecated */
+	_query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
+			[K in keyof TSchema]: _RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
+		};
+
+	query: TRelations extends EmptyRelations
+		? DrizzleTypeError<'Seems like the relations generic is missing - did you forget to add it to your DB type?'>
+		: {
+			[K in keyof TRelations['tables']]: RelationalQueryBuilder<
+				TPreparedQueryHKT,
+				TTablesConfig,
+				TTablesConfig[K]
+			>;
 		};
 
 	constructor(
 		/** @internal */
 		readonly dialect: MySqlDialect,
 		/** @internal */
-		readonly session: MySqlSession<any, any, any, any>,
-		schema: RelationalSchemaConfig<TSchema> | undefined,
+		readonly session: MySqlSession<any, any, any, any, any, any>,
+		relations: AnyRelations | undefined,
+		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly mode: Mode,
 	) {
+		const rel = relations ?? {} as EmptyRelations;
+
 		this._ = schema
 			? {
 				schema: schema.schema,
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
+				relations: rel as TRelations,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
+				relations: rel as TRelations,
 			};
-		this.query = {} as typeof this['query'];
+		this._query = {} as typeof this['_query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this.query as MySqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
-					new RelationalQueryBuilder(
+				(this._query as MySqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['_query'])[tableName] =
+					new _RelationalQueryBuilder(
 						schema!.fullSchema,
 						this._.schema,
 						this._.tableNamesMap,
@@ -83,6 +104,29 @@ export class MySqlDatabase<
 						session,
 						this.mode,
 					);
+			}
+		}
+		this.query = {} as typeof this['query'];
+		if (relations) {
+			for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
+				(this.query as MySqlDatabase<
+					TQueryResult,
+					TPreparedQueryHKT,
+					TSchema,
+					AnyRelations,
+					TablesRelationalConfig,
+					V1.TablesRelationalConfig
+				>['query'])[
+					tableName
+				] = new RelationalQueryBuilder(
+					relations.tables,
+					relations.tablesConfig,
+					relations.tableNamesMap,
+					relation.table as MySqlTable,
+					relation,
+					dialect,
+					session,
+				);
 			}
 		}
 	}
@@ -468,7 +512,7 @@ export class MySqlDatabase<
 
 	transaction<T>(
 		transaction: (
-			tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>,
+			tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TTablesConfig, TSchema>,
 			config?: MySqlTransactionConfig,
 		) => Promise<T>,
 		config?: MySqlTransactionConfig,
@@ -483,12 +527,16 @@ export const withReplicas = <
 	HKT extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
 	Q extends MySqlDatabase<
 		HKT,
 		TPreparedQueryHKT,
 		TFullSchema,
-		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
+		TRelations,
+		TRelations extends EmptyRelations ? TTablesConfig : ExtractTablesWithRelations<TRelations>,
+		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
 	>,
 >(
 	primary: Q,
@@ -516,8 +564,8 @@ export const withReplicas = <
 		select,
 		selectDistinct,
 		with: $with,
-		get query() {
-			return getReplica(replicas).query;
+		get _query() {
+			return getReplica(replicas)._query;
 		},
 	};
 };

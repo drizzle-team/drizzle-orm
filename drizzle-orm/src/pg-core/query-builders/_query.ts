@@ -1,13 +1,6 @@
+import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	mapRelationalRow,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -16,59 +9,59 @@ import type { PgDialect } from '../dialect.ts';
 import type { PgPreparedQuery, PgSession, PreparedQueryConfig } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
-export class RelationalQueryBuilder<
-	TSchema extends TablesRelationalConfig,
-	TFields extends TableRelationalConfig,
+export class _RelationalQueryBuilder<
+	TSchema extends V1.TablesRelationalConfig,
+	TFields extends V1.TableRelationalConfig,
 > {
-	static readonly [entityKind]: string = 'PgRelationalQueryBuilderV2';
+	static readonly [entityKind]: string = 'PgRelationalQueryBuilder';
 
 	constructor(
-		private tables: Record<string, PgTable>,
+		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
 		private table: PgTable,
-		private tableConfig: TableRelationalConfig,
+		private tableConfig: V1.TableRelationalConfig,
 		private dialect: PgDialect,
 		private session: PgSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
-	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
-		return new PgRelationalQuery(
-			this.tables,
+	findMany<TConfig extends V1.DBQueryConfig<'many', true, TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, V1.DBQueryConfig<'many', true, TSchema, TFields>>,
+	): _PgRelationalQuery<V1.BuildQueryResult<TSchema, TFields, TConfig>[]> {
+		return new _PgRelationalQuery(
+			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfig<'many'> | undefined ?? true,
+			config ? (config as V1.DBQueryConfig<'many', true>) : {},
 			'many',
 		);
 	}
 
-	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
-	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
-		return new PgRelationalQuery(
-			this.tables,
+	findFirst<TSelection extends Omit<V1.DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
+		config?: KnownKeysOnly<TSelection, Omit<V1.DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
+	): _PgRelationalQuery<V1.BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
+		return new _PgRelationalQuery(
+			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfig<'one'> | undefined ?? true,
+			config ? { ...(config as V1.DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
 			'first',
 		);
 	}
 }
 
-export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
+export class _PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'pg'>, SQLWrapper
 {
-	static override readonly [entityKind]: string = 'PgRelationalQueryV2';
+	static override readonly [entityKind]: string = 'PgRelationalQuery';
 
 	declare readonly _: {
 		readonly dialect: 'pg';
@@ -76,14 +69,14 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	};
 
 	constructor(
-		private tables: Record<string, PgTable>,
-		private schema: TablesRelationalConfig,
+		private fullSchema: Record<string, unknown>,
+		private schema: V1.TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
 		private table: PgTable,
-		private tableConfig: TableRelationalConfig,
+		private tableConfig: V1.TableRelationalConfig,
 		private dialect: PgDialect,
 		private session: PgSession,
-		private config: DBQueryConfig<'many' | 'one'> | true,
+		private config: V1.DBQueryConfig<'many', true> | true,
 		private mode: 'many' | 'first',
 	) {
 		super();
@@ -94,12 +87,15 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
-			return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
+			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
 				undefined,
 				name,
+				true,
 				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue));
+					const rows = rawRows.map((row) =>
+						V1.mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
+					);
 					if (this.mode === 'first') {
 						return rows[0] as TResult;
 					}
@@ -114,26 +110,26 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	}
 
 	private _getQuery() {
-		return this.dialect.buildRelationalQuery({
+		return this.dialect._buildRelationalQuery({
+			fullSchema: this.fullSchema,
 			schema: this.schema,
 			tableNamesMap: this.tableNamesMap,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
-			tables: this.tables,
-			mode: this.mode,
+			tableAlias: this.tableConfig.tsName,
 		});
 	}
 
 	/** @internal */
 	getSQL(): SQL {
-		return this._getQuery().sql;
+		return this._getQuery().sql as SQL;
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _toSQL(): { query: V1.BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
 		const query = this._getQuery();
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql);
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 
 		return { query, builtQuery };
 	}

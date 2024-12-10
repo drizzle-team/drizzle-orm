@@ -1,8 +1,8 @@
+import * as V1 from '~/_relations.ts';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/relations.ts';
-import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -14,11 +14,17 @@ export interface SqliteRemoteResult<T = unknown> {
 
 export class SqliteRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends BaseSQLiteDatabase<'async', SqliteRemoteResult, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends BaseSQLiteDatabase<'async', SqliteRemoteResult, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'SqliteRemoteDatabase';
 
 	/** @internal */
-	declare readonly session: SQLiteRemoteSession<TSchema, ExtractTablesWithRelations<TSchema>>;
+	declare readonly session: SQLiteRemoteSession<
+		TSchema,
+		TRelations,
+		ExtractTablesWithRelations<TRelations>,
+		V1.ExtractTablesWithRelations<TSchema>
+	>;
 
 	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
@@ -41,24 +47,33 @@ export type AsyncBatchRemoteCallback = (batch: {
 
 export type RemoteCallback = AsyncRemoteCallback;
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
 	callback: RemoteCallback,
-	config?: DrizzleConfig<TSchema>,
+	config?: DrizzleConfig<TSchema, TRelations>,
 ): SqliteRemoteDatabase<TSchema>;
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
 	callback: RemoteCallback,
 	batchCallback?: AsyncBatchRemoteCallback,
-	config?: DrizzleConfig<TSchema>,
+	config?: DrizzleConfig<TSchema, TRelations>,
 ): SqliteRemoteDatabase<TSchema>;
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
 	callback: RemoteCallback,
-	batchCallback?: AsyncBatchRemoteCallback | DrizzleConfig<TSchema>,
-	config?: DrizzleConfig<TSchema>,
-): SqliteRemoteDatabase<TSchema> {
+	batchCallback?: AsyncBatchRemoteCallback | DrizzleConfig<TSchema, TRelations>,
+	config?: DrizzleConfig<TSchema, TRelations>,
+): SqliteRemoteDatabase<TSchema, TRelations> {
 	const dialect = new SQLiteAsyncDialect({ casing: config?.casing });
 	let logger;
 	let _batchCallback: AsyncBatchRemoteCallback | undefined;
-	let _config: DrizzleConfig<TSchema> = {};
+	let _config: DrizzleConfig<TSchema, TRelations> = {};
 
 	if (batchCallback) {
 		if (typeof batchCallback === 'function') {
@@ -66,7 +81,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 			_config = config ?? {};
 		} else {
 			_batchCallback = undefined;
-			_config = batchCallback as DrizzleConfig<TSchema>;
+			_config = batchCallback as DrizzleConfig<TSchema, TRelations>;
 		}
 
 		if (_config.logger === true) {
@@ -76,11 +91,11 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		}
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (_config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
+		const tablesConfig = V1.extractTablesRelationalConfig(
 			_config.schema,
-			createTableRelationsHelpers,
+			V1.createTableRelationsHelpers,
 		);
 		schema = {
 			fullSchema: _config.schema,
@@ -89,6 +104,16 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SQLiteRemoteSession(callback, dialect, schema, _batchCallback, { logger });
-	return new SqliteRemoteDatabase('async', dialect, session, schema) as SqliteRemoteDatabase<TSchema>;
+	const relations = config?.relations;
+	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, { logger });
+	return new SqliteRemoteDatabase(
+		'async',
+		dialect,
+		session as SqliteRemoteDatabase<TSchema, TRelations>['session'],
+		relations,
+		schema as V1.RelationalSchemaConfig<any>,
+	) as SqliteRemoteDatabase<
+		TSchema,
+		TRelations
+	>;
 }

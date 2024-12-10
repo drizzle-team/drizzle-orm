@@ -21,84 +21,58 @@ export type SQLiteRelationalQueryKind<TMode extends 'sync' | 'async', TResult> =
 
 export class RelationalQueryBuilder<
 	TMode extends 'sync' | 'async',
-	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
 > {
-	static readonly [entityKind]: string = 'SQLiteAsyncRelationalQueryBuilder';
+	static readonly [entityKind]: string = 'SQLiteAsyncRelationalQueryBuilderV2';
 
 	constructor(
-		protected mode: TMode,
-		protected fullSchema: Record<string, unknown>,
-		protected schema: TSchema,
-		protected tableNamesMap: Record<string, string>,
-		protected table: SQLiteTable,
-		protected tableConfig: TableRelationalConfig,
-		protected dialect: SQLiteDialect,
-		protected session: SQLiteSession<'async', unknown, TFullSchema, TSchema>,
+		private tables: Record<string, SQLiteTable>,
+		private schema: TSchema,
+		private tableNamesMap: Record<string, string>,
+		private table: SQLiteTable,
+		private tableConfig: TableRelationalConfig,
+		private dialect: SQLiteDialect,
+		private session: SQLiteSession<TMode, any, any, any, any, any>,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
-	): SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]> {
-		return (this.mode === 'sync'
-			? new SQLiteSyncRelationalQuery(
-				this.fullSchema,
-				this.schema,
-				this.tableNamesMap,
-				this.table,
-				this.tableConfig,
-				this.dialect,
-				this.session,
-				config ? (config as DBQueryConfig<'many', true>) : {},
-				'many',
-			)
-			: new SQLiteRelationalQuery(
-				this.fullSchema,
-				this.schema,
-				this.tableNamesMap,
-				this.table,
-				this.tableConfig,
-				this.dialect,
-				this.session,
-				config ? (config as DBQueryConfig<'many', true>) : {},
-				'many',
-			)) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>;
+	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+	): SQLiteRelationalQuery<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]> {
+		return new SQLiteRelationalQuery(
+			this.tables,
+			this.schema,
+			this.tableNamesMap,
+			this.table,
+			this.tableConfig,
+			this.dialect,
+			this.session,
+			config as DBQueryConfig<'many'> | undefined ?? true,
+			'many',
+		);
 	}
 
-	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
-		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
-	): SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
-		return (this.mode === 'sync'
-			? new SQLiteSyncRelationalQuery(
-				this.fullSchema,
-				this.schema,
-				this.tableNamesMap,
-				this.table,
-				this.tableConfig,
-				this.dialect,
-				this.session,
-				config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
-				'first',
-			)
-			: new SQLiteRelationalQuery(
-				this.fullSchema,
-				this.schema,
-				this.tableNamesMap,
-				this.table,
-				this.tableConfig,
-				this.dialect,
-				this.session,
-				config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
-				'first',
-			)) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TSelection> | undefined>;
+	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
+	): SQLiteRelationalQuery<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
+		return new SQLiteRelationalQuery(
+			this.tables,
+			this.schema,
+			this.tableNamesMap,
+			this.table,
+			this.tableConfig,
+			this.dialect,
+			this.session,
+			config as DBQueryConfig<'one'> | undefined ?? true,
+			'first',
+		);
 	}
 }
 
 export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper
 {
-	static override readonly [entityKind]: string = 'SQLiteAsyncRelationalQuery';
+	static override readonly [entityKind]: string = 'SQLiteAsyncRelationalQueryV2';
 
 	declare readonly _: {
 		readonly dialect: 'sqlite';
@@ -108,34 +82,38 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 
 	/** @internal */
 	mode: 'many' | 'first';
+	/** @internal */
+	table: SQLiteTable;
 
 	constructor(
-		private fullSchema: Record<string, unknown>,
+		private tables: Record<string, SQLiteTable>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
-		/** @internal */
-		public table: SQLiteTable,
+		table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
-		private session: SQLiteSession<'sync' | 'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
-		private config: DBQueryConfig<'many', true> | true,
+		private session: SQLiteSession<TType, any, any, any, any, any>,
+		private config: DBQueryConfig<'many' | 'one'> | true,
 		mode: 'many' | 'first',
 	) {
 		super();
 		this.mode = mode;
+		this.table = table;
 	}
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildRelationalQuery({
-			fullSchema: this.fullSchema,
+		const query = this.dialect.buildRelationalQuery({
 			schema: this.schema,
 			tableNamesMap: this.tableNamesMap,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
-			tableAlias: this.tableConfig.tsName,
-		}).sql as SQL;
+			tables: this.tables,
+			mode: this.mode,
+		});
+
+		return query.sql;
 	}
 
 	/** @internal */
@@ -144,15 +122,12 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
 		const { query, builtQuery } = this._toSQL();
 
-		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
+		return this.session[isOneTimeQuery ? 'prepareOneTimeRelationalQuery' : 'prepareRelationalQuery'](
 			builtQuery,
 			undefined,
 			this.mode === 'first' ? 'get' : 'all',
-			true,
 			(rawRows, mapColumnValue) => {
-				const rows = rawRows.map((row) =>
-					mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
-				);
+				const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue));
 				if (this.mode === 'first') {
 					return rows[0] as TResult;
 				}
@@ -165,18 +140,22 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		return this._prepare(false);
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
-		const query = this.dialect.buildRelationalQuery({
-			fullSchema: this.fullSchema,
+	private _getQuery() {
+		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
 			tableNamesMap: this.tableNamesMap,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
-			tableAlias: this.tableConfig.tsName,
+			tables: this.tables,
+			mode: this.mode,
 		});
+	}
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+		const query = this._getQuery();
+
+		const builtQuery = this.dialect.sqlToQuery(query.sql);
 
 		return { query, builtQuery };
 	}
@@ -199,7 +178,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 }
 
 export class SQLiteSyncRelationalQuery<TResult> extends SQLiteRelationalQuery<'sync', TResult> {
-	static override readonly [entityKind]: string = 'SQLiteSyncRelationalQuery';
+	static override readonly [entityKind]: string = 'SQLiteSyncRelationalQueryV2';
 
 	sync(): TResult {
 		return this.executeRaw();

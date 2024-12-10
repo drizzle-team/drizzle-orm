@@ -8,19 +8,22 @@ import {
 	VercelPool,
 	type VercelPoolClient,
 } from '@vercel/postgres';
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { type PgDialect, PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
-export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
+export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
+	extends PgPreparedQuery<T>
+{
 	static override readonly [entityKind]: string = 'VercelPgPreparedQuery';
 
 	private rawQuery: QueryConfig;
@@ -34,7 +37,10 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+		) => T['execute'],
+		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super({ sql: queryString, params });
 		this.rawQuery = {
@@ -87,6 +93,8 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
+
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.rawQuery.text, params);
@@ -99,10 +107,22 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		const { rows } = await client.query(query, params);
 
 		if (customResultMapper) {
-			return customResultMapper(rows);
+			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
 		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+	}
+
+	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		const params = fillPlaceholders(this.params, placeholderValues);
+
+		this.logger.logQuery(this.rawQuery.text, params);
+
+		const { rawQuery, client, customResultMapper } = this;
+
+		const { rows } = await client.query(rawQuery, params);
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -129,8 +149,10 @@ export interface VercelPgSessionOptions {
 
 export class VercelPgSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgSession<VercelPgQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgSession<VercelPgQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
 	static override readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;
@@ -138,7 +160,8 @@ export class VercelPgSession<
 	constructor(
 		private client: VercelPgClient,
 		dialect: PgDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: AnyRelations | undefined,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: VercelPgSessionOptions = {},
 	) {
 		super(dialect);
@@ -164,6 +187,25 @@ export class VercelPgSession<
 		);
 	}
 
+	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		name: string | undefined,
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+	): PgPreparedQuery<T> {
+		return new VercelPgPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			name,
+			false,
+			customResultMapper,
+			true,
+		);
+	}
+
 	async query(query: string, params: unknown[]): Promise<QueryResult> {
 		this.logger.logQuery(query, params);
 		const result = await this.client.query({
@@ -182,13 +224,18 @@ export class VercelPgSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: VercelPgTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const session = this.client instanceof VercelPool // eslint-disable-line no-instanceof/no-instanceof
-			? new VercelPgSession(await this.client.connect(), this.dialect, this.schema, this.options)
+			? new VercelPgSession(await this.client.connect(), this.dialect, this.relations, this.schema, this.options)
 			: this;
-		const tx = new VercelPgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+		const tx = new VercelPgTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+			this.dialect,
+			session,
+			this.relations,
+			this.schema,
+		);
 		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		try {
 			const result = await transaction(tx);
@@ -207,17 +254,20 @@ export class VercelPgSession<
 
 export class VercelPgTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgTransaction<VercelPgQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgTransaction<VercelPgQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
 	static override readonly [entityKind]: string = 'VercelPgTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: VercelPgTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new VercelPgTransaction<TFullSchema, TSchema>(
+		const tx = new VercelPgTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
 			this.dialect,
 			this.session,
+			this.relations,
 			this.schema,
 			this.nestedIndex + 1,
 		);

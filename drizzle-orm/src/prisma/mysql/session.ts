@@ -11,6 +11,7 @@ import type {
 	MySqlTransactionConfig,
 } from '~/mysql-core/index.ts';
 import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core/index.ts';
+import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -68,12 +69,21 @@ export class PrismaMySqlSession extends MySqlSession {
 		return new PrismaMySqlPreparedQuery(this.prisma, query, this.logger);
 	}
 
+	override prepareRelationalQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
+		// query: Query,
+	): MySqlPreparedQuery<T> {
+		throw new Error('Method not implemented');
+		// return new PrismaMySqlPreparedQuery(this.prisma, query, this.logger);
+	}
+
 	override transaction<T>(
 		_transaction: (
 			tx: MySqlTransaction<
 				PrismaMySqlQueryResultHKT,
 				PrismaMySqlPreparedQueryHKT,
 				Record<string, never>,
+				EmptyRelations,
+				ExtractTablesWithRelations<EmptyRelations>,
 				Record<string, never>
 			>,
 		) => Promise<T>,

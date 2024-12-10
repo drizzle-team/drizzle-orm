@@ -1,3 +1,4 @@
+import * as V1 from '~/_relations.ts';
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
@@ -5,22 +6,21 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import { and, eq } from '~/expressions.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import {
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	getOperators,
-	getOrderByOperators,
-	Many,
-	normalizeRelation,
-	One,
-	type Relation,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type {
+	BuildRelationalQueryResult,
+	ColumnWithTSName,
+	DBQueryConfig,
+	Extras,
+	OrderBy,
+	TableRelationalConfig,
+	TablesRelationalConfig,
+	WithContainer,
 } from '~/relations.ts';
+import { One, relationExtrasToSQL, relationFilterToSQL, relationsOrderToSQL, relationToSQL } from '~/relations.ts';
 import { Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
@@ -527,7 +527,8 @@ export class MySqlDialect {
 		});
 	}
 
-	buildRelationalQuery({
+	/** @deprecated */
+	_buildRelationalQuery({
 		fullSchema,
 		schema,
 		tableNamesMap,
@@ -539,16 +540,16 @@ export class MySqlDialect {
 		joinOn,
 	}: {
 		fullSchema: Record<string, unknown>;
-		schema: TablesRelationalConfig;
+		schema: V1.TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
 		table: MySqlTable;
-		tableConfig: TableRelationalConfig;
-		queryConfig: true | DBQueryConfig<'many', true>;
+		tableConfig: V1.TableRelationalConfig;
+		queryConfig: true | V1.DBQueryConfig<'many', true>;
 		tableAlias: string;
-		nestedQueryRelation?: Relation;
+		nestedQueryRelation?: V1.Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
-		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
+	}): V1.BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
+		let selection: V1.BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
 		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where;
 		const joins: MySqlSelectJoinConfig[] = [];
 
@@ -571,7 +572,7 @@ export class MySqlDialect {
 
 			if (config.where) {
 				const whereSql = typeof config.where === 'function'
-					? config.where(aliasedColumns, getOperators())
+					? config.where(aliasedColumns, V1.getOperators())
 					: config.where;
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
@@ -613,11 +614,11 @@ export class MySqlDialect {
 
 			let selectedRelations: {
 				tsKey: string;
-				queryConfig: true | DBQueryConfig<'many', false>;
-				relation: Relation;
+				queryConfig: true | V1.DBQueryConfig<'many', false>;
+				relation: V1.Relation;
 			}[] = [];
 
-			// Figure out which relations to select
+			// Figure out which V1.relations to select
 			if (config.with) {
 				selectedRelations = Object.entries(config.with)
 					.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
@@ -653,7 +654,7 @@ export class MySqlDialect {
 			}
 
 			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, getOrderByOperators())
+				? config.orderBy(aliasedColumns, V1.getOrderByOperators())
 				: config.orderBy ?? [];
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];
@@ -668,7 +669,7 @@ export class MySqlDialect {
 			limit = config.limit;
 			offset = config.offset;
 
-			// Process all relations
+			// Process all V1.relations
 			for (
 				const {
 					tsKey: selectedRelationTsKey,
@@ -676,7 +677,7 @@ export class MySqlDialect {
 					relation,
 				} of selectedRelations
 			) {
-				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
+				const normalizedRelation = V1.normalizeRelation(schema, tableNamesMap, relation);
 				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
@@ -688,13 +689,13 @@ export class MySqlDialect {
 						)
 					),
 				);
-				const builtRelation = this.buildRelationalQuery({
+				const builtRelation = this._buildRelationalQuery({
 					fullSchema,
 					schema,
 					tableNamesMap,
 					table: fullSchema[relationTableTsName] as MySqlTable,
 					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, One)
+					queryConfig: is(relation, V1.One)
 						? (selectedRelationConfigValue === true
 							? { limit: 1 }
 							: { ...selectedRelationConfigValue, limit: 1 })
@@ -743,7 +744,7 @@ export class MySqlDialect {
 					sql`, `,
 				)
 			})`;
-			if (is(nestedQueryRelation, Many)) {
+			if (is(nestedQueryRelation, V1.Many)) {
 				field = sql`coalesce(json_arrayagg(${field}), json_array())`;
 			}
 			const nestedSelection = [{
@@ -825,7 +826,8 @@ export class MySqlDialect {
 		};
 	}
 
-	buildRelationalQueryWithoutLateralSubqueries({
+	/** @deprecated */
+	_buildRelationalQueryWithoutLateralSubqueries({
 		fullSchema,
 		schema,
 		tableNamesMap,
@@ -837,16 +839,16 @@ export class MySqlDialect {
 		joinOn,
 	}: {
 		fullSchema: Record<string, unknown>;
-		schema: TablesRelationalConfig;
+		schema: V1.TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
 		table: MySqlTable;
-		tableConfig: TableRelationalConfig;
-		queryConfig: true | DBQueryConfig<'many', true>;
+		tableConfig: V1.TableRelationalConfig;
+		queryConfig: true | V1.DBQueryConfig<'many', true>;
 		tableAlias: string;
-		nestedQueryRelation?: Relation;
+		nestedQueryRelation?: V1.Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
-		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
+	}): V1.BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
+		let selection: V1.BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
 		let limit, offset, orderBy: MySqlSelectConfig['orderBy'] = [], where;
 
 		if (config === true) {
@@ -868,7 +870,7 @@ export class MySqlDialect {
 
 			if (config.where) {
 				const whereSql = typeof config.where === 'function'
-					? config.where(aliasedColumns, getOperators())
+					? config.where(aliasedColumns, V1.getOperators())
 					: config.where;
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
@@ -910,11 +912,11 @@ export class MySqlDialect {
 
 			let selectedRelations: {
 				tsKey: string;
-				queryConfig: true | DBQueryConfig<'many', false>;
-				relation: Relation;
+				queryConfig: true | V1.DBQueryConfig<'many', false>;
+				relation: V1.Relation;
 			}[] = [];
 
-			// Figure out which relations to select
+			// Figure out which V1.relations to select
 			if (config.with) {
 				selectedRelations = Object.entries(config.with)
 					.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
@@ -950,7 +952,7 @@ export class MySqlDialect {
 			}
 
 			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, getOrderByOperators())
+				? config.orderBy(aliasedColumns, V1.getOrderByOperators())
 				: config.orderBy ?? [];
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];
@@ -965,7 +967,7 @@ export class MySqlDialect {
 			limit = config.limit;
 			offset = config.offset;
 
-			// Process all relations
+			// Process all V1.relations
 			for (
 				const {
 					tsKey: selectedRelationTsKey,
@@ -973,7 +975,7 @@ export class MySqlDialect {
 					relation,
 				} of selectedRelations
 			) {
-				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
+				const normalizedRelation = V1.normalizeRelation(schema, tableNamesMap, relation);
 				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
@@ -985,13 +987,13 @@ export class MySqlDialect {
 						)
 					),
 				);
-				const builtRelation = this.buildRelationalQueryWithoutLateralSubqueries({
+				const builtRelation = this._buildRelationalQueryWithoutLateralSubqueries({
 					fullSchema,
 					schema,
 					tableNamesMap,
 					table: fullSchema[relationTableTsName] as MySqlTable,
 					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, One)
+					queryConfig: is(relation, V1.One)
 						? (selectedRelationConfigValue === true
 							? { limit: 1 }
 							: { ...selectedRelationConfigValue, limit: 1 })
@@ -1001,7 +1003,7 @@ export class MySqlDialect {
 					nestedQueryRelation: relation,
 				});
 				let fieldSql = sql`(${builtRelation.sql})`;
-				if (is(relation, Many)) {
+				if (is(relation, V1.Many)) {
 					fieldSql = sql`coalesce(${fieldSql}, json_array())`;
 				}
 				const field = fieldSql.as(selectedRelationTsKey);
@@ -1040,7 +1042,7 @@ export class MySqlDialect {
 					sql`, `,
 				)
 			})`;
-			if (is(nestedQueryRelation, Many)) {
+			if (is(nestedQueryRelation, V1.Many)) {
 				field = sql`json_arrayagg(${field})`;
 			}
 			const nestedSelection = [{
@@ -1116,6 +1118,259 @@ export class MySqlDialect {
 		return {
 			tableTsKey: tableConfig.tsName,
 			sql: result,
+			selection,
+		};
+	}
+
+	private unwrapAllColumns = (table: Table, selection: BuildRelationalQueryResult['selection']) => {
+		return sql.join(
+			Object.entries(table[Columns]).map(([k, v]) => {
+				selection.push({
+					key: k,
+					field: v,
+				});
+
+				return sql`${v} as ${sql.identifier(k)}`;
+			}),
+			sql`, `,
+		);
+	};
+
+	private getSelectedTableColumns = (table: Table, columns?: Record<string, boolean | undefined>) => {
+		const selectedColumns: ColumnWithTSName[] = [];
+		if (!columns) {
+			for (const [k, v] of Object.entries(table[Columns])) {
+				selectedColumns.push({
+					column: v,
+					tsName: k,
+				});
+			}
+
+			return selectedColumns;
+		}
+
+		const entries = Object.entries(columns);
+
+		let colSelectionMode: boolean | undefined;
+		for (const [k, v] of entries) {
+			if (colSelectionMode === undefined) colSelectionMode = v;
+			else if (v !== undefined && colSelectionMode !== v) {
+				throw new Error('Columns cannot be both true and false at the same time');
+			}
+
+			if (v) {
+				selectedColumns.push({
+					column: table[Columns][k]!,
+					tsName: k,
+				});
+			}
+		}
+
+		if (colSelectionMode === false) {
+			for (const [k, v] of Object.entries(table[Columns])) {
+				if (columns[k] === false) continue;
+
+				selectedColumns.push({
+					column: v,
+					tsName: k,
+				});
+			}
+		}
+
+		return selectedColumns;
+	};
+
+	private buildWithColumns = (
+		tableConfig: TableRelationalConfig,
+		withContainer: Exclude<WithContainer<any>['with'], undefined>,
+		jsonColumns: Record<string, SQL>,
+		columnIdentifiers: SQL[],
+	) => {
+		for (
+			const [k, v] of Object.entries(
+				withContainer,
+			)
+		) {
+			if (!v) continue;
+
+			const relation = tableConfig.relations[k]!;
+			if (relation.$brand === 'AggregatedField') continue;
+
+			const table = relation.targetTable;
+
+			const columns = this.getSelectedTableColumns(table, typeof v === 'boolean' ? undefined : v.columns).map((c) =>
+				sql`${sql.raw(this.escapeString(c.tsName))}, ${sql.identifier(c.tsName)}`
+			);
+			if (typeof v === 'object' && v.extras) {
+				if (typeof v.extras === 'function') {
+					v.extras = v.extras(table[Columns], { sql });
+				}
+
+				for (const [ek, ev] of Object.entries(v.extras as Record<string, SQL>)) {
+					if (!ev) continue;
+					columns.push(
+						sql`${sql.raw(this.escapeString(ek))}, ${sql.identifier(ek)}`,
+					);
+				}
+			}
+
+			columnIdentifiers.push(
+				sql`${table}.${sql.identifier('r')} as ${sql.identifier(k)}`,
+			);
+
+			jsonColumns[k] = sql.join(
+				columns,
+				sql`, `,
+			);
+		}
+	};
+
+	private buildColumns = (
+		table: MySqlTable,
+		tableConfig: TableRelationalConfig,
+		selection: BuildRelationalQueryResult['selection'],
+		params?: DBQueryConfig<'many'>,
+	) =>
+		params?.columns
+			? (() => {
+				const jsonColumns: Record<string, SQL> = {};
+				const columnIdentifiers: SQL[] = [];
+
+				const selectedColumns = this.getSelectedTableColumns(table, params?.columns);
+
+				for (const column of selectedColumns) {
+					columnIdentifiers.push(
+						sql`${table[column.tsName as keyof typeof table]} as ${sql.identifier(column.tsName)}`,
+					);
+				}
+
+				if ((<WithContainer<any>> params)?.with) {
+					this.buildWithColumns(tableConfig, (<WithContainer<any>> params).with!, jsonColumns, columnIdentifiers);
+				}
+
+				return {
+					columns: columnIdentifiers.length
+						? sql.join(columnIdentifiers, sql`, `)
+						: this.unwrapAllColumns(table, selection),
+					jsonColumns,
+				};
+			})()
+			: (() => {
+				const columnIdentifiers = [this.unwrapAllColumns(table, selection)];
+				const jsonColumns: Record<string, SQL> = {};
+
+				if ((<WithContainer<any>> params)?.with) {
+					this.buildWithColumns(tableConfig, (<WithContainer<any>> params).with!, jsonColumns, columnIdentifiers);
+				}
+
+				return {
+					columns: sql.join(columnIdentifiers, sql`, `),
+					jsonColumns,
+				};
+			})();
+
+	buildRelationalQuery(
+		{
+			tables,
+			schema,
+			tableNamesMap,
+			table,
+			tableConfig,
+			queryConfig: config,
+			relationWhere,
+			mode,
+		}: {
+			tables: Record<string, MySqlTable>;
+			schema: TablesRelationalConfig;
+			tableNamesMap: Record<string, string>;
+			table: MySqlTable;
+			tableConfig: TableRelationalConfig;
+			queryConfig?: DBQueryConfig<'many'> | true;
+			relationWhere?: SQL;
+			mode: 'first' | 'many';
+		},
+	): BuildRelationalQueryResult {
+		const selection: BuildRelationalQueryResult['selection'] = [];
+		const isSingle = mode === 'first';
+		const params = config === true ? undefined : config;
+
+		const limit = isSingle ? 1 : params?.limit;
+		const offset = params?.offset;
+
+		const { columns, jsonColumns } = this.buildColumns(table, tableConfig, selection, params);
+
+		const where: SQL | undefined = (params?.where && relationWhere)
+			? and(relationFilterToSQL(table, params.where), relationWhere)
+			: params?.where
+			? relationFilterToSQL(table, params.where)
+			: relationWhere;
+		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy as OrderBy) : undefined;
+		const extras = params?.extras ? relationExtrasToSQL(table, params.extras as Extras) : undefined;
+		if (extras) selection.push(...extras.selection);
+
+		const selectionSet = sql.join([columns, extras].filter((e) => !!e), sql`, `);
+
+		const joins = params
+			? (() => {
+				const { with: joins } = params as WithContainer<any>;
+				if (!joins) return;
+
+				const withEntries = Object.entries(joins).filter(([_, v]) => v);
+				if (!withEntries.length) return;
+
+				return sql.join(
+					withEntries.map(([k, join]) => {
+						const relation = tableConfig.relations[k]!;
+						if (relation.$brand === 'AggregatedField') {
+							relation.onTable(table);
+							const query = relation.getSQL();
+
+							selection.push({
+								key: k,
+								field: relation,
+							});
+
+							return sql`, lateral(${query}) as ${sql.identifier(k)}`;
+						}
+
+						const isSingle = is(relation, One);
+						const targetTable = relation.targetTable;
+						const relationFilter = relationToSQL(relation);
+
+						const innerQuery = this.buildRelationalQuery({
+							table: targetTable as MySqlTable,
+							mode: isSingle ? 'first' : 'many',
+							schema,
+							queryConfig: join as DBQueryConfig,
+							tableConfig: schema[tableNamesMap[getTableUniqueName(targetTable)]!]!,
+							tableNamesMap,
+							tables,
+							relationWhere: relationFilter,
+						});
+
+						selection.push({
+							field: targetTable,
+							key: k,
+							selection: innerQuery.selection,
+							isArray: !isSingle,
+						});
+
+						return sql`, lateral(select ${
+							isSingle
+								? sql`json_object(${jsonColumns[k]}) as ${sql.identifier('r')}`
+								: sql`coalesce(json_arrayagg(json_object(${jsonColumns[k]})), json_array()) as ${sql.identifier('r')}`
+						} from (${innerQuery}) as ${sql.identifier('t')}) as ${schema![k]!}`;
+					}),
+				);
+			})()
+			: undefined;
+
+		const query = sql`select ${selectionSet} from ${table}${sql`${joins}`.if(joins)}${sql` where ${where}`.if(where)}${
+			sql` order by ${order}`.if(order)
+		}${sql` limit ${limit}`.if(limit !== undefined)}${sql` offset ${offset}`.if(offset !== undefined)}`;
+
+		return {
+			sql: query,
 			selection,
 		};
 	}

@@ -1,3 +1,4 @@
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
@@ -17,12 +18,13 @@ import type {
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { PgColumn } from './columns/index.ts';
+import { _RelationalQueryBuilder } from './query-builders/_query.ts';
 import { PgCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { PgRaw } from './query-builders/raw.ts';
@@ -35,7 +37,9 @@ import type { PgMaterializedView } from './view.ts';
 export class PgDatabase<
 	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	TRelations extends AnyRelations = EmptyRelations,
+	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
+	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'PgDatabase';
 
@@ -43,44 +47,81 @@ export class PgDatabase<
 		readonly schema: TSchema | undefined;
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
-		readonly session: PgSession<TQueryResult, TFullSchema, TSchema>;
+		readonly relations: TRelations;
+		readonly session: PgSession<TQueryResult, TFullSchema, TRelations, TTablesConfig, TSchema>;
 	};
 
-	query: TFullSchema extends Record<string, never>
+	/** @deprecated */
+	_query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
+			[K in keyof TSchema]: _RelationalQueryBuilder<TSchema, TSchema[K]>;
+		};
+
+	query: TRelations extends EmptyRelations
+		? DrizzleTypeError<'Seems like the relations generic is missing - did you forget to add it to your DB type?'>
+		: {
+			[K in keyof TRelations['tables']]: RelationalQueryBuilder<
+				TTablesConfig,
+				TTablesConfig[K]
+			>;
 		};
 
 	constructor(
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgSession<any, any, any>,
-		schema: RelationalSchemaConfig<TSchema> | undefined,
+		readonly session: PgSession<any, any, any, any, any>,
+		relations: AnyRelations | undefined,
+		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 	) {
+		const rel = relations ?? {} as EmptyRelations;
+
 		this._ = schema
 			? {
 				schema: schema.schema,
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
+				relations: rel as TRelations,
 				session,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
+				relations: rel as TRelations,
 				session,
 			};
-		this.query = {} as typeof this['query'];
+		this._query = {} as typeof this['_query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this.query as PgDatabase<TQueryResult, Record<string, any>>['query'])[tableName] = new RelationalQueryBuilder(
-					schema!.fullSchema,
-					this._.schema,
-					this._.tableNamesMap,
-					schema!.fullSchema[tableName] as PgTable,
-					columns,
+				(this._query as PgDatabase<TQueryResult, Record<string, any>>['_query'])[tableName] =
+					new _RelationalQueryBuilder(
+						schema!.fullSchema,
+						this._.schema,
+						this._.tableNamesMap,
+						schema!.fullSchema[tableName] as PgTable,
+						columns,
+						dialect,
+						session,
+					);
+			}
+		}
+		this.query = {} as typeof this['query'];
+		if (relations) {
+			for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
+				(this.query as PgDatabase<
+					TQueryResult,
+					TSchema,
+					AnyRelations,
+					TablesRelationalConfig,
+					V1.TablesRelationalConfig
+				>['query'])[tableName] = new RelationalQueryBuilder(
+					relations.tables,
+					relations.tablesConfig,
+					relations.tableNamesMap,
+					relation.table as PgTable,
+					relation,
 					dialect,
 					session,
 				);
@@ -621,10 +662,13 @@ export class PgDatabase<
 	}
 
 	transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
-		return this.session.transaction(transaction, config);
+		return this.session.transaction(
+			transaction,
+			config,
+		);
 	}
 }
 
@@ -633,11 +677,15 @@ export type PgWithReplicas<Q> = Q & { $primary: Q };
 export const withReplicas = <
 	HKT extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
 	Q extends PgDatabase<
 		HKT,
 		TFullSchema,
-		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
+		TRelations,
+		TTablesConfig,
+		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
 	>,
 >(
 	primary: Q,
@@ -670,8 +718,8 @@ export const withReplicas = <
 		selectDistinct,
 		selectDistinctOn,
 		with: $with,
-		get query() {
-			return getReplica(replicas).query;
+		get _query() {
+			return getReplica(replicas)._query;
 		},
 	};
 };

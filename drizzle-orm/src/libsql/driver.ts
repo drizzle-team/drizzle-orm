@@ -1,4 +1,5 @@
 import { type Client, type Config, createClient } from '@libsql/client';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { construct as construct, type LibSQLDatabase } from './driver-core.ts';
 
@@ -6,16 +7,17 @@ export { LibSQLDatabase } from './driver-core.ts';
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends Client = Client,
 >(
 	...params: [
 		TClient | string,
 	] | [
 		TClient | string,
-		DrizzleConfig<TSchema>,
+		DrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, TRelations>
 			& ({
 				connection: string | Config;
 			} | {
@@ -23,7 +25,7 @@ export function drizzle<
 			})
 		),
 	]
-): LibSQLDatabase<TSchema> & {
+): LibSQLDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -37,7 +39,7 @@ export function drizzle<
 	if (isConfig(params[0])) {
 		const { connection, client, ...drizzleConfig } = params[0] as
 			& { connection?: Config; client?: TClient }
-			& DrizzleConfig<TSchema>;
+			& DrizzleConfig<TSchema, TRelations>;
 
 		if (client) return construct(client, drizzleConfig) as any;
 
@@ -46,13 +48,16 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
 }
 
 export namespace drizzle {
-	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
-	): LibSQLDatabase<TSchema> & {
+	export function mock<
+		TSchema extends Record<string, unknown> = Record<string, never>,
+		TRelations extends AnyRelations = EmptyRelations,
+	>(
+		config?: DrizzleConfig<TSchema, TRelations>,
+	): LibSQLDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;
