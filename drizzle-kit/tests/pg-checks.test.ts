@@ -44,7 +44,7 @@ test('create table with check', async (t) => {
 	} as JsonCreateTableStatement);
 
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
 \t"id" serial PRIMARY KEY NOT NULL,
 \t"age" integer,
 \tCONSTRAINT "some_check_name" CHECK ("users"."age" > 21)

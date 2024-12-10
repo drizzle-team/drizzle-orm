@@ -12,7 +12,6 @@ export type SingleStoreBigInt53BuilderInitial<TName extends string> = SingleStor
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class SingleStoreBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreBigInt53'>>

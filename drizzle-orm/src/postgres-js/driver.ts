@@ -119,6 +119,11 @@ export namespace drizzle {
 	): PostgresJsDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({} as any, config) as any;
+		return construct({
+			options: {
+				parsers: {},
+				serializers: {},
+			},
+		} as any, config) as any;
 	}
 }
