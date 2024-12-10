@@ -30,8 +30,8 @@ const singlestoreImportsList = new Set([
 	'float',
 	'int',
 	'json',
+	'blob',
 	// TODO: add new type BSON
-	// TODO: add new type Blob
 	// TODO: add new type UUID
 	// TODO: add new type GUID
 	// TODO: add new type Vector
@@ -786,6 +786,12 @@ const column = (
 			: '';
 
 		out += defaultValue;
+		return out;
+	}
+
+	if (lowered === 'blob') {
+		let out = `${casing(name)}: blob(${dbColumnName({ name, casing: rawCasing })})`;
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 

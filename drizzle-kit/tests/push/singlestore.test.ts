@@ -3,6 +3,7 @@ import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
 	binary,
+	blob,
 	char,
 	date,
 	datetime,
@@ -249,6 +250,14 @@ const singlestoreSuite: DialectSuite = {
 				columnNotNull: binary('column_not_null', { length: 1 }).notNull(),
 				columnDefault: binary('column_default', { length: 12 }),
 			}),
+			allBlobs: singlestoreTable('all_blobs', {
+				bigIntSimple: blob('big_int_simple', { mode: 'bigint' }),
+				bigIntColumnNotNull: blob('big_int_column_not_null', { mode: 'bigint' }).notNull(),
+				bigIntColumnDefault: blob('big_int_column_default', { mode: 'bigint' }).default(BigInt(12)),
+				jsonSimple: blob('json_simple', { mode: 'json' }),
+				jsonColumnNotNull: blob('json_column_not_null', { mode: 'json' }).notNull(),
+				jsonColumnDefault: blob('json_column_default', { mode: 'json' }).default('{"hello":"world"}'),
+			})
 		};
 
 		const { statements } = await diffTestSchemasPushSingleStore(
