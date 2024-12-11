@@ -135,6 +135,12 @@ export type GenerateConfig = {
 	driver?: Driver;
 };
 
+export type ExportConfig = {
+	dialect: Dialect;
+	schema: string | string[];
+	sql: boolean;
+};
+
 export const prepareGenerateConfig = async (
 	options: {
 		config?: string;
@@ -182,6 +188,38 @@ export const prepareGenerateConfig = async (
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		casing,
 		driver,
+	};
+};
+
+export const prepareExportConfig = async (
+	options: {
+		config?: string;
+		schema?: string;
+		dialect?: Dialect;
+		sql: boolean;
+	},
+	from: 'config' | 'cli',
+): Promise<ExportConfig> => {
+	const config = from === 'config' ? await drizzleConfigFromFile(options.config, true) : options;
+
+	const { schema, dialect, sql } = config;
+
+	if (!schema || !dialect) {
+		console.log(error('Please provide required params:'));
+		console.log(wrapParam('schema', schema));
+		console.log(wrapParam('dialect', dialect));
+		process.exit(1);
+	}
+
+	const fileNames = prepareFilenames(schema);
+	if (fileNames.length === 0) {
+		render(`[${chalk.blue('i')}] No schema file in ${schema} was found`);
+		process.exit(0);
+	}
+	return {
+		dialect: dialect,
+		schema: schema,
+		sql: sql,
 	};
 };
 
@@ -768,6 +806,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 
 export const drizzleConfigFromFile = async (
 	configPath?: string,
+	isExport?: boolean,
 ): Promise<CliConfig> => {
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
@@ -783,7 +822,7 @@ export const drizzleConfigFromFile = async (
 		? 'drizzle.config.js'
 		: 'drizzle.config.json';
 
-	if (!configPath) {
+	if (!configPath && !isExport) {
 		console.log(
 			chalk.gray(
 				`No config path provided, using default '${defaultConfigPath}'`,
@@ -798,7 +837,8 @@ export const drizzleConfigFromFile = async (
 		process.exit(1);
 	}
 
-	console.log(chalk.grey(`Reading config file '${path}'`));
+	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
+
 	const { unregister } = await safeRegister();
 	const required = require(`${path}`);
 	const content = required.default ?? required;
