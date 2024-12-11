@@ -587,7 +587,7 @@ test('create table with a policy', async (t) => {
 	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "users2" (\n\t"id" integer PRIMARY KEY NOT NULL\n);\n',
+		'CREATE TABLE "users2" (\n\t"id" integer PRIMARY KEY NOT NULL\n);\n',
 		'ALTER TABLE "users2" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users2" AS PERMISSIVE FOR ALL TO public;',
 	]);
@@ -720,12 +720,10 @@ test('create table with rls enabled', async (t) => {
 	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY NOT NULL\n);
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY NOT NULL\n);
 `,
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 	]);
-
-	console.log(statements);
 });
 
 test('enable rls force', async (t) => {

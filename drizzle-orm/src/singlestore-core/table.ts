@@ -7,11 +7,14 @@ import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
-export type SingleStoreTableExtraConfig = Record<
-	string,
+export type SingleStoreTableExtraConfigValue =
 	| AnyIndexBuilder
 	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder
+	| UniqueConstraintBuilder;
+
+export type SingleStoreTableExtraConfig = Record<
+	string,
+	SingleStoreTableExtraConfigValue
 >;
 
 export type TableConfig = TableConfigBase<SingleStoreColumn>;
@@ -51,7 +54,9 @@ export function singlestoreTableWithSchema<
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: SingleStoreColumnBuilders) => TColumnsMap),
 	extraConfig:
-		| ((self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfig)
+		| ((
+			self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>,
+		) => SingleStoreTableExtraConfig | SingleStoreTableExtraConfigValue[])
 		| undefined,
 	schema: TSchemaName,
 	baseName = name,
@@ -98,6 +103,28 @@ export function singlestoreTableWithSchema<
 }
 
 export interface SingleStoreTableFn<TSchemaName extends string | undefined = undefined> {
+	/**
+	 * @deprecated The third parameter of singlestoreTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
@@ -112,6 +139,28 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		dialect: 'singlestore';
 	}>;
 
+	/**
+	 * @deprecated The third parameter of singlestoreTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
@@ -119,6 +168,36 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		name: TTableName,
 		columns: (columnTypes: SingleStoreColumnBuilders) => TColumnsMap,
 		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfig,
+	): SingleStoreTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
+		dialect: 'singlestore';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (
+			self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>,
+		) => SingleStoreTableExtraConfigValue[],
+	): SingleStoreTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
+		dialect: 'singlestore';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: SingleStoreColumnBuilders) => TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfigValue[],
 	): SingleStoreTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;

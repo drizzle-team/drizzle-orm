@@ -313,11 +313,49 @@ export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
-> = TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
-	: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
-	: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
-	: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
-	: TDialect extends 'common' ? Column<MakeColumnConfig<TBuilder['_'], TTableName>>
+> = TDialect extends 'pg' ? PgColumn<
+		MakeColumnConfig<TBuilder['_'], TTableName>,
+		{},
+		Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+	>
+	: TDialect extends 'mysql' ? MySqlColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<
+				Omit<
+					TBuilder['_'],
+					| keyof MakeColumnConfig<TBuilder['_'], TTableName>
+					| 'brand'
+					| 'dialect'
+					| 'primaryKeyHasDefault'
+					| 'mysqlColumnBuilderBrand'
+				>
+			>
+		>
+	: TDialect extends 'sqlite' ? SQLiteColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+		>
+	: TDialect extends 'common' ? Column<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+		>
+	: TDialect extends 'singlestore' ? SingleStoreColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<
+				Omit<
+					TBuilder['_'],
+					| keyof MakeColumnConfig<TBuilder['_'], TTableName>
+					| 'brand'
+					| 'dialect'
+					| 'primaryKeyHasDefault'
+					| 'singlestoreColumnBuilderBrand'
+				>
+			>
+		>
 	: never;
 
 export type BuildIndexColumn<

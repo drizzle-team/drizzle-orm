@@ -16,9 +16,6 @@ import {
 import { indexName } from './serializer/mysqlSerializer';
 import { unescapeSingleQuotes } from './utils';
 
-// time precision to fsp
-// {mode: "string"} for timestamp by default
-
 const mysqlImportsList = new Set([
 	'mysqlTable',
 	'mysqlEnum',
@@ -263,8 +260,7 @@ export const schemaToTypeScript = (
 			|| Object.keys(table.checkConstraint).length > 0
 		) {
 			statement += ',\n';
-			statement += '(table) => {\n';
-			statement += '\treturn {\n';
+			statement += '(table) => [';
 			statement += createTableIndexes(
 				table.name,
 				Object.values(table.indexes),
@@ -283,8 +279,7 @@ export const schemaToTypeScript = (
 				Object.values(table.checkConstraint),
 				withCasing,
 			);
-			statement += '\t}\n';
-			statement += '}';
+			statement += '\n]';
 		}
 
 		statement += ');';
@@ -932,7 +927,7 @@ const createTableIndexes = (
 		const indexGeneratedName = indexName(tableName, it.columns);
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `${escapedIndexName})`;
 		statement += `.on(${
@@ -940,7 +935,6 @@ const createTableIndexes = (
 				.map((it) => `table.${casing(it)}`)
 				.join(', ')
 		}),`;
-		statement += `\n`;
 	});
 
 	return statement;
@@ -955,7 +949,7 @@ const createTableUniques = (
 	unqs.forEach((it) => {
 		const idxKey = casing(it.name);
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'unique(';
 		statement += `"${it.name}")`;
 		statement += `.on(${
@@ -963,7 +957,6 @@ const createTableUniques = (
 				.map((it) => `table.${casing(it)}`)
 				.join(', ')
 		}),`;
-		statement += `\n`;
 	});
 
 	return statement;
@@ -976,13 +969,11 @@ const createTableChecks = (
 	let statement = '';
 
 	checks.forEach((it) => {
-		const checkKey = casing(it.name);
-
-		statement += `\t\t${checkKey}: `;
+		statement += `\n\t`;
 		statement += 'check(';
 		statement += `"${it.name}", `;
 		statement += `sql\`${it.value.replace(/`/g, '\\`')}\`)`;
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -997,7 +988,7 @@ const createTablePKs = (
 	pks.forEach((it) => {
 		let idxKey = casing(it.name);
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'primaryKey({ columns: [';
 		statement += `${
 			it.columns
@@ -1007,7 +998,6 @@ const createTablePKs = (
 				.join(', ')
 		}]${it.name ? `, name: "${it.name}"` : ''}}`;
 		statement += '),';
-		statement += `\n`;
 	});
 
 	return statement;
@@ -1022,7 +1012,8 @@ const createTableFKs = (
 	fks.forEach((it) => {
 		const isSelf = it.tableTo === it.tableFrom;
 		const tableTo = isSelf ? 'table' : `${casing(it.tableTo)}`;
-		statement += `\t\t${casing(it.name)}: foreignKey({\n`;
+		statement += `\n\t`;
+		statement += `foreignKey({\n`;
 		statement += `\t\t\tcolumns: [${
 			it.columnsFrom
 				.map((i) => `table.${casing(i)}`)
@@ -1044,7 +1035,7 @@ const createTableFKs = (
 			? `.onDelete("${it.onDelete}")`
 			: '';
 
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;

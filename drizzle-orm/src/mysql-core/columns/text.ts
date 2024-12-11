@@ -41,7 +41,7 @@ export class MySqlText<T extends ColumnBaseConfig<'string', 'MySqlText'>>
 {
 	static override readonly [entityKind]: string = 'MySqlText';
 
-	private textType: MySqlTextColumnType = this.config.textType;
+	readonly textType: MySqlTextColumnType = this.config.textType;
 
 	override readonly enumValues = this.config.enumValues;
 

@@ -13,3 +13,4 @@ await cpy('dist/**/*.d.ts', 'dist', {
 	rename: (basename) => basename.replace(/\.d\.ts$/, '.d.cts'),
 });
 await fs.copy('package.json', 'dist/package.json');
+await $`scripts/fix-imports.ts`;

@@ -7,7 +7,6 @@ import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { SQLiteColumn, SQLiteColumnBuilderBase } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
-import type { SelectedFields } from './query-builders/select.types.ts';
 import { sqliteTable } from './table.ts';
 import { SQLiteViewBase } from './view-base.ts';
 
@@ -38,7 +37,7 @@ export class ViewBuilderCore<
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
 	static override readonly [entityKind]: string = 'SQLiteViewBuilder';
 
-	as<TSelection extends SelectedFields>(
+	as<TSelection extends ColumnsSelection>(
 		qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 	): SQLiteViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName, 'sqlite'>> {
 		if (typeof qb === 'function') {
@@ -135,7 +134,7 @@ export class SQLiteView<
 		config: {
 			name: TName;
 			schema: string | undefined;
-			selectedFields: SelectedFields;
+			selectedFields: ColumnsSelection;
 			query: SQL | undefined;
 		};
 	}) {

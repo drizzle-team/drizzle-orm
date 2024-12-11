@@ -185,7 +185,7 @@ test('dropped, added unique index', async (t) => {
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toBe(
-		`DROP INDEX IF EXISTS \`customers_address_unique\`;`,
+		`DROP INDEX \`customers_address_unique\`;`,
 	);
 	expect(sqlStatements[1]).toBe(
 		`CREATE UNIQUE INDEX \`customers_is_confirmed_unique\` ON \`customers\` (\`is_confirmed\`);`,
