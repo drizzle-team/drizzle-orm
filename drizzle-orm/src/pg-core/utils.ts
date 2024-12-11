@@ -1,9 +1,12 @@
+import { CasingCache } from '~/casing.ts';
 import { is } from '~/entity.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import { Table } from '~/table.ts';
+import type { Casing, ObjectToArray } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
 import type { AnyPgColumn } from './columns/index.ts';
+import { PgDatabase } from './db.ts';
 import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
@@ -13,7 +16,37 @@ import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constra
 import { PgViewConfig } from './view-common.ts';
 import { type PgMaterializedView, PgMaterializedViewConfig, type PgView } from './view.ts';
 
-export function getTableConfig<TTable extends PgTable>(table: TTable) {
+export interface GetTableConfigOptions {
+	casing: Casing;
+}
+
+export interface FullTableConfig<TTable extends PgTable> {
+	columns: ObjectToArray<PgTable['_']['columns']>;
+	indexes: Index[];
+	checks: Check[];
+	primaryKeys: PrimaryKey[];
+	uniqueConstraints: UniqueConstraint[];
+	foreignKeys: ForeignKey[];
+	policies: PgPolicy[];
+	name: TTable['_']['name'];
+	schema: TTable['_']['schema'];
+	baseName: string;
+	enableRLS: boolean;
+}
+
+export function getTableConfig<T extends PgTable>(table: T): FullTableConfig<T>;
+export function getTableConfig<T extends PgTable>(table: T, db: PgDatabase<any>): FullTableConfig<T>;
+export function getTableConfig<T extends PgTable>(table: T, options: GetTableConfigOptions): FullTableConfig<T>;
+export function getTableConfig(
+	table: PgTable,
+	options?: GetTableConfigOptions | PgDatabase<any>,
+): FullTableConfig<PgTable> {
+	const casing = is(options, PgDatabase)
+		? options.dialect.casing
+		: (options as GetTableConfigOptions)?.casing
+		? new CasingCache((options as GetTableConfigOptions)?.casing)
+		: undefined;
+
 	const columns = Object.values(table[Table.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
@@ -22,6 +55,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	const uniqueConstraints: UniqueConstraint[] = [];
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
+	const baseName = table[Table.Symbol.BaseName];
 	const policies: PgPolicy[] = [];
 	const enableRLS: boolean = table[PgTable.Symbol.EnableRLS];
 
@@ -36,11 +70,11 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 			} else if (is(builder, CheckBuilder)) {
 				checks.push(builder.build(table));
 			} else if (is(builder, UniqueConstraintBuilder)) {
-				uniqueConstraints.push(builder.build(table));
+				uniqueConstraints.push(builder.build(table, casing));
 			} else if (is(builder, PrimaryKeyBuilder)) {
-				primaryKeys.push(builder.build(table));
+				primaryKeys.push(builder.build(table, casing));
 			} else if (is(builder, ForeignKeyBuilder)) {
-				foreignKeys.push(builder.build(table));
+				foreignKeys.push(builder.build(table, casing));
 			} else if (is(builder, PgPolicy)) {
 				policies.push(builder);
 			}
@@ -57,6 +91,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 		name,
 		schema,
 		policies,
+		baseName,
 		enableRLS,
 	};
 }

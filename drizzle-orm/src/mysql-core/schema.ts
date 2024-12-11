@@ -10,7 +10,7 @@ export class MySqlSchema<TName extends string = string> {
 	) {}
 
 	table: MySqlTableFn<TName> = (name, columns, extraConfig) => {
-		return mysqlTableWithSchema(name, columns, extraConfig, this.schemaName);
+		return mysqlTableWithSchema(name, columns, extraConfig as any, this.schemaName);
 	};
 
 	view = ((name, columns) => {

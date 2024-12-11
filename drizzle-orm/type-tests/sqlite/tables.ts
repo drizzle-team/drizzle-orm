@@ -534,7 +534,7 @@ Expect<
 	sqliteTable('all_columns', {
 		blob: blob('blob'),
 		blob2: blob('blob2', { mode: 'bigint' }),
-		blobdef: blob('blobdef').default(0),
+		blobdef: blob('blobdef').default(new Buffer(1)),
 		integer: integer('integer'),
 		integer2: integer('integer2', { mode: 'boolean' }),
 		integerdef: integer('integerdef').default(0),

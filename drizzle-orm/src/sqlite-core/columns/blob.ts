@@ -164,14 +164,14 @@ export function blob(): SQLiteBlobJsonBuilderInitial<''>;
 export function blob<TMode extends BlobMode = BlobMode>(
 	config?: BlobConfig<TMode>,
 ): Equal<TMode, 'bigint'> extends true ? SQLiteBigIntBuilderInitial<''>
-	: Equal<TMode, 'buffer'> extends true ? SQLiteBlobBufferBuilderInitial<''>
-	: SQLiteBlobJsonBuilderInitial<''>;
+	: Equal<TMode, 'json'> extends true ? SQLiteBlobJsonBuilderInitial<''>
+	: SQLiteBlobBufferBuilderInitial<''>;
 export function blob<TName extends string, TMode extends BlobMode = BlobMode>(
 	name: TName,
 	config?: BlobConfig<TMode>,
 ): Equal<TMode, 'bigint'> extends true ? SQLiteBigIntBuilderInitial<TName>
-	: Equal<TMode, 'buffer'> extends true ? SQLiteBlobBufferBuilderInitial<TName>
-	: SQLiteBlobJsonBuilderInitial<TName>;
+	: Equal<TMode, 'json'> extends true ? SQLiteBlobJsonBuilderInitial<TName>
+	: SQLiteBlobBufferBuilderInitial<TName>;
 export function blob(a?: string | BlobConfig, b?: BlobConfig) {
 	const { name, config } = getColumnNameAndConfig<BlobConfig | undefined>(a, b);
 	if (config?.mode === 'json') {
