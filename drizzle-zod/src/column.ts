@@ -50,7 +50,6 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 );
 export const bufferSchema: z.ZodType<Buffer> = z.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 
-/** @internal */
 export function columnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 	let schema!: z.ZodTypeAny;
 

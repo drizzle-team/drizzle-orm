@@ -1,6 +1,6 @@
 import { Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
-import { int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { customType, int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
@@ -201,6 +201,32 @@ test('refine table - select', (tc) => {
 		c1: t.Union([intSchema, t.Null()]),
 		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	});
+
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - select with custom data type', (tc) => {
+	const customText = customType({ dataType: () => 'text' });
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+		c4: customText(),
+	});
+
+	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
+	const result = createSelectSchema(table, {
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c4: customTextSchema,
+	});
+	const expected = t.Object({
+		c1: t.Union([intSchema, t.Null()]),
+		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c4: customTextSchema,
 	});
 
 	expectSchemaShape(tc, expected).from(result);
