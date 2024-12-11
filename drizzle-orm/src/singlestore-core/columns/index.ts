@@ -1,3 +1,4 @@
+export * from './blob.ts';
 export * from './bigint.ts';
 export * from './binary.ts';
 export * from './boolean.ts';

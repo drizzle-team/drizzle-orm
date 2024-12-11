@@ -150,9 +150,6 @@ export const generateSingleStoreSnapshot = (
 							columnToSet.default = column.default;
 						}
 					}
-					// if (['blob', 'text', 'json'].includes(column.getSQLType())) {
-					// 	columnToSet.default = `(${columnToSet.default})`;
-					// }
 				}
 			}
 			columnsObject[column.name] = columnToSet;
