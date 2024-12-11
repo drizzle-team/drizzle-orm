@@ -13,9 +13,10 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	const migrations = readMigrationFiles(config);
 
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsTableIdType = config.migrationsTableIdType ?? 'SERIAL';
 	const migrationTableCreate = sql`
 		create table if not exists ${sql.identifier(migrationsTable)} (
-			id serial primary key,
+			id ${migrationsTableIdType} primary key,
 			hash text not null,
 			created_at bigint
 		)

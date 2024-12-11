@@ -810,10 +810,11 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			: typeof config === 'string'
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
+		const migrationsTableIdType = (typeof config === 'object' && config?.migrationsTableIdType) ?? 'SERIAL';
 
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
+				id ${migrationsTableIdType} PRIMARY KEY,
 				hash text NOT NULL,
 				created_at numeric
 			)
@@ -862,10 +863,11 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			: typeof config === 'string'
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
+		const migrationsTableIdType = (typeof config === 'object' && config?.migrationsTableIdType) ?? 'SERIAL';
 
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
+				id ${migrationsTableIdType} PRIMARY KEY,
 				hash text NOT NULL,
 				created_at numeric
 			)

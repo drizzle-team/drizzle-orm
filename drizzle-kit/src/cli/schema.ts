@@ -116,7 +116,7 @@ export const migrate = command({
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
-		const { dialect, schema, table, out, credentials } = opts;
+		const { dialect, schema, table, tableIdType, out, credentials } = opts;
 		try {
 			if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
@@ -146,6 +146,7 @@ export const migrate = command({
 					migrate({
 						migrationsFolder: out,
 						migrationsTable: table,
+						migrationsTableIdType: tableIdType,
 						migrationsSchema: schema,
 					}),
 				);
@@ -157,6 +158,7 @@ export const migrate = command({
 					migrate({
 						migrationsFolder: out,
 						migrationsTable: table,
+						migrationsTableIdType: tableIdType,
 						migrationsSchema: schema,
 					}),
 				);
@@ -168,6 +170,7 @@ export const migrate = command({
 					migrate({
 						migrationsFolder: out,
 						migrationsTable: table,
+						migrationsTableIdType: tableIdType,
 						migrationsSchema: schema,
 					}),
 				);
@@ -179,6 +182,7 @@ export const migrate = command({
 					migrate({
 						migrationsFolder: opts.out,
 						migrationsTable: table,
+						migrationsTableIdType: tableIdType,
 						migrationsSchema: schema,
 					}),
 				);
@@ -190,6 +194,7 @@ export const migrate = command({
 					migrate({
 						migrationsFolder: opts.out,
 						migrationsTable: table,
+						migrationsTableIdType: tableIdType,
 						migrationsSchema: schema,
 					}),
 				);

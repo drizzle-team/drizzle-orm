@@ -5,6 +5,7 @@ import type { XataHttpDatabase } from './driver.ts';
 export interface MigrationConfig {
 	migrationsFolder: string;
 	migrationsTable?: string;
+	migrationsTableIdType?: string;
 }
 
 /**
@@ -20,9 +21,10 @@ export interface MigrationConfig {
 ) {
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsTableIdType = config.migrationsTableIdType ?? 'SERIAL';
 	const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-			id SERIAL PRIMARY KEY,
+			id ${migrationsTableIdType} PRIMARY KEY,
 			hash text NOT NULL,
 			created_at bigint
 		)
