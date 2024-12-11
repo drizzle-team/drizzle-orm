@@ -98,7 +98,7 @@ export const generate = command({
 		} else if (dialect === 'turso') {
 			await prepareAndMigrateLibSQL(opts);
 		} else if (dialect === 'singlestore') {
-			await prepareAndMigrateSqlite(opts);
+			await prepareAndMigrateSingleStore(opts);
 		} else {
 			assertUnreachable(dialect);
 		}

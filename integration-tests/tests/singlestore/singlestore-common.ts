@@ -35,6 +35,7 @@ import {
 	decimal,
 	except,
 	getTableConfig,
+	index,
 	int,
 	intersect,
 	json,
@@ -2699,6 +2700,37 @@ export function tests(driver?: string) {
 						.from(users2Table).where(eq(users2Table.id, 1)),
 				).limit(3);
 			})()).rejects.toThrowError();
+		});
+
+		test('define constraints as array', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			const table = singlestoreTable('name', {
+				id: int(),
+			}, (t) => [
+				index('name').on(t.id),
+				primaryKey({ columns: [t.id], name: 'custom' }),
+			]);
+
+			const { indexes, primaryKeys } = getTableConfig(table);
+
+			expect(indexes.length).toBe(1);
+			expect(primaryKeys.length).toBe(1);
+		});
+
+		test('define constraints as array inside third param', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			const table = singlestoreTable('name', {
+				id: int(),
+			}, (t) => [
+				[index('name').on(t.id), primaryKey({ columns: [t.id], name: 'custom' })],
+			]);
+
+			const { indexes, primaryKeys } = getTableConfig(table);
+
+			expect(indexes.length).toBe(1);
+			expect(primaryKeys.length).toBe(1);
 		});
 
 		test.skip('set operations (mixed) from query builder', async (ctx) => {
