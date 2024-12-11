@@ -36,6 +36,7 @@ export type GetZodType<
 	: TData extends number ? z.ZodNumber
 	: TData extends bigint ? z.ZodBigInt
 	: TData extends boolean ? z.ZodBoolean
+	: TDataType extends 'date' ? z.ZodDate
 	: TData extends string ? z.ZodString
 	: z.ZodTypeAny;
 
