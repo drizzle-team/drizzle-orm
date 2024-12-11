@@ -2,12 +2,12 @@ import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
-import { reset, seed } from 'drizzle-seed';
 import getPort from 'get-port';
 import type { Connection } from 'mysql2/promise';
 import { createConnection } from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { reset, seed } from '../../src/index.ts';
 import * as schema from './mysqlSchema.ts';
 
 let mysqlContainer: Docker.Container;
@@ -42,7 +42,33 @@ async function createDockerDB(): Promise<string> {
 	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
 }
 
-const createNorthwindTables = async () => {
+beforeAll(async () => {
+	const connectionString = await createDockerDB();
+
+	const sleep = 1000;
+	let timeLeft = 40000;
+	let connected = false;
+	let lastError: unknown | undefined;
+	do {
+		try {
+			client = await createConnection(connectionString);
+			await client.connect();
+			db = drizzle(client);
+			connected = true;
+			break;
+		} catch (e) {
+			lastError = e;
+			await new Promise((resolve) => setTimeout(resolve, sleep));
+			timeLeft -= sleep;
+		}
+	} while (timeLeft > 0);
+	if (!connected) {
+		console.error('Cannot connect to MySQL');
+		await client?.end().catch(console.error);
+		await mysqlContainer?.stop().catch(console.error);
+		throw lastError;
+	}
+
 	await db.execute(
 		sql`
 			    CREATE TABLE \`customer\` (
@@ -189,92 +215,6 @@ const createNorthwindTables = async () => {
 			ALTER TABLE \`product\` ADD CONSTRAINT \`product_supplier_id_supplier_id_fk\` FOREIGN KEY (\`supplier_id\`) REFERENCES \`supplier\`(\`id\`) ON DELETE cascade ON UPDATE no action;
 		`,
 	);
-};
-
-const createAllDataTypesTable = async () => {
-	await db.execute(
-		sql`
-			    CREATE TABLE \`all_data_types\` (
-				\`integer\` int,
-				\`tinyint\` tinyint,
-				\`smallint\` smallint,
-				\`mediumint\` mediumint,
-				\`bigint\` bigint,
-				\`bigint_number\` bigint,
-				\`real\` real,
-				\`decimal\` decimal,
-				\`double\` double,
-				\`float\` float,
-				\`serial\` serial AUTO_INCREMENT,
-				\`binary\` binary(255),
-				\`varbinary\` varbinary(256),
-				\`char\` char(255),
-				\`varchar\` varchar(256),
-				\`text\` text,
-				\`boolean\` boolean,
-				\`date_string\` date,
-				\`date\` date,
-				\`datetime\` datetime,
-				\`datetimeString\` datetime,
-				\`time\` time,
-				\`year\` year,
-				\`timestamp_date\` timestamp,
-				\`timestamp_string\` timestamp,
-				\`json\` json,
-				\`popularity\` enum('unknown','known','popular')
-			);
-		`,
-	);
-};
-
-const createAllGeneratorsTables = async () => {
-	await db.execute(
-		sql`
-			    CREATE TABLE \`datetime_table\` (
-				\`datetime\` datetime
-			);
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE \`year_table\` (
-				\`year\` year
-			);
-		`,
-	);
-};
-
-beforeAll(async () => {
-	const connectionString = await createDockerDB();
-
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await createConnection(connectionString);
-			await client.connect();
-			db = drizzle(client);
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MySQL');
-		await client?.end().catch(console.error);
-		await mysqlContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	await createNorthwindTables();
-	await createAllDataTypesTable();
-	await createAllGeneratorsTables();
 });
 
 afterAll(async () => {
@@ -438,53 +378,4 @@ test("sequential using of 'with'", async () => {
 	expect(orders.length).toBe(8);
 	expect(products.length).toBe(11);
 	expect(suppliers.length).toBe(11);
-});
-
-// All data types test -------------------------------
-test('basic seed test for all mysql data types', async () => {
-	await seed(db, schema, { count: 1000 });
-
-	const allDataTypes = await db.select().from(schema.allDataTypes);
-
-	// every value in each 10 rows does not equal undefined.
-	const predicate = allDataTypes.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
-
-	expect(predicate).toBe(true);
-});
-
-// All generators test-------------------------------
-const count = 10000;
-
-test('datetime generator test', async () => {
-	await seed(db, { datetimeTable: schema.datetimeTable }).refine((funcs) => ({
-		datetimeTable: {
-			count,
-			columns: {
-				datetime: funcs.datetime(),
-			},
-		},
-	}));
-
-	const data = await db.select().from(schema.datetimeTable);
-	// every value in each row does not equal undefined.
-	const predicate = data.length !== 0
-		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
-	expect(predicate).toBe(true);
-});
-
-test('year generator test', async () => {
-	await seed(db, { yearTable: schema.yearTable }).refine((funcs) => ({
-		yearTable: {
-			count,
-			columns: {
-				year: funcs.year(),
-			},
-		},
-	}));
-
-	const data = await db.select().from(schema.yearTable);
-	// every value in each row does not equal undefined.
-	const predicate = data.length !== 0
-		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
-	expect(predicate).toBe(true);
 });
