@@ -9,13 +9,16 @@ import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
-export type MySqlTableExtraConfig = Record<
-	string,
+export type MySqlTableExtraConfigValue =
 	| AnyIndexBuilder
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder
+	| UniqueConstraintBuilder;
+
+export type MySqlTableExtraConfig = Record<
+	string,
+	MySqlTableExtraConfigValue
 >;
 
 export type TableConfig = TableConfigBase<MySqlColumn>;
@@ -62,7 +65,11 @@ export function mysqlTableWithSchema<
 >(
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: MySqlColumnBuilders) => TColumnsMap),
-	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig) | undefined,
+	extraConfig:
+		| ((
+			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
+		) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
+		| undefined,
 	schema: TSchemaName,
 	baseName = name,
 ): MySqlTableWithColumns<{
@@ -109,13 +116,87 @@ export function mysqlTableWithSchema<
 }
 
 export interface MySqlTableFn<TSchemaName extends string | undefined = undefined> {
+	/**
+	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+
+	/**
+	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
+		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (
+			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
+		) => MySqlTableExtraConfigValue[],
 	): MySqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
@@ -129,7 +210,7 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	>(
 		name: TTableName,
 		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfigValue[],
 	): MySqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
