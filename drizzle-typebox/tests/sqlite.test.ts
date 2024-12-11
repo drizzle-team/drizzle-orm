@@ -203,7 +203,7 @@ test('refine table - select with custom data type', (tc) => {
 	});
 	const expected = t.Object({
 		c1: t.Union([intSchema, t.Null()]),
-		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c2: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		c4: customTextSchema,
 	});
