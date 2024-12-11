@@ -42,7 +42,7 @@ import {
 } from './GeneratorsWrappers.ts';
 import { equalSets, generateHashFromString } from './utils.ts';
 
-class SeedService {
+export class SeedService {
 	static readonly [entityKind]: string = 'SeedService';
 
 	private defaultCountForTable = 10;
@@ -1470,5 +1470,3 @@ class SeedService {
 		}
 	};
 }
-
-export default new SeedService();
