@@ -71,9 +71,8 @@ class SeedService {
 		const orderedTablesNames = this.getOrderedTablesList(tablesInOutRelations);
 		tables = tables.sort((table1, table2) => {
 			const rel = relations.find((rel) => rel.table === table1.name && rel.refTable === table2.name);
-			if (rel === undefined) return 0;
 
-			if (rel.isCyclic) {
+			if (rel?.isCyclic === true) {
 				const reverseRel = relations.find((rel) => rel.table === table2.name && rel.refTable === table1.name);
 				return this.cyclicTablesCompare(table1, table2, rel, reverseRel);
 			}

@@ -338,7 +338,15 @@ test("redefine(refine) orders count using 'with' in customers", async () => {
 });
 
 test("sequential using of 'with'", async () => {
-	await seed(db, schema, { count: 11 }).refine(() => ({
+	const currSchema = {
+		customers: schema.customers,
+		details: schema.details,
+		employees: schema.employees,
+		orders: schema.orders,
+		products: schema.products,
+		suppliers: schema.suppliers,
+	};
+	await seed(db, currSchema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 4,
 			with: {
