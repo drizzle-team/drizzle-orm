@@ -766,7 +766,13 @@ export const exportRaw = command({
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
-		const { prepareAndExportPg, prepareAndExportMysql, prepareAndExportSqlite, prepareAndExportLibSQL } = await import(
+		const {
+			prepareAndExportPg,
+			prepareAndExportMysql,
+			prepareAndExportSqlite,
+			prepareAndExportLibSQL,
+			prepareAndExportSinglestore,
+		} = await import(
 			'./commands/migrate'
 		);
 
@@ -780,7 +786,7 @@ export const exportRaw = command({
 		} else if (dialect === 'turso') {
 			await prepareAndExportLibSQL(opts);
 		} else if (dialect === 'singlestore') {
-			await prepareAndExportSqlite(opts);
+			await prepareAndExportSinglestore(opts);
 		} else {
 			assertUnreachable(dialect);
 		}

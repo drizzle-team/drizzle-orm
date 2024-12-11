@@ -14,7 +14,7 @@ import { exportRaw } from '../src/cli/schema';
 // #4 drizzle-kit export --config=drizzle.config.ts --schema=schema.ts
 // #5 drizzle-kit export --config=drizzle.config.ts --dialect=postgresql
 
-test('exportRaw #1', async (t) => {
+test('export #1', async (t) => {
 	const res = await brotest(
 		exportRaw,
 		'--dialect=postgresql --schema=schema.ts',
@@ -29,7 +29,7 @@ test('exportRaw #1', async (t) => {
 	});
 });
 
-test('exportRaw #2', async (t) => {
+test('export #2', async (t) => {
 	const res = await brotest(exportRaw, '');
 
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
@@ -41,7 +41,7 @@ test('exportRaw #2', async (t) => {
 });
 
 // custom config path
-test('exportRaw #3', async (t) => {
+test('export #3', async (t) => {
 	const res = await brotest(exportRaw, '--config=expo.config.ts');
 	assert.equal(res.type, 'handler');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');

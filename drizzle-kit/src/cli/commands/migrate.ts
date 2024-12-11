@@ -735,6 +735,38 @@ export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 	}
 };
 
+export const prepareAndExportSinglestore = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
+
+	try {
+		const { prev, cur } = await prepareSingleStoreMigrationSnapshot(
+			[],
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = singlestoreSchema.parse(prev);
+		const validatedCur = singlestoreSchema.parse(cur);
+
+		const squashedPrev = squashSingleStoreScheme(validatedPrev);
+		const squashedCur = squashSingleStoreScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applySingleStoreSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			/* singleStoreViewsResolver, */
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
+	} catch (e) {
+		console.error(e);
+	}
+};
+
 export const prepareAndExportMysql = async (config: ExportConfig) => {
 	const schemaPath = config.schema;
 
