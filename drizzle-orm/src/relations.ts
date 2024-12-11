@@ -217,7 +217,7 @@ export type DBQueryConfig<
 		columns?: {
 			[K in keyof TTableConfig['columns']]?: boolean;
 		};
-		with?: {
+		with?: TTableConfig['relations'] extends never ? undefined | Record<string, never> : {
 			[K in keyof TTableConfig['relations']]?:
 				| true
 				| DBQueryConfig<
