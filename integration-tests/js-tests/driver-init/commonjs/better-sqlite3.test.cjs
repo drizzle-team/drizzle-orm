@@ -30,7 +30,7 @@ describe('better-sqlite3', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: string, ...config})', async () => {
@@ -43,7 +43,7 @@ describe('better-sqlite3', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: params, ...config})', async () => {
@@ -58,7 +58,7 @@ describe('better-sqlite3', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: {}, ...config})', async () => {
@@ -71,7 +71,7 @@ describe('better-sqlite3', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({...config})', async () => {
@@ -83,7 +83,7 @@ describe('better-sqlite3', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle(client)', async () => {
@@ -105,7 +105,7 @@ describe('better-sqlite3', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -119,6 +119,6 @@ describe('better-sqlite3', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });

@@ -27,7 +27,7 @@ describe('neon-http', async (it) => {
 
 		await db.$client('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: string, ...config})', async () => {
@@ -38,7 +38,7 @@ describe('neon-http', async (it) => {
 
 		await db.$client('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: params, ...config})', async () => {
@@ -51,7 +51,7 @@ describe('neon-http', async (it) => {
 
 		await db.$client('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle(client)', async () => {
@@ -73,7 +73,7 @@ describe('neon-http', async (it) => {
 
 		await db.$client('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -87,6 +87,6 @@ describe('neon-http', async (it) => {
 
 		await db.$client('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });
