@@ -208,7 +208,7 @@ export class AwsDataApiSession<
 		/** @internal */
 		readonly client: AwsDataApiClient,
 		dialect: PgDialect,
-		private relations: AnyRelations,
+		private relations: AnyRelations | undefined,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: AwsDataApiSessionOptions,
 		/** @internal */

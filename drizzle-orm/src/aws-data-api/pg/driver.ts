@@ -120,11 +120,11 @@ function construct<
 	}
 
 	const relations = config.relations;
-	const session = new AwsDataApiSession(client, dialect, relations ?? {} as EmptyRelations, schema, {
+	const session = new AwsDataApiSession(client, dialect, relations, schema, {
 		...config,
 		logger,
 	}, undefined);
-	const db = new AwsDataApiPgDatabase(dialect, session, relations, schema as any);
+	const db = new AwsDataApiPgDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>);
 	(<any> db).$client = client;
 
 	return db as any;
