@@ -1,275 +1,28 @@
+import { afterAll, beforeAll, expect, test } from 'vitest';
+
 import { PGlite } from '@electric-sql/pglite';
-import { sql } from 'drizzle-orm';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
-import { cities, countries, firstNames, lastNames, reset, seed } from 'drizzle-seed';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+
+import { reset, seed } from '../../../src/index.ts';
 import * as schema from './pgSchema.ts';
+
+import { sql } from 'drizzle-orm';
+import cities from '../../../src/datasets/cityNames.ts';
+import countries from '../../../src/datasets/countries.ts';
+import firstNames from '../../../src/datasets/firstNames.ts';
+import lastNames from '../../../src/datasets/lastNames.ts';
 
 let client: PGlite;
 let db: PgliteDatabase;
 
-const createNorthwindTables = async () => {
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."customer" (
-				"id" varchar(256) PRIMARY KEY NOT NULL,
-				"company_name" text NOT NULL,
-				"contact_name" text NOT NULL,
-				"contact_title" text NOT NULL,
-				"address" text NOT NULL,
-				"city" text NOT NULL,
-				"postal_code" text,
-				"region" text,
-				"country" text NOT NULL,
-				"phone" text NOT NULL,
-				"fax" text
-			);
-		`,
-	);
+beforeAll(async () => {
+	client = new PGlite();
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."order_detail" (
-				"unit_price" numeric NOT NULL,
-				"quantity" integer NOT NULL,
-				"discount" numeric NOT NULL,
-				"order_id" integer NOT NULL,
-				"product_id" integer NOT NULL
-			);
-		`,
-	);
+	db = drizzle(client);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."employee" (
-				"id" integer PRIMARY KEY NOT NULL,
-				"last_name" text NOT NULL,
-				"first_name" text,
-				"title" text NOT NULL,
-				"title_of_courtesy" text NOT NULL,
-				"birth_date" timestamp NOT NULL,
-				"hire_date" timestamp NOT NULL,
-				"address" text NOT NULL,
-				"city" text NOT NULL,
-				"postal_code" text NOT NULL,
-				"country" text NOT NULL,
-				"home_phone" text NOT NULL,
-				"extension" integer NOT NULL,
-				"notes" text NOT NULL,
-				"reports_to" integer,
-				"photo_path" text
-			);
-		`,
-	);
+	await db.execute(sql`CREATE SCHEMA "seeder_lib_pg";`);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."order" (
-				"id" integer PRIMARY KEY NOT NULL,
-				"order_date" timestamp NOT NULL,
-				"required_date" timestamp NOT NULL,
-				"shipped_date" timestamp,
-				"ship_via" integer NOT NULL,
-				"freight" numeric NOT NULL,
-				"ship_name" text NOT NULL,
-				"ship_city" text NOT NULL,
-				"ship_region" text,
-				"ship_postal_code" text,
-				"ship_country" text NOT NULL,
-				"customer_id" text NOT NULL,
-				"employee_id" integer NOT NULL
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."product" (
-				"id" integer PRIMARY KEY NOT NULL,
-				"name" text NOT NULL,
-				"quantity_per_unit" text NOT NULL,
-				"unit_price" numeric NOT NULL,
-				"units_in_stock" integer NOT NULL,
-				"units_on_order" integer NOT NULL,
-				"reorder_level" integer NOT NULL,
-				"discontinued" integer NOT NULL,
-				"supplier_id" integer NOT NULL
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."supplier" (
-				"id" integer PRIMARY KEY NOT NULL,
-				"company_name" text NOT NULL,
-				"contact_name" text NOT NULL,
-				"contact_title" text NOT NULL,
-				"address" text NOT NULL,
-				"city" text NOT NULL,
-				"region" text,
-				"postal_code" text NOT NULL,
-				"country" text NOT NULL,
-				"phone" text NOT NULL
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    DO $$ BEGIN
-			 ALTER TABLE "seeder_lib_pg"."order_detail" ADD CONSTRAINT "order_detail_order_id_order_id_fk" FOREIGN KEY ("order_id") REFERENCES "seeder_lib_pg"."order"("id") ON DELETE cascade ON UPDATE no action;
-			EXCEPTION
-			 WHEN duplicate_object THEN null;
-			END $$;
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    DO $$ BEGIN
-			 ALTER TABLE "seeder_lib_pg"."order_detail" ADD CONSTRAINT "order_detail_product_id_product_id_fk" FOREIGN KEY ("product_id") REFERENCES "seeder_lib_pg"."product"("id") ON DELETE cascade ON UPDATE no action;
-			EXCEPTION
-			 WHEN duplicate_object THEN null;
-			END $$;    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    DO $$ BEGIN
-			 ALTER TABLE "seeder_lib_pg"."employee" ADD CONSTRAINT "employee_reports_to_employee_id_fk" FOREIGN KEY ("reports_to") REFERENCES "seeder_lib_pg"."employee"("id") ON DELETE no action ON UPDATE no action;
-			EXCEPTION
-			 WHEN duplicate_object THEN null;
-			END $$;    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    DO $$ BEGIN
-			 ALTER TABLE "seeder_lib_pg"."order" ADD CONSTRAINT "order_customer_id_customer_id_fk" FOREIGN KEY ("customer_id") REFERENCES "seeder_lib_pg"."customer"("id") ON DELETE cascade ON UPDATE no action;
-			EXCEPTION
-			 WHEN duplicate_object THEN null;
-			END $$;    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    DO $$ BEGIN
-			 ALTER TABLE "seeder_lib_pg"."order" ADD CONSTRAINT "order_employee_id_employee_id_fk" FOREIGN KEY ("employee_id") REFERENCES "seeder_lib_pg"."employee"("id") ON DELETE cascade ON UPDATE no action;
-			EXCEPTION
-			 WHEN duplicate_object THEN null;
-			END $$;    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    DO $$ BEGIN
-			 ALTER TABLE "seeder_lib_pg"."product" ADD CONSTRAINT "product_supplier_id_supplier_id_fk" FOREIGN KEY ("supplier_id") REFERENCES "seeder_lib_pg"."supplier"("id") ON DELETE cascade ON UPDATE no action;
-			EXCEPTION
-			 WHEN duplicate_object THEN null;
-			END $$;    
-		`,
-	);
-};
-
-const createAllDataTypesTable = async () => {
-	await db.execute(
-		sql`
-			    DO $$ BEGIN
-			 CREATE TYPE "seeder_lib_pg"."mood_enum" AS ENUM('sad', 'ok', 'happy');
-			EXCEPTION
-			 WHEN duplicate_object THEN null;
-			END $$;
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."all_data_types" (
-				"integer" integer,
-				"smallint" smallint,
-				"bigint" bigint,
-				"bigint_number" bigint,
-				"serial" serial,
-				"smallserial" smallserial,
-				"bigserial" bigserial,
-				"bigserial_number" bigserial,
-				"boolean" boolean,
-				"text" text,
-				"varchar" varchar(256),
-				"char" char(256),
-				"numeric" numeric,
-				"decimal" numeric,
-				"real" real,
-				"double_precision" double precision,
-				"json" json,
-				"jsonb" jsonb,
-				"time" time,
-				"timestamp_date" timestamp,
-				"timestamp_string" timestamp,
-				"date_string" date,
-				"date" date,
-				"interval" interval,
-				"point" "point",
-				"point_tuple" "point",
-				"line" "line",
-				"line_tuple" "line",
-				"mood_enum" "seeder_lib_pg"."mood_enum",
-				"uuid" "uuid"
-			);
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."all_array_data_types" (
-				"integer_array" integer[],
-				"smallint_array" smallint[],
-				"bigint_array" bigint[],
-				"bigint_number_array" bigint[],
-				"boolean_array" boolean[],
-				"text_array" text[],
-				"varchar_array" varchar(256)[],
-				"char_array" char(256)[],
-				"numeric_array" numeric[],
-				"decimal_array" numeric[],
-				"real_array" real[],
-				"double_precision_array" double precision[],
-				"json_array" json[],
-				"jsonb_array" jsonb[],
-				"time_array" time[],
-				"timestamp_date_array" timestamp[],
-				"timestamp_string_array" timestamp[],
-				"date_string_array" date[],
-				"date_array" date[],
-				"interval_array" interval[],
-				"point_array" "point"[],
-				"point_tuple_array" "point"[],
-				"line_array" "line"[],
-				"line_tuple_array" "line"[],
-				"mood_enum_array" "seeder_lib_pg"."mood_enum"[]
-			);
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."nd_arrays" (
-				"integer_1d_array" integer[3],
-				"integer_2d_array" integer[3][4],
-				"integer_3d_array" integer[3][4][5],
-				"integer_4d_array" integer[3][4][5][6]
-			);
-		`,
-	);
-};
-
-const createAllGeneratorsTables = async () => {
 	await db.execute(
 		sql`
 			    DO $$ BEGIN
@@ -279,6 +32,7 @@ const createAllGeneratorsTables = async () => {
 			END $$;  
 		`,
 	);
+
 	await db.execute(
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."default_table" (
@@ -539,7 +293,7 @@ const createAllGeneratorsTables = async () => {
 
 	await db.execute(
 		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."job_title_table" (
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."job_Title_table" (
 				"job_title" text
 			);    
 		`,
@@ -864,294 +618,25 @@ const createAllGeneratorsTables = async () => {
 
 	await db.execute(
 		sql`
-			CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."identity_columns_table" (
-							"id" integer GENERATED ALWAYS AS IDENTITY,
-							"id1" integer,
-							"name" text
-						); 
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."uuid_table" (
+				"uuid" uuid
+			);    
 		`,
 	);
-};
 
-beforeAll(async () => {
-	client = new PGlite();
-
-	db = drizzle(client);
-
-	await db.execute(sql`CREATE SCHEMA IF NOT EXISTS "seeder_lib_pg";`);
-
-	await createNorthwindTables();
-	await createAllDataTypesTable();
-	await createAllGeneratorsTables();
-});
-
-afterEach(async () => {
-	await reset(db, schema);
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."uuid_array_table" (
+				"uuid" uuid[]
+			);    
+		`,
+	);
 });
 
 afterAll(async () => {
 	await client.close();
 });
 
-test('basic seed test', async () => {
-	const currSchema = {
-		customers: schema.customers,
-		details: schema.details,
-		employees: schema.employees,
-		orders: schema.orders,
-		products: schema.products,
-		suppliers: schema.suppliers,
-	};
-	await seed(db, currSchema);
-
-	const customers = await db.select().from(schema.customers);
-	const details = await db.select().from(schema.details);
-	const employees = await db.select().from(schema.employees);
-	const orders = await db.select().from(schema.orders);
-	const products = await db.select().from(schema.products);
-	const suppliers = await db.select().from(schema.suppliers);
-
-	expect(customers.length).toBe(10);
-	expect(details.length).toBe(10);
-	expect(employees.length).toBe(10);
-	expect(orders.length).toBe(10);
-	expect(products.length).toBe(10);
-	expect(suppliers.length).toBe(10);
-});
-
-test('seed with options.count:11 test', async () => {
-	const currSchema = {
-		customers: schema.customers,
-		details: schema.details,
-		employees: schema.employees,
-		orders: schema.orders,
-		products: schema.products,
-		suppliers: schema.suppliers,
-	};
-	await seed(db, currSchema, { count: 11 });
-
-	const customers = await db.select().from(schema.customers);
-	const details = await db.select().from(schema.details);
-	const employees = await db.select().from(schema.employees);
-	const orders = await db.select().from(schema.orders);
-	const products = await db.select().from(schema.products);
-	const suppliers = await db.select().from(schema.suppliers);
-
-	expect(customers.length).toBe(11);
-	expect(details.length).toBe(11);
-	expect(employees.length).toBe(11);
-	expect(orders.length).toBe(11);
-	expect(products.length).toBe(11);
-	expect(suppliers.length).toBe(11);
-});
-
-test('redefine(refine) customers count', async () => {
-	const currSchema = {
-		customers: schema.customers,
-		details: schema.details,
-		employees: schema.employees,
-		orders: schema.orders,
-		products: schema.products,
-		suppliers: schema.suppliers,
-	};
-	await seed(db, currSchema, { count: 11 }).refine(() => ({
-		customers: {
-			count: 12,
-		},
-	}));
-
-	const customers = await db.select().from(schema.customers);
-	const details = await db.select().from(schema.details);
-	const employees = await db.select().from(schema.employees);
-	const orders = await db.select().from(schema.orders);
-	const products = await db.select().from(schema.products);
-	const suppliers = await db.select().from(schema.suppliers);
-
-	expect(customers.length).toBe(12);
-	expect(details.length).toBe(11);
-	expect(employees.length).toBe(11);
-	expect(orders.length).toBe(11);
-	expect(products.length).toBe(11);
-	expect(suppliers.length).toBe(11);
-});
-
-test('redefine(refine) all tables count', async () => {
-	const currSchema = {
-		customers: schema.customers,
-		details: schema.details,
-		employees: schema.employees,
-		orders: schema.orders,
-		products: schema.products,
-		suppliers: schema.suppliers,
-	};
-	await seed(db, currSchema, { count: 11 }).refine(() => ({
-		customers: {
-			count: 12,
-		},
-		details: {
-			count: 13,
-		},
-		employees: {
-			count: 14,
-		},
-		orders: {
-			count: 15,
-		},
-		products: {
-			count: 16,
-		},
-		suppliers: {
-			count: 17,
-		},
-	}));
-
-	const customers = await db.select().from(schema.customers);
-	const details = await db.select().from(schema.details);
-	const employees = await db.select().from(schema.employees);
-	const orders = await db.select().from(schema.orders);
-	const products = await db.select().from(schema.products);
-	const suppliers = await db.select().from(schema.suppliers);
-
-	expect(customers.length).toBe(12);
-	expect(details.length).toBe(13);
-	expect(employees.length).toBe(14);
-	expect(orders.length).toBe(15);
-	expect(products.length).toBe(16);
-	expect(suppliers.length).toBe(17);
-});
-
-test("redefine(refine) orders count using 'with' in customers", async () => {
-	const currSchema = {
-		customers: schema.customers,
-		details: schema.details,
-		employees: schema.employees,
-		orders: schema.orders,
-		products: schema.products,
-		suppliers: schema.suppliers,
-	};
-	await seed(db, currSchema, { count: 11 }).refine(() => ({
-		customers: {
-			count: 4,
-			with: {
-				orders: 2,
-			},
-		},
-		orders: {
-			count: 13,
-		},
-	}));
-
-	const customers = await db.select().from(schema.customers);
-	const details = await db.select().from(schema.details);
-	const employees = await db.select().from(schema.employees);
-	const orders = await db.select().from(schema.orders);
-	const products = await db.select().from(schema.products);
-	const suppliers = await db.select().from(schema.suppliers);
-
-	expect(customers.length).toBe(4);
-	expect(details.length).toBe(11);
-	expect(employees.length).toBe(11);
-	expect(orders.length).toBe(8);
-	expect(products.length).toBe(11);
-	expect(suppliers.length).toBe(11);
-});
-
-test("sequential using of 'with'", async () => {
-	const currSchema = {
-		customers: schema.customers,
-		details: schema.details,
-		employees: schema.employees,
-		orders: schema.orders,
-		products: schema.products,
-		suppliers: schema.suppliers,
-	};
-	await seed(db, currSchema, { count: 11 }).refine(() => ({
-		customers: {
-			count: 4,
-			with: {
-				orders: 2,
-			},
-		},
-		orders: {
-			count: 12,
-			with: {
-				details: 3,
-			},
-		},
-	}));
-
-	const customers = await db.select().from(schema.customers);
-	const details = await db.select().from(schema.details);
-	const employees = await db.select().from(schema.employees);
-	const orders = await db.select().from(schema.orders);
-	const products = await db.select().from(schema.products);
-	const suppliers = await db.select().from(schema.suppliers);
-
-	expect(customers.length).toBe(4);
-	expect(details.length).toBe(24);
-	expect(employees.length).toBe(11);
-	expect(orders.length).toBe(8);
-	expect(products.length).toBe(11);
-	expect(suppliers.length).toBe(11);
-});
-
-test('seeding with identity columns', async () => {
-	await seed(db, { identityColumnsTable: schema.identityColumnsTable });
-
-	const result = await db.select().from(schema.identityColumnsTable);
-
-	expect(result.length).toBe(10);
-});
-
-// All data types test -------------------------------
-test('basic seed test for all postgres data types', async () => {
-	await seed(db, { allDataTypes: schema.allDataTypes }, { count: 10000 });
-
-	const allDataTypes = await db.select().from(schema.allDataTypes);
-	// every value in each 10 rows does not equal undefined.
-	const predicate = allDataTypes.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
-
-	expect(predicate).toBe(true);
-});
-
-test('all array data types test', async () => {
-	await seed(db, { allArrayDataTypes: schema.allArrayDataTypes }, { count: 1000 });
-
-	const allArrayDataTypes = await db.select().from(schema.allArrayDataTypes);
-	// every value in each rows does not equal undefined.
-	const predicate = allArrayDataTypes.every((row) =>
-		Object.values(row).every((val) => val !== undefined && val !== null && val.length === 10)
-	);
-
-	expect(predicate).toBe(true);
-});
-
-test('nd arrays', async () => {
-	await seed(db, { ndArrays: schema.ndArrays }, { count: 1000 });
-
-	const ndArrays = await db.select().from(schema.ndArrays);
-	// every value in each rows does not equal undefined.
-	const predicate0 = ndArrays.every((row) =>
-		Object.values(row).every((val) => val !== undefined && val !== null && val.length !== 0)
-	);
-	let predicate1 = true, predicate2 = true, predicate3 = true, predicate4 = true;
-
-	for (const row of ndArrays) {
-		predicate1 = predicate1 && (row.integer1DArray?.length === 3);
-
-		predicate2 = predicate2 && (row.integer2DArray?.length === 4) && (row.integer2DArray[0]?.length === 3);
-
-		predicate3 = predicate3 && (row.integer3DArray?.length === 5) && (row.integer3DArray[0]?.length === 4)
-			&& (row.integer3DArray[0][0]?.length === 3);
-
-		predicate4 = predicate4 && (row.integer4DArray?.length === 6) && (row.integer4DArray[0]?.length === 5)
-			&& (row.integer4DArray[0][0]?.length === 4) && (row.integer4DArray[0][0][0]?.length === 3);
-	}
-
-	expect(predicate0 && predicate1 && predicate2 && predicate3 && predicate4).toBe(true);
-});
-
-// All generators test-------------------------------
 const count = 1000;
 
 test('enum generator test', async () => {
@@ -2569,4 +2054,44 @@ test('weightedRandom with unique gens generator test', async () => {
 	).rejects.toThrow(
 		'The weights for the Weighted Random feature must add up to exactly 1. Please review your weights to ensure they total 1 before proceeding',
 	);
+});
+
+test('uuid generator test', async () => {
+	await reset(db, { uuidTable: schema.uuidTable });
+	await seed(db, { uuidTable: schema.uuidTable }).refine((funcs) => ({
+		uuidTable: {
+			count,
+			columns: {
+				uuid: funcs.uuid(),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.uuidTable);
+	// every value in each row does not equal undefined.
+	let predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+
+	const uuidStrsSet = new Set<string>(data.map((row) => row.uuid!));
+	predicate = uuidStrsSet.size === data.length;
+	expect(predicate).toBe(true);
+});
+
+test('uuid array generator test', async () => {
+	await reset(db, { uuidArrayTable: schema.uuidArrayTable });
+	await seed(db, { uuidArrayTable: schema.uuidArrayTable }).refine((funcs) => ({
+		uuidArrayTable: {
+			count,
+			columns: {
+				uuid: funcs.uuid({ arraySize: 4 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.uuidArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
 });

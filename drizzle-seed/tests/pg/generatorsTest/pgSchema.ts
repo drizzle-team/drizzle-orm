@@ -1,25 +1,13 @@
-import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import {
-	bigint,
-	bigserial,
 	boolean,
-	char,
 	date,
-	decimal,
-	doublePrecision,
 	integer,
 	interval,
 	json,
-	jsonb,
 	line,
-	numeric,
-	pgEnum,
 	pgSchema,
 	point,
 	real,
-	serial,
-	smallint,
-	smallserial,
 	text,
 	time,
 	timestamp,
@@ -29,178 +17,8 @@ import {
 
 export const schema = pgSchema('seeder_lib_pg');
 
-export const customers = schema.table('customer', {
-	id: varchar('id', { length: 256 }).primaryKey(),
-	companyName: text('company_name').notNull(),
-	contactName: text('contact_name').notNull(),
-	contactTitle: text('contact_title').notNull(),
-	address: text('address').notNull(),
-	city: text('city').notNull(),
-	postalCode: text('postal_code'),
-	region: text('region'),
-	country: text('country').notNull(),
-	phone: text('phone').notNull(),
-	fax: text('fax'),
-});
+export const moodEnum = schema.enum('enum', ['sad', 'ok', 'happy']);
 
-export const employees = schema.table(
-	'employee',
-	{
-		id: integer('id').primaryKey(),
-		lastName: text('last_name').notNull(),
-		firstName: text('first_name'),
-		title: text('title').notNull(),
-		titleOfCourtesy: text('title_of_courtesy').notNull(),
-		birthDate: timestamp('birth_date').notNull(),
-		hireDate: timestamp('hire_date').notNull(),
-		address: text('address').notNull(),
-		city: text('city').notNull(),
-		postalCode: text('postal_code').notNull(),
-		country: text('country').notNull(),
-		homePhone: text('home_phone').notNull(),
-		extension: integer('extension').notNull(),
-		notes: text('notes').notNull(),
-		reportsTo: integer('reports_to').references((): AnyPgColumn => employees.id),
-		photoPath: text('photo_path'),
-	},
-);
-
-export const orders = schema.table('order', {
-	id: integer('id').primaryKey(),
-	orderDate: timestamp('order_date').notNull(),
-	requiredDate: timestamp('required_date').notNull(),
-	shippedDate: timestamp('shipped_date'),
-	shipVia: integer('ship_via').notNull(),
-	freight: numeric('freight').notNull(),
-	shipName: text('ship_name').notNull(),
-	shipCity: text('ship_city').notNull(),
-	shipRegion: text('ship_region'),
-	shipPostalCode: text('ship_postal_code'),
-	shipCountry: text('ship_country').notNull(),
-
-	customerId: text('customer_id')
-		.notNull()
-		.references(() => customers.id, { onDelete: 'cascade' }),
-
-	employeeId: integer('employee_id')
-		.notNull()
-		.references(() => employees.id, { onDelete: 'cascade' }),
-});
-
-export const suppliers = schema.table('supplier', {
-	id: integer('id').primaryKey(),
-	companyName: text('company_name').notNull(),
-	contactName: text('contact_name').notNull(),
-	contactTitle: text('contact_title').notNull(),
-	address: text('address').notNull(),
-	city: text('city').notNull(),
-	region: text('region'),
-	postalCode: text('postal_code').notNull(),
-	country: text('country').notNull(),
-	phone: text('phone').notNull(),
-});
-
-export const products = schema.table('product', {
-	id: integer('id').primaryKey(),
-	name: text('name').notNull(),
-	quantityPerUnit: text('quantity_per_unit').notNull(),
-	unitPrice: numeric('unit_price').notNull(),
-	unitsInStock: integer('units_in_stock').notNull(),
-	unitsOnOrder: integer('units_on_order').notNull(),
-	reorderLevel: integer('reorder_level').notNull(),
-	discontinued: integer('discontinued').notNull(),
-
-	supplierId: integer('supplier_id')
-		.notNull()
-		.references(() => suppliers.id, { onDelete: 'cascade' }),
-});
-
-export const details = schema.table('order_detail', {
-	unitPrice: numeric('unit_price').notNull(),
-	quantity: integer('quantity').notNull(),
-	discount: numeric('discount').notNull(),
-
-	orderId: integer('order_id')
-		.notNull()
-		.references(() => orders.id, { onDelete: 'cascade' }),
-
-	productId: integer('product_id')
-		.notNull()
-		.references(() => products.id, { onDelete: 'cascade' }),
-});
-
-// All data types table -------------------------------
-export const moodEnum = pgEnum('mood_enum', ['sad', 'ok', 'happy']);
-
-export const allDataTypes = schema.table('all_data_types', {
-	integer: integer('integer'),
-	smallint: smallint('smallint'),
-	biginteger: bigint('bigint', { mode: 'bigint' }),
-	bigintNumber: bigint('bigint_number', { mode: 'number' }),
-	serial: serial('serial'),
-	smallserial: smallserial('smallserial'),
-	bigserial: bigserial('bigserial', { mode: 'bigint' }),
-	bigserialNumber: bigserial('bigserial_number', { mode: 'number' }),
-	boolean: boolean('boolean'),
-	text: text('text'),
-	varchar: varchar('varchar', { length: 256 }),
-	char: char('char', { length: 256 }),
-	numeric: numeric('numeric'),
-	decimal: decimal('decimal'),
-	real: real('real'),
-	doublePrecision: doublePrecision('double_precision'),
-	json: json('json'),
-	jsonb: jsonb('jsonb'),
-	time: time('time'),
-	timestampDate: timestamp('timestamp_date', { mode: 'date' }),
-	timestampString: timestamp('timestamp_string', { mode: 'string' }),
-	dateString: date('date_string', { mode: 'string' }),
-	date: date('date', { mode: 'date' }),
-	interval: interval('interval'),
-	point: point('point', { mode: 'xy' }),
-	pointTuple: point('point_tuple', { mode: 'tuple' }),
-	line: line('line', { mode: 'abc' }),
-	lineTuple: line('line_tuple', { mode: 'tuple' }),
-	moodEnum: moodEnum('mood_enum'),
-	uuid: uuid('uuid'),
-});
-
-export const allArrayDataTypes = schema.table('all_array_data_types', {
-	integerArray: integer('integer_array').array(),
-	smallintArray: smallint('smallint_array').array(),
-	bigintegerArray: bigint('bigint_array', { mode: 'bigint' }).array(),
-	bigintNumberArray: bigint('bigint_number_array', { mode: 'number' }).array(),
-	booleanArray: boolean('boolean_array').array(),
-	textArray: text('text_array').array(),
-	varcharArray: varchar('varchar_array', { length: 256 }).array(),
-	charArray: char('char_array', { length: 256 }).array(),
-	numericArray: numeric('numeric_array').array(),
-	decimalArray: decimal('decimal_array').array(),
-	realArray: real('real_array').array(),
-	doublePrecisionArray: doublePrecision('double_precision_array').array(),
-	jsonArray: json('json_array').array(),
-	jsonbArray: jsonb('jsonb_array').array(),
-	timeArray: time('time_array').array(),
-	timestampDateArray: timestamp('timestamp_date_array', { mode: 'date' }).array(),
-	timestampStringArray: timestamp('timestamp_string_array', { mode: 'string' }).array(),
-	dateStringArray: date('date_string_array', { mode: 'string' }).array(),
-	dateArray: date('date_array', { mode: 'date' }).array(),
-	intervalArray: interval('interval_array').array(),
-	pointArray: point('point_array', { mode: 'xy' }).array(),
-	pointTupleArray: point('point_tuple_array', { mode: 'tuple' }).array(),
-	lineArray: line('line_array', { mode: 'abc' }).array(),
-	lineTupleArray: line('line_tuple_array', { mode: 'tuple' }).array(),
-	moodEnumArray: moodEnum('mood_enum_array').array(),
-});
-
-export const ndArrays = schema.table('nd_arrays', {
-	integer1DArray: integer('integer_1d_array').array(3),
-	integer2DArray: integer('integer_2d_array').array(3).array(4),
-	integer3DArray: integer('integer_3d_array').array(3).array(4).array(5),
-	integer4DArray: integer('integer_4d_array').array(3).array(4).array(5).array(6),
-});
-
-// All generators tables -------------------------------
 export const enumTable = schema.table('enum_table', {
 	mood: moodEnum('mood_enum'),
 });
@@ -403,7 +221,7 @@ export const streetAddressArrayTable = schema.table('street_address_array_table'
 	streetAddress: varchar('street_address', { length: 256 }).array(),
 });
 
-export const jobTitleTable = schema.table('job_title_table', {
+export const jobTitleTable = schema.table('job_Title_table', {
 	jobTitle: text('job_title'),
 });
 
@@ -495,8 +313,10 @@ export const weightedRandomWithUniqueGensTable = schema.table('weighted_random_w
 	weightedRandomWithUniqueGens: varchar('weighted_random_with_unique_gens', { length: 256 }).unique(),
 });
 
-export const identityColumnsTable = schema.table('identity_columns_table', {
-	id: integer('id').generatedAlwaysAsIdentity(),
-	id1: integer('id1'),
-	name: text('name'),
+export const uuidTable = schema.table('uuid_table', {
+	uuid: uuid('uuid'),
+});
+
+export const uuidArrayTable = schema.table('uuid_array_table', {
+	uuid: uuid('uuid').array(),
 });
