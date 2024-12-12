@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client/extension';
 
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations';
+import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type {

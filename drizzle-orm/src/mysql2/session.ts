@@ -28,7 +28,7 @@ import {
 	type MySqlTransactionConfig,
 	type PreparedQueryKind,
 } from '~/mysql-core/session.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations';
+import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';

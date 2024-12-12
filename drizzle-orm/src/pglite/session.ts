@@ -11,7 +11,7 @@ import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations';
+import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
 
 export type PgliteClient = PGlite;
 

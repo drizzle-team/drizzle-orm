@@ -15,7 +15,7 @@ import {
 	MySqlSession,
 	MySqlTransaction,
 } from '~/mysql-core/session.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations';
+import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 

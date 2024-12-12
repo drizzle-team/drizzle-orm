@@ -11,7 +11,7 @@ import type {
 	MySqlTransactionConfig,
 } from '~/mysql-core/index.ts';
 import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core/index.ts';
-import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations';
+import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';

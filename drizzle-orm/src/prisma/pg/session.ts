@@ -10,7 +10,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/index.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/index.ts';
-import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations';
+import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 
