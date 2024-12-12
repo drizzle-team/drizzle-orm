@@ -1,18 +1,16 @@
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
+import { AnyColumn, AnyTable, is } from 'drizzle-orm';
 import {
-	AnyColumn,
-	AnyTable,
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
-	is,
 	Many,
 	normalizeRelation,
 	One,
 	Relations,
 	TablesRelationalConfig,
-} from 'drizzle-orm';
+} from 'drizzle-orm/_relations';
 import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
 import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { AnySQLiteTable, getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';

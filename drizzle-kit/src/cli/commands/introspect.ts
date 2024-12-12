@@ -602,7 +602,7 @@ export const relationsToTypeScript = (
 
 	const uniqueImports = [...new Set(imports)];
 
-	const importsTs = `import { relations } from "drizzle-orm/relations";\nimport { ${
+	const importsTs = `import { relations } from "drizzle-orm/_relations";\nimport { ${
 		uniqueImports.join(
 			', ',
 		)
