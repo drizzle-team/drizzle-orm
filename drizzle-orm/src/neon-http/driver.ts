@@ -61,7 +61,7 @@ function wrap<T extends object>(
 			if (typeof element !== 'function' && (typeof element !== 'object' || element === null)) return element;
 
 			if (deep) return wrap(element, token, cb);
-			if (p === 'query') return wrap(element, token, cb, true);
+			if (p === 'query' || p === '_query') return wrap(element, token, cb, true);
 
 			return new Proxy(element as any, {
 				apply(target, thisArg, argArray) {

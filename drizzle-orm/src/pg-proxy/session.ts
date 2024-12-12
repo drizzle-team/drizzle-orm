@@ -126,30 +126,6 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
 			const params = fillPlaceholders(this.params, placeholderValues);
-			const { client, queryString, customResultMapper, logger, typings } = this;
-
-			span?.setAttributes({
-				'drizzle.query.text': queryString,
-				'drizzle.query.params': JSON.stringify(params),
-			});
-
-			logger.logQuery(queryString, params);
-
-			const rows = await tracer.startActiveSpan('drizzle.driver.execute', async () => {
-				const { rows } = await client(queryString, params as any[], 'execute', typings);
-
-				return rows;
-			});
-
-			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
-			});
-		});
-	}
-
-	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
 			const { fields, client, queryString, joinsNotNullableMap, customResultMapper, logger, typings } = this;
 
 			span?.setAttributes({
@@ -182,6 +158,30 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 				return customResultMapper
 					? customResultMapper(rows)
 					: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+			});
+		});
+	}
+
+	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		return tracer.startActiveSpan('drizzle.execute', async (span) => {
+			const params = fillPlaceholders(this.params, placeholderValues);
+			const { client, queryString, customResultMapper, logger, typings } = this;
+
+			span?.setAttributes({
+				'drizzle.query.text': queryString,
+				'drizzle.query.params': JSON.stringify(params),
+			});
+
+			logger.logQuery(queryString, params);
+
+			const rows = await tracer.startActiveSpan('drizzle.driver.execute', async () => {
+				const { rows } = await client(queryString, params as any[], 'execute', typings);
+
+				return rows;
+			});
+
+			return tracer.startActiveSpan('drizzle.mapResponse', () => {
+				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 			});
 		});
 	}
