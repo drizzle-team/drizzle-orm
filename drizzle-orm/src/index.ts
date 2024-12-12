@@ -1,4 +1,3 @@
-export * as _relations from './_relations.ts';
 export * from './alias.ts';
 export * from './column-builder.ts';
 export * from './column.ts';
