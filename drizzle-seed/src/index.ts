@@ -11,7 +11,7 @@ import { BaseSQLiteDatabase, getTableConfig as getSqliteTableConfig, SQLiteTable
 
 import type { AbstractGenerator } from './services/GeneratorsWrappers.ts';
 import { generatorsFuncs } from './services/GeneratorsWrappers.ts';
-import seedService from './services/SeedService.ts';
+import { SeedService } from './services/SeedService.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
 import type { RefinementsType } from './types/seedService.ts';
 import type { Column, Relation, RelationWithReferences, Table } from './types/tables.ts';
@@ -251,6 +251,8 @@ export async function seedForDrizzleStudio(
 			? schemasRefinements[schemaName]
 			: undefined;
 
+		const seedService = new SeedService();
+
 		const generatedTablesGenerators = seedService.generatePossibleGenerators(
 			sqlDialect,
 			tables,
@@ -489,6 +491,8 @@ const seedPostgres = async (
 	options: { count?: number; seed?: number } = {},
 	refinements?: RefinementsType,
 ) => {
+	const seedService = new SeedService();
+
 	const { tables, relations, tableRelations } = getPostgresInfo(schema);
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'postgresql',
@@ -740,6 +744,8 @@ const seedMySql = async (
 ) => {
 	const { tables, relations, tableRelations } = getMySqlInfo(schema);
 
+	const seedService = new SeedService();
+
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'mysql',
 		tables,
@@ -927,6 +933,8 @@ const seedSqlite = async (
 ) => {
 	const { tables, relations, tableRelations } = getSqliteInfo(schema);
 
+	const seedService = new SeedService();
+
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'sqlite',
 		tables,
@@ -1072,3 +1080,4 @@ export { default as cities } from './datasets/cityNames.ts';
 export { default as countries } from './datasets/countries.ts';
 export { default as firstNames } from './datasets/firstNames.ts';
 export { default as lastNames } from './datasets/lastNames.ts';
+export { SeedService } from './services/SeedService.ts';
