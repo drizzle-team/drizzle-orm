@@ -243,7 +243,7 @@ test('Simple case from GH', async () => {
 		},
 	]);
 
-	const response = await db.query.menuItems
+	const response = await db._query.menuItems
 		.findMany({
 			with: {
 				modifierGroups: {

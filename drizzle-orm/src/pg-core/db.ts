@@ -58,14 +58,13 @@ export class PgDatabase<
 			[K in keyof TSchema]: _RelationalQueryBuilder<TSchema, TSchema[K]>;
 		};
 
-	query: TRelations extends EmptyRelations
-		? DrizzleTypeError<'Seems like the relations generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TRelations['tables']]: RelationalQueryBuilder<
-				TTablesConfig,
-				TTablesConfig[K]
-			>;
-		};
+	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
+	query: {
+		[K in keyof TRelations['tables']]: RelationalQueryBuilder<
+			TTablesConfig,
+			TTablesConfig[K]
+		>;
+	};
 
 	constructor(
 		/** @internal */

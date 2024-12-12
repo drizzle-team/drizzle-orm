@@ -1,6 +1,6 @@
 import { boolean, integer, type PgColumn, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 
 export const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),

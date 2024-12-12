@@ -163,7 +163,7 @@ test('Simple case from GH', async () => {
 		{ memberId: 3, artistId: 3 },
 	]);
 
-	const response = await db.query.artists.findFirst({
+	const response = await db._query.artists.findFirst({
 		where: (artists, { eq }) => eq(artists.id, 1),
 		with: {
 			albums: true,

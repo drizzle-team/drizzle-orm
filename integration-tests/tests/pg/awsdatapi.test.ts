@@ -2,7 +2,8 @@ import 'dotenv/config';
 
 import { RDSDataClient } from '@aws-sdk/client-rds-data';
 import * as dotenv from 'dotenv';
-import { asc, eq, inArray, notInArray, relations, sql, TransactionRollbackError } from 'drizzle-orm';
+import { asc, eq, inArray, notInArray, sql, TransactionRollbackError } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import type { AwsDataApiPgDatabase } from 'drizzle-orm/aws-data-api/pg';
 import { drizzle } from 'drizzle-orm/aws-data-api/pg';
 import { migrate } from 'drizzle-orm/aws-data-api/pg/migrator';
@@ -1584,7 +1585,7 @@ test('all date and time columns without timezone', async () => {
 test('Typehints mix for RQB', async () => {
 	const uuid = 'd997d46d-5769-4c78-9a35-93acadbe6076';
 
-	const res = await db.query.user.findMany({
+	const res = await db._query.user.findMany({
 		where: eq(user.id, uuid),
 		with: {
 			todos: {
@@ -1603,7 +1604,7 @@ test('Typehints mix for findFirst', async () => {
 
 	await db.insert(user).values({ id: uuid, email: 'd' });
 
-	const res = await db.query.user.findFirst({
+	const res = await db._query.user.findFirst({
 		where: eq(user.id, uuid),
 	});
 

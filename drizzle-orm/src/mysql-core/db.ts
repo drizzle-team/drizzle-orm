@@ -56,15 +56,14 @@ export class MySqlDatabase<
 			[K in keyof TSchema]: _RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
 		};
 
-	query: TRelations extends EmptyRelations
-		? DrizzleTypeError<'Seems like the relations generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TRelations['tables']]: RelationalQueryBuilder<
-				TPreparedQueryHKT,
-				TTablesConfig,
-				TTablesConfig[K]
-			>;
-		};
+	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
+	query: {
+		[K in keyof TRelations['tables']]: RelationalQueryBuilder<
+			TPreparedQueryHKT,
+			TTablesConfig,
+			TTablesConfig[K]
+		>;
+	};
 
 	constructor(
 		/** @internal */
@@ -535,7 +534,7 @@ export const withReplicas = <
 		TPreparedQueryHKT,
 		TFullSchema,
 		TRelations,
-		TRelations extends EmptyRelations ? TTablesConfig : ExtractTablesWithRelations<TRelations>,
+		TTablesConfig,
 		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
 	>,
 >(

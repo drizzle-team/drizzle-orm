@@ -54,15 +54,14 @@ export class BaseSQLiteDatabase<
 			[K in keyof TSchema]: _RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
 		};
 
-	query: TRelations extends EmptyRelations
-		? DrizzleTypeError<'Seems like the relations generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TRelations['tables']]: RelationalQueryBuilder<
-				TResultKind,
-				TTablesConfig,
-				TTablesConfig[K]
-			>;
-		};
+	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
+	query: {
+		[K in keyof TRelations['tables']]: RelationalQueryBuilder<
+			TResultKind,
+			TTablesConfig,
+			TTablesConfig[K]
+		>;
+	};
 
 	constructor(
 		private resultKind: TResultKind,
@@ -642,7 +641,7 @@ export const withReplicas = <
 		TRunResult,
 		TFullSchema,
 		TRelations,
-		TRelations extends EmptyRelations ? TTablesConfig : ExtractTablesWithRelations<TRelations>,
+		TTablesConfig,
 		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
 	>,
 >(

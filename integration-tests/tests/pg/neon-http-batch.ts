@@ -1,6 +1,7 @@
 import Docker from 'dockerode';
 import type { InferSelectModel } from 'drizzle-orm';
-import { eq, relations, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import type { NeonHttpQueryResult } from 'drizzle-orm/neon-http';
 import { integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
@@ -253,7 +254,7 @@ export function tests() {
 			const batchResponse = await db.batch([
 				db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 				db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-				db.query.usersTable.findMany({}),
+				db._query.usersTable.findMany({}),
 			]);
 
 			expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -290,8 +291,8 @@ export function tests() {
 			const batchResponse = await db.batch([
 				db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 				db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-				db.query.usersTable.findMany({}),
-				db.query.usersTable.findFirst({}),
+				db._query.usersTable.findMany({}),
+				db._query.usersTable.findFirst({}),
 			]);
 
 			expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -362,7 +363,7 @@ export function tests() {
 			const batchResponse = await db.batch([
 				db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 				db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-				db.query.usersTable.findMany({}),
+				db._query.usersTable.findMany({}),
 				db.execute<typeof usersTable.$inferSelect>(sql`select * from users`),
 			]);
 
@@ -413,7 +414,7 @@ export function tests() {
 			const batchResponse = await db.batch([
 				db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 				db.update(usersTable).set({ name: 'Dan' }).where(eq(usersTable.id, 1)),
-				db.query.usersTable.findMany({}),
+				db._query.usersTable.findMany({}),
 				db.select().from(usersTable).where(eq(usersTable.id, 1)),
 				db.select({ id: usersTable.id, invitedBy: usersTable.invitedBy }).from(usersTable),
 			]);
@@ -473,7 +474,7 @@ export function tests() {
 					id: usersTable.id,
 					invitedBy: usersTable.invitedBy,
 				}),
-				db.query.usersTable.findFirst({
+				db._query.usersTable.findFirst({
 					columns: {
 						id: true,
 						invitedBy: true,
