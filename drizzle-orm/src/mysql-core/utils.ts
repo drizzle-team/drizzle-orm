@@ -9,6 +9,7 @@ import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
+import type { IndexForHint } from './query-builders/select.ts';
 import { MySqlTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import { MySqlViewConfig } from './view-common.ts';
@@ -66,4 +67,14 @@ export function getViewConfig<
 		...view[ViewBaseConfig],
 		...view[MySqlViewConfig],
 	};
+}
+
+export function convertIndexToString(indexes: IndexForHint[]) {
+	return indexes.map((idx) => {
+		return typeof idx === 'object' ? idx.config.name : idx;
+	});
+}
+
+export function toArray<T>(value: T | T[]): T[] {
+	return Array.isArray(value) ? value : [value];
 }
