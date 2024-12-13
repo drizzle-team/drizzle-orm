@@ -461,9 +461,9 @@ export class MySqlDatabase<
 	}
 
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
-		query: SQLWrapper | string,
+		query: SQLWrapper,
 	): Promise<MySqlQueryResultKind<TQueryResult, T>> {
-		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
+		return this.session.execute(query.getSQL());
 	}
 
 	transaction<T>(
