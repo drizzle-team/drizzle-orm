@@ -117,7 +117,7 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
-		return this.client.executeAsync(this.query.sql, params);
+		return this.client.execute(this.query.sql, params);
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -162,7 +162,7 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 	values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return this.client.executeRawAsync(this.query.sql, params);
+		return this.client.executeRaw(this.query.sql, params);
 	}
 
 	/** @internal */
