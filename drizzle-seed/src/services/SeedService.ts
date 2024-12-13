@@ -252,7 +252,6 @@ class SeedService {
 				}
 
 				if (columnPossibleGenerator.generator === undefined) {
-					console.log(col);
 					throw new Error(
 						`column with type ${col.columnType} is not supported for now.`,
 					);
@@ -260,6 +259,7 @@ class SeedService {
 
 				columnPossibleGenerator.generator.isUnique = col.isUnique;
 				columnPossibleGenerator.generator.dataType = col.dataType;
+				columnPossibleGenerator.generator.length = col.typeParams.length;
 
 				tablePossibleGenerators.columnsPossibleGenerators.push(
 					columnPossibleGenerator,
@@ -432,263 +432,235 @@ class SeedService {
 		table: Table,
 		col: Column,
 	) => {
-		let generator: AbstractGenerator<any> | undefined;
+		const pickGenerator = (table: Table, col: Column) => {
+			// ARRAY
+			if (col.columnType.match(/\[\w*]/g) !== null && col.baseColumn !== undefined) {
+				const baseColumnGen = this.pickGeneratorForPostgresColumn(table, col.baseColumn!) as AbstractGenerator;
+				if (baseColumnGen === undefined) {
+					throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
+				}
+				const generator = new GenerateArray({ baseColumnGen, size: col.size });
 
-		// INT ------------------------------------------------------------------------------------------------------------
-		if (
-			(col.columnType.includes('serial')
-				|| col.columnType === 'integer'
-				|| col.columnType === 'smallint'
-				|| col.columnType.includes('bigint'))
-			&& table.primaryKeys.includes(col.name)
-		) {
-			generator = new GenerateIntPrimaryKey({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		let minValue: number | bigint | undefined;
-		let maxValue: number | bigint | undefined;
-		if (col.columnType.includes('serial')) {
-			minValue = 1;
-			if (col.columnType === 'smallserial') {
-				// 2^16 / 2 - 1, 2 bytes
-				maxValue = 32767;
-			} else if (col.columnType === 'serial') {
-				// 2^32 / 2 - 1, 4 bytes
-				maxValue = 2147483647;
-			} else if (col.columnType === 'bigserial') {
-				// 2^64 / 2 - 1, 8 bytes
-				minValue = BigInt(1);
-				maxValue = BigInt('9223372036854775807');
+				return generator;
 			}
-		} else if (col.columnType.includes('int')) {
-			if (col.columnType === 'smallint') {
-				// 2^16 / 2 - 1, 2 bytes
-				minValue = -32768;
-				maxValue = 32767;
-			} else if (col.columnType === 'integer') {
-				// 2^32 / 2 - 1, 4 bytes
-				minValue = -2147483648;
-				maxValue = 2147483647;
-			} else if (col.columnType.includes('bigint')) {
-				if (col.dataType === 'bigint') {
+
+			// INT ------------------------------------------------------------------------------------------------------------
+			if (
+				(col.columnType.includes('serial')
+					|| col.columnType === 'integer'
+					|| col.columnType === 'smallint'
+					|| col.columnType.includes('bigint'))
+				&& table.primaryKeys.includes(col.name)
+			) {
+				const generator = new GenerateIntPrimaryKey({});
+
+				return generator;
+			}
+
+			let minValue: number | bigint | undefined;
+			let maxValue: number | bigint | undefined;
+			if (col.columnType.includes('serial')) {
+				minValue = 1;
+				if (col.columnType === 'smallserial') {
+					// 2^16 / 2 - 1, 2 bytes
+					maxValue = 32767;
+				} else if (col.columnType === 'serial') {
+					// 2^32 / 2 - 1, 4 bytes
+					maxValue = 2147483647;
+				} else if (col.columnType === 'bigserial') {
 					// 2^64 / 2 - 1, 8 bytes
-					minValue = BigInt('-9223372036854775808');
+					minValue = BigInt(1);
 					maxValue = BigInt('9223372036854775807');
-				} else if (col.dataType === 'number') {
-					// if you’re expecting values above 2^31 but below 2^53
-					minValue = -9007199254740991;
-					maxValue = 9007199254740991;
+				}
+			} else if (col.columnType.includes('int')) {
+				if (col.columnType === 'smallint') {
+					// 2^16 / 2 - 1, 2 bytes
+					minValue = -32768;
+					maxValue = 32767;
+				} else if (col.columnType === 'integer') {
+					// 2^32 / 2 - 1, 4 bytes
+					minValue = -2147483648;
+					maxValue = 2147483647;
+				} else if (col.columnType.includes('bigint')) {
+					if (col.dataType === 'bigint') {
+						// 2^64 / 2 - 1, 8 bytes
+						minValue = BigInt('-9223372036854775808');
+						maxValue = BigInt('9223372036854775807');
+					} else if (col.dataType === 'number') {
+						// if you’re expecting values above 2^31 but below 2^53
+						minValue = -9007199254740991;
+						maxValue = 9007199254740991;
+					}
 				}
 			}
-		}
 
-		if (
-			col.columnType.includes('int')
-			&& !col.columnType.includes('interval')
-			&& !col.columnType.includes('point')
-		) {
-			generator = new GenerateInt({
-				minValue,
-				maxValue,
-			});
+			if (
+				col.columnType.includes('int')
+				&& !col.columnType.includes('interval')
+				&& !col.columnType.includes('point')
+			) {
+				const generator = new GenerateInt({
+					minValue,
+					maxValue,
+				});
 
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (col.columnType.includes('serial')) {
-			generator = new GenerateIntPrimaryKey({});
-
-			(generator as GenerateIntPrimaryKey).maxValue = maxValue;
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// NUMBER(real, double, decimal, numeric)
-		if (
-			col.columnType === 'real'
-			|| col.columnType === 'doubleprecision'
-			|| col.columnType === 'decimal'
-			|| col.columnType === 'numeric'
-		) {
-			generator = new GenerateNumber({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// STRING
-		if (
-			(col.columnType === 'text'
-				|| col.columnType === 'varchar'
-				|| col.columnType === 'char')
-			&& table.primaryKeys.includes(col.name)
-		) {
-			generator = new GenerateUniqueString({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (
-			(col.columnType === 'text'
-				|| col.columnType === 'varchar'
-				|| col.columnType === 'char')
-			&& col.name.toLowerCase().includes('name')
-		) {
-			generator = new GenerateFirstName({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (
-			(col.columnType === 'text'
-				|| col.columnType === 'varchar'
-				|| col.columnType === 'char')
-			&& col.name.toLowerCase().includes('email')
-		) {
-			generator = new GenerateEmail({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (
-			col.columnType === 'text'
-			|| col.columnType === 'varchar'
-			|| col.columnType === 'char'
-		) {
-			// console.log(col, table)
-			generator = new GenerateString({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// UUID
-		if (col.columnType === 'uuid') {
-			generator = new GenerateUUID({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// BOOLEAN
-		if (col.columnType === 'boolean') {
-			generator = new GenerateBoolean({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// DATE, TIME, TIMESTAMP
-		if (col.columnType.includes('date')) {
-			generator = new GenerateDate({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (col.columnType === 'time') {
-			generator = new GenerateTime({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (col.columnType.includes('timestamp')) {
-			generator = new GenerateTimestamp({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// JSON, JSONB
-		if (col.columnType === 'json' || col.columnType === 'jsonb') {
-			generator = new GenerateJson({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// if (col.columnType === "jsonb") {
-		//   const generator = new GenerateJsonb({});
-		//   return generator;
-		// }
-
-		// ENUM
-		if (col.enumValues !== undefined) {
-			generator = new GenerateEnum({
-				enumValues: col.enumValues,
-			});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// INTERVAL
-		if (col.columnType === 'interval') {
-			generator = new GenerateInterval({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// POINT, LINE
-		if (col.columnType.includes('point')) {
-			generator = new GeneratePoint({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (col.columnType.includes('line')) {
-			generator = new GenerateLine({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// ARRAY
-		if (col.columnType.includes('array') && col.baseColumn !== undefined) {
-			const baseColumnGen = this.pickGeneratorForPostgresColumn(table, col.baseColumn!) as AbstractGenerator;
-			if (baseColumnGen === undefined) {
-				throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
+				return generator;
 			}
-			generator = new GenerateArray({ baseColumnGen, size: col.size });
 
+			if (col.columnType.includes('serial')) {
+				const generator = new GenerateIntPrimaryKey({});
+
+				(generator as GenerateIntPrimaryKey).maxValue = maxValue;
+
+				return generator;
+			}
+
+			// NUMBER(real, double, decimal, numeric)
+			if (
+				col.columnType === 'real'
+				|| col.columnType === 'double precision'
+				|| col.columnType === 'decimal'
+				|| col.columnType === 'numeric'
+			) {
+				const generator = new GenerateNumber({});
+
+				return generator;
+			}
+
+			// STRING
+			if (
+				(col.columnType === 'text'
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('char'))
+				&& table.primaryKeys.includes(col.name)
+			) {
+				const generator = new GenerateUniqueString({});
+
+				return generator;
+			}
+
+			if (
+				(col.columnType === 'text'
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('char'))
+				&& col.name.toLowerCase().includes('name')
+			) {
+				const generator = new GenerateFirstName({});
+
+				return generator;
+			}
+
+			if (
+				(col.columnType === 'text'
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('char'))
+				&& col.name.toLowerCase().includes('email')
+			) {
+				const generator = new GenerateEmail({});
+
+				return generator;
+			}
+
+			if (
+				col.columnType === 'text'
+				|| col.columnType.startsWith('varchar')
+				|| col.columnType.startsWith('char')
+			) {
+				// console.log(col, table)
+				const generator = new GenerateString({});
+
+				return generator;
+			}
+
+			// UUID
+			if (col.columnType === 'uuid') {
+				const generator = new GenerateUUID({});
+
+				return generator;
+			}
+
+			// BOOLEAN
+			if (col.columnType === 'boolean') {
+				const generator = new GenerateBoolean({});
+
+				return generator;
+			}
+
+			// DATE, TIME, TIMESTAMP
+			if (col.columnType.includes('date')) {
+				const generator = new GenerateDate({});
+
+				return generator;
+			}
+
+			if (col.columnType === 'time') {
+				const generator = new GenerateTime({});
+
+				return generator;
+			}
+
+			if (col.columnType.includes('timestamp')) {
+				const generator = new GenerateTimestamp({});
+
+				return generator;
+			}
+
+			// JSON, JSONB
+			if (col.columnType === 'json' || col.columnType === 'jsonb') {
+				const generator = new GenerateJson({});
+
+				return generator;
+			}
+
+			// if (col.columnType === "jsonb") {
+			//   const generator = new GenerateJsonb({});
+			//   return generator;
+			// }
+
+			// ENUM
+			if (col.enumValues !== undefined) {
+				const generator = new GenerateEnum({
+					enumValues: col.enumValues,
+				});
+
+				return generator;
+			}
+
+			// INTERVAL
+			if (col.columnType === 'interval') {
+				const generator = new GenerateInterval({});
+
+				return generator;
+			}
+
+			// POINT, LINE
+			if (col.columnType.includes('point')) {
+				const generator = new GeneratePoint({});
+
+				return generator;
+			}
+
+			if (col.columnType.includes('line')) {
+				const generator = new GenerateLine({});
+
+				return generator;
+			}
+
+			if (col.hasDefault && col.default !== undefined) {
+				const generator = new GenerateDefault({
+					defaultValue: col.default,
+				});
+				return generator;
+			}
+
+			return;
+		};
+
+		const generator = pickGenerator(table, col);
+		if (generator !== undefined) {
 			generator.isUnique = col.isUnique;
 			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (col.hasDefault && col.default !== undefined) {
-			generator = new GenerateDefault({
-				defaultValue: col.default,
-			});
-			return generator;
+			generator.length = col.typeParams.length;
 		}
 
 		return generator;

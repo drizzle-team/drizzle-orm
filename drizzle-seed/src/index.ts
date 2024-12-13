@@ -222,6 +222,8 @@ export async function seedForDrizzleStudio(
 				name: col.name,
 				dataType: 'string',
 				columnType: col.type,
+				// TODO: revise later
+				typeParams: {},
 				default: col.default,
 				hasDefault: col.default === undefined ? false : true,
 				isUnique: col.isUnique === undefined ? false : col.isUnique,
@@ -322,7 +324,7 @@ export async function seedForDrizzleStudio(
 export function seed<
 	DB extends
 		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
+		| MySqlDatabase<any, any, any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]:
@@ -415,7 +417,7 @@ const seedFunc = async (
 export async function reset<
 	DB extends
 		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
+		| MySqlDatabase<any, any, any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]:
@@ -604,7 +606,8 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		): Column['baseColumn'] => {
 			const baseColumnResult: Column['baseColumn'] = {
 				name: baseColumn.name,
-				columnType: baseColumn.columnType.replace('Pg', '').toLowerCase(),
+				columnType: baseColumn.getSQLType(),
+				typeParams: getTypeParams(baseColumn.getSQLType()),
 				dataType: baseColumn.dataType,
 				size: (baseColumn as PgArray<any, any>).size,
 				hasDefault: baseColumn.hasDefault,
@@ -619,12 +622,54 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 			return baseColumnResult;
 		};
 
+		const getTypeParams = (sqlType: string) => {
+			// get type params and set only type
+			const typeParams: Column['typeParams'] = {};
+
+			// handle dimensions
+			if (sqlType.includes('[')) {
+				const match = sqlType.match(/\[\w*]/g);
+				if (match) {
+					typeParams['dimensions'] = match.length;
+				}
+			}
+
+			if (
+				sqlType.startsWith('numeric')
+				|| sqlType.startsWith('decimal')
+				|| sqlType.startsWith('double precision')
+				|| sqlType.startsWith('real')
+			) {
+				const match = sqlType.match(/\((\d+),(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('varchar')
+				|| sqlType.startsWith('bpchar')
+				|| sqlType.startsWith('char')
+				|| sqlType.startsWith('bit')
+				|| sqlType.startsWith('time')
+				|| sqlType.startsWith('timestamp')
+				|| sqlType.startsWith('interval')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
+
 		// console.log(tableConfig.columns);
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.columnType.replace('Pg', '').toLowerCase(),
+				columnType: column.getSQLType(),
+				typeParams: getTypeParams(column.getSQLType()),
 				dataType: column.dataType,
 				size: (column as PgArray<any, any>).size,
 				hasDefault: column.hasDefault,
@@ -852,6 +897,7 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
 				columnType: column.columnType.replace('MySql', '').toLowerCase(),
+				typeParams: {},
 				dataType: column.dataType,
 				hasDefault: column.hasDefault,
 				default: column.default,
@@ -1039,6 +1085,7 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
 				columnType: column.columnType.replace('SQLite', '').toLowerCase(),
+				typeParams: {},
 				dataType: column.dataType,
 				hasDefault: column.hasDefault,
 				default: column.default,
