@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-typebox",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "Generate Typebox schemas from Drizzle ORM schemas",
 	"type": "module",
 	"scripts": {
@@ -55,13 +55,12 @@
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"peerDependencies": {
-		"@sinclair/typebox": ">=0.17.6",
-		"drizzle-orm": ">=0.23.13"
+		"@sinclair/typebox": ">=0.34.8",
+		"drizzle-orm": ">=0.36.0"
 	},
 	"devDependencies": {
-		"@rollup/plugin-terser": "^0.4.1",
 		"@rollup/plugin-typescript": "^11.1.0",
-		"@sinclair/typebox": "^0.29.6",
+		"@sinclair/typebox": "^0.34.8",
 		"@types/node": "^18.15.10",
 		"cpy": "^10.1.0",
 		"drizzle-orm": "link:../drizzle-orm/dist",
