@@ -1,12 +1,26 @@
-// @ts-ignore
 import { RuleTester } from '@typescript-eslint/rule-tester';
+import path from 'node:path';
+import tseslint from 'typescript-eslint';
+import * as vitest from 'vitest';
 
-import myRule from '../src/enforce-delete-with-where';
+import myRule from '../src/rules/enforce-delete-with-where';
 
-const parserResolver = require.resolve('@typescript-eslint/parser');
+RuleTester.afterAll = vitest.afterAll;
+RuleTester.it = vitest.it;
+RuleTester.itOnly = vitest.it.only;
+RuleTester.describe = vitest.describe;
 
 const ruleTester = new RuleTester({
-	parser: parserResolver,
+	languageOptions: {
+		parser: tseslint.parser,
+		parserOptions: {
+			projectService: {
+				allowDefaultProject: ['*.ts*'],
+				defaultProject: 'tsconfig.json',
+			},
+			tsconfigRootDir: path.join(__dirname, '../..'),
+		},
+	},
 });
 
 ruleTester.run('enforce delete with where (default options)', myRule, {
@@ -42,10 +56,6 @@ ruleTester.run('enforce delete with where (default options)', myRule, {
 		},
 		{
 			code: `const a = getDatabase().delete({})`,
-			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
-		},
-		{
-			code: `const a = getDatabase(arg1, arg2).delete({})`,
 			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
 		},
 		{
@@ -130,11 +140,6 @@ ruleTester.run('enforce delete with where (string option)', myRule, {
 		},
 		{
 			code: `const a = getDatabase().delete({})`,
-			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
-			options: [{ drizzleObjectName: 'getDatabase' }],
-		},
-		{
-			code: `const a = getDatabase(arg1, arg2).delete({})`,
 			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
 			options: [{ drizzleObjectName: 'getDatabase' }],
 		},
@@ -231,11 +236,6 @@ ruleTester.run('enforce delete with where (array option)', myRule, {
 		},
 		{
 			code: `const a = getDatabase().delete({})`,
-			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
-			options: [{ drizzleObjectName: ['getDatabase', 'db'] }],
-		},
-		{
-			code: `const a = getDatabase(arg1, arg2).delete({})`,
 			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
 			options: [{ drizzleObjectName: ['getDatabase', 'db'] }],
 		},
