@@ -135,7 +135,26 @@ export function pgTableWithSchema<
 
 export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	/**
-	 * @deprecated This overload is deprecated. Use the other method overload instead.
+	 * @deprecated The third parameter of pgTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = pgTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = pgTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
 	 */
 	<
 		TTableName extends string,
@@ -154,7 +173,26 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	}>;
 
 	/**
-	 * @deprecated This overload is deprecated. Use the other method overload instead.
+	 * @deprecated The third parameter of pgTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = pgTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = pgTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
 	 */
 	<
 		TTableName extends string,

@@ -53,7 +53,8 @@ export type PgUpdateSetSource<TTable extends PgTable> =
 		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL
-			| PgColumn;
+			| PgColumn
+			| undefined;
 	}
 	& {};
 
