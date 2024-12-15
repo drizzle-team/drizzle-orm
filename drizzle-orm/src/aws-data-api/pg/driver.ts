@@ -151,7 +151,6 @@ export function drizzle<
 ): AwsDataApiPgDatabase<TSchema> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
 	if (params[0].constructor.name === "RDSDataClient") {
 		return construct(params[0] as TClient, params[1] as DrizzleAwsDataApiPgConfig<TSchema>) as any;
 	}
