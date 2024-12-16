@@ -46,6 +46,8 @@ export abstract class Relation<TTableName extends string = string> {
 	}
 
 	abstract withFieldName(fieldName: string): Relation<TTableName>;
+
+	abstract getConfig(): RelationConfigBase<any> | undefined;
 }
 
 export class Relations<
@@ -85,7 +87,7 @@ export class One<
 		super(sourceTable, referencedTable, config?.relationName);
 	}
 
-	withFieldName(fieldName: string): One<TTableName> {
+	withFieldName(fieldName: string): One<TTableName, TIsNullable> {
 		const relation = new One(
 			this.sourceTable,
 			this.referencedTable,
@@ -94,6 +96,10 @@ export class One<
 		);
 		relation.fieldName = fieldName;
 		return relation;
+	}
+
+	getConfig() {
+		return this.config;
 	}
 }
 
@@ -105,7 +111,7 @@ export class Many<TTableName extends string> extends Relation<TTableName> {
 	constructor(
 		sourceTable: Table,
 		referencedTable: AnyTable<{ name: TTableName }>,
-		readonly config: { relationName: string } | undefined,
+		readonly config: RelationConfigBase | undefined,
 	) {
 		super(sourceTable, referencedTable, config?.relationName);
 	}
@@ -118,6 +124,10 @@ export class Many<TTableName extends string> extends Relation<TTableName> {
 		);
 		relation.fieldName = fieldName;
 		return relation;
+	}
+
+	getConfig() {
+		return this.config;
 	}
 }
 
@@ -407,10 +417,15 @@ export interface RelationConfig<
 	TTableName extends string,
 	TForeignTableName extends string,
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
-> {
-	relationName?: string;
+	TWhere extends SQL | undefined = SQL | undefined,
+> extends RelationConfigBase<TWhere> {
 	fields: TColumns;
 	references: ColumnsWithTable<TTableName, TForeignTableName, TColumns>;
+}
+
+export interface RelationConfigBase<TWhere extends SQL | undefined = SQL | undefined> {
+	relationName?: string;
+	where?: TWhere;
 }
 
 export function extractTablesRelationalConfig<
@@ -525,19 +540,20 @@ export function createOne<TTableName extends string>(sourceTable: Table) {
 			AnyColumn<{ tableName: TTableName }>,
 			...AnyColumn<{ tableName: TTableName }>[],
 		],
+		TWhere extends SQL | undefined = undefined,
 	>(
 		table: TForeignTable,
-		config?: RelationConfig<TTableName, TForeignTable['_']['name'], TColumns>,
+		config?: RelationConfig<TTableName, TForeignTable['_']['name'], TColumns, TWhere>,
 	): One<
 		TForeignTable['_']['name'],
-		Equal<TColumns[number]['_']['notNull'], true>
+		Equal<TColumns[number]['_']['notNull'], TWhere extends SQL ? false : true>
 	> {
 		return new One(
 			sourceTable,
 			table,
 			config,
-			(config?.fields.reduce<boolean>((res, f) => res && f.notNull, true)
-				?? false) as Equal<TColumns[number]['_']['notNull'], true>,
+			((config?.fields.reduce<boolean>((res, f) => res && f.notNull, true) && !config?.where)
+				?? false) as Equal<TColumns[number]['_']['notNull'], TWhere extends SQL ? false : true>,
 		);
 	};
 }
@@ -545,7 +561,7 @@ export function createOne<TTableName extends string>(sourceTable: Table) {
 export function createMany(sourceTable: Table) {
 	return function many<TForeignTable extends Table>(
 		referencedTable: TForeignTable,
-		config?: { relationName: string },
+		config?: RelationConfigBase,
 	): Many<TForeignTable['_']['name']> {
 		return new Many(sourceTable, referencedTable, config);
 	};
