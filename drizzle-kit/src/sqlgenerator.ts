@@ -160,13 +160,11 @@ class PgCreateRoleConvertor extends Convertor {
 		return statement.type === 'create_role' && dialect === 'postgresql';
 	}
 	override convert(statement: JsonCreateRoleStatement): string | string[] {
-		return `CREATE ROLE "${statement.name}"${
-			statement.values.createDb || statement.values.createRole || !statement.values.inherit
-				? ` WITH${statement.values.createDb ? ' CREATEDB' : ''}${statement.values.createRole ? ' CREATEROLE' : ''}${
-					statement.values.inherit ? '' : ' NOINHERIT'
-				}`
-				: ''
-		};`;
+		return `CREATE ROLE "${statement.name}"${statement.values.createDb || statement.values.createRole || !statement.values.inherit
+			? ` WITH${statement.values.createDb ? ' CREATEDB' : ''}${statement.values.createRole ? ' CREATEROLE' : ''}${statement.values.inherit ? '' : ' NOINHERIT'
+			}`
+			: ''
+			};`;
 	}
 }
 
@@ -193,9 +191,8 @@ class PgAlterRoleConvertor extends Convertor {
 		return statement.type === 'alter_role' && dialect === 'postgresql';
 	}
 	override convert(statement: JsonAlterRoleStatement): string | string[] {
-		return `ALTER ROLE "${statement.name}"${` WITH${statement.values.createDb ? ' CREATEDB' : ' NOCREATEDB'}${
-			statement.values.createRole ? ' CREATEROLE' : ' NOCREATEROLE'
-		}${statement.values.inherit ? ' INHERIT' : ' NOINHERIT'}`};`;
+		return `ALTER ROLE "${statement.name}"${` WITH${statement.values.createDb ? ' CREATEDB' : ' NOCREATEDB'}${statement.values.createRole ? ' CREATEROLE' : ' NOCREATEROLE'
+			}${statement.values.inherit ? ' INHERIT' : ' NOINHERIT'}`};`;
 	}
 }
 
@@ -271,14 +268,14 @@ class PgAlterPolicyConvertor extends Convertor {
 		const usingPart = newPolicy.using
 			? ` USING (${newPolicy.using})`
 			: oldPolicy.using
-			? ` USING (${oldPolicy.using})`
-			: '';
+				? ` USING (${oldPolicy.using})`
+				: '';
 
 		const withCheckPart = newPolicy.withCheck
 			? ` WITH CHECK (${newPolicy.withCheck})`
 			: oldPolicy.withCheck
-			? ` WITH CHECK  (${oldPolicy.withCheck})`
-			: '';
+				? ` WITH CHECK  (${oldPolicy.withCheck})`
+				: '';
 
 		return `ALTER POLICY "${oldPolicy.name}" ON ${tableNameWithSchema} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
 	}
@@ -336,14 +333,14 @@ class PgAlterIndPolicyConvertor extends Convertor {
 		const usingPart = newPolicy.using
 			? ` USING (${newPolicy.using})`
 			: oldPolicy.using
-			? ` USING (${oldPolicy.using})`
-			: '';
+				? ` USING (${oldPolicy.using})`
+				: '';
 
 		const withCheckPart = newPolicy.withCheck
 			? ` WITH CHECK (${newPolicy.withCheck})`
 			: oldPolicy.withCheck
-			? ` WITH CHECK  (${oldPolicy.withCheck})`
-			: '';
+				? ` WITH CHECK  (${oldPolicy.withCheck})`
+				: '';
 
 		return `ALTER POLICY "${oldPolicy.name}" ON ${oldPolicy.on} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
 	}
@@ -419,26 +416,20 @@ class PgCreateTableConvertor extends Convertor {
 				: `"${unsquashedIdentity?.name}"`;
 
 			const identity = unsquashedIdentity
-				? ` GENERATED ${
-					unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
-				} AS IDENTITY (sequence name ${identityWithSchema}${
-					unsquashedIdentity.increment
-						? ` INCREMENT BY ${unsquashedIdentity.increment}`
-						: ''
-				}${
-					unsquashedIdentity.minValue
-						? ` MINVALUE ${unsquashedIdentity.minValue}`
-						: ''
-				}${
-					unsquashedIdentity.maxValue
-						? ` MAXVALUE ${unsquashedIdentity.maxValue}`
-						: ''
-				}${
-					unsquashedIdentity.startWith
-						? ` START WITH ${unsquashedIdentity.startWith}`
-						: ''
-				}${unsquashedIdentity.cache ? ` CACHE ${unsquashedIdentity.cache}` : ''}${
-					unsquashedIdentity.cycle ? ` CYCLE` : ''
+				? ` GENERATED ${unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
+				} AS IDENTITY (sequence name ${identityWithSchema}${unsquashedIdentity.increment
+					? ` INCREMENT BY ${unsquashedIdentity.increment}`
+					: ''
+				}${unsquashedIdentity.minValue
+					? ` MINVALUE ${unsquashedIdentity.minValue}`
+					: ''
+				}${unsquashedIdentity.maxValue
+					? ` MAXVALUE ${unsquashedIdentity.maxValue}`
+					: ''
+				}${unsquashedIdentity.startWith
+					? ` START WITH ${unsquashedIdentity.startWith}`
+					: ''
+				}${unsquashedIdentity.cache ? ` CACHE ${unsquashedIdentity.cache}` : ''}${unsquashedIdentity.cycle ? ` CYCLE` : ''
 				})`
 				: '';
 
@@ -461,9 +452,8 @@ class PgCreateTableConvertor extends Convertor {
 			for (const uniqueConstraint of uniqueConstraints) {
 				statement += ',\n';
 				const unsquashedUnique = PgSquasher.unsquashUnique(uniqueConstraint);
-				statement += `\tCONSTRAINT "${unsquashedUnique.name}" UNIQUE${
-					unsquashedUnique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
-				}(\"${unsquashedUnique.columns.join(`","`)}\")`;
+				statement += `\tCONSTRAINT "${unsquashedUnique.name}" UNIQUE${unsquashedUnique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
+					}(\"${unsquashedUnique.columns.join(`","`)}\")`;
 				// statement += `\n`;
 			}
 		}
@@ -549,7 +539,7 @@ class MySqlCreateTableConvertor extends Convertor {
 					.map((it) => {
 						return internals?.indexes
 							? internals?.indexes[unsquashedUnique.name]?.columns[it]
-									?.isExpression
+								?.isExpression
 								? it
 								: `\`${it}\``
 							: `\`${it}\``;
@@ -633,7 +623,7 @@ class SingleStoreCreateTableConvertor extends Convertor {
 					.map((it) => {
 						return internals?.indexes
 							? internals?.indexes[unsquashedUnique.name]?.columns[it]
-									?.isExpression
+								?.isExpression
 								? it
 								: `\`${it}\``
 							: `\`${it}\``;
@@ -911,9 +901,8 @@ class PgAlterViewSchemaConvertor extends Convertor {
 	convert(st: JsonAlterViewAlterSchemaStatement) {
 		const { fromSchema, toSchema, name, materialized } = st;
 
-		const statement = `ALTER${
-			materialized ? ' MATERIALIZED' : ''
-		} VIEW "${fromSchema}"."${name}" SET SCHEMA "${toSchema}";`;
+		const statement = `ALTER${materialized ? ' MATERIALIZED' : ''
+			} VIEW "${fromSchema}"."${name}" SET SCHEMA "${toSchema}";`;
 
 		return statement;
 	}
@@ -1018,26 +1007,20 @@ class PgAlterTableAlterColumnSetGenerated extends Convertor {
 			: `"${unsquashedIdentity?.name}"`;
 
 		const identityStatement = unsquashedIdentity
-			? ` GENERATED ${
-				unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
-			} AS IDENTITY (sequence name ${identityWithSchema}${
-				unsquashedIdentity.increment
-					? ` INCREMENT BY ${unsquashedIdentity.increment}`
-					: ''
-			}${
-				unsquashedIdentity.minValue
-					? ` MINVALUE ${unsquashedIdentity.minValue}`
-					: ''
-			}${
-				unsquashedIdentity.maxValue
-					? ` MAXVALUE ${unsquashedIdentity.maxValue}`
-					: ''
-			}${
-				unsquashedIdentity.startWith
-					? ` START WITH ${unsquashedIdentity.startWith}`
-					: ''
-			}${unsquashedIdentity.cache ? ` CACHE ${unsquashedIdentity.cache}` : ''}${
-				unsquashedIdentity.cycle ? ` CYCLE` : ''
+			? ` GENERATED ${unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
+			} AS IDENTITY (sequence name ${identityWithSchema}${unsquashedIdentity.increment
+				? ` INCREMENT BY ${unsquashedIdentity.increment}`
+				: ''
+			}${unsquashedIdentity.minValue
+				? ` MINVALUE ${unsquashedIdentity.minValue}`
+				: ''
+			}${unsquashedIdentity.maxValue
+				? ` MAXVALUE ${unsquashedIdentity.maxValue}`
+				: ''
+			}${unsquashedIdentity.startWith
+				? ` START WITH ${unsquashedIdentity.startWith}`
+				: ''
+			}${unsquashedIdentity.cache ? ` CACHE ${unsquashedIdentity.cache}` : ''}${unsquashedIdentity.cycle ? ` CYCLE` : ''
 			})`
 			: '';
 
@@ -1088,8 +1071,7 @@ class PgAlterTableAlterColumnAlterGenerated extends Convertor {
 
 		if (unsquashedOldIdentity.type !== unsquashedIdentity.type) {
 			statementsToReturn.push(
-				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET GENERATED ${
-					unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET GENERATED ${unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
 				};`,
 			);
 		}
@@ -1126,8 +1108,7 @@ class PgAlterTableAlterColumnAlterGenerated extends Convertor {
 
 		if (unsquashedOldIdentity.cycle !== unsquashedIdentity.cycle) {
 			statementsToReturn.push(
-				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET ${
-					unsquashedIdentity.cycle ? `CYCLE` : 'NO CYCLE'
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET ${unsquashedIdentity.cycle ? `CYCLE` : 'NO CYCLE'
 				};`,
 			);
 		}
@@ -1149,9 +1130,8 @@ class PgAlterTableAddUniqueConstraintConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unsquashed.name}" UNIQUE${
-			unsquashed.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
-		}("${unsquashed.columns.join('","')}");`;
+		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unsquashed.name}" UNIQUE${unsquashed.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
+			}("${unsquashed.columns.join('","')}");`;
 	}
 }
 
@@ -1211,9 +1191,8 @@ class MySQLAlterTableAddUniqueConstraintConvertor extends Convertor {
 	convert(statement: JsonCreateUniqueConstraint): string {
 		const unsquashed = MySqlSquasher.unsquashUnique(statement.data);
 
-		return `ALTER TABLE \`${statement.tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` UNIQUE(\`${
-			unsquashed.columns.join('`,`')
-		}\`);`;
+		return `ALTER TABLE \`${statement.tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` UNIQUE(\`${unsquashed.columns.join('`,`')
+			}\`);`;
 	}
 }
 
@@ -1249,9 +1228,8 @@ class SingleStoreAlterTableAddUniqueConstraintConvertor extends Convertor {
 	convert(statement: JsonCreateUniqueConstraint): string {
 		const unsquashed = SingleStoreSquasher.unsquashUnique(statement.data);
 
-		return `ALTER TABLE \`${statement.tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` UNIQUE(\`${
-			unsquashed.columns.join('`,`')
-		}\`);`;
+		return `ALTER TABLE \`${statement.tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` UNIQUE(\`${unsquashed.columns.join('`,`')
+			}\`);`;
 	}
 }
 class SingleStoreAlterTableDropUniqueConstraintConvertor extends Convertor {
@@ -1288,11 +1266,9 @@ class CreatePgSequenceConvertor extends Convertor {
 
 		const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 
-		return `CREATE SEQUENCE ${sequenceWithSchema}${values.increment ? ` INCREMENT BY ${values.increment}` : ''}${
-			values.minValue ? ` MINVALUE ${values.minValue}` : ''
-		}${values.maxValue ? ` MAXVALUE ${values.maxValue}` : ''}${
-			values.startWith ? ` START WITH ${values.startWith}` : ''
-		}${values.cache ? ` CACHE ${values.cache}` : ''}${values.cycle ? ` CYCLE` : ''};`;
+		return `CREATE SEQUENCE ${sequenceWithSchema}${values.increment ? ` INCREMENT BY ${values.increment}` : ''}${values.minValue ? ` MINVALUE ${values.minValue}` : ''
+			}${values.maxValue ? ` MAXVALUE ${values.maxValue}` : ''}${values.startWith ? ` START WITH ${values.startWith}` : ''
+			}${values.cache ? ` CACHE ${values.cache}` : ''}${values.cycle ? ` CYCLE` : ''};`;
 	}
 }
 
@@ -1359,11 +1335,9 @@ class AlterPgSequenceConvertor extends Convertor {
 
 		const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 
-		return `ALTER SEQUENCE ${sequenceWithSchema}${increment ? ` INCREMENT BY ${increment}` : ''}${
-			minValue ? ` MINVALUE ${minValue}` : ''
-		}${maxValue ? ` MAXVALUE ${maxValue}` : ''}${startWith ? ` START WITH ${startWith}` : ''}${
-			cache ? ` CACHE ${cache}` : ''
-		}${cycle ? ` CYCLE` : ''};`;
+		return `ALTER SEQUENCE ${sequenceWithSchema}${increment ? ` INCREMENT BY ${increment}` : ''}${minValue ? ` MINVALUE ${minValue}` : ''
+			}${maxValue ? ` MAXVALUE ${maxValue}` : ''}${startWith ? ` START WITH ${startWith}` : ''}${cache ? ` CACHE ${cache}` : ''
+			}${cycle ? ` CYCLE` : ''};`;
 	}
 }
 
@@ -1745,26 +1719,20 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 			: `"${unsquashedIdentity?.name}"`;
 
 		const identityStatement = unsquashedIdentity
-			? ` GENERATED ${
-				unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
-			} AS IDENTITY (sequence name ${identityWithSchema}${
-				unsquashedIdentity.increment
-					? ` INCREMENT BY ${unsquashedIdentity.increment}`
-					: ''
-			}${
-				unsquashedIdentity.minValue
-					? ` MINVALUE ${unsquashedIdentity.minValue}`
-					: ''
-			}${
-				unsquashedIdentity.maxValue
-					? ` MAXVALUE ${unsquashedIdentity.maxValue}`
-					: ''
-			}${
-				unsquashedIdentity.startWith
-					? ` START WITH ${unsquashedIdentity.startWith}`
-					: ''
-			}${unsquashedIdentity.cache ? ` CACHE ${unsquashedIdentity.cache}` : ''}${
-				unsquashedIdentity.cycle ? ` CYCLE` : ''
+			? ` GENERATED ${unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
+			} AS IDENTITY (sequence name ${identityWithSchema}${unsquashedIdentity.increment
+				? ` INCREMENT BY ${unsquashedIdentity.increment}`
+				: ''
+			}${unsquashedIdentity.minValue
+				? ` MINVALUE ${unsquashedIdentity.minValue}`
+				: ''
+			}${unsquashedIdentity.maxValue
+				? ` MAXVALUE ${unsquashedIdentity.maxValue}`
+				: ''
+			}${unsquashedIdentity.startWith
+				? ` START WITH ${unsquashedIdentity.startWith}`
+				: ''
+			}${unsquashedIdentity.cache ? ` CACHE ${unsquashedIdentity.cache}` : ''}${unsquashedIdentity.cycle ? ` CYCLE` : ''
 			})`
 			: '';
 
@@ -1853,11 +1821,10 @@ export class SQLiteAlterTableAddColumnConvertor extends Convertor {
 		const referenceAsObject = referenceData
 			? SQLiteSquasher.unsquashFK(referenceData)
 			: undefined;
-		const referenceStatement = `${
-			referenceAsObject
-				? ` REFERENCES ${referenceAsObject.tableTo}(${referenceAsObject.columnsTo})`
-				: ''
-		}`;
+		const referenceStatement = `${referenceAsObject
+			? ` REFERENCES ${referenceAsObject.tableTo}(${referenceAsObject.columnsTo})`
+			: ''
+			}`;
 		// const autoincrementStatement = `${autoincrement ? 'AUTO_INCREMENT' : ''}`
 		const generatedStatement = generated
 			? ` GENERATED ALWAYS AS ${generated.as} ${generated.type.toUpperCase()}`
@@ -3005,9 +2972,8 @@ class PgAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.constraintName}" PRIMARY KEY("${
-			columns.join('","')
-		}");`;
+		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.constraintName}" PRIMARY KEY("${columns.join('","')
+			}");`;
 	}
 }
 class PgAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
@@ -3041,9 +3007,8 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.oldConstraintName}";\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.newConstraintName}" PRIMARY KEY("${
-			newColumns.join('","')
-		}");`;
+		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.oldConstraintName}";\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.newConstraintName}" PRIMARY KEY("${newColumns.join('","')
+			}");`;
 	}
 }
 
@@ -3438,12 +3403,10 @@ class CreatePgIndexConvertor extends Convertor {
 		const value = columns
 			.map(
 				(it) =>
-					`${it.isExpression ? it.expression : `"${it.expression}"`}${
-						it.opclass ? ` ${it.opclass}` : it.asc ? '' : ' DESC'
-					}${
-						(it.asc && it.nulls && it.nulls === 'last') || it.opclass
-							? ''
-							: ` NULLS ${it.nulls!.toUpperCase()}`
+					`${it.isExpression ? it.expression : `"${it.expression}"`}${it.opclass ? ` ${it.opclass}` : it.asc ? '' : ' DESC'
+					}${(it.asc && it.nulls && it.nulls === 'last') || it.opclass
+						? ''
+						: ` NULLS ${it.nulls!.toUpperCase()}`
 					}`,
 			)
 			.join(',');
@@ -3463,13 +3426,11 @@ class CreatePgIndexConvertor extends Convertor {
 			return reversedString;
 		}
 
-		return `CREATE ${indexPart}${
-			concurrently ? ' CONCURRENTLY' : ''
-		} "${name}" ON ${tableNameWithSchema} USING ${method} (${value})${
-			Object.keys(withMap!).length !== 0
+		return `CREATE ${indexPart}${concurrently ? ' CONCURRENTLY' : ''
+			} "${name}" ON ${tableNameWithSchema} USING ${method} (${value})${Object.keys(withMap!).length !== 0
 				? ` WITH (${reverseLogic(withMap!)})`
 				: ''
-		}${where ? ` WHERE ${where}` : ''};`;
+			}${where ? ` WHERE ${where}` : ''};`;
 	}
 }
 
@@ -3480,10 +3441,10 @@ class CreateMySqlIndexConvertor extends Convertor {
 
 	convert(statement: JsonCreateIndexStatement): string {
 		// should be changed
-		const { name, columns, isUnique } = MySqlSquasher.unsquashIdx(
+		const { name, columns, isUnique, vector, secondaryEngineAttribute } = MySqlSquasher.unsquashIdx(
 			statement.data,
 		);
-		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
+		const indexPart = isUnique ? 'UNIQUE INDEX' : vector ? 'VECTOR INDEX' : 'INDEX';
 
 		const uniqueString = columns
 			.map((it) => {
@@ -3494,8 +3455,9 @@ class CreateMySqlIndexConvertor extends Convertor {
 					: `\`${it}\``;
 			})
 			.join(',');
+		const secondaryEngineAttributeString = secondaryEngineAttribute ? ` SECONDARY_ENGINE_ATTRIBUTE='${secondaryEngineAttribute}'` : '';
 
-		return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString});`;
+		return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString})${secondaryEngineAttributeString};`;
 	}
 }
 
