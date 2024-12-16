@@ -2686,19 +2686,6 @@ export const applyMysqlSnapshotsDiff = async (
 	};
 };
 
-// This is necessary to make sure that BigInt is serialized to Number
-// at the diffSchemasOrTables function. Ohterwise, it will be serialized to BigInt
-// and the diff will throw the following error
-// "TypeError: Do not know how to serialize a BigInt"
-
-declare global {
-    interface BigInt {
-        toJSON(): Number;
-    }
-}
-
-BigInt.prototype.toJSON = function () { return Number(this) }
-
 export const applySingleStoreSnapshotsDiff = async (
 	json1: SingleStoreSchemaSquashed,
 	json2: SingleStoreSchemaSquashed,

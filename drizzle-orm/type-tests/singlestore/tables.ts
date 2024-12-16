@@ -2,9 +2,9 @@ import { type Equal, Expect } from 'type-tests/utils.ts';
 import type { BuildColumn } from '~/column-builder.ts';
 import { eq } from '~/expressions.ts';
 import {
-	blob,
 	bigint,
 	binary,
+	blob,
 	boolean,
 	char,
 	customType,

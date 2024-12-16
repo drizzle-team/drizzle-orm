@@ -257,7 +257,7 @@ const singlestoreSuite: DialectSuite = {
 				jsonSimple: blob('json_simple', { mode: 'json' }),
 				jsonColumnNotNull: blob('json_column_not_null', { mode: 'json' }).notNull(),
 				jsonColumnDefault: blob('json_column_default', { mode: 'json' }).default('{"hello":"world"}'),
-			})
+			}),
 		};
 
 		const { statements } = await diffTestSchemasPushSingleStore(
@@ -268,7 +268,6 @@ const singlestoreSuite: DialectSuite = {
 			'drizzle',
 			false,
 		);
-		console.log(statements);
 		expect(statements.length).toBe(0);
 		expect(statements).toEqual([]);
 
