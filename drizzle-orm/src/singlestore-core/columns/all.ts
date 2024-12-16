@@ -21,6 +21,7 @@ import { timestamp } from './timestamp.ts';
 import { tinyint } from './tinyint.ts';
 import { varbinary } from './varbinary.ts';
 import { varchar } from './varchar.ts';
+import { vector } from './vector.ts';
 import { year } from './year.ts';
 
 export function getSingleStoreColumnBuilders() {
@@ -48,6 +49,7 @@ export function getSingleStoreColumnBuilders() {
 		tinyint,
 		varbinary,
 		varchar,
+		vector,
 		year,
 	};
 }
