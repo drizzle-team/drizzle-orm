@@ -1951,6 +1951,10 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 		column.column_default = column.column_default.slice(0, -2);
 	}
 
+	if (isArray && column.column_default.includes("ARRAY")) {
+		return `\"${column.column_default}\"`
+	}
+
 	// if (
 	// 	!['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type)
 	// ) {
