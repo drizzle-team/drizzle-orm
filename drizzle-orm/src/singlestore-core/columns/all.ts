@@ -1,5 +1,6 @@
 import { bigint } from './bigint.ts';
 import { binary } from './binary.ts';
+import { blob } from './blob.ts';
 import { boolean } from './boolean.ts';
 import { char } from './char.ts';
 import { customType } from './custom.ts';
@@ -25,6 +26,7 @@ import { year } from './year.ts';
 
 export function getSingleStoreColumnBuilders() {
 	return {
+		blob,
 		bigint,
 		binary,
 		boolean,
