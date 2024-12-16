@@ -294,7 +294,7 @@ export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 }
 
 export class Count extends AggregatedField<number> {
-	static override readonly [entityKind]: string = 'Count';
+	static override readonly [entityKind]: string = 'AggregatedFieldCount';
 
 	declare protected $aggregatedFieldBrand: 'Count';
 
@@ -304,7 +304,7 @@ export class Count extends AggregatedField<number> {
 		if (!this.query) {
 			if (!this.table) throw new Error('Table must be set before building aggregate field');
 
-			this.query = sql`select count(*) as ${sql.identifier('count')} from ${this.table}`.mapWith(Number);
+			this.query = sql`select count(*) as ${sql.identifier('r')} from ${this.table}`.mapWith(Number);
 		}
 
 		return this.query;
@@ -603,6 +603,8 @@ export function mapRelationalRow(
 	row: Record<string, unknown>,
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
 	mapColumnValue: (value: unknown) => unknown = (value) => value,
+	/** Needed for SQLite as it returns JSON values as strings */
+	parseJson: boolean = false,
 ): Record<string, unknown> {
 	for (
 		const selectionItem of buildQueryResultSelection
@@ -610,6 +612,7 @@ export function mapRelationalRow(
 		const field = selectionItem.field!;
 		if (is(field, Table)) {
 			if (row[selectionItem.key] === null) continue;
+			if (parseJson) row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
 
 			if (selectionItem.isArray) {
 				for (const item of (row[selectionItem.key] as Array<Record<string, unknown>>)) {

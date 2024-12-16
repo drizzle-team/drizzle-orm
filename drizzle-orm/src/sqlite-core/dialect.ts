@@ -7,6 +7,7 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
+	AggregatedField,
 	type AnyRelations,
 	type BuildRelationalQueryResult,
 	type ColumnWithTSName,
@@ -14,6 +15,7 @@ import {
 	type Extras,
 	One,
 	type OrderBy,
+	type Relation,
 	relationExtrasToSQL,
 	relationFilterToSQL,
 	relationsOrderToSQL,
@@ -48,11 +50,6 @@ import { SQLiteViewBase } from './view-base.ts';
 export interface SQLiteDialectConfig {
 	casing?: Casing;
 }
-
-type BuiltColumns = {
-	columns: SQL;
-	jsonColumns?: Record<string, SQL>;
-};
 
 export abstract class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
@@ -864,102 +861,33 @@ export abstract class SQLiteDialect {
 		return selectedColumns;
 	};
 
-	private buildWithColumns = (
-		tableConfig: TableRelationalConfig,
-		withContainer: Exclude<WithContainer<any>['with'], undefined>,
-		jsonColumns: Record<string, SQL>,
-	) => {
-		for (
-			const [k, v] of Object.entries(
-				withContainer,
-			)
-		) {
-			if (!v) continue;
-
-			const relation = tableConfig.relations[k]!;
-			if (relation.$brand === 'AggregatedField') continue;
-
-			const table = relation.targetTable;
-
-			const columns = this.getSelectedTableColumns(table, typeof v === 'boolean' ? undefined : v.columns).map((c) =>
-				sql`${sql.raw(this.escapeString(c.tsName))}, ${sql.identifier(c.tsName)}`
-			);
-
-			if (typeof v !== 'boolean') {
-				if (v.extras) {
-					if (typeof v.extras === 'function') {
-						v.extras = v.extras(table[Columns], { sql });
-					}
-
-					for (const [ek, ev] of Object.entries(v.extras as Record<string, SQL>)) {
-						if (!ev) continue;
-						columns.push(
-							sql`${sql.raw(this.escapeString(ek))}, ${sql.identifier(ek)}`,
-						);
-					}
-				}
-
-				if ((<WithContainer<any>> v).with) {
-					const withEntries = Object.entries((<WithContainer<any>> v).with!);
-
-					for (const [k, w] of withEntries) {
-						if (!w) continue;
-
-						columns.push(sql`${sql.raw(this.escapeString(k))}, jsonb(${sql.identifier(k)})`);
-					}
-				}
-			}
-
-			jsonColumns[k] = jsonColumns[k]
-				? sql`${jsonColumns[k]}, ${sql.join(columns, sql`, `)}`
-				: sql.join(columns, sql`, `);
-		}
-	};
-
 	private buildColumns = (
 		table: SQLiteTable,
-		tableConfig: TableRelationalConfig,
 		selection: BuildRelationalQueryResult['selection'],
 		params?: DBQueryConfig<'many'>,
-	): BuiltColumns =>
+	) =>
 		params?.columns
-			? ((): BuiltColumns => {
-				const jsonColumns: Record<string, SQL> = {};
+			? (() => {
 				const columnIdentifiers: SQL[] = [];
 
 				const selectedColumns = this.getSelectedTableColumns(table, params?.columns);
 
 				for (const column of selectedColumns) {
-					columnIdentifiers.push(sql`${column} as ${sql.identifier(column.tsName)}`);
+					columnIdentifiers.push(sql`${column.column} as ${sql.identifier(column.tsName)}`);
 					selection.push({
 						key: column.tsName,
 						field: column.column,
 					});
 				}
 
-				if ((<WithContainer<any>> params)?.with) {
-					this.buildWithColumns(tableConfig, (<WithContainer<any>> params).with!, jsonColumns);
-				}
-
-				return {
-					columns: columnIdentifiers.length
-						? sql.join(columnIdentifiers, sql`, `)
-						: this.unwrapAllColumns(table, selection),
-					jsonColumns,
-				};
+				return columnIdentifiers.length
+					? sql.join(columnIdentifiers, sql`, `)
+					: this.unwrapAllColumns(table, selection);
 			})()
-			: ((): BuiltColumns => {
+			: (() => {
 				const columnIdentifiers = [this.unwrapAllColumns(table, selection)];
-				const jsonColumns: Record<string, SQL> = {};
 
-				if ((<WithContainer<any>> params)?.with) {
-					this.buildWithColumns(tableConfig, (<WithContainer<any>> params).with!, jsonColumns);
-				}
-
-				return {
-					columns: sql.join(columnIdentifiers, sql`, `),
-					jsonColumns,
-				};
+				return sql.join(columnIdentifiers, sql`, `);
 			})();
 
 	buildRelationalQuery(
@@ -992,7 +920,7 @@ export abstract class SQLiteDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const { columns, jsonColumns } = this.buildColumns(table, tableConfig, selection, params);
+		const columns = this.buildColumns(table, selection, params);
 
 		const where: SQL | undefined = (params?.where && relationWhere)
 			? and(relationFilterToSQL(table, params.where), relationWhere)
@@ -1013,8 +941,9 @@ export abstract class SQLiteDialect {
 
 				return sql.join(
 					withEntries.map(([k, join]) => {
-						const relation = tableConfig.relations[k]!;
-						if (relation.$brand === 'AggregatedField') {
+						if (is(tableConfig.relations[k]!, AggregatedField)) {
+							const relation = tableConfig.relations[k]!;
+
 							relation.onTable(table);
 							const query = relation.getSQL();
 
@@ -1026,6 +955,7 @@ export abstract class SQLiteDialect {
 							return sql`(${query}) as ${sql.identifier(k)}`;
 						}
 
+						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
 						const targetTable = relation.targetTable;
 						const relationFilter = relationToSQL(relation);
@@ -1049,21 +979,30 @@ export abstract class SQLiteDialect {
 							isArray: !isSingle,
 						});
 
+						const jsonColumns = sql.join(
+							innerQuery.selection.map((s) => {
+								return sql`${sql.raw(this.escapeString(s.key))}, ${
+									s.selection ? sql`jsonb(${sql.identifier(s.key)})` : sql.identifier(s.key)
+								}`;
+							}),
+							sql`, `,
+						);
+
 						return isNested
 							? isSingle
-								? sql`(select ${sql`jsonb_object(${jsonColumns![k]!}) as ${
+								? sql`(select jsonb_object(${jsonColumns}) as ${sql.identifier('r')} from (${innerQuery.sql}) as ${
+									sql.identifier('t')
+								}) as ${sql.identifier(k)}`
+								: sql`coalesce((select jsonb_group_array(json_object(${jsonColumns})) as ${
 									sql.identifier('r')
-								}`} from (${innerQuery}) as ${sql.identifier('t')}) as ${sql.identifier(k)}`
-								: sql`coalesce((select ${sql`jsonb_group_array(json_object(${jsonColumns![k]!})) as ${
-									sql.identifier('r')
-								}`} from (${innerQuery}) as ${sql.identifier('t')}), jsonb_array()) as ${sql.identifier(k)}`
+								} from (${innerQuery.sql}) as ${sql.identifier('t')}), jsonb_array()) as ${sql.identifier(k)}`
 							: isSingle
-							? sql`(select ${sql`json_object(${jsonColumns![k]!}) as ${
+							? sql`(select json_object(${jsonColumns}) as ${sql.identifier('r')} from (${innerQuery.sql}) as ${
+								sql.identifier('t')
+							}) as ${sql.identifier(k)}`
+							: sql`coalesce((select json_group_array(json_object(${jsonColumns})) as ${
 								sql.identifier('r')
-							}`} from (${innerQuery}) as ${sql.identifier('t')}) as ${sql.identifier(k)}`
-							: sql`coalesce((select ${sql`json_group_array(json_object(${jsonColumns![k]!})) as ${
-								sql.identifier('r')
-							}`} from (${innerQuery}) as ${sql.identifier('t')}), jsonb_array()) as ${sql.identifier(k)}`;
+							} from (${innerQuery.sql}) as ${sql.identifier('t')}), jsonb_array()) as ${sql.identifier(k)}`;
 					}),
 					sql`, `,
 				);

@@ -27,11 +27,13 @@ import type {
 import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import {
+	AggregatedField,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	type Extras,
 	One,
 	type OrderBy,
+	type Relation,
 	relationExtrasToSQL,
 	relationFilterToSQL,
 	relationsOrderToSQL,
@@ -1001,7 +1003,7 @@ export class PgDialect {
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras as Extras) : undefined;
 		if (extras) selection.push(...extras.selection);
 
-		const selectionArr: (SQL | undefined)[] = [columns, extras?.sql];
+		const selectionArr: SQL[] = [columns];
 
 		const joins = params
 			? (() => {
@@ -1013,8 +1015,9 @@ export class PgDialect {
 
 				return sql.join(
 					withEntries.map(([k, join]) => {
-						const relation = tableConfig.relations[k]!;
-						if (relation.$brand === 'AggregatedField') {
+						if (is(tableConfig.relations[k]!, AggregatedField)) {
+							const relation = tableConfig.relations[k]!;
+
 							relation.onTable(table);
 							const query = relation.getSQL();
 
@@ -1028,6 +1031,7 @@ export class PgDialect {
 							return sql`left join lateral(${query}) as ${sql.identifier(k)} on true`;
 						}
 
+						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
 						const targetTable = relation.targetTable;
 						const relationFilter = relationToSQL(relation);
@@ -1067,6 +1071,7 @@ export class PgDialect {
 			})()
 			: undefined;
 
+		if (extras?.sql) selectionArr.push(extras.sql);
 		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql`, `);
 
 		const query = sql`select ${selectionSet} from ${table}${sql` ${joins}`.if(joins)}${sql` where ${where}`.if(where)}${

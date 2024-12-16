@@ -12,11 +12,19 @@ import type {
 	DBQueryConfig,
 	Extras,
 	OrderBy,
+	Relation,
 	TableRelationalConfig,
 	TablesRelationalConfig,
 	WithContainer,
 } from '~/relations.ts';
-import { One, relationExtrasToSQL, relationFilterToSQL, relationsOrderToSQL, relationToSQL } from '~/relations.ts';
+import {
+	AggregatedField,
+	One,
+	relationExtrasToSQL,
+	relationFilterToSQL,
+	relationsOrderToSQL,
+	relationToSQL,
+} from '~/relations.ts';
 import { Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -1180,60 +1188,13 @@ export class MySqlDialect {
 		return selectedColumns;
 	};
 
-	private buildWithColumns = (
-		tableConfig: TableRelationalConfig,
-		withContainer: Exclude<WithContainer<any>['with'], undefined>,
-		jsonColumns: Record<string, SQL>,
-		columnIdentifiers: SQL[],
-	) => {
-		for (
-			const [k, v] of Object.entries(
-				withContainer,
-			)
-		) {
-			if (!v) continue;
-
-			const relation = tableConfig.relations[k]!;
-			if (relation.$brand === 'AggregatedField') continue;
-
-			const table = relation.targetTable;
-
-			const columns = this.getSelectedTableColumns(table, typeof v === 'boolean' ? undefined : v.columns).map((c) =>
-				sql`${sql.raw(this.escapeString(c.tsName))}, ${sql.identifier(c.tsName)}`
-			);
-			if (typeof v === 'object' && v.extras) {
-				if (typeof v.extras === 'function') {
-					v.extras = v.extras(table[Columns], { sql });
-				}
-
-				for (const [ek, ev] of Object.entries(v.extras as Record<string, SQL>)) {
-					if (!ev) continue;
-					columns.push(
-						sql`${sql.raw(this.escapeString(ek))}, ${sql.identifier(ek)}`,
-					);
-				}
-			}
-
-			columnIdentifiers.push(
-				sql`${table}.${sql.identifier('r')} as ${sql.identifier(k)}`,
-			);
-
-			jsonColumns[k] = sql.join(
-				columns,
-				sql`, `,
-			);
-		}
-	};
-
 	private buildColumns = (
 		table: MySqlTable,
-		tableConfig: TableRelationalConfig,
 		selection: BuildRelationalQueryResult['selection'],
 		params?: DBQueryConfig<'many'>,
 	) =>
 		params?.columns
 			? (() => {
-				const jsonColumns: Record<string, SQL> = {};
 				const columnIdentifiers: SQL[] = [];
 
 				const selectedColumns = this.getSelectedTableColumns(table, params?.columns);
@@ -1244,29 +1205,14 @@ export class MySqlDialect {
 					);
 				}
 
-				if ((<WithContainer<any>> params)?.with) {
-					this.buildWithColumns(tableConfig, (<WithContainer<any>> params).with!, jsonColumns, columnIdentifiers);
-				}
-
-				return {
-					columns: columnIdentifiers.length
-						? sql.join(columnIdentifiers, sql`, `)
-						: this.unwrapAllColumns(table, selection),
-					jsonColumns,
-				};
+				return columnIdentifiers.length
+					? sql.join(columnIdentifiers, sql`, `)
+					: this.unwrapAllColumns(table, selection);
 			})()
 			: (() => {
 				const columnIdentifiers = [this.unwrapAllColumns(table, selection)];
-				const jsonColumns: Record<string, SQL> = {};
 
-				if ((<WithContainer<any>> params)?.with) {
-					this.buildWithColumns(tableConfig, (<WithContainer<any>> params).with!, jsonColumns, columnIdentifiers);
-				}
-
-				return {
-					columns: sql.join(columnIdentifiers, sql`, `),
-					jsonColumns,
-				};
+				return sql.join(columnIdentifiers, sql`, `);
 			})();
 
 	buildRelationalQuery(
@@ -1297,7 +1243,7 @@ export class MySqlDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const { columns, jsonColumns } = this.buildColumns(table, tableConfig, selection, params);
+		const columns = this.buildColumns(table, selection, params);
 
 		const where: SQL | undefined = (params?.where && relationWhere)
 			? and(relationFilterToSQL(table, params.where), relationWhere)
@@ -1308,7 +1254,7 @@ export class MySqlDialect {
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras as Extras) : undefined;
 		if (extras) selection.push(...extras.selection);
 
-		const selectionSet = sql.join([columns, extras].filter((e) => !!e), sql`, `);
+		const selectionArr: SQL[] = [columns];
 
 		const joins = params
 			? (() => {
@@ -1320,8 +1266,10 @@ export class MySqlDialect {
 
 				return sql.join(
 					withEntries.map(([k, join]) => {
-						const relation = tableConfig.relations[k]!;
-						if (relation.$brand === 'AggregatedField') {
+						selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
+
+						if (is(tableConfig.relations[k]!, AggregatedField)) {
+							const relation = tableConfig.relations[k]!;
 							relation.onTable(table);
 							const query = relation.getSQL();
 
@@ -1333,6 +1281,7 @@ export class MySqlDialect {
 							return sql`, lateral(${query}) as ${sql.identifier(k)}`;
 						}
 
+						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
 						const targetTable = relation.targetTable;
 						const relationFilter = relationToSQL(relation);
@@ -1355,15 +1304,23 @@ export class MySqlDialect {
 							isArray: !isSingle,
 						});
 
+						const jsonColumns = sql.join(
+							innerQuery.selection.map((s) => sql`${sql.raw(this.escapeString(s.key))}, ${sql.identifier(s.key)}`),
+							sql`, `,
+						);
+
 						return sql`, lateral(select ${
 							isSingle
-								? sql`json_object(${jsonColumns[k]}) as ${sql.identifier('r')}`
-								: sql`coalesce(json_arrayagg(json_object(${jsonColumns[k]})), json_array()) as ${sql.identifier('r')}`
-						} from (${innerQuery}) as ${sql.identifier('t')}) as ${schema![k]!}`;
+								? sql`json_object(${jsonColumns}) as ${sql.identifier('r')}`
+								: sql`coalesce(json_arrayagg(json_object(${jsonColumns})), json_array()) as ${sql.identifier('r')}`
+						} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)}`;
 					}),
 				);
 			})()
 			: undefined;
+
+		if (extras?.sql) selectionArr.push(extras.sql);
+		const selectionSet = sql.join(selectionArr, sql`, `);
 
 		const query = sql`select ${selectionSet} from ${table}${sql`${joins}`.if(joins)}${sql` where ${where}`.if(where)}${
 			sql` order by ${order}`.if(order)
