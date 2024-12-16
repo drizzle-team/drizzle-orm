@@ -23,7 +23,7 @@ type Verify<T, U extends T> = U;
  * **Config** usage:
  *
  * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
- * *Possible values*: `postgresql`, `mysql`, `sqlite`
+ * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
  *
@@ -40,7 +40,7 @@ type Verify<T, U extends T> = U;
  *
  * ---
  * `driver` - optional param that is responsible for explicitly providing a driver to use when accessing a database
- * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`
+ * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`, `pglite`
  * If you don't use AWS Data API, D1, Turso or Expo - ypu don't need this driver. You can check a driver strategy choice here: https://orm.drizzle.team/kit-docs/upgrade-21
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#driver
@@ -64,7 +64,7 @@ type Verify<T, U extends T> = U;
  *
  * `breakpoints` - param lets you enable/disable SQL statement breakpoints in generated migrations.
  * It’s optional and true by default, it’s necessary to properly apply migrations on databases,
- * that do not support multiple DDL alternation statements in one transaction(MySQL, SQLite) and
+ * that do not support multiple DDL alternation statements in one transaction(MySQL, SQLite, SingleStore) and
  * Drizzle ORM has to apply them sequentially one by one.
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#breakpoints
@@ -117,6 +117,7 @@ export type Config =
 		schema?: string | string[];
 		verbose?: boolean;
 		strict?: boolean;
+		casing?: 'camelCase' | 'snake_case';
 		migrations?: {
 			table?: string;
 			schema?: string;
@@ -125,18 +126,20 @@ export type Config =
 		introspect?: {
 			casing: 'camel' | 'preserve';
 		};
+		entities?: {
+			roles?: boolean | { provider?: 'supabase' | 'neon' | string & {}; exclude?: string[]; include?: string[] };
+		};
 	}
 	& (
 		| {
-			dialect: Verify<Dialect, 'sqlite'>;
-			driver: Verify<Driver, 'turso'>;
+			dialect: Verify<Dialect, 'turso'>;
 			dbCredentials: {
 				url: string;
 				authToken?: string;
 			};
 		}
 		| {
-			dialect: 'sqlite';
+			dialect: Verify<Dialect, 'sqlite'>;
 			dbCredentials: {
 				url: string;
 			};
@@ -172,6 +175,13 @@ export type Config =
 			};
 		}
 		| {
+			dialect: Verify<Dialect, 'postgresql'>;
+			driver: Verify<Driver, 'pglite'>;
+			dbCredentials: {
+				url: string;
+			};
+		}
+		| {
 			dialect: Verify<Dialect, 'mysql'>;
 			dbCredentials:
 				| {
@@ -199,7 +209,26 @@ export type Config =
 			dialect: Verify<Dialect, 'sqlite'>;
 			driver: Verify<Driver, 'expo'>;
 		}
+		| {
+			dialect: Verify<Dialect, 'sqlite'>;
+			driver: Verify<Driver, 'durable-sqlite'>;
+		}
 		| {}
+		| {
+			dialect: Verify<Dialect, 'singlestore'>;
+			dbCredentials:
+				| {
+					host: string;
+					port?: number;
+					user?: string;
+					password?: string;
+					database: string;
+					ssl?: string | SslOptions;
+				}
+				| {
+					url: string;
+				};
+		}
 	);
 
 /**
@@ -209,7 +238,7 @@ export type Config =
  * **Config** usage:
  *
  * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
- * *Possible values*: `postgresql`, `mysql`, `sqlite`
+ * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
  *
@@ -226,7 +255,7 @@ export type Config =
  *
  * ---
  * `driver` - optional param that is responsible for explicitly providing a driver to use when accessing a database
- * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`
+ * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`, `pglite`
  * If you don't use AWS Data API, D1, Turso or Expo - ypu don't need this driver. You can check a driver strategy choice here: https://orm.drizzle.team/kit-docs/upgrade-21
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#driver
@@ -250,7 +279,7 @@ export type Config =
  *
  * `breakpoints` - param lets you enable/disable SQL statement breakpoints in generated migrations.
  * It’s optional and true by default, it’s necessary to properly apply migrations on databases,
- * that do not support multiple DDL alternation statements in one transaction(MySQL, SQLite) and
+ * that do not support multiple DDL alternation statements in one transaction(MySQL, SQLite, SingleStore) and
  * Drizzle ORM has to apply them sequentially one by one.
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#breakpoints

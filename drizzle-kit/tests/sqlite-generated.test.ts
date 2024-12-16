@@ -171,7 +171,7 @@ test('generated as callback: add generated constraint to an exisiting column as 
 	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
-		'ALTER TABLE `users` ADD `gen_name` text NOT NULL GENERATED ALWAYS AS ("name" || \'to add\') VIRTUAL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'to add\') VIRTUAL NOT NULL;',
 	]);
 });
 
@@ -508,6 +508,7 @@ test('generated as callback: add table with column with stored generated constra
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -576,6 +577,7 @@ test('generated as callback: add table with column with virtual generated constr
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -744,7 +746,7 @@ test('generated as sql: add generated constraint to an exisiting column as virtu
 	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
-		'ALTER TABLE `users` ADD `gen_name` text NOT NULL GENERATED ALWAYS AS ("users"."name" || \'to add\') VIRTUAL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'to add\') VIRTUAL NOT NULL;',
 	]);
 });
 
@@ -1076,6 +1078,7 @@ test('generated as sql: add table with column with stored generated constraint',
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -1144,6 +1147,7 @@ test('generated as sql: add table with column with virtual generated constraint'
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -1312,7 +1316,7 @@ test('generated as string: add generated constraint to an exisiting column as vi
 	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
-		'ALTER TABLE `users` ADD `gen_name` text NOT NULL GENERATED ALWAYS AS ("users"."name" || \'to add\') VIRTUAL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'to add\') VIRTUAL NOT NULL;',
 	]);
 });
 
@@ -1644,6 +1648,7 @@ test('generated as string: add table with column with stored generated constrain
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -1712,6 +1717,7 @@ test('generated as string: add table with column with virtual generated constrai
 			tableName: 'users',
 			type: 'sqlite_create_table',
 			uniqueConstraints: [],
+			checkConstraints: [],
 		},
 	]);
 	expect(sqlStatements).toStrictEqual([

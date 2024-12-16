@@ -16,6 +16,7 @@ jobs:
           - drizzle-orm
           - drizzle-kit
           - drizzle-zod
+          - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
           - eslint-plugin-drizzle
@@ -136,12 +137,6 @@ jobs:
             cd drizzle-orm
             pnpm prisma generate --schema src/prisma/schema.prisma
           )
-          (
-            cd integration-tests
-            pnpm prisma generate --schema tests/prisma/pg/schema.prisma
-            pnpm prisma generate --schema tests/prisma/mysql/schema.prisma
-            pnpm prisma generate --schema tests/prisma/sqlite/schema.prisma
-          )
           pnpm build
 
       - name: Run tests
@@ -157,6 +152,8 @@ jobs:
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
           LIBSQL_URL: file:local.db
+          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
+          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
         run: |
           if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
             export SKIP_EXTERNAL_DB_TESTS=1

@@ -4,6 +4,8 @@ declare global {
 		squashSpaces(): string;
 		capitalise(): string;
 		camelCase(): string;
+		snake_case(): string;
+
 		concatIf(it: string, condition: boolean): string;
 	}
 
@@ -11,6 +13,7 @@ declare global {
 		random(): T;
 	}
 }
+
 import camelcase from 'camelcase';
 
 String.prototype.trimChar = function(char: string) {
@@ -42,6 +45,10 @@ String.prototype.capitalise = function() {
 
 String.prototype.concatIf = function(it: string, condition: boolean) {
 	return condition ? `${this}${it}` : String(this);
+};
+
+String.prototype.snake_case = function() {
+	return this && this.length > 0 ? `${this.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)}` : String(this);
 };
 
 Array.prototype.random = function() {

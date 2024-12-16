@@ -1,6 +1,6 @@
 import retry from 'async-retry';
 import type Docker from 'dockerode';
-import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
+import { asc, eq, Name, sql } from 'drizzle-orm';
 import {
 	alias,
 	binary,
@@ -646,7 +646,7 @@ test('prepared statement reuse', async (ctx) => {
 
 	const stmt = db.insert(usersTable).values({
 		verified: true,
-		name: placeholder('name'),
+		name: sql.placeholder('name'),
 	}).prepare();
 
 	for (let i = 0; i < 10; i++) {
@@ -681,7 +681,7 @@ test('prepared statement with placeholder in .where', async (ctx) => {
 		id: usersTable.id,
 		name: usersTable.name,
 	}).from(usersTable)
-		.where(eq(usersTable.id, placeholder('id')))
+		.where(eq(usersTable.id, sql.placeholder('id')))
 		.prepare();
 	const result = await stmt.execute({ id: 1 });
 

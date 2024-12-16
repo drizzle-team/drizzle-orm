@@ -22,7 +22,7 @@ const executeRawConfig = { fullResult: true } satisfies ExecuteOptions;
 const queryConfig = { arrayMode: true } satisfies ExecuteOptions;
 
 export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlPreparedQuery<T> {
-	static readonly [entityKind]: string = 'TiDBPreparedQuery';
+	static override readonly [entityKind]: string = 'TiDBPreparedQuery';
 
 	constructor(
 		private client: Tx | Connection,
@@ -97,7 +97,7 @@ export class TiDBServerlessSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlSession<TiDBServerlessQueryResultHKT, TiDBServerlessPreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'TiDBServerlessSession';
+	static override readonly [entityKind]: string = 'TiDBServerlessSession';
 
 	private logger: Logger;
 	private client: Tx | Connection;
@@ -139,6 +139,14 @@ export class TiDBServerlessSession<
 		return this.client.execute(querySql.sql, querySql.params) as Promise<T[]>;
 	}
 
+	override async count(sql: SQL): Promise<number> {
+		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
+
+		return Number(
+			res['rows'][0]['count'],
+		);
+	}
+
 	override async transaction<T>(
 		transaction: (tx: TiDBServerlessTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
@@ -164,7 +172,7 @@ export class TiDBServerlessTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlTransaction<TiDBServerlessQueryResultHKT, TiDBServerlessPreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'TiDBServerlessTransaction';
+	static override readonly [entityKind]: string = 'TiDBServerlessTransaction';
 
 	constructor(
 		dialect: MySqlDialect,

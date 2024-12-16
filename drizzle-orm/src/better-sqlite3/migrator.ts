@@ -4,7 +4,7 @@ import type { BetterSQLite3Database } from './driver.ts';
 
 export function migrate<TSchema extends Record<string, unknown>>(
 	db: BetterSQLite3Database<TSchema>,
-	config: string | MigrationConfig,
+	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
 	db.dialect.migrate(migrations, db.session, config);

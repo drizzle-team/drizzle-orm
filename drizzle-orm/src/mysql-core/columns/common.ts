@@ -47,7 +47,7 @@ export abstract class MySqlColumnBuilder<
 > extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }, TExtraConfig>
 	implements MySqlColumnBuilderBase<T, TTypeConfig>
 {
-	static readonly [entityKind]: string = 'MySqlColumnBuilder';
+	static override readonly [entityKind]: string = 'MySqlColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
@@ -62,7 +62,9 @@ export abstract class MySqlColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: MySqlGeneratedColumnConfig): HasGenerated<this> {
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: MySqlGeneratedColumnConfig): HasGenerated<this, {
+		type: 'always';
+	}> {
 		this.config.generated = {
 			as,
 			type: 'always',
@@ -99,9 +101,10 @@ export abstract class MySqlColumnBuilder<
 // To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class MySqlColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
-	TRuntimeConfig extends object = object,
-> extends Column<T, TRuntimeConfig, { dialect: 'mysql' }> {
-	static readonly [entityKind]: string = 'MySqlColumn';
+	TRuntimeConfig extends object = {},
+	TTypeConfig extends object = {},
+> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }> {
+	static override readonly [entityKind]: string = 'MySqlColumn';
 
 	constructor(
 		override readonly table: MySqlTable,
@@ -127,7 +130,7 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlColumnWithAutoIncrementConfig, TExtraConfig> {
-	static readonly [entityKind]: string = 'MySqlColumnBuilderWithAutoIncrement';
+	static override readonly [entityKind]: string = 'MySqlColumnBuilderWithAutoIncrement';
 
 	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
 		super(name, dataType, columnType);
@@ -145,7 +148,7 @@ export abstract class MySqlColumnWithAutoIncrement<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 > extends MySqlColumn<T, MySqlColumnWithAutoIncrementConfig & TRuntimeConfig> {
-	static readonly [entityKind]: string = 'MySqlColumnWithAutoIncrement';
+	static override readonly [entityKind]: string = 'MySqlColumnWithAutoIncrement';
 
 	readonly autoIncrement: boolean = this.config.autoIncrement;
 }

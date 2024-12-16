@@ -1,6 +1,7 @@
 import { entityKind } from '~/entity.ts';
+import { TableName } from '~/table.utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
-import { SQLiteTable } from './table.ts';
+import type { SQLiteTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
@@ -83,9 +84,9 @@ export class ForeignKey {
 		const columnNames = columns.map((column) => column.name);
 		const foreignColumnNames = foreignColumns.map((column) => column.name);
 		const chunks = [
-			this.table[SQLiteTable.Symbol.Name],
+			this.table[TableName],
 			...columnNames,
-			foreignColumns[0]!.table[SQLiteTable.Symbol.Name],
+			foreignColumns[0]!.table[TableName],
 			...foreignColumnNames,
 		];
 		return name ?? `${chunks.join('_')}_fk`;

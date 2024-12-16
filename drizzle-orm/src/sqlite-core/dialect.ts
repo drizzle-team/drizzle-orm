@@ -1,4 +1,5 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import { CasingCache } from '~/casing.ts';
 import type { AnyColumn } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -16,15 +17,20 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Name } from '~/sql/index.ts';
+import type { Name, Placeholder } from '~/sql/index.ts';
 import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
-import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
+import type {
+	AnySQLiteSelectQueryBuilder,
+	SQLiteDeleteConfig,
+	SQLiteInsertConfig,
+	SQLiteUpdateConfig,
+} from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
 	SelectedFieldsOrdered,
@@ -34,8 +40,19 @@ import type {
 import type { SQLiteSession } from './session.ts';
 import { SQLiteViewBase } from './view-base.ts';
 
+export interface SQLiteDialectConfig {
+	casing?: Casing;
+}
+
 export abstract class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
+
+	/** @internal */
+	readonly casing: CasingCache;
+
+	constructor(config?: SQLiteDialectConfig) {
+		this.casing = new CasingCache(config?.casing);
+	}
 
 	escapeName(name: string): string {
 		return `"${name}"`;
@@ -63,7 +80,7 @@ export abstract class SQLiteDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList }: SQLiteDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: SQLiteDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -72,7 +89,11 @@ export abstract class SQLiteDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
+		const orderBySql = this.buildOrderBy(orderBy);
+
+		const limitSql = this.buildLimit(limit);
+
+		return sql`${withSql}delete from ${table}${whereSql}${returningSql}${orderBySql}${limitSql}`;
 	}
 
 	buildUpdateSet(table: SQLiteTable, set: UpdateSet): SQL {
@@ -87,7 +108,7 @@ export abstract class SQLiteDialect {
 			const col = tableColumns[colName]!;
 
 			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
-			const res = sql`${sql.identifier(col.name)} = ${value}`;
+			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
 				return [res, sql.raw(', ')];
@@ -96,10 +117,14 @@ export abstract class SQLiteDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList }: SQLiteUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, joins, from, limit, orderBy }: SQLiteUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
+
+		const fromSql = from && sql.join([sql.raw(' from '), this.buildFromTable(from)]);
+
+		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
@@ -107,7 +132,11 @@ export abstract class SQLiteDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
+		const orderBySql = this.buildOrderBy(orderBy);
+
+		const limitSql = this.buildLimit(limit);
+
+		return sql`${withSql}update ${table} set ${setSql}${fromSql}${joinsSql}${whereSql}${returningSql}${orderBySql}${limitSql}`;
 	}
 
 	/**
@@ -141,7 +170,7 @@ export abstract class SQLiteDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, Column)) {
-										return sql.identifier(c.name);
+										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
 								}),
@@ -156,11 +185,10 @@ export abstract class SQLiteDialect {
 					}
 				} else if (is(field, Column)) {
 					const tableName = field.table[Table.Symbol.Name];
-					const columnName = field.name;
 					if (isSingleTable) {
-						chunk.push(sql.identifier(columnName));
+						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					} else {
-						chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(columnName)}`);
+						chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`);
 					}
 				}
 
@@ -172,6 +200,76 @@ export abstract class SQLiteDialect {
 			});
 
 		return sql.join(chunks);
+	}
+
+	private buildJoins(joins: SQLiteSelectJoinConfig[] | undefined): SQL | undefined {
+		if (!joins || joins.length === 0) {
+			return undefined;
+		}
+
+		const joinsArray: SQL[] = [];
+
+		if (joins) {
+			for (const [index, joinMeta] of joins.entries()) {
+				if (index === 0) {
+					joinsArray.push(sql` `);
+				}
+				const table = joinMeta.table;
+
+				if (is(table, SQLiteTable)) {
+					const tableName = table[SQLiteTable.Symbol.Name];
+					const tableSchema = table[SQLiteTable.Symbol.Schema];
+					const origTableName = table[SQLiteTable.Symbol.OriginalName];
+					const alias = tableName === origTableName ? undefined : joinMeta.alias;
+					joinsArray.push(
+						sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
+							sql.identifier(origTableName)
+						}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+					);
+				} else {
+					joinsArray.push(
+						sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
+					);
+				}
+				if (index < joins.length - 1) {
+					joinsArray.push(sql` `);
+				}
+			}
+		}
+
+		return sql.join(joinsArray);
+	}
+
+	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
+		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+			? sql` limit ${limit}`
+			: undefined;
+	}
+
+	private buildOrderBy(orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
+		const orderByList: (SQLiteColumn | SQL | SQL.Aliased)[] = [];
+
+		if (orderBy) {
+			for (const [index, orderByValue] of orderBy.entries()) {
+				orderByList.push(orderByValue);
+
+				if (index < orderBy.length - 1) {
+					orderByList.push(sql`, `);
+				}
+			}
+		}
+
+		return orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : undefined;
+	}
+
+	private buildFromTable(
+		table: SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined,
+	): SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined {
+		if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+			return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+		}
+
+		return table;
 	}
 
 	buildSelectQuery(
@@ -225,60 +323,13 @@ export abstract class SQLiteDialect {
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
-		const tableSql = (() => {
-			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
-			}
+		const tableSql = this.buildFromTable(table);
 
-			return table;
-		})();
-
-		const joinsArray: SQL[] = [];
-
-		if (joins) {
-			for (const [index, joinMeta] of joins.entries()) {
-				if (index === 0) {
-					joinsArray.push(sql` `);
-				}
-				const table = joinMeta.table;
-
-				if (is(table, SQLiteTable)) {
-					const tableName = table[SQLiteTable.Symbol.Name];
-					const tableSchema = table[SQLiteTable.Symbol.Schema];
-					const origTableName = table[SQLiteTable.Symbol.OriginalName];
-					const alias = tableName === origTableName ? undefined : joinMeta.alias;
-					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
-							sql.identifier(origTableName)
-						}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
-					);
-				} else {
-					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
-					);
-				}
-				if (index < joins.length - 1) {
-					joinsArray.push(sql` `);
-				}
-			}
-		}
-
-		const joinsSql = sql.join(joinsArray);
+		const joinsSql = this.buildJoins(joins);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
 		const havingSql = having ? sql` having ${having}` : undefined;
-
-		const orderByList: (SQLiteColumn | SQL | SQL.Aliased)[] = [];
-		if (orderBy) {
-			for (const [index, orderByValue] of orderBy.entries()) {
-				orderByList.push(orderByValue);
-
-				if (index < orderBy.length - 1) {
-					orderByList.push(sql`, `);
-				}
-			}
-		}
 
 		const groupByList: (SQL | AnyColumn | SQL.Aliased)[] = [];
 		if (groupBy) {
@@ -293,11 +344,9 @@ export abstract class SQLiteDialect {
 
 		const groupBySql = groupByList.length > 0 ? sql` group by ${sql.join(groupByList)}` : undefined;
 
-		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : undefined;
+		const orderBySql = this.buildOrderBy(orderBy);
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitSql = this.buildLimit(limit);
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -351,7 +400,7 @@ export abstract class SQLiteDialect {
 						const chunk = singleOrderBy.queryChunks[i];
 
 						if (is(chunk, SQLiteColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
+							singleOrderBy.queryChunks[i] = sql.identifier(this.casing.getColumnCasing(chunk));
 						}
 					}
 
@@ -375,7 +424,9 @@ export abstract class SQLiteDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning, withList }: SQLiteInsertConfig): SQL {
+	buildInsertQuery(
+		{ table, values: valuesOrSelect, onConflict, returning, withList, select }: SQLiteInsertConfig,
+	): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
@@ -383,35 +434,48 @@ export abstract class SQLiteDialect {
 		const colEntries: [string, SQLiteColumn][] = Object.entries(columns).filter(([_, col]) =>
 			!col.shouldDisableInsert()
 		);
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
 
-		for (const [valueIndex, value] of values.entries()) {
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
-				const colValue = value[fieldName];
-				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
-					let defaultValue;
-					if (col.default !== null && col.default !== undefined) {
-						defaultValue = is(col.default, SQL) ? col.default : sql.param(col.default, col);
-						// eslint-disable-next-line unicorn/no-negated-condition
-					} else if (col.defaultFn !== undefined) {
-						const defaultFnResult = col.defaultFn();
-						defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
-						// eslint-disable-next-line unicorn/no-negated-condition
-					} else if (!col.default && col.onUpdateFn !== undefined) {
-						const onUpdateFnResult = col.onUpdateFn();
-						defaultValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
-					} else {
-						defaultValue = sql`null`;
-					}
-					valueList.push(defaultValue);
-				} else {
-					valueList.push(colValue);
-				}
+		if (select) {
+			const select = valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL;
+
+			if (is(select, SQL)) {
+				valuesSqlList.push(select);
+			} else {
+				valuesSqlList.push(select.getSQL());
 			}
-			valuesSqlList.push(valueList);
-			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+		} else {
+			const values = valuesOrSelect as Record<string, Param | SQL>[];
+			valuesSqlList.push(sql.raw('values '));
+
+			for (const [valueIndex, value] of values.entries()) {
+				const valueList: (SQLChunk | SQL)[] = [];
+				for (const [fieldName, col] of colEntries) {
+					const colValue = value[fieldName];
+					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+						let defaultValue;
+						if (col.default !== null && col.default !== undefined) {
+							defaultValue = is(col.default, SQL) ? col.default : sql.param(col.default, col);
+							// eslint-disable-next-line unicorn/no-negated-condition
+						} else if (col.defaultFn !== undefined) {
+							const defaultFnResult = col.defaultFn();
+							defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							// eslint-disable-next-line unicorn/no-negated-condition
+						} else if (!col.default && col.onUpdateFn !== undefined) {
+							const onUpdateFnResult = col.onUpdateFn();
+							defaultValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+						} else {
+							defaultValue = sql`null`;
+						}
+						valueList.push(defaultValue);
+					} else {
+						valueList.push(colValue);
+					}
+				}
+				valuesSqlList.push(valueList);
+				if (valueIndex < values.length - 1) {
+					valuesSqlList.push(sql`, `);
+				}
 			}
 		}
 
@@ -429,11 +493,12 @@ export abstract class SQLiteDialect {
 		// 	return sql`insert into ${table} default values ${onConflictSql}${returningSql}`;
 		// }
 
-		return sql`${withSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		return sql`${withSql}insert into ${table} ${insertOrder} ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
+			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
@@ -645,7 +710,11 @@ export abstract class SQLiteDialect {
 			let field = sql`json_array(${
 				sql.join(
 					selection.map(({ field }) =>
-						is(field, SQLiteColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
+						is(field, SQLiteColumn)
+							? sql.identifier(this.casing.getColumnCasing(field))
+							: is(field, SQL.Aliased)
+							? field.sql
+							: field
 					),
 					sql`, `,
 				)
@@ -729,7 +798,7 @@ export abstract class SQLiteDialect {
 }
 
 export class SQLiteSyncDialect extends SQLiteDialect {
-	static readonly [entityKind]: string = 'SQLiteSyncDialect';
+	static override readonly [entityKind]: string = 'SQLiteSyncDialect';
 
 	migrate(
 		migrations: MigrationMeta[],
@@ -781,7 +850,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 }
 
 export class SQLiteAsyncDialect extends SQLiteDialect {
-	static readonly [entityKind]: string = 'SQLiteAsyncDialect';
+	static override readonly [entityKind]: string = 'SQLiteAsyncDialect';
 
 	async migrate(
 		migrations: MigrationMeta[],

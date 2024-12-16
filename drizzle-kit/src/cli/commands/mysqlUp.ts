@@ -82,6 +82,7 @@ export const upMySqlHandlerV4toV5 = (obj: MySqlSchemaV4): MySqlSchemaV5 => {
 			columns: mappedColumns,
 			compositePrimaryKeys: {},
 			uniqueConstraints: {},
+			checkConstraint: {},
 		};
 	}
 

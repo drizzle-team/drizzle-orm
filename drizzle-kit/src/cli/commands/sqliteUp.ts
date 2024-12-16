@@ -47,5 +47,6 @@ const updateUpToV6 = (json: Record<string, any>): SQLiteSchema => {
 		version: '6',
 		dialect: 'sqlite',
 		tables: tables,
+		views: {},
 	};
 };

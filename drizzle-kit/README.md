@@ -1,21 +1,21 @@
 ## Drizzle Kit
 
-DrizzleKit - is a CLI migrator tool for DrizzleORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
+Drizzle Kit is a CLI migrator tool for Drizzle ORM. It is probably the one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
 <https://github.com/drizzle-team/drizzle-kit-mirror> - is a mirror repository for issues.
 
 ## Documentation
 
-Check the full documenation on [the website](https://orm.drizzle.team/kit-docs/overview)
+Check the full documentation on [the website](https://orm.drizzle.team/kit-docs/overview).
 
 ### How it works
 
-`drizzle-kit` will traverse `schema folder` or `schema file`, generate schema snapshot and compare it to the previous version, if there's one.
- Based on the difference it will generate all needed SQL migrations and if there are any `automatically unresolvable` cases like `renames` it will prompt user for input.
+Drizzle Kit traverses a schema module and generates a snapshot to compare with the previous version, if there is one.
+Based on the difference, it will generate all needed SQL migrations. If there are any cases that can't be resolved automatically, such as renames, it will prompt the user for input.
 
-For schema file:
+For example, for this schema module:
 
 ```typescript
-// ./src/db/schema.ts
+// src/db/schema.ts
 
 import { integer, pgTable, serial, text, varchar } from "drizzle-orm/pg-core";
 
@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS users_full_name_index ON users (full_name);
 npm install -D drizzle-kit
 ```
 
-Running with CLI options
+Running with CLI options:
 
 ```jsonc
 // package.json

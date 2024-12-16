@@ -3,7 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
-import type { Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgLineBuilderInitial<TName extends string> = PgLineBuilder<{
@@ -13,11 +13,10 @@ export type PgLineBuilderInitial<TName extends string> = PgLineBuilder<{
 	data: [number, number, number];
 	driverParam: number | string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgLineBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgLine'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgLineBuilder';
+	static override readonly [entityKind]: string = 'PgLineBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'array', 'PgLine');
@@ -35,7 +34,7 @@ export class PgLineBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgLine'>>
 }
 
 export class PgLineTuple<T extends ColumnBaseConfig<'array', 'PgLine'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgLine';
+	static override readonly [entityKind]: string = 'PgLine';
 
 	getSQLType(): string {
 		return 'line';
@@ -58,11 +57,10 @@ export type PgLineABCBuilderInitial<TName extends string> = PgLineABCBuilder<{
 	data: { a: number; b: number; c: number };
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgLineABCBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgLineABC'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgLineABCBuilder';
+	static override readonly [entityKind]: string = 'PgLineABCBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'json', 'PgLineABC');
@@ -80,7 +78,7 @@ export class PgLineABCBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgLineA
 }
 
 export class PgLineABC<T extends ColumnBaseConfig<'json', 'PgLineABC'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgLineABC';
+	static override readonly [entityKind]: string = 'PgLineABC';
 
 	getSQLType(): string {
 		return 'line';
@@ -100,15 +98,20 @@ export interface PgLineTypeConfig<T extends 'tuple' | 'abc' = 'tuple' | 'abc'> {
 	mode?: T;
 }
 
+export function line(): PgLineBuilderInitial<''>;
+export function line<TMode extends PgLineTypeConfig['mode'] & {}>(
+	config?: PgLineTypeConfig<TMode>,
+): Equal<TMode, 'abc'> extends true ? PgLineABCBuilderInitial<''>
+	: PgLineBuilderInitial<''>;
 export function line<TName extends string, TMode extends PgLineTypeConfig['mode'] & {}>(
 	name: TName,
 	config?: PgLineTypeConfig<TMode>,
 ): Equal<TMode, 'abc'> extends true ? PgLineABCBuilderInitial<TName>
 	: PgLineBuilderInitial<TName>;
-export function line(name: string, config?: PgLineTypeConfig) {
+export function line(a?: string | PgLineTypeConfig, b?: PgLineTypeConfig) {
+	const { name, config } = getColumnNameAndConfig<PgLineTypeConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
 		return new PgLineBuilder(name);
 	}
-
 	return new PgLineABCBuilder(name);
 }

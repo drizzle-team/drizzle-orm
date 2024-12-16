@@ -19,7 +19,7 @@ export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<MySqlPrepare
 	override iterator(_placeholderValues?: Record<string, unknown> | undefined): AsyncGenerator<unknown, any, unknown> {
 		throw new Error('Method not implemented.');
 	}
-	static readonly [entityKind]: string = 'PrismaMySqlPreparedQuery';
+	static override readonly [entityKind]: string = 'PrismaMySqlPreparedQuery';
 
 	constructor(
 		private readonly prisma: PrismaClient,
@@ -41,7 +41,7 @@ export interface PrismaMySqlSessionOptions {
 }
 
 export class PrismaMySqlSession extends MySqlSession {
-	static readonly [entityKind]: string = 'PrismaMySqlSession';
+	static override readonly [entityKind]: string = 'PrismaMySqlSession';
 
 	private readonly logger: Logger;
 

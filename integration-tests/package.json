@@ -8,14 +8,16 @@
 		"test": "pnpm test:vitest",
 		"test:vitest": "vitest run",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
-		"test:data-api": "sst shell vitest run tests/awsdatapi.test.ts"
+		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts"
 	},
 	"keywords": [],
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"private": true,
 	"devDependencies": {
-		"@neondatabase/serverless": "0.9.0",
+		"@cloudflare/workers-types": "^4.20241004.0",
+		"@libsql/client": "^0.10.0",
+		"@neondatabase/serverless": "0.10.0",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@paralleldrive/cuid2": "^2.2.2",
 		"@types/async-retry": "^1.4.8",
@@ -27,6 +29,7 @@
 		"@types/pg": "^8.10.1",
 		"@types/sql.js": "^1.4.4",
 		"@types/uuid": "^9.0.1",
+		"@types/ws": "^8.5.10",
 		"@vitest/ui": "^1.6.0",
 		"ava": "^5.3.0",
 		"axios": "^1.4.0",
@@ -40,10 +43,10 @@
 	"dependencies": {
 		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@aws-sdk/credential-providers": "^3.549.0",
-		"@electric-sql/pglite": "^0.1.1",
-		"@libsql/client": "^0.5.6",
-		"@miniflare/d1": "^2.14.2",
-		"@miniflare/shared": "^2.14.2",
+		"@electric-sql/pglite": "0.2.12",
+		"@libsql/client": "^0.10.0",
+		"@miniflare/d1": "^2.14.4",
+		"@miniflare/shared": "^2.14.4",
 		"@planetscale/database": "^1.16.0",
 		"@prisma/client": "5.14.0",
 		"@tidbcloud/serverless": "^0.1.1",
@@ -58,6 +61,7 @@
 		"drizzle-typebox": "workspace:../drizzle-typebox/dist",
 		"drizzle-valibot": "workspace:../drizzle-valibot/dist",
 		"drizzle-zod": "workspace:../drizzle-zod/dist",
+		"drizzle-seed": "workspace:../drizzle-seed/dist",
 		"express": "^4.18.2",
 		"get-port": "^7.0.0",
 		"mysql2": "^3.3.3",
@@ -70,7 +74,8 @@
 		"sst": "^3.0.4",
 		"uuid": "^9.0.0",
 		"uvu": "^0.5.6",
-		"vitest": "^1.6.0",
+		"vitest": "^2.1.2",
+		"ws": "^8.16.0",
 		"zod": "^3.20.2"
 	}
 }

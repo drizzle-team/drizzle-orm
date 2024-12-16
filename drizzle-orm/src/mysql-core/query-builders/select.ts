@@ -3,7 +3,7 @@ import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
-import type { MySqlTable } from '~/mysql-core/table.ts';
+import { MySqlTable } from '~/mysql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -17,13 +17,15 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, Query } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
-import { orderSelectedFields } from '~/utils.ts';
+import type { ValueOrArray } from '~/utils.ts';
+import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { IndexBuilder } from '../indexes.ts';
+import { convertIndexToString, toArray } from '../utils.ts';
 import { MySqlViewBase } from '../view-base.ts';
 import type {
 	AnyMySqlSelect,
@@ -44,6 +46,14 @@ import type {
 	SelectedFields,
 	SetOperatorRightSelect,
 } from './select.types.ts';
+
+export type IndexForHint = IndexBuilder | string;
+
+export type IndexConfig = {
+	useIndex?: IndexForHint | IndexForHint[];
+	forceIndex?: IndexForHint | IndexForHint[];
+	ignoreIndex?: IndexForHint | IndexForHint[];
+};
 
 export class MySqlSelectBuilder<
 	TSelection extends SelectedFields | undefined,
@@ -78,6 +88,8 @@ export class MySqlSelectBuilder<
 
 	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
 		source: TFrom,
+		onIndex?: TFrom extends MySqlTable ? IndexConfig
+			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 	): CreateMySqlSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
@@ -105,6 +117,21 @@ export class MySqlSelectBuilder<
 			fields = getTableColumns<MySqlTable>(source);
 		}
 
+		let useIndex: string[] = [];
+		let forceIndex: string[] = [];
+		let ignoreIndex: string[] = [];
+		if (is(source, MySqlTable) && onIndex && typeof onIndex !== 'string') {
+			if (onIndex.useIndex) {
+				useIndex = convertIndexToString(toArray(onIndex.useIndex));
+			}
+			if (onIndex.forceIndex) {
+				forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
+			}
+			if (onIndex.ignoreIndex) {
+				ignoreIndex = convertIndexToString(toArray(onIndex.ignoreIndex));
+			}
+		}
+
 		return new MySqlSelectBase(
 			{
 				table: source,
@@ -114,6 +141,9 @@ export class MySqlSelectBuilder<
 				dialect: this.dialect,
 				withList: this.withList,
 				distinct: this.distinct,
+				useIndex,
+				forceIndex,
+				ignoreIndex,
 			},
 		) as any;
 	}
@@ -132,7 +162,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
 
 	override readonly _: {
 		readonly hkt: THKT;
@@ -156,7 +186,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	protected dialect: MySqlDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, useIndex, forceIndex, ignoreIndex }: {
 			table: MySqlSelectConfig['table'];
 			fields: MySqlSelectConfig['fields'];
 			isPartialSelect: boolean;
@@ -164,6 +194,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 			dialect: MySqlDialect;
 			withList: Subquery[];
 			distinct: boolean | undefined;
+			useIndex?: string[];
+			forceIndex?: string[];
+			ignoreIndex?: string[];
 		},
 	) {
 		super();
@@ -173,6 +206,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
+			useIndex,
+			forceIndex,
+			ignoreIndex,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -187,9 +223,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
 	): MySqlJoinFn<this, TDynamic, TJoinType> {
-		return (
+		return <
+			TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+		>(
 			table: MySqlTable | Subquery | MySqlViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
+				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
@@ -228,7 +268,22 @@ export abstract class MySqlSelectQueryBuilderBase<
 				this.config.joins = [];
 			}
 
-			this.config.joins.push({ on, table, joinType, alias: tableName });
+			let useIndex: string[] = [];
+			let forceIndex: string[] = [];
+			let ignoreIndex: string[] = [];
+			if (is(table, MySqlTable) && onIndex && typeof onIndex !== 'string') {
+				if (onIndex.useIndex) {
+					useIndex = convertIndexToString(toArray(onIndex.useIndex));
+				}
+				if (onIndex.forceIndex) {
+					forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
+				}
+				if (onIndex.ignoreIndex) {
+					ignoreIndex = convertIndexToString(toArray(onIndex.ignoreIndex));
+				}
+			}
+
+			this.config.joins.push({ on, table, joinType, alias: tableName, useIndex, forceIndex, ignoreIndex });
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
@@ -286,6 +341,16 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * })
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
 	leftJoin = this.createJoin('left');
@@ -315,6 +380,16 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * })
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
 	rightJoin = this.createJoin('right');
@@ -344,6 +419,16 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * })
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
 	innerJoin = this.createJoin('inner');
@@ -373,6 +458,16 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * })
 	 *   .from(users)
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
 	fullJoin = this.createJoin('full');
@@ -811,7 +906,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * await db.select().from(people).limit(10);
 	 * ```
 	 */
-	limit(limit: number): MySqlSelectWithout<this, TDynamic, 'limit'> {
+	limit(limit: number | Placeholder): MySqlSelectWithout<this, TDynamic, 'limit'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.limit = limit;
 		} else {
@@ -836,7 +931,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * await db.select().from(people).offset(10).limit(10);
 	 * ```
 	 */
-	offset(offset: number): MySqlSelectWithout<this, TDynamic, 'offset'> {
+	offset(offset: number | Placeholder): MySqlSelectWithout<this, TDynamic, 'offset'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
 		} else {
@@ -942,7 +1037,7 @@ export class MySqlSelectBase<
 	TResult,
 	TSelectedFields
 > {
-	static readonly [entityKind]: string = 'MySqlSelect';
+	static override readonly [entityKind]: string = 'MySqlSelect';
 
 	prepare(): MySqlSelectPrepare<this> {
 		if (!this.session) {

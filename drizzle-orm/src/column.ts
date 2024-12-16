@@ -38,6 +38,7 @@ export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>,
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseColumn: infer U } ? U : unknown;
 	generated: GeneratedColumnConfig<T['data']> | undefined;
+	identity: undefined | 'always' | 'byDefault';
 } & TTypeConfig;
 
 export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBuilderRuntimeConfig<
@@ -69,6 +70,7 @@ export abstract class Column<
 	declare readonly _: ColumnTypeConfig<T, TTypeConfig>;
 
 	readonly name: string;
+	readonly keyAsName: boolean;
 	readonly primary: boolean;
 	readonly notNull: boolean;
 	readonly default: T['data'] | SQL | undefined;
@@ -92,6 +94,7 @@ export abstract class Column<
 	) {
 		this.config = config;
 		this.name = config.name;
+		this.keyAsName = config.keyAsName;
 		this.notNull = config.notNull;
 		this.default = config.default;
 		this.defaultFn = config.defaultFn;

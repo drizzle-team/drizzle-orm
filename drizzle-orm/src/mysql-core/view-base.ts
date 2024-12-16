@@ -7,7 +7,7 @@ export abstract class MySqlViewBase<
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends View<TName, TExisting, TSelectedFields> {
-	static readonly [entityKind]: string = 'MySqlViewBase';
+	static override readonly [entityKind]: string = 'MySqlViewBase';
 
 	declare readonly _: View<TName, TExisting, TSelectedFields>['_'] & {
 		readonly viewBrand: 'MySqlViewBase';

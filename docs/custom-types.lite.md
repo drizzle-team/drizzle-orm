@@ -1,6 +1,7 @@
 # Common way of defining custom types
 
-> **Info**: For more advanced documentation about defining custom data types in PostgreSQL and MySQL please check [custom-types.md](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md)
+> [!NOTE]
+> For more advanced documentation about defining custom data types in PostgreSQL and MySQL, please check [`custom-types.md`](custom-types.md).
 
 ## Examples
 

@@ -1,11 +1,17 @@
 `drizzle-valibot` is a plugin for [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm) that allows you to generate [valibot](https://valibot.dev/) schemas from Drizzle ORM schemas.
 
+**Features**
+
+- Create a select schema for tables, views and enums.
+- Create insert and update schemas for tables.
+- Supports all dialects: PostgreSQL, MySQL and SQLite.
+
 # Usage
 
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-valibot';
-import { string, parse, number } from 'valibot';
+import { string, parse, number, pipe } from 'valibot';
 
 const users = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -18,6 +24,9 @@ const users = pgTable('users', {
 // Schema for inserting a user - can be used to validate API requests
 const insertUserSchema = createInsertSchema(users);
 
+// Schema for updating a user - can be used to validate API requests
+const updateUserSchema = createUpdateSchema(users);
+
 // Schema for selecting a user - can be used to validate API responses
 const selectUserSchema = createSelectSchema(users);
 
@@ -28,7 +37,7 @@ const insertUserSchema = createInsertSchema(users, {
 
 // Refining the fields - useful if you want to change the fields before they become nullable/optional in the final schema
 const insertUserSchema = createInsertSchema(users, {
-	id: (schema) => number([minValue(0)]),
+	id: (schema) => pipe([schema, minValue(0)]),
 	role: string(),
 });
 

@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
+import { toCamelCase } from 'drizzle-orm/casing';
 import './@types/utils';
 import type { Casing } from './cli/validations/common';
+import { assertUnreachable } from './global';
+import { CheckConstraint } from './serializer/mysqlSchema';
 import type {
 	Column,
 	ForeignKey,
@@ -38,15 +41,33 @@ const objToStatement2 = (json: any) => {
 
 const relations = new Set<string>();
 
+const escapeColumnKey = (value: string) => {
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
+		return `"${value}"`;
+	}
+	return value;
+};
+
 const withCasing = (value: string, casing?: Casing) => {
-	if (typeof casing === 'undefined') {
-		return value;
+	if (casing === 'preserve') {
+		return escapeColumnKey(value);
 	}
 	if (casing === 'camel') {
-		return value.camelCase();
+		return escapeColumnKey(value.camelCase());
 	}
 
 	return value;
+};
+
+const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
+	if (casing === 'preserve') {
+		return '';
+	}
+	if (casing === 'camel') {
+		return toCamelCase(name) === name ? '' : withMode ? `"${name}", ` : `"${name}"`;
+	}
+
+	assertUnreachable(casing);
 };
 
 export const schemaToTypeScript = (
@@ -71,11 +92,15 @@ export const schemaToTypeScript = (
 			const uniqueImports = Object.values(it.uniqueConstraints).map(
 				(it) => 'unique',
 			);
+			const checkImports = Object.values(it.checkConstraints).map(
+				(it) => 'check',
+			);
 
 			res.sqlite.push(...idxImports);
 			res.sqlite.push(...fkImpots);
 			res.sqlite.push(...pkImports);
 			res.sqlite.push(...uniqueImports);
+			res.sqlite.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -90,6 +115,20 @@ export const schemaToTypeScript = (
 		},
 		{ sqlite: [] as string[] },
 	);
+
+	Object.values(schema.views).forEach((it) => {
+		imports.sqlite.push('sqliteView');
+
+		const columnImports = Object.values(it.columns)
+			.map((col) => {
+				return col.type;
+			})
+			.filter((type) => {
+				return sqliteImportsList.has(type);
+			});
+
+		imports.sqlite.push(...columnImports);
+	});
 
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const func = 'sqliteTable';
@@ -120,10 +159,10 @@ export const schemaToTypeScript = (
 			|| filteredFKs.length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
+			|| Object.keys(table.checkConstraints).length > 0
 		) {
 			statement += ',\n';
-			statement += '(table) => {\n';
-			statement += '\treturn {\n';
+			statement += '(table) => [';
 			statement += createTableIndexes(
 				table.name,
 				Object.values(table.indexes),
@@ -138,11 +177,38 @@ export const schemaToTypeScript = (
 				Object.values(table.uniqueConstraints),
 				casing,
 			);
-			statement += '\t}\n';
-			statement += '}';
+			statement += createTableChecks(
+				Object.values(table.checkConstraints),
+				casing,
+			);
+			statement += '\n]';
 		}
 
 		statement += ');';
+		return statement;
+	});
+
+	const viewsStatements = Object.values(schema.views).map((view) => {
+		const func = 'sqliteView';
+
+		let statement = '';
+		if (imports.sqlite.includes(withCasing(view.name, casing))) {
+			statement = `// Table name is in conflict with ${
+				withCasing(
+					view.name,
+					casing,
+				)
+			} import.\n// Please change to any other name, that is not in imports list\n`;
+		}
+		statement += `export const ${withCasing(view.name, casing)} = ${func}("${view.name}", {\n`;
+		statement += createTableColumns(
+			Object.values(view.columns),
+			[],
+			casing,
+		);
+		statement += '})';
+		statement += `.as(sql\`${view.definition?.replaceAll('`', '\\`')}\`);`;
+
 		return statement;
 	});
 
@@ -159,7 +225,9 @@ export const schemaToTypeScript = (
 	} } from "drizzle-orm/sqlite-core"
   import { sql } from "drizzle-orm"\n\n`;
 
-	const decalrations = tableStatements.join('\n\n');
+	let decalrations = tableStatements.join('\n\n');
+	decalrations += '\n\n';
+	decalrations += viewsStatements.join('\n\n');
 
 	const file = importsTs + decalrations;
 
@@ -202,10 +270,8 @@ const mapColumnDefault = (defaultValue: any) => {
 
 	if (
 		typeof defaultValue === 'string'
-		&& defaultValue.startsWith("'")
-		&& defaultValue.endsWith("'")
 	) {
-		return defaultValue.substring(1, defaultValue.length - 1);
+		return defaultValue.substring(1, defaultValue.length - 1).replaceAll('"', '\\"').replaceAll("''", "'");
 	}
 
 	return defaultValue;
@@ -219,9 +285,10 @@ const column = (
 	casing?: Casing,
 ) => {
 	let lowered = type;
+	casing = casing!;
 
 	if (lowered === 'integer') {
-		let out = `${withCasing(name, casing)}: integer("${name}")`;
+		let out = `${withCasing(name, casing)}: integer(${dbColumnName({ name, casing })})`;
 		// out += autoincrement ? `.autoincrement()` : "";
 		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue)})`
@@ -230,7 +297,7 @@ const column = (
 	}
 
 	if (lowered === 'real') {
-		let out = `${withCasing(name, casing)}: real("${name}")`;
+		let out = `${withCasing(name, casing)}: real(${dbColumnName({ name, casing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
@@ -240,9 +307,11 @@ const column = (
 		let out: string;
 
 		if (match) {
-			out = `${withCasing(name, casing)}: text("${name}", { length: ${match[0]} })`;
+			out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing, withMode: true })}{ length: ${
+				match[0]
+			} })`;
 		} else {
-			out = `${withCasing(name, casing)}: text("${name}")`;
+			out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing })})`;
 		}
 
 		out += defaultValue ? `.default("${mapColumnDefault(defaultValue)}")` : '';
@@ -250,13 +319,13 @@ const column = (
 	}
 
 	if (lowered === 'blob') {
-		let out = `${withCasing(name, casing)}: blob("${name}")`;
+		let out = `${withCasing(name, casing)}: blob(${dbColumnName({ name, casing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 
 	if (lowered === 'numeric') {
-		let out = `${withCasing(name, casing)}: numeric("${name}")`;
+		let out = `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
@@ -358,7 +427,7 @@ const createTableIndexes = (
 		const indexGeneratedName = indexName(tableName, it.columns);
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `${escapedIndexName})`;
 		statement += `.on(${
@@ -366,7 +435,6 @@ const createTableIndexes = (
 				.map((it) => `table.${withCasing(it, casing)}`)
 				.join(', ')
 		}),`;
-		statement += `\n`;
 	});
 
 	return statement;
@@ -381,7 +449,7 @@ const createTableUniques = (
 	unqs.forEach((it) => {
 		const idxKey = withCasing(it.name, casing);
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'unique(';
 		statement += `"${it.name}")`;
 		statement += `.on(${
@@ -389,7 +457,22 @@ const createTableUniques = (
 				.map((it) => `table.${withCasing(it, casing)}`)
 				.join(', ')
 		}),`;
-		statement += `\n`;
+	});
+
+	return statement;
+};
+const createTableChecks = (
+	checks: CheckConstraint[],
+	casing: Casing,
+): string => {
+	let statement = '';
+
+	checks.forEach((it) => {
+		statement += `\n\t`;
+		statement += 'check(';
+		statement += `"${it.name}", `;
+		statement += `sql\`${it.value}\`)`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -399,7 +482,7 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 	let statement = '';
 
 	pks.forEach((it, i) => {
-		statement += `\t\tpk${i}: `;
+		statement += `\n\t`;
 		statement += 'primaryKey({ columns: [';
 		statement += `${
 			it.columns
@@ -409,7 +492,6 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 				.join(', ')
 		}]${it.name ? `, name: "${it.name}"` : ''}}`;
 		statement += ')';
-		statement += `\n`;
 	});
 
 	return statement;
@@ -421,7 +503,8 @@ const createTableFKs = (fks: ForeignKey[], casing: Casing): string => {
 	fks.forEach((it) => {
 		const isSelf = it.tableTo === it.tableFrom;
 		const tableTo = isSelf ? 'table' : `${withCasing(it.tableTo, casing)}`;
-		statement += `\t\t${withCasing(it.name, casing)}: foreignKey(() => ({\n`;
+		statement += `\n\t`;
+		statement += `foreignKey(() => ({\n`;
 		statement += `\t\t\tcolumns: [${
 			it.columnsFrom
 				.map((i) => `table.${withCasing(i, casing)}`)
@@ -443,7 +526,7 @@ const createTableFKs = (fks: ForeignKey[], casing: Casing): string => {
 			? `.onDelete("${it.onDelete}")`
 			: '';
 
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
