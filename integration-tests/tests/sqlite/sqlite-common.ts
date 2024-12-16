@@ -29,6 +29,7 @@ import {
 	foreignKey,
 	getTableConfig,
 	getViewConfig,
+	index,
 	int,
 	integer,
 	intersect,
@@ -2590,6 +2591,34 @@ export function tests() {
 						.from(citiesTable).where(gt(citiesTable.id, 1)),
 				).orderBy(asc(sql`id`));
 			}).rejects.toThrowError();
+		});
+
+		test('define constraints as array', async (_ctx) => {
+			const table = sqliteTable('name', {
+				id: int(),
+			}, (t) => [
+				index('name').on(t.id),
+				primaryKey({ columns: [t.id], name: 'custom' }),
+			]);
+
+			const { indexes, primaryKeys } = getTableConfig(table);
+
+			expect(indexes.length).toBe(1);
+			expect(primaryKeys.length).toBe(1);
+		});
+
+		test('define constraints as array inside third param', async (_ctx) => {
+			const table = sqliteTable('name', {
+				id: int(),
+			}, (t) => [
+				index('name').on(t.id),
+				primaryKey({ columns: [t.id], name: 'custom' }),
+			]);
+
+			const { indexes, primaryKeys } = getTableConfig(table);
+
+			expect(indexes.length).toBe(1);
+			expect(primaryKeys.length).toBe(1);
 		});
 
 		test('aggregate function: count', async (ctx) => {

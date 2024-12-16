@@ -4,12 +4,15 @@ export type Column = {
 	name: string;
 	dataType: string;
 	columnType: string;
+	size?: number;
 	default?: any;
 	hasDefault: boolean;
 	enumValues?: string[];
 	isUnique: boolean;
 	notNull: boolean;
+	primary: boolean;
 	generatedIdentityType?: 'always' | 'byDefault' | undefined;
+	baseColumn?: Omit<Column, 'generatedIdentityType'>;
 };
 
 export type Table = {
@@ -28,6 +31,8 @@ export type Relation = {
 	// refSchema: string;
 	refColumns: string[];
 };
+
+export type RelationWithReferences = Relation & { isCyclic?: boolean; refTableRels: RelationWithReferences[] };
 
 export type Prettify<T> =
 	& {

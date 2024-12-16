@@ -389,7 +389,7 @@ class PgCreateTableConvertor extends Convertor {
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
 
-		statement += `CREATE TABLE IF NOT EXISTS ${name} (\n`;
+		statement += `CREATE TABLE ${name} (\n`;
 		for (let i = 0; i < columns.length; i++) {
 			const column = columns[i];
 
@@ -1672,7 +1672,7 @@ class PgAlterTableDropColumnConvertor extends Convertor {
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} DROP COLUMN IF EXISTS "${columnName}";`;
+		return `ALTER TABLE ${tableNameWithSchema} DROP COLUMN "${columnName}";`;
 	}
 }
 
@@ -2330,7 +2330,7 @@ export class LibSQLModifyColumn extends Convertor {
 		for (const table of Object.values(json2.tables)) {
 			for (const index of Object.values(table.indexes)) {
 				const unsquashed = SQLiteSquasher.unsquashIdx(index);
-				sqlStatements.push(`DROP INDEX IF EXISTS "${unsquashed.name}";`);
+				sqlStatements.push(`DROP INDEX "${unsquashed.name}";`);
 				indexes.push({ ...unsquashed, tableName: table.name });
 			}
 		}
@@ -3283,14 +3283,9 @@ class PgCreateForeignKeyConvertor extends Convertor {
 			: `"${tableTo}"`;
 
 		const alterStatement =
-			`ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
+			`ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 
-		let sql = 'DO $$ BEGIN\n';
-		sql += ' ' + alterStatement + ';\n';
-		sql += 'EXCEPTION\n';
-		sql += ' WHEN duplicate_object THEN null;\n';
-		sql += 'END $$;\n';
-		return sql;
+		return alterStatement;
 	}
 }
 
@@ -3387,13 +3382,9 @@ class PgAlterForeignKeyConvertor extends Convertor {
 			: `"${newFk.tableFrom}"`;
 
 		const alterStatement =
-			`ALTER TABLE ${tableFromNameWithSchema} ADD CONSTRAINT "${newFk.name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
+			`ALTER TABLE ${tableFromNameWithSchema} ADD CONSTRAINT "${newFk.name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 
-		sql += 'DO $$ BEGIN\n';
-		sql += ' ' + alterStatement + ';\n';
-		sql += 'EXCEPTION\n';
-		sql += ' WHEN duplicate_object THEN null;\n';
-		sql += 'END $$;\n';
+		sql += alterStatement;
 		return sql;
 	}
 }
@@ -3474,7 +3465,7 @@ class CreatePgIndexConvertor extends Convertor {
 
 		return `CREATE ${indexPart}${
 			concurrently ? ' CONCURRENTLY' : ''
-		} IF NOT EXISTS "${name}" ON ${tableNameWithSchema} USING ${method} (${value})${
+		} "${name}" ON ${tableNameWithSchema} USING ${method} (${value})${
 			Object.keys(withMap!).length !== 0
 				? ` WITH (${reverseLogic(withMap!)})`
 				: ''
@@ -3567,7 +3558,7 @@ class PgDropIndexConvertor extends Convertor {
 
 	convert(statement: JsonDropIndexStatement): string {
 		const { name } = PgSquasher.unsquashIdx(statement.data);
-		return `DROP INDEX IF EXISTS "${name}";`;
+		return `DROP INDEX "${name}";`;
 	}
 }
 
@@ -3663,7 +3654,7 @@ export class SqliteDropIndexConvertor extends Convertor {
 
 	convert(statement: JsonDropIndexStatement): string {
 		const { name } = PgSquasher.unsquashIdx(statement.data);
-		return `DROP INDEX IF EXISTS \`${name}\`;`;
+		return `DROP INDEX \`${name}\`;`;
 	}
 }
 
