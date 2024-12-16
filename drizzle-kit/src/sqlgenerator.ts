@@ -3480,10 +3480,10 @@ class CreateMySqlIndexConvertor extends Convertor {
 
 	convert(statement: JsonCreateIndexStatement): string {
 		// should be changed
-		const { name, columns, isUnique } = MySqlSquasher.unsquashIdx(
+		const { name, columns, isUnique, vector, secondaryEngineAttribute } = MySqlSquasher.unsquashIdx(
 			statement.data,
 		);
-		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
+		const indexPart = isUnique ? 'UNIQUE INDEX' : vector ? 'VECTOR INDEX' : 'INDEX';
 
 		const uniqueString = columns
 			.map((it) => {
@@ -3494,8 +3494,9 @@ class CreateMySqlIndexConvertor extends Convertor {
 					: `\`${it}\``;
 			})
 			.join(',');
+		const secondaryEngineAttributeString = secondaryEngineAttribute ? ` SECONDARY_ENGINE_ATTRIBUTE='${secondaryEngineAttribute}'` : '';
 
-		return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString});`;
+		return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString})${secondaryEngineAttributeString};`;
 	}
 }
 

@@ -3,6 +3,8 @@ import type { SQL } from '~/sql/sql.ts';
 import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
 import type { MySqlTable } from './table.ts';
 
+export type MysqlIndexMethod = 'btree' | 'hash' | 'hnsw' | (string & {});
+
 interface IndexConfig {
 	name: string;
 
@@ -12,6 +14,11 @@ interface IndexConfig {
 	 * If true, the index will be created as `create unique index` instead of `create index`.
 	 */
 	unique?: boolean;
+
+	/**
+	 * If true, the index will be created as `create vector index` instead of `create index`.
+	 */
+	vector?: boolean;
 
 	/**
 	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
@@ -27,6 +34,8 @@ interface IndexConfig {
 	 * If set, adds locks to the index creation.
 	 */
 	lock?: 'default' | 'none' | 'shared' | 'exclusive';
+
+	secondaryEngineAttribute?: string;
 }
 
 export type IndexColumn = MySqlColumn | SQL;
@@ -34,10 +43,13 @@ export type IndexColumn = MySqlColumn | SQL;
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'MySqlIndexBuilderOn';
 
-	constructor(private name: string, private unique: boolean) {}
+	constructor(private name: string | Omit<IndexConfig, 'columns'>, private unique: boolean) { }
 
 	on(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
-		return new IndexBuilder(this.name, columns, this.unique);
+		return typeof this.name === 'object' ? new IndexBuilder({
+			...this.name,
+			columns,
+		}) : new IndexBuilder(this.name, columns, this.unique);
 	}
 }
 
@@ -54,10 +66,13 @@ export class IndexBuilder implements AnyIndexBuilder {
 	/** @internal */
 	config: IndexConfig;
 
-	constructor(name: string, columns: IndexColumn[], unique: boolean) {
-		this.config = {
+	constructor(name: string, columns: IndexColumn[], unique: boolean);
+	constructor(config: IndexConfig);
+
+	constructor(name: string | IndexConfig, columns?: IndexColumn[], unique?: boolean) {
+		typeof name === 'object' ? this.config = name : this.config = {
 			name,
-			columns,
+			columns: columns as IndexColumn[],
 			unique,
 		};
 	}
@@ -105,4 +120,8 @@ export function index(name: string): IndexBuilderOn {
 
 export function uniqueIndex(name: string): IndexBuilderOn {
 	return new IndexBuilderOn(name, true);
+}
+
+export function vectorIndex(config: Omit<IndexConfig, 'columns' | 'vector'>): IndexBuilderOn {
+	return new IndexBuilderOn({ ...config, vector: true }, false);
 }

@@ -364,9 +364,11 @@ export const generateMySqlSnapshot = (
 				name,
 				columns: indexColumns,
 				isUnique: value.config.unique ?? false,
+				vector: value.config.vector ?? false,
 				using: value.config.using,
 				algorithm: value.config.algorythm,
 				lock: value.config.lock,
+				secondaryEngineAttribute: value.config.secondaryEngineAttribute,
 			};
 		});
 
