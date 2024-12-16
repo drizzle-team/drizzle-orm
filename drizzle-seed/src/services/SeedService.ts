@@ -205,8 +205,12 @@ export class SeedService {
 					const genObj = refinements[table.name]!.columns[col.name]!;
 					// TODO: for now only GenerateValuesFromArray support notNull property
 					genObj.notNull = col.notNull;
-					if (col.dataType === 'array') {
-						if (col.baseColumn?.dataType === 'array' && col.baseColumn?.columnType === 'array') {
+					if (col.columnType.match(/\[\w*]/g) !== null) {
+						if (
+							(col.baseColumn?.dataType === 'array' && col.baseColumn.columnType.match(/\[\w*]/g) !== null)
+							// studio case
+							|| (col.typeParams.dimensions !== undefined && col.typeParams.dimensions > 1)
+						) {
 							throw new Error("for now you can't specify generators for columns of dimensition greater than 1.");
 						}
 
@@ -444,6 +448,29 @@ export class SeedService {
 				return generator;
 			}
 
+			// ARRAY for studio
+			if (col.columnType.match(/\[\w*]/g) !== null) {
+				// remove dimensions from type
+				const baseColumnType = col.columnType.replace(/\[\w*]/g, '');
+				const baseColumn: Column = {
+					...col,
+				};
+				baseColumn.columnType = baseColumnType;
+
+				const baseColumnGen = this.pickGeneratorForPostgresColumn(table, baseColumn) as AbstractGenerator;
+				if (baseColumnGen === undefined) {
+					throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
+				}
+
+				let generator = new GenerateArray({ baseColumnGen });
+
+				for (let i = 0; i < col.typeParams.dimensions! - 1; i++) {
+					generator = new GenerateArray({ baseColumnGen: generator });
+				}
+
+				return generator;
+			}
+
 			// INT ------------------------------------------------------------------------------------------------------------
 			if (
 				(col.columnType.includes('serial')
@@ -486,7 +513,8 @@ export class SeedService {
 						// 2^64 / 2 - 1, 8 bytes
 						minValue = BigInt('-9223372036854775808');
 						maxValue = BigInt('9223372036854775807');
-					} else if (col.dataType === 'number') {
+					} else {
+						// if (col.dataType === 'number')
 						// if you’re expecting values above 2^31 but below 2^53
 						minValue = -9007199254740991;
 						maxValue = 9007199254740991;
@@ -850,24 +878,29 @@ export class SeedService {
 	) => {
 		// int section ---------------------------------------------------------------------------------------
 		if (
-			((col.columnType === 'integer' && col.dataType === 'number') || col.columnType === 'numeric')
+			(col.columnType === 'integer' || col.columnType === 'numeric')
 			&& table.primaryKeys.includes(col.name)
 		) {
 			const generator = new GenerateIntPrimaryKey({});
 			return generator;
 		}
 
+		if (col.columnType === 'integer' && col.dataType === 'boolean') {
+			const generator = new GenerateBoolean({});
+			return generator;
+		}
+
+		if ((col.columnType === 'integer' && col.dataType === 'date')) {
+			const generator = new GenerateTimestamp({});
+			return generator;
+		}
+
 		if (
-			(col.columnType === 'integer' && col.dataType === 'number')
+			col.columnType === 'integer'
 			|| col.columnType === 'numeric'
 			|| (col.dataType === 'bigint' && col.columnType === 'blob')
 		) {
 			const generator = new GenerateInt({});
-			return generator;
-		}
-
-		if (col.dataType === 'boolean' && col.columnType === 'integer') {
-			const generator = new GenerateBoolean({});
 			return generator;
 		}
 
@@ -923,11 +956,6 @@ export class SeedService {
 			|| (col.columnType === 'blob' && col.dataType === 'json')
 		) {
 			const generator = new GenerateJson({});
-			return generator;
-		}
-
-		if ((col.columnType === 'integer' && col.dataType === 'date')) {
-			const generator = new GenerateTimestamp({});
 			return generator;
 		}
 
