@@ -259,7 +259,7 @@ export class SeedService {
 
 				columnPossibleGenerator.generator.isUnique = col.isUnique;
 				columnPossibleGenerator.generator.dataType = col.dataType;
-				columnPossibleGenerator.generator.length = col.typeParams.length;
+				columnPossibleGenerator.generator.stringLength = col.typeParams.length;
 
 				tablePossibleGenerators.columnsPossibleGenerators.push(
 					columnPossibleGenerator,
@@ -660,7 +660,7 @@ export class SeedService {
 		if (generator !== undefined) {
 			generator.isUnique = col.isUnique;
 			generator.dataType = col.dataType;
-			generator.length = col.typeParams.length;
+			generator.stringLength = col.typeParams.length;
 		}
 
 		return generator;
@@ -850,7 +850,7 @@ export class SeedService {
 	) => {
 		// int section ---------------------------------------------------------------------------------------
 		if (
-			(col.columnType === 'integer' || col.columnType === 'numeric')
+			((col.columnType === 'integer' && col.dataType === 'number') || col.columnType === 'numeric')
 			&& table.primaryKeys.includes(col.name)
 		) {
 			const generator = new GenerateIntPrimaryKey({});
@@ -858,15 +858,15 @@ export class SeedService {
 		}
 
 		if (
-			col.columnType === 'integer'
+			(col.columnType === 'integer' && col.dataType === 'number')
 			|| col.columnType === 'numeric'
-			|| col.columnType === 'bigint'
+			|| (col.dataType === 'bigint' && col.columnType === 'blob')
 		) {
 			const generator = new GenerateInt({});
 			return generator;
 		}
 
-		if (col.columnType === 'boolean') {
+		if (col.dataType === 'boolean' && col.columnType === 'integer') {
 			const generator = new GenerateBoolean({});
 			return generator;
 		}
@@ -918,12 +918,15 @@ export class SeedService {
 			return generator;
 		}
 
-		if (col.columnType === 'textjson' || col.columnType === 'blobjson') {
+		if (
+			(col.columnType === 'text' && col.dataType === 'json')
+			|| (col.columnType === 'blob' && col.dataType === 'json')
+		) {
 			const generator = new GenerateJson({});
 			return generator;
 		}
 
-		if (col.columnType === 'timestamp' || col.columnType === 'timestamp_ms') {
+		if ((col.columnType === 'integer' && col.dataType === 'date')) {
 			const generator = new GenerateTimestamp({});
 			return generator;
 		}
