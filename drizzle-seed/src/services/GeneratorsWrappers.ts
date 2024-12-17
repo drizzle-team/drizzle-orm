@@ -1222,19 +1222,76 @@ export class GenerateEnum extends AbstractGenerator<{ enumValues: (string | numb
 }
 
 export class GenerateInterval extends AbstractGenerator<{
+	fields?:
+		| 'year'
+		| 'month'
+		| 'day'
+		| 'hour'
+		| 'minute'
+		| 'second'
+		| 'year to month'
+		| 'day to hour'
+		| 'day to minute'
+		| 'day to second'
+		| 'hour to minute'
+		| 'hour to second'
+		| 'minute to second';
 	isUnique?: boolean;
 	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GenerateInterval';
 
-	private state: { rng: prand.RandomGenerator } | undefined;
+	private state: {
+		rng: prand.RandomGenerator;
+		fieldsToGenerate: string[];
+	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueInterval;
+	private config: { [key: string]: { from: number; to: number } } = {
+		year: {
+			from: 0,
+			to: 5,
+		},
+		month: {
+			from: 0,
+			to: 11,
+		},
+		day: {
+			from: 1,
+			to: 29,
+		},
+		hour: {
+			from: 0,
+			to: 23,
+		},
+		minute: {
+			from: 0,
+			to: 59,
+		},
+		second: {
+			from: 0,
+			to: 59,
+		},
+	};
 
 	override init({ count, seed }: { count: number; seed: number }) {
 		super.init({ count, seed });
 
+		const allFields = ['year', 'month', 'day', 'hour', 'minute', 'second'];
+		let fieldsToGenerate: string[] = allFields;
+
+		if (this.params.fields !== undefined && this.params.fields?.includes(' to ')) {
+			const tokens = this.params.fields.split(' to ');
+			const endIdx = allFields.indexOf(tokens[1]!);
+			fieldsToGenerate = allFields.slice(0, endIdx + 1);
+		} else if (this.params.fields !== undefined) {
+			const endIdx = allFields.indexOf(this.params.fields);
+			fieldsToGenerate = allFields.slice(0, endIdx + 1);
+		}
+
+		this.config[fieldsToGenerate[Math.floor(fieldsToGenerate.length / 2)]!]!.from = 1;
+
 		const rng = prand.xoroshiro128plus(seed);
-		this.state = { rng };
+		this.state = { rng, fieldsToGenerate };
 	}
 
 	generate() {
@@ -1242,55 +1299,98 @@ export class GenerateInterval extends AbstractGenerator<{
 			throw new Error('state is not defined.');
 		}
 
-		let yearsNumb: number,
-			monthsNumb: number,
-			daysNumb: number,
-			hoursNumb: number,
-			minutesNumb: number,
-			secondsNumb: number;
+		let interval = '', numb: number;
 
-		let interval = '';
-
-		[yearsNumb, this.state.rng] = prand.uniformIntDistribution(0, 5, this.state.rng);
-		[monthsNumb, this.state.rng] = prand.uniformIntDistribution(0, 12, this.state.rng);
-
-		[daysNumb, this.state.rng] = prand.uniformIntDistribution(1, 29, this.state.rng);
-
-		[hoursNumb, this.state.rng] = prand.uniformIntDistribution(0, 24, this.state.rng);
-
-		[minutesNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
-
-		[secondsNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
-
-		interval = `${yearsNumb === 0 ? '' : `${yearsNumb} years `}`
-			+ `${monthsNumb === 0 ? '' : `${monthsNumb} months `}`
-			+ `${daysNumb === 0 ? '' : `${daysNumb} days `}`
-			+ `${hoursNumb === 0 ? '' : `${hoursNumb} hours `}`
-			+ `${minutesNumb === 0 ? '' : `${minutesNumb} minutes `}`
-			+ `${secondsNumb === 0 ? '' : `${secondsNumb} seconds`}`;
+		for (const field of this.state.fieldsToGenerate) {
+			const from = this.config[field]!.from, to = this.config[field]!.to;
+			[numb, this.state.rng] = prand.uniformIntDistribution(from, to, this.state.rng);
+			interval += `${numb === 0 ? '' : `${numb} ${field} `}`;
+		}
 
 		return interval;
 	}
 }
 
-export class GenerateUniqueInterval extends AbstractGenerator<{ isUnique?: boolean }> {
+export class GenerateUniqueInterval extends AbstractGenerator<{
+	fields?:
+		| 'year'
+		| 'month'
+		| 'day'
+		| 'hour'
+		| 'minute'
+		| 'second'
+		| 'year to month'
+		| 'day to hour'
+		| 'day to minute'
+		| 'day to second'
+		| 'hour to minute'
+		| 'hour to second'
+		| 'minute to second';
+	isUnique?: boolean;
+}> {
 	static override readonly [entityKind]: string = 'GenerateUniqueInterval';
 
 	private state: {
 		rng: prand.RandomGenerator;
+		fieldsToGenerate: string[];
 		intervalSet: Set<string>;
 	} | undefined;
 	public override isUnique = true;
+	private config: { [key: string]: { from: number; to: number } } = {
+		year: {
+			from: 0,
+			to: 5,
+		},
+		month: {
+			from: 0,
+			to: 11,
+		},
+		day: {
+			from: 1,
+			to: 29,
+		},
+		hour: {
+			from: 0,
+			to: 23,
+		},
+		minute: {
+			from: 0,
+			to: 59,
+		},
+		second: {
+			from: 0,
+			to: 59,
+		},
+	};
 
 	override init({ count, seed }: { count: number; seed: number }) {
-		const maxUniqueIntervalsNumber = 6 * 13 * 29 * 25 * 61 * 61;
+		const allFields = ['year', 'month', 'day', 'hour', 'minute', 'second'];
+		let fieldsToGenerate: string[] = allFields;
+
+		if (this.params.fields !== undefined && this.params.fields?.includes(' to ')) {
+			const tokens = this.params.fields.split(' to ');
+			const endIdx = allFields.indexOf(tokens[1]!);
+			fieldsToGenerate = allFields.slice(0, endIdx + 1);
+		} else if (this.params.fields !== undefined) {
+			const endIdx = allFields.indexOf(this.params.fields);
+			fieldsToGenerate = allFields.slice(0, endIdx + 1);
+		}
+
+		this.config[fieldsToGenerate[Math.floor(fieldsToGenerate.length / 2)]!]!.from = 1;
+
+		let maxUniqueIntervalsNumber = 1;
+		for (const field of fieldsToGenerate) {
+			const from = this.config[field]!.from, to = this.config[field]!.to;
+			maxUniqueIntervalsNumber *= from - to + 1;
+		}
+
 		if (count > maxUniqueIntervalsNumber) {
 			throw new RangeError(`count exceeds max number of unique intervals(${maxUniqueIntervalsNumber})`);
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
 		const intervalSet = new Set<string>();
-		this.state = { rng, intervalSet };
+		this.state = { rng, fieldsToGenerate, intervalSet };
 	}
 
 	generate() {
@@ -1298,34 +1398,12 @@ export class GenerateUniqueInterval extends AbstractGenerator<{ isUnique?: boole
 			throw new Error('state is not defined.');
 		}
 
-		let yearsNumb: number,
-			monthsNumb: number,
-			daysNumb: number,
-			hoursNumb: number,
-			minutesNumb: number,
-			secondsNumb: number;
+		let interval = '', numb: number;
 
-		let interval = '';
-
-		for (;;) {
-			[yearsNumb, this.state.rng] = prand.uniformIntDistribution(0, 5, this.state.rng);
-			[monthsNumb, this.state.rng] = prand.uniformIntDistribution(0, 12, this.state.rng);
-			[daysNumb, this.state.rng] = prand.uniformIntDistribution(1, 29, this.state.rng);
-			[hoursNumb, this.state.rng] = prand.uniformIntDistribution(0, 24, this.state.rng);
-			[minutesNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
-			[secondsNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
-
-			interval = `${yearsNumb === 0 ? '' : `${yearsNumb} years `}`
-				+ `${monthsNumb === 0 ? '' : `${monthsNumb} months `}`
-				+ `${daysNumb === 0 ? '' : `${daysNumb} days `}`
-				+ `${hoursNumb === 0 ? '' : `${hoursNumb} hours `}`
-				+ `${minutesNumb === 0 ? '' : `${minutesNumb} minutes `}`
-				+ `${secondsNumb === 0 ? '' : `${secondsNumb} seconds`}`;
-
-			if (!this.state.intervalSet.has(interval)) {
-				this.state.intervalSet.add(interval);
-				break;
-			}
+		for (const field of this.state.fieldsToGenerate) {
+			const from = this.config[field]!.from, to = this.config[field]!.to;
+			[numb, this.state.rng] = prand.uniformIntDistribution(from, to, this.state.rng);
+			interval += `${numb === 0 ? '' : `${numb} ${field} `}`;
 		}
 
 		return interval;
@@ -1531,7 +1609,6 @@ export class GenerateFirstName extends AbstractGenerator<{
 
 		// logic for this generator
 		// names dataset contains about 30000 unique names.
-		// TODO: generate names accordingly to max column length
 		let idx: number;
 
 		[idx, this.state.rng] = prand.uniformIntDistribution(0, firstNames.length - 1, this.state.rng);
@@ -3343,6 +3420,7 @@ export const generatorsFuncs = {
 	 *
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
 	 * @param arraySize - number of elements in each one-dimensional array. (If specified, arrays will be generated.)
+	 * @param fields - range of values you want to see in your intervals.
 	 * @example
 	 * ```ts
 	 * await seed(db, schema, { count: 1000 }).refine((funcs) => ({

@@ -655,8 +655,15 @@ export class SeedService {
 			}
 
 			// INTERVAL
-			if (col.columnType === 'interval') {
-				const generator = new GenerateInterval({});
+			if (col.columnType.startsWith('interval')) {
+				if (col.columnType === 'interval') {
+					const generator = new GenerateInterval({});
+
+					return generator;
+				}
+
+				const fields = col.columnType.replace('interval ', '') as GenerateInterval['params']['fields'];
+				const generator = new GenerateInterval({ fields });
 
 				return generator;
 			}
