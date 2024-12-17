@@ -524,13 +524,13 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 
 		// more than 2 fields or self reference or cyclic
 		// Andrii: I switched this one off until we will get custom names in .references()
-		// const filteredFKs = Object.values(table.foreignKeys).filter((it) => {
-		// 	return it.columnsFrom.length > 1 || isSelf(it);
-		// });
+		const filteredFKs = Object.values(table.foreignKeys).filter((it) => {
+			return it.columnsFrom.length > 1 || isSelf(it);
+		});
 
 		if (
 			Object.keys(table.indexes).length > 0
-			|| Object.values(table.foreignKeys).length > 0
+			|| filteredFKs.length > 0
 			|| Object.values(table.policies).length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
@@ -540,7 +540,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			statement += '(table) => {\n';
 			statement += '\treturn {\n';
 			statement += createTableIndexes(table.name, Object.values(table.indexes), casing);
-			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing);
+			statement += createTableFKs(Object.values(filteredFKs), schemas, casing);
 			statement += createTablePKs(
 				Object.values(table.compositePrimaryKeys),
 				casing,
@@ -1161,38 +1161,38 @@ const createTableColumns = (
 
 		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';
 
-		// const fks = fkByColumnName[it.name];
+		const fks = fkByColumnName[it.name];
 		// Andrii: I switched it off until we will get a custom naem setting in references
-		// if (fks) {
-		// 	const fksStatement = fks
-		// 		.map((it) => {
-		// 			const onDelete = it.onDelete && it.onDelete !== 'no action' ? it.onDelete : null;
-		// 			const onUpdate = it.onUpdate && it.onUpdate !== 'no action' ? it.onUpdate : null;
-		// 			const params = { onDelete, onUpdate };
+		if (fks) {
+			const fksStatement = fks
+				.map((it) => {
+					const onDelete = it.onDelete && it.onDelete !== 'no action' ? it.onDelete : null;
+					const onUpdate = it.onUpdate && it.onUpdate !== 'no action' ? it.onUpdate : null;
+					const params = { onDelete, onUpdate };
 
-		// 			const typeSuffix = isCyclic(it) ? ': AnyPgColumn' : '';
+					const typeSuffix = isCyclic(it) ? ': AnyPgColumn' : '';
 
-		// 			const paramsStr = objToStatement2(params);
-		// 			const tableSchema = schemas[it.schemaTo || ''];
-		// 			const paramName = paramNameFor(it.tableTo, tableSchema);
-		// 			if (paramsStr) {
-		// 				return `.references(()${typeSuffix} => ${
-		// 					withCasing(
-		// 						paramName,
-		// 						casing,
-		// 					)
-		// 				}.${withCasing(it.columnsTo[0], casing)}, ${paramsStr} )`;
-		// 			}
-		// 			return `.references(()${typeSuffix} => ${
-		// 				withCasing(
-		// 					paramName,
-		// 					casing,
-		// 				)
-		// 			}.${withCasing(it.columnsTo[0], casing)})`;
-		// 		})
-		// 		.join('');
-		// 	statement += fksStatement;
-		// }
+					const paramsStr = objToStatement2(params);
+					const tableSchema = schemas[it.schemaTo || ''];
+					const paramName = paramNameFor(it.tableTo, tableSchema);
+					if (paramsStr) {
+						return `.references(()${typeSuffix} => ${
+							withCasing(
+								paramName,
+								casing,
+							)
+						}.${withCasing(it.columnsTo[0], casing)}, ${paramsStr} )`;
+					}
+					return `.references(()${typeSuffix} => ${
+						withCasing(
+							paramName,
+							casing,
+						)
+					}.${withCasing(it.columnsTo[0], casing)})`;
+				})
+				.join('');
+			statement += fksStatement;
+		}
 
 		statement += ',\n';
 	});
