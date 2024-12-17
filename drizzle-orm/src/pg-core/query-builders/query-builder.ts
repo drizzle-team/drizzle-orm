@@ -21,7 +21,7 @@ export class QueryBuilder {
 		this.dialectConfig = is(dialect, PgDialect) ? undefined : dialect;
 	}
 
-	$with<TAlias extends string>(alias: TAlias) {
+	$with<TAlias extends string>(alias: TAlias, { materialized }: { materialized?: boolean } = {}) {
 		const queryBuilder = this;
 
 		return {
@@ -33,7 +33,7 @@ export class QueryBuilder {
 				}
 
 				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true, materialized),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},

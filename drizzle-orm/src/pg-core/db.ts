@@ -120,7 +120,7 @@ export class PgDatabase<
 	 * const result = await db.with(sq).select({ name: sq.name }).from(sq);
 	 * ```
 	 */
-	$with<TAlias extends string>(alias: TAlias) {
+	$with<TAlias extends string>(alias: TAlias, { materialized }: { materialized?: boolean } = {}) {
 		const self = this;
 		return {
 			as<TSelection extends ColumnsSelection>(
@@ -131,7 +131,7 @@ export class PgDatabase<
 				}
 
 				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true, materialized),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
