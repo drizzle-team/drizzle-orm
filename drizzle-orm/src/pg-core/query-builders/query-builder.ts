@@ -23,6 +23,7 @@ export class QueryBuilder {
 
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
 		const queryBuilder = this;
+		let isMaterialized: boolean | undefined;
 		const as = (
 			qb:
 				| TypedQueryBuilder<ColumnsSelection | undefined>
@@ -39,11 +40,16 @@ export class QueryBuilder {
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
+					isMaterialized,
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			) as any;
 		};
-		return { as };
+		const materialized = (shouldBeMaterialized: boolean) => {
+			isMaterialized = shouldBeMaterialized;
+			return { as };
+		};
+		return { as, materialized };
 	};
 
 	with(...queries: WithSubquery[]) {
