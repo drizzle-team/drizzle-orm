@@ -62,7 +62,7 @@ describe('postgres to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."firstName" || \' \' || "users"."lastName" as "name", "users"."AGE" from "users" left join "test"."developers" on "users"."id" = "developers"."userId" order by "users"."firstName" asc',
+				'select "users"."firstName" || \' \' || "users"."lastName" as "name", "users"."AGE" from "users" left join "test"."developers" on "users"."id" = "test"."developers"."userId" order by "users"."firstName" asc',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(cache);

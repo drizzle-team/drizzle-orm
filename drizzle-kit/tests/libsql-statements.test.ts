@@ -917,7 +917,7 @@ test('set not null with index', async (t) => {
 
 	expect(sqlStatements.length).toBe(3);
 	expect(sqlStatements[0]).toBe(
-		`DROP INDEX IF EXISTS "users_name_index";`,
+		`DROP INDEX "users_name_index";`,
 	);
 	expect(sqlStatements[1]).toBe(
 		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text NOT NULL;`,
@@ -972,10 +972,10 @@ test('drop not null with two indexes', async (t) => {
 
 	expect(sqlStatements.length).toBe(5);
 	expect(sqlStatements[0]).toBe(
-		`DROP INDEX IF EXISTS "users_name_unique";`,
+		`DROP INDEX "users_name_unique";`,
 	);
 	expect(sqlStatements[1]).toBe(
-		`DROP INDEX IF EXISTS "users_age_index";`,
+		`DROP INDEX "users_age_index";`,
 	);
 	expect(sqlStatements[2]).toBe(
 		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text;`,

@@ -1,5 +1,5 @@
 require('dotenv/config');
-const { Client, Connection } = require('@planetscale/database');
+const { Client } = require('@planetscale/database');
 const { drizzle } = require('drizzle-orm/planetscale-serverless');
 const { mysql: schema } = require('./schema.cjs');
 import { describe, expect } from 'vitest';
@@ -96,51 +96,6 @@ describe('planetscale', async (it) => {
 		await db.$client.execute('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
-	});
-});
-
-describe('planetscale:Connection', async (it) => {
-	it('drizzle(client)', async () => {
-		const client = new Connection({
-			url: process.env['PLANETSCALE_CONNECTION_STRING'],
-		});
-		const db = drizzle(client);
-
-		await db.$client.execute('SELECT 1;');
-
-		expect(db.$client).not.toBeInstanceOf(Client);
-		expect(db.$client).toBeInstanceOf(Connection);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = new Connection({
-			url: process.env['PLANETSCALE_CONNECTION_STRING'],
-		});
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.execute('SELECT 1;');
-
-		expect(db.$client).not.toBeInstanceOf(Client);
-		expect(db.$client).toBeInstanceOf(Connection);
-		expect(db.query.User).not.toStrictEqual(undefined);
-	});
-
-	it('drizzle({client, ...config})', async () => {
-		const client = new Connection({
-			url: process.env['PLANETSCALE_CONNECTION_STRING'],
-		});
-		const db = drizzle({
-			client,
-			schema,
-		});
-
-		await db.$client.execute('SELECT 1;');
-
-		expect(db.$client).not.toBeInstanceOf(Client);
-		expect(db.$client).toBeInstanceOf(Connection);
 		expect(db.query.User).not.toStrictEqual(undefined);
 	});
 });

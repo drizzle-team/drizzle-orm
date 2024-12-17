@@ -91,54 +91,69 @@ export const cities = mysqlTable('cities_table', {
 Expect<
 	Equal<
 		{
-			id: MySqlColumn<{
-				name: 'id';
-				tableName: 'cities_table';
-				dataType: 'number';
-				columnType: 'MySqlSerial';
-				data: number;
-				driverParam: number;
-				notNull: true;
-				hasDefault: true;
-				isPrimaryKey: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				isAutoincrement: true;
-				hasRuntimeDefault: false;
-			}, object>;
-			name: MySqlColumn<{
-				name: 'name_db';
-				tableName: 'cities_table';
-				dataType: 'string';
-				columnType: 'MySqlText';
-				data: string;
-				driverParam: string;
-				notNull: true;
-				hasDefault: false;
-				isPrimaryKey: false;
-				enumValues: [string, ...string[]];
-				baseColumn: never;
-				generated: undefined;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}, object>;
-			population: MySqlColumn<{
-				name: 'population';
-				tableName: 'cities_table';
-				dataType: 'number';
-				columnType: 'MySqlInt';
-				data: number;
-				driverParam: string | number;
-				notNull: false;
-				hasDefault: true;
-				isPrimaryKey: false;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}, object>;
+			id: MySqlColumn<
+				{
+					name: 'id';
+					tableName: 'cities_table';
+					dataType: 'number';
+					columnType: 'MySqlSerial';
+					data: number;
+					driverParam: number;
+					notNull: true;
+					hasDefault: true;
+					isPrimaryKey: true;
+					enumValues: undefined;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isAutoincrement: true;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{}
+			>;
+			name: MySqlColumn<
+				{
+					name: 'name_db';
+					tableName: 'cities_table';
+					dataType: 'string';
+					columnType: 'MySqlText';
+					data: string;
+					driverParam: string;
+					notNull: true;
+					hasDefault: false;
+					isPrimaryKey: false;
+					enumValues: [string, ...string[]];
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{}
+			>;
+			population: MySqlColumn<
+				{
+					name: 'population';
+					tableName: 'cities_table';
+					dataType: 'number';
+					columnType: 'MySqlInt';
+					data: number;
+					driverParam: string | number;
+					notNull: false;
+					hasDefault: true;
+					isPrimaryKey: false;
+					enumValues: undefined;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{}
+			>;
 		},
 		typeof cities._.columns
 	>
@@ -214,6 +229,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: true;
 				hasRuntimeDefault: false;
@@ -230,6 +246,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: true;
 				hasRuntimeDefault: false;
@@ -270,6 +287,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: true;
 					hasRuntimeDefault: false;
@@ -286,6 +304,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: true;
 					hasRuntimeDefault: false;
@@ -324,6 +343,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -340,6 +360,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -378,6 +399,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -394,6 +416,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -425,6 +448,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -441,6 +465,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -472,6 +497,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -488,6 +514,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -522,6 +549,7 @@ Expect<
 				baseColumn: never;
 				dialect: 'mysql';
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -864,6 +892,9 @@ Expect<
 		enum: mysqlEnum('enum', ['a', 'b', 'c']),
 		enumdef: mysqlEnum('enumdef', ['a', 'b', 'c']).default('a'),
 		float: float('float'),
+		float2: float('float2', { precision: 10 }),
+		float3: float('float3', { scale: 2 }),
+		float4: float('float4', { precision: 10, scale: 2 }),
 		floatdef: float('floatdef').default(0),
 		int: int('int'),
 		int2: int('int2', { unsigned: true }),
@@ -961,6 +992,9 @@ Expect<
 		enum: mysqlEnum(['a', 'b', 'c']),
 		enumdef: mysqlEnum(['a', 'b', 'c']).default('a'),
 		float: float(),
+		float2: float({ precision: 10 }),
+		float3: float({ scale: 2 }),
+		float4: float({ precision: 10, scale: 2 }),
 		floatdef: float().default(0),
 		int: int(),
 		int2: int({ unsigned: true }),
