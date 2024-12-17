@@ -61,7 +61,7 @@ import {
 	vector,
 	year,
 } from 'drizzle-orm/singlestore-core';
-import { euclideanDistance, dotProduct } from 'drizzle-orm/singlestore-core/expressions';
+import { dotProduct, euclideanDistance } from 'drizzle-orm/singlestore-core/expressions';
 import { migrate } from 'drizzle-orm/singlestore/migrator';
 import getPort from 'get-port';
 import { v4 as uuid } from 'uuid';
@@ -384,11 +384,19 @@ export function tests(driver?: string) {
 						\`embedding\` vector(10) not null
 					)
 				`,
-			)
+			);
 			await db.insert(vectorSearchTable).values([
-				{ id: 1, text: "I like dogs", embedding: [0.6119,0.1395,0.2921,0.3664,0.4561,0.7852,0.1997,0.5142,0.5924,0.0465] },
-				{ id: 2, text: "I like cats", embedding: [0.6075,0.1705,0.0651,0.9489,0.9656,0.8084,0.3046,0.0977,0.6842,0.4402] }
-			])
+				{
+					id: 1,
+					text: 'I like dogs',
+					embedding: [0.6119, 0.1395, 0.2921, 0.3664, 0.4561, 0.7852, 0.1997, 0.5142, 0.5924, 0.0465],
+				},
+				{
+					id: 2,
+					text: 'I like cats',
+					embedding: [0.6075, 0.1705, 0.0651, 0.9489, 0.9656, 0.8084, 0.3046, 0.0977, 0.6842, 0.4402],
+				},
+			]);
 		}
 
 		test('table config: unsigned ints', async () => {
@@ -2935,20 +2943,32 @@ export function tests(driver?: string) {
 		test('simple vector search', async (ctx) => {
 			const { db } = ctx.singlestore;
 			const table = vectorSearchTable;
-			const embedding = [0.42,0.93,0.88,0.57,0.32,0.64,0.76,0.52,0.19,0.81]; // ChatGPT's 10 dimension embedding for "dogs are cool"
+			const embedding = [0.42, 0.93, 0.88, 0.57, 0.32, 0.64, 0.76, 0.52, 0.19, 0.81]; // ChatGPT's 10 dimension embedding for "dogs are cool" not sure how accurate but it works
 			await setupVectorSearchTest(db);
 
-			const withRankEuclidean = db.select({ id: table.id, text: table.text, rank: sql`row_number() over (order by ${euclideanDistance(table.embedding, embedding)})`.as('rank') }).from(table).as('with_rank')
-			const withRankDotProduct = db.select({ id: table.id, text: table.text, rank: sql`row_number() over (order by ${dotProduct(table.embedding, embedding)})`.as('rank') }).from(table).as('with_rank')
-			const result1 = await db.select({ id: withRankEuclidean.id, text: withRankEuclidean.text }).from(withRankEuclidean).where(eq(withRankEuclidean.rank, 1));
-			const result2 = await db.select({ id: withRankDotProduct.id, text: withRankDotProduct.text }).from(withRankDotProduct).where(eq(withRankDotProduct.rank, 1));
+			const withRankEuclidean = db.select({
+				id: table.id,
+				text: table.text,
+				rank: sql`row_number() over (order by ${euclideanDistance(table.embedding, embedding)})`.as('rank'),
+			}).from(table).as('with_rank');
+			const withRankDotProduct = db.select({
+				id: table.id,
+				text: table.text,
+				rank: sql`row_number() over (order by ${dotProduct(table.embedding, embedding)})`.as('rank'),
+			}).from(table).as('with_rank');
+			const result1 = await db.select({ id: withRankEuclidean.id, text: withRankEuclidean.text }).from(
+				withRankEuclidean,
+			).where(eq(withRankEuclidean.rank, 1));
+			const result2 = await db.select({ id: withRankDotProduct.id, text: withRankDotProduct.text }).from(
+				withRankDotProduct,
+			).where(eq(withRankDotProduct.rank, 1));
 
-			expect(result1.length).toEqual(1)
-			expect(result1[0]).toEqual({ id: 1, text: "I like dogs" });
+			expect(result1.length).toEqual(1);
+			expect(result1[0]).toEqual({ id: 1, text: 'I like dogs' });
 
-			expect(result2.length).toEqual(1)
-			expect(result2[0]).toEqual({ id: 1, text: "I like dogs" });
-		})
+			expect(result2.length).toEqual(1);
+			expect(result2[0]).toEqual({ id: 1, text: 'I like dogs' });
+		});
 
 		test('test $onUpdateFn and $onUpdate works as $default', async (ctx) => {
 			const { db } = ctx.singlestore;

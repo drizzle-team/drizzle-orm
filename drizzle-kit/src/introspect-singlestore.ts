@@ -794,7 +794,7 @@ const column = (
 		const [dimensions, elementType] = lowered.substring('vector'.length + 1, lowered.length - 1).split(',');
 		let out = `${casing(name)}: vector(${
 			dbColumnName({ name, casing: rawCasing, withMode: true })
-		}{ dimensions: ${dimensions}${elementType ? `, elementType: ${elementType}` : ''} })`;
+		}{ dimensions: ${dimensions}, elementType: ${elementType} })`;
 
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;

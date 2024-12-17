@@ -47,8 +47,7 @@ export class SingleStoreVector<T extends ColumnBaseConfig<'array', 'SingleStoreV
 	}
 
 	getSQLType(): string {
-		const et = this.elementType === undefined ? '' : `, ${this.elementType}`;
-		return `vector(${this.dimensions}${et})`;
+		return `vector(${this.dimensions}, ${this.elementType || 'F32'})`;
 	}
 
 	override mapToDriverValue(value: Array<number>) {
