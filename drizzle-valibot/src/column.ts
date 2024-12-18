@@ -37,7 +37,7 @@ import type {
 	PgVarchar,
 	PgVector,
 } from 'drizzle-orm/pg-core';
-import {
+import type {
 	SingleStoreBigInt53,
 	SingleStoreChar,
 	SingleStoreDouble,
