@@ -12,7 +12,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { DrizzleError } from '../errors.ts';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
 import { MySql2Session } from './session.ts';
@@ -114,25 +114,21 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends AnyMySql2Connection = CallbackPool,
 >(
-	...params: IfNotImported<
-		CallbackPool,
-		[ImportTypeError<'mysql2'>],
-		[
-			TClient | string,
-		] | [
-			TClient | string,
-			MySql2DrizzleConfig<TSchema>,
-		] | [
-			(
-				& MySql2DrizzleConfig<TSchema>
-				& ({
-					connection: string | PoolOptions;
-				} | {
-					client: TClient;
-				})
-			),
-		]
-	>
+	...params: [
+		TClient | string,
+	] | [
+		TClient | string,
+		MySql2DrizzleConfig<TSchema>,
+	] | [
+		(
+			& MySql2DrizzleConfig<TSchema>
+			& ({
+				connection: string | PoolOptions;
+			} | {
+				client: TClient;
+			})
+		),
+	]
 ): MySql2Database<TSchema> & {
 	$client: TClient;
 } {

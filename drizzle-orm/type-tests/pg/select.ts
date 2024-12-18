@@ -31,13 +31,15 @@ import { alias } from '~/pg-core/alias.ts';
 import {
 	boolean,
 	integer,
+	pgMaterializedView,
 	type PgSelect,
 	type PgSelectQueryBuilder,
 	pgTable,
+	pgView,
 	QueryBuilder,
 	text,
 } from '~/pg-core/index.ts';
-import { type SQL, sql } from '~/sql/sql.ts';
+import { type InferSelectViewModel, type SQL, sql } from '~/sql/sql.ts';
 
 import { db } from './db.ts';
 import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
@@ -1155,4 +1157,78 @@ await db
 				),
 			),
 		);
+}
+
+{
+	const table1 = pgTable('table1', {
+		id: integer().primaryKey(),
+		name: text().notNull(),
+	});
+	const table2 = pgTable('table2', {
+		id: integer().primaryKey(),
+		age: integer().notNull(),
+	});
+	const table3 = pgTable('table3', {
+		id: integer().primaryKey(),
+		phone: text().notNull(),
+	});
+	const view = pgView('view').as((qb) =>
+		qb.select({
+			table: table1,
+			column: table2.age,
+			nested: {
+				column: table3.phone,
+			},
+		}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``)
+	);
+	const result = await db.select().from(view);
+
+	Expect<
+		Equal<typeof result, {
+			table: typeof table1.$inferSelect;
+			column: number;
+			nested: {
+				column: string | null;
+			};
+		}[]>
+	>;
+	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+}
+
+{
+	const table1 = pgTable('table1', {
+		id: integer().primaryKey(),
+		name: text().notNull(),
+	});
+	const table2 = pgTable('table2', {
+		id: integer().primaryKey(),
+		age: integer().notNull(),
+	});
+	const table3 = pgTable('table3', {
+		id: integer().primaryKey(),
+		phone: text().notNull(),
+	});
+	const view = pgMaterializedView('view').as((qb) =>
+		qb.select({
+			table: table1,
+			column: table2.age,
+			nested: {
+				column: table3.phone,
+			},
+		}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``)
+	);
+	const result = await db.select().from(view);
+
+	Expect<
+		Equal<typeof result, {
+			table: typeof table1.$inferSelect;
+			column: number;
+			nested: {
+				column: string | null;
+			};
+		}[]>
+	>;
+	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
 }

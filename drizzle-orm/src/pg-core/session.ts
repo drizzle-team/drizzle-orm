@@ -4,6 +4,7 @@ import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
+import type { NeonAuthToken } from '~/utils.ts';
 import { PgDatabase } from './db.ts';
 import type { PgDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
@@ -17,6 +18,8 @@ export interface PreparedQueryConfig {
 export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
 	constructor(protected query: Query) {}
 
+	protected authToken?: NeonAuthToken;
+
 	getQuery(): Query {
 		return this.query;
 	}
@@ -25,12 +28,22 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 		return response;
 	}
 
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	static readonly [entityKind]: string = 'PgPreparedQuery';
 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+	/** @internal */
+	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
+	/** @internal */
+	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
@@ -62,7 +75,11 @@ export abstract class PgSession<
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 	): PgPreparedQuery<T>;
 
-	execute<T>(query: SQL): Promise<T> {
+	execute<T>(query: SQL): Promise<T>;
+	/** @internal */
+	execute<T>(query: SQL, token?: NeonAuthToken): Promise<T>;
+	/** @internal */
+	execute<T>(query: SQL, token?: NeonAuthToken): Promise<T> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
 			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
 				return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
@@ -73,7 +90,7 @@ export abstract class PgSession<
 				);
 			});
 
-			return prepared.execute();
+			return prepared.setToken(token).execute(undefined, token);
 		});
 	}
 
@@ -86,8 +103,12 @@ export abstract class PgSession<
 		).all();
 	}
 
-	async count(sql: SQL): Promise<number> {
-		const res = await this.execute<[{ count: string }]>(sql);
+	async count(sql: SQL): Promise<number>;
+	/** @internal */
+	async count(sql: SQL, token?: NeonAuthToken): Promise<number>;
+	/** @internal */
+	async count(sql: SQL, token?: NeonAuthToken): Promise<number> {
+		const res = await this.execute<[{ count: string }]>(sql, token);
 
 		return Number(
 			res[0]['count'],
