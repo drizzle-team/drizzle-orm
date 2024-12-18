@@ -9,8 +9,8 @@ import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase, getTableConfig as getSqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 
-import type { AbstractGenerator } from './services/GeneratorsWrappers.ts';
-import { generatorsFuncs } from './services/GeneratorsWrappers.ts';
+import { generatorsFuncs } from './services/GeneratorFuncs.ts';
+import type { AbstractGenerator } from './services/Generators.ts';
 import { SeedService } from './services/SeedService.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
 import type { RefinementsType } from './types/seedService.ts';
@@ -138,7 +138,7 @@ class SeedPromise<
 	constructor(
 		private db: DB,
 		private schema: SCHEMA,
-		private options?: { count?: number; seed?: number },
+		private options?: { count?: number; seed?: number; version?: number },
 	) {}
 
 	then<TResult1 = void, TResult2 = never>(
@@ -259,7 +259,6 @@ export async function seedForDrizzleStudio(
 			sqlDialect,
 			tables,
 			isCyclicRelations,
-			{}, // TODO: fix later
 			refinements,
 			options,
 		);
@@ -337,7 +336,7 @@ export function seed<
 			| SQLiteTable
 			| any;
 	},
->(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number }) {
+>(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number; version?: number }) {
 	return new SeedPromise<typeof db, typeof schema>(db, schema, options);
 }
 
@@ -352,7 +351,7 @@ const seedFunc = async (
 			| SQLiteTable
 			| any;
 	},
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
 	if (is(db, PgDatabase<any, any>)) {
@@ -490,17 +489,16 @@ const filterPgTables = (schema: {
 const seedPostgres = async (
 	db: PgDatabase<any, any>,
 	schema: { [key: string]: PgTable },
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
 	const seedService = new SeedService();
 
-	const { tables, relations, tableRelations } = getPostgresInfo(schema);
+	const { tables, relations } = getPostgresInfo(schema);
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'postgresql',
 		tables,
 		relations,
-		tableRelations,
 		refinements,
 		options,
 	);
@@ -784,10 +782,10 @@ const filterMySqlTables = (schema: {
 const seedMySql = async (
 	db: MySqlDatabase<any, any>,
 	schema: { [key: string]: MySqlTable },
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
-	const { tables, relations, tableRelations } = getMySqlInfo(schema);
+	const { tables, relations } = getMySqlInfo(schema);
 
 	const seedService = new SeedService();
 
@@ -795,7 +793,6 @@ const seedMySql = async (
 		'mysql',
 		tables,
 		relations,
-		tableRelations,
 		refinements,
 		options,
 	);
@@ -1003,10 +1000,10 @@ const filterSqliteTables = (schema: {
 const seedSqlite = async (
 	db: BaseSQLiteDatabase<any, any>,
 	schema: { [key: string]: SQLiteTable },
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
-	const { tables, relations, tableRelations } = getSqliteInfo(schema);
+	const { tables, relations } = getSqliteInfo(schema);
 
 	const seedService = new SeedService();
 
@@ -1014,7 +1011,6 @@ const seedSqlite = async (
 		'sqlite',
 		tables,
 		relations,
-		tableRelations,
 		refinements,
 		options,
 	);
