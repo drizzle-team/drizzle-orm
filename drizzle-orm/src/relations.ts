@@ -364,13 +364,25 @@ export function getOrderByOperators() {
 
 export type OrderByOperators = ReturnType<typeof getOrderByOperators>;
 
-export type FindTableByDBName<
+export type FindTableByDBNameRelationalConfig<
 	TSchema extends TablesRelationalConfig,
 	TTableName extends string,
 > = ExtractObjectValues<
 	{
 		[
 			K in keyof TSchema as TSchema[K]['table']['_']['name'] extends TTableName ? K
+				: never
+		]: TSchema[K];
+	}
+>;
+
+export type FindTableByDBNameTablesRecord<
+	TSchema extends Record<string, Table>,
+	TTableName extends string,
+> = ExtractObjectValues<
+	{
+		[
+			K in keyof TSchema as TSchema[K]['_']['name'] extends TTableName ? K
 				: never
 		]: TSchema[K];
 	}
@@ -757,8 +769,13 @@ export interface OneConfig<
 		? { [K in keyof TSourceColumns]: RelationsBuilderColumnBase<TTargetTableName> }
 		: RelationsBuilderColumnBase<TTargetTableName>;
 	where?: TSourceColumns extends [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]
-		? RelationsFilter<TSchema[TSourceColumns[number]['_']['tableName']]['_']['columns']>
-		: RelationsFilter<TSchema[Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']]['_']['columns']>;
+		? RelationsFilter<FindTableByDBNameTablesRecord<TSchema, TSourceColumns[number]['_']['tableName']>['_']['columns']>
+		: RelationsFilter<
+			FindTableByDBNameTablesRecord<
+				TSchema,
+				Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']
+			>['_']['columns']
+		>;
 	optional?: TOptional;
 	alias?: string;
 }
@@ -782,8 +799,13 @@ export interface ManyConfig<
 		? { [K in keyof TSourceColumns]: RelationsBuilderColumnBase<TTargetTableName> }
 		: RelationsBuilderColumnBase<TTargetTableName>;
 	where?: TSourceColumns extends [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]
-		? RelationsFilter<TSchema[TSourceColumns[number]['_']['tableName']]['_']['columns']>
-		: RelationsFilter<TSchema[Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']]['_']['columns']>;
+		? RelationsFilter<FindTableByDBNameTablesRecord<TSchema, TSourceColumns[number]['_']['tableName']>['_']['columns']>
+		: RelationsFilter<
+			FindTableByDBNameTablesRecord<
+				TSchema,
+				Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']
+			>['_']['columns']
+		>;
 	alias?: string;
 }
 
@@ -883,7 +905,7 @@ export type RelationsBuilder<TSchema extends Record<string, Table>> =
 		[TTableName in keyof TSchema & string]:
 			& {
 				[TColumnName in keyof TSchema[TTableName]['_']['columns']]: RelationsBuilderColumn<
-					TTableName,
+					TSchema[TTableName]['_']['name'],
 					TSchema[TTableName]['_']['columns'][TColumnName]['_']['data']
 				>;
 			}
@@ -899,7 +921,7 @@ export type RelationsBuilderEntry<
 	TTables extends Record<string, Table> = Record<string, Table>,
 	TSourceTableName extends string = string,
 > =
-	| Relation<TSourceTableName, keyof TTables & string>
+	| Relation<TTables[TSourceTableName]['_']['name'], TTables[keyof TTables & string]['_']['name']>
 	| AggregatedField<any>;
 
 export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = {
