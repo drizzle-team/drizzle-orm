@@ -1235,7 +1235,7 @@ export class GenerateInterval extends AbstractGenerator<{
 		rng: prand.RandomGenerator;
 		fieldsToGenerate: string[];
 	} | undefined;
-	override uniqueVersionOfGen = GenerateUniqueInterval;
+	override uniqueVersionOfGen: new(params: any) => AbstractGenerator<any> = GenerateUniqueInterval;
 	private config: { [key: string]: { from: number; to: number } } = {
 		year: {
 			from: 0,
