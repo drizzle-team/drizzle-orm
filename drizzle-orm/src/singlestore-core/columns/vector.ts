@@ -29,21 +29,20 @@ export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array',
 	override build<TTableName extends string>(
 		table: AnySingleStoreTable<{ name: TTableName }>,
 	): SingleStoreVector<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreVector(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new SingleStoreVector<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class SingleStoreVector<T extends ColumnBaseConfig<'array', 'SingleStoreVector'>> extends SingleStoreColumn<T> {
+export class SingleStoreVector<T extends ColumnBaseConfig<'array', 'SingleStoreVector'>>
+	extends SingleStoreColumn<T, SingleStoreVectorConfig>
+{
 	static override readonly [entityKind]: string = 'SingleStoreVector';
 
-	readonly dimensions: number;
-	readonly elementType: ElementType | undefined;
-
-	constructor(table: AnySingleStoreTable<{ name: T['tableName'] }>, config: SingleStoreVectorBuilder<T>['config']) {
-		super(table, config);
-		this.dimensions = config.dimensions;
-		this.elementType = config.elementType;
-	}
+	dimensions: number = this.config.dimensions;
+	elementType: ElementType | undefined = this.config.elementType;
 
 	getSQLType(): string {
 		return `vector(${this.dimensions}, ${this.elementType || 'F32'})`;
