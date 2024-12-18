@@ -10,9 +10,8 @@ export type SingleStoreVectorBuilderInitial<TName extends string> = SingleStoreV
 	dataType: 'array';
 	columnType: 'SingleStoreVector';
 	data: Array<number>;
-	driverParam: Array<number>;
+	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'SingleStoreVector'>>

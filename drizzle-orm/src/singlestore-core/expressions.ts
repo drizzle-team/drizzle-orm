@@ -25,10 +25,10 @@ export function substring(
 }
 
 // Vectors
-export function dotProduct(column: SingleStoreColumn | SQL.Aliased, value: Array<number>) {
+export function dotProduct(column: SingleStoreColumn | SQL.Aliased, value: Array<number>): SQL {
 	return sql`${column} <*> ${JSON.stringify(value)}`;
 }
 
-export function euclideanDistance(column: SingleStoreColumn | SQL.Aliased, value: Array<number>) {
+export function euclideanDistance(column: SingleStoreColumn | SQL.Aliased, value: Array<number>): SQL {
 	return sql`${column} <-> ${JSON.stringify(value)}`;
 }
