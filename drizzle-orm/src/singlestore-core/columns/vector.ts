@@ -66,7 +66,7 @@ export interface SingleStoreVectorConfig {
 	elementType?: ElementType;
 }
 
-export function vector<U extends string>(
+export function vector(
 	config: SingleStoreVectorConfig,
 ): SingleStoreVectorBuilderInitial<''>;
 export function vector<TName extends string>(
