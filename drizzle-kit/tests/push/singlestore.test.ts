@@ -23,6 +23,7 @@ import {
 	tinyint,
 	varbinary,
 	varchar,
+	vector,
 	year,
 } from 'drizzle-orm/singlestore-core';
 import getPort from 'get-port';
@@ -248,6 +249,13 @@ const singlestoreSuite: DialectSuite = {
 				simple: binary('simple', { length: 1 }),
 				columnNotNull: binary('column_not_null', { length: 1 }).notNull(),
 				columnDefault: binary('column_default', { length: 12 }),
+			}),
+
+			allVectors: singlestoreTable('all_vectors', {
+				vectorSimple: vector('vector_simple', { dimensions: 1 }),
+				vectorElementType: vector('vector_element_type', { dimensions: 1, elementType: 'I8' }),
+				vectorNotNull: vector('vector_not_null', { dimensions: 1 }).notNull(),
+				vectorDefault: vector('vector_default', { dimensions: 1 }).default([1]),
 			}),
 		};
 
