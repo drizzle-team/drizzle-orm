@@ -57,6 +57,32 @@ export type SQLiteTableWithColumns<T extends TableConfig> =
 	};
 
 export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+	): SQLiteTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+		dialect: 'sqlite';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: SQLiteColumnBuilders) => TColumnsMap,
+	): SQLiteTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+		dialect: 'sqlite';
+	}>;
+
 	/**
 	 * @deprecated The third parameter of sqliteTable is changing and will only accept an array instead of an object
 	 *
