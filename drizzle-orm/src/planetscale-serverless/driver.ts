@@ -11,7 +11,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { PlanetScalePreparedQueryHKT, PlanetscaleQueryResultHKT } from './session.ts';
 import { PlanetscaleSession } from './session.ts';
 
@@ -83,25 +83,21 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends Client = Client,
 >(
-	...params: IfNotImported<
-		Config,
-		[ImportTypeError<'@planetscale/database'>],
-		[
-			TClient | string,
-		] | [
-			TClient | string,
-			DrizzleConfig<TSchema>,
-		] | [
-			(
-				& DrizzleConfig<TSchema>
-				& ({
-					connection: string | Config;
-				} | {
-					client: TClient;
-				})
-			),
-		]
-	>
+	...params: [
+		TClient | string,
+	] | [
+		TClient | string,
+		DrizzleConfig<TSchema>,
+	] | [
+		(
+			& DrizzleConfig<TSchema>
+			& ({
+				connection: string | Config;
+			} | {
+				client: TClient;
+			})
+		),
+	]
 ): PlanetScaleDatabase<TSchema> & {
 	$client: TClient;
 } {

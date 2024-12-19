@@ -17,7 +17,7 @@
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20241004.0",
 		"@libsql/client": "^0.10.0",
-		"@neondatabase/serverless": "0.9.0",
+		"@neondatabase/serverless": "0.10.0",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@paralleldrive/cuid2": "^2.2.2",
 		"@types/async-retry": "^1.4.8",
@@ -61,6 +61,7 @@
 		"drizzle-typebox": "workspace:../drizzle-typebox/dist",
 		"drizzle-valibot": "workspace:../drizzle-valibot/dist",
 		"drizzle-zod": "workspace:../drizzle-zod/dist",
+		"drizzle-seed": "workspace:../drizzle-seed/dist",
 		"express": "^4.18.2",
 		"get-port": "^7.0.0",
 		"mysql2": "^3.3.3",

@@ -1,4 +1,4 @@
-import type { SQLiteDatabase, SQLiteRunResult, SQLiteStatement } from 'expo-sqlite/next';
+import type { SQLiteDatabase, SQLiteRunResult, SQLiteStatement } from 'expo-sqlite';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
