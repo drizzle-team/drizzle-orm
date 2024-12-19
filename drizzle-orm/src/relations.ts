@@ -364,45 +364,14 @@ export function getOrderByOperators() {
 
 export type OrderByOperators = ReturnType<typeof getOrderByOperators>;
 
-export type FindTableByDBNameRelationalConfig<
-	TSchema extends TablesRelationalConfig,
-	TTableName extends string,
-> = ExtractObjectValues<
-	{
-		[
-			K in keyof TSchema as TSchema[K]['table']['_']['name'] extends TTableName ? K
-				: never
-		]: TSchema[K];
-	}
->;
-
-export type FindTableByDBNameTablesRecord<
-	TSchema extends Record<string, Table>,
-	TTableName extends string,
-> = ExtractObjectValues<
-	{
-		[
-			K in keyof TSchema as TSchema[K]['_']['name'] extends TTableName ? K
-				: never
-		]: TSchema[K];
-	}
->;
-
-export type FindTableInRelationsConfig<
+export type FindTableInRelationalConfig<
 	TSchema extends TablesRelationalConfig,
 	TTargetTable extends Table,
 	TTableName extends string = TTargetTable['_']['name'],
-	TSchemaName extends string | undefined = TTargetTable['_']['schema'] extends undefined ? undefined
-		: TTargetTable['_']['schema'],
 > = ExtractObjectValues<
 	{
 		[
-			K in keyof TSchema as TSchema[K]['dbName'] extends TTableName
-				? TSchema[K]['schema'] extends undefined ? TSchemaName extends undefined ? K
-					: never
-				: TSchemaName extends TSchema[K]['schema'] ? K
-				: never
-				: never
+			K in keyof TSchema as TSchema[K]['tsName'] extends TTableName ? K : never
 		]: TSchema[K];
 	}
 >;
@@ -431,7 +400,7 @@ export type DBQueryConfig<
 				| (TTableConfig['relations'][K] extends Relation ? DBQueryConfig<
 						TTableConfig['relations'][K] extends One<string, string> ? 'one' : 'many',
 						TSchema,
-						FindTableInRelationsConfig<
+						FindTableInRelationalConfig<
 							TSchema,
 							TTableConfig['relations'][K]['targetTable']
 						>
@@ -471,7 +440,7 @@ export interface TableRelationalConfig {
 	columns: Record<string, Column>;
 	relations: Record<string, RelationsBuilderEntry>;
 	primaryKey: AnyColumn[];
-	schema?: string;
+	schema: string | undefined;
 }
 
 export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
@@ -520,7 +489,7 @@ export type BuildRelationResult<
 			& keyof TRelations
 	]: TRelations[K] extends infer TRel extends Relation ? BuildQueryResult<
 			TConfig,
-			FindTableInRelationsConfig<TConfig, TRel['targetTable']>,
+			FindTableInRelationalConfig<TConfig, TRel['targetTable']>,
 			Assume<TInclude[K], true | Record<string, unknown>>
 		> extends infer TResult ? TRel extends One<string, string> ?
 					| TResult
@@ -769,13 +738,8 @@ export interface OneConfig<
 		? { [K in keyof TSourceColumns]: RelationsBuilderColumnBase<TTargetTableName> }
 		: RelationsBuilderColumnBase<TTargetTableName>;
 	where?: TSourceColumns extends [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]
-		? RelationsFilter<FindTableByDBNameTablesRecord<TSchema, TSourceColumns[number]['_']['tableName']>['_']['columns']>
-		: RelationsFilter<
-			FindTableByDBNameTablesRecord<
-				TSchema,
-				Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']
-			>['_']['columns']
-		>;
+		? RelationsFilter<TSchema[TSourceColumns[number]['_']['tableName']]['_']['columns']>
+		: RelationsFilter<TSchema[Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']]['_']['columns']>;
 	optional?: TOptional;
 	alias?: string;
 }
@@ -799,13 +763,8 @@ export interface ManyConfig<
 		? { [K in keyof TSourceColumns]: RelationsBuilderColumnBase<TTargetTableName> }
 		: RelationsBuilderColumnBase<TTargetTableName>;
 	where?: TSourceColumns extends [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]
-		? RelationsFilter<FindTableByDBNameTablesRecord<TSchema, TSourceColumns[number]['_']['tableName']>['_']['columns']>
-		: RelationsFilter<
-			FindTableByDBNameTablesRecord<
-				TSchema,
-				Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']
-			>['_']['columns']
-		>;
+		? RelationsFilter<TSchema[TSourceColumns[number]['_']['tableName']]['_']['columns']>
+		: RelationsFilter<TSchema[Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']]['_']['columns']>;
 	alias?: string;
 }
 
@@ -886,11 +845,11 @@ export class RelationsHelperStatic<TTables extends Record<string, Table>> {
 	}
 
 	one: {
-		[K in keyof TTables]: OneFn<TTables, TTables[K]['_']['name']>;
+		[K in keyof TTables]: OneFn<TTables, K & string>;
 	};
 
 	many: {
-		[K in keyof TTables]: ManyFn<TTables, TTables[K]['_']['name']>;
+		[K in keyof TTables]: ManyFn<TTables, K & string>;
 	};
 
 	aggs = {
@@ -905,7 +864,7 @@ export type RelationsBuilder<TSchema extends Record<string, Table>> =
 		[TTableName in keyof TSchema & string]:
 			& {
 				[TColumnName in keyof TSchema[TTableName]['_']['columns']]: RelationsBuilderColumn<
-					TSchema[TTableName]['_']['name'],
+					TTableName,
 					TSchema[TTableName]['_']['columns'][TColumnName]['_']['data']
 				>;
 			}
@@ -921,7 +880,7 @@ export type RelationsBuilderEntry<
 	TTables extends Record<string, Table> = Record<string, Table>,
 	TSourceTableName extends string = string,
 > =
-	| Relation<TTables[TSourceTableName]['_']['name'], TTables[keyof TTables & string]['_']['name']>
+	| Relation<TSourceTableName, keyof TTables & string>
 	| AggregatedField<any>;
 
 export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = {
