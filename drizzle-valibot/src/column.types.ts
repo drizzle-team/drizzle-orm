@@ -20,15 +20,16 @@ export type GetBaseColumn<TColumn extends Column> = TColumn['_'] extends { baseC
 export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { readonly [K in TEnumValues[number]]: K };
 
 export type ExtractAdditionalProperties<TColumn extends Column> = {
-	max: TColumn['_']['columnType'] extends 'PgVarchar' | 'SQLiteText' | 'PgChar' | 'MySqlChar'
+	max: TColumn['_']['columnType'] extends 'PgVarchar' | 'SQLiteText' | 'PgChar' | 'MySqlChar' | 'SingleStoreChar'
 		? Assume<TColumn['_'], { length: number | undefined }>['length']
-		: TColumn['_']['columnType'] extends 'MySqlText' | 'MySqlVarChar' ? number
+		: TColumn['_']['columnType'] extends 'MySqlText' | 'MySqlVarChar' | 'SingleStoreText' | 'SingleStoreVarChar'
+			? number
 		: TColumn['_']['columnType'] extends 'PgBinaryVector' | 'PgHalfVector' | 'PgVector'
 			? Assume<TColumn['_'], { dimensions: number }>['dimensions']
 		: TColumn['_']['columnType'] extends 'PgArray' ? Assume<TColumn['_'], { size: number | undefined }>['size']
 		: undefined;
-	fixedLength: TColumn['_']['columnType'] extends 'PgChar' | 'MySqlChar' | 'PgHalfVector' | 'PgVector' | 'PgArray'
-		? true
+	fixedLength: TColumn['_']['columnType'] extends
+		'PgChar' | 'PgHalfVector' | 'PgVector' | 'PgArray' | 'MySqlChar' | 'SingleStoreChar' ? true
 		: false;
 };
 
@@ -98,19 +99,26 @@ export type GetValibotType<
 				v.MaxValueAction<number, number, undefined>,
 				TColumnType extends
 					| 'MySqlTinyInt'
+					| 'SingleStoreTinyInt'
 					| 'PgSmallInt'
 					| 'PgSmallSerial'
 					| 'MySqlSmallInt'
 					| 'MySqlMediumInt'
+					| 'SingleStoreSmallInt'
+					| 'SingleStoreMediumInt'
 					| 'PgInteger'
 					| 'PgSerial'
 					| 'MySqlInt'
+					| 'SingleStoreInt'
 					| 'PgBigInt53'
 					| 'PgBigSerial53'
 					| 'MySqlBigInt53'
 					| 'MySqlSerial'
+					| 'SingleStoreBigInt53'
+					| 'SingleStoreSerial'
 					| 'SQLiteInteger'
-					| 'MySqlYear' ? v.IntegerAction<number, undefined>
+					| 'MySqlYear'
+					| 'SingleStoreYear' ? v.IntegerAction<number, undefined>
 					: never,
 			]>
 		>
