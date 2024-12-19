@@ -14,7 +14,8 @@ import states, { maxStringLength as maxStateLength } from '../datasets/states.ts
 import streetSuffix, { maxStringLength as maxStreetSuffixLength } from '../datasets/streetSuffix.ts';
 import { fastCartesianProduct, fillTemplate, getWeightedIndices, isObject } from './utils.ts';
 
-export const version = 2;
+export const latestVersion = 2;
+export const version = 1;
 
 export abstract class AbstractGenerator<T = {}> {
 	static readonly [entityKind]: string = 'AbstractGenerator';
@@ -1299,84 +1300,27 @@ export class GenerateInterval extends AbstractGenerator<{
 	}
 }
 
+// has a newer version
 export class GenerateUniqueInterval extends AbstractGenerator<{
-	fields?:
-		| 'year'
-		| 'month'
-		| 'day'
-		| 'hour'
-		| 'minute'
-		| 'second'
-		| 'year to month'
-		| 'day to hour'
-		| 'day to minute'
-		| 'day to second'
-		| 'hour to minute'
-		| 'hour to second'
-		| 'minute to second';
 	isUnique?: boolean;
 }> {
 	static override readonly [entityKind]: string = 'GenerateUniqueInterval';
 
 	private state: {
 		rng: prand.RandomGenerator;
-		fieldsToGenerate: string[];
 		intervalSet: Set<string>;
 	} | undefined;
 	public override isUnique = true;
-	private config: { [key: string]: { from: number; to: number } } = {
-		year: {
-			from: 0,
-			to: 5,
-		},
-		month: {
-			from: 0,
-			to: 11,
-		},
-		day: {
-			from: 1,
-			to: 29,
-		},
-		hour: {
-			from: 0,
-			to: 23,
-		},
-		minute: {
-			from: 0,
-			to: 59,
-		},
-		second: {
-			from: 0,
-			to: 59,
-		},
-	};
 
 	override init({ count, seed }: { count: number; seed: number }) {
-		const allFields = ['year', 'month', 'day', 'hour', 'minute', 'second'];
-		let fieldsToGenerate: string[] = allFields;
-
-		if (this.params.fields !== undefined && this.params.fields?.includes(' to ')) {
-			const tokens = this.params.fields.split(' to ');
-			const endIdx = allFields.indexOf(tokens[1]!);
-			fieldsToGenerate = allFields.slice(0, endIdx + 1);
-		} else if (this.params.fields !== undefined) {
-			const endIdx = allFields.indexOf(this.params.fields);
-			fieldsToGenerate = allFields.slice(0, endIdx + 1);
-		}
-
-		let maxUniqueIntervalsNumber = 1;
-		for (const field of fieldsToGenerate) {
-			const from = this.config[field]!.from, to = this.config[field]!.to;
-			maxUniqueIntervalsNumber *= from - to + 1;
-		}
-
+		const maxUniqueIntervalsNumber = 6 * 13 * 29 * 25 * 61 * 61;
 		if (count > maxUniqueIntervalsNumber) {
 			throw new RangeError(`count exceeds max number of unique intervals(${maxUniqueIntervalsNumber})`);
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
 		const intervalSet = new Set<string>();
-		this.state = { rng, fieldsToGenerate, intervalSet };
+		this.state = { rng, intervalSet };
 	}
 
 	generate() {
@@ -1384,16 +1328,29 @@ export class GenerateUniqueInterval extends AbstractGenerator<{
 			throw new Error('state is not defined.');
 		}
 
-		let interval, numb: number;
+		let yearsNumb: number,
+			monthsNumb: number,
+			daysNumb: number,
+			hoursNumb: number,
+			minutesNumb: number,
+			secondsNumb: number;
+
+		let interval = '';
 
 		for (;;) {
-			interval = '';
+			[yearsNumb, this.state.rng] = prand.uniformIntDistribution(0, 5, this.state.rng);
+			[monthsNumb, this.state.rng] = prand.uniformIntDistribution(0, 12, this.state.rng);
+			[daysNumb, this.state.rng] = prand.uniformIntDistribution(1, 29, this.state.rng);
+			[hoursNumb, this.state.rng] = prand.uniformIntDistribution(0, 24, this.state.rng);
+			[minutesNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
+			[secondsNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
 
-			for (const field of this.state.fieldsToGenerate) {
-				const from = this.config[field]!.from, to = this.config[field]!.to;
-				[numb, this.state.rng] = prand.uniformIntDistribution(from, to, this.state.rng);
-				interval += `${numb} ${field} `;
-			}
+			interval = `${yearsNumb === 0 ? '' : `${yearsNumb} years `}`
+				+ `${monthsNumb === 0 ? '' : `${monthsNumb} months `}`
+				+ `${daysNumb === 0 ? '' : `${daysNumb} days `}`
+				+ `${hoursNumb === 0 ? '' : `${hoursNumb} hours `}`
+				+ `${minutesNumb === 0 ? '' : `${minutesNumb} minutes `}`
+				+ `${secondsNumb === 0 ? '' : `${secondsNumb} seconds`}`;
 
 			if (!this.state.intervalSet.has(interval)) {
 				this.state.intervalSet.add(interval);
@@ -1405,32 +1362,21 @@ export class GenerateUniqueInterval extends AbstractGenerator<{
 	}
 }
 
+// has a newer version
 export class GenerateString extends AbstractGenerator<{
 	isUnique?: boolean;
 	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GenerateString';
 
-	private state: {
-		rng: prand.RandomGenerator;
-		minStringLength: number;
-		maxStringLength: number;
-	} | undefined;
+	private state: { rng: prand.RandomGenerator } | undefined;
 	override uniqueVersionOfGen = GenerateUniqueString;
 
 	override init({ count, seed }: { count: number; seed: number }) {
 		super.init({ count, seed });
 
-		let minStringLength = 8;
-		let maxStringLength = 20;
-		if (this.stringLength !== undefined) {
-			maxStringLength = this.stringLength;
-			if (maxStringLength === 1) minStringLength = maxStringLength;
-			if (maxStringLength < minStringLength) minStringLength = 1;
-		}
-
 		const rng = prand.xoroshiro128plus(seed);
-		this.state = { rng, minStringLength, maxStringLength };
+		this.state = { rng };
 	}
 
 	generate() {
@@ -1438,8 +1384,8 @@ export class GenerateString extends AbstractGenerator<{
 			throw new Error('state is not defined.');
 		}
 
-		const minStringLength = this.state.minStringLength,
-			maxStringLength = this.state.maxStringLength;
+		const minStringLength = 7;
+		const maxStringLength = 20;
 		const stringChars = '1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 		let idx: number,
 			strLength: number,
@@ -1463,34 +1409,16 @@ export class GenerateString extends AbstractGenerator<{
 	}
 }
 
+// has a newer version
 export class GenerateUniqueString extends AbstractGenerator<{ isUnique?: boolean }> {
 	static override readonly [entityKind]: string = 'GenerateUniqueString';
 
-	private state: {
-		rng: prand.RandomGenerator;
-		minStringLength: number;
-		maxStringLength: number;
-	} | undefined;
+	private state: { rng: prand.RandomGenerator } | undefined;
 	public override isUnique = true;
 
-	override init({ seed, count }: { seed: number; count: number }) {
+	override init({ seed }: { seed: number }) {
 		const rng = prand.xoroshiro128plus(seed);
-
-		let minStringLength = 8;
-		let maxStringLength = 20;
-		// TODO: revise later
-		if (this.stringLength !== undefined) {
-			maxStringLength = this.stringLength;
-			if (maxStringLength === 1 || maxStringLength < minStringLength) minStringLength = maxStringLength;
-		}
-
-		if (maxStringLength < count.toString(16).length) {
-			throw new Error(
-				`You can't generate ${count} unique strings, with a maximum string length of ${maxStringLength}.`,
-			);
-		}
-
-		this.state = { rng, minStringLength, maxStringLength };
+		this.state = { rng };
 	}
 
 	generate({ i }: { i: number }) {
@@ -1498,8 +1426,8 @@ export class GenerateUniqueString extends AbstractGenerator<{ isUnique?: boolean
 			throw new Error('state is not defined.');
 		}
 
-		const minStringLength = this.state.minStringLength,
-			maxStringLength = this.state.maxStringLength;
+		const minStringLength = 7;
+		const maxStringLength = 20;
 		const stringChars = '1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 		let idx: number,
 			strLength: number;
@@ -1521,7 +1449,7 @@ export class GenerateUniqueString extends AbstractGenerator<{ isUnique?: boolean
 			currStr += stringChars[idx];
 		}
 
-		return uniqueStr + currStr;
+		return currStr.slice(0, 4) + uniqueStr + currStr.slice(4);
 	}
 }
 

@@ -24,7 +24,6 @@ import {
 	GeneratePostcode,
 	GenerateState,
 	GenerateStreetAdddress,
-	GenerateString,
 	GenerateTime,
 	GenerateTimestamp,
 	GenerateUUID,
@@ -32,6 +31,7 @@ import {
 	GenerateYear,
 	WeightedRandomGenerator,
 } from './Generators.ts';
+import { GenerateStringV2 } from './GeneratorVersions/GeneratorsV2.ts';
 
 function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
 	generatorConstructor: new(params: T) => GeneratorType,
@@ -359,7 +359,7 @@ export const generatorsFuncs = {
 	 *  }));
 	 * ```
 	 */
-	string: createGenerator(GenerateString),
+	string: createGenerator(GenerateStringV2),
 	// uniqueString: createGenerator(GenerateUniqueString),
 
 	/**

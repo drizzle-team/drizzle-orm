@@ -15,7 +15,7 @@ import type { Column, Prettify, Relation, Table } from '../types/tables.ts';
 import type { AbstractGenerator } from './Generators.ts';
 
 import * as Generators from './Generators.ts';
-import * as GeneratorsV1 from './GeneratorVersions/GeneratorsV1.ts';
+import * as GeneratorsV2 from './GeneratorVersions/GeneratorsV2.ts';
 import { equalSets, generateHashFromString } from './utils.ts';
 
 export class SeedService {
@@ -39,10 +39,12 @@ export class SeedService {
 		let columnPossibleGenerator: Prettify<GeneratePossibleGeneratorsColumnType>;
 		let tablePossibleGenerators: Prettify<GeneratePossibleGeneratorsTableType>;
 		const customSeed = options?.seed === undefined ? 0 : options.seed;
-		const version = options?.version === undefined ? Generators.version : options.version;
+		const version = options?.version === undefined ? Generators.latestVersion : options.version;
+		if (version < Generators.version || version > Generators.latestVersion) {
+			throw new Error(`Version should be in range [${Generators.version}, ${Generators.latestVersion}].`);
+		}
 
 		// sorting table in order which they will be filled up (tables with foreign keys case)
-		// relations = relations.filter(rel => rel.type === "one");
 		const { tablesInOutRelations } = this.getInfoFromRelations(relations);
 		const orderedTablesNames = this.getOrderedTablesList(tablesInOutRelations);
 		tables = tables.sort((table1, table2) => {
@@ -416,22 +418,20 @@ export class SeedService {
 	};
 
 	selectGeneratorOfVersion = (version: number, generatorEntityKind: string) => {
-		const GeneratorVersions = [Generators, GeneratorsV1];
+		const GeneratorVersions = [GeneratorsV2, Generators];
 
 		type GeneratorConstructorT = new(params: any) => AbstractGenerator<any>;
 		let generatorConstructor: GeneratorConstructorT | undefined;
 		for (const gens of GeneratorVersions) {
 			const { version: gensVersion, ...filteredGens } = gens;
-			if (version > gensVersion) break;
+			if (gensVersion > version) continue;
 
 			for (const gen of Object.values(filteredGens)) {
 				const abstractGen = gen as typeof AbstractGenerator<any>;
 				if (abstractGen[entityKind] === generatorEntityKind) {
 					generatorConstructor = abstractGen as unknown as GeneratorConstructorT;
 
-					if (abstractGen.version === version) {
-						return generatorConstructor;
-					}
+					return generatorConstructor;
 				}
 			}
 		}
