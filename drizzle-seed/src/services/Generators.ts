@@ -1,21 +1,25 @@
 import { entityKind } from 'drizzle-orm';
 import prand from 'pure-rand';
-import adjectives from '../datasets/adjectives.ts';
-import cityNames from '../datasets/cityNames.ts';
-import companyNameSuffixes from '../datasets/companyNameSuffixes.ts';
-import countries from '../datasets/countries.ts';
-import emailDomains from '../datasets/emailDomains.ts';
-import firstNames from '../datasets/firstNames.ts';
-import jobsTitles from '../datasets/jobsTitles.ts';
-import lastNames from '../datasets/lastNames.ts';
-import loremIpsumSentences from '../datasets/loremIpsumSentences.ts';
+import adjectives, { maxStringLength as maxAdjectiveLength } from '../datasets/adjectives.ts';
+import cityNames, { maxStringLength as maxCityNameLength } from '../datasets/cityNames.ts';
+import companyNameSuffixes, { maxStringLength as maxCompanyNameSuffixLength } from '../datasets/companyNameSuffixes.ts';
+import countries, { maxStringLength as maxCountryLength } from '../datasets/countries.ts';
+import emailDomains, { maxStringLength as maxEmailDomainLength } from '../datasets/emailDomains.ts';
+import firstNames, { maxStringLength as maxFirstNameLength } from '../datasets/firstNames.ts';
+import jobsTitles, { maxStringLength as maxJobTitleLength } from '../datasets/jobsTitles.ts';
+import lastNames, { maxStringLength as maxLastNameLength } from '../datasets/lastNames.ts';
+import loremIpsumSentences, { maxStringLength as maxLoremIpsumLength } from '../datasets/loremIpsumSentences.ts';
 import phonesInfo from '../datasets/phonesInfo.ts';
-import states from '../datasets/states.ts';
-import streetSuffix from '../datasets/streetSuffix.ts';
+import states, { maxStringLength as maxStateLength } from '../datasets/states.ts';
+import streetSuffix, { maxStringLength as maxStreetSuffixLength } from '../datasets/streetSuffix.ts';
 import { fastCartesianProduct, fillTemplate, getWeightedIndices, isObject } from './utils.ts';
+
+export const latestVersion = 2;
+export const version = 1;
 
 export abstract class AbstractGenerator<T = {}> {
 	static readonly [entityKind]: string = 'AbstractGenerator';
+	static readonly ['version']: number = 2;
 
 	public isUnique = false;
 	public notNull = false;
@@ -24,6 +28,7 @@ export abstract class AbstractGenerator<T = {}> {
 	public timeSpent?: number;
 	public arraySize?: number;
 	public baseColumnDataType?: string;
+	public stringLength?: number;
 
 	constructor(public params: T) {}
 
@@ -87,19 +92,6 @@ export abstract class AbstractGenerator<T = {}> {
 
 		return;
 	}
-}
-
-function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
-	generatorConstructor: new(params: T) => GeneratorType,
-) {
-	return (
-		...args: GeneratorType extends GenerateValuesFromArray | GenerateDefault | WeightedRandomGenerator ? [T]
-			: ([] | [T])
-	): GeneratorType => {
-		let params = args[0];
-		if (params === undefined) params = {} as T;
-		return new generatorConstructor(params);
-	};
 }
 
 // Generators Classes -----------------------------------------------------------------------------------------------------------------------
@@ -1221,19 +1213,74 @@ export class GenerateEnum extends AbstractGenerator<{ enumValues: (string | numb
 }
 
 export class GenerateInterval extends AbstractGenerator<{
+	fields?:
+		| 'year'
+		| 'month'
+		| 'day'
+		| 'hour'
+		| 'minute'
+		| 'second'
+		| 'year to month'
+		| 'day to hour'
+		| 'day to minute'
+		| 'day to second'
+		| 'hour to minute'
+		| 'hour to second'
+		| 'minute to second';
 	isUnique?: boolean;
 	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GenerateInterval';
 
-	private state: { rng: prand.RandomGenerator } | undefined;
-	override uniqueVersionOfGen = GenerateUniqueInterval;
+	private state: {
+		rng: prand.RandomGenerator;
+		fieldsToGenerate: string[];
+	} | undefined;
+	override uniqueVersionOfGen: new(params: any) => AbstractGenerator<any> = GenerateUniqueInterval;
+	private config: { [key: string]: { from: number; to: number } } = {
+		year: {
+			from: 0,
+			to: 5,
+		},
+		month: {
+			from: 0,
+			to: 12,
+		},
+		day: {
+			from: 1,
+			to: 29,
+		},
+		hour: {
+			from: 0,
+			to: 24,
+		},
+		minute: {
+			from: 0,
+			to: 60,
+		},
+		second: {
+			from: 0,
+			to: 60,
+		},
+	};
 
 	override init({ count, seed }: { count: number; seed: number }) {
 		super.init({ count, seed });
 
+		const allFields = ['year', 'month', 'day', 'hour', 'minute', 'second'];
+		let fieldsToGenerate: string[] = allFields;
+
+		if (this.params.fields !== undefined && this.params.fields?.includes(' to ')) {
+			const tokens = this.params.fields.split(' to ');
+			const endIdx = allFields.indexOf(tokens[1]!);
+			fieldsToGenerate = allFields.slice(0, endIdx + 1);
+		} else if (this.params.fields !== undefined) {
+			const endIdx = allFields.indexOf(this.params.fields);
+			fieldsToGenerate = allFields.slice(0, endIdx + 1);
+		}
+
 		const rng = prand.xoroshiro128plus(seed);
-		this.state = { rng };
+		this.state = { rng, fieldsToGenerate };
 	}
 
 	generate() {
@@ -1241,38 +1288,22 @@ export class GenerateInterval extends AbstractGenerator<{
 			throw new Error('state is not defined.');
 		}
 
-		let yearsNumb: number,
-			monthsNumb: number,
-			daysNumb: number,
-			hoursNumb: number,
-			minutesNumb: number,
-			secondsNumb: number;
+		let interval = '', numb: number;
 
-		let interval = '';
-
-		[yearsNumb, this.state.rng] = prand.uniformIntDistribution(0, 5, this.state.rng);
-		[monthsNumb, this.state.rng] = prand.uniformIntDistribution(0, 12, this.state.rng);
-
-		[daysNumb, this.state.rng] = prand.uniformIntDistribution(1, 29, this.state.rng);
-
-		[hoursNumb, this.state.rng] = prand.uniformIntDistribution(0, 24, this.state.rng);
-
-		[minutesNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
-
-		[secondsNumb, this.state.rng] = prand.uniformIntDistribution(0, 60, this.state.rng);
-
-		interval = `${yearsNumb === 0 ? '' : `${yearsNumb} years `}`
-			+ `${monthsNumb === 0 ? '' : `${monthsNumb} months `}`
-			+ `${daysNumb === 0 ? '' : `${daysNumb} days `}`
-			+ `${hoursNumb === 0 ? '' : `${hoursNumb} hours `}`
-			+ `${minutesNumb === 0 ? '' : `${minutesNumb} minutes `}`
-			+ `${secondsNumb === 0 ? '' : `${secondsNumb} seconds`}`;
+		for (const field of this.state.fieldsToGenerate) {
+			const from = this.config[field]!.from, to = this.config[field]!.to;
+			[numb, this.state.rng] = prand.uniformIntDistribution(from, to, this.state.rng);
+			interval += `${numb} ${field} `;
+		}
 
 		return interval;
 	}
 }
 
-export class GenerateUniqueInterval extends AbstractGenerator<{ isUnique?: boolean }> {
+// has a newer version
+export class GenerateUniqueInterval extends AbstractGenerator<{
+	isUnique?: boolean;
+}> {
 	static override readonly [entityKind]: string = 'GenerateUniqueInterval';
 
 	private state: {
@@ -1331,6 +1362,7 @@ export class GenerateUniqueInterval extends AbstractGenerator<{ isUnique?: boole
 	}
 }
 
+// has a newer version
 export class GenerateString extends AbstractGenerator<{
 	isUnique?: boolean;
 	arraySize?: number;
@@ -1377,6 +1409,7 @@ export class GenerateString extends AbstractGenerator<{
 	}
 }
 
+// has a newer version
 export class GenerateUniqueString extends AbstractGenerator<{ isUnique?: boolean }> {
 	static override readonly [entityKind]: string = 'GenerateUniqueString';
 
@@ -1483,6 +1516,12 @@ export class GenerateFirstName extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
+		if (this.stringLength !== undefined && this.stringLength < maxFirstNameLength) {
+			throw new Error(
+				`You can't use first name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxFirstNameLength}.`,
+			);
+		}
+
 		this.state = { rng };
 	}
 
@@ -1493,7 +1532,6 @@ export class GenerateFirstName extends AbstractGenerator<{
 
 		// logic for this generator
 		// names dataset contains about 30000 unique names.
-		// TODO: generate names accordingly to max column length
 		let idx: number;
 
 		[idx, this.state.rng] = prand.uniformIntDistribution(0, firstNames.length - 1, this.state.rng);
@@ -1515,6 +1553,13 @@ export class GenerateUniqueFirstName extends AbstractGenerator<{
 		if (count > firstNames.length) {
 			throw new Error('count exceeds max number of unique first names.');
 		}
+
+		if (this.stringLength !== undefined && this.stringLength < maxFirstNameLength) {
+			throw new Error(
+				`You can't use first name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxFirstNameLength}.`,
+			);
+		}
+
 		const genIndicesObj = new GenerateUniqueInt({ minValue: 0, maxValue: firstNames.length - 1 });
 		genIndicesObj.init({ count, seed });
 
@@ -1550,6 +1595,12 @@ export class GenerateLastName extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
+		if (this.stringLength !== undefined && this.stringLength < maxLastNameLength) {
+			throw new Error(
+				`You can't use last name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxLastNameLength}.`,
+			);
+		}
+
 		this.state = { rng };
 	}
 	generate() {
@@ -1575,6 +1626,12 @@ export class GenerateUniqueLastName extends AbstractGenerator<{ isUnique?: boole
 	override init({ count, seed }: { count: number; seed: number }) {
 		if (count > lastNames.length) {
 			throw new Error('count exceeds max number of unique last names.');
+		}
+
+		if (this.stringLength !== undefined && this.stringLength < maxLastNameLength) {
+			throw new Error(
+				`You can't use last name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxLastNameLength}.`,
+			);
 		}
 
 		const genIndicesObj = new GenerateUniqueInt({ minValue: 0, maxValue: lastNames.length - 1 });
@@ -1610,6 +1667,14 @@ export class GenerateFullName extends AbstractGenerator<{
 		super.init({ count, seed });
 
 		const rng = prand.xoroshiro128plus(seed);
+
+		if (this.stringLength !== undefined && this.stringLength < (maxFirstNameLength + maxLastNameLength + 1)) {
+			throw new Error(
+				`You can't use full name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${
+					maxFirstNameLength + maxLastNameLength + 1
+				}.`,
+			);
+		}
 
 		this.state = { rng };
 	}
@@ -1654,6 +1719,15 @@ export class GenerateUniqueFullName extends AbstractGenerator<{
 				`count exceeds max number of unique full names(${maxUniqueFullNamesNumber}).`,
 			);
 		}
+
+		if (this.stringLength !== undefined && this.stringLength < (maxFirstNameLength + maxLastNameLength + 1)) {
+			throw new Error(
+				`You can't use full name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${
+					maxFirstNameLength + maxLastNameLength + 1
+				}.`,
+			);
+		}
+
 		const rng = prand.xoroshiro128plus(seed);
 		const fullnameSet = new Set<string>();
 
@@ -1715,6 +1789,13 @@ export class GenerateEmail extends AbstractGenerator<{
 			);
 		}
 
+		const maxEmailLength = maxAdjectiveLength + maxFirstNameLength + maxEmailDomainLength + 2;
+		if (this.stringLength !== undefined && this.stringLength < maxEmailLength) {
+			throw new Error(
+				`You can't use email generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxEmailLength}.`,
+			);
+		}
+
 		const arraysToGenerateFrom = [adjectivesArray, namesArray, domainsArray];
 		const genIndicesObj = new GenerateUniqueInt({
 			minValue: 0,
@@ -1773,6 +1854,13 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 		const rng = prand.xoroshiro128plus(seed);
 
 		if (template !== undefined) {
+			if (this.stringLength !== undefined && this.stringLength < template.length) {
+				throw new Error(
+					`Length of phone number template is shorter than db column length restriction: ${this.stringLength}. 
+					Set the maximum string length to at least ${template.length}.`,
+				);
+			}
+
 			const iterArray = [...template.matchAll(/#/g)];
 			const placeholdersCount = iterArray.length;
 
@@ -1826,6 +1914,17 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 			) {
 				generatedDigitsNumbers = Array.from<number>({ length: prefixes.length }).fill(7);
 			}
+		}
+
+		const maxPrefixLength = Math.max(...prefixesArray.map((prefix) => prefix.length));
+		const maxGeneratedDigits = Math.max(...generatedDigitsNumbers);
+
+		if (this.stringLength !== undefined && this.stringLength < (maxPrefixLength + maxGeneratedDigits)) {
+			throw new Error(
+				`You can't use phone number generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${
+					maxPrefixLength + maxGeneratedDigits
+				}.`,
+			);
 		}
 
 		if (new Set(prefixesArray).size !== prefixesArray.length) {
@@ -1907,7 +2006,7 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 				numberBody = '0'.repeat(digitsNumberDiff) + numberBody;
 			}
 
-			phoneNumber = (prefix.includes('+') ? '' : '+') + prefix + '' + numberBody;
+			phoneNumber = prefix + '' + numberBody;
 
 			return phoneNumber;
 		} else {
@@ -1940,6 +2039,12 @@ export class GenerateCountry extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
+		if (this.stringLength !== undefined && this.stringLength < maxCountryLength) {
+			throw new Error(
+				`You can't use country generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCountryLength}.`,
+			);
+		}
+
 		this.state = { rng };
 	}
 
@@ -1968,6 +2073,12 @@ export class GenerateUniqueCountry extends AbstractGenerator<{ isUnique?: boolea
 	override init({ count, seed }: { count: number; seed: number }) {
 		if (count > countries.length) {
 			throw new Error('count exceeds max number of unique countries.');
+		}
+
+		if (this.stringLength !== undefined && this.stringLength < maxCountryLength) {
+			throw new Error(
+				`You can't use country generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCountryLength}.`,
+			);
 		}
 
 		const genIndicesObj = new GenerateUniqueInt({ minValue: 0, maxValue: countries.length - 1 });
@@ -2002,6 +2113,12 @@ export class GenerateJobTitle extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
+		if (this.stringLength !== undefined && this.stringLength < maxJobTitleLength) {
+			throw new Error(
+				`You can't use job title generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxJobTitleLength}.`,
+			);
+		}
+
 		this.state = { rng };
 	}
 
@@ -2034,6 +2151,14 @@ export class GenerateStreetAdddress extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 		const possStreetNames = [firstNames, lastNames];
+
+		const maxStreetAddressLength = 4 + Math.max(maxFirstNameLength, maxLastNameLength) + 1 + maxStreetSuffixLength;
+		if (this.stringLength !== undefined && this.stringLength < maxStreetAddressLength) {
+			throw new Error(
+				`You can't use street address generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxStreetAddressLength}.`,
+			);
+		}
+
 		this.state = { rng, possStreetNames };
 	}
 
@@ -2081,6 +2206,13 @@ export class GenerateUniqueStreetAdddress extends AbstractGenerator<{ isUnique?:
 		if (count > maxUniqueStreetnamesNumber) {
 			throw new RangeError(
 				`count exceeds max number of unique street names(${maxUniqueStreetnamesNumber}).`,
+			);
+		}
+
+		const maxStreetAddressLength = 4 + Math.max(maxFirstNameLength, maxLastNameLength) + 1 + maxStreetSuffixLength;
+		if (this.stringLength !== undefined && this.stringLength < maxStreetAddressLength) {
+			throw new Error(
+				`You can't use street address generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxStreetAddressLength}.`,
 			);
 		}
 
@@ -2161,6 +2293,12 @@ export class GenerateCity extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
+		if (this.stringLength !== undefined && this.stringLength < maxCityNameLength) {
+			throw new Error(
+				`You can't use city generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCityNameLength}.`,
+			);
+		}
+
 		this.state = { rng };
 	}
 
@@ -2187,6 +2325,12 @@ export class GenerateUniqueCity extends AbstractGenerator<{ isUnique?: boolean }
 	override init({ count, seed }: { count: number; seed: number }) {
 		if (count > cityNames.length) {
 			throw new Error('count exceeds max number of unique cities.');
+		}
+
+		if (this.stringLength !== undefined && this.stringLength < maxCityNameLength) {
+			throw new Error(
+				`You can't use city generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCityNameLength}.`,
+			);
 		}
 
 		const genIndicesObj = new GenerateUniqueInt({ minValue: 0, maxValue: cityNames.length - 1 });
@@ -2224,6 +2368,13 @@ export class GeneratePostcode extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 		const templates = ['#####', '#####-####'];
+
+		const maxPostcodeLength = Math.max(...templates.map((template) => template.length));
+		if (this.stringLength !== undefined && this.stringLength < maxPostcodeLength) {
+			throw new Error(
+				`You can't use postcode generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxPostcodeLength}.`,
+			);
+		}
 
 		this.state = { rng, templates };
 	}
@@ -2298,6 +2449,13 @@ export class GenerateUniquePostcode extends AbstractGenerator<{ isUnique?: boole
 			},
 		];
 
+		const maxPostcodeLength = Math.max(...templates.map((template) => template.template.length));
+		if (this.stringLength !== undefined && this.stringLength < maxPostcodeLength) {
+			throw new Error(
+				`You can't use postcode generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxPostcodeLength}.`,
+			);
+		}
+
 		for (const templateObj of templates) {
 			templateObj.indicesGen.skipCheck = true;
 			templateObj.indicesGen.init({ count, seed });
@@ -2349,6 +2507,12 @@ export class GenerateState extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
+		if (this.stringLength !== undefined && this.stringLength < maxStateLength) {
+			throw new Error(
+				`You can't use state generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxStateLength}.`,
+			);
+		}
+
 		this.state = { rng };
 	}
 
@@ -2386,6 +2550,17 @@ export class GenerateCompanyName extends AbstractGenerator<{
 			{ template: '# and #', placeholdersCount: 2 },
 			{ template: '#, # and #', placeholdersCount: 3 },
 		];
+
+		// max( { template: '#', placeholdersCount: 1 }, { template: '#, # and #', placeholdersCount: 3 } )
+		const maxCompanyNameLength = Math.max(
+			maxLastNameLength + maxCompanyNameSuffixLength + 1,
+			3 * maxLastNameLength + 7,
+		);
+		if (this.stringLength !== undefined && this.stringLength < maxCompanyNameLength) {
+			throw new Error(
+				`You can't use company name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCompanyNameLength}.`,
+			);
+		}
 
 		this.state = { rng, templates };
 	}
@@ -2447,6 +2622,17 @@ export class GenerateUniqueCompanyName extends AbstractGenerator<{ isUnique?: bo
 		if (count > maxUniqueCompanyNameNumber) {
 			throw new RangeError(
 				`count exceeds max number of unique company names(${maxUniqueCompanyNameNumber}).`,
+			);
+		}
+
+		// max( { template: '#', placeholdersCount: 1 }, { template: '#, # and #', placeholdersCount: 3 } )
+		const maxCompanyNameLength = Math.max(
+			maxLastNameLength + maxCompanyNameSuffixLength + 1,
+			3 * maxLastNameLength + 7,
+		);
+		if (this.stringLength !== undefined && this.stringLength < maxCompanyNameLength) {
+			throw new Error(
+				`You can't use company name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCompanyNameLength}.`,
 			);
 		}
 
@@ -2537,6 +2723,14 @@ export class GenerateLoremIpsum extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 		if (this.params.sentencesCount === undefined) this.params.sentencesCount = 1;
+
+		const maxLoremIpsumSentencesLength = maxLoremIpsumLength * this.params.sentencesCount + this.params.sentencesCount
+			- 1;
+		if (this.stringLength !== undefined && this.stringLength < maxLoremIpsumSentencesLength) {
+			throw new Error(
+				`You can't use lorem ipsum generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxLoremIpsumSentencesLength}.`,
+			);
+		}
 
 		this.state = { rng };
 	}
@@ -2866,692 +3060,3 @@ export class GenerateUniqueLine extends AbstractGenerator<{
 		}
 	}
 }
-
-export const generatorsFuncs = {
-	/**
-	 * generates same given value each time the generator is called.
-	 * @param defaultValue - value you want to generate
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *   posts: {
-	 *    columns: {
-	 *     content: funcs.default({ defaultValue: "post content" }),
-	 *    },
-	 *   },
-	 *  }));
-	 * ```
-	 */
-	default: createGenerator(GenerateDefault),
-
-	/**
-	 * generates values from given array
-	 * @param values - array of values you want to generate. can be array of weighted values.
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    posts: {
-	 *      columns: {
-	 *        title: funcs.valuesFromArray({
-	 *          values: ["Title1", "Title2", "Title3", "Title4", "Title5"],
-	 *          isUnique: true
-	 *        }),
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 * weighted values example
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    posts: {
-	 *      columns: {
-	 *        title: funcs.valuesFromArray({
-	 *          values: [
-	 *            { weight: 0.35, values: ["Title1", "Title2"] },
-	 *            { weight: 0.5, values: ["Title3", "Title4"] },
-	 *            { weight: 0.15, values: ["Title5"] },
-	 *          ],
-	 *          isUnique: false
-	 *        }),
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	valuesFromArray: createGenerator(GenerateValuesFromArray),
-
-	/**
-	 * generates sequential integers starting with 1.
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    posts: {
-	 *      columns: {
-	 *        id: funcs.intPrimaryKey(),
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	intPrimaryKey: createGenerator(GenerateIntPrimaryKey),
-
-	/**
-	 * generates numbers with floating point in given range.
-	 * @param minValue - lower border of range.
-	 * @param maxValue - upper border of range.
-	 * @param precision - precision of generated number:
-	 * precision equals 10 means that values will be accurate to one tenth (1.2, 34.6);
-	 * precision equals 100 means that values will be accurate to one hundredth (1.23, 34.67).
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    products: {
-	 *      columns: {
-	 *        unitPrice: funcs.number({ minValue: 10, maxValue: 120, precision: 100, isUnique: false }),
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	number: createGenerator(GenerateNumber),
-	// uniqueNumber: createGenerator(GenerateUniqueNumber),
-
-	/**
-	 * generates integers within given range.
-	 * @param minValue - lower border of range.
-	 * @param maxValue - upper border of range.
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    products: {
-	 *      columns: {
-	 *        unitsInStock: funcs.number({ minValue: 0, maxValue: 100, isUnique: false }),
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	int: createGenerator(GenerateInt),
-	// uniqueInt: createGenerator(GenerateUniqueInt),
-
-	/**
-	 * generates boolean values(true or false)
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        isAvailable: funcs.boolean()
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	boolean: createGenerator(GenerateBoolean),
-
-	/**
-	 * generates date within given range.
-	 * @param minDate - lower border of range.
-	 * @param maxDate - upper border of range.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        birthDate: funcs.date({ minDate: "1990-01-01", maxDate: "2010-12-31" })
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	date: createGenerator(GenerateDate),
-
-	/**
-	 * generates time in 24 hours style.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        birthTime: funcs.time()
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	time: createGenerator(GenerateTime),
-
-	/**
-	 * generates timestamps.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    orders: {
-	 *      columns: {
-	 *        shippedDate: funcs.timestamp()
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	timestamp: createGenerator(GenerateTimestamp),
-
-	/**
-	 * generates datetime objects.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    orders: {
-	 *      columns: {
-	 *        shippedDate: funcs.datetime()
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	datetime: createGenerator(GenerateDatetime),
-
-	/**
-	 * generates years.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        birthYear: funcs.year()
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	year: createGenerator(GenerateYear),
-
-	/**
-	 * generates json objects with fixed structure.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * json structure can equal this:
-	 * ```
-	 * {
-	 *     email,
-	 *     name,
-	 *     isGraduated,
-	 *     hasJob,
-	 *     salary,
-	 *     startedWorking,
-	 *     visitedCountries,
-	 * }
-	 * ```
-	 * or this
-	 * ```
-	 * {
-	 *     email,
-	 *     name,
-	 *     isGraduated,
-	 *     hasJob,
-	 *     visitedCountries,
-	 * }
-	 * ```
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        metadata: funcs.json()
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	json: createGenerator(GenerateJson),
-	// jsonb: createGenerator(GenerateJsonb),
-
-	/**
-	 * generates time intervals.
-	 *
-	 * interval example: "1 years 12 days 5 minutes"
-	 *
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 * @example
-	 * ```ts
-	 * await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        timeSpentOnWebsite: funcs.interval()
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	interval: createGenerator(GenerateInterval),
-	// uniqueInterval: createGenerator(GenerateUniqueInterval),
-
-	/**
-	 * generates random strings.
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 * await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        hashedPassword: funcs.string({isUnique: false})
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	string: createGenerator(GenerateString),
-	// uniqueString: createGenerator(GenerateUniqueString),
-
-	/**
-	 * generates v4 UUID strings if arraySize is not specified, or v4 UUID 1D arrays if it is.
-	 *
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        uuid: funcs.uuid({
-	 *          arraySize: 4
-	 *        })
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	uuid: createGenerator(GenerateUUID),
-
-	/**
-	 * generates person's first names.
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        firstName: funcs.firstName({isUnique: true})
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	firstName: createGenerator(GenerateFirstName),
-	// uniqueFirstName: createGenerator(GenerateUniqueName),
-
-	/**
-	 * generates person's last names.
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        lastName: funcs.lastName({isUnique: false})
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	lastName: createGenerator(GenerateLastName),
-	// uniqueLastName: createGenerator(GenerateUniqueSurname),
-
-	/**
-	 * generates person's full names.
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        fullName: funcs.fullName({isUnique: true})
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	fullName: createGenerator(GenerateFullName),
-	// uniqueFullName: createGenerator(GenerateUniqueFullName),
-
-	/**
-	 * generates unique emails.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        email: funcs.email()
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	email: createGenerator(GenerateEmail),
-
-	/**
-	 * generates unique phone numbers.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @param template - phone number template, where all '#' symbols will be substituted with generated digits.
-	 * @param prefixes - array of any string you want to be your phone number prefixes.(not compatible with template property)
-	 * @param generatedDigitsNumbers - number of digits that will be added at the end of prefixes.(not compatible with template property)
-	 * @example
-	 * ```ts
-	 *  //generate phone number using template property
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        phoneNumber: funcs.phoneNumber({template: "+(380) ###-####"})
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 *  //generate phone number using prefixes and generatedDigitsNumbers properties
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        phoneNumber: funcs.phoneNumber({prefixes: [ "+380 99", "+380 67" ], generatedDigitsNumbers: 7})
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 *  //generate phone number using prefixes and generatedDigitsNumbers properties but with different generatedDigitsNumbers for prefixes
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        phoneNumber: funcs.phoneNumber({prefixes: [ "+380 99", "+380 67", "+1" ], generatedDigitsNumbers: [7, 7, 10]})
-	 *      },
-	 *    },
-	 *  }));
-	 *
-	 * ```
-	 */
-	phoneNumber: createGenerator(GeneratePhoneNumber),
-
-	/**
-	 * generates country's names.
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        country: funcs.country({isUnique: false})
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	country: createGenerator(GenerateCountry),
-	// uniqueCountry: createGenerator(GenerateUniqueCountry),
-
-	/**
-	 * generates city's names.
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        city: funcs.city({isUnique: false})
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	city: createGenerator(GenerateCity),
-	// uniqueCity: createGenerator(GenerateUniqueCityName),
-
-	/**
-	 * generates street address.
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        streetAddress: funcs.streetAddress({isUnique: true})
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	streetAddress: createGenerator(GenerateStreetAdddress),
-	// uniqueStreetAddress: createGenerator(GenerateUniqueStreetAdddress),
-
-	/**
-	 * generates job titles.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        jobTitle: funcs.jobTitle()
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	jobTitle: createGenerator(GenerateJobTitle),
-
-	/**
-	 * generates postal codes.
-	 *
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        postcode: funcs.postcode({isUnique: true})
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	postcode: createGenerator(GeneratePostcode),
-	// uniquePostcoe: createGenerator(GenerateUniquePostcode),
-
-	/**
-	 * generates states of America.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        state: funcs.state()
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	state: createGenerator(GenerateState),
-
-	/**
-	 * generates company's names.
-	 *
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    users: {
-	 *      columns: {
-	 *        company: funcs.companyName({isUnique: true})
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	companyName: createGenerator(GenerateCompanyName),
-	// uniqueCompanyName: createGenerator(GenerateUniqueCompanyName),
-
-	/**
-	 * generates 'lorem ipsum' text sentences.
-	 *
-	 * @param sentencesCount - number of sentences you want to generate as one generated value(string).
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    posts: {
-	 *      columns: {
-	 *        content: funcs.loremIpsum({sentencesCount: 2})
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	loremIpsum: createGenerator(GenerateLoremIpsum),
-
-	/**
-	 * generates 2D points within specified ranges for x and y coordinates.
-	 *
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param minXValue - lower bound of range for x coordinate.
-	 * @param maxXValue - upper bound of range for x coordinate.
-	 * @param minYValue - lower bound of range for y coordinate.
-	 * @param maxYValue - upper bound of range for y coordinate.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    triangles: {
-	 *      columns: {
-	 *        pointCoords: funcs.point({
-	 *          isUnique: true,
-	 *          minXValue: -5, maxXValue:20,
-	 *          minYValue: 0, maxYValue: 30
-	 *        })
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	point: createGenerator(GeneratePoint),
-	// uniquePoint: createGenerator(GenerateUniquePoint),
-
-	/**
-	 * generates 2D lines within specified ranges for a, b and c parameters of line.
-	 *
-	 * ```
-	 * line equation: a*x + b*y + c = 0
-	 * ```
-	 *
-	 * @param isUnique - property that controls if generated values gonna be unique or not.
-	 * @param minAValue - lower bound of range for a parameter.
-	 * @param maxAValue - upper bound of range for x parameter.
-	 * @param minBValue - lower bound of range for y parameter.
-	 * @param maxBValue - upper bound of range for y parameter.
-	 * @param minCValue - lower bound of range for y parameter.
-	 * @param maxCValue - upper bound of range for y parameter.
-	 * @param arraySize - number of elements in each one-dimensional array.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    lines: {
-	 *      columns: {
-	 *        lineParams: funcs.point({
-	 *          isUnique: true,
-	 *          minAValue: -5, maxAValue:20,
-	 *          minBValue: 0, maxBValue: 30,
-	 *          minCValue: 0, maxCValue: 10
-	 *        })
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	line: createGenerator(GenerateLine),
-	// uniqueLine: createGenerator(GenerateUniqueLine),
-
-	/**
-	 * gives you the opportunity to call different generators with different probabilities to generate values for one column.
-	 * @param params - array of generators with probabilities you would like to call them to generate values.
-	 *
-	 * @example
-	 * ```ts
-	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
-	 *    posts: {
-	 *      columns: {
-	 *        content: funcs.weightedRandom([
-	 *          {
-	 *            weight: 0.6,
-	 *            value: funcs.loremIpsum({ sentencesCount: 3 }),
-	 *          },
-	 *          {
-	 *            weight: 0.4,
-	 *            value: funcs.default({ defaultValue: "TODO" }),
-	 *          },
-	 *        ]),
-	 *      },
-	 *    },
-	 *  }));
-	 * ```
-	 */
-	weightedRandom: createGenerator(WeightedRandomGenerator),
-};

@@ -40,7 +40,7 @@ import {
 	GenerateValuesFromArray,
 	GenerateYear,
 	WeightedRandomGenerator,
-} from '../../src/services/GeneratorsWrappers.ts';
+} from '../../src/services/Generators.ts';
 
 const benchmark = ({ generatorName, generator, count = 100000, seed = 1 }: {
 	generatorName: string;

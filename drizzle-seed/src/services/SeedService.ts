@@ -11,35 +11,11 @@ import type {
 	RefinementsType,
 	TableGeneratorsType,
 } from '../types/seedService.ts';
-import type { Column, Prettify, Relation, RelationWithReferences, Table } from '../types/tables.ts';
-import type { AbstractGenerator } from './GeneratorsWrappers.ts';
-import {
-	GenerateArray,
-	GenerateBoolean,
-	GenerateDate,
-	GenerateDatetime,
-	GenerateDefault,
-	GenerateEmail,
-	GenerateEnum,
-	GenerateFirstName,
-	GenerateInt,
-	GenerateInterval,
-	GenerateIntPrimaryKey,
-	GenerateJson,
-	GenerateLine,
-	GenerateNumber,
-	GeneratePoint,
-	GenerateSelfRelationsValuesFromArray,
-	GenerateString,
-	GenerateTime,
-	GenerateTimestamp,
-	GenerateUniqueString,
-	GenerateUUID,
-	GenerateValuesFromArray,
-	GenerateWeightedCount,
-	GenerateYear,
-	HollowGenerator,
-} from './GeneratorsWrappers.ts';
+import type { Column, Prettify, Relation, Table } from '../types/tables.ts';
+import type { AbstractGenerator } from './Generators.ts';
+
+import * as Generators from './Generators.ts';
+import * as GeneratorsV2 from './GeneratorVersions/GeneratorsV2.ts';
 import { equalSets, generateHashFromString } from './utils.ts';
 
 export class SeedService {
@@ -57,16 +33,18 @@ export class SeedService {
 		connectionType: 'postgresql' | 'mysql' | 'sqlite',
 		tables: Table[],
 		relations: (Relation & { isCyclic: boolean })[],
-		tableRelations: { [tableName: string]: RelationWithReferences[] },
 		refinements?: RefinementsType,
-		options?: { count?: number; seed?: number },
+		options?: { count?: number; seed?: number; version?: number },
 	) => {
 		let columnPossibleGenerator: Prettify<GeneratePossibleGeneratorsColumnType>;
 		let tablePossibleGenerators: Prettify<GeneratePossibleGeneratorsTableType>;
 		const customSeed = options?.seed === undefined ? 0 : options.seed;
+		const version = options?.version === undefined ? Generators.latestVersion : options.version;
+		if (version < Generators.version || version > Generators.latestVersion) {
+			throw new Error(`Version should be in range [${Generators.version}, ${Generators.latestVersion}].`);
+		}
 
 		// sorting table in order which they will be filled up (tables with foreign keys case)
-		// relations = relations.filter(rel => rel.type === "one");
 		const { tablesInOutRelations } = this.getInfoFromRelations(relations);
 		const orderedTablesNames = this.getOrderedTablesList(tablesInOutRelations);
 		tables = tables.sort((table1, table2) => {
@@ -202,11 +180,20 @@ export class SeedService {
 					&& refinements[table.name]!.columns !== undefined
 					&& refinements[table.name]!.columns[col.name] !== undefined
 				) {
-					const genObj = refinements[table.name]!.columns[col.name]!;
+					let genObj = refinements[table.name]!.columns[col.name]!;
+
+					const genObjEntityKind = genObj.getEntityKind();
+					const generatorConstructor = this.selectGeneratorOfVersion(version, genObjEntityKind);
+					genObj = new generatorConstructor(genObj.params);
+
 					// TODO: for now only GenerateValuesFromArray support notNull property
 					genObj.notNull = col.notNull;
-					if (col.dataType === 'array') {
-						if (col.baseColumn?.dataType === 'array' && col.baseColumn?.columnType === 'array') {
+					if (col.columnType.match(/\[\w*]/g) !== null) {
+						if (
+							(col.baseColumn?.dataType === 'array' && col.baseColumn.columnType.match(/\[\w*]/g) !== null)
+							// studio case
+							|| (col.typeParams.dimensions !== undefined && col.typeParams.dimensions > 1)
+						) {
 							throw new Error("for now you can't specify generators for columns of dimensition greater than 1.");
 						}
 
@@ -217,8 +204,9 @@ export class SeedService {
 					columnPossibleGenerator.wasRefined = true;
 				} else if (Object.hasOwn(foreignKeyColumns, col.name)) {
 					// TODO: I might need to assign repeatedValuesCount to column there instead of doing so in generateTablesValues
-					const cyclicRelation = tableRelations[table.name]!.find((rel) =>
-						rel.isCyclic === true
+					const cyclicRelation = relations.find((rel) =>
+						rel.table === table.name
+						&& rel.isCyclic === true
 						&& rel.columns.includes(col.name)
 					);
 
@@ -228,31 +216,33 @@ export class SeedService {
 					const predicate = cyclicRelation !== undefined && col.notNull === false;
 
 					if (predicate === true) {
-						columnPossibleGenerator.generator = new GenerateDefault({ defaultValue: null });
+						columnPossibleGenerator.generator = new Generators.GenerateDefault({ defaultValue: null });
 						columnPossibleGenerator.wasDefinedBefore = true;
 					}
 
-					columnPossibleGenerator.generator = new HollowGenerator({});
+					columnPossibleGenerator.generator = new Generators.HollowGenerator({});
 				} // TODO: rewrite pickGeneratorFor... using new col properties: isUnique and notNull
 				else if (connectionType === 'postgresql') {
-					columnPossibleGenerator.generator = this.pickGeneratorForPostgresColumn(
+					columnPossibleGenerator.generator = this.selectGeneratorForPostgresColumn(
 						table,
 						col,
+						version,
 					);
 				} else if (connectionType === 'mysql') {
-					columnPossibleGenerator.generator = this.pickGeneratorForMysqlColumn(
+					columnPossibleGenerator.generator = this.selectGeneratorForMysqlColumn(
 						table,
 						col,
+						version,
 					);
 				} else if (connectionType === 'sqlite') {
-					columnPossibleGenerator.generator = this.pickGeneratorForSqlite(
+					columnPossibleGenerator.generator = this.selectGeneratorForSqlite(
 						table,
 						col,
+						version,
 					);
 				}
 
 				if (columnPossibleGenerator.generator === undefined) {
-					console.log(col);
 					throw new Error(
 						`column with type ${col.columnType} is not supported for now.`,
 					);
@@ -260,6 +250,7 @@ export class SeedService {
 
 				columnPossibleGenerator.generator.isUnique = col.isUnique;
 				columnPossibleGenerator.generator.dataType = col.dataType;
+				columnPossibleGenerator.generator.stringLength = col.typeParams.length;
 
 				tablePossibleGenerators.columnsPossibleGenerators.push(
 					columnPossibleGenerator,
@@ -416,7 +407,7 @@ export class SeedService {
 		count: number,
 		seed: number,
 	) => {
-		const gen = new GenerateWeightedCount({});
+		const gen = new Generators.GenerateWeightedCount({});
 		gen.init({ count: weightedCount, seed });
 		let weightedWithCount = 0;
 		for (let i = 0; i < count; i++) {
@@ -426,544 +417,621 @@ export class SeedService {
 		return weightedWithCount;
 	};
 
-	// TODO: revise serial part generators
+	selectGeneratorOfVersion = (version: number, generatorEntityKind: string) => {
+		const GeneratorVersions = [GeneratorsV2, Generators];
 
-	pickGeneratorForPostgresColumn = (
-		table: Table,
-		col: Column,
-	) => {
-		let generator: AbstractGenerator<any> | undefined;
+		type GeneratorConstructorT = new(params: any) => AbstractGenerator<any>;
+		let generatorConstructor: GeneratorConstructorT | undefined;
+		for (const gens of GeneratorVersions) {
+			const { version: gensVersion, ...filteredGens } = gens;
+			if (gensVersion > version) continue;
 
-		// INT ------------------------------------------------------------------------------------------------------------
-		if (
-			(col.columnType.includes('serial')
-				|| col.columnType === 'integer'
-				|| col.columnType === 'smallint'
-				|| col.columnType.includes('bigint'))
-			&& table.primaryKeys.includes(col.name)
-		) {
-			generator = new GenerateIntPrimaryKey({});
+			for (const gen of Object.values(filteredGens)) {
+				const abstractGen = gen as typeof AbstractGenerator<any>;
+				if (abstractGen[entityKind] === generatorEntityKind) {
+					generatorConstructor = abstractGen as unknown as GeneratorConstructorT;
 
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		let minValue: number | bigint | undefined;
-		let maxValue: number | bigint | undefined;
-		if (col.columnType.includes('serial')) {
-			minValue = 1;
-			if (col.columnType === 'smallserial') {
-				// 2^16 / 2 - 1, 2 bytes
-				maxValue = 32767;
-			} else if (col.columnType === 'serial') {
-				// 2^32 / 2 - 1, 4 bytes
-				maxValue = 2147483647;
-			} else if (col.columnType === 'bigserial') {
-				// 2^64 / 2 - 1, 8 bytes
-				minValue = BigInt(1);
-				maxValue = BigInt('9223372036854775807');
-			}
-		} else if (col.columnType.includes('int')) {
-			if (col.columnType === 'smallint') {
-				// 2^16 / 2 - 1, 2 bytes
-				minValue = -32768;
-				maxValue = 32767;
-			} else if (col.columnType === 'integer') {
-				// 2^32 / 2 - 1, 4 bytes
-				minValue = -2147483648;
-				maxValue = 2147483647;
-			} else if (col.columnType.includes('bigint')) {
-				if (col.dataType === 'bigint') {
-					// 2^64 / 2 - 1, 8 bytes
-					minValue = BigInt('-9223372036854775808');
-					maxValue = BigInt('9223372036854775807');
-				} else if (col.dataType === 'number') {
-					// if you’re expecting values above 2^31 but below 2^53
-					minValue = -9007199254740991;
-					maxValue = 9007199254740991;
+					return generatorConstructor;
 				}
 			}
 		}
 
-		if (
-			col.columnType.includes('int')
-			&& !col.columnType.includes('interval')
-			&& !col.columnType.includes('point')
-		) {
-			generator = new GenerateInt({
-				minValue,
-				maxValue,
-			});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
+		if (generatorConstructor === undefined) {
+			throw new Error(`Can't select ${generatorEntityKind} generator for ${version} version.`);
 		}
 
-		if (col.columnType.includes('serial')) {
-			generator = new GenerateIntPrimaryKey({});
+		return generatorConstructor;
+	};
 
-			(generator as GenerateIntPrimaryKey).maxValue = maxValue;
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
+	// TODO: revise serial part generators
+	selectGeneratorForPostgresColumn = (
+		table: Table,
+		col: Column,
+		version: number,
+	) => {
+		const pickGenerator = (table: Table, col: Column) => {
+			// ARRAY
+			if (col.columnType.match(/\[\w*]/g) !== null && col.baseColumn !== undefined) {
+				const baseColumnGen = this.selectGeneratorForPostgresColumn(
+					table,
+					col.baseColumn!,
+					version,
+				) as AbstractGenerator;
+				if (baseColumnGen === undefined) {
+					throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
+				}
 
-		// NUMBER(real, double, decimal, numeric)
-		if (
-			col.columnType === 'real'
-			|| col.columnType === 'doubleprecision'
-			|| col.columnType === 'decimal'
-			|| col.columnType === 'numeric'
-		) {
-			generator = new GenerateNumber({});
+				// const { generatorConstructor } = this.selectGeneratorOfVersion(
+				// 	version,
+				// 	Generators.GenerateArray[entityKind],
+				// );
 
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
+				// const generator = new generatorConstructor!({ baseColumnGen, size: col.size });
+				const generator = new Generators.GenerateArray({ baseColumnGen, size: col.size });
 
-		// STRING
-		if (
-			(col.columnType === 'text'
-				|| col.columnType === 'varchar'
-				|| col.columnType === 'char')
-			&& table.primaryKeys.includes(col.name)
-		) {
-			generator = new GenerateUniqueString({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (
-			(col.columnType === 'text'
-				|| col.columnType === 'varchar'
-				|| col.columnType === 'char')
-			&& col.name.toLowerCase().includes('name')
-		) {
-			generator = new GenerateFirstName({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (
-			(col.columnType === 'text'
-				|| col.columnType === 'varchar'
-				|| col.columnType === 'char')
-			&& col.name.toLowerCase().includes('email')
-		) {
-			generator = new GenerateEmail({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (
-			col.columnType === 'text'
-			|| col.columnType === 'varchar'
-			|| col.columnType === 'char'
-		) {
-			// console.log(col, table)
-			generator = new GenerateString({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// UUID
-		if (col.columnType === 'uuid') {
-			generator = new GenerateUUID({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// BOOLEAN
-		if (col.columnType === 'boolean') {
-			generator = new GenerateBoolean({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// DATE, TIME, TIMESTAMP
-		if (col.columnType.includes('date')) {
-			generator = new GenerateDate({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (col.columnType === 'time') {
-			generator = new GenerateTime({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (col.columnType.includes('timestamp')) {
-			generator = new GenerateTimestamp({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// JSON, JSONB
-		if (col.columnType === 'json' || col.columnType === 'jsonb') {
-			generator = new GenerateJson({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// if (col.columnType === "jsonb") {
-		//   const generator = new GenerateJsonb({});
-		//   return generator;
-		// }
-
-		// ENUM
-		if (col.enumValues !== undefined) {
-			generator = new GenerateEnum({
-				enumValues: col.enumValues,
-			});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// INTERVAL
-		if (col.columnType === 'interval') {
-			generator = new GenerateInterval({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// POINT, LINE
-		if (col.columnType.includes('point')) {
-			generator = new GeneratePoint({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (col.columnType.includes('line')) {
-			generator = new GenerateLine({});
-
-			generator.isUnique = col.isUnique;
-			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		// ARRAY
-		if (col.columnType.includes('array') && col.baseColumn !== undefined) {
-			const baseColumnGen = this.pickGeneratorForPostgresColumn(table, col.baseColumn!) as AbstractGenerator;
-			if (baseColumnGen === undefined) {
-				throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
+				return generator;
 			}
-			generator = new GenerateArray({ baseColumnGen, size: col.size });
+
+			// ARRAY for studio
+			if (col.columnType.match(/\[\w*]/g) !== null) {
+				// remove dimensions from type
+				const baseColumnType = col.columnType.replace(/\[\w*]/g, '');
+				const baseColumn: Column = {
+					...col,
+				};
+				baseColumn.columnType = baseColumnType;
+
+				const baseColumnGen = this.selectGeneratorForPostgresColumn(table, baseColumn, version) as AbstractGenerator;
+				if (baseColumnGen === undefined) {
+					throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
+				}
+
+				let generator = new Generators.GenerateArray({ baseColumnGen });
+
+				for (let i = 0; i < col.typeParams.dimensions! - 1; i++) {
+					generator = new Generators.GenerateArray({ baseColumnGen: generator });
+				}
+
+				return generator;
+			}
+
+			// INT ------------------------------------------------------------------------------------------------------------
+			if (
+				(col.columnType.includes('serial')
+					|| col.columnType === 'integer'
+					|| col.columnType === 'smallint'
+					|| col.columnType.includes('bigint'))
+				&& table.primaryKeys.includes(col.name)
+			) {
+				const generator = new Generators.GenerateIntPrimaryKey({});
+
+				return generator;
+			}
+
+			let minValue: number | bigint | undefined;
+			let maxValue: number | bigint | undefined;
+			if (col.columnType.includes('serial')) {
+				minValue = 1;
+				if (col.columnType === 'smallserial') {
+					// 2^16 / 2 - 1, 2 bytes
+					maxValue = 32767;
+				} else if (col.columnType === 'serial') {
+					// 2^32 / 2 - 1, 4 bytes
+					maxValue = 2147483647;
+				} else if (col.columnType === 'bigserial') {
+					// 2^64 / 2 - 1, 8 bytes
+					minValue = BigInt(1);
+					maxValue = BigInt('9223372036854775807');
+				}
+			} else if (col.columnType.includes('int')) {
+				if (col.columnType === 'smallint') {
+					// 2^16 / 2 - 1, 2 bytes
+					minValue = -32768;
+					maxValue = 32767;
+				} else if (col.columnType === 'integer') {
+					// 2^32 / 2 - 1, 4 bytes
+					minValue = -2147483648;
+					maxValue = 2147483647;
+				} else if (col.columnType.includes('bigint')) {
+					if (col.dataType === 'bigint') {
+						// 2^64 / 2 - 1, 8 bytes
+						minValue = BigInt('-9223372036854775808');
+						maxValue = BigInt('9223372036854775807');
+					} else {
+						// if (col.dataType === 'number')
+						// if you’re expecting values above 2^31 but below 2^53
+						minValue = -9007199254740991;
+						maxValue = 9007199254740991;
+					}
+				}
+			}
+
+			if (
+				col.columnType.includes('int')
+				&& !col.columnType.includes('interval')
+				&& !col.columnType.includes('point')
+			) {
+				const generator = new Generators.GenerateInt({
+					minValue,
+					maxValue,
+				});
+
+				return generator;
+			}
+
+			if (col.columnType.includes('serial')) {
+				const generator = new Generators.GenerateIntPrimaryKey({});
+
+				(generator as Generators.GenerateIntPrimaryKey).maxValue = maxValue;
+
+				return generator;
+			}
+
+			// NUMBER(real, double, decimal, numeric)
+			if (
+				col.columnType === 'real'
+				|| col.columnType === 'double precision'
+				|| col.columnType === 'decimal'
+				|| col.columnType === 'numeric'
+			) {
+				const generator = new Generators.GenerateNumber({});
+
+				return generator;
+			}
+
+			// STRING
+			if (
+				(col.columnType === 'text'
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('char'))
+				&& table.primaryKeys.includes(col.name)
+			) {
+				const generator = new Generators.GenerateUniqueString({});
+
+				return generator;
+			}
+
+			if (
+				(col.columnType === 'text'
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('char'))
+				&& col.name.toLowerCase().includes('name')
+			) {
+				const generator = new Generators.GenerateFirstName({});
+
+				return generator;
+			}
+
+			if (
+				(col.columnType === 'text'
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('char'))
+				&& col.name.toLowerCase().includes('email')
+			) {
+				const generator = new Generators.GenerateEmail({});
+
+				return generator;
+			}
+
+			if (
+				col.columnType === 'text'
+				|| col.columnType.startsWith('varchar')
+				|| col.columnType.startsWith('char')
+			) {
+				const generator = new Generators.GenerateString({});
+
+				return generator;
+			}
+
+			// UUID
+			if (col.columnType === 'uuid') {
+				const generator = new Generators.GenerateUUID({});
+
+				return generator;
+			}
+
+			// BOOLEAN
+			if (col.columnType === 'boolean') {
+				const generator = new Generators.GenerateBoolean({});
+
+				return generator;
+			}
+
+			// DATE, TIME, TIMESTAMP
+			if (col.columnType.includes('date')) {
+				const generator = new Generators.GenerateDate({});
+
+				return generator;
+			}
+
+			if (col.columnType === 'time') {
+				const generator = new Generators.GenerateTime({});
+
+				return generator;
+			}
+
+			if (col.columnType.includes('timestamp')) {
+				const generator = new Generators.GenerateTimestamp({});
+
+				return generator;
+			}
+
+			// JSON, JSONB
+			if (col.columnType === 'json' || col.columnType === 'jsonb') {
+				const generator = new Generators.GenerateJson({});
+
+				return generator;
+			}
+
+			// if (col.columnType === "jsonb") {
+			//   const generator = new GenerateJsonb({});
+			//   return generator;
+			// }
+
+			// ENUM
+			if (col.enumValues !== undefined) {
+				const generator = new Generators.GenerateEnum({
+					enumValues: col.enumValues,
+				});
+
+				return generator;
+			}
+
+			// INTERVAL
+			if (col.columnType.startsWith('interval')) {
+				if (col.columnType === 'interval') {
+					const generator = new Generators.GenerateInterval({});
+
+					return generator;
+				}
+
+				const fields = col.columnType.replace('interval ', '') as Generators.GenerateInterval['params']['fields'];
+				const generator = new Generators.GenerateInterval({ fields });
+
+				return generator;
+			}
+
+			// POINT, LINE
+			if (col.columnType.includes('point')) {
+				const generator = new Generators.GeneratePoint({});
+
+				return generator;
+			}
+
+			if (col.columnType.includes('line')) {
+				const generator = new Generators.GenerateLine({});
+
+				return generator;
+			}
+
+			if (col.hasDefault && col.default !== undefined) {
+				const generator = new Generators.GenerateDefault({
+					defaultValue: col.default,
+				});
+				return generator;
+			}
+
+			return;
+		};
+
+		let generator = pickGenerator(table, col) as AbstractGenerator<any> || undefined;
+		if (generator !== undefined) {
+			const generatorConstructor = this.selectGeneratorOfVersion(
+				version,
+				generator.getEntityKind(),
+			);
+
+			generator = new generatorConstructor(generator.params);
 
 			generator.isUnique = col.isUnique;
 			generator.dataType = col.dataType;
-			return generator;
-		}
-
-		if (col.hasDefault && col.default !== undefined) {
-			generator = new GenerateDefault({
-				defaultValue: col.default,
-			});
-			return generator;
+			generator.stringLength = col.typeParams.length;
 		}
 
 		return generator;
 	};
 
-	pickGeneratorForMysqlColumn = (
+	selectGeneratorForMysqlColumn = (
 		table: Table,
 		col: Column,
+		version: number,
 	) => {
-		// console.log(col);
-		// INT ------------------------------------------------------------------------------------------------------------
-		if (
-			(col.columnType.includes('serial') || col.columnType.includes('int'))
-			&& table.primaryKeys.includes(col.name)
-		) {
-			const generator = new GenerateIntPrimaryKey({});
-			return generator;
-		}
-
-		let minValue: number | bigint | undefined;
-		let maxValue: number | bigint | undefined;
-		if (col.columnType === 'serial') {
-			// 2^64 % 2 - 1, 8 bytes
-			minValue = BigInt(0);
-			maxValue = BigInt('9223372036854775807');
-		} else if (col.columnType.includes('int')) {
-			if (col.columnType === 'tinyint') {
-				// 2^8 / 2 - 1, 1 bytes
-				minValue = -128;
-				maxValue = 127;
-			} else if (col.columnType === 'smallint') {
-				// 2^16 / 2 - 1, 2 bytes
-				minValue = -32768;
-				maxValue = 32767;
-			} else if (col.columnType === 'mediumint') {
-				// 2^16 / 2 - 1, 2 bytes
-				minValue = -8388608;
-				maxValue = 8388607;
-			} else if (col.columnType === 'int') {
-				// 2^32 / 2 - 1, 4 bytes
-				minValue = -2147483648;
-				maxValue = 2147483647;
-			} else if (col.columnType === 'bigint') {
-				// 2^64 / 2 - 1, 8 bytes
-				minValue = BigInt('-9223372036854775808');
-				maxValue = BigInt('9223372036854775807');
+		const pickGenerator = (table: Table, col: Column) => {
+			// INT ------------------------------------------------------------------------------------------------------------
+			if (
+				(col.columnType.includes('serial') || col.columnType.includes('int'))
+				&& table.primaryKeys.includes(col.name)
+			) {
+				const generator = new Generators.GenerateIntPrimaryKey({});
+				return generator;
 			}
-		}
 
-		if (col.columnType.includes('int')) {
-			const generator = new GenerateInt({
-				minValue,
-				maxValue,
-			});
-			return generator;
-		}
+			let minValue: number | bigint | undefined;
+			let maxValue: number | bigint | undefined;
+			if (col.columnType === 'serial') {
+				// 2^64 % 2 - 1, 8 bytes
+				minValue = BigInt(0);
+				maxValue = BigInt('9223372036854775807');
+			} else if (col.columnType.includes('int')) {
+				if (col.columnType === 'tinyint') {
+					// 2^8 / 2 - 1, 1 bytes
+					minValue = -128;
+					maxValue = 127;
+				} else if (col.columnType === 'smallint') {
+					// 2^16 / 2 - 1, 2 bytes
+					minValue = -32768;
+					maxValue = 32767;
+				} else if (col.columnType === 'mediumint') {
+					// 2^16 / 2 - 1, 2 bytes
+					minValue = -8388608;
+					maxValue = 8388607;
+				} else if (col.columnType === 'int') {
+					// 2^32 / 2 - 1, 4 bytes
+					minValue = -2147483648;
+					maxValue = 2147483647;
+				} else if (col.columnType === 'bigint') {
+					// 2^64 / 2 - 1, 8 bytes
+					minValue = BigInt('-9223372036854775808');
+					maxValue = BigInt('9223372036854775807');
+				}
+			}
 
-		if (col.columnType.includes('serial')) {
-			const generator = new GenerateIntPrimaryKey({});
-			generator.maxValue = maxValue;
-			return generator;
-		}
+			if (col.columnType.includes('int')) {
+				const generator = new Generators.GenerateInt({
+					minValue,
+					maxValue,
+				});
+				return generator;
+			}
 
-		// NUMBER(real, double, decimal, float)
-		if (
-			col.columnType === 'real'
-			|| col.columnType === 'double'
-			|| col.columnType === 'decimal'
-			|| col.columnType === 'float'
-		) {
-			const generator = new GenerateNumber({});
-			return generator;
-		}
+			if (col.columnType.includes('serial')) {
+				const generator = new Generators.GenerateIntPrimaryKey({});
+				generator.maxValue = maxValue;
+				return generator;
+			}
 
-		// STRING
-		if (
-			(col.columnType === 'text'
+			// NUMBER(real, double, decimal, float)
+			if (
+				col.columnType === 'real'
+				|| col.columnType === 'double'
+				|| col.columnType === 'decimal'
+				|| col.columnType === 'float'
+			) {
+				const generator = new Generators.GenerateNumber({});
+				return generator;
+			}
+
+			// STRING
+			if (
+				(col.columnType === 'text'
+					|| col.columnType === 'blob'
+					|| col.columnType.includes('char')
+					|| col.columnType.includes('varchar')
+					|| col.columnType.includes('binary')
+					|| col.columnType.includes('varbinary'))
+				&& table.primaryKeys.includes(col.name)
+			) {
+				const generator = new Generators.GenerateUniqueString({});
+				return generator;
+			}
+
+			if (
+				(col.columnType === 'text'
+					|| col.columnType === 'blob'
+					|| col.columnType.includes('char')
+					|| col.columnType.includes('varchar')
+					|| col.columnType.includes('binary')
+					|| col.columnType.includes('varbinary'))
+				&& col.name.toLowerCase().includes('name')
+			) {
+				const generator = new Generators.GenerateFirstName({});
+				return generator;
+			}
+
+			if (
+				(col.columnType === 'text'
+					|| col.columnType === 'blob'
+					|| col.columnType.includes('char')
+					|| col.columnType.includes('varchar')
+					|| col.columnType.includes('binary')
+					|| col.columnType.includes('varbinary'))
+				&& col.name.toLowerCase().includes('email')
+			) {
+				const generator = new Generators.GenerateEmail({});
+				return generator;
+			}
+
+			if (
+				col.columnType === 'text'
 				|| col.columnType === 'blob'
 				|| col.columnType.includes('char')
 				|| col.columnType.includes('varchar')
 				|| col.columnType.includes('binary')
-				|| col.columnType.includes('varbinary'))
-			&& table.primaryKeys.includes(col.name)
-		) {
-			const generator = new GenerateUniqueString({});
-			return generator;
+				|| col.columnType.includes('varbinary')
+			) {
+				const generator = new Generators.GenerateString({});
+				return generator;
+			}
+
+			// BOOLEAN
+			if (col.columnType === 'boolean') {
+				const generator = new Generators.GenerateBoolean({});
+				return generator;
+			}
+
+			// DATE, TIME, TIMESTAMP, DATETIME, YEAR
+			if (col.columnType.includes('datetime')) {
+				const generator = new Generators.GenerateDatetime({});
+				return generator;
+			}
+
+			if (col.columnType.includes('date')) {
+				const generator = new Generators.GenerateDate({});
+				return generator;
+			}
+
+			if (col.columnType === 'time') {
+				const generator = new Generators.GenerateTime({});
+				return generator;
+			}
+
+			if (col.columnType.includes('timestamp')) {
+				const generator = new Generators.GenerateTimestamp({});
+				return generator;
+			}
+
+			if (col.columnType === 'year') {
+				const generator = new Generators.GenerateYear({});
+				return generator;
+			}
+
+			// JSON
+			if (col.columnType === 'json') {
+				const generator = new Generators.GenerateJson({});
+				return generator;
+			}
+
+			// ENUM
+			if (col.enumValues !== undefined) {
+				const generator = new Generators.GenerateEnum({
+					enumValues: col.enumValues,
+				});
+				return generator;
+			}
+
+			if (col.hasDefault && col.default !== undefined) {
+				const generator = new Generators.GenerateDefault({
+					defaultValue: col.default,
+				});
+				return generator;
+			}
+
+			return;
+		};
+
+		let generator = pickGenerator(table, col) as AbstractGenerator<any> || undefined;
+		if (generator !== undefined) {
+			const generatorConstructor = this.selectGeneratorOfVersion(
+				version,
+				generator.getEntityKind(),
+			);
+
+			generator = new generatorConstructor(generator.params);
 		}
 
-		if (
-			(col.columnType === 'text'
-				|| col.columnType === 'blob'
-				|| col.columnType.includes('char')
-				|| col.columnType.includes('varchar')
-				|| col.columnType.includes('binary')
-				|| col.columnType.includes('varbinary'))
-			&& col.name.toLowerCase().includes('name')
-		) {
-			const generator = new GenerateFirstName({});
-			return generator;
-		}
-
-		if (
-			(col.columnType === 'text'
-				|| col.columnType === 'blob'
-				|| col.columnType.includes('char')
-				|| col.columnType.includes('varchar')
-				|| col.columnType.includes('binary')
-				|| col.columnType.includes('varbinary'))
-			&& col.name.toLowerCase().includes('email')
-		) {
-			const generator = new GenerateEmail({});
-			return generator;
-		}
-
-		if (
-			col.columnType === 'text'
-			|| col.columnType === 'blob'
-			|| col.columnType.includes('char')
-			|| col.columnType.includes('varchar')
-			|| col.columnType.includes('binary')
-			|| col.columnType.includes('varbinary')
-		) {
-			// console.log(col, table);
-			const generator = new GenerateString({});
-			return generator;
-		}
-
-		// BOOLEAN
-		if (col.columnType === 'boolean') {
-			const generator = new GenerateBoolean({});
-			return generator;
-		}
-
-		// DATE, TIME, TIMESTAMP, DATETIME, YEAR
-		if (col.columnType.includes('datetime')) {
-			const generator = new GenerateDatetime({});
-			return generator;
-		}
-
-		if (col.columnType.includes('date')) {
-			const generator = new GenerateDate({});
-			return generator;
-		}
-
-		if (col.columnType === 'time') {
-			const generator = new GenerateTime({});
-			return generator;
-		}
-
-		if (col.columnType.includes('timestamp')) {
-			const generator = new GenerateTimestamp({});
-			return generator;
-		}
-
-		if (col.columnType === 'year') {
-			const generator = new GenerateYear({});
-			return generator;
-		}
-
-		// JSON
-		if (col.columnType === 'json') {
-			const generator = new GenerateJson({});
-			return generator;
-		}
-
-		// ENUM
-		if (col.enumValues !== undefined) {
-			const generator = new GenerateEnum({
-				enumValues: col.enumValues,
-			});
-			return generator;
-		}
-
-		if (col.hasDefault && col.default !== undefined) {
-			const generator = new GenerateDefault({
-				defaultValue: col.default,
-			});
-			return generator;
-		}
-
-		return;
+		return generator;
 	};
 
-	pickGeneratorForSqlite = (
+	selectGeneratorForSqlite = (
 		table: Table,
 		col: Column,
+		version: number,
 	) => {
-		// int section ---------------------------------------------------------------------------------------
-		if (
-			(col.columnType === 'integer' || col.columnType === 'numeric')
-			&& table.primaryKeys.includes(col.name)
-		) {
-			const generator = new GenerateIntPrimaryKey({});
-			return generator;
-		}
+		const pickGenerator = (table: Table, col: Column) => {
+			// int section ---------------------------------------------------------------------------------------
+			if (
+				(col.columnType === 'integer' || col.columnType === 'numeric')
+				&& table.primaryKeys.includes(col.name)
+			) {
+				const generator = new Generators.GenerateIntPrimaryKey({});
+				return generator;
+			}
 
-		if (
-			col.columnType === 'integer'
-			|| col.columnType === 'numeric'
-			|| col.columnType === 'bigint'
-		) {
-			const generator = new GenerateInt({});
-			return generator;
-		}
+			if (col.columnType === 'integer' && col.dataType === 'boolean') {
+				const generator = new Generators.GenerateBoolean({});
+				return generator;
+			}
 
-		if (col.columnType === 'boolean') {
-			const generator = new GenerateBoolean({});
-			return generator;
-		}
+			if ((col.columnType === 'integer' && col.dataType === 'date')) {
+				const generator = new Generators.GenerateTimestamp({});
+				return generator;
+			}
 
-		// number section ------------------------------------------------------------------------------------
-		if (col.columnType === 'real' || col.columnType === 'numeric') {
-			const generator = new GenerateNumber({});
-			return generator;
-		}
-
-		// string section ------------------------------------------------------------------------------------
-		if (
-			(col.columnType === 'text'
+			if (
+				col.columnType === 'integer'
 				|| col.columnType === 'numeric'
-				|| col.columnType === 'blob')
-			&& table.primaryKeys.includes(col.name)
-		) {
-			const generator = new GenerateUniqueString({});
-			return generator;
-		}
+				|| (col.dataType === 'bigint' && col.columnType === 'blob')
+			) {
+				const generator = new Generators.GenerateInt({});
+				return generator;
+			}
 
-		if (
-			(col.columnType === 'text'
+			// number section ------------------------------------------------------------------------------------
+			if (col.columnType === 'real' || col.columnType === 'numeric') {
+				const generator = new Generators.GenerateNumber({});
+				return generator;
+			}
+
+			// string section ------------------------------------------------------------------------------------
+			if (
+				(col.columnType === 'text'
+					|| col.columnType === 'numeric'
+					|| col.columnType === 'blob')
+				&& table.primaryKeys.includes(col.name)
+			) {
+				const generator = new Generators.GenerateUniqueString({});
+				return generator;
+			}
+
+			if (
+				(col.columnType === 'text'
+					|| col.columnType === 'numeric'
+					|| col.columnType === 'blob')
+				&& col.name.toLowerCase().includes('name')
+			) {
+				const generator = new Generators.GenerateFirstName({});
+				return generator;
+			}
+
+			if (
+				(col.columnType === 'text'
+					|| col.columnType === 'numeric'
+					|| col.columnType === 'blob')
+				&& col.name.toLowerCase().includes('email')
+			) {
+				const generator = new Generators.GenerateEmail({});
+				return generator;
+			}
+
+			if (
+				col.columnType === 'text'
 				|| col.columnType === 'numeric'
-				|| col.columnType === 'blob')
-			&& col.name.toLowerCase().includes('name')
-		) {
-			const generator = new GenerateFirstName({});
-			return generator;
+				|| col.columnType === 'blob'
+				|| col.columnType === 'blobbuffer'
+			) {
+				const generator = new Generators.GenerateString({});
+				return generator;
+			}
+
+			if (
+				(col.columnType === 'text' && col.dataType === 'json')
+				|| (col.columnType === 'blob' && col.dataType === 'json')
+			) {
+				const generator = new Generators.GenerateJson({});
+				return generator;
+			}
+
+			if (col.hasDefault && col.default !== undefined) {
+				const generator = new Generators.GenerateDefault({
+					defaultValue: col.default,
+				});
+				return generator;
+			}
+
+			return;
+		};
+
+		let generator = pickGenerator(table, col) as AbstractGenerator<any> || undefined;
+		if (generator !== undefined) {
+			const generatorConstructor = this.selectGeneratorOfVersion(
+				version,
+				generator.getEntityKind(),
+			);
+
+			generator = new generatorConstructor(generator.params);
 		}
 
-		if (
-			(col.columnType === 'text'
-				|| col.columnType === 'numeric'
-				|| col.columnType === 'blob')
-			&& col.name.toLowerCase().includes('email')
-		) {
-			const generator = new GenerateEmail({});
-			return generator;
-		}
-
-		if (
-			col.columnType === 'text'
-			|| col.columnType === 'numeric'
-			|| col.columnType === 'blob'
-			|| col.columnType === 'blobbuffer'
-		) {
-			const generator = new GenerateString({});
-			return generator;
-		}
-
-		if (col.columnType === 'textjson' || col.columnType === 'blobjson') {
-			const generator = new GenerateJson({});
-			return generator;
-		}
-
-		if (col.columnType === 'timestamp' || col.columnType === 'timestamp_ms') {
-			const generator = new GenerateTimestamp({});
-			return generator;
-		}
-
-		if (col.hasDefault && col.default !== undefined) {
-			const generator = new GenerateDefault({
-				defaultValue: col.default,
-			});
-			return generator;
-		}
-
-		return;
+		return generator;
 	};
 
 	filterCyclicTables = (tablesGenerators: ReturnType<typeof this.generatePossibleGenerators>) => {
@@ -1024,9 +1092,6 @@ export class SeedService {
 			tablesUniqueNotNullColumn?: { [tableName: string]: { uniqueNotNullColName: string } };
 		},
 	) => {
-		// console.time(
-		//   "generateTablesValues-----------------------------------------------------"
-		// );
 		const customSeed = options?.seed === undefined ? 0 : options.seed;
 		let tableCount: number | undefined;
 		let columnsGenerators: Prettify<GeneratePossibleGeneratorsColumnType>[];
@@ -1042,7 +1107,6 @@ export class SeedService {
 		}[] = options?.tablesValues === undefined ? [] : options.tablesValues;
 
 		let pRNGSeed: number;
-		// relations = relations.filter(rel => rel.type === "one");
 		let filteredRelations: typeof relations;
 
 		let preserveData: boolean, insertDataInDb: boolean = true, updateDataInDb: boolean = false;
@@ -1124,7 +1188,7 @@ export class SeedService {
 							}))!.map((rows) => rows[refColName]) as (string | number | boolean)[];
 
 							hasSelfRelation = true;
-							genObj = new GenerateSelfRelationsValuesFromArray({
+							genObj = new Generators.GenerateSelfRelationsValuesFromArray({
 								values: refColumnValues,
 							});
 						} else if (
@@ -1144,13 +1208,12 @@ export class SeedService {
 								weightedCountSeed = table.withFromTable[rel.refTable]!.weightedCountSeed;
 							}
 
-							genObj = new GenerateValuesFromArray({ values: refColumnValues });
-							(genObj as GenerateValuesFromArray).notNull = tableGenerators[rel.columns[colIdx]!]!.notNull;
-							(genObj as GenerateValuesFromArray).weightedCountSeed = weightedCountSeed;
-							(genObj as GenerateValuesFromArray).maxRepeatedValuesCount = repeatedValuesCount;
+							genObj = new Generators.GenerateValuesFromArray({ values: refColumnValues });
+							(genObj as Generators.GenerateValuesFromArray).notNull = tableGenerators[rel.columns[colIdx]!]!.notNull;
+							(genObj as Generators.GenerateValuesFromArray).weightedCountSeed = weightedCountSeed;
+							(genObj as Generators.GenerateValuesFromArray).maxRepeatedValuesCount = repeatedValuesCount;
 						}
 
-						// console.log(rel.columns[colIdx], tableGenerators)
 						if (genObj !== undefined) {
 							tableGenerators[rel.columns[colIdx]!]!.generator = genObj;
 						}

@@ -105,6 +105,26 @@ beforeAll(async () => {
 			);
 		`,
 	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."intervals" (
+				"intervalYear" interval year,
+				"intervalYearToMonth" interval year to month,
+				"intervalMonth" interval month,
+				"intervalDay" interval day,
+				"intervalDayToHour" interval day to hour,
+				"intervalDayToMinute" interval day to minute,
+				"intervalDayToSecond" interval day to second,
+				"intervalHour" interval hour,
+				"intervalHourToMinute" interval hour to minute,
+				"intervalHourToSecond" interval hour to second,
+				"intervalMinute" interval minute,
+				"intervalMinuteToSecond" interval minute to second,
+				"intervalSecond" interval second
+			);
+		`,
+	);
 });
 
 afterAll(async () => {
@@ -156,4 +176,14 @@ test('nd arrays', async () => {
 	}
 
 	expect(predicate0 && predicate1 && predicate2 && predicate3 && predicate4).toBe(true);
+});
+
+test('intervals test', async () => {
+	await seed(db, { intervals: schema.intervals }, { count: 1000 });
+
+	const intervals = await db.select().from(schema.intervals);
+	// every value in each rows does not equal undefined.
+	const predicate = intervals.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+
+	expect(predicate).toBe(true);
 });

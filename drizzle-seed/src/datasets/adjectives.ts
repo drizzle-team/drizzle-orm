@@ -4844,3 +4844,5 @@ export default [
 	'zonked',
 	'zoological',
 ];
+
+export const maxStringLength = 22;

@@ -50001,3 +50001,5 @@ export default [
 	'Thagard',
 	'Leavelle',
 ];
+
+export const maxStringLength = 15;

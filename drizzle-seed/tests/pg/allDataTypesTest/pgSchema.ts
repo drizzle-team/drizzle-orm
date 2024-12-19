@@ -97,3 +97,19 @@ export const ndArrays = schema.table('nd_arrays', {
 	integer3DArray: integer('integer_3d_array').array(3).array(4).array(5),
 	integer4DArray: integer('integer_4d_array').array(3).array(4).array(5).array(6),
 });
+
+export const intervals = schema.table('intervals', {
+	intervalYear: interval({ fields: 'year' }),
+	intervalYearToMonth: interval({ fields: 'year to month' }),
+	intervalMonth: interval({ fields: 'month' }),
+	intervalDay: interval({ fields: 'day' }),
+	intervalDayToHour: interval({ fields: 'day to hour' }),
+	intervalDayToMinute: interval({ fields: 'day to minute' }),
+	intervalDayToSecond: interval({ fields: 'day to second' }),
+	intervalHour: interval({ fields: 'hour' }),
+	intervalHourToMinute: interval({ fields: 'hour to minute' }),
+	intervalHourToSecond: interval({ fields: 'hour to second' }),
+	intervalMinute: interval({ fields: 'minute' }),
+	intervalMinuteToSecond: interval({ fields: 'minute to second' }),
+	intervalSecond: interval({ fields: 'second' }),
+});

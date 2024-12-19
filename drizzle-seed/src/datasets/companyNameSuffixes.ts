@@ -25,3 +25,5 @@ export default [
 	'Co.',
 	'SCC',
 ];
+
+export const maxStringLength = 7;
