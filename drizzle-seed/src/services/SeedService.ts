@@ -461,12 +461,6 @@ export class SeedService {
 					throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
 				}
 
-				// const { generatorConstructor } = this.selectGeneratorOfVersion(
-				// 	version,
-				// 	Generators.GenerateArray[entityKind],
-				// );
-
-				// const generator = new generatorConstructor!({ baseColumnGen, size: col.size });
 				const generator = new Generators.GenerateArray({ baseColumnGen, size: col.size });
 
 				return generator;
@@ -569,11 +563,23 @@ export class SeedService {
 
 			// NUMBER(real, double, decimal, numeric)
 			if (
-				col.columnType === 'real'
-				|| col.columnType === 'double precision'
-				|| col.columnType === 'decimal'
-				|| col.columnType === 'numeric'
+				col.columnType.startsWith('real')
+				|| col.columnType.startsWith('double precision')
+				|| col.columnType.startsWith('decimal')
+				|| col.columnType.startsWith('numeric')
 			) {
+				if (col.typeParams.precision !== undefined) {
+					const precision = col.typeParams.precision;
+					const scale = col.typeParams.scale === undefined ? 0 : col.typeParams.scale;
+
+					const maxAbsoluteValue = Math.pow(10, precision - scale) - Math.pow(10, -scale);
+					const generator = new Generators.GenerateNumber({
+						minValue: -maxAbsoluteValue,
+						maxValue: maxAbsoluteValue,
+						precision: Math.pow(10, scale),
+					});
+					return generator;
+				}
 				const generator = new Generators.GenerateNumber({});
 
 				return generator;
@@ -792,11 +798,25 @@ export class SeedService {
 
 			// NUMBER(real, double, decimal, float)
 			if (
-				col.columnType === 'real'
-				|| col.columnType === 'double'
-				|| col.columnType === 'decimal'
-				|| col.columnType === 'float'
+				col.columnType.startsWith('real')
+				|| col.columnType.startsWith('double')
+				|| col.columnType.startsWith('decimal')
+				|| col.columnType.startsWith('float')
+				|| col.columnType.startsWith('numeric')
 			) {
+				if (col.typeParams.precision !== undefined) {
+					const precision = col.typeParams.precision;
+					const scale = col.typeParams.scale === undefined ? 0 : col.typeParams.scale;
+
+					const maxAbsoluteValue = Math.pow(10, precision - scale) - Math.pow(10, -scale);
+					const generator = new Generators.GenerateNumber({
+						minValue: -maxAbsoluteValue,
+						maxValue: maxAbsoluteValue,
+						precision: Math.pow(10, scale),
+					});
+					return generator;
+				}
+
 				const generator = new Generators.GenerateNumber({});
 				return generator;
 			}
@@ -805,10 +825,10 @@ export class SeedService {
 			if (
 				(col.columnType === 'text'
 					|| col.columnType === 'blob'
-					|| col.columnType.includes('char')
-					|| col.columnType.includes('varchar')
-					|| col.columnType.includes('binary')
-					|| col.columnType.includes('varbinary'))
+					|| col.columnType.startsWith('char')
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('binary')
+					|| col.columnType.startsWith('varbinary'))
 				&& table.primaryKeys.includes(col.name)
 			) {
 				const generator = new Generators.GenerateUniqueString({});
@@ -818,10 +838,10 @@ export class SeedService {
 			if (
 				(col.columnType === 'text'
 					|| col.columnType === 'blob'
-					|| col.columnType.includes('char')
-					|| col.columnType.includes('varchar')
-					|| col.columnType.includes('binary')
-					|| col.columnType.includes('varbinary'))
+					|| col.columnType.startsWith('char')
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('binary')
+					|| col.columnType.startsWith('varbinary'))
 				&& col.name.toLowerCase().includes('name')
 			) {
 				const generator = new Generators.GenerateFirstName({});
@@ -831,10 +851,10 @@ export class SeedService {
 			if (
 				(col.columnType === 'text'
 					|| col.columnType === 'blob'
-					|| col.columnType.includes('char')
-					|| col.columnType.includes('varchar')
-					|| col.columnType.includes('binary')
-					|| col.columnType.includes('varbinary'))
+					|| col.columnType.startsWith('char')
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('binary')
+					|| col.columnType.startsWith('varbinary'))
 				&& col.name.toLowerCase().includes('email')
 			) {
 				const generator = new Generators.GenerateEmail({});
@@ -844,10 +864,10 @@ export class SeedService {
 			if (
 				col.columnType === 'text'
 				|| col.columnType === 'blob'
-				|| col.columnType.includes('char')
-				|| col.columnType.includes('varchar')
-				|| col.columnType.includes('binary')
-				|| col.columnType.includes('varbinary')
+				|| col.columnType.startsWith('char')
+				|| col.columnType.startsWith('varchar')
+				|| col.columnType.startsWith('binary')
+				|| col.columnType.startsWith('varbinary')
 			) {
 				const generator = new Generators.GenerateString({});
 				return generator;
@@ -949,7 +969,6 @@ export class SeedService {
 
 			if (
 				col.columnType === 'integer'
-				|| col.columnType === 'numeric'
 				|| (col.dataType === 'bigint' && col.columnType === 'blob')
 			) {
 				const generator = new Generators.GenerateInt({});
@@ -957,16 +976,29 @@ export class SeedService {
 			}
 
 			// number section ------------------------------------------------------------------------------------
-			if (col.columnType === 'real' || col.columnType === 'numeric') {
+			if (col.columnType.startsWith('real') || col.columnType.startsWith('numeric')) {
+				if (col.typeParams.precision !== undefined) {
+					const precision = col.typeParams.precision;
+					const scale = col.typeParams.scale === undefined ? 0 : col.typeParams.scale;
+
+					const maxAbsoluteValue = Math.pow(10, precision - scale) - Math.pow(10, -scale);
+					const generator = new Generators.GenerateNumber({
+						minValue: -maxAbsoluteValue,
+						maxValue: maxAbsoluteValue,
+						precision: Math.pow(10, scale),
+					});
+					return generator;
+				}
+
 				const generator = new Generators.GenerateNumber({});
 				return generator;
 			}
 
 			// string section ------------------------------------------------------------------------------------
 			if (
-				(col.columnType === 'text'
-					|| col.columnType === 'numeric'
-					|| col.columnType === 'blob')
+				(col.columnType.startsWith('text')
+					|| col.columnType.startsWith('numeric')
+					|| col.columnType.startsWith('blob'))
 				&& table.primaryKeys.includes(col.name)
 			) {
 				const generator = new Generators.GenerateUniqueString({});
@@ -974,9 +1006,9 @@ export class SeedService {
 			}
 
 			if (
-				(col.columnType === 'text'
-					|| col.columnType === 'numeric'
-					|| col.columnType === 'blob')
+				(col.columnType.startsWith('text')
+					|| col.columnType.startsWith('numeric')
+					|| col.columnType.startsWith('blob'))
 				&& col.name.toLowerCase().includes('name')
 			) {
 				const generator = new Generators.GenerateFirstName({});
@@ -984,9 +1016,9 @@ export class SeedService {
 			}
 
 			if (
-				(col.columnType === 'text'
-					|| col.columnType === 'numeric'
-					|| col.columnType === 'blob')
+				(col.columnType.startsWith('text')
+					|| col.columnType.startsWith('numeric')
+					|| col.columnType.startsWith('blob'))
 				&& col.name.toLowerCase().includes('email')
 			) {
 				const generator = new Generators.GenerateEmail({});
@@ -994,18 +1026,18 @@ export class SeedService {
 			}
 
 			if (
-				col.columnType === 'text'
-				|| col.columnType === 'numeric'
-				|| col.columnType === 'blob'
-				|| col.columnType === 'blobbuffer'
+				col.columnType.startsWith('text')
+				|| col.columnType.startsWith('numeric')
+				|| col.columnType.startsWith('blob')
+				|| col.columnType.startsWith('blobbuffer')
 			) {
 				const generator = new Generators.GenerateString({});
 				return generator;
 			}
 
 			if (
-				(col.columnType === 'text' && col.dataType === 'json')
-				|| (col.columnType === 'blob' && col.dataType === 'json')
+				(col.columnType.startsWith('text') && col.dataType === 'json')
+				|| (col.columnType.startsWith('blob') && col.dataType === 'json')
 			) {
 				const generator = new Generators.GenerateJson({});
 				return generator;

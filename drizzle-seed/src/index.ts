@@ -570,7 +570,10 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		// might be empty list
 		const newRelations = tableConfig.foreignKeys.map((fk) => {
 			const table = dbToTsTableNamesMap[tableConfig.name] as string;
-			const refTable = dbToTsTableNamesMap[getTableName(fk.reference().foreignTable)] as string;
+			const refTableName0 = fk.reference();
+			const refTableName1 = refTableName0.foreignTable;
+			const refTableName2 = getTableName(refTableName1);
+			const refTable = dbToTsTableNamesMap[refTableName2] as string;
 
 			const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(
 				fk.reference().foreignTable,
@@ -625,7 +628,7 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		};
 
 		const getTypeParams = (sqlType: string) => {
-			// get type params and set only type
+			// get type params
 			const typeParams: Column['typeParams'] = {};
 
 			// handle dimensions
@@ -642,7 +645,7 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 				|| sqlType.startsWith('double precision')
 				|| sqlType.startsWith('real')
 			) {
-				const match = sqlType.match(/\((\d+),(\d+)\)/);
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
 				if (match) {
 					typeParams['precision'] = Number(match[1]);
 					typeParams['scale'] = Number(match[2]);
@@ -905,7 +908,7 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 				|| sqlType.startsWith('double')
 				|| sqlType.startsWith('float')
 			) {
-				const match = sqlType.match(/\((\d+),(\d+)\)/);
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
 				if (match) {
 					typeParams['precision'] = Number(match[1]);
 					typeParams['scale'] = Number(match[2]);
