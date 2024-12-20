@@ -42,7 +42,7 @@ import {
 	sqliteCredentials,
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
-import { error, grey } from '../views';
+import { error } from '../views';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {
