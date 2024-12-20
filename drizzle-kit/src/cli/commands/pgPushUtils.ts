@@ -5,6 +5,7 @@ import { PgSquasher } from '../../serializer/pgSchema';
 import { fromJson } from '../../sqlgenerator';
 import type { DB } from '../../utils';
 import { Select } from '../selector-ui';
+import { push_array } from '../../utils';
 
 // export const filterStatements = (statements: JsonStatement[]) => {
 //   return statements.filter((statement) => {
@@ -252,7 +253,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 		}
 		const stmnt = fromJson([statement], 'postgresql', 'push');
 		if (typeof stmnt !== 'undefined') {
-			statementsToExecute.push(...stmnt);
+			push_array(statementsToExecute, stmnt);
 		}
 	}
 

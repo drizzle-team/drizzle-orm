@@ -24,7 +24,7 @@ import {
 	UniqueConstraint,
 } from './serializer/pgSchema';
 import { indexName } from './serializer/pgSerializer';
-import { unescapeSingleQuotes } from './utils';
+import { unescapeSingleQuotes, push_array } from './utils';
 
 const pgImportsList = new Set([
 	'pgTable',
@@ -348,12 +348,12 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 				res.pg.push('pgSchema');
 			}
 
-			res.pg.push(...idxImports);
-			res.pg.push(...fkImpots);
-			res.pg.push(...pkImports);
-			res.pg.push(...uniqueImports);
-			res.pg.push(...policiesImports);
-			res.pg.push(...checkImports);
+			push_array(res.pg, idxImports);
+			push_array(res.pg, fkImpots);
+			push_array(res.pg, pkImports);
+			push_array(res.pg, uniqueImports);
+			push_array(res.pg, policiesImports);
+			push_array(res.pg, checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -372,7 +372,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 					return pgImportsList.has(type);
 				});
 
-			res.pg.push(...columnImports);
+			push_array(res.pg, columnImports);
 			return res;
 		},
 		{ pg: [] as string[] },
@@ -403,7 +403,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 					return pgImportsList.has(type);
 				});
 
-			imports.pg.push(...columnImports);
+			push_array(imports.pg, columnImports);
 		});
 	});
 

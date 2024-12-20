@@ -2,6 +2,7 @@ import { is } from 'drizzle-orm';
 import type { AnySingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { safeRegister } from '../cli/commands/utils';
+import { push_array } from '../utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnySingleStoreTable[] = [];
@@ -31,8 +32,8 @@ export const prepareFromSingleStoreImports = async (imports: string[]) => {
 			const i0: Record<string, unknown> = require(`${it}`);
 			const prepared = prepareFromExports(i0);
 
-			tables.push(...prepared.tables);
-			/* views.push(...prepared.views); */
+			push_array(tables, prepared.tables);
+			/* push_array(views, prepared.views); */
 		}
 	});
 

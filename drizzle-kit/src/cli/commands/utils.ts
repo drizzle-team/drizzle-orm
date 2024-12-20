@@ -28,6 +28,7 @@ import {
 import type { SqliteCredentials } from '../validations/sqlite';
 import { printConfigConnectionIssues as printIssuesSqlite, sqliteCredentials } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
+import { push_array } from '../../utils';
 import { error } from '../views';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
@@ -348,7 +349,7 @@ export const preparePushConfig = async (
 			: schemasFilterConfig
 		: [];
 
-	tablesFilter.push(...getTablesFilterByExtensions(config));
+	push_array(tablesFilter, getTablesFilterByExtensions(config));
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);

@@ -55,6 +55,7 @@ import {
 	schema,
 } from '../views';
 import { ExportConfig, GenerateConfig } from './utils';
+import { push_array } from '../../utils';
 
 export type Named = {
 	name: string;
@@ -1126,7 +1127,7 @@ export const promptColumnsConflicts = async <T extends Named>(
 		chalk.gray(`--- all columns conflicts in ${tableName} table resolved ---\n`),
 	);
 
-	result.deleted.push(...leftMissing);
+	push_array(result.deleted, leftMissing);
 	return result;
 };
 
@@ -1198,7 +1199,7 @@ export const promptNamedConflict = async <T extends Named>(
 		index += 1;
 	} while (index < newItems.length);
 	console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
-	result.deleted.push(...leftMissing);
+	push_array(result.deleted, leftMissing);
 	return result;
 };
 
@@ -1288,7 +1289,7 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 		index += 1;
 	} while (index < newItems.length);
 	console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
-	result.deleted.push(...leftMissing);
+	push_array(result.deleted, leftMissing);
 	return result;
 };
 
@@ -1347,7 +1348,7 @@ export const promptSchemasConflict = async <T extends Named>(
 		index += 1;
 	} while (index < newSchemas.length);
 	console.log(chalk.gray('--- all schemas conflicts resolved ---\n'));
-	result.deleted.push(...leftMissing);
+	push_array(result.deleted, leftMissing);
 	return result;
 };
 

@@ -13,6 +13,7 @@ import phonesInfo from '../datasets/phonesInfo.ts';
 import states, { maxStringLength as maxStateLength } from '../datasets/states.ts';
 import streetSuffix, { maxStringLength as maxStreetSuffixLength } from '../datasets/streetSuffix.ts';
 import { fastCartesianProduct, fillTemplate, getWeightedIndices, isObject } from './utils.ts';
+import { push_array } from '../utils.ts';
 
 export abstract class AbstractGenerator<T = {}> {
 	static readonly entityKind: string = 'AbstractGenerator';
@@ -775,7 +776,7 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 			this.state!.intervals[intervalIdx] = this.state!.intervals[this.state!.intervals.length - 1]!;
 			this.state?.intervals.pop();
 			this.timeSpent += (Date.now() - t0.getTime()) / 1000;
-			this.state!.intervals.push(...intervalsToAdd);
+			push_array(this.state!.intervals, intervalsToAdd);
 		}
 
 		return numb;
@@ -805,7 +806,7 @@ export class GenerateUniqueInt extends AbstractGenerator<{
 
 			this.state!.intervals[intervalIdx] = this.state!.intervals[this.state!.intervals.length - 1]!;
 			this.state?.intervals.pop();
-			this.state!.intervals.push(...intervalsToAdd);
+			push_array(this.state!.intervals, intervalsToAdd);
 		}
 
 		return numb;

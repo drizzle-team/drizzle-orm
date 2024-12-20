@@ -13,6 +13,7 @@ import type {
 	SQLiteSchemaInternal,
 	UniqueConstraint,
 } from './serializer/sqliteSchema';
+import { push_array } from './utils';
 
 const sqliteImportsList = new Set([
 	'sqliteTable',
@@ -96,11 +97,11 @@ export const schemaToTypeScript = (
 				(it) => 'check',
 			);
 
-			res.sqlite.push(...idxImports);
-			res.sqlite.push(...fkImpots);
-			res.sqlite.push(...pkImports);
-			res.sqlite.push(...uniqueImports);
-			res.sqlite.push(...checkImports);
+			push_array(res.sqlite, idxImports);
+			push_array(res.sqlite, fkImpots);
+			push_array(res.sqlite, pkImports);
+			push_array(res.sqlite, uniqueImports);
+			push_array(res.sqlite, checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -110,7 +111,7 @@ export const schemaToTypeScript = (
 					return sqliteImportsList.has(type);
 				});
 
-			res.sqlite.push(...columnImports);
+			push_array(res.sqlite, columnImports);
 			return res;
 		},
 		{ sqlite: [] as string[] },
@@ -127,7 +128,7 @@ export const schemaToTypeScript = (
 				return sqliteImportsList.has(type);
 			});
 
-		imports.sqlite.push(...columnImports);
+		push_array(imports.sqlite, columnImports);
 	});
 
 	const tableStatements = Object.values(schema.tables).map((table) => {
