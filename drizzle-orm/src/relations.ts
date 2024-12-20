@@ -550,9 +550,11 @@ export type BuildQueryResult<
 						K in NonUndefinedKeysOnly<
 							ReturnTypeOrValue<TFullSelection['extras']>
 						>
-					]: Assume<
-						ReturnTypeOrValue<TFullSelection['extras']>[K],
-						SQL
+					]: ReturnType<
+						Assume<
+							ReturnTypeOrValue<TFullSelection['extras']>[K],
+							SQLWrapper
+						>['getSQL']
 					>['_']['type'];
 				}
 				: {})
@@ -722,7 +724,12 @@ export type RelationsFilter<TColumns extends Record<string, Column>> =
 	& {
 		$or?: RelationsFilter<TColumns>[];
 		$not?: RelationsFilter<TColumns>[];
-		$raw?: (operators: Operators) => SQL;
+		$raw?: (
+			columns: {
+				[K in keyof TColumns]: TColumns[K];
+			},
+			operators: Operators,
+		) => SQL;
 	};
 
 export interface OneConfig<
@@ -832,11 +839,11 @@ export class RelationsHelperStatic<TTables extends Record<string, Table>> {
 
 		for (const [tableName, table] of Object.entries(tables)) {
 			one[tableName] = (config) => {
-				return new One(table, config);
+				return new One(table, config as DBQueryConfig<'one'>);
 			};
 
 			many[tableName] = (config) => {
-				return new Many(table, config);
+				return new Many(table, config as DBQueryConfig<'many'>);
 			};
 		}
 
@@ -1020,7 +1027,11 @@ export function relationFilterToSQL(
 
 		switch (target) {
 			case '$raw': {
-				if (value) parts.push((value as (operators: Operators) => SQL)(operators));
+				if (value) {
+					parts.push(
+						(value as (table: Record<string, Column>, operators: Operators) => SQL)(table[Columns], operators),
+					);
+				}
 
 				continue;
 			}

@@ -549,7 +549,7 @@ export namespace sql {
 }
 
 export namespace SQL {
-	export class Aliased<T = unknown> implements SQLWrapper {
+	export class Aliased<T = unknown> implements SQLWrapper<T> {
 		static readonly [entityKind]: string = 'SQL.Aliased';
 
 		declare _: {
@@ -561,17 +561,17 @@ export namespace SQL {
 		isSelectionField = false;
 
 		constructor(
-			readonly sql: SQL,
+			readonly sql: SQL<T>,
 			readonly fieldAlias: string,
 		) {}
 
-		getSQL(): SQL {
-			return this.sql;
+		getSQL(): SQL<T> {
+			return this.sql as SQL<T>;
 		}
 
 		/** @internal */
 		clone() {
-			return new Aliased(this.sql, this.fieldAlias);
+			return new Aliased<T>(this.sql, this.fieldAlias);
 		}
 	}
 }
