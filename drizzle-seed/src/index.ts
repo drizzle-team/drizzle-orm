@@ -1,4 +1,5 @@
-import { entityKind, getTableName, is, sql } from 'drizzle-orm';
+/* eslint-disable drizzle-internal/require-entity-kind */
+import { getTableName, is, sql } from 'drizzle-orm';
 
 import type { MySqlColumn, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { getTableConfig as getMysqlTableConfig, MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core';
@@ -131,7 +132,7 @@ class SeedPromise<
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable;
 	},
 > implements Promise<void> {
-	static readonly [entityKind]: string = 'SeedPromise';
+	static readonly entityKind: string = 'SeedPromise';
 
 	[Symbol.toStringTag] = 'SeedPromise';
 

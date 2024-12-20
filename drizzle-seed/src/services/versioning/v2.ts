@@ -1,12 +1,6 @@
-import { entityKind } from 'drizzle-orm';
+/* eslint-disable drizzle-internal/require-entity-kind */
 import prand from 'pure-rand';
-import { AbstractGenerator, GenerateInterval } from '../Generators.ts';
-
-export class GenerateIntervalV2 extends GenerateInterval {
-	static override readonly [entityKind]: string = 'GenerateInterval';
-	override readonly version: number = 2;
-	override uniqueVersionOfGen = GenerateUniqueIntervalV2;
-}
+import { AbstractGenerator } from '../Generators.ts';
 
 export class GenerateUniqueIntervalV2 extends AbstractGenerator<{
 	fields?:
@@ -25,8 +19,8 @@ export class GenerateUniqueIntervalV2 extends AbstractGenerator<{
 		| 'minute to second';
 	isUnique?: boolean;
 }> {
-	static override readonly [entityKind]: string = 'GenerateUniqueInterval';
-	override readonly version: number = 2;
+	static override readonly 'entityKind': string = 'GenerateUniqueInterval';
+	static override readonly version: number = 2;
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -119,8 +113,8 @@ export class GenerateStringV2 extends AbstractGenerator<{
 	isUnique?: boolean;
 	arraySize?: number;
 }> {
-	static override readonly [entityKind]: string = 'GenerateString';
-	override readonly version: number = 2;
+	static override readonly 'entityKind': string = 'GenerateString';
+	static override readonly version: number = 2;
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -175,8 +169,8 @@ export class GenerateStringV2 extends AbstractGenerator<{
 }
 
 export class GenerateUniqueStringV2 extends AbstractGenerator<{ isUnique?: boolean }> {
-	static override readonly [entityKind]: string = 'GenerateUniqueString';
-	override readonly version: number = 2;
+	static override readonly 'entityKind': string = 'GenerateUniqueString';
+	static override readonly version: number = 2;
 
 	private state: {
 		rng: prand.RandomGenerator;

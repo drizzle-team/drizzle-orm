@@ -1,5 +1,6 @@
 import type { AbstractGenerator } from './Generators.ts';
 import {
+	GenerateArray,
 	GenerateBoolean,
 	GenerateCity,
 	GenerateCompanyName,
@@ -8,6 +9,7 @@ import {
 	GenerateDatetime,
 	GenerateDefault,
 	GenerateEmail,
+	GenerateEnum,
 	GenerateFirstName,
 	GenerateFullName,
 	GenerateInt,
@@ -22,16 +24,34 @@ import {
 	GeneratePhoneNumber,
 	GeneratePoint,
 	GeneratePostcode,
+	GenerateSelfRelationsValuesFromArray,
 	GenerateState,
-	GenerateStreetAdddress,
+	GenerateStreetAddress,
+	GenerateString,
 	GenerateTime,
 	GenerateTimestamp,
+	GenerateUniqueCity,
+	GenerateUniqueCompanyName,
+	GenerateUniqueCountry,
+	GenerateUniqueFirstName,
+	GenerateUniqueFullName,
+	GenerateUniqueInt,
+	GenerateUniqueInterval,
+	GenerateUniqueLastName,
+	GenerateUniqueLine,
+	GenerateUniqueNumber,
+	GenerateUniquePoint,
+	GenerateUniquePostcode,
+	GenerateUniqueStreetAddress,
+	GenerateUniqueString,
 	GenerateUUID,
 	GenerateValuesFromArray,
+	GenerateWeightedCount,
 	GenerateYear,
+	HollowGenerator,
 	WeightedRandomGenerator,
 } from './Generators.ts';
-import { GenerateStringV2 } from './versioning/v2.ts';
+import { GenerateStringV2, GenerateUniqueIntervalV2, GenerateUniqueStringV2 } from './versioning/v2.ts';
 
 function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
 	generatorConstructor: new(params: T) => GeneratorType,
@@ -359,7 +379,7 @@ export const generatorsFuncs = {
 	 *  }));
 	 * ```
 	 */
-	string: createGenerator(GenerateStringV2),
+	string: createGenerator(GenerateString),
 	// uniqueString: createGenerator(GenerateUniqueString),
 
 	/**
@@ -550,8 +570,8 @@ export const generatorsFuncs = {
 	 *  }));
 	 * ```
 	 */
-	streetAddress: createGenerator(GenerateStreetAdddress),
-	// uniqueStreetAddress: createGenerator(GenerateUniqueStreetAdddress),
+	streetAddress: createGenerator(GenerateStreetAddress),
+	// uniqueStreetAddress: createGenerator(GenerateUniqueStreetAddress),
 
 	/**
 	 * generates job titles.
@@ -736,53 +756,162 @@ export const generatorsFuncs = {
 	weightedRandom: createGenerator(WeightedRandomGenerator),
 };
 
-export const generatorsList: (new(params: any) => AbstractGenerator<any>)[] = [
-	GenerateBoolean,
-	GenerateCity,
-	GenerateCompanyName,
-	GenerateCountry,
-	GenerateDate,
-	GenerateDatetime,
-	GenerateDefault,
-	GenerateEmail,
-	GenerateFirstName,
-	GenerateFullName,
-	GenerateInt,
-	GenerateInterval,
-	GenerateIntPrimaryKey,
-	GenerateJobTitle,
-	GenerateJson,
-	GenerateLastName,
-	GenerateLine,
-	GenerateLoremIpsum,
-	GenerateNumber,
-	GeneratePhoneNumber,
-	GeneratePoint,
-	GeneratePostcode,
-	GenerateState,
-	GenerateStreetAdddress,
-	GenerateTime,
-	GenerateTimestamp,
-	GenerateUUID,
-	GenerateValuesFromArray,
-	GenerateYear,
-	WeightedRandomGenerator,
-];
+// TODO: revise
+// so far, version changes don’t affect generator parameters.
+export const generatorsFuncsV2 = { ...generatorsFuncs };
 
-//
-const generatorsObj = {
-	[entityKind]: [
-		GenerateStreetAdddress,
+export const generatorsMap = {
+	HollowGenerator: [
+		HollowGenerator,
+	],
+	GenerateDefault: [
+		GenerateDefault,
+	],
+	GenerateValuesFromArray: [
+		GenerateValuesFromArray,
+	],
+	GenerateSelfRelationsValuesFromArray: [
+		GenerateSelfRelationsValuesFromArray,
+	],
+	GenerateIntPrimaryKey: [
+		GenerateIntPrimaryKey,
+	],
+	GenerateNumber: [
+		GenerateNumber,
+	],
+	GenerateUniqueNumber: [
+		GenerateUniqueNumber,
+	],
+	GenerateInt: [
+		GenerateInt,
+	],
+	GenerateUniqueInt: [
+		GenerateUniqueInt,
+	],
+	GenerateBoolean: [
+		GenerateBoolean,
+	],
+	GenerateDate: [
+		GenerateDate,
+	],
+	GenerateTime: [
+		GenerateTime,
+	],
+	GenerateTimestamp: [
+		GenerateTimestamp,
+	],
+	GenerateDatetime: [
+		GenerateDatetime,
+	],
+	GenerateYear: [
+		GenerateYear,
+	],
+	GenerateJson: [
+		GenerateJson,
+	],
+	GenerateEnum: [
+		GenerateEnum,
+	],
+	GenerateInterval: [
+		GenerateInterval,
+	],
+	GenerateUniqueInterval: [
+		GenerateUniqueInterval,
+		GenerateUniqueIntervalV2,
+	],
+	GenerateString: [
+		GenerateString,
+		GenerateStringV2,
+	],
+	GenerateUniqueString: [
+		GenerateUniqueString,
+		GenerateUniqueStringV2,
+	],
+	GenerateUUID: [
 		GenerateUUID,
 	],
-	[entityKind]: [
-		GenerateVarchar,
-		GenerateVarcharV2,
-		GenerateVarcharV3,
+	GenerateFirstName: [
+		GenerateFirstName,
 	],
-	[entityKind]: [
-		GenerateVarchar,
-		GenerateVarcharV2,
-		GenerateVarcharV3,
+	GenerateUniqueFirstName: [
+		GenerateUniqueFirstName,
+	],
+	GenerateLastName: [
+		GenerateLastName,
+	],
+	GenerateUniqueLastName: [
+		GenerateUniqueLastName,
+	],
+	GenerateFullName: [
+		GenerateFullName,
+	],
+	GenerateUniqueFullName: [
+		GenerateUniqueFullName,
+	],
+	GenerateEmail: [
+		GenerateEmail,
+	],
+	GeneratePhoneNumber: [
+		GeneratePhoneNumber,
+	],
+	GenerateCountry: [
+		GenerateCountry,
+	],
+	GenerateUniqueCountry: [
+		GenerateUniqueCountry,
+	],
+	GenerateCity: [
+		GenerateCity,
+	],
+	GenerateUniqueCity: [
+		GenerateUniqueCity,
+	],
+	GenerateStreetAddress: [
+		GenerateStreetAddress,
+	],
+	GenerateUniqueStreetAddress: [
+		GenerateUniqueStreetAddress,
+	],
+	GenerateJobTitle: [
+		GenerateJobTitle,
+	],
+	GeneratePostcode: [
+		GeneratePostcode,
+	],
+	GenerateUniquePostcode: [
+		GenerateUniquePostcode,
+	],
+	GenerateState: [
+		GenerateState,
+	],
+	GenerateCompanyName: [
+		GenerateCompanyName,
+	],
+	GenerateUniqueCompanyName: [
+		GenerateUniqueCompanyName,
+	],
+	GenerateLoremIpsum: [
+		GenerateLoremIpsum,
+	],
+	GeneratePoint: [
+		GeneratePoint,
+	],
+	GenerateUniquePoint: [
+		GenerateUniquePoint,
+	],
+	GenerateLine: [
+		GenerateLine,
+	],
+	GenerateUniqueLine: [
+		GenerateUniqueLine,
+	],
+	WeightedRandomGenerator: [
+		WeightedRandomGenerator,
+	],
+	GenerateArray: [
+		GenerateArray,
+	],
+	GenerateWeightedCount: [
+		GenerateWeightedCount,
 	],
 };
