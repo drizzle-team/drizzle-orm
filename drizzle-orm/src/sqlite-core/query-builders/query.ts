@@ -27,45 +27,71 @@ export class RelationalQueryBuilder<
 	static readonly [entityKind]: string = 'SQLiteAsyncRelationalQueryBuilderV2';
 
 	constructor(
+		private mode: TMode,
 		private tables: Record<string, SQLiteTable>,
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
 		private table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
-		private session: SQLiteSession<TMode, any, any, any, any, any>,
-	) {}
+		private session: SQLiteSession<any, any, any, any, any, any>,
+	) {
+	}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
-	): SQLiteRelationalQuery<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]> {
-		return new SQLiteRelationalQuery(
-			this.tables,
-			this.schema,
-			this.tableNamesMap,
-			this.table,
-			this.tableConfig,
-			this.dialect,
-			this.session,
-			config as DBQueryConfig<'many'> | undefined ?? true,
-			'many',
-		);
+	): SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]> {
+		return this.mode === 'sync'
+			? new SQLiteSyncRelationalQuery(
+				this.tables,
+				this.schema,
+				this.tableNamesMap,
+				this.table,
+				this.tableConfig,
+				this.dialect,
+				this.session,
+				config as DBQueryConfig<'many'> | undefined ?? true,
+				'many',
+			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>
+			: new SQLiteRelationalQuery(
+				this.tables,
+				this.schema,
+				this.tableNamesMap,
+				this.table,
+				this.tableConfig,
+				this.dialect,
+				this.session,
+				config as DBQueryConfig<'many'> | undefined ?? true,
+				'many',
+			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>;
 	}
 
 	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
-	): SQLiteRelationalQuery<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
-		return new SQLiteRelationalQuery(
-			this.tables,
-			this.schema,
-			this.tableNamesMap,
-			this.table,
-			this.tableConfig,
-			this.dialect,
-			this.session,
-			config as DBQueryConfig<'one'> | undefined ?? true,
-			'first',
-		);
+	): SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
+		return this.mode === 'sync'
+			? new SQLiteSyncRelationalQuery(
+				this.tables,
+				this.schema,
+				this.tableNamesMap,
+				this.table,
+				this.tableConfig,
+				this.dialect,
+				this.session,
+				config as DBQueryConfig<'one'> | undefined ?? true,
+				'first',
+			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined>
+			: new SQLiteRelationalQuery(
+				this.tables,
+				this.schema,
+				this.tableNamesMap,
+				this.table,
+				this.tableConfig,
+				this.dialect,
+				this.session,
+				config as DBQueryConfig<'one'> | undefined ?? true,
+				'first',
+			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined>;
 	}
 }
 
