@@ -14,9 +14,10 @@ import type {
 import type { Column, Prettify, Relation, Table } from '../types/tables.ts';
 import type { AbstractGenerator } from './Generators.ts';
 
-import * as Generators from './Generators.ts';
-import * as GeneratorsV2 from './GeneratorVersions/GeneratorsV2.ts';
+import { latestVersion } from './apiVersion.ts';
+// import * as Generators from './Generators.ts';
 import { equalSets, generateHashFromString } from './utils.ts';
+import * as GeneratorsV2 from './versioning/v2.ts';
 
 export class SeedService {
 	static readonly [entityKind]: string = 'SeedService';
@@ -39,9 +40,9 @@ export class SeedService {
 		let columnPossibleGenerator: Prettify<GeneratePossibleGeneratorsColumnType>;
 		let tablePossibleGenerators: Prettify<GeneratePossibleGeneratorsTableType>;
 		const customSeed = options?.seed === undefined ? 0 : options.seed;
-		const version = options?.version === undefined ? Generators.latestVersion : options.version;
-		if (version < Generators.version || version > Generators.latestVersion) {
-			throw new Error(`Version should be in range [${Generators.version}, ${Generators.latestVersion}].`);
+		const version = options?.version === undefined ? latestVersion : options.version;
+		if (version < 1 || version > latestVersion) {
+			throw new Error(`Version should be in range [1, ${latestVersion}].`);
 		}
 
 		// sorting table in order which they will be filled up (tables with foreign keys case)
@@ -248,6 +249,8 @@ export class SeedService {
 					);
 				}
 
+				// check if new version exists
+
 				columnPossibleGenerator.generator.isUnique = col.isUnique;
 				columnPossibleGenerator.generator.dataType = col.dataType;
 				columnPossibleGenerator.generator.stringLength = col.typeParams.length;
@@ -418,15 +421,12 @@ export class SeedService {
 	};
 
 	selectGeneratorOfVersion = (version: number, generatorEntityKind: string) => {
-		const GeneratorVersions = [GeneratorsV2, Generators];
-
 		type GeneratorConstructorT = new(params: any) => AbstractGenerator<any>;
+		const GeneratorVersions = [...Object.values(GeneratorsV2), ...Object.values(Generators)];
+
 		let generatorConstructor: GeneratorConstructorT | undefined;
 		for (const gens of GeneratorVersions) {
-			const { version: gensVersion, ...filteredGens } = gens;
-			if (gensVersion > version) continue;
-
-			for (const gen of Object.values(filteredGens)) {
+			for (const gen of Object.values(gens)) {
 				const abstractGen = gen as typeof AbstractGenerator<any>;
 				if (abstractGen[entityKind] === generatorEntityKind) {
 					generatorConstructor = abstractGen as unknown as GeneratorConstructorT;

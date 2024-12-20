@@ -31,7 +31,7 @@ import {
 	GenerateYear,
 	WeightedRandomGenerator,
 } from './Generators.ts';
-import { GenerateStringV2 } from './GeneratorVersions/GeneratorsV2.ts';
+import { GenerateStringV2 } from './versioning/v2.ts';
 
 function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
 	generatorConstructor: new(params: T) => GeneratorType,
@@ -734,4 +734,55 @@ export const generatorsFuncs = {
 	 * ```
 	 */
 	weightedRandom: createGenerator(WeightedRandomGenerator),
+};
+
+export const generatorsList: (new(params: any) => AbstractGenerator<any>)[] = [
+	GenerateBoolean,
+	GenerateCity,
+	GenerateCompanyName,
+	GenerateCountry,
+	GenerateDate,
+	GenerateDatetime,
+	GenerateDefault,
+	GenerateEmail,
+	GenerateFirstName,
+	GenerateFullName,
+	GenerateInt,
+	GenerateInterval,
+	GenerateIntPrimaryKey,
+	GenerateJobTitle,
+	GenerateJson,
+	GenerateLastName,
+	GenerateLine,
+	GenerateLoremIpsum,
+	GenerateNumber,
+	GeneratePhoneNumber,
+	GeneratePoint,
+	GeneratePostcode,
+	GenerateState,
+	GenerateStreetAdddress,
+	GenerateTime,
+	GenerateTimestamp,
+	GenerateUUID,
+	GenerateValuesFromArray,
+	GenerateYear,
+	WeightedRandomGenerator,
+];
+
+//
+const generatorsObj = {
+	[entityKind]: [
+		GenerateStreetAdddress,
+		GenerateUUID,
+	],
+	[entityKind]: [
+		GenerateVarchar,
+		GenerateVarcharV2,
+		GenerateVarcharV3,
+	],
+	[entityKind]: [
+		GenerateVarchar,
+		GenerateVarcharV2,
+		GenerateVarcharV3,
+	],
 };

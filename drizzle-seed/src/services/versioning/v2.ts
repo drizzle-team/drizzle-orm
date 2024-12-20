@@ -2,11 +2,9 @@ import { entityKind } from 'drizzle-orm';
 import prand from 'pure-rand';
 import { AbstractGenerator, GenerateInterval } from '../Generators.ts';
 
-export const version = 2;
-
 export class GenerateIntervalV2 extends GenerateInterval {
 	static override readonly [entityKind]: string = 'GenerateInterval';
-	static override readonly ['version']: number = 2;
+	override readonly version: number = 2;
 	override uniqueVersionOfGen = GenerateUniqueIntervalV2;
 }
 
@@ -28,7 +26,7 @@ export class GenerateUniqueIntervalV2 extends AbstractGenerator<{
 	isUnique?: boolean;
 }> {
 	static override readonly [entityKind]: string = 'GenerateUniqueInterval';
-	static override readonly ['version']: number = 2;
+	override readonly version: number = 2;
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -122,7 +120,7 @@ export class GenerateStringV2 extends AbstractGenerator<{
 	arraySize?: number;
 }> {
 	static override readonly [entityKind]: string = 'GenerateString';
-	static override readonly ['version']: number = 2;
+	override readonly version: number = 2;
 
 	private state: {
 		rng: prand.RandomGenerator;
@@ -178,7 +176,7 @@ export class GenerateStringV2 extends AbstractGenerator<{
 
 export class GenerateUniqueStringV2 extends AbstractGenerator<{ isUnique?: boolean }> {
 	static override readonly [entityKind]: string = 'GenerateUniqueString';
-	static override readonly ['version']: number = 2;
+	override readonly version: number = 2;
 
 	private state: {
 		rng: prand.RandomGenerator;

@@ -14,12 +14,9 @@ import states, { maxStringLength as maxStateLength } from '../datasets/states.ts
 import streetSuffix, { maxStringLength as maxStreetSuffixLength } from '../datasets/streetSuffix.ts';
 import { fastCartesianProduct, fillTemplate, getWeightedIndices, isObject } from './utils.ts';
 
-export const latestVersion = 2;
-export const version = 1;
-
 export abstract class AbstractGenerator<T = {}> {
 	static readonly [entityKind]: string = 'AbstractGenerator';
-	static readonly ['version']: number = 2;
+	static readonly version: number = 1;
 
 	public isUnique = false;
 	public notNull = false;
