@@ -18,13 +18,13 @@ import type { Relation, Table } from './types/tables.ts';
 
 type InferCallbackType<
 	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any>,
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable;
 	},
-> = DB extends PgDatabase<any, any> ? SCHEMA extends {
+> = DB extends PgDatabase<any, any, any, any> ? SCHEMA extends {
 		[key: string]:
 			| PgTable
 			| PgSchema
@@ -56,7 +56,7 @@ type InferCallbackType<
 			};
 		}
 	: {}
-	: DB extends MySqlDatabase<any, any> ? SCHEMA extends {
+	: DB extends MySqlDatabase<any, any, any, any> ? SCHEMA extends {
 			[key: string]:
 				| PgTable
 				| PgSchema
@@ -88,7 +88,7 @@ type InferCallbackType<
 				};
 			}
 		: {}
-	: DB extends BaseSQLiteDatabase<any, any> ? SCHEMA extends {
+	: DB extends BaseSQLiteDatabase<any, any, any, any> ? SCHEMA extends {
 			[key: string]:
 				| PgTable
 				| PgSchema
@@ -124,9 +124,9 @@ type InferCallbackType<
 
 class SeedPromise<
 	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any>,
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable;
 	},
@@ -311,9 +311,9 @@ export async function seedForDrizzleStudio(
  */
 export function seed<
 	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any>,
 	SCHEMA extends {
 		[key: string]:
 			| PgTable
@@ -328,7 +328,7 @@ export function seed<
 }
 
 const seedFunc = async (
-	db: PgDatabase<any, any> | MySqlDatabase<any, any> | BaseSQLiteDatabase<any, any>,
+	db: PgDatabase<any, any, any, any> | MySqlDatabase<any, any, any, any> | BaseSQLiteDatabase<any, any, any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -341,15 +341,15 @@ const seedFunc = async (
 	options: { count?: number; seed?: number } = {},
 	refinements?: RefinementsType,
 ) => {
-	if (is(db, PgDatabase<any, any>)) {
+	if (is(db, PgDatabase<any, any, any, any>)) {
 		const { pgSchema } = filterPgTables(schema);
 
 		await seedPostgres(db, pgSchema, options, refinements);
-	} else if (is(db, MySqlDatabase<any, any>)) {
+	} else if (is(db, MySqlDatabase<any, any, any, any>)) {
 		const { mySqlSchema } = filterMySqlTables(schema);
 
 		await seedMySql(db, mySqlSchema, options, refinements);
-	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+	} else if (is(db, BaseSQLiteDatabase<any, any, any, any>)) {
 		const { sqliteSchema } = filterSqliteTables(schema);
 
 		await seedSqlite(db, sqliteSchema, options, refinements);
@@ -404,9 +404,9 @@ const seedFunc = async (
  */
 export async function reset<
 	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any>,
 	SCHEMA extends {
 		[key: string]:
 			| PgTable
@@ -417,19 +417,19 @@ export async function reset<
 			| any;
 	},
 >(db: DB, schema: SCHEMA) {
-	if (is(db, PgDatabase<any, any>)) {
+	if (is(db, PgDatabase<any, any, any, any>)) {
 		const { pgSchema } = filterPgTables(schema);
 
 		if (Object.entries(pgSchema).length > 0) {
 			await resetPostgres(db, pgSchema);
 		}
-	} else if (is(db, MySqlDatabase<any, any>)) {
+	} else if (is(db, MySqlDatabase<any, any, any, any>)) {
 		const { mySqlSchema } = filterMySqlTables(schema);
 
 		if (Object.entries(mySqlSchema).length > 0) {
 			await resetMySql(db, mySqlSchema);
 		}
-	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+	} else if (is(db, BaseSQLiteDatabase<any, any, any, any>)) {
 		const { sqliteSchema } = filterSqliteTables(schema);
 
 		if (Object.entries(sqliteSchema).length > 0) {
@@ -444,7 +444,7 @@ export async function reset<
 
 // Postgres-----------------------------------------------------------------------------------------------------------
 const resetPostgres = async (
-	db: PgDatabase<any, any>,
+	db: PgDatabase<any, any, any, any>,
 	schema: { [key: string]: PgTable },
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_, table]) => {
@@ -474,7 +474,7 @@ const filterPgTables = (schema: {
 };
 
 const seedPostgres = async (
-	db: PgDatabase<any, any>,
+	db: PgDatabase<any, any, any, any>,
 	schema: { [key: string]: PgTable },
 	options: { count?: number; seed?: number } = {},
 	refinements?: RefinementsType,
@@ -584,7 +584,7 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 
 // MySql-----------------------------------------------------------------------------------------------------
 const resetMySql = async (
-	db: MySqlDatabase<any, any>,
+	db: MySqlDatabase<any, any, any, any>,
 	schema: { [key: string]: MySqlTable },
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
@@ -621,7 +621,7 @@ const filterMySqlTables = (schema: {
 };
 
 const seedMySql = async (
-	db: MySqlDatabase<any, any>,
+	db: MySqlDatabase<any, any, any, any>,
 	schema: { [key: string]: MySqlTable },
 	options: { count?: number; seed?: number } = {},
 	refinements?: RefinementsType,
@@ -731,7 +731,7 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 
 // Sqlite------------------------------------------------------------------------------------------------------------------------
 const resetSqlite = async (
-	db: BaseSQLiteDatabase<any, any>,
+	db: BaseSQLiteDatabase<any, any, any, any>,
 	schema: { [key: string]: SQLiteTable },
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
@@ -768,7 +768,7 @@ const filterSqliteTables = (schema: {
 };
 
 const seedSqlite = async (
-	db: BaseSQLiteDatabase<any, any>,
+	db: BaseSQLiteDatabase<any, any, any, any>,
 	schema: { [key: string]: SQLiteTable },
 	options: { count?: number; seed?: number } = {},
 	refinements?: RefinementsType,
