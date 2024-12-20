@@ -16,6 +16,7 @@ import { SeedService } from './services/SeedService.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
 import type { RefinementsType } from './types/seedService.ts';
 import type { Column, Relation, RelationWithReferences, Table } from './types/tables.ts';
+import { push_array } from './utils.ts';
 
 type InferCallbackType<
 	DB extends
@@ -617,7 +618,7 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
 			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
 		}
-		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+		push_array(tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!, newRelations);
 
 		const getAllBaseColumns = (
 			baseColumn: PgArray<any, any>['baseColumn'] & { baseColumn?: PgArray<any, any>['baseColumn'] },
@@ -909,7 +910,7 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
 			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
 		}
-		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+		push_array(tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!, newRelations);
 
 		const getTypeParams = (sqlType: string) => {
 			// get type params and set only type
@@ -1128,7 +1129,7 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
 			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
 		}
-		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+		push_array(tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!, newRelations);
 
 		const getTypeParams = (sqlType: string) => {
 			// get type params and set only type

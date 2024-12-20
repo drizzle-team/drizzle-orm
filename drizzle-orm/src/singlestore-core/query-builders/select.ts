@@ -31,6 +31,7 @@ import {
 	getTableLikeName,
 	haveSameKeys,
 	orderSelectedFields,
+	push_array,
 	type ValueOrArray,
 } from '~/utils.ts';
 import type {
@@ -557,7 +558,7 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		SingleStoreSetOperatorExcludedMethods,
 		true
 	> {
-		this.config.setOperators.push(...setOperators);
+		push_array(this.config.setOperators, setOperators);
 		return this as any;
 	}
 

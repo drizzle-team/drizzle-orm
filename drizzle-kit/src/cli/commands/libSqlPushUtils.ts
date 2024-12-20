@@ -11,6 +11,7 @@ import {
 	SQLiteDropTableConvertor,
 	SqliteRenameTableConvertor,
 } from '../../sqlgenerator';
+import { push_array } from '../../utils';
 
 export const getOldTableName = (
 	tableName: string,
@@ -299,11 +300,11 @@ export const libSqlLogSuggestionsAndReturn = async (
 					.filter((t) => SQLiteSquasher.unsquashPushFK(t).tableTo === tableName)
 					.map((it) => SQLiteSquasher.unsquashPushFK(it).tableFrom);
 
-				tablesReferencingCurrent.push(...tablesRefs);
+				push_array(tablesReferencingCurrent, tablesRefs);
 			}
 
 			if (!tablesReferencingCurrent.length) {
-				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+				push_array(statementsToExecute, _moveDataStatements(tableName, json2, dataLoss));
 				continue;
 			}
 

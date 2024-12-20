@@ -18,6 +18,7 @@ import type { AbstractGenerator, GenerateArray, GenerateInterval, GenerateWeight
 
 import { latestVersion } from './apiVersion.ts';
 import { equalSets, generateHashFromString } from './utils.ts';
+import { push_array } from '../utils.ts';
 
 export class SeedService {
 	static readonly entityKind: string = 'SeedService';
@@ -397,7 +398,7 @@ export class SeedService {
 			}
 
 			children = [...tablesInOutRelations[parent]!.dependantTableNames];
-			leafTablesNames.push(...children);
+			push_array(leafTablesNames, children);
 		}
 		return orderedTablesNames;
 	};

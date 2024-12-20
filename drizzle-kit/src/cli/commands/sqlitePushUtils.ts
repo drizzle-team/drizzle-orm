@@ -10,7 +10,7 @@ import {
 } from '../../sqlgenerator';
 
 import type { JsonStatement } from '../../jsonStatements';
-import { findAddedAndRemoved, type SQLiteDB } from '../../utils';
+import { findAddedAndRemoved, push_array, type SQLiteDB } from '../../utils';
 
 export const _moveDataStatements = (
 	tableName: string,
@@ -283,11 +283,11 @@ export const logSuggestionsAndReturn = async (
 					.filter((t) => SQLiteSquasher.unsquashPushFK(t).tableTo === tableName)
 					.map((it) => SQLiteSquasher.unsquashPushFK(it).tableFrom);
 
-				tablesReferencingCurrent.push(...tablesRefs);
+				push_array(tablesReferencingCurrent, tablesRefs);
 			}
 
 			if (!tablesReferencingCurrent.length) {
-				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+				push_array(statementsToExecute, _moveDataStatements(tableName, json2, dataLoss));
 				continue;
 			}
 
@@ -298,7 +298,7 @@ export const logSuggestionsAndReturn = async (
 			if (pragmaState) {
 				statementsToExecute.push(`PRAGMA foreign_keys=OFF;`);
 			}
-			statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+			push_array(statementsToExecute, _moveDataStatements(tableName, json2, dataLoss));
 			if (pragmaState) {
 				statementsToExecute.push(`PRAGMA foreign_keys=ON;`);
 			}
