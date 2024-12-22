@@ -108,8 +108,8 @@ export const preparePostgresDB = async (
 			const { PGlite, types } = await import('@electric-sql/pglite');
 			const { drizzle } = await import('drizzle-orm/pglite');
 			const { migrate } = await import('drizzle-orm/pglite/migrator');
-
-			const pglite = new PGlite(normalisePGliteUrl(credentials.url));
+			const { vector } = await import('@electric-sql/pglite/vector');
+			const pglite = new PGlite(normalisePGliteUrl(credentials.url), { extensions: { vector } });
 			await pglite.waitReady;
 			const drzl = drizzle(pglite);
 			const migrateFn = async (config: MigrationConfig) => {
