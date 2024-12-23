@@ -46,8 +46,9 @@ export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
 	[EnableRLS]: boolean = false;
 
 	/** @internal */
-	override [Table.Symbol.ExtraConfigBuilder]: ((self: Record<string, PgColumn>) => PgTableExtraConfig) | undefined =
-		undefined;
+	override [Table.Symbol.ExtraConfigBuilder]:
+		| ((self: Record<string, PgColumn>) => PgTableExtraConfig | PgTableExtraConfigValue[])
+		| undefined = undefined;
 }
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<UpdateTableConfig<TableConfig, TPartial>>;
@@ -134,6 +135,36 @@ export function pgTableWithSchema<
 }
 
 export interface PgTableFn<TSchema extends string | undefined = undefined> {
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (
+			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>,
+		) => PgTableExtraConfigValue[],
+	): PgTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+		dialect: 'pg';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
+		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfigValue[],
+	): PgTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+		dialect: 'pg';
+	}>;
+
 	/**
 	 * @deprecated The third parameter of pgTable is changing and will only accept an array instead of an object
 	 *
@@ -201,36 +232,6 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 		name: TTableName,
 		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
 		extraConfig: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfig,
-	): PgTableWithColumns<{
-		name: TTableName;
-		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
-		dialect: 'pg';
-	}>;
-
-	<
-		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
-	>(
-		name: TTableName,
-		columns: TColumnsMap,
-		extraConfig?: (
-			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>,
-		) => PgTableExtraConfigValue[],
-	): PgTableWithColumns<{
-		name: TTableName;
-		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
-		dialect: 'pg';
-	}>;
-
-	<
-		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
-	>(
-		name: TTableName,
-		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfigValue[],
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;

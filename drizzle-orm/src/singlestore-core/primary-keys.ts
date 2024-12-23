@@ -1,3 +1,4 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from './columns/index.ts';
 import { SingleStoreTable } from './table.ts';
@@ -40,8 +41,8 @@ export class PrimaryKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: SingleStoreTable): PrimaryKey {
-		return new PrimaryKey(table, this.columns, this.name);
+	build(table: SingleStoreTable, casing?: CasingCache): PrimaryKey {
+		return new PrimaryKey(table, this.columns, this.name, casing);
 	}
 }
 
@@ -51,13 +52,24 @@ export class PrimaryKey {
 	readonly columns: SingleStoreColumn[];
 	readonly name?: string;
 
-	constructor(readonly table: SingleStoreTable, columns: SingleStoreColumn[], name?: string) {
+	constructor(
+		readonly table: SingleStoreTable,
+		columns: SingleStoreColumn[],
+		name?: string,
+		private casing?: CasingCache,
+	) {
 		this.columns = columns;
 		this.name = name;
 	}
 
 	getName(): string {
 		return this.name
-			?? `${this.table[SingleStoreTable.Symbol.Name]}_${this.columns.map((column) => column.name).join('_')}_pk`;
+			?? `${this.table[SingleStoreTable.Symbol.Name]}_${
+				(
+					this.casing
+						? this.columns.map((column) => this.casing!.getColumnCasing(column))
+						: this.columns.map((column) => column.name)
+				).join('_')
+			}_pk`;
 	}
 }

@@ -17,7 +17,8 @@ import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys.t
 import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys.ts';
 import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
-import type { Update } from '~/utils.ts';
+import type { Casing, Update } from '~/utils.ts';
+import type { MySqlDatabase } from '../db.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
 export interface ReferenceConfig {
@@ -115,6 +116,11 @@ export abstract class MySqlColumn<
 		}
 		super(table, config);
 	}
+
+	override nameWithCasing: {
+		(casing: Casing): string;
+		(db: MySqlDatabase<any, any>): string;
+	} = super.nameWithCasing;
 }
 
 export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = MySqlColumn<
