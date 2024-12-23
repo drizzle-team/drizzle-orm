@@ -587,10 +587,7 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		// might be empty list
 		const newRelations = tableConfig.foreignKeys.map((fk) => {
 			const table = dbToTsTableNamesMap[tableConfig.name] as string;
-			const refTableName0 = fk.reference();
-			const refTableName1 = refTableName0.foreignTable;
-			const refTableName2 = getTableName(refTableName1);
-			const refTable = dbToTsTableNamesMap[refTableName2] as string;
+			const refTable = dbToTsTableNamesMap[getTableName(fk.reference().foreignTable)] as string;
 
 			const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(
 				fk.reference().foreignTable,
