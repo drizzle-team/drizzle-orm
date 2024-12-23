@@ -189,7 +189,6 @@ class SeedPromise<
 		const refinements = this.options?.version === undefined || this.options.version === '2'
 			? callback(generatorsFuncsV2 as FunctionsVersioning<VERSION>) as RefinementsType
 			: callback(generatorsFuncs as FunctionsVersioning<VERSION>) as RefinementsType;
-		// const refinements = callback(generatorsFuncs) as RefinementsType;
 
 		await seedFunc(this.db, this.schema, this.options, refinements);
 	}

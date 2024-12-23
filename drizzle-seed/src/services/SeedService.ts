@@ -212,7 +212,7 @@ export class SeedService {
 
 					if (foreignKeyColumns[col.name]?.table === undefined && col.notNull === true) {
 						throw new Error(
-							`Column '${col.name}' cannot be nullable, and you didn't specify a table for foreign key on column '${col.name}' in '${table.name}' table.`,
+							`Column '${col.name}' has no null contraint, and you didn't specify a table for foreign key on column '${col.name}' in '${table.name}' table. You should pass  `,
 						);
 					}
 
@@ -222,14 +222,14 @@ export class SeedService {
 					if (predicate === true) {
 						if (foreignKeyColumns[col.name]?.table === undefined && col.notNull === false) {
 							console.warn(
-								`Column '${col.name}' in '${table.name}' table will be filled with null values`
+								`Column '${col.name}' in '${table.name}' table will be filled with Null values`
 									+ `\nbecause you specified neither a table for foreign key on column '${col.name}' nor a function for '${col.name}' column in refinements.`,
 							);
 						}
-						columnPossibleGenerator.generator = new generatorsMap.GenerateDefault[0]!({ defaultValue: null });
+						columnPossibleGenerator.generator = new generatorsMap.GenerateDefault[0]({ defaultValue: null });
 						columnPossibleGenerator.wasDefinedBefore = true;
 					} else {
-						columnPossibleGenerator.generator = new generatorsMap.HollowGenerator[0]!({});
+						columnPossibleGenerator.generator = new generatorsMap.HollowGenerator[0]();
 					}
 				} // TODO: rewrite pickGeneratorFor... using new col properties: isUnique and notNull
 				else if (connectionType === 'postgresql') {
@@ -294,13 +294,12 @@ export class SeedService {
 			(generator as GenerateArray).params.baseColumnGen = newBaseColumnGen;
 		}
 
-		let possibleGeneratorConstructors =
-			(generatorsMap as { [entityKind: string]: (typeof AbstractGenerator<any>)[] })[entityKind];
+		const possibleGeneratorConstructors = generatorsMap[entityKind as keyof typeof generatorsMap];
 
-		possibleGeneratorConstructors = possibleGeneratorConstructors?.filter((possGenCon) =>
+		const possibleGeneratorConstructorsFiltered = possibleGeneratorConstructors?.filter((possGenCon) =>
 			possGenCon.version <= this.version! // sorting in ascending order by version
 		).sort((a, b) => a.version - b.version);
-		const generatorConstructor = possibleGeneratorConstructors?.at(-1) as
+		const generatorConstructor = possibleGeneratorConstructorsFiltered?.at(-1) as
 			| (new(params: any) => AbstractGenerator<any>)
 			| undefined;
 		if (generatorConstructor === undefined) {
@@ -467,7 +466,7 @@ export class SeedService {
 		count: number,
 		seed: number,
 	) => {
-		let gen = new generatorsMap.GenerateWeightedCount[0]!({});
+		let gen = new generatorsMap.GenerateWeightedCount[0]();
 		gen = this.selectVersionOfGenerator(gen) as GenerateWeightedCount;
 		// const gen = new GenerateWeightedCount({});
 		gen.init({ count: weightedCount, seed });
@@ -504,7 +503,7 @@ export class SeedService {
 				// };
 				// const baseColumnDataType = getBaseColumnDataType(col.baseColumn);
 
-				const generator = new generatorsMap.GenerateArray[0]!({ baseColumnGen, size: col.size });
+				const generator = new generatorsMap.GenerateArray[0]({ baseColumnGen, size: col.size });
 				// generator.baseColumnDataType = baseColumnDataType;
 
 				return generator;
@@ -524,10 +523,10 @@ export class SeedService {
 					throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
 				}
 
-				let generator = new generatorsMap.GenerateArray[0]!({ baseColumnGen });
+				let generator = new generatorsMap.GenerateArray[0]({ baseColumnGen });
 
 				for (let i = 0; i < col.typeParams.dimensions! - 1; i++) {
-					generator = new generatorsMap.GenerateArray[0]!({ baseColumnGen: generator });
+					generator = new generatorsMap.GenerateArray[0]({ baseColumnGen: generator });
 				}
 
 				return generator;
@@ -541,7 +540,7 @@ export class SeedService {
 					|| col.columnType.includes('bigint'))
 				&& table.primaryKeys.includes(col.name)
 			) {
-				const generator = new generatorsMap.GenerateIntPrimaryKey[0]!({});
+				const generator = new generatorsMap.GenerateIntPrimaryKey[0]();
 
 				return generator;
 			}
@@ -589,7 +588,7 @@ export class SeedService {
 				&& !col.columnType.includes('interval')
 				&& !col.columnType.includes('point')
 			) {
-				const generator = new generatorsMap.GenerateInt[0]!({
+				const generator = new generatorsMap.GenerateInt[0]({
 					minValue,
 					maxValue,
 				});
@@ -598,7 +597,7 @@ export class SeedService {
 			}
 
 			if (col.columnType.includes('serial')) {
-				const generator = new generatorsMap.GenerateIntPrimaryKey[0]!({});
+				const generator = new generatorsMap.GenerateIntPrimaryKey[0]();
 
 				generator.maxValue = maxValue;
 
@@ -617,14 +616,14 @@ export class SeedService {
 					const scale = col.typeParams.scale === undefined ? 0 : col.typeParams.scale;
 
 					const maxAbsoluteValue = Math.pow(10, precision - scale) - Math.pow(10, -scale);
-					const generator = new generatorsMap.GenerateNumber[0]!({
+					const generator = new generatorsMap.GenerateNumber[0]({
 						minValue: -maxAbsoluteValue,
 						maxValue: maxAbsoluteValue,
 						precision: Math.pow(10, scale),
 					});
 					return generator;
 				}
-				const generator = new generatorsMap.GenerateNumber[0]!({});
+				const generator = new generatorsMap.GenerateNumber[0]();
 
 				return generator;
 			}
@@ -636,7 +635,7 @@ export class SeedService {
 					|| col.columnType.startsWith('char'))
 				&& table.primaryKeys.includes(col.name)
 			) {
-				const generator = new generatorsMap.GenerateUniqueString[0]!({});
+				const generator = new generatorsMap.GenerateUniqueString[0]();
 
 				return generator;
 			}
@@ -647,7 +646,7 @@ export class SeedService {
 					|| col.columnType.startsWith('char'))
 				&& col.name.toLowerCase().includes('name')
 			) {
-				const generator = new generatorsMap.GenerateFirstName[0]!({});
+				const generator = new generatorsMap.GenerateFirstName[0]();
 
 				return generator;
 			}
@@ -658,7 +657,7 @@ export class SeedService {
 					|| col.columnType.startsWith('char'))
 				&& col.name.toLowerCase().includes('email')
 			) {
-				const generator = new generatorsMap.GenerateEmail[0]!({});
+				const generator = new generatorsMap.GenerateEmail[0]();
 
 				return generator;
 			}
@@ -668,47 +667,47 @@ export class SeedService {
 				|| col.columnType.startsWith('varchar')
 				|| col.columnType.startsWith('char')
 			) {
-				const generator = new generatorsMap.GenerateString[0]!({});
+				const generator = new generatorsMap.GenerateString[0]();
 
 				return generator;
 			}
 
 			// UUID
 			if (col.columnType === 'uuid') {
-				const generator = new generatorsMap.GenerateUUID[0]!({});
+				const generator = new generatorsMap.GenerateUUID[0]();
 
 				return generator;
 			}
 
 			// BOOLEAN
 			if (col.columnType === 'boolean') {
-				const generator = new generatorsMap.GenerateBoolean[0]!({});
+				const generator = new generatorsMap.GenerateBoolean[0]();
 
 				return generator;
 			}
 
 			// DATE, TIME, TIMESTAMP
 			if (col.columnType.includes('date')) {
-				const generator = new generatorsMap.GenerateDate[0]!({});
+				const generator = new generatorsMap.GenerateDate[0]();
 
 				return generator;
 			}
 
 			if (col.columnType === 'time') {
-				const generator = new generatorsMap.GenerateTime[0]!({});
+				const generator = new generatorsMap.GenerateTime[0]();
 
 				return generator;
 			}
 
 			if (col.columnType.includes('timestamp')) {
-				const generator = new generatorsMap.GenerateTimestamp[0]!({});
+				const generator = new generatorsMap.GenerateTimestamp[0]();
 
 				return generator;
 			}
 
 			// JSON, JSONB
 			if (col.columnType === 'json' || col.columnType === 'jsonb') {
-				const generator = new generatorsMap.GenerateJson[0]!({});
+				const generator = new generatorsMap.GenerateJson[0]();
 
 				return generator;
 			}
@@ -720,7 +719,7 @@ export class SeedService {
 
 			// ENUM
 			if (col.enumValues !== undefined) {
-				const generator = new generatorsMap.GenerateEnum[0]!({
+				const generator = new generatorsMap.GenerateEnum[0]({
 					enumValues: col.enumValues,
 				});
 
@@ -730,32 +729,32 @@ export class SeedService {
 			// INTERVAL
 			if (col.columnType.startsWith('interval')) {
 				if (col.columnType === 'interval') {
-					const generator = new generatorsMap.GenerateInterval[0]!({});
+					const generator = new generatorsMap.GenerateInterval[0]();
 
 					return generator;
 				}
 
 				const fields = col.columnType.replace('interval ', '') as GenerateInterval['params']['fields'];
-				const generator = new generatorsMap.GenerateInterval[0]!({ fields });
+				const generator = new generatorsMap.GenerateInterval[0]({ fields });
 
 				return generator;
 			}
 
 			// POINT, LINE
 			if (col.columnType.includes('point')) {
-				const generator = new generatorsMap.GeneratePoint[0]!({});
+				const generator = new generatorsMap.GeneratePoint[0]();
 
 				return generator;
 			}
 
 			if (col.columnType.includes('line')) {
-				const generator = new generatorsMap.GenerateLine[0]!({});
+				const generator = new generatorsMap.GenerateLine[0]();
 
 				return generator;
 			}
 
 			if (col.hasDefault && col.default !== undefined) {
-				const generator = new generatorsMap.GenerateDefault[0]!({
+				const generator = new generatorsMap.GenerateDefault[0]({
 					defaultValue: col.default,
 				});
 				return generator;
@@ -784,7 +783,7 @@ export class SeedService {
 				(col.columnType.includes('serial') || col.columnType.includes('int'))
 				&& table.primaryKeys.includes(col.name)
 			) {
-				const generator = new generatorsMap.GenerateIntPrimaryKey[0]!({});
+				const generator = new generatorsMap.GenerateIntPrimaryKey[0]();
 				return generator;
 			}
 
@@ -819,7 +818,7 @@ export class SeedService {
 			}
 
 			if (col.columnType.includes('int')) {
-				const generator = new generatorsMap.GenerateInt[0]!({
+				const generator = new generatorsMap.GenerateInt[0]({
 					minValue,
 					maxValue,
 				});
@@ -827,7 +826,7 @@ export class SeedService {
 			}
 
 			if (col.columnType.includes('serial')) {
-				const generator = new generatorsMap.GenerateIntPrimaryKey[0]!({});
+				const generator = new generatorsMap.GenerateIntPrimaryKey[0]();
 				generator.maxValue = maxValue;
 				return generator;
 			}
@@ -845,7 +844,7 @@ export class SeedService {
 					const scale = col.typeParams.scale === undefined ? 0 : col.typeParams.scale;
 
 					const maxAbsoluteValue = Math.pow(10, precision - scale) - Math.pow(10, -scale);
-					const generator = new generatorsMap.GenerateNumber[0]!({
+					const generator = new generatorsMap.GenerateNumber[0]({
 						minValue: -maxAbsoluteValue,
 						maxValue: maxAbsoluteValue,
 						precision: Math.pow(10, scale),
@@ -853,7 +852,7 @@ export class SeedService {
 					return generator;
 				}
 
-				const generator = new generatorsMap.GenerateNumber[0]!({});
+				const generator = new generatorsMap.GenerateNumber[0]();
 				return generator;
 			}
 
@@ -867,7 +866,7 @@ export class SeedService {
 					|| col.columnType.startsWith('varbinary'))
 				&& table.primaryKeys.includes(col.name)
 			) {
-				const generator = new generatorsMap.GenerateUniqueString[0]!({});
+				const generator = new generatorsMap.GenerateUniqueString[0]();
 				return generator;
 			}
 
@@ -880,7 +879,7 @@ export class SeedService {
 					|| col.columnType.startsWith('varbinary'))
 				&& col.name.toLowerCase().includes('name')
 			) {
-				const generator = new generatorsMap.GenerateFirstName[0]!({});
+				const generator = new generatorsMap.GenerateFirstName[0]();
 				return generator;
 			}
 
@@ -893,7 +892,7 @@ export class SeedService {
 					|| col.columnType.startsWith('varbinary'))
 				&& col.name.toLowerCase().includes('email')
 			) {
-				const generator = new generatorsMap.GenerateEmail[0]!({});
+				const generator = new generatorsMap.GenerateEmail[0]();
 				return generator;
 			}
 
@@ -905,58 +904,58 @@ export class SeedService {
 				|| col.columnType.startsWith('binary')
 				|| col.columnType.startsWith('varbinary')
 			) {
-				const generator = new generatorsMap.GenerateString[0]!({});
+				const generator = new generatorsMap.GenerateString[0]();
 				return generator;
 			}
 
 			// BOOLEAN
 			if (col.columnType === 'boolean') {
-				const generator = new generatorsMap.GenerateBoolean[0]!({});
+				const generator = new generatorsMap.GenerateBoolean[0]();
 				return generator;
 			}
 
 			// DATE, TIME, TIMESTAMP, DATETIME, YEAR
 			if (col.columnType.includes('datetime')) {
-				const generator = new generatorsMap.GenerateDatetime[0]!({});
+				const generator = new generatorsMap.GenerateDatetime[0]();
 				return generator;
 			}
 
 			if (col.columnType.includes('date')) {
-				const generator = new generatorsMap.GenerateDate[0]!({});
+				const generator = new generatorsMap.GenerateDate[0]();
 				return generator;
 			}
 
 			if (col.columnType === 'time') {
-				const generator = new generatorsMap.GenerateTime[0]!({});
+				const generator = new generatorsMap.GenerateTime[0]();
 				return generator;
 			}
 
 			if (col.columnType.includes('timestamp')) {
-				const generator = new generatorsMap.GenerateTimestamp[0]!({});
+				const generator = new generatorsMap.GenerateTimestamp[0]();
 				return generator;
 			}
 
 			if (col.columnType === 'year') {
-				const generator = new generatorsMap.GenerateYear[0]!({});
+				const generator = new generatorsMap.GenerateYear[0]();
 				return generator;
 			}
 
 			// JSON
 			if (col.columnType === 'json') {
-				const generator = new generatorsMap.GenerateJson[0]!({});
+				const generator = new generatorsMap.GenerateJson[0]();
 				return generator;
 			}
 
 			// ENUM
 			if (col.enumValues !== undefined) {
-				const generator = new generatorsMap.GenerateEnum[0]!({
+				const generator = new generatorsMap.GenerateEnum[0]({
 					enumValues: col.enumValues,
 				});
 				return generator;
 			}
 
 			if (col.hasDefault && col.default !== undefined) {
-				const generator = new generatorsMap.GenerateDefault[0]!({
+				const generator = new generatorsMap.GenerateDefault[0]({
 					defaultValue: col.default,
 				});
 				return generator;
@@ -980,17 +979,17 @@ export class SeedService {
 				(col.columnType === 'integer' || col.columnType === 'numeric')
 				&& table.primaryKeys.includes(col.name)
 			) {
-				const generator = new generatorsMap.GenerateIntPrimaryKey[0]!({});
+				const generator = new generatorsMap.GenerateIntPrimaryKey[0]();
 				return generator;
 			}
 
 			if (col.columnType === 'integer' && col.dataType === 'boolean') {
-				const generator = new generatorsMap.GenerateBoolean[0]!({});
+				const generator = new generatorsMap.GenerateBoolean[0]();
 				return generator;
 			}
 
 			if ((col.columnType === 'integer' && col.dataType === 'date')) {
-				const generator = new generatorsMap.GenerateTimestamp[0]!({});
+				const generator = new generatorsMap.GenerateTimestamp[0]();
 				return generator;
 			}
 
@@ -998,7 +997,7 @@ export class SeedService {
 				col.columnType === 'integer'
 				|| (col.dataType === 'bigint' && col.columnType === 'blob')
 			) {
-				const generator = new generatorsMap.GenerateInt[0]!({});
+				const generator = new generatorsMap.GenerateInt[0]();
 				return generator;
 			}
 
@@ -1009,7 +1008,7 @@ export class SeedService {
 					const scale = col.typeParams.scale === undefined ? 0 : col.typeParams.scale;
 
 					const maxAbsoluteValue = Math.pow(10, precision - scale) - Math.pow(10, -scale);
-					const generator = new generatorsMap.GenerateNumber[0]!({
+					const generator = new generatorsMap.GenerateNumber[0]({
 						minValue: -maxAbsoluteValue,
 						maxValue: maxAbsoluteValue,
 						precision: Math.pow(10, scale),
@@ -1017,7 +1016,7 @@ export class SeedService {
 					return generator;
 				}
 
-				const generator = new generatorsMap.GenerateNumber[0]!({});
+				const generator = new generatorsMap.GenerateNumber[0]();
 				return generator;
 			}
 
@@ -1028,7 +1027,7 @@ export class SeedService {
 					|| col.columnType.startsWith('blob'))
 				&& table.primaryKeys.includes(col.name)
 			) {
-				const generator = new generatorsMap.GenerateUniqueString[0]!({});
+				const generator = new generatorsMap.GenerateUniqueString[0]();
 				return generator;
 			}
 
@@ -1038,7 +1037,7 @@ export class SeedService {
 					|| col.columnType.startsWith('blob'))
 				&& col.name.toLowerCase().includes('name')
 			) {
-				const generator = new generatorsMap.GenerateFirstName[0]!({});
+				const generator = new generatorsMap.GenerateFirstName[0]();
 				return generator;
 			}
 
@@ -1048,7 +1047,7 @@ export class SeedService {
 					|| col.columnType.startsWith('blob'))
 				&& col.name.toLowerCase().includes('email')
 			) {
-				const generator = new generatorsMap.GenerateEmail[0]!({});
+				const generator = new generatorsMap.GenerateEmail[0]();
 				return generator;
 			}
 
@@ -1058,7 +1057,7 @@ export class SeedService {
 				|| col.columnType.startsWith('blob')
 				|| col.columnType.startsWith('blobbuffer')
 			) {
-				const generator = new generatorsMap.GenerateString[0]!({});
+				const generator = new generatorsMap.GenerateString[0]();
 				return generator;
 			}
 
@@ -1066,12 +1065,12 @@ export class SeedService {
 				(col.columnType.startsWith('text') && col.dataType === 'json')
 				|| (col.columnType.startsWith('blob') && col.dataType === 'json')
 			) {
-				const generator = new generatorsMap.GenerateJson[0]!({});
+				const generator = new generatorsMap.GenerateJson[0]();
 				return generator;
 			}
 
 			if (col.hasDefault && col.default !== undefined) {
-				const generator = new generatorsMap.GenerateDefault[0]!({
+				const generator = new generatorsMap.GenerateDefault[0]({
 					defaultValue: col.default,
 				});
 				return generator;
@@ -1239,7 +1238,7 @@ export class SeedService {
 							}))!.map((rows) => rows[refColName]) as (string | number | boolean)[];
 
 							hasSelfRelation = true;
-							genObj = new generatorsMap.GenerateSelfRelationsValuesFromArray[0]!({
+							genObj = new generatorsMap.GenerateSelfRelationsValuesFromArray[0]({
 								values: refColumnValues,
 							});
 							genObj = this.selectVersionOfGenerator(genObj);
@@ -1264,7 +1263,7 @@ export class SeedService {
 							}
 
 							// TODO: revise maybe need to select version of generator here too
-							genObj = new generatorsMap.GenerateValuesFromArray[0]!({ values: refColumnValues });
+							genObj = new generatorsMap.GenerateValuesFromArray[0]({ values: refColumnValues });
 							genObj.notNull = tableGenerators[rel.columns[colIdx]!]!.notNull;
 							genObj.weightedCountSeed = weightedCountSeed;
 							genObj.maxRepeatedValuesCount = repeatedValuesCount;

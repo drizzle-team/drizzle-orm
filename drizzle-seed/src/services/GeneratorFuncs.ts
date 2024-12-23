@@ -54,7 +54,7 @@ import {
 import { GenerateStringV2, GenerateUniqueIntervalV2, GenerateUniqueStringV2 } from './versioning/v2.ts';
 
 function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
-	generatorConstructor: new(params: T) => GeneratorType,
+	generatorConstructor: new(params?: T) => GeneratorType,
 ) {
 	return (
 		...args: GeneratorType extends GenerateValuesFromArray | GenerateDefault | WeightedRandomGenerator ? [T]
@@ -915,4 +915,4 @@ export const generatorsMap = {
 	GenerateWeightedCount: [
 		GenerateWeightedCount,
 	],
-};
+} as const;

@@ -38,9 +38,11 @@ export abstract class AbstractGenerator<T = {}> {
 	public weightedCountSeed?: number | undefined;
 	public maxRepeatedValuesCount?: number | { weight: number; count: number | number[] }[] | undefined;
 
-	// param for GenerateIntP
+	public params: T;
 
-	constructor(public params: T) {}
+	constructor(params?: T) {
+		this.params = params === undefined ? {} as T : params as T;
+	}
 
 	init(params: { count: number | { weight: number; count: number | number[] }[]; seed: number }): void;
 	init() {
