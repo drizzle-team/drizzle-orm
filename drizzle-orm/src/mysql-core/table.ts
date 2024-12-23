@@ -133,9 +133,9 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
 	>(
 		name: TTableName,
-		columns: TColumnsMap,
+		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
 		extraConfig?: (
-			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mysql'>,
+			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
 		) => MySqlTableExtraConfigValue[],
 	): MySqlTableWithColumns<{
 		name: TTableName;
