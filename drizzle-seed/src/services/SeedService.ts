@@ -42,7 +42,7 @@ export class SeedService {
 		let tablePossibleGenerators: Prettify<GeneratePossibleGeneratorsTableType>;
 		const customSeed = options?.seed === undefined ? 0 : options.seed;
 		this.version = options?.version === undefined ? latestVersion : options.version;
-		if (this.version < 1 || this.version > latestVersion) {
+		if (Number.isNaN(this.version) || this.version < 1 || this.version > latestVersion) {
 			throw new Error(`Version should be in range [1, ${latestVersion}].`);
 		}
 
@@ -209,9 +209,23 @@ export class SeedService {
 					if (cyclicRelation !== undefined) {
 						columnPossibleGenerator.isCyclic = true;
 					}
-					const predicate = cyclicRelation !== undefined && col.notNull === false;
+
+					if (foreignKeyColumns[col.name]?.table === undefined && col.notNull === true) {
+						throw new Error(
+							`Column '${col.name}' cannot be nullable, and you didn't specify a table for foreign key on column '${col.name}' in '${table.name}' table.`,
+						);
+					}
+
+					const predicate = (cyclicRelation !== undefined || foreignKeyColumns[col.name]?.table === undefined)
+						&& col.notNull === false;
 
 					if (predicate === true) {
+						if (foreignKeyColumns[col.name]?.table === undefined && col.notNull === false) {
+							console.warn(
+								`Column '${col.name}' in '${table.name}' table will be filled with null values`
+									+ `\nbecause you specified neither a table for foreign key on column '${col.name}' nor a function for '${col.name}' column in refinements.`,
+							);
+						}
 						columnPossibleGenerator.generator = new generatorsMap.GenerateDefault[0]!({ defaultValue: null });
 						columnPossibleGenerator.wasDefinedBefore = true;
 					} else {
@@ -417,7 +431,10 @@ export class SeedService {
 				};
 			}
 
-			if (tablesInOutRelations[rel.refTable] === undefined) {
+			if (
+				rel.refTable !== undefined
+				&& tablesInOutRelations[rel.refTable] === undefined
+			) {
 				tablesInOutRelations[rel.refTable] = {
 					out: 0,
 					in: 0,
@@ -428,13 +445,15 @@ export class SeedService {
 				};
 			}
 
-			tablesInOutRelations[rel.table]!.out += 1;
-			tablesInOutRelations[rel.refTable]!.in += 1;
+			if (rel.refTable !== undefined) {
+				tablesInOutRelations[rel.table]!.out += 1;
+				tablesInOutRelations[rel.refTable]!.in += 1;
+			}
 
 			if (rel.refTable === rel.table) {
 				tablesInOutRelations[rel.table]!.selfRelation = true;
 				tablesInOutRelations[rel.table]!.selfRelCount = rel.columns.length;
-			} else {
+			} else if (rel.refTable !== undefined) {
 				tablesInOutRelations[rel.table]!.requiredTableNames.add(rel.refTable);
 				tablesInOutRelations[rel.refTable]!.dependantTableNames.add(rel.table);
 			}

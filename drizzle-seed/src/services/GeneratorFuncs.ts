@@ -756,9 +756,10 @@ export const generatorsFuncs = {
 	weightedRandom: createGenerator(WeightedRandomGenerator),
 };
 
-// TODO: revise
 // so far, version changes don’t affect generator parameters.
-export const generatorsFuncsV2 = { ...generatorsFuncs };
+export const generatorsFuncsV2 = {
+	...generatorsFuncs,
+};
 
 export const generatorsMap = {
 	HollowGenerator: [

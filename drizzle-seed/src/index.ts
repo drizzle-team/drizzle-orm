@@ -10,7 +10,7 @@ import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase, getTableConfig as getSqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 
-import { generatorsFuncs } from './services/GeneratorFuncs.ts';
+import { generatorsFuncs, generatorsFuncsV2 } from './services/GeneratorFuncs.ts';
 import type { AbstractGenerator } from './services/Generators.ts';
 import { SeedService } from './services/SeedService.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
@@ -131,6 +131,7 @@ class SeedPromise<
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable;
 	},
+	VERSION extends string | undefined,
 > implements Promise<void> {
 	static readonly entityKind: string = 'SeedPromise';
 
@@ -139,7 +140,7 @@ class SeedPromise<
 	constructor(
 		private db: DB,
 		private schema: SCHEMA,
-		private options?: { count?: number; seed?: number; version?: number },
+		private options?: { count?: number; seed?: number; version?: VERSION },
 	) {}
 
 	then<TResult1 = void, TResult2 = never>(
@@ -181,13 +182,22 @@ class SeedPromise<
 	}
 
 	async refine(
-		callback: (funcs: typeof generatorsFuncs) => InferCallbackType<DB, SCHEMA>,
+		callback: (
+			funcs: FunctionsVersioning<VERSION>,
+		) => InferCallbackType<DB, SCHEMA>,
 	): Promise<void> {
-		const refinements = callback(generatorsFuncs) as RefinementsType;
+		const refinements = this.options?.version === undefined || this.options.version === '2'
+			? callback(generatorsFuncsV2 as FunctionsVersioning<VERSION>) as RefinementsType
+			: callback(generatorsFuncs as FunctionsVersioning<VERSION>) as RefinementsType;
+		// const refinements = callback(generatorsFuncs) as RefinementsType;
 
 		await seedFunc(this.db, this.schema, this.options, refinements);
 	}
 }
+
+type FunctionsVersioning<VERSION extends string | undefined> = VERSION extends `1` ? typeof generatorsFuncs
+	: VERSION extends `2` ? typeof generatorsFuncsV2
+	: typeof generatorsFuncsV2;
 
 export function getGeneratorsFunctions() {
 	return generatorsFuncs;
@@ -337,8 +347,9 @@ export function seed<
 			| SQLiteTable
 			| any;
 	},
->(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number; version?: number }) {
-	return new SeedPromise<typeof db, typeof schema>(db, schema, options);
+	VERSION extends '2' | '1' | undefined,
+>(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number; version?: VERSION }) {
+	return new SeedPromise<typeof db, typeof schema, VERSION>(db, schema, options);
 }
 
 const seedFunc = async (
@@ -352,21 +363,26 @@ const seedFunc = async (
 			| SQLiteTable
 			| any;
 	},
-	options: { count?: number; seed?: number; version?: number } = {},
+	options: { count?: number; seed?: number; version?: string } = {},
 	refinements?: RefinementsType,
 ) => {
+	let version: number | undefined;
+	if (options?.version !== undefined) {
+		version = Number(options?.version);
+	}
+
 	if (is(db, PgDatabase<any, any>)) {
 		const { pgSchema } = filterPgTables(schema);
 
-		await seedPostgres(db, pgSchema, options, refinements);
+		await seedPostgres(db, pgSchema, { ...options, version }, refinements);
 	} else if (is(db, MySqlDatabase<any, any>)) {
 		const { mySqlSchema } = filterMySqlTables(schema);
 
-		await seedMySql(db, mySqlSchema, options, refinements);
+		await seedMySql(db, mySqlSchema, { ...options, version }, refinements);
 	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
 		const { sqliteSchema } = filterSqliteTables(schema);
 
-		await seedSqlite(db, sqliteSchema, options, refinements);
+		await seedSqlite(db, sqliteSchema, { ...options, version }, refinements);
 	} else {
 		throw new Error(
 			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
