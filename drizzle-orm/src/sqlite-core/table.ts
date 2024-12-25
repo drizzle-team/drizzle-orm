@@ -57,78 +57,6 @@ export type SQLiteTableWithColumns<T extends TableConfig> =
 	};
 
 export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
-	/**
-	 * @deprecated The third parameter of sqliteTable is changing and will only accept an array instead of an object
-	 *
-	 * @example
-	 * Deprecated version:
-	 * ```ts
-	 * export const users = sqliteTable("users", {
-	 * 	id: int(),
-	 * }, (t) => ({
-	 * 	idx: index('custom_name').on(t.id)
-	 * }));
-	 * ```
-	 *
-	 * New API:
-	 * ```ts
-	 * export const users = sqliteTable("users", {
-	 * 	id: int(),
-	 * }, (t) => [
-	 * 	index('custom_name').on(t.id)
-	 * ]);
-	 * ```
-	 */
-	<
-		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
-	>(
-		name: TTableName,
-		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>) => SQLiteTableExtraConfig,
-	): SQLiteTableWithColumns<{
-		name: TTableName;
-		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
-		dialect: 'sqlite';
-	}>;
-
-	/**
-	 * @deprecated The third parameter of sqliteTable is changing and will only accept an array instead of an object
-	 *
-	 * @example
-	 * Deprecated version:
-	 * ```ts
-	 * export const users = sqliteTable("users", {
-	 * 	id: int(),
-	 * }, (t) => ({
-	 * 	idx: index('custom_name').on(t.id)
-	 * }));
-	 * ```
-	 *
-	 * New API:
-	 * ```ts
-	 * export const users = sqliteTable("users", {
-	 * 	id: int(),
-	 * }, (t) => [
-	 * 	index('custom_name').on(t.id)
-	 * ]);
-	 * ```
-	 */
-	<
-		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
-	>(
-		name: TTableName,
-		columns: (columnTypes: SQLiteColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>) => SQLiteTableExtraConfig,
-	): SQLiteTableWithColumns<{
-		name: TTableName;
-		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
-		dialect: 'sqlite';
-	}>;
-
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
@@ -152,6 +80,77 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 		name: TTableName,
 		columns: (columnTypes: SQLiteColumnBuilders) => TColumnsMap,
 		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>) => SQLiteTableExtraConfigValue[],
+	): SQLiteTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+		dialect: 'sqlite';
+	}>;
+	/**
+	 * @deprecated The third parameter of sqliteTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = sqliteTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = sqliteTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>) => SQLiteTableExtraConfig,
+	): SQLiteTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+		dialect: 'sqlite';
+	}>;
+
+	/**
+	 * @deprecated The third parameter of sqliteTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = sqliteTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = sqliteTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: SQLiteColumnBuilders) => TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>) => SQLiteTableExtraConfig,
 	): SQLiteTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
