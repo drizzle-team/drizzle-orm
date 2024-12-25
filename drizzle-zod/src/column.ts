@@ -37,6 +37,21 @@ import type {
 	PgVarchar,
 	PgVector,
 } from 'drizzle-orm/pg-core';
+import type {
+	SingleStoreBigInt53,
+	SingleStoreChar,
+	SingleStoreDouble,
+	SingleStoreFloat,
+	SingleStoreInt,
+	SingleStoreMediumInt,
+	SingleStoreReal,
+	SingleStoreSerial,
+	SingleStoreSmallInt,
+	SingleStoreText,
+	SingleStoreTinyInt,
+	SingleStoreVarChar,
+	SingleStoreYear,
+} from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 import type { z as zod } from 'zod';
@@ -50,7 +65,6 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 );
 export const bufferSchema: z.ZodType<Buffer> = z.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 
-/** @internal */
 export function columnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 	let schema!: z.ZodTypeAny;
 
@@ -115,57 +129,92 @@ function numberColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 	let max!: number;
 	let integer = false;
 
-	if (isColumnType<MySqlTinyInt<any>>(column, ['MySqlTinyInt'])) {
+	if (isColumnType<MySqlTinyInt<any> | SingleStoreTinyInt<any>>(column, ['MySqlTinyInt', 'SingleStoreTinyInt'])) {
 		min = unsigned ? 0 : CONSTANTS.INT8_MIN;
 		max = unsigned ? CONSTANTS.INT8_UNSIGNED_MAX : CONSTANTS.INT8_MAX;
 		integer = true;
 	} else if (
-		isColumnType<PgSmallInt<any> | PgSmallSerial<any> | MySqlSmallInt<any>>(column, [
+		isColumnType<PgSmallInt<any> | PgSmallSerial<any> | MySqlSmallInt<any> | SingleStoreSmallInt<any>>(column, [
 			'PgSmallInt',
 			'PgSmallSerial',
 			'MySqlSmallInt',
+			'SingleStoreSmallInt',
 		])
 	) {
 		min = unsigned ? 0 : CONSTANTS.INT16_MIN;
 		max = unsigned ? CONSTANTS.INT16_UNSIGNED_MAX : CONSTANTS.INT16_MAX;
 		integer = true;
 	} else if (
-		isColumnType<PgReal<any> | MySqlFloat<any> | MySqlMediumInt<any>>(column, [
+		isColumnType<
+			PgReal<any> | MySqlFloat<any> | MySqlMediumInt<any> | SingleStoreMediumInt<any> | SingleStoreFloat<any>
+		>(column, [
 			'PgReal',
 			'MySqlFloat',
 			'MySqlMediumInt',
+			'SingleStoreMediumInt',
+			'SingleStoreFloat',
 		])
 	) {
 		min = unsigned ? 0 : CONSTANTS.INT24_MIN;
 		max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
-		integer = isColumnType(column, ['MySqlMediumInt']);
+		integer = isColumnType(column, ['MySqlMediumInt', 'SingleStoreMediumInt']);
 	} else if (
-		isColumnType<PgInteger<any> | PgSerial<any> | MySqlInt<any>>(column, ['PgInteger', 'PgSerial', 'MySqlInt'])
+		isColumnType<PgInteger<any> | PgSerial<any> | MySqlInt<any> | SingleStoreInt<any>>(column, [
+			'PgInteger',
+			'PgSerial',
+			'MySqlInt',
+			'SingleStoreInt',
+		])
 	) {
 		min = unsigned ? 0 : CONSTANTS.INT32_MIN;
 		max = unsigned ? CONSTANTS.INT32_UNSIGNED_MAX : CONSTANTS.INT32_MAX;
 		integer = true;
 	} else if (
-		isColumnType<PgDoublePrecision<any> | MySqlReal<any> | MySqlDouble<any> | SQLiteReal<any>>(column, [
+		isColumnType<
+			| PgDoublePrecision<any>
+			| MySqlReal<any>
+			| MySqlDouble<any>
+			| SingleStoreReal<any>
+			| SingleStoreDouble<any>
+			| SQLiteReal<any>
+		>(column, [
 			'PgDoublePrecision',
 			'MySqlReal',
 			'MySqlDouble',
+			'SingleStoreReal',
+			'SingleStoreDouble',
 			'SQLiteReal',
 		])
 	) {
 		min = unsigned ? 0 : CONSTANTS.INT48_MIN;
 		max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
 	} else if (
-		isColumnType<PgBigInt53<any> | PgBigSerial53<any> | MySqlBigInt53<any> | MySqlSerial<any> | SQLiteInteger<any>>(
+		isColumnType<
+			| PgBigInt53<any>
+			| PgBigSerial53<any>
+			| MySqlBigInt53<any>
+			| MySqlSerial<any>
+			| SingleStoreBigInt53<any>
+			| SingleStoreSerial<any>
+			| SQLiteInteger<any>
+		>(
 			column,
-			['PgBigInt53', 'PgBigSerial53', 'MySqlBigInt53', 'MySqlSerial', 'SQLiteInteger'],
+			[
+				'PgBigInt53',
+				'PgBigSerial53',
+				'MySqlBigInt53',
+				'MySqlSerial',
+				'SingleStoreBigInt53',
+				'SingleStoreSerial',
+				'SQLiteInteger',
+			],
 		)
 	) {
-		unsigned = unsigned || isColumnType(column, ['MySqlSerial']);
+		unsigned = unsigned || isColumnType(column, ['MySqlSerial', 'SingleStoreSerial']);
 		min = unsigned ? 0 : Number.MIN_SAFE_INTEGER;
 		max = Number.MAX_SAFE_INTEGER;
 		integer = true;
-	} else if (isColumnType<MySqlYear<any>>(column, ['MySqlYear'])) {
+	} else if (isColumnType<MySqlYear<any> | SingleStoreYear<any>>(column, ['MySqlYear', 'SingleStoreYear'])) {
 		min = 1901;
 		max = 2155;
 		integer = true;
@@ -197,9 +246,11 @@ function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 
 	if (isColumnType<PgVarchar<any> | SQLiteText<any>>(column, ['PgVarchar', 'SQLiteText'])) {
 		max = column.length;
-	} else if (isColumnType<MySqlVarChar<any>>(column, ['MySqlVarChar'])) {
+	} else if (
+		isColumnType<MySqlVarChar<any> | SingleStoreVarChar<any>>(column, ['MySqlVarChar', 'SingleStoreVarChar'])
+	) {
 		max = column.length ?? CONSTANTS.INT16_UNSIGNED_MAX;
-	} else if (isColumnType<MySqlText<any>>(column, ['MySqlText'])) {
+	} else if (isColumnType<MySqlText<any> | SingleStoreText<any>>(column, ['MySqlText', 'SingleStoreText'])) {
 		if (column.textType === 'longtext') {
 			max = CONSTANTS.INT32_UNSIGNED_MAX;
 		} else if (column.textType === 'mediumtext') {
@@ -211,7 +262,13 @@ function stringColumnToSchema(column: Column, z: typeof zod): z.ZodTypeAny {
 		}
 	}
 
-	if (isColumnType<PgChar<any> | MySqlChar<any>>(column, ['PgChar', 'MySqlChar'])) {
+	if (
+		isColumnType<PgChar<any> | MySqlChar<any> | SingleStoreChar<any>>(column, [
+			'PgChar',
+			'MySqlChar',
+			'SingleStoreChar',
+		])
+	) {
 		max = column.length;
 		fixed = true;
 	}
