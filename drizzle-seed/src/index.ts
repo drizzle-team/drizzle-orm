@@ -1,4 +1,5 @@
-import { entityKind, getTableName, is, sql } from 'drizzle-orm';
+/* eslint-disable drizzle-internal/require-entity-kind */
+import { getTableName, is, sql } from 'drizzle-orm';
 
 import type { MySqlColumn, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { getTableConfig as getMysqlTableConfig, MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core';
@@ -9,8 +10,8 @@ import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase, getTableConfig as getSqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 
-import type { AbstractGenerator } from './services/GeneratorsWrappers.ts';
-import { generatorsFuncs } from './services/GeneratorsWrappers.ts';
+import { generatorsFuncs, generatorsFuncsV2 } from './services/GeneratorFuncs.ts';
+import type { AbstractGenerator } from './services/Generators.ts';
 import { SeedService } from './services/SeedService.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
 import type { RefinementsType } from './types/seedService.ts';
@@ -130,15 +131,16 @@ class SeedPromise<
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable;
 	},
+	VERSION extends string | undefined,
 > implements Promise<void> {
-	static readonly [entityKind]: string = 'SeedPromise';
+	static readonly entityKind: string = 'SeedPromise';
 
 	[Symbol.toStringTag] = 'SeedPromise';
 
 	constructor(
 		private db: DB,
 		private schema: SCHEMA,
-		private options?: { count?: number; seed?: number },
+		private options?: { count?: number; seed?: number; version?: VERSION },
 	) {}
 
 	then<TResult1 = void, TResult2 = never>(
@@ -180,13 +182,21 @@ class SeedPromise<
 	}
 
 	async refine(
-		callback: (funcs: typeof generatorsFuncs) => InferCallbackType<DB, SCHEMA>,
+		callback: (
+			funcs: FunctionsVersioning<VERSION>,
+		) => InferCallbackType<DB, SCHEMA>,
 	): Promise<void> {
-		const refinements = callback(generatorsFuncs) as RefinementsType;
+		const refinements = this.options?.version === undefined || this.options.version === '2'
+			? callback(generatorsFuncsV2 as FunctionsVersioning<VERSION>) as RefinementsType
+			: callback(generatorsFuncs as FunctionsVersioning<VERSION>) as RefinementsType;
 
 		await seedFunc(this.db, this.schema, this.options, refinements);
 	}
 }
+
+type FunctionsVersioning<VERSION extends string | undefined> = VERSION extends `1` ? typeof generatorsFuncs
+	: VERSION extends `2` ? typeof generatorsFuncsV2
+	: typeof generatorsFuncsV2;
 
 export function getGeneratorsFunctions() {
 	return generatorsFuncs;
@@ -222,6 +232,8 @@ export async function seedForDrizzleStudio(
 				name: col.name,
 				dataType: 'string',
 				columnType: col.type,
+				// TODO: revise later
+				typeParams: {},
 				default: col.default,
 				hasDefault: col.default === undefined ? false : true,
 				isUnique: col.isUnique === undefined ? false : col.isUnique,
@@ -257,7 +269,6 @@ export async function seedForDrizzleStudio(
 			sqlDialect,
 			tables,
 			isCyclicRelations,
-			{}, // TODO: fix later
 			refinements,
 			options,
 		);
@@ -324,7 +335,7 @@ export async function seedForDrizzleStudio(
 export function seed<
 	DB extends
 		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
+		| MySqlDatabase<any, any, any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]:
@@ -335,8 +346,9 @@ export function seed<
 			| SQLiteTable
 			| any;
 	},
->(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number }) {
-	return new SeedPromise<typeof db, typeof schema>(db, schema, options);
+	VERSION extends '2' | '1' | undefined,
+>(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number; version?: VERSION }) {
+	return new SeedPromise<typeof db, typeof schema, VERSION>(db, schema, options);
 }
 
 const seedFunc = async (
@@ -350,21 +362,26 @@ const seedFunc = async (
 			| SQLiteTable
 			| any;
 	},
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: string } = {},
 	refinements?: RefinementsType,
 ) => {
+	let version: number | undefined;
+	if (options?.version !== undefined) {
+		version = Number(options?.version);
+	}
+
 	if (is(db, PgDatabase<any, any>)) {
 		const { pgSchema } = filterPgTables(schema);
 
-		await seedPostgres(db, pgSchema, options, refinements);
+		await seedPostgres(db, pgSchema, { ...options, version }, refinements);
 	} else if (is(db, MySqlDatabase<any, any>)) {
 		const { mySqlSchema } = filterMySqlTables(schema);
 
-		await seedMySql(db, mySqlSchema, options, refinements);
+		await seedMySql(db, mySqlSchema, { ...options, version }, refinements);
 	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
 		const { sqliteSchema } = filterSqliteTables(schema);
 
-		await seedSqlite(db, sqliteSchema, options, refinements);
+		await seedSqlite(db, sqliteSchema, { ...options, version }, refinements);
 	} else {
 		throw new Error(
 			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
@@ -417,7 +434,7 @@ const seedFunc = async (
 export async function reset<
 	DB extends
 		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
+		| MySqlDatabase<any, any, any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]:
@@ -488,17 +505,16 @@ const filterPgTables = (schema: {
 const seedPostgres = async (
 	db: PgDatabase<any, any>,
 	schema: { [key: string]: PgTable },
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
 	const seedService = new SeedService();
 
-	const { tables, relations, tableRelations } = getPostgresInfo(schema);
+	const { tables, relations } = getPostgresInfo(schema);
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'postgresql',
 		tables,
 		relations,
-		tableRelations,
 		refinements,
 		options,
 	);
@@ -608,7 +624,8 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		): Column['baseColumn'] => {
 			const baseColumnResult: Column['baseColumn'] = {
 				name: baseColumn.name,
-				columnType: baseColumn.columnType.replace('Pg', '').toLowerCase(),
+				columnType: baseColumn.getSQLType(),
+				typeParams: getTypeParams(baseColumn.getSQLType()),
 				dataType: baseColumn.dataType,
 				size: (baseColumn as PgArray<any, any>).size,
 				hasDefault: baseColumn.hasDefault,
@@ -623,12 +640,54 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 			return baseColumnResult;
 		};
 
+		const getTypeParams = (sqlType: string) => {
+			// get type params
+			const typeParams: Column['typeParams'] = {};
+
+			// handle dimensions
+			if (sqlType.includes('[')) {
+				const match = sqlType.match(/\[\w*]/g);
+				if (match) {
+					typeParams['dimensions'] = match.length;
+				}
+			}
+
+			if (
+				sqlType.startsWith('numeric')
+				|| sqlType.startsWith('decimal')
+				|| sqlType.startsWith('double precision')
+				|| sqlType.startsWith('real')
+			) {
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('varchar')
+				|| sqlType.startsWith('bpchar')
+				|| sqlType.startsWith('char')
+				|| sqlType.startsWith('bit')
+				|| sqlType.startsWith('time')
+				|| sqlType.startsWith('timestamp')
+				|| sqlType.startsWith('interval')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
+
 		// console.log(tableConfig.columns);
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.columnType.replace('Pg', '').toLowerCase(),
+				columnType: column.getSQLType(),
+				typeParams: getTypeParams(column.getSQLType()),
 				dataType: column.dataType,
 				size: (column as PgArray<any, any>).size,
 				hasDefault: column.hasDefault,
@@ -739,10 +798,10 @@ const filterMySqlTables = (schema: {
 const seedMySql = async (
 	db: MySqlDatabase<any, any>,
 	schema: { [key: string]: MySqlTable },
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
-	const { tables, relations, tableRelations } = getMySqlInfo(schema);
+	const { tables, relations } = getMySqlInfo(schema);
 
 	const seedService = new SeedService();
 
@@ -750,7 +809,6 @@ const seedMySql = async (
 		'mysql',
 		tables,
 		relations,
-		tableRelations,
 		refinements,
 		options,
 	);
@@ -853,11 +911,41 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 		}
 		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
 
+		const getTypeParams = (sqlType: string) => {
+			// get type params and set only type
+			const typeParams: Column['typeParams'] = {};
+
+			if (
+				sqlType.startsWith('decimal')
+				|| sqlType.startsWith('real')
+				|| sqlType.startsWith('double')
+				|| sqlType.startsWith('float')
+			) {
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('varchar')
+				|| sqlType.startsWith('binary')
+				|| sqlType.startsWith('varbinary')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
+
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.columnType.replace('MySql', '').toLowerCase(),
+				columnType: column.getSQLType(),
+				typeParams: getTypeParams(column.getSQLType()),
 				dataType: column.dataType,
 				hasDefault: column.hasDefault,
 				default: column.default,
@@ -928,10 +1016,10 @@ const filterSqliteTables = (schema: {
 const seedSqlite = async (
 	db: BaseSQLiteDatabase<any, any>,
 	schema: { [key: string]: SQLiteTable },
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
-	const { tables, relations, tableRelations } = getSqliteInfo(schema);
+	const { tables, relations } = getSqliteInfo(schema);
 
 	const seedService = new SeedService();
 
@@ -939,7 +1027,6 @@ const seedSqlite = async (
 		'sqlite',
 		tables,
 		relations,
-		tableRelations,
 		refinements,
 		options,
 	);
@@ -1046,7 +1133,8 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.columnType.replace('SQLite', '').toLowerCase(),
+				columnType: column.getSQLType(),
+				typeParams: {},
 				dataType: column.dataType,
 				hasDefault: column.hasDefault,
 				default: column.default,
