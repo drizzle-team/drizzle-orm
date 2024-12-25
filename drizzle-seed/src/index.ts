@@ -927,7 +927,8 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 					typeParams['scale'] = Number(match[2]);
 				}
 			} else if (
-				sqlType.startsWith('varchar')
+				sqlType.startsWith('char')
+				|| sqlType.startsWith('varchar')
 				|| sqlType.startsWith('binary')
 				|| sqlType.startsWith('varbinary')
 			) {
@@ -1129,12 +1130,38 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 		}
 		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
 
+		const getTypeParams = (sqlType: string) => {
+			// get type params and set only type
+			const typeParams: Column['typeParams'] = {};
+
+			if (
+				sqlType.startsWith('decimal')
+			) {
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('char')
+				|| sqlType.startsWith('varchar')
+				|| sqlType.startsWith('text')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
+
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
 				columnType: column.getSQLType(),
-				typeParams: {},
+				typeParams: getTypeParams(column.getSQLType()),
 				dataType: column.dataType,
 				hasDefault: column.hasDefault,
 				default: column.default,

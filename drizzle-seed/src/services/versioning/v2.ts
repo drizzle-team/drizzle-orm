@@ -126,7 +126,7 @@ export class GenerateStringV2 extends AbstractGenerator<{
 	override init({ count, seed }: { count: number; seed: number }) {
 		super.init({ count, seed });
 
-		let minStringLength = 8;
+		let minStringLength = 7;
 		let maxStringLength = 20;
 		if (this.stringLength !== undefined) {
 			maxStringLength = this.stringLength;
@@ -182,7 +182,7 @@ export class GenerateUniqueStringV2 extends AbstractGenerator<{ isUnique?: boole
 	override init({ seed, count }: { seed: number; count: number }) {
 		const rng = prand.xoroshiro128plus(seed);
 
-		let minStringLength = 8;
+		let minStringLength = 7;
 		let maxStringLength = 20;
 		// TODO: revise later
 		if (this.stringLength !== undefined) {

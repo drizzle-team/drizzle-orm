@@ -260,6 +260,7 @@ export class SeedService {
 					columnPossibleGenerator.generator = arrayGen;
 				}
 
+				columnPossibleGenerator.generator.isUnique = col.isUnique;
 				const uniqueGen = columnPossibleGenerator.generator.replaceIfUnique();
 				if (uniqueGen !== undefined) {
 					columnPossibleGenerator.generator = uniqueGen;
@@ -268,7 +269,6 @@ export class SeedService {
 				// selecting version of generator
 				columnPossibleGenerator.generator = this.selectVersionOfGenerator(columnPossibleGenerator.generator);
 
-				columnPossibleGenerator.generator.isUnique = col.isUnique;
 				// TODO: for now only GenerateValuesFromArray support notNull property
 				columnPossibleGenerator.generator.notNull = col.notNull;
 				columnPossibleGenerator.generator.dataType = col.dataType;
@@ -309,6 +309,8 @@ export class SeedService {
 		const newGenerator = new generatorConstructor(generator.params);
 		newGenerator.baseColumnDataType = generator.baseColumnDataType;
 		newGenerator.isUnique = generator.isUnique;
+		// TODO: for now only GenerateValuesFromArray support notNull property
+		newGenerator.notNull = generator.notNull;
 		newGenerator.dataType = generator.dataType;
 		newGenerator.stringLength = generator.stringLength;
 
