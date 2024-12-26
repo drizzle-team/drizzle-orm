@@ -105,9 +105,9 @@ export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptio
 		} else if (column.dataType === 'bigint') {
 			schema = bigintColumnToSchema(column, z, coerce);
 		} else if (column.dataType === 'boolean') {
-			schema = coerce.boolean ? z.coerce.boolean() : z.boolean();
+			schema = coerce === true || coerce.boolean ? z.coerce.boolean() : z.boolean();
 		} else if (column.dataType === 'date') {
-			schema = coerce.date ? z.coerce.date() : z.date();
+			schema = coerce === true || coerce.date ? z.coerce.date() : z.date();
 		} else if (column.dataType === 'string') {
 			schema = stringColumnToSchema(column, z, coerce);
 		} else if (column.dataType === 'json') {
@@ -230,7 +230,7 @@ function numberColumnToSchema(
 		max = Number.MAX_SAFE_INTEGER;
 	}
 
-	let schema = coerce?.number ? z.coerce.number() : z.number();
+	let schema = coerce === true || coerce?.number ? z.coerce.number() : z.number();
 	schema = schema.min(min).max(max);
 	return integer ? schema.int() : schema;
 }
@@ -244,7 +244,7 @@ function bigintColumnToSchema(
 	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
 	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
 
-	const schema = coerce?.bigint ? z.coerce.bigint() : z.bigint();
+	const schema = coerce === true || coerce?.bigint ? z.coerce.bigint() : z.bigint();
 	return schema.min(min).max(max);
 }
 
@@ -295,7 +295,7 @@ function stringColumnToSchema(
 		max = column.dimensions;
 	}
 
-	let schema = coerce?.string ? z.coerce.string() : z.string();
+	let schema = coerce === true || coerce?.string ? z.coerce.string() : z.string();
 	schema = regex ? schema.regex(regex) : schema;
 	return max && fixed ? schema.length(max) : max ? schema.max(max) : schema;
 }

@@ -364,13 +364,7 @@ test('type coercion - all', (t) => {
 	}));
 
 	const { createSelectSchema } = createSchemaFactory({
-		coerce: {
-			bigint: true,
-			boolean: true,
-			date: true,
-			number: true,
-			string: true,
-		},
+		coerce: true,
 	});
 	const result = createSelectSchema(table);
 	const expected = z.object({
