@@ -13,4 +13,6 @@ rollup.config-*.mjs
 *.log
 .DS_Store
 drizzle-seed/src/test.ts
+drizzle-seed/src/testMysql.ts
+drizzle-seed/src/testSqlite.ts
 drizzle-seed/src/schemaTest.ts

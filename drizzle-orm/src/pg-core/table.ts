@@ -134,6 +134,35 @@ export function pgTableWithSchema<
 }
 
 export interface PgTableFn<TSchema extends string | undefined = undefined> {
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (
+			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>,
+		) => PgTableExtraConfigValue[],
+	): PgTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+		dialect: 'pg';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
+		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfigValue[],
+	): PgTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+		dialect: 'pg';
+	}>;
 	/**
 	 * @deprecated The third parameter of pgTable is changing and will only accept an array instead of an object
 	 *
@@ -201,36 +230,6 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 		name: TTableName,
 		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
 		extraConfig: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfig,
-	): PgTableWithColumns<{
-		name: TTableName;
-		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
-		dialect: 'pg';
-	}>;
-
-	<
-		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
-	>(
-		name: TTableName,
-		columns: TColumnsMap,
-		extraConfig?: (
-			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>,
-		) => PgTableExtraConfigValue[],
-	): PgTableWithColumns<{
-		name: TTableName;
-		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
-		dialect: 'pg';
-	}>;
-
-	<
-		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
-	>(
-		name: TTableName,
-		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfigValue[],
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
