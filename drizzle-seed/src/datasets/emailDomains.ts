@@ -22,3 +22,5 @@ export default [
 	'ymail.com',
 	'libero.it',
 ];
+
+export const maxStringLength = 14;

@@ -593,3 +593,205 @@ describe('$withAuth tests', (it) => {
 		});
 	});
 });
+
+describe('$withAuth callback tests', (it) => {
+	const client = vi.fn();
+	const db = drizzle({
+		client: client as any as NeonQueryFunction<any, any>,
+		schema: {
+			usersTable,
+		},
+	});
+	const auth = (token: string) => () => token;
+
+	it('$count', async () => {
+		await db.$withAuth(auth('$count')).$count(usersTable).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('$count');
+	});
+
+	it('delete', async () => {
+		await db.$withAuth(auth('delete')).delete(usersTable).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('delete');
+	});
+
+	it('select', async () => {
+		await db.$withAuth(auth('select')).select().from(usersTable).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('select');
+	});
+
+	it('selectDistinct', async () => {
+		await db.$withAuth(auth('selectDistinct')).selectDistinct().from(usersTable).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('selectDistinct');
+	});
+
+	it('selectDistinctOn', async () => {
+		await db.$withAuth(auth('selectDistinctOn')).selectDistinctOn([usersTable.name]).from(usersTable).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('selectDistinctOn');
+	});
+
+	it('update', async () => {
+		await db.$withAuth(auth('update')).update(usersTable).set({
+			name: 'CHANGED',
+		}).where(eq(usersTable.name, 'TARGET')).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('update');
+	});
+
+	it('insert', async () => {
+		await db.$withAuth(auth('insert')).insert(usersTable).values({
+			name: 'WITHAUTHUSER',
+		}).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('insert');
+	});
+
+	it('with', async () => {
+		await db.$withAuth(auth('with')).with(db.$with('WITH').as((qb) => qb.select().from(usersTable))).select().from(
+			usersTable,
+		)
+			.catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('with');
+	});
+
+	it('rqb', async () => {
+		await db.$withAuth(auth('rqb')).query.usersTable.findFirst().catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqb');
+	});
+
+	it('exec', async () => {
+		await db.$withAuth(auth('exec')).execute(`SELECT 1`).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('exec');
+	});
+
+	it('prepared', async () => {
+		const prep = db.$withAuth(auth('prepared')).select().from(usersTable).prepare('withAuthPrepared');
+
+		await prep.execute().catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('prepared');
+	});
+
+	it('refreshMaterializedView', async () => {
+		const johns = pgMaterializedView('johns')
+			.as((qb) => qb.select().from(usersTable).where(eq(usersTable.name, 'John')));
+
+		await db.$withAuth(auth('refreshMaterializedView')).refreshMaterializedView(johns);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('refreshMaterializedView');
+	});
+});
+
+describe('$withAuth async callback tests', (it) => {
+	const client = vi.fn();
+	const db = drizzle({
+		client: client as any as NeonQueryFunction<any, any>,
+		schema: {
+			usersTable,
+		},
+	});
+	const auth = (token: string) => async () => token;
+
+	it('$count', async () => {
+		await db.$withAuth(auth('$count')).$count(usersTable).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('$count');
+	});
+
+	it('delete', async () => {
+		await db.$withAuth(auth('delete')).delete(usersTable).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('delete');
+	});
+
+	it('select', async () => {
+		await db.$withAuth(auth('select')).select().from(usersTable).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('select');
+	});
+
+	it('selectDistinct', async () => {
+		await db.$withAuth(auth('selectDistinct')).selectDistinct().from(usersTable).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('selectDistinct');
+	});
+
+	it('selectDistinctOn', async () => {
+		await db.$withAuth(auth('selectDistinctOn')).selectDistinctOn([usersTable.name]).from(usersTable).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('selectDistinctOn');
+	});
+
+	it('update', async () => {
+		await db.$withAuth(auth('update')).update(usersTable).set({
+			name: 'CHANGED',
+		}).where(eq(usersTable.name, 'TARGET')).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('update');
+	});
+
+	it('insert', async () => {
+		await db.$withAuth(auth('insert')).insert(usersTable).values({
+			name: 'WITHAUTHUSER',
+		}).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('insert');
+	});
+
+	it('with', async () => {
+		await db.$withAuth(auth('with')).with(db.$with('WITH').as((qb) => qb.select().from(usersTable))).select().from(
+			usersTable,
+		)
+			.catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('with');
+	});
+
+	it('rqb', async () => {
+		await db.$withAuth(auth('rqb')).query.usersTable.findFirst().catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqb');
+	});
+
+	it('exec', async () => {
+		await db.$withAuth(auth('exec')).execute(`SELECT 1`).catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('exec');
+	});
+
+	it('prepared', async () => {
+		const prep = db.$withAuth(auth('prepared')).select().from(usersTable).prepare('withAuthPrepared');
+
+		await prep.execute().catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('prepared');
+	});
+
+	it('refreshMaterializedView', async () => {
+		const johns = pgMaterializedView('johns')
+			.as((qb) => qb.select().from(usersTable).where(eq(usersTable.name, 'John')));
+
+		await db.$withAuth(auth('refreshMaterializedView')).refreshMaterializedView(johns);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('refreshMaterializedView');
+	});
+});

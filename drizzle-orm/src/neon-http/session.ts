@@ -12,7 +12,7 @@ import { PgPreparedQuery as PgPreparedQuery, PgSession } from '~/pg-core/session
 import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
-import { mapResultRow } from '~/utils.ts';
+import { mapResultRow, type NeonAuthToken } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
 
@@ -47,11 +47,11 @@ export class NeonHttpPreparedQuery<
 
 	async execute(placeholderValues: Record<string, unknown> | undefined): Promise<T['execute']>;
 	/** @internal */
-	async execute(placeholderValues: Record<string, unknown> | undefined, token?: string): Promise<T['execute']>;
+	async execute(placeholderValues: Record<string, unknown> | undefined, token?: NeonAuthToken): Promise<T['execute']>;
 	/** @internal */
 	async execute(
 		placeholderValues: Record<string, unknown> | undefined = {},
-		token: string | undefined = this.authToken,
+		token: NeonAuthToken | undefined = this.authToken,
 	): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues, token);
 
@@ -143,9 +143,9 @@ export class NeonHttpPreparedQuery<
 
 	values(placeholderValues: Record<string, unknown> | undefined): Promise<T['values']>;
 	/** @internal */
-	values(placeholderValues: Record<string, unknown> | undefined, token?: string): Promise<T['values']>;
+	values(placeholderValues: Record<string, unknown> | undefined, token?: NeonAuthToken): Promise<T['values']>;
 	/** @internal */
-	values(placeholderValues: Record<string, unknown> | undefined = {}, token?: string): Promise<T['values']> {
+	values(placeholderValues: Record<string, unknown> | undefined = {}, token?: NeonAuthToken): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
 		return this.client(this.query.sql, params, { arrayMode: true, fullResults: true, authToken: token }).then((
@@ -258,9 +258,9 @@ export class NeonHttpSession<
 
 	override async count(sql: SQL): Promise<number>;
 	/** @internal */
-	override async count(sql: SQL, token?: string): Promise<number>;
+	override async count(sql: SQL, token?: NeonAuthToken): Promise<number>;
 	/** @internal */
-	override async count(sql: SQL, token?: string): Promise<number> {
+	override async count(sql: SQL, token?: NeonAuthToken): Promise<number> {
 		const res = await this.execute<{ rows: [{ count: string }] }>(sql, token);
 
 		return Number(

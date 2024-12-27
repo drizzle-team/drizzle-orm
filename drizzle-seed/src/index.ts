@@ -1,20 +1,21 @@
-import { entityKind, getTableName, is, sql } from 'drizzle-orm';
+/* eslint-disable drizzle-internal/require-entity-kind */
+import { getTableName, is, sql } from 'drizzle-orm';
 
 import type { MySqlColumn, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { getTableConfig as getMysqlTableConfig, MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core';
 
-import type { PgColumn, PgSchema } from 'drizzle-orm/pg-core';
+import type { PgArray, PgColumn, PgSchema } from 'drizzle-orm/pg-core';
 import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle-orm/pg-core';
 
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase, getTableConfig as getSqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 
-import type { AbstractGenerator } from './services/GeneratorsWrappers.ts';
-import { generatorsFuncs } from './services/GeneratorsWrappers.ts';
-import seedService from './services/SeedService.ts';
+import { generatorsFuncs, generatorsFuncsV2 } from './services/GeneratorFuncs.ts';
+import type { AbstractGenerator } from './services/Generators.ts';
+import { SeedService } from './services/SeedService.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
 import type { RefinementsType } from './types/seedService.ts';
-import type { Relation, Table } from './types/tables.ts';
+import type { Column, Relation, RelationWithReferences, Table } from './types/tables.ts';
 
 type InferCallbackType<
 	DB extends
@@ -130,15 +131,16 @@ class SeedPromise<
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable;
 	},
+	VERSION extends string | undefined,
 > implements Promise<void> {
-	static readonly [entityKind]: string = 'SeedPromise';
+	static readonly entityKind: string = 'SeedPromise';
 
 	[Symbol.toStringTag] = 'SeedPromise';
 
 	constructor(
 		private db: DB,
 		private schema: SCHEMA,
-		private options?: { count?: number; seed?: number },
+		private options?: { count?: number; seed?: number; version?: VERSION },
 	) {}
 
 	then<TResult1 = void, TResult2 = never>(
@@ -180,13 +182,21 @@ class SeedPromise<
 	}
 
 	async refine(
-		callback: (funcs: typeof generatorsFuncs) => InferCallbackType<DB, SCHEMA>,
+		callback: (
+			funcs: FunctionsVersioning<VERSION>,
+		) => InferCallbackType<DB, SCHEMA>,
 	): Promise<void> {
-		const refinements = callback(generatorsFuncs) as RefinementsType;
+		const refinements = this.options?.version === undefined || this.options.version === '2'
+			? callback(generatorsFuncsV2 as FunctionsVersioning<VERSION>) as RefinementsType
+			: callback(generatorsFuncs as FunctionsVersioning<VERSION>) as RefinementsType;
 
 		await seedFunc(this.db, this.schema, this.options, refinements);
 	}
 }
+
+type FunctionsVersioning<VERSION extends string | undefined> = VERSION extends `1` ? typeof generatorsFuncs
+	: VERSION extends `2` ? typeof generatorsFuncsV2
+	: typeof generatorsFuncsV2;
 
 export function getGeneratorsFunctions() {
 	return generatorsFuncs;
@@ -222,10 +232,13 @@ export async function seedForDrizzleStudio(
 				name: col.name,
 				dataType: 'string',
 				columnType: col.type,
+				// TODO: revise later
+				typeParams: {},
 				default: col.default,
 				hasDefault: col.default === undefined ? false : true,
 				isUnique: col.isUnique === undefined ? false : col.isUnique,
 				notNull: col.notNull,
+				primary: col.primaryKey,
 			}));
 			tables.push(
 				{
@@ -237,21 +250,31 @@ export async function seedForDrizzleStudio(
 		}
 
 		relations = drizzleStudioRelations.filter((rel) => rel.schema === schemaName && rel.refSchema === schemaName);
+		const isCyclicRelations = relations.map(
+			(reli) => {
+				if (relations.some((relj) => reli.table === relj.refTable && reli.refTable === relj.table)) {
+					return { ...reli, isCyclic: true };
+				}
+				return { ...reli, isCyclic: false };
+			},
+		);
 
 		refinements = schemasRefinements !== undefined && schemasRefinements[schemaName] !== undefined
 			? schemasRefinements[schemaName]
 			: undefined;
 
+		const seedService = new SeedService();
+
 		const generatedTablesGenerators = seedService.generatePossibleGenerators(
 			sqlDialect,
 			tables,
-			relations,
+			isCyclicRelations,
 			refinements,
 			options,
 		);
 
 		const generatedTables = await seedService.generateTablesValues(
-			relations,
+			isCyclicRelations,
 			generatedTablesGenerators,
 			undefined,
 			undefined,
@@ -312,7 +335,7 @@ export async function seedForDrizzleStudio(
 export function seed<
 	DB extends
 		| PgDatabase<any, any, any, any>
-		| MySqlDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any, any>
 		| BaseSQLiteDatabase<any, any, any, any>,
 	SCHEMA extends {
 		[key: string]:
@@ -323,8 +346,9 @@ export function seed<
 			| SQLiteTable
 			| any;
 	},
->(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number }) {
-	return new SeedPromise<typeof db, typeof schema>(db, schema, options);
+	VERSION extends '2' | '1' | undefined,
+>(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number; version?: VERSION }) {
+	return new SeedPromise<typeof db, typeof schema, VERSION>(db, schema, options);
 }
 
 const seedFunc = async (
@@ -338,21 +362,26 @@ const seedFunc = async (
 			| SQLiteTable
 			| any;
 	},
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: string } = {},
 	refinements?: RefinementsType,
 ) => {
+	let version: number | undefined;
+	if (options?.version !== undefined) {
+		version = Number(options?.version);
+	}
+
 	if (is(db, PgDatabase<any, any, any, any>)) {
 		const { pgSchema } = filterPgTables(schema);
 
-		await seedPostgres(db, pgSchema, options, refinements);
+		await seedPostgres(db, pgSchema, { ...options, version }, refinements);
 	} else if (is(db, MySqlDatabase<any, any, any, any>)) {
 		const { mySqlSchema } = filterMySqlTables(schema);
 
-		await seedMySql(db, mySqlSchema, options, refinements);
+		await seedMySql(db, mySqlSchema, { ...options, version }, refinements);
 	} else if (is(db, BaseSQLiteDatabase<any, any, any, any>)) {
 		const { sqliteSchema } = filterSqliteTables(schema);
 
-		await seedSqlite(db, sqliteSchema, options, refinements);
+		await seedSqlite(db, sqliteSchema, { ...options, version }, refinements);
 	} else {
 		throw new Error(
 			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
@@ -405,7 +434,7 @@ const seedFunc = async (
 export async function reset<
 	DB extends
 		| PgDatabase<any, any, any, any>
-		| MySqlDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any, any>
 		| BaseSQLiteDatabase<any, any, any, any>,
 	SCHEMA extends {
 		[key: string]:
@@ -451,7 +480,7 @@ const resetPostgres = async (
 		const config = getPgTableConfig(table);
 		config.schema = config.schema === undefined ? 'public' : config.schema;
 
-		return `${config.schema}.${config.name}`;
+		return `"${config.schema}"."${config.name}"`;
 	});
 
 	await db.execute(sql.raw(`truncate ${tablesToTruncate.join(',')} cascade;`));
@@ -476,9 +505,11 @@ const filterPgTables = (schema: {
 const seedPostgres = async (
 	db: PgDatabase<any, any, any, any>,
 	schema: { [key: string]: PgTable },
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
+	const seedService = new SeedService();
+
 	const { tables, relations } = getPostgresInfo(schema);
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'postgresql',
@@ -488,12 +519,27 @@ const seedPostgres = async (
 		options,
 	);
 
-	await seedService.generateTablesValues(
+	const preserveCyclicTablesData = relations.some((rel) => rel.isCyclic === true);
+
+	const tablesValues = await seedService.generateTablesValues(
 		relations,
 		generatedTablesGenerators,
 		db,
 		schema,
-		options,
+		{ ...options, preserveCyclicTablesData },
+	);
+
+	const { filteredTablesGenerators, tablesUniqueNotNullColumn } = seedService.filterCyclicTables(
+		generatedTablesGenerators,
+	);
+	const updateDataInDb = filteredTablesGenerators.length === 0 ? false : true;
+
+	await seedService.generateTablesValues(
+		relations,
+		filteredTablesGenerators,
+		db,
+		schema,
+		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
 	);
 };
 
@@ -505,10 +551,11 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 	);
 
 	const tables: Table[] = [];
-	const relations: Relation[] = [];
+	const relations: RelationWithReferences[] = [];
 	const dbToTsColumnNamesMapGlobal: {
 		[tableName: string]: { [dbColumnName: string]: string };
 	} = {};
+	const tableRelations: { [tableName: string]: RelationWithReferences[] } = {};
 
 	const getDbToTsColumnNamesMap = (table: PgTable) => {
 		let dbToTsColumnNamesMap: { [dbColName: string]: string } = {};
@@ -536,42 +583,123 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 
+		// might be empty list
+		const newRelations = tableConfig.foreignKeys.map((fk) => {
+			const table = dbToTsTableNamesMap[tableConfig.name] as string;
+			const refTable = dbToTsTableNamesMap[getTableName(fk.reference().foreignTable)] as string;
+
+			const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(
+				fk.reference().foreignTable,
+			);
+
+			if (tableRelations[refTable] === undefined) {
+				tableRelations[refTable] = [];
+			}
+			return {
+				table,
+				columns: fk
+					.reference()
+					.columns.map((col) => dbToTsColumnNamesMap[col.name] as string),
+				refTable,
+				refColumns: fk
+					.reference()
+					.foreignColumns.map(
+						(fCol) => dbToTsColumnNamesMapForRefTable[fCol.name] as string,
+					),
+				refTableRels: tableRelations[refTable],
+			};
+		});
+
 		relations.push(
-			...tableConfig.foreignKeys.map((fk) => {
-				const table = dbToTsTableNamesMap[tableConfig.name] as string;
-				const refTable = dbToTsTableNamesMap[getTableName(fk.reference().foreignTable)] as string;
-
-				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(
-					fk.reference().foreignTable,
-				);
-
-				return {
-					table,
-					columns: fk
-						.reference()
-						.columns.map((col) => dbToTsColumnNamesMap[col.name] as string),
-					refTable,
-					refColumns: fk
-						.reference()
-						.foreignColumns.map(
-							(fCol) => dbToTsColumnNamesMapForRefTable[fCol.name] as string,
-						),
-				};
-			}),
+			...newRelations,
 		);
 
+		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
+			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
+		}
+		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+
+		const getAllBaseColumns = (
+			baseColumn: PgArray<any, any>['baseColumn'] & { baseColumn?: PgArray<any, any>['baseColumn'] },
+		): Column['baseColumn'] => {
+			const baseColumnResult: Column['baseColumn'] = {
+				name: baseColumn.name,
+				columnType: baseColumn.getSQLType(),
+				typeParams: getTypeParams(baseColumn.getSQLType()),
+				dataType: baseColumn.dataType,
+				size: (baseColumn as PgArray<any, any>).size,
+				hasDefault: baseColumn.hasDefault,
+				enumValues: baseColumn.enumValues,
+				default: baseColumn.default,
+				isUnique: baseColumn.isUnique,
+				notNull: baseColumn.notNull,
+				primary: baseColumn.primary,
+				baseColumn: baseColumn.baseColumn === undefined ? undefined : getAllBaseColumns(baseColumn.baseColumn),
+			};
+
+			return baseColumnResult;
+		};
+
+		const getTypeParams = (sqlType: string) => {
+			// get type params
+			const typeParams: Column['typeParams'] = {};
+
+			// handle dimensions
+			if (sqlType.includes('[')) {
+				const match = sqlType.match(/\[\w*]/g);
+				if (match) {
+					typeParams['dimensions'] = match.length;
+				}
+			}
+
+			if (
+				sqlType.startsWith('numeric')
+				|| sqlType.startsWith('decimal')
+				|| sqlType.startsWith('double precision')
+				|| sqlType.startsWith('real')
+			) {
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('varchar')
+				|| sqlType.startsWith('bpchar')
+				|| sqlType.startsWith('char')
+				|| sqlType.startsWith('bit')
+				|| sqlType.startsWith('time')
+				|| sqlType.startsWith('timestamp')
+				|| sqlType.startsWith('interval')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
+
+		// console.log(tableConfig.columns);
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.columnType.replace('Pg', '').toLowerCase(),
+				columnType: column.getSQLType(),
+				typeParams: getTypeParams(column.getSQLType()),
 				dataType: column.dataType,
+				size: (column as PgArray<any, any>).size,
 				hasDefault: column.hasDefault,
 				default: column.default,
 				enumValues: column.enumValues,
 				isUnique: column.isUnique,
 				notNull: column.notNull,
+				primary: column.primary,
 				generatedIdentityType: column.generatedIdentity?.type,
+				baseColumn: ((column as PgArray<any, any>).baseColumn === undefined)
+					? undefined
+					: getAllBaseColumns((column as PgArray<any, any>).baseColumn),
 			})),
 			primaryKeys: tableConfig.columns
 				.filter((column) => column.primary)
@@ -579,7 +707,54 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		});
 	}
 
-	return { tables, relations };
+	const isCyclicRelations = relations.map(
+		(relI) => {
+			// if (relations.some((relj) => relI.table === relj.refTable && relI.refTable === relj.table)) {
+			const tableRel = tableRelations[relI.table]!.find((relJ) => relJ.refTable === relI.refTable)!;
+			if (isRelationCyclic(relI)) {
+				tableRel['isCyclic'] = true;
+				return { ...relI, isCyclic: true };
+			}
+			tableRel['isCyclic'] = false;
+			return { ...relI, isCyclic: false };
+		},
+	);
+
+	return { tables, relations: isCyclicRelations, tableRelations };
+};
+
+const isRelationCyclic = (
+	startRel: RelationWithReferences,
+) => {
+	// self relation
+	if (startRel.table === startRel.refTable) return false;
+
+	// DFS
+	const targetTable = startRel.table;
+	const queue = [startRel];
+	let path: string[] = [];
+	while (queue.length !== 0) {
+		const currRel = queue.shift();
+
+		if (path.includes(currRel!.table)) {
+			const idx = path.indexOf(currRel!.table);
+			path = path.slice(0, idx);
+		}
+		path.push(currRel!.table);
+
+		for (const rel of currRel!.refTableRels) {
+			// self relation
+			if (rel.table === rel.refTable) continue;
+
+			if (rel.refTable === targetTable) return true;
+
+			// found cycle, but not the one we are looking for
+			if (path.includes(rel.refTable)) continue;
+			queue.unshift(rel);
+		}
+	}
+
+	return false;
 };
 
 // MySql-----------------------------------------------------------------------------------------------------
@@ -623,10 +798,12 @@ const filterMySqlTables = (schema: {
 const seedMySql = async (
 	db: MySqlDatabase<any, any, any, any>,
 	schema: { [key: string]: MySqlTable },
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
 	const { tables, relations } = getMySqlInfo(schema);
+
+	const seedService = new SeedService();
 
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'mysql',
@@ -636,12 +813,27 @@ const seedMySql = async (
 		options,
 	);
 
-	await seedService.generateTablesValues(
+	const preserveCyclicTablesData = relations.some((rel) => rel.isCyclic === true);
+
+	const tablesValues = await seedService.generateTablesValues(
 		relations,
 		generatedTablesGenerators,
 		db,
 		schema,
-		options,
+		{ ...options, preserveCyclicTablesData },
+	);
+
+	const { filteredTablesGenerators, tablesUniqueNotNullColumn } = seedService.filterCyclicTables(
+		generatedTablesGenerators,
+	);
+	const updateDataInDb = filteredTablesGenerators.length === 0 ? false : true;
+
+	await seedService.generateTablesValues(
+		relations,
+		filteredTablesGenerators,
+		db,
+		schema,
+		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
 	);
 };
 
@@ -654,10 +846,11 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 	);
 
 	const tables: Table[] = [];
-	const relations: Relation[] = [];
+	const relations: RelationWithReferences[] = [];
 	const dbToTsColumnNamesMapGlobal: {
 		[tableName: string]: { [dbColumnName: string]: string };
 	} = {};
+	const tableRelations: { [tableName: string]: RelationWithReferences[] } = {};
 
 	const getDbToTsColumnNamesMap = (table: MySqlTable) => {
 		let dbToTsColumnNamesMap: { [dbColName: string]: string } = {};
@@ -685,40 +878,82 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 
-		relations.push(
-			...tableConfig.foreignKeys.map((fk) => {
-				const table = dbToTsTableNamesMap[tableConfig.name] as string;
-				const refTable = dbToTsTableNamesMap[getTableName(fk.reference().foreignTable)] as string;
-				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(
-					fk.reference().foreignTable,
-				);
+		const newRelations = tableConfig.foreignKeys.map((fk) => {
+			const table = dbToTsTableNamesMap[tableConfig.name] as string;
+			const refTable = dbToTsTableNamesMap[getTableName(fk.reference().foreignTable)] as string;
+			const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(
+				fk.reference().foreignTable,
+			);
 
-				return {
-					table,
-					columns: fk
-						.reference()
-						.columns.map((col) => dbToTsColumnNamesMap[col.name] as string),
-					refTable,
-					refColumns: fk
-						.reference()
-						.foreignColumns.map(
-							(fCol) => dbToTsColumnNamesMapForRefTable[fCol.name] as string,
-						),
-				};
-			}),
+			if (tableRelations[refTable] === undefined) {
+				tableRelations[refTable] = [];
+			}
+			return {
+				table,
+				columns: fk
+					.reference()
+					.columns.map((col) => dbToTsColumnNamesMap[col.name] as string),
+				refTable,
+				refColumns: fk
+					.reference()
+					.foreignColumns.map(
+						(fCol) => dbToTsColumnNamesMapForRefTable[fCol.name] as string,
+					),
+				refTableRels: tableRelations[refTable],
+			};
+		});
+		relations.push(
+			...newRelations,
 		);
+
+		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
+			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
+		}
+		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+
+		const getTypeParams = (sqlType: string) => {
+			// get type params and set only type
+			const typeParams: Column['typeParams'] = {};
+
+			if (
+				sqlType.startsWith('decimal')
+				|| sqlType.startsWith('real')
+				|| sqlType.startsWith('double')
+				|| sqlType.startsWith('float')
+			) {
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('char')
+				|| sqlType.startsWith('varchar')
+				|| sqlType.startsWith('binary')
+				|| sqlType.startsWith('varbinary')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
 
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.columnType.replace('MySql', '').toLowerCase(),
+				columnType: column.getSQLType(),
+				typeParams: getTypeParams(column.getSQLType()),
 				dataType: column.dataType,
 				hasDefault: column.hasDefault,
 				default: column.default,
 				enumValues: column.enumValues,
 				isUnique: column.isUnique,
 				notNull: column.notNull,
+				primary: column.primary,
 			})),
 			primaryKeys: tableConfig.columns
 				.filter((column) => column.primary)
@@ -726,7 +961,19 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 		});
 	}
 
-	return { tables, relations };
+	const isCyclicRelations = relations.map(
+		(relI) => {
+			const tableRel = tableRelations[relI.table]!.find((relJ) => relJ.refTable === relI.refTable)!;
+			if (isRelationCyclic(relI)) {
+				tableRel['isCyclic'] = true;
+				return { ...relI, isCyclic: true };
+			}
+			tableRel['isCyclic'] = false;
+			return { ...relI, isCyclic: false };
+		},
+	);
+
+	return { tables, relations: isCyclicRelations, tableRelations };
 };
 
 // Sqlite------------------------------------------------------------------------------------------------------------------------
@@ -770,10 +1017,12 @@ const filterSqliteTables = (schema: {
 const seedSqlite = async (
 	db: BaseSQLiteDatabase<any, any, any, any>,
 	schema: { [key: string]: SQLiteTable },
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
 	const { tables, relations } = getSqliteInfo(schema);
+
+	const seedService = new SeedService();
 
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'sqlite',
@@ -783,12 +1032,27 @@ const seedSqlite = async (
 		options,
 	);
 
-	await seedService.generateTablesValues(
+	const preserveCyclicTablesData = relations.some((rel) => rel.isCyclic === true);
+
+	const tablesValues = await seedService.generateTablesValues(
 		relations,
 		generatedTablesGenerators,
 		db,
 		schema,
-		options,
+		{ ...options, preserveCyclicTablesData },
+	);
+
+	const { filteredTablesGenerators, tablesUniqueNotNullColumn } = seedService.filterCyclicTables(
+		generatedTablesGenerators,
+	);
+	const updateDataInDb = filteredTablesGenerators.length === 0 ? false : true;
+
+	await seedService.generateTablesValues(
+		relations,
+		filteredTablesGenerators,
+		db,
+		schema,
+		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
 	);
 };
 
@@ -800,10 +1064,11 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 	);
 
 	const tables: Table[] = [];
-	const relations: Relation[] = [];
+	const relations: RelationWithReferences[] = [];
 	const dbToTsColumnNamesMapGlobal: {
 		[tableName: string]: { [dbColumnName: string]: string };
 	} = {};
+	const tableRelations: { [tableName: string]: RelationWithReferences[] } = {};
 
 	const getDbToTsColumnNamesMap = (table: SQLiteTable) => {
 		let dbToTsColumnNamesMap: { [dbColName: string]: string } = {};
@@ -831,40 +1096,79 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 
-		relations.push(
-			...tableConfig.foreignKeys.map((fk) => {
-				const table = dbToTsTableNamesMap[tableConfig.name] as string;
-				const refTable = dbToTsTableNamesMap[getTableName(fk.reference().foreignTable)] as string;
-				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(
-					fk.reference().foreignTable,
-				);
+		const newRelations = tableConfig.foreignKeys.map((fk) => {
+			const table = dbToTsTableNamesMap[tableConfig.name] as string;
+			const refTable = dbToTsTableNamesMap[getTableName(fk.reference().foreignTable)] as string;
+			const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(
+				fk.reference().foreignTable,
+			);
 
-				return {
-					table,
-					columns: fk
-						.reference()
-						.columns.map((col) => dbToTsColumnNamesMap[col.name] as string),
-					refTable,
-					refColumns: fk
-						.reference()
-						.foreignColumns.map(
-							(fCol) => dbToTsColumnNamesMapForRefTable[fCol.name] as string,
-						),
-				};
-			}),
+			if (tableRelations[refTable] === undefined) {
+				tableRelations[refTable] = [];
+			}
+			return {
+				table,
+				columns: fk
+					.reference()
+					.columns.map((col) => dbToTsColumnNamesMap[col.name] as string),
+				refTable,
+				refColumns: fk
+					.reference()
+					.foreignColumns.map(
+						(fCol) => dbToTsColumnNamesMapForRefTable[fCol.name] as string,
+					),
+				refTableRels: tableRelations[refTable],
+			};
+		});
+
+		relations.push(
+			...newRelations,
 		);
+
+		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
+			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
+		}
+		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+
+		const getTypeParams = (sqlType: string) => {
+			// get type params and set only type
+			const typeParams: Column['typeParams'] = {};
+
+			if (
+				sqlType.startsWith('decimal')
+			) {
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('char')
+				|| sqlType.startsWith('varchar')
+				|| sqlType.startsWith('text')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
 
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.columnType.replace('SQLite', '').toLowerCase(),
+				columnType: column.getSQLType(),
+				typeParams: getTypeParams(column.getSQLType()),
 				dataType: column.dataType,
 				hasDefault: column.hasDefault,
 				default: column.default,
 				enumValues: column.enumValues,
 				isUnique: column.isUnique,
 				notNull: column.notNull,
+				primary: column.primary,
 			})),
 			primaryKeys: tableConfig.columns
 				.filter((column) => column.primary)
@@ -872,8 +1176,23 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 		});
 	}
 
-	return { tables, relations };
+	const isCyclicRelations = relations.map(
+		(relI) => {
+			const tableRel = tableRelations[relI.table]!.find((relJ) => relJ.refTable === relI.refTable)!;
+			if (isRelationCyclic(relI)) {
+				tableRel['isCyclic'] = true;
+				return { ...relI, isCyclic: true };
+			}
+			tableRel['isCyclic'] = false;
+			return { ...relI, isCyclic: false };
+		},
+	);
+
+	return { tables, relations: isCyclicRelations, tableRelations };
 };
 
+export { default as cities } from './datasets/cityNames.ts';
+export { default as countries } from './datasets/countries.ts';
 export { default as firstNames } from './datasets/firstNames.ts';
 export { default as lastNames } from './datasets/lastNames.ts';
+export { SeedService } from './services/SeedService.ts';

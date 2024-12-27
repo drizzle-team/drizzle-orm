@@ -1,4 +1,4 @@
-import type { HTTPTransactionOptions, NeonQueryFunction } from '@neondatabase/serverless';
+import type { HTTPQueryOptions, HTTPTransactionOptions, NeonQueryFunction } from '@neondatabase/serverless';
 import { neon, types } from '@neondatabase/serverless';
 import * as V1 from '~/_relations.ts';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
@@ -51,7 +51,7 @@ export class NeonHttpDriver {
 
 function wrap<T extends object>(
 	target: T,
-	token: string,
+	token: Exclude<HTTPQueryOptions<true, true>['authToken'], undefined>,
 	cb: (target: any, p: string | symbol, res: any) => any,
 	deep?: boolean,
 ) {
@@ -66,7 +66,7 @@ function wrap<T extends object>(
 			return new Proxy(element as any, {
 				apply(target, thisArg, argArray) {
 					const res = target.call(thisArg, ...argArray);
-					if ('setToken' in res && typeof res.setToken === 'function') {
+					if (typeof res === 'object' && res !== null && 'setToken' in res && typeof res.setToken === 'function') {
 						res.setToken(token);
 					}
 					return cb(target, p, res);
@@ -83,7 +83,7 @@ export class NeonHttpDatabase<
 	static override readonly [entityKind]: string = 'NeonHttpDatabase';
 
 	$withAuth(
-		token: string,
+		token: Exclude<HTTPQueryOptions<true, true>['authToken'], undefined>,
 	): Omit<
 		this,
 		Exclude<
