@@ -10,11 +10,11 @@ import type {
 	RowDataPacket,
 } from 'mysql2/promise';
 import { once } from 'node:events';
+import type * as V1 from '~/_relations.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
 import {
@@ -188,7 +188,7 @@ export interface SingleStoreDriverSessionOptions {
 
 export class SingleStoreDriverSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
 > extends SingleStoreSession<SingleStoreQueryResultHKT, SingleStoreDriverPreparedQueryHKT, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'SingleStoreDriverSession';
 
@@ -197,7 +197,7 @@ export class SingleStoreDriverSession<
 	constructor(
 		private client: SingleStoreDriverClient,
 		dialect: SingleStoreDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: SingleStoreDriverSessionOptions,
 	) {
 		super(dialect);
@@ -296,7 +296,7 @@ export class SingleStoreDriverSession<
 
 export class SingleStoreDriverTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
 > extends SingleStoreTransaction<
 	SingleStoreDriverQueryResultHKT,
 	SingleStoreDriverPreparedQueryHKT,

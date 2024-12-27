@@ -90,7 +90,7 @@ export class NeonHttpPreparedQuery<
 
 	private async executeRqbV2(
 		placeholderValues: Record<string, unknown>,
-		token: string | undefined,
+		token: NeonAuthToken | undefined,
 	): Promise<T['execute']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 
