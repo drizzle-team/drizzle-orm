@@ -110,9 +110,10 @@ export class SeedService {
 						if (!tablesInOutRelations[table.name]?.dependantTableNames.has(fkTableName)) {
 							const reason = tablesInOutRelations[table.name]?.selfRelation === true
 								? `"${table.name}" table has self reference`
-								: `"${fkTableName}" table doesn't have reference to "${table.name}" table`;
+								: `"${fkTableName}" table doesn't have reference to "${table.name}" table or`
+									+ `\n you didn't include your one-to-many relation in the seed function schema`;
 							throw new Error(
-								`${reason}. you can't specify "${fkTableName}" as parameter in ${table.name}.with object.`,
+								`${reason}.` + `\nYou can't specify "${fkTableName}" as parameter in ${table.name}.with object.`,
 							);
 						}
 
@@ -212,7 +213,9 @@ export class SeedService {
 
 					if (foreignKeyColumns[col.name]?.table === undefined && col.notNull === true) {
 						throw new Error(
-							`Column '${col.name}' has no null contraint, and you didn't specify a table for foreign key on column '${col.name}' in '${table.name}' table. You should pass  `,
+							`Column '${col.name}' has not null contraint,`
+								+ `\nand you didn't specify a table for foreign key on column '${col.name}' in '${table.name}' table.`
+								+ `\n For more details, check this: https://orm.drizzle.team/docs/guides/seeding-with-partially-exposed-tables#example-1`,
 						);
 					}
 
@@ -223,7 +226,9 @@ export class SeedService {
 						if (foreignKeyColumns[col.name]?.table === undefined && col.notNull === false) {
 							console.warn(
 								`Column '${col.name}' in '${table.name}' table will be filled with Null values`
-									+ `\nbecause you specified neither a table for foreign key on column '${col.name}' nor a function for '${col.name}' column in refinements.`,
+									+ `\nbecause you specified neither a table for foreign key on column '${col.name}'`
+									+ `\nnor a function for '${col.name}' column in refinements.`
+									+ `\nFor more details, check this: https://orm.drizzle.team/docs/guides/seeding-with-partially-exposed-tables#example-2`,
 							);
 						}
 						columnPossibleGenerator.generator = new generatorsMap.GenerateDefault[0]({ defaultValue: null });
