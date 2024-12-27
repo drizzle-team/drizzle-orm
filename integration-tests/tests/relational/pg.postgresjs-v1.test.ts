@@ -1,18 +1,16 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { alias } from 'drizzle-orm/pg-core';
+import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import getPort from 'get-port';
-import pg from 'pg';
+import postgres from 'postgres';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './pg.relations.ts';
-import { commentsTable, groupsTable, postsTable, usersTable, usersToGroupsTable } from './pg.schema.ts';
-
-const { Client } = pg;
+import * as schema from './pg.schema.ts';
 
 const ENABLE_LOGGING = false;
+
+const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
 /*
 	Test cases:
@@ -23,15 +21,15 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		pgContainer: Docker.Container;
-		pgDbV2: NodePgDatabase<never, typeof relations>;
-		pgClient: pg.Client;
+		pgjsDb: PostgresJsDatabase<typeof schema>;
+		pgjsClient: postgres.Sql<{}>;
 	}
 }
 
 let globalDocker: Docker;
 let pgContainer: Docker.Container;
-let db: NodePgDatabase<never, typeof relations>;
-let client: pg.Client;
+let db: PostgresJsDatabase<typeof schema>;
+let client: postgres.Sql<{}>;
 
 async function createDockerDB(): Promise<string> {
 	const docker = (globalDocker = new Docker());
@@ -73,8 +71,13 @@ beforeAll(async () => {
 	let lastError: unknown | undefined;
 	do {
 		try {
-			client = new Client(connectionString);
-			await client.connect();
+			client = postgres(connectionString, {
+				max: 1,
+				onnotice: () => {
+					// disable notices
+				},
+			});
+			await client`select 1`;
 			connected = true;
 			break;
 		} catch (e) {
@@ -89,7 +92,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { relations, logger: ENABLE_LOGGING });
+	db = drizzle(client, { schema, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {
@@ -98,14 +101,14 @@ afterAll(async () => {
 });
 
 beforeEach(async (ctx) => {
-	ctx.pgDbV2 = db;
-	ctx.pgClient = client;
+	ctx.pgjsDb = db;
+	ctx.pgjsClient = client;
 	ctx.docker = globalDocker;
 	ctx.pgContainer = pgContainer;
 
-	await ctx.pgDbV2.execute(sql`drop schema public cascade`);
-	await ctx.pgDbV2.execute(sql`create schema public`);
-	await ctx.pgDbV2.execute(
+	await ctx.pgjsDb.execute(sql`drop schema public cascade`);
+	await ctx.pgjsDb.execute(sql`create schema public`);
+	await ctx.pgjsDb.execute(
 		sql`
 			CREATE TABLE "users" (
 				"id" serial PRIMARY KEY NOT NULL,
@@ -115,7 +118,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.pgDbV2.execute(
+	await ctx.pgjsDb.execute(
 		sql`
 			CREATE TABLE IF NOT EXISTS "groups" (
 				"id" serial PRIMARY KEY NOT NULL,
@@ -124,7 +127,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.pgDbV2.execute(
+	await ctx.pgjsDb.execute(
 		sql`
 			CREATE TABLE IF NOT EXISTS "users_to_groups" (
 				"id" serial PRIMARY KEY NOT NULL,
@@ -133,7 +136,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.pgDbV2.execute(
+	await ctx.pgjsDb.execute(
 		sql`
 			CREATE TABLE IF NOT EXISTS "posts" (
 				"id" serial PRIMARY KEY NOT NULL,
@@ -143,7 +146,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.pgDbV2.execute(
+	await ctx.pgjsDb.execute(
 		sql`
 			CREATE TABLE IF NOT EXISTS "comments" (
 				"id" serial PRIMARY KEY NOT NULL,
@@ -154,7 +157,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.pgDbV2.execute(
+	await ctx.pgjsDb.execute(
 		sql`
 			CREATE TABLE IF NOT EXISTS "comment_likes" (
 				"id" serial PRIMARY KEY NOT NULL,
@@ -171,7 +174,7 @@ beforeEach(async (ctx) => {
 */
 
 test('[Find Many] Get users with posts', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -185,7 +188,7 @@ test('[Find Many] Get users with posts', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		with: {
 			posts: true,
 		},
@@ -235,7 +238,7 @@ test('[Find Many] Get users with posts', async (t) => {
 });
 
 test('[Find Many] Get users with posts + limit posts', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -253,7 +256,7 @@ test('[Find Many] Get users with posts + limit posts', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		with: {
 			posts: {
 				limit: 1,
@@ -308,7 +311,7 @@ test('[Find Many] Get users with posts + limit posts', async (t) => {
 });
 
 test('[Find Many] Get users with posts + limit posts and users', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -326,7 +329,7 @@ test('[Find Many] Get users with posts + limit posts and users', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		limit: 2,
 		with: {
 			posts: {
@@ -373,7 +376,7 @@ test('[Find Many] Get users with posts + limit posts and users', async (t) => {
 });
 
 test('[Find Many] Get users with posts + custom fields', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -391,7 +394,7 @@ test('[Find Many] Get users with posts + custom fields', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		with: {
 			posts: true,
 		},
@@ -466,7 +469,7 @@ test('[Find Many] Get users with posts + custom fields', async (t) => {
 });
 
 test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -484,7 +487,7 @@ test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		limit: 1,
 		with: {
 			posts: {
@@ -524,7 +527,7 @@ test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
 });
 
 test('[Find Many] Get users with posts + orderBy', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -542,7 +545,7 @@ test('[Find Many] Get users with posts + orderBy', async (t) => {
 		{ ownerId: 3, content: '7' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		with: {
 			posts: {
 				orderBy: (postsTable, { desc }) => [desc(postsTable.content)],
@@ -608,7 +611,7 @@ test('[Find Many] Get users with posts + orderBy', async (t) => {
 });
 
 test('[Find Many] Get users with posts + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -623,15 +626,11 @@ test('[Find Many] Get users with posts + where', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
-		where: {
-			id: 1,
-		},
+	const usersWithPosts = await db._query.usersTable.findMany({
+		where: (({ id }, { eq }) => eq(id, 1)),
 		with: {
 			posts: {
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
 	});
@@ -662,7 +661,7 @@ test('[Find Many] Get users with posts + where', async (t) => {
 });
 
 test('[Find Many] Get users with posts + where + partial', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -677,7 +676,7 @@ test('[Find Many] Get users with posts + where + partial', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {
 			id: true,
 			name: true,
@@ -688,14 +687,10 @@ test('[Find Many] Get users with posts + where + partial', async (t) => {
 					id: true,
 					content: true,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -718,7 +713,7 @@ test('[Find Many] Get users with posts + where + partial', async (t) => {
 });
 
 test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -733,7 +728,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {
 			id: true,
 			name: true,
@@ -744,14 +739,10 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 					id: true,
 					content: true,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -774,7 +765,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 });
 
 test('[Find Many] Get users with posts + where + partial(true + false)', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -789,25 +780,21 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {
 			id: true,
-			// name: false,
+			name: false,
 		},
 		with: {
 			posts: {
 				columns: {
 					id: true,
-					// content: false,
+					content: false,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -827,7 +814,7 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 });
 
 test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -842,7 +829,7 @@ test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {
 			name: false,
 		},
@@ -851,14 +838,10 @@ test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
 				columns: {
 					content: false,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -884,7 +867,7 @@ test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
 });
 
 test('[Find Many] Get users with posts in transaction', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	let usersWithPosts: {
 		id: number;
@@ -913,15 +896,11 @@ test('[Find Many] Get users with posts in transaction', async (t) => {
 			{ ownerId: 3, content: 'Post3' },
 		]);
 
-		usersWithPosts = await tx.query.usersTable.findMany({
-			where: {
-				id: 1,
-			},
+		usersWithPosts = await tx._query.usersTable.findMany({
+			where: (({ id }, { eq }) => eq(id, 1)),
 			with: {
 				posts: {
-					where: {
-						id: 1,
-					},
+					where: (({ id }, { eq }) => eq(id, 1)),
 				},
 			},
 		});
@@ -953,7 +932,7 @@ test('[Find Many] Get users with posts in transaction', async (t) => {
 });
 
 test('[Find Many] Get users with posts in rollbacked transaction', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	let usersWithPosts: {
 		id: number;
@@ -984,15 +963,11 @@ test('[Find Many] Get users with posts in rollbacked transaction', async (t) => 
 
 		tx.rollback();
 
-		usersWithPosts = await tx.query.usersTable.findMany({
-			where: {
-				id: 1,
-			},
+		usersWithPosts = await tx._query.usersTable.findMany({
+			where: (({ id }, { eq }) => eq(id, 1)),
 			with: {
 				posts: {
-					where: {
-						id: 1,
-					},
+					where: (({ id }, { eq }) => eq(id, 1)),
 				},
 			},
 		});
@@ -1016,7 +991,7 @@ test('[Find Many] Get users with posts in rollbacked transaction', async (t) => 
 
 // select only custom
 test('[Find Many] Get only custom fields', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1034,7 +1009,7 @@ test('[Find Many] Get only custom fields', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
@@ -1082,7 +1057,7 @@ test('[Find Many] Get only custom fields', async (t) => {
 });
 
 test('[Find Many] Get only custom fields + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1100,22 +1075,18 @@ test('[Find Many] Get only custom fields + where', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: { gte: 2 },
-				},
+				where: gte(postsTable.id, 2),
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1138,7 +1109,7 @@ test('[Find Many] Get only custom fields + where', async (t) => {
 });
 
 test('[Find Many] Get only custom fields + where + limit', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1156,23 +1127,19 @@ test('[Find Many] Get only custom fields + where + limit', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: { gte: 2 },
-				},
+				where: gte(postsTable.id, 2),
 				limit: 1,
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1195,7 +1162,7 @@ test('[Find Many] Get only custom fields + where + limit', async (t) => {
 });
 
 test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1213,23 +1180,19 @@ test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: { gte: 2 },
-				},
-				orderBy: ({ id }, { desc }) => desc(id),
+				where: gte(postsTable.id, 2),
+				orderBy: [desc(postsTable.id)],
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1253,7 +1216,7 @@ test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
 
 // select only custom find one
 test('[Find One] Get only custom fields', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1271,7 +1234,7 @@ test('[Find One] Get only custom fields', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
@@ -1306,7 +1269,7 @@ test('[Find One] Get only custom fields', async (t) => {
 });
 
 test('[Find One] Get only custom fields + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1324,22 +1287,18 @@ test('[Find One] Get only custom fields + where', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: { gte: 2 },
-				},
+				where: gte(postsTable.id, 2),
 				extras: ({ content }) => ({
-					contentLower: sql<string>`lower(${content})`.as('content_lower'),
+					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1349,7 +1308,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 		{
 			lowerName: string;
 			posts: {
-				contentLower: string;
+				lowerName: string;
 			}[];
 		} | undefined
 	>();
@@ -1358,12 +1317,12 @@ test('[Find One] Get only custom fields + where', async (t) => {
 
 	expect(usersWithPosts).toEqual({
 		lowerName: 'dan',
-		posts: [{ contentLower: 'post1.2' }, { contentLower: 'post1.3' }],
+		posts: [{ lowerName: 'post1.2' }, { lowerName: 'post1.3' }],
 	});
 });
 
 test('[Find One] Get only custom fields + where + limit', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1381,23 +1340,19 @@ test('[Find One] Get only custom fields + where + limit', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: { gte: 2 },
-				},
+				where: gte(postsTable.id, 2),
 				limit: 1,
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1421,7 +1376,7 @@ test('[Find One] Get only custom fields + where + limit', async (t) => {
 });
 
 test('[Find One] Get only custom fields + where + orderBy', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1439,23 +1394,19 @@ test('[Find One] Get only custom fields + where + orderBy', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: { gte: 2 },
-				},
-				orderBy: ({ id }, { desc }) => desc(id),
+				where: gte(postsTable.id, 2),
+				orderBy: [desc(postsTable.id)],
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1480,7 +1431,7 @@ test('[Find One] Get only custom fields + where + orderBy', async (t) => {
 
 // columns {}
 test('[Find Many] Get select {}', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1489,7 +1440,7 @@ test('[Find Many] Get select {}', async (t) => {
 	]);
 
 	await expect(async () =>
-		await db.query.usersTable.findMany({
+		await db._query.usersTable.findMany({
 			columns: {},
 		})
 	).rejects.toThrow(DrizzleError);
@@ -1497,7 +1448,7 @@ test('[Find Many] Get select {}', async (t) => {
 
 // columns {}
 test('[Find One] Get select {}', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1506,7 +1457,7 @@ test('[Find One] Get select {}', async (t) => {
 	]);
 
 	await expect(async () =>
-		await db.query.usersTable.findFirst({
+		await db._query.usersTable.findFirst({
 			columns: {},
 		})
 	).rejects.toThrow(DrizzleError);
@@ -1514,7 +1465,7 @@ test('[Find One] Get select {}', async (t) => {
 
 // deep select {}
 test('[Find Many] Get deep select {}', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1529,7 +1480,7 @@ test('[Find Many] Get deep select {}', async (t) => {
 	]);
 
 	await expect(async () =>
-		await db.query.usersTable.findMany({
+		await db._query.usersTable.findMany({
 			columns: {},
 			with: {
 				posts: {
@@ -1542,7 +1493,7 @@ test('[Find Many] Get deep select {}', async (t) => {
 
 // deep select {}
 test('[Find One] Get deep select {}', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1557,7 +1508,7 @@ test('[Find One] Get deep select {}', async (t) => {
 	]);
 
 	await expect(async () =>
-		await db.query.usersTable.findFirst({
+		await db._query.usersTable.findFirst({
 			columns: {},
 			with: {
 				posts: {
@@ -1572,7 +1523,7 @@ test('[Find One] Get deep select {}', async (t) => {
 	Prepared statements for users+posts
 */
 test('[Find Many] Get users with posts + prepared limit', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1590,10 +1541,10 @@ test('[Find Many] Get users with posts + prepared limit', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const prepared = db.query.usersTable.findMany({
+	const prepared = db._query.usersTable.findMany({
 		with: {
 			posts: {
-				limit: sql.placeholder('limit'),
+				limit: placeholder('limit'),
 			},
 		},
 	}).prepare('query1');
@@ -1642,7 +1593,7 @@ test('[Find Many] Get users with posts + prepared limit', async (t) => {
 });
 
 test('[Find Many] Get users with posts + prepared limit + offset', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1660,12 +1611,12 @@ test('[Find Many] Get users with posts + prepared limit + offset', async (t) => 
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const prepared = db.query.usersTable.findMany({
-		limit: sql.placeholder('uLimit'),
-		offset: sql.placeholder('uOffset'),
+	const prepared = db._query.usersTable.findMany({
+		limit: placeholder('uLimit'),
+		offset: placeholder('uOffset'),
 		with: {
 			posts: {
-				limit: sql.placeholder('pLimit'),
+				limit: placeholder('pLimit'),
 			},
 		},
 	}).prepare('query2');
@@ -1706,7 +1657,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', async (t) => 
 });
 
 test('[Find Many] Get users with posts + prepared where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1721,17 +1672,11 @@ test('[Find Many] Get users with posts + prepared where', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const prepared = db.query.usersTable.findMany({
-		where: {
-			id: {
-				eq: sql.placeholder('id'),
-			},
-		},
+	const prepared = db._query.usersTable.findMany({
+		where: (({ id }, { eq }) => eq(id, placeholder('id'))),
 		with: {
 			posts: {
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
 	}).prepare('query3');
@@ -1764,7 +1709,7 @@ test('[Find Many] Get users with posts + prepared where', async (t) => {
 });
 
 test('[Find Many] Get users with posts + prepared + limit + offset + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1782,22 +1727,14 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const prepared = db.query.usersTable.findMany({
-		limit: sql.placeholder('uLimit'),
-		offset: sql.placeholder('uOffset'),
-		where: {
-			id: {
-				OR: [sql.placeholder('id'), 3],
-			},
-		},
+	const prepared = db._query.usersTable.findMany({
+		limit: placeholder('uLimit'),
+		offset: placeholder('uOffset'),
+		where: (({ id }, { eq, or }) => or(eq(id, placeholder('id')), eq(id, 3))),
 		with: {
 			posts: {
-				where: {
-					id: {
-						eq: sql.placeholder('pid'),
-					},
-				},
-				limit: sql.placeholder('pLimit'),
+				where: (({ id }, { eq }) => eq(id, placeholder('pid'))),
+				limit: placeholder('pLimit'),
 			},
 		},
 	}).prepare('query4');
@@ -1834,7 +1771,7 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 */
 
 test('[Find One] Get users with posts', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1848,7 +1785,7 @@ test('[Find One] Get users with posts', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: true,
 		},
@@ -1881,7 +1818,7 @@ test('[Find One] Get users with posts', async (t) => {
 });
 
 test('[Find One] Get users with posts + limit posts', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1899,7 +1836,7 @@ test('[Find One] Get users with posts + limit posts', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
@@ -1934,9 +1871,9 @@ test('[Find One] Get users with posts + limit posts', async (t) => {
 });
 
 test('[Find One] Get users with posts no results found', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
@@ -1963,7 +1900,7 @@ test('[Find One] Get users with posts no results found', async (t) => {
 });
 
 test('[Find One] Get users with posts + limit posts and users', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1981,7 +1918,7 @@ test('[Find One] Get users with posts + limit posts and users', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
@@ -2016,7 +1953,7 @@ test('[Find One] Get users with posts + limit posts and users', async (t) => {
 });
 
 test('[Find One] Get users with posts + custom fields', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2034,7 +1971,7 @@ test('[Find One] Get users with posts + custom fields', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: true,
 		},
@@ -2077,7 +2014,7 @@ test('[Find One] Get users with posts + custom fields', async (t) => {
 });
 
 test('[Find One] Get users with posts + custom fields + limits', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2095,7 +2032,7 @@ test('[Find One] Get users with posts + custom fields + limits', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
@@ -2135,7 +2072,7 @@ test('[Find One] Get users with posts + custom fields + limits', async (t) => {
 });
 
 test('[Find One] Get users with posts + orderBy', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2153,7 +2090,7 @@ test('[Find One] Get users with posts + orderBy', async (t) => {
 		{ ownerId: 3, content: '7' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
 				orderBy: (postsTable, { desc }) => [desc(postsTable.content)],
@@ -2194,7 +2131,7 @@ test('[Find One] Get users with posts + orderBy', async (t) => {
 });
 
 test('[Find One] Get users with posts + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2209,15 +2146,11 @@ test('[Find One] Get users with posts + where', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
-		where: {
-			id: 1,
-		},
+	const usersWithPosts = await db._query.usersTable.findFirst({
+		where: (({ id }, { eq }) => eq(id, 1)),
 		with: {
 			posts: {
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
 	});
@@ -2249,7 +2182,7 @@ test('[Find One] Get users with posts + where', async (t) => {
 });
 
 test('[Find One] Get users with posts + where + partial', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2264,7 +2197,7 @@ test('[Find One] Get users with posts + where + partial', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {
 			id: true,
 			name: true,
@@ -2275,14 +2208,10 @@ test('[Find One] Get users with posts + where + partial', async (t) => {
 					id: true,
 					content: true,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2306,7 +2235,7 @@ test('[Find One] Get users with posts + where + partial', async (t) => {
 });
 
 test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2321,7 +2250,7 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {
 			id: true,
 			name: true,
@@ -2332,14 +2261,10 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 					id: true,
 					content: true,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2363,7 +2288,7 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 });
 
 test('[Find One] Get users with posts + where + partial(true + false)', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2378,25 +2303,21 @@ test('[Find One] Get users with posts + where + partial(true + false)', async (t
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {
 			id: true,
-			// name: false,
+			name: false,
 		},
 		with: {
 			posts: {
 				columns: {
 					id: true,
-					// content: false,
+					content: false,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2417,7 +2338,7 @@ test('[Find One] Get users with posts + where + partial(true + false)', async (t
 });
 
 test('[Find One] Get users with posts + where + partial(false)', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2432,7 +2353,7 @@ test('[Find One] Get users with posts + where + partial(false)', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {
 			name: false,
 		},
@@ -2441,14 +2362,10 @@ test('[Find One] Get users with posts + where + partial(false)', async (t) => {
 				columns: {
 					content: false,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2479,7 +2396,7 @@ test('[Find One] Get users with posts + where + partial(false)', async (t) => {
 */
 
 test('Get user with invitee', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2488,7 +2405,7 @@ test('Get user with invitee', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
+	const usersWithInvitee = await db._query.usersTable.findMany({
 		with: {
 			invitee: true,
 		},
@@ -2548,7 +2465,7 @@ test('Get user with invitee', async (t) => {
 });
 
 test('Get user + limit with invitee', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2557,7 +2474,7 @@ test('Get user + limit with invitee', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
+	const usersWithInvitee = await db._query.usersTable.findMany({
 		with: {
 			invitee: true,
 		},
@@ -2602,7 +2519,7 @@ test('Get user + limit with invitee', async (t) => {
 });
 
 test('Get user with invitee and custom fields', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2611,7 +2528,7 @@ test('Get user with invitee and custom fields', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
+	const usersWithInvitee = await db._query.usersTable.findMany({
 		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
@@ -2680,7 +2597,7 @@ test('Get user with invitee and custom fields', async (t) => {
 });
 
 test('Get user with invitee and custom fields + limits', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2689,7 +2606,7 @@ test('Get user with invitee and custom fields + limits', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
+	const usersWithInvitee = await db._query.usersTable.findMany({
 		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
 		limit: 3,
 		with: {
@@ -2750,7 +2667,7 @@ test('Get user with invitee and custom fields + limits', async (t) => {
 });
 
 test('Get user with invitee + order by', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2759,7 +2676,7 @@ test('Get user with invitee + order by', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
+	const usersWithInvitee = await db._query.usersTable.findMany({
 		orderBy: (users, { desc }) => [desc(users.id)],
 		with: {
 			invitee: true,
@@ -2818,7 +2735,7 @@ test('Get user with invitee + order by', async (t) => {
 });
 
 test('Get user with invitee + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2827,12 +2744,8 @@ test('Get user with invitee + where', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		with: {
 			invitee: true,
 		},
@@ -2874,7 +2787,7 @@ test('Get user with invitee + where', async (t) => {
 });
 
 test('Get user with invitee + where + partial', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2883,12 +2796,8 @@ test('Get user with invitee + where + partial', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		columns: {
 			id: true,
 			name: true,
@@ -2931,7 +2840,7 @@ test('Get user with invitee + where + partial', async (t) => {
 });
 
 test('Get user with invitee + where + partial.  Did not select users id, but used it in where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2940,12 +2849,8 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		columns: {
 			name: true,
 		},
@@ -2984,7 +2889,7 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 });
 
 test('Get user with invitee + where + partial(true+false)', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2993,23 +2898,19 @@ test('Get user with invitee + where + partial(true+false)', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		columns: {
 			id: true,
 			name: true,
-			// verified: false,
+			verified: false,
 		},
 		with: {
 			invitee: {
 				columns: {
 					id: true,
 					name: true,
-					// verified: false,
+					verified: false,
 				},
 			},
 		},
@@ -3043,7 +2944,7 @@ test('Get user with invitee + where + partial(true+false)', async (t) => {
 });
 
 test('Get user with invitee + where + partial(false)', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3052,12 +2953,8 @@ test('Get user with invitee + where + partial(false)', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		columns: {
 			verified: false,
 		},
@@ -3106,7 +3003,7 @@ test('Get user with invitee + where + partial(false)', async (t) => {
 */
 
 test('Get user with invitee and posts', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3121,7 +3018,7 @@ test('Get user with invitee and posts', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		with: {
 			invitee: true,
 			posts: true,
@@ -3192,7 +3089,7 @@ test('Get user with invitee and posts', async (t) => {
 });
 
 test('Get user with invitee and posts + limit posts and users', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3210,7 +3107,7 @@ test('Get user with invitee and posts + limit posts and users', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		limit: 3,
 		with: {
 			invitee: true,
@@ -3275,7 +3172,7 @@ test('Get user with invitee and posts + limit posts and users', async (t) => {
 });
 
 test('Get user with invitee and posts + limits + custom fields in each', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3293,7 +3190,7 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		limit: 3,
 		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
@@ -3367,7 +3264,7 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 });
 
 test('Get user with invitee and posts + custom fields in each', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3385,7 +3282,7 @@ test('Get user with invitee and posts + custom fields in each', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
@@ -3486,7 +3383,7 @@ test('Get user with invitee and posts + custom fields in each', async (t) => {
 });
 
 test('Get user with invitee and posts + orderBy', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3503,7 +3400,7 @@ test('Get user with invitee and posts + orderBy', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		orderBy: (users, { desc }) => [desc(users.id)],
 		with: {
 			invitee: true,
@@ -3591,7 +3488,7 @@ test('Get user with invitee and posts + orderBy', async (t) => {
 });
 
 test('Get user with invitee and posts + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3606,18 +3503,12 @@ test('Get user with invitee and posts + where', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [2, 3],
-			},
-		},
+	const response = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 2), eq(users.id, 3))),
 		with: {
 			invitee: true,
 			posts: {
-				where: {
-					ownerId: 2,
-				},
+				where: (posts, { eq }) => (eq(posts.ownerId, 2)),
 			},
 		},
 	});
@@ -3667,7 +3558,7 @@ test('Get user with invitee and posts + where', async (t) => {
 });
 
 test('Get user with invitee and posts + limit posts and users + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3685,19 +3576,13 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const response = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		limit: 1,
 		with: {
 			invitee: true,
 			posts: {
-				where: {
-					ownerId: 3,
-				},
+				where: (posts, { eq }) => (eq(posts.ownerId, 3)),
 				limit: 1,
 			},
 		},
@@ -3735,7 +3620,7 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 });
 
 test('Get user with invitee and posts + orderBy + where + custom', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3752,26 +3637,20 @@ test('Get user with invitee and posts + orderBy + where + custom', async (t) => 
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		orderBy: ({ id }, { desc }) => desc(id),
-		where: {
-			id: {
-				OR: [3, 4],
-			},
+	const response = await db._query.usersTable.findMany({
+		orderBy: [desc(usersTable.id)],
+		where: or(eq(usersTable.id, 3), eq(usersTable.id, 4)),
+		extras: {
+			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
 		},
-		extras: ({ name }) => ({
-			lower: sql<string>`lower(${name})`.as('lower_name'),
-		}),
 		with: {
 			invitee: true,
 			posts: {
-				where: {
-					ownerId: 3,
+				where: eq(postsTable.ownerId, 3),
+				orderBy: [desc(postsTable.id)],
+				extras: {
+					lower: sql<string>`lower(${postsTable.content})`.as('lower_name'),
 				},
-				orderBy: ({ id }, { desc }) => desc(id),
-				extras: ({ content }) => ({
-					lower: sql<string>`lower(${content})`.as('lower_name'),
-				}),
 			},
 		},
 	});
@@ -3828,7 +3707,7 @@ test('Get user with invitee and posts + orderBy + where + custom', async (t) => 
 });
 
 test('Get user with invitee and posts + orderBy + where + partial + custom', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3845,16 +3724,12 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		orderBy: ({ id }, { desc }) => desc(id),
-		where: {
-			id: {
-				OR: [3, 4],
-			},
+	const response = await db._query.usersTable.findMany({
+		orderBy: [desc(usersTable.id)],
+		where: or(eq(usersTable.id, 3), eq(usersTable.id, 4)),
+		extras: {
+			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
 		},
-		extras: ({ name }) => ({
-			lower: sql<string>`lower(${name})`.as('lower_name'),
-		}),
 		columns: {
 			id: true,
 			name: true,
@@ -3865,22 +3740,20 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 					id: true,
 					name: true,
 				},
-				extras: ({ name }) => ({
-					lower: sql<string>`lower(${name})`.as('lower_name'),
-				}),
+				extras: {
+					lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+				},
 			},
 			posts: {
 				columns: {
 					id: true,
 					content: true,
 				},
-				where: {
-					ownerId: 3,
+				where: eq(postsTable.ownerId, 3),
+				orderBy: [desc(postsTable.id)],
+				extras: {
+					lower: sql<string>`lower(${postsTable.content})`.as('lower_name'),
 				},
-				orderBy: ({ id }, { desc }) => desc(id),
-				extras: ({ content }) => ({
-					lower: sql<string>`lower(${content})`.as('lower_name'),
-				}),
 			},
 		},
 	});
@@ -3932,7 +3805,7 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 */
 
 test('Get user with posts and posts with comments', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3952,7 +3825,7 @@ test('Get user with posts and posts with comments', async (t) => {
 		{ postId: 3, content: 'Comment3', creator: 3 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		with: {
 			posts: {
 				with: {
@@ -4089,7 +3962,7 @@ test('Get user with posts and posts with comments', async (t) => {
 */
 
 test('Get user with posts and posts with comments and comments with owner', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4109,7 +3982,7 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 		{ postId: 3, content: 'Comment3', creator: 3 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		with: {
 			posts: {
 				with: {
@@ -4144,7 +4017,7 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 					name: string;
 					verified: boolean;
 					invitedBy: number | null;
-				};
+				} | null;
 			}[];
 		}[];
 	}[]>();
@@ -4235,7 +4108,7 @@ test('Get user with posts and posts with comments and comments with owner where 
 		{ postId: 3, content: 'Comment3', creator: 3 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		with: {
 			posts: {
 				with: {
@@ -4247,9 +4120,8 @@ test('Get user with posts and posts with comments and comments with owner where 
 				},
 			},
 		},
-		where: {
-			RAW: ({ id }, { exists }) => exists(db.select({ one: sql`1` }).from(alias(usersTable, 'alias')).where(eq(id, 1))),
-		},
+		where: (table, { notExists, eq }) =>
+			notExists(db.select({ one: sql`1` }).from(usersTable).where(eq(sql`1`, table.id))),
 	});
 
 	expectTypeOf(response).toEqualTypeOf<{
@@ -4273,30 +4145,30 @@ test('Get user with posts and posts with comments and comments with owner where 
 					name: string;
 					verified: boolean;
 					invitedBy: number | null;
-				};
+				} | null;
 			}[];
 		}[];
 	}[]>();
 
-	expect(response.length).eq(1);
+	expect(response.length).eq(2);
 	expect(response[0]?.posts.length).eq(1);
 
 	expect(response[0]?.posts[0]?.comments.length).eq(1);
 
 	expect(response[0]).toEqual({
-		id: 1,
-		name: 'Dan',
+		id: 2,
+		name: 'Andrew',
 		verified: false,
 		invitedBy: null,
 		posts: [{
-			id: 1,
-			ownerId: 1,
-			content: 'Post1',
+			id: 2,
+			ownerId: 2,
+			content: 'Post2',
 			createdAt: response[0]?.posts[0]?.createdAt,
 			comments: [
 				{
-					id: 1,
-					content: 'Comment1',
+					id: 2,
+					content: 'Comment2',
 					creator: 2,
 					author: {
 						id: 2,
@@ -4304,7 +4176,7 @@ test('Get user with posts and posts with comments and comments with owner where 
 						verified: false,
 						invitedBy: null,
 					},
-					postId: 1,
+					postId: 2,
 					createdAt: response[0]?.posts[0]?.comments[0]?.createdAt,
 				},
 			],
@@ -4313,13 +4185,13 @@ test('Get user with posts and posts with comments and comments with owner where 
 });
 
 /*
-	One three-level relation + 1 first-level relation
+	One three-level relation + 1 first-level relatioon
 	1. users+posts+comments+comment_owner
 	2. users+users
 */
 
 /*
-	One four-level relation users+posts+comments+comment_likes
+	One four-level relation users+posts+comments+coment_likes
 */
 
 /*
@@ -4329,7 +4201,7 @@ test('Get user with posts and posts with comments and comments with owner where 
 */
 
 test('[Find Many] Get users with groups', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4350,17 +4222,16 @@ test('[Find Many] Get users with groups', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		with: {
 			usersToGroups: {
 				columns: {},
 				with: {
 					group: true,
 				},
-				orderBy: ({ userId }) => userId,
+				orderBy: usersToGroupsTable.groupId,
 			},
 		},
-		orderBy: ({ id }) => id,
 	});
 
 	expectTypeOf(response).toEqualTypeOf<{
@@ -4438,7 +4309,7 @@ test('[Find Many] Get users with groups', async (t) => {
 });
 
 test('[Find Many] Get groups with users', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4459,7 +4330,7 @@ test('[Find Many] Get groups with users', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
+	const response = await db._query.groupsTable.findMany({
 		with: {
 			usersToGroups: {
 				columns: {},
@@ -4543,7 +4414,7 @@ test('[Find Many] Get groups with users', async (t) => {
 });
 
 test('[Find Many] Get users with groups + limit', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4564,7 +4435,7 @@ test('[Find Many] Get users with groups + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		limit: 2,
 		with: {
 			usersToGroups: {
@@ -4628,7 +4499,7 @@ test('[Find Many] Get users with groups + limit', async (t) => {
 });
 
 test('[Find Many] Get groups with users + limit', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4649,7 +4520,7 @@ test('[Find Many] Get groups with users + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
+	const response = await db._query.groupsTable.findMany({
 		limit: 2,
 		with: {
 			usersToGroups: {
@@ -4713,7 +4584,7 @@ test('[Find Many] Get groups with users + limit', async (t) => {
 });
 
 test('[Find Many] Get users with groups + limit + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4734,18 +4605,12 @@ test('[Find Many] Get users with groups + limit + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		limit: 1,
-		where: {
-			id: {
-				OR: [1, 2],
-			},
-		},
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
 		with: {
 			usersToGroups: {
-				where: {
-					groupId: 1,
-				},
+				where: eq(usersToGroupsTable.groupId, 1),
 				columns: {},
 				with: {
 					group: true,
@@ -4790,7 +4655,7 @@ test('[Find Many] Get users with groups + limit + where', async (t) => {
 });
 
 test('[Find Many] Get groups with users + limit + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4811,16 +4676,12 @@ test('[Find Many] Get groups with users + limit + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
+	const response = await db._query.groupsTable.findMany({
 		limit: 1,
-		where: {
-			id: { gt: 1 },
-		},
+		where: gt(groupsTable.id, 1),
 		with: {
 			usersToGroups: {
-				where: {
-					userId: 2,
-				},
+				where: eq(usersToGroupsTable.userId, 2),
 				limit: 1,
 				columns: {},
 				with: {
@@ -4866,7 +4727,7 @@ test('[Find Many] Get groups with users + limit + where', async (t) => {
 });
 
 test('[Find Many] Get users with groups + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4887,17 +4748,11 @@ test('[Find Many] Get users with groups + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [1, 2],
-			},
-		},
+	const response = await db._query.usersTable.findMany({
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
 		with: {
 			usersToGroups: {
-				where: {
-					groupId: 2,
-				},
+				where: eq(usersToGroupsTable.groupId, 2),
 				columns: {},
 				with: {
 					group: true,
@@ -4951,7 +4806,7 @@ test('[Find Many] Get users with groups + where', async (t) => {
 });
 
 test('[Find Many] Get groups with users + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4972,15 +4827,11 @@ test('[Find Many] Get groups with users + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
-		where: {
-			id: { gt: 1 },
-		},
+	const response = await db._query.groupsTable.findMany({
+		where: gt(groupsTable.id, 1),
 		with: {
 			usersToGroups: {
-				where: {
-					userId: 2,
-				},
+				where: eq(usersToGroupsTable.userId, 2),
 				columns: {},
 				with: {
 					user: true,
@@ -5033,7 +4884,7 @@ test('[Find Many] Get groups with users + where', async (t) => {
 });
 
 test('[Find Many] Get users with groups + orderBy', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5054,11 +4905,11 @@ test('[Find Many] Get users with groups + orderBy', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		orderBy: (users, { desc }) => [desc(users.id)],
 		with: {
 			usersToGroups: {
-				orderBy: ({ groupId }, { desc }) => desc(groupId),
+				orderBy: [desc(usersToGroupsTable.groupId)],
 				columns: {},
 				with: {
 					group: true,
@@ -5137,7 +4988,7 @@ test('[Find Many] Get users with groups + orderBy', async (t) => {
 });
 
 test('[Find Many] Get groups with users + orderBy', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5158,8 +5009,8 @@ test('[Find Many] Get groups with users + orderBy', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
-		orderBy: ({ id }, { desc }) => desc(id),
+	const response = await db._query.groupsTable.findMany({
+		orderBy: [desc(groupsTable.id)],
 		with: {
 			usersToGroups: {
 				orderBy: (utg, { desc }) => [desc(utg.userId)],
@@ -5242,7 +5093,7 @@ test('[Find Many] Get groups with users + orderBy', async (t) => {
 });
 
 test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5263,13 +5114,13 @@ test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		orderBy: (users, { desc }) => [desc(users.id)],
 		limit: 2,
 		with: {
 			usersToGroups: {
 				limit: 1,
-				orderBy: ({ groupId }, { desc }) => desc(groupId),
+				orderBy: [desc(usersToGroupsTable.groupId)],
 				columns: {},
 				with: {
 					group: true,
@@ -5333,7 +5184,7 @@ test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
 */
 
 test('[Find One] Get users with groups', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5354,7 +5205,7 @@ test('[Find One] Get users with groups', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
+	const response = await db._query.usersTable.findFirst({
 		with: {
 			usersToGroups: {
 				columns: {},
@@ -5399,7 +5250,7 @@ test('[Find One] Get users with groups', async (t) => {
 });
 
 test('[Find One] Get groups with users', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5420,7 +5271,7 @@ test('[Find One] Get groups with users', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findFirst({
+	const response = await db._query.groupsTable.findFirst({
 		with: {
 			usersToGroups: {
 				columns: {},
@@ -5465,7 +5316,7 @@ test('[Find One] Get groups with users', async (t) => {
 });
 
 test('[Find One] Get users with groups + limit', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5486,7 +5337,7 @@ test('[Find One] Get users with groups + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
+	const response = await db._query.usersTable.findFirst({
 		with: {
 			usersToGroups: {
 				limit: 1,
@@ -5532,7 +5383,7 @@ test('[Find One] Get users with groups + limit', async (t) => {
 });
 
 test('[Find One] Get groups with users + limit', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5553,7 +5404,7 @@ test('[Find One] Get groups with users + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findFirst({
+	const response = await db._query.groupsTable.findFirst({
 		with: {
 			usersToGroups: {
 				limit: 1,
@@ -5599,7 +5450,7 @@ test('[Find One] Get groups with users + limit', async (t) => {
 });
 
 test('[Find One] Get users with groups + limit + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5620,17 +5471,11 @@ test('[Find One] Get users with groups + limit + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
-		where: {
-			id: {
-				OR: [1, 2],
-			},
-		},
+	const response = await db._query.usersTable.findFirst({
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
 		with: {
 			usersToGroups: {
-				where: {
-					groupId: 1,
-				},
+				where: eq(usersToGroupsTable.groupId, 1),
 				columns: {},
 				with: {
 					group: true,
@@ -5673,7 +5518,7 @@ test('[Find One] Get users with groups + limit + where', async (t) => {
 });
 
 test('[Find One] Get groups with users + limit + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5694,15 +5539,11 @@ test('[Find One] Get groups with users + limit + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findFirst({
-		where: {
-			id: { gt: 1 },
-		},
+	const response = await db._query.groupsTable.findFirst({
+		where: gt(groupsTable.id, 1),
 		with: {
 			usersToGroups: {
-				where: {
-					userId: 2,
-				},
+				where: eq(usersToGroupsTable.userId, 2),
 				limit: 1,
 				columns: {},
 				with: {
@@ -5746,7 +5587,7 @@ test('[Find One] Get groups with users + limit + where', async (t) => {
 });
 
 test('[Find One] Get users with groups + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5767,17 +5608,11 @@ test('[Find One] Get users with groups + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
-		where: {
-			id: {
-				OR: [1, 2],
-			},
-		},
+	const response = await db._query.usersTable.findFirst({
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
 		with: {
 			usersToGroups: {
-				where: {
-					groupId: 2,
-				},
+				where: eq(usersToGroupsTable.groupId, 2),
 				columns: {},
 				with: {
 					group: true,
@@ -5814,7 +5649,7 @@ test('[Find One] Get users with groups + where', async (t) => {
 });
 
 test('[Find One] Get groups with users + where', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5835,15 +5670,11 @@ test('[Find One] Get groups with users + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findFirst({
-		where: {
-			id: { gt: 1 },
-		},
+	const response = await db._query.groupsTable.findFirst({
+		where: gt(groupsTable.id, 1),
 		with: {
 			usersToGroups: {
-				where: {
-					userId: 2,
-				},
+				where: eq(usersToGroupsTable.userId, 2),
 				columns: {},
 				with: {
 					user: true,
@@ -5886,7 +5717,7 @@ test('[Find One] Get groups with users + where', async (t) => {
 });
 
 test('[Find One] Get users with groups + orderBy', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5907,11 +5738,11 @@ test('[Find One] Get users with groups + orderBy', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
+	const response = await db._query.usersTable.findFirst({
 		orderBy: (users, { desc }) => [desc(users.id)],
 		with: {
 			usersToGroups: {
-				orderBy: ({ groupId }, { desc }) => desc(groupId),
+				orderBy: [desc(usersToGroupsTable.groupId)],
 				columns: {},
 				with: {
 					group: true,
@@ -5960,7 +5791,7 @@ test('[Find One] Get users with groups + orderBy', async (t) => {
 });
 
 test('[Find One] Get groups with users + orderBy', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5981,8 +5812,8 @@ test('[Find One] Get groups with users + orderBy', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findFirst({
-		orderBy: ({ id }, { desc }) => desc(id),
+	const response = await db._query.groupsTable.findFirst({
+		orderBy: [desc(groupsTable.id)],
 		with: {
 			usersToGroups: {
 				orderBy: (utg, { desc }) => [desc(utg.userId)],
@@ -6028,7 +5859,7 @@ test('[Find One] Get groups with users + orderBy', async (t) => {
 });
 
 test('[Find One] Get users with groups + orderBy + limit', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -6049,12 +5880,12 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
+	const response = await db._query.usersTable.findFirst({
 		orderBy: (users, { desc }) => [desc(users.id)],
 		with: {
 			usersToGroups: {
 				limit: 1,
-				orderBy: ({ groupId }, { desc }) => desc(groupId),
+				orderBy: [desc(usersToGroupsTable.groupId)],
 				columns: {},
 				with: {
 					group: true,
@@ -6097,7 +5928,7 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 });
 
 test('Get groups with users + orderBy + limit', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -6118,8 +5949,8 @@ test('Get groups with users + orderBy + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
-		orderBy: ({ id }, { desc }) => desc(id),
+	const response = await db._query.groupsTable.findMany({
+		orderBy: [desc(groupsTable.id)],
 		limit: 2,
 		with: {
 			usersToGroups: {
@@ -6184,7 +6015,7 @@ test('Get groups with users + orderBy + limit', async (t) => {
 });
 
 test('Get users with groups + custom', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -6205,21 +6036,21 @@ test('Get users with groups + custom', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		extras: ({ name }) => ({
-			lower: sql<string>`lower(${name})`.as('lower_name'),
-		}),
+	const response = await db._query.usersTable.findMany({
+		extras: {
+			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		},
 		with: {
 			usersToGroups: {
 				columns: {},
 				with: {
 					group: {
-						extras: ({ name }) => ({
-							lower: sql<string>`lower(${name})`.as('lower_name'),
-						}),
+						extras: {
+							lower: sql<string>`lower(${groupsTable.name})`.as('lower_name'),
+						},
 					},
 				},
-				orderBy: ({ groupId }) => groupId,
+				orderBy: usersToGroupsTable.groupId,
 			},
 		},
 	});
@@ -6310,7 +6141,7 @@ test('Get users with groups + custom', async (t) => {
 });
 
 test('Get groups with users + custom', async (t) => {
-	const { pgDbV2: db } = t;
+	const { pgjsDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -6331,7 +6162,7 @@ test('Get groups with users + custom', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
+	const response = await db._query.groupsTable.findMany({
 		extras: (table, { sql }) => ({
 			lower: sql<string>`lower(${table.name})`.as('lower_name'),
 		}),
@@ -6432,97 +6263,12 @@ test('Get groups with users + custom', async (t) => {
 	});
 });
 
-test('Filter by columns not present in select', async (t) => {
-	const { pgDbV2: db } = t;
-
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex' },
-	]);
-
-	const response = await db.query.usersTable.findFirst({
-		columns: {
-			id: true,
-		},
-		where: {
-			name: 'Dan',
-		},
-	});
-
-	expect(response).toEqual({ id: 1 });
-});
-
 test('.toSQL()', () => {
-	const query = db.query.usersTable.findFirst().toSQL();
+	const query = db._query.usersTable.findFirst().toSQL();
 
 	expect(query).toHaveProperty('sql', expect.any(String));
 	expect(query).toHaveProperty('params', expect.any(Array));
 });
-
-// test('Filter by relational column', async (t) => {
-// 	const { pgDb: db } = t;
-
-// 	await db.insert(usersTable).values([
-// 		{ id: 1, name: 'Dan' },
-// 		{ id: 2, name: 'Andrew' },
-// 		{ id: 3, name: 'Alex' },
-// 	]);
-
-// 	await db.insert(postsTable).values([
-// 		{ id: 1, ownerId: 1, content: 'Content1' },
-// 		{ id: 2, ownerId: 2, content: 'Post2' },
-// 	]);
-
-// 	const response = await db.query.usersTable.findMany({
-// 		with: {
-// 			posts: true,
-// 		},
-// 		where: (users) => sql`json_array_length(${users.posts}) > 0`,
-// 		orderBy: usersTable.id,
-// 	});
-
-// 	expectTypeOf(response).toEqualTypeOf<{
-// 		id: number;
-// 		name: string;
-// 		verified: boolean;
-// 		invitedBy: number | null;
-// 		posts: {
-// 			id: number;
-// 			content: string;
-// 			ownerId: number | null;
-// 			createdAt: Date;
-// 		}[];
-// 	}[]>();
-
-// 	expect(response.length).toEqual(2);
-
-// 	expect(response[0]).toEqual({
-// 		id: 1,
-// 		name: 'Dan',
-// 		verified: false,
-// 		invitedBy: null,
-// 		posts: [{
-// 			id: 1,
-// 			content: 'Content1',
-// 			ownerId: 1,
-// 			createdAt: expect.any(Date),
-// 		}],
-// 	});
-
-// 	expect(response[1]).toEqual({
-// 		id: 2,
-// 		name: 'Andrew',
-// 		verified: false,
-// 		invitedBy: null,
-// 		posts: [{
-// 			id: 2,
-// 			content: 'Post2',
-// 			ownerId: 2,
-// 			createdAt: expect.any(Date),
-// 		}],
-// 	});
-// });
 
 // + custom + where + orderby
 

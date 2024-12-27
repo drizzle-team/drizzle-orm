@@ -21,14 +21,14 @@ import {
 	AggregatedField,
 	One,
 	relationExtrasToSQL,
-	relationFilterToSQL,
+	relationsFilterToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
 } from '~/relations.ts';
 import { Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { Columns, getTableName, getTableUniqueName, IsAlias, OriginalName, Schema, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
@@ -1207,13 +1207,9 @@ export class MySqlDialect {
 
 				return columnIdentifiers.length
 					? sql.join(columnIdentifiers, sql`, `)
-					: this.unwrapAllColumns(table, selection);
+					: undefined;
 			})()
-			: (() => {
-				const columnIdentifiers = [this.unwrapAllColumns(table, selection)];
-
-				return sql.join(columnIdentifiers, sql`, `);
-			})();
+			: this.unwrapAllColumns(table, selection);
 
 	buildRelationalQuery(
 		{
@@ -1225,6 +1221,8 @@ export class MySqlDialect {
 			queryConfig: config,
 			relationWhere,
 			mode,
+			errorPath,
+			depth,
 		}: {
 			tables: Record<string, MySqlTable>;
 			schema: TablesRelationalConfig;
@@ -1234,11 +1232,15 @@ export class MySqlDialect {
 			queryConfig?: DBQueryConfig<'many'> | true;
 			relationWhere?: SQL;
 			mode: 'first' | 'many';
+			errorPath?: string;
+			depth?: number;
 		},
 	): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
+		const currentPath = errorPath ?? '';
+		const currentDepth = depth ?? 0;
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -1246,15 +1248,15 @@ export class MySqlDialect {
 		const columns = this.buildColumns(table, selection, params);
 
 		const where: SQL | undefined = (params?.where && relationWhere)
-			? and(relationFilterToSQL(table, params.where), relationWhere)
+			? and(relationsFilterToSQL(table, params.where), relationWhere)
 			: params?.where
-			? relationFilterToSQL(table, params.where)
+			? relationsFilterToSQL(table, params.where)
 			: relationWhere;
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy as OrderBy) : undefined;
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras as Extras) : undefined;
 		if (extras) selection.push(...extras.selection);
 
-		const selectionArr: SQL[] = [columns];
+		const selectionArr: SQL[] = columns ? [columns] : [];
 
 		const joins = params
 			? (() => {
@@ -1283,18 +1285,20 @@ export class MySqlDialect {
 
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
-						const targetTable = relation.targetTable;
-						const relationFilter = relationToSQL(relation);
+						const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
+						const relationFilter = relationToSQL(relation, table, targetTable);
 
 						const innerQuery = this.buildRelationalQuery({
 							table: targetTable as MySqlTable,
 							mode: isSingle ? 'first' : 'many',
 							schema,
 							queryConfig: join as DBQueryConfig,
-							tableConfig: schema[tableNamesMap[getTableUniqueName(targetTable)]!]!,
+							tableConfig: schema[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!,
 							tableNamesMap,
 							tables,
 							relationWhere: relationFilter,
+							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
+							depth: currentDepth + 1,
 						});
 
 						selection.push({
@@ -1320,11 +1324,22 @@ export class MySqlDialect {
 			: undefined;
 
 		if (extras?.sql) selectionArr.push(extras.sql);
+		if (!selectionArr.length) {
+			throw new DrizzleError({
+				message: `No fields selected for table "${tableConfig.tsName}"${currentPath ? ` ("${currentPath}")` : ''}`,
+			});
+		}
 		const selectionSet = sql.join(selectionArr, sql`, `);
 
-		const query = sql`select ${selectionSet} from ${table}${sql`${joins}`.if(joins)}${sql` where ${where}`.if(where)}${
-			sql` order by ${order}`.if(order)
-		}${sql` limit ${limit}`.if(limit !== undefined)}${sql` offset ${offset}`.if(offset !== undefined)}`;
+		const query = sql`select ${selectionSet} from ${
+			table[IsAlias]
+				? sql`${sql`${sql.identifier(table[Schema] ?? '')}.`.if(table[Schema])}${
+					sql.identifier(table[OriginalName])
+				} as ${table}`
+				: table
+		}${sql`${joins}`.if(joins)}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
+			sql` limit ${limit}`.if(limit !== undefined)
+		}${sql` offset ${offset}`.if(offset !== undefined)}`;
 
 		return {
 			sql: query,

@@ -1,4 +1,4 @@
-import { type AnyTable, getTableUniqueName, type InferModelFromColumns, Table } from '~/table.ts';
+import { type AnyTable, getTableUniqueName, type InferModelFromColumns, IsAlias, Schema, Table } from '~/table.ts';
 import { Columns, getTableName } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
@@ -28,7 +28,7 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { type Placeholder, SQL, sql, type SQLWrapper } from './sql/sql.ts';
+import { Placeholder, SQL, sql, type SQLWrapper } from './sql/sql.ts';
 import { type Assume, type Equal, getTableColumns, type Simplify, type ValueOrArray, type Writable } from './utils.ts';
 
 export class Relations<
@@ -48,6 +48,8 @@ export class Relations<
 		readonly config: TConfig,
 	) {
 		for (const [tsName, table] of Object.entries(tables)) {
+			if (!is(table, Table)) continue;
+
 			this.tableNamesMap[getTableUniqueName(table)] = tsName as any;
 
 			const tableConfig: TableRelationalConfig = this.tablesConfig[tsName] = {
@@ -410,9 +412,11 @@ export type DBQueryConfig<
 		extras?:
 			| Record<string, SQLWrapper>
 			| ((
-				fields: Simplify<
-					[TTableConfig['columns']] extends [never] ? {}
-						: TTableConfig['columns']
+				table: Simplify<
+					& AnyTable<TTableConfig>
+					& {
+						[K in keyof TTableConfig['columns']]: TTableConfig['columns'][K];
+					}
 				>,
 				operators: SQLOperator,
 			) => Record<string, SQLWrapper>);
@@ -711,23 +715,26 @@ export type RelationFieldsFilterInternals<T> = {
 	notIlike?: string;
 	isNull?: true;
 	isNotNull?: true;
-	$not?: RelationsFieldFilter<T>;
-	$or?: RelationsFieldFilter<T>[];
+	NOT?: RelationsFieldFilter<T>;
+	OR?: RelationsFieldFilter<T>[];
 };
 
-export type RelationsFieldFilter<T> = T | RelationFieldsFilterInternals<T>;
+export type RelationsFieldFilter<T> = T | RelationFieldsFilterInternals<T | Placeholder>;
 
 export type RelationsFilter<TColumns extends Record<string, Column>> =
 	& {
 		[K in keyof TColumns]?: RelationsFieldFilter<TColumns[K]['_']['data']>;
 	}
 	& {
-		$or?: RelationsFilter<TColumns>[];
-		$not?: RelationsFilter<TColumns>[];
-		$raw?: (
-			columns: {
-				[K in keyof TColumns]: TColumns[K];
-			},
+		OR?: RelationsFilter<TColumns>[];
+		NOT?: RelationsFilter<TColumns>;
+		RAW?: (
+			table: Simplify<
+				& AnyTable<{ columns: TColumns }>
+				& {
+					[K in keyof TColumns]: TColumns[K];
+				}
+			>,
 			operators: Operators,
 		) => SQL;
 	};
@@ -966,7 +973,7 @@ export type Extras =
 	) => Record<string, SQL>);
 
 function relationsFieldFilterToSQL(column: Column, filter: RelationsFieldFilter<unknown>): SQL | undefined {
-	if (typeof filter !== 'object') return eq(column, filter);
+	if (typeof filter !== 'object' || is(filter, Placeholder)) return eq(column, filter);
 
 	const entries = Object.entries(filter as RelationFieldsFilterInternals<unknown>);
 	if (!entries.length) return undefined;
@@ -976,7 +983,7 @@ function relationsFieldFilterToSQL(column: Column, filter: RelationsFieldFilter<
 		if (value === undefined) continue;
 
 		switch (target) {
-			case '$not': {
+			case 'NOT': {
 				const res = relationsFieldFilterToSQL(column, value as RelationsFieldFilter<unknown>);
 				if (!res) continue;
 
@@ -984,7 +991,7 @@ function relationsFieldFilterToSQL(column: Column, filter: RelationsFieldFilter<
 
 				continue;
 			}
-			case '$or': {
+			case 'OR': {
 				if (!(value as RelationsFieldFilter<unknown>[]).length) continue;
 
 				parts.push(
@@ -1014,7 +1021,7 @@ function relationsFieldFilterToSQL(column: Column, filter: RelationsFieldFilter<
 	return and(...parts);
 }
 
-export function relationFilterToSQL(
+export function relationsFilterToSQL(
 	table: Table,
 	filter: RelationsFilter<Record<string, Column>>,
 ): SQL | undefined {
@@ -1026,7 +1033,7 @@ export function relationFilterToSQL(
 		if (value === undefined) continue;
 
 		switch (target) {
-			case '$raw': {
+			case 'RAW': {
 				if (value) {
 					parts.push(
 						(value as (table: Record<string, Column>, operators: Operators) => SQL)(table[Columns], operators),
@@ -1035,31 +1042,26 @@ export function relationFilterToSQL(
 
 				continue;
 			}
-			case '$or': {
+			case 'OR': {
 				if (!(value as RelationsFilter<Record<string, Column>>[] | undefined)?.length) continue;
 
 				parts.push(
 					or(
 						...(value as RelationsFilter<Record<string, Column>>[]).map((subFilter) =>
-							relationFilterToSQL(table, subFilter)
+							relationsFilterToSQL(table, subFilter)
 						),
 					)!,
 				);
 
 				continue;
 			}
-			case '$not': {
-				if (!(value as RelationsFilter<Record<string, Column>>[] | undefined)?.length) continue;
+			case 'NOT': {
+				if (value === undefined) continue;
 
-				parts.push(
-					not(
-						and(
-							...(value as RelationsFilter<Record<string, Column>>[]).map((subFilter) =>
-								relationFilterToSQL(table, subFilter)
-							),
-						)!,
-					),
-				);
+				const built = relationsFilterToSQL(table, value as RelationsFilter<Record<string, Column>>);
+				if (!built) continue;
+
+				parts.push(not(built));
 
 				continue;
 			}
@@ -1133,17 +1135,22 @@ export function relationExtrasToSQL(
 	};
 }
 
-export function relationToSQL(relation: Relation): SQL | undefined {
-	const table = relation.sourceTable;
-
+export function relationToSQL(relation: Relation, sourceTable: Table, targetTable: Table): SQL | undefined {
 	const columnWhere = relation.sourceColumns.map((s, i) => {
 		const t = relation.targetColumns[i]!;
 
-		return eq(s, t);
+		return eq(
+			sql`${sql`${
+				sql`${sql.identifier(sourceTable[Schema] ?? '')}.`.if(sourceTable[Schema] && !sourceTable[IsAlias])
+			}`}${sourceTable}.${sql.identifier(s.name)}`,
+			sql`${sql`${
+				sql`${sql.identifier(targetTable[Schema] ?? '')}.`.if(targetTable[Schema] && !targetTable[IsAlias])
+			}`}${targetTable}.${sql.identifier(t.name)}`,
+		);
 	});
 
 	const targetWhere = relation.where
-		? and(...columnWhere, relationFilterToSQL(table, relation.where))
+		? and(...columnWhere, relationsFilterToSQL(sourceTable, relation.where))
 		: and(...columnWhere);
 
 	return targetWhere;

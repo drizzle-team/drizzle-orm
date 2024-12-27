@@ -48,6 +48,7 @@ export default defineConfig({
 			'tests/awsdatapi.alltypes.test.ts',
 			'tests/pg/vercel-pg.test.ts',
 			'tests/relational/vercel.test.ts',
+			'tests/relational/vercel-v1.test.ts',
 			// Have a strange "invalid SQL: ERROR: must be owner of schema public" error. Will need to check with xata team
 			'tests/pg/xata-http.test.ts',
 			'tests/pg/neon-http-batch.ts',

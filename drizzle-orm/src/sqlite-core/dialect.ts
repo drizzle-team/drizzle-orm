@@ -17,7 +17,7 @@ import {
 	type OrderBy,
 	type Relation,
 	relationExtrasToSQL,
-	relationFilterToSQL,
+	relationsFilterToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
 	type TableRelationalConfig,
@@ -36,7 +36,7 @@ import type {
 } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
-import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { Columns, getTableName, getTableUniqueName, IsAlias, OriginalName, Schema, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
@@ -882,13 +882,9 @@ export abstract class SQLiteDialect {
 
 				return columnIdentifiers.length
 					? sql.join(columnIdentifiers, sql`, `)
-					: this.unwrapAllColumns(table, selection);
+					: undefined;
 			})()
-			: (() => {
-				const columnIdentifiers = [this.unwrapAllColumns(table, selection)];
-
-				return sql.join(columnIdentifiers, sql`, `);
-			})();
+			: this.unwrapAllColumns(table, selection);
 
 	buildRelationalQuery(
 		{
@@ -901,6 +897,8 @@ export abstract class SQLiteDialect {
 			relationWhere,
 			mode,
 			isNested,
+			errorPath,
+			depth,
 		}: {
 			tables: Record<string, SQLiteTable>;
 			schema: TablesRelationalConfig;
@@ -911,11 +909,15 @@ export abstract class SQLiteDialect {
 			relationWhere?: SQL;
 			mode: 'first' | 'many';
 			isNested?: boolean;
+			errorPath?: string;
+			depth?: number;
 		},
 	): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
+		const currentPath = errorPath ?? '';
+		const currentDepth = depth ?? 0;
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -923,9 +925,9 @@ export abstract class SQLiteDialect {
 		const columns = this.buildColumns(table, selection, params);
 
 		const where: SQL | undefined = (params?.where && relationWhere)
-			? and(relationFilterToSQL(table, params.where), relationWhere)
+			? and(relationsFilterToSQL(table, params.where), relationWhere)
 			: params?.where
-			? relationFilterToSQL(table, params.where)
+			? relationsFilterToSQL(table, params.where)
 			: relationWhere;
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy as OrderBy) : undefined;
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras as Extras) : undefined;
@@ -958,18 +960,20 @@ export abstract class SQLiteDialect {
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
 						const targetTable = relation.targetTable;
-						const relationFilter = relationToSQL(relation);
+						const relationFilter = relationToSQL(relation, table, targetTable);
 
 						const innerQuery = this.buildRelationalQuery({
 							table: targetTable as SQLiteTable,
 							mode: isSingle ? 'first' : 'many',
 							schema,
 							queryConfig: join as DBQueryConfig,
-							tableConfig: schema[tableNamesMap[getTableUniqueName(targetTable)]!]!,
+							tableConfig: schema[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!,
 							tableNamesMap,
 							tables,
 							relationWhere: relationFilter,
 							isNested: true,
+							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
+							depth: currentDepth + 1,
 						});
 
 						selection.push({
@@ -1009,11 +1013,23 @@ export abstract class SQLiteDialect {
 			})()
 			: undefined;
 
-		const selectionSet = sql.join([columns, extras?.sql, joins].filter((e) => e !== undefined), sql`, `);
+		const selectionArr = [columns, extras?.sql, joins].filter((e) => e !== undefined);
+		if (!selectionArr.length) {
+			throw new DrizzleError({
+				message: `No fields selected for table "${tableConfig.tsName}"${currentPath ? ` ("${currentPath}")` : ''}`,
+			});
+		}
+		const selectionSet = sql.join(selectionArr, sql`, `);
 
-		const query = sql`select ${selectionSet} from ${table}${sql` where ${where}`.if(where)}${
-			sql` order by ${order}`.if(order)
-		}${sql` limit ${limit}`.if(limit !== undefined)}${sql` offset ${offset}`.if(offset !== undefined)}`;
+		const query = sql`select ${selectionSet} from ${
+			table[IsAlias]
+				? sql`${sql`${sql.identifier(table[Schema] ?? '')}.`.if(table[Schema])}${
+					sql.identifier(table[OriginalName])
+				} as ${table}`
+				: table
+		}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
+			sql` limit ${limit}`.if(limit !== undefined)
+		}${sql` offset ${offset}`.if(offset !== undefined)}`;
 
 		return {
 			sql: query,

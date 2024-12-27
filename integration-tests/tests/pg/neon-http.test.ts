@@ -1,6 +1,6 @@
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import retry from 'async-retry';
-import { eq, sql } from 'drizzle-orm';
+import { defineRelations, eq, sql } from 'drizzle-orm';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
 import { pgMaterializedView, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
@@ -490,6 +490,7 @@ describe('$withAuth tests', (it) => {
 		schema: {
 			usersTable,
 		},
+		relations: defineRelations({ usersTable }, () => ({})),
 	});
 
 	it('$count', async () => {
@@ -555,6 +556,12 @@ describe('$withAuth tests', (it) => {
 
 	it('rqb', async () => {
 		await db.$withAuth('rqb')._query.usersTable.findFirst().catch(() => null);
+
+		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'rqb' });
+	});
+
+	it('rqbV2', async () => {
+		await db.$withAuth('rqb').query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'rqb' });
 	});
