@@ -2008,6 +2008,35 @@ test('add array column - empty array default', async () => {
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{}\';']);
 });
 
+
+test('add text array column - empty array default', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: text('values').array().notNull().default([]),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'alter_table_add_column',
+			tableName: 'test',
+			schema: '',
+			column: { name: 'values', type: 'text[]', primaryKey: false, notNull: true, default: "'{}'" },
+		},
+	]);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "test" ADD COLUMN "values" text[] DEFAULT \'{}\' NOT NULL;']);
+});
+
 test('add array column - default', async () => {
 	const client = new PGlite();
 

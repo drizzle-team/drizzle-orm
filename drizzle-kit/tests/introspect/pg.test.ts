@@ -35,7 +35,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
-import { introspectPgToFile } from 'tests/schemaDiffer';
+import { introspectPgToFile, introspectAfterSqlStatements } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
 if (!fs.existsSync('tests/introspect/postgres')) {
@@ -891,4 +891,14 @@ test('multiple policies with roles from schema', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+test('default empty array', async () => {
+  const client = new PGlite();
+  const defaultVal = `'{}'`;
+  const statements = [
+    `CREATE TABLE "users" ("names" text[] default ${defaultVal});`,
+  ];
+  const { tables } = await introspectAfterSqlStatements(client, statements);
+  expect(tables['public.users']?.columns.names?.default).toBe(defaultVal);
 });
