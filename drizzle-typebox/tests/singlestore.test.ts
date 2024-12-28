@@ -1,6 +1,6 @@
 import { Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { customType, int, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
 import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
@@ -18,7 +18,7 @@ const serialNumberModeSchema = t.Integer({
 const textSchema = t.String({ maxLength: CONSTANTS.INT16_UNSIGNED_MAX });
 
 test('table - select', (tc) => {
-	const table = mysqlTable('test', {
+	const table = singlestoreTable('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});
@@ -30,7 +30,7 @@ test('table - select', (tc) => {
 });
 
 test('table in schema - select', (tc) => {
-	const schema = mysqlSchema('test');
+	const schema = singlestoreSchema('test');
 	const table = schema.table('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
@@ -43,7 +43,7 @@ test('table in schema - select', (tc) => {
 });
 
 test('table - insert', (tc) => {
-	const table = mysqlTable('test', {
+	const table = singlestoreTable('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 		age: int(),
@@ -60,7 +60,7 @@ test('table - insert', (tc) => {
 });
 
 test('table - update', (tc) => {
-	const table = mysqlTable('test', {
+	const table = singlestoreTable('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 		age: int(),
@@ -76,59 +76,61 @@ test('table - update', (tc) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('view qb - select', (tc) => {
-	const table = mysqlTable('test', {
-		id: serial().primaryKey(),
-		name: text().notNull(),
-	});
-	const view = mysqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
+// TODO: SingleStore doesn't support views yet. Add these tests when they're added
 
-	const result = createSelectSchema(view);
-	const expected = t.Object({ id: serialNumberModeSchema, age: t.Any() });
-	expectSchemaShape(tc, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
+// test('view qb - select', (tc) => {
+// 	const table = singlestoreTable('test', {
+// 		id: serial().primaryKey(),
+// 		name: text().notNull(),
+// 	});
+// 	const view = mysqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
-test('view columns - select', (tc) => {
-	const view = mysqlView('test', {
-		id: serial().primaryKey(),
-		name: text().notNull(),
-	}).as(sql``);
+// 	const result = createSelectSchema(view);
+// 	const expected = t.Object({ id: serialNumberModeSchema, age: t.Any() });
+// 	expectSchemaShape(tc, expected).from(result);
+// 	Expect<Equal<typeof result, typeof expected>>();
+// });
 
-	const result = createSelectSchema(view);
-	const expected = t.Object({ id: serialNumberModeSchema, name: textSchema });
-	expectSchemaShape(tc, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
+// test('view columns - select', (tc) => {
+// 	const view = mysqlView('test', {
+// 		id: serial().primaryKey(),
+// 		name: text().notNull(),
+// 	}).as(sql``);
 
-test('view with nested fields - select', (tc) => {
-	const table = mysqlTable('test', {
-		id: serial().primaryKey(),
-		name: text().notNull(),
-	});
-	const view = mysqlView('test').as((qb) =>
-		qb.select({
-			id: table.id,
-			nested: {
-				name: table.name,
-				age: sql``.as('age'),
-			},
-			table,
-		}).from(table)
-	);
+// 	const result = createSelectSchema(view);
+// 	const expected = t.Object({ id: serialNumberModeSchema, name: textSchema });
+// 	expectSchemaShape(tc, expected).from(result);
+// 	Expect<Equal<typeof result, typeof expected>>();
+// });
 
-	const result = createSelectSchema(view);
-	const expected = t.Object({
-		id: serialNumberModeSchema,
-		nested: t.Object({ name: textSchema, age: t.Any() }),
-		table: t.Object({ id: serialNumberModeSchema, name: textSchema }),
-	});
-	expectSchemaShape(tc, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
+// test('view with nested fields - select', (tc) => {
+// 	const table = singlestoreTable('test', {
+// 		id: serial().primaryKey(),
+// 		name: text().notNull(),
+// 	});
+// 	const view = mysqlView('test').as((qb) =>
+// 		qb.select({
+// 			id: table.id,
+// 			nested: {
+// 				name: table.name,
+// 				age: sql``.as('age'),
+// 			},
+// 			table,
+// 		}).from(table)
+// 	);
+
+// 	const result = createSelectSchema(view);
+// 	const expected = t.Object({
+// 		id: serialNumberModeSchema,
+// 		nested: t.Object({ name: textSchema, age: t.Any() }),
+// 		table: t.Object({ id: serialNumberModeSchema, name: textSchema }),
+// 	});
+// 	expectSchemaShape(tc, expected).from(result);
+// 	Expect<Equal<typeof result, typeof expected>>();
+// });
 
 test('nullability - select', (tc) => {
-	const table = mysqlTable('test', {
+	const table = singlestoreTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().default(1),
@@ -147,7 +149,7 @@ test('nullability - select', (tc) => {
 });
 
 test('nullability - insert', (tc) => {
-	const table = mysqlTable('test', {
+	const table = singlestoreTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().default(1),
@@ -167,7 +169,7 @@ test('nullability - insert', (tc) => {
 });
 
 test('nullability - update', (tc) => {
-	const table = mysqlTable('test', {
+	const table = singlestoreTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().default(1),
@@ -187,7 +189,7 @@ test('nullability - update', (tc) => {
 });
 
 test('refine table - select', (tc) => {
-	const table = mysqlTable('test', {
+	const table = singlestoreTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
@@ -209,7 +211,7 @@ test('refine table - select', (tc) => {
 
 test('refine table - select with custom data type', (tc) => {
 	const customText = customType({ dataType: () => 'text' });
-	const table = mysqlTable('test', {
+	const table = singlestoreTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
@@ -234,7 +236,7 @@ test('refine table - select with custom data type', (tc) => {
 });
 
 test('refine table - insert', (tc) => {
-	const table = mysqlTable('test', {
+	const table = singlestoreTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
@@ -255,7 +257,7 @@ test('refine table - insert', (tc) => {
 });
 
 test('refine table - update', (tc) => {
-	const table = mysqlTable('test', {
+	const table = singlestoreTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
@@ -275,65 +277,65 @@ test('refine table - update', (tc) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine view - select', (tc) => {
-	const table = mysqlTable('test', {
-		c1: int(),
-		c2: int(),
-		c3: int(),
-		c4: int(),
-		c5: int(),
-		c6: int(),
-	});
-	const view = mysqlView('test').as((qb) =>
-		qb.select({
-			c1: table.c1,
-			c2: table.c2,
-			c3: table.c3,
-			nested: {
-				c4: table.c4,
-				c5: table.c5,
-				c6: table.c6,
-			},
-			table,
-		}).from(table)
-	);
+// test('refine view - select', (tc) => {
+// 	const table = singlestoreTable('test', {
+// 		c1: int(),
+// 		c2: int(),
+// 		c3: int(),
+// 		c4: int(),
+// 		c5: int(),
+// 		c6: int(),
+// 	});
+// 	const view = mysqlView('test').as((qb) =>
+// 		qb.select({
+// 			c1: table.c1,
+// 			c2: table.c2,
+// 			c3: table.c3,
+// 			nested: {
+// 				c4: table.c4,
+// 				c5: table.c5,
+// 				c6: table.c6,
+// 			},
+// 			table,
+// 		}).from(table)
+// 	);
 
-	const result = createSelectSchema(view, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
-		nested: {
-			c5: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
-			c6: t.Integer({ minimum: 1, maximum: 10 }),
-		},
-		table: {
-			c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
-			c3: t.Integer({ minimum: 1, maximum: 10 }),
-		},
-	});
-	const expected = t.Object({
-		c1: t.Union([intSchema, t.Null()]),
-		c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
-		nested: t.Object({
-			c4: t.Union([intSchema, t.Null()]),
-			c5: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-			c6: t.Integer({ minimum: 1, maximum: 10 }),
-		}),
-		table: t.Object({
-			c1: t.Union([intSchema, t.Null()]),
-			c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-			c3: t.Integer({ minimum: 1, maximum: 10 }),
-			c4: t.Union([intSchema, t.Null()]),
-			c5: t.Union([intSchema, t.Null()]),
-			c6: t.Union([intSchema, t.Null()]),
-		}),
-	});
-	expectSchemaShape(tc, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
+// 	const result = createSelectSchema(view, {
+// 		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+// 		c3: t.Integer({ minimum: 1, maximum: 10 }),
+// 		nested: {
+// 			c5: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+// 			c6: t.Integer({ minimum: 1, maximum: 10 }),
+// 		},
+// 		table: {
+// 			c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+// 			c3: t.Integer({ minimum: 1, maximum: 10 }),
+// 		},
+// 	});
+// 	const expected = t.Object({
+// 		c1: t.Union([intSchema, t.Null()]),
+// 		c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
+// 		c3: t.Integer({ minimum: 1, maximum: 10 }),
+// 		nested: t.Object({
+// 			c4: t.Union([intSchema, t.Null()]),
+// 			c5: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
+// 			c6: t.Integer({ minimum: 1, maximum: 10 }),
+// 		}),
+// 		table: t.Object({
+// 			c1: t.Union([intSchema, t.Null()]),
+// 			c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
+// 			c3: t.Integer({ minimum: 1, maximum: 10 }),
+// 			c4: t.Union([intSchema, t.Null()]),
+// 			c5: t.Union([intSchema, t.Null()]),
+// 			c6: t.Union([intSchema, t.Null()]),
+// 		}),
+// 	});
+// 	expectSchemaShape(tc, expected).from(result);
+// 	Expect<Equal<typeof result, typeof expected>>();
+// });
 
 test('all data types', (tc) => {
-	const table = mysqlTable('test', ({
+	const table = singlestoreTable('test', ({
 		bigint,
 		binary,
 		boolean,
@@ -346,7 +348,7 @@ test('all data types', (tc) => {
 		int,
 		json,
 		mediumint,
-		mysqlEnum,
+		singlestoreEnum,
 		real,
 		serial,
 		smallint,
@@ -384,7 +386,7 @@ test('all data types', (tc) => {
 		json: json().notNull(),
 		mediumint1: mediumint().notNull(),
 		mediumint2: mediumint({ unsigned: true }).notNull(),
-		enum: mysqlEnum('enum', ['a', 'b', 'c']).notNull(),
+		enum: singlestoreEnum('enum', ['a', 'b', 'c']).notNull(),
 		real: real().notNull(),
 		serial: serial().notNull(),
 		smallint1: smallint().notNull(),
@@ -461,35 +463,35 @@ test('all data types', (tc) => {
 });
 
 /* Disallow unknown keys in table refinement - select */ {
-	const table = mysqlTable('test', { id: int() });
+	const table = singlestoreTable('test', { id: int() });
 	// @ts-expect-error
 	createSelectSchema(table, { unknown: t.String() });
 }
 
 /* Disallow unknown keys in table refinement - insert */ {
-	const table = mysqlTable('test', { id: int() });
+	const table = singlestoreTable('test', { id: int() });
 	// @ts-expect-error
 	createInsertSchema(table, { unknown: t.String() });
 }
 
 /* Disallow unknown keys in table refinement - update */ {
-	const table = mysqlTable('test', { id: int() });
+	const table = singlestoreTable('test', { id: int() });
 	// @ts-expect-error
 	createUpdateSchema(table, { unknown: t.String() });
 }
 
-/* Disallow unknown keys in view qb - select */ {
-	const table = mysqlTable('test', { id: int() });
-	const view = mysqlView('test').as((qb) => qb.select().from(table));
-	const nestedSelect = mysqlView('test').as((qb) => qb.select({ table }).from(table));
-	// @ts-expect-error
-	createSelectSchema(view, { unknown: t.String() });
-	// @ts-expect-error
-	createSelectSchema(nestedSelect, { table: { unknown: t.String() } });
-}
+// /* Disallow unknown keys in view qb - select */ {
+// 	const table = singlestoreTable('test', { id: int() });
+// 	const view = mysqlView('test').as((qb) => qb.select().from(table));
+// 	const nestedSelect = mysqlView('test').as((qb) => qb.select({ table }).from(table));
+// 	// @ts-expect-error
+// 	createSelectSchema(view, { unknown: t.String() });
+// 	// @ts-expect-error
+// 	createSelectSchema(nestedSelect, { table: { unknown: t.String() } });
+// }
 
-/* Disallow unknown keys in view columns - select */ {
-	const view = mysqlView('test', { id: int() }).as(sql``);
-	// @ts-expect-error
-	createSelectSchema(view, { unknown: t.String() });
-}
+// /* Disallow unknown keys in view columns - select */ {
+// 	const view = mysqlView('test', { id: int() }).as(sql``);
+// 	// @ts-expect-error
+// 	createSelectSchema(view, { unknown: t.String() });
+// }
