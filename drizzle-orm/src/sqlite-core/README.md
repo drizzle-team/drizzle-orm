@@ -17,6 +17,7 @@ Here you can find extensive docs for SQLite module.
 | [sql.js](https://github.com/sql-js/sql.js/)                           |    ✅    |                                    |
 | [node-sqlite3](https://github.com/TryGhost/node-sqlite3)              |    ⏳    |                                    |
 | [bun:sqlite](https://github.com/oven-sh/bun#bunsqlite-sqlite3-module) |    ✅    |  [Example](/examples/bun-sqlite)   |
+| [Deno @db/sqlite](https://jsr.io/@db/sqlite)                          |    ✅    |  [Example](/examples/deno-sqlite)  |
 | [Cloudflare D1](https://developers.cloudflare.com/d1/)                |    ✅    | [Example](/examples/cloudflare-d1) |
 | [Fly.io LiteFS](https://fly.io/docs/litefs/getting-started/)          |    ✅    |                                    |
 | [libSQL server](https://github.com/libsql/sqld/)                      |    ✅    |    [Example](/examples/libsql)     |
@@ -70,6 +71,14 @@ import { Database } from 'bun:sqlite';
 
 const sqlite = new Database('nw.sqlite');
 const db/*: BunSQLiteDatabase*/ = drizzle(sqlite);
+const result = db.select().from(users).all()
+
+// deno sqlite connector
+import { drizzle, DenoSQLiteDatabase } from 'drizzle-orm/deno-sqlite';
+import { Database } from "@db/sqlite";
+
+const sqlite = new Database('nw.sqlite');
+const db/*: DenoSQLiteDatabase*/ = drizzle(sqlite);
 const result = db.select().from(users).all()
 
 // Cloudflare D1 connector

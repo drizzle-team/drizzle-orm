@@ -18,6 +18,7 @@ const driversPackages = [
 	'@libsql/client',
 	'better-sqlite3',
 	'bun:sqlite',
+	'@db/sqlite',
 ];
 
 esbuild.buildSync({
@@ -84,7 +85,7 @@ const main = async () => {
 	await tsup.build({
 		entryPoints: ['./src/index.ts', './src/api.ts'],
 		outDir: './dist',
-		external: ['bun:sqlite'],
+		external: ['bun:sqlite', '@db/sqlite'],
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],
