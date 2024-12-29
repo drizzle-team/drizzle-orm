@@ -38,7 +38,8 @@
 	"ava": {
 		"files": [
 			"tests/**/*.test.ts",
-			"!tests/bun/**/*"
+			"!tests/bun/**/*",
+			"!tests/deno/**/*"
 		],
 		"extensions": {
 			"ts": "module"
