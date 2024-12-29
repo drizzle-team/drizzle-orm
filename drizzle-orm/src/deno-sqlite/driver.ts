@@ -20,23 +20,39 @@ export class DenoSQLiteDatabase<
 
 type DrizzleDenoSqliteDatabaseOptions = {
 	/**
-	 * Open the database as read-only (no write operations, no create).
-	 *
-	 * Equivalent to {@link constants.SQLITE_OPEN_READONLY}
+	 * Whether to open database only in read-only mode. By default, this is false.
 	 */
 	readonly?: boolean;
+
 	/**
-	 * Allow creating a new database
-	 *
-	 * Equivalent to {@link constants.SQLITE_OPEN_CREATE}
+	 * Whether to create a new database file at specified path if one does not exist already. By default this is true.
 	 */
 	create?: boolean;
+
 	/**
-	 * Open the database as read-write
-	 *
-	 * Equivalent to {@link constants.SQLITE_OPEN_READWRITE}
+	 * Raw SQLite C API flags. Specifying this ignores all other options.
 	 */
-	readwrite?: boolean;
+	flags?: number;
+
+	/**
+	 * Opens an in-memory database.
+	 */
+	memory?: boolean;
+
+	/**
+	 * Whether to support BigInt columns. False by default, integers larger than 32 bit will be inaccurate.
+	 */
+	int64?: boolean;
+
+	/**
+	 * Apply agressive optimizations that are not possible with concurrent clients.
+	 */
+	unsafeConcurrency?: boolean;
+
+	/**
+	 * Enable or disable extension loading
+	 */
+	enableLoadExtension?: boolean;
 };
 
 export type DrizzleDenoSqliteDatabaseConfig =
