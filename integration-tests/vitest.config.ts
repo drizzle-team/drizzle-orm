@@ -18,6 +18,7 @@ export default defineConfig({
 			'tests/version.test.ts',
 			'tests/pg/node-postgres.test.ts',
 			'tests/utils/is-config.test.ts',
+			'tests/deno/**/*.test.ts',
 			'js-tests/driver-init/commonjs/*.test.cjs',
 			'js-tests/driver-init/module/*.test.mjs',
 		],

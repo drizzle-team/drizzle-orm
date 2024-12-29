@@ -7,6 +7,7 @@
 		"test:types": "tsc",
 		"test": "pnpm test:vitest",
 		"test:vitest": "vitest run",
+		"test:deno": "IS_DENO=1 deno run -A npm:vitest tests/deno",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
 		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts"
 	},
@@ -76,6 +77,7 @@
 		"uvu": "^0.5.6",
 		"vitest": "^2.1.2",
 		"ws": "^8.16.0",
-		"zod": "^3.20.2"
+		"zod": "^3.20.2",
+		"@db/sqlite": "npm:@jsr/db__sqlite@^0.12.0"
 	}
 }

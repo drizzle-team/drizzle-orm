@@ -638,6 +638,9 @@ importers:
       '@aws-sdk/credential-providers':
         specifier: ^3.549.0
         version: 3.569.0(@aws-sdk/client-sso-oidc@3.583.0)
+      '@db/sqlite':
+        specifier: npm:@jsr/db__sqlite@^0.12.0
+        version: '@jsr/db__sqlite@0.12.0'
       '@electric-sql/pglite':
         specifier: 0.2.12
         version: 0.2.12
