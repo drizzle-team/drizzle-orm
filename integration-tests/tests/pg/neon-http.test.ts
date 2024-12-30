@@ -669,7 +669,7 @@ describe('$withAuth callback tests', (it) => {
 	it('rqbV2', async () => {
 		await db.$withAuth(auth('rqbV2')).query.usersTable.findFirst().catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: false, fullResults: true, authToken: 'rqbV2' });
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqbV2');
 	});
 
 	it('exec', async () => {
@@ -778,7 +778,7 @@ describe('$withAuth async callback tests', (it) => {
 	});
 
 	it('rqbV2', async () => {
-		await db.$withAuth(auth('rqbV2'))._query.usersTable.findFirst().catch(() => null);
+		await db.$withAuth(auth('rqbV2')).query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqbV2');
