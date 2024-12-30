@@ -1124,9 +1124,9 @@ export class SeedService {
 		relations: (Relation & { isCyclic: boolean })[],
 		tablesGenerators: ReturnType<typeof this.generatePossibleGenerators>,
 		db?:
-			| PgDatabase<any, any, any, any>
-			| MySqlDatabase<any, any, any, any>
-			| BaseSQLiteDatabase<any, any, any, any>,
+			| PgDatabase<any, any, any, any, any>
+			| MySqlDatabase<any, any, any, any, any, any>
+			| BaseSQLiteDatabase<any, any, any, any, any, any>,
 		schema?: { [key: string]: PgTable | MySqlTable | SQLiteTable },
 		options?: {
 			count?: number;
@@ -1346,9 +1346,9 @@ export class SeedService {
 	}: {
 		tableGenerators: Prettify<TableGeneratorsType>;
 		db?:
-			| PgDatabase<any, any, any, any>
-			| MySqlDatabase<any, any, any, any>
-			| BaseSQLiteDatabase<any, any, any, any>;
+			| PgDatabase<any, any, any, any, any>
+			| MySqlDatabase<any, any, any, any, any, any>
+			| BaseSQLiteDatabase<any, any, any, any, any, any>;
 		schema?: { [key: string]: PgTable | MySqlTable | SQLiteTable };
 		tableName?: string;
 		count?: number;
@@ -1396,15 +1396,15 @@ export class SeedService {
 			// }
 		}
 		let maxParametersNumber: number;
-		if (is(db, PgDatabase<any, any, any, any>)) {
+		if (is(db, PgDatabase<any, any, any, any, any>)) {
 			// @ts-ignore
 			maxParametersNumber = db.constructor[entityKind] === 'PgliteDatabase'
 				? this.postgresPgLiteMaxParametersNumber
 				: this.postgresMaxParametersNumber;
-		} else if (is(db, MySqlDatabase<any, any, any, any>)) {
+		} else if (is(db, MySqlDatabase<any, any, any, any, any, any>)) {
 			maxParametersNumber = this.mysqlMaxParametersNumber;
 		} else {
-			// is(db, BaseSQLiteDatabase<any, any, any, any>)
+			// is(db, BaseSQLiteDatabase<any, any, any, any, any ,any>)
 			maxParametersNumber = this.sqliteMaxParametersNumber;
 		}
 		const maxBatchSize = Math.floor(maxParametersNumber / columnsNumber);
@@ -1442,37 +1442,71 @@ export class SeedService {
 				&& ((i + 1) % batchSize === 0 || i === count - 1)
 			) {
 				if (preserveData === false) {
-					await this.insertInDb({
-						generatedValues,
-						db: db as
-							| PgDatabase<any, any, any, any>
-							| MySqlDatabase<any, any, any, any>
-							| BaseSQLiteDatabase<any, any, any, any>,
-						schema: schema as {
-							[key: string]: PgTable | MySqlTable | SQLiteTable;
-						},
-						tableName: tableName as string,
-						override,
-					});
+					if (insertDataInDb === true) {
+						await this.insertInDb({
+							generatedValues,
+							db: db as
+								| PgDatabase<any, any>
+								| MySqlDatabase<any, any, any, any, any, any>
+								| BaseSQLiteDatabase<any, any, any, any, any, any>,
+							schema: schema as {
+								[key: string]: PgTable | MySqlTable | SQLiteTable;
+							},
+							tableName: tableName as string,
+							override,
+						});
+					} else if (updateDataInDb === true) {
+						await this.updateDb({
+							generatedValues,
+							db: db as
+								| PgDatabase<any, any>
+								| MySqlDatabase<any, any, any, any, any, any>
+								| BaseSQLiteDatabase<any, any, any, any, any, any>,
+							schema: schema as {
+								[key: string]: PgTable | MySqlTable | SQLiteTable;
+							},
+							tableName: tableName as string,
+							uniqueNotNullColName: uniqueNotNullColName as string,
+						});
+					}
+
 					generatedValues = [];
 				} else {
 					const batchCount = Math.floor(i / batchSize);
 
-					await this.insertInDb({
-						generatedValues: generatedValues.slice(
-							batchSize * batchCount,
-							batchSize * (batchCount + 1),
-						),
-						db: db as
-							| PgDatabase<any, any, any, any>
-							| MySqlDatabase<any, any, any, any>
-							| BaseSQLiteDatabase<any, any, any, any>,
-						schema: schema as {
-							[key: string]: PgTable | MySqlTable | SQLiteTable;
-						},
-						tableName: tableName as string,
-						override,
-					});
+					if (insertDataInDb === true) {
+						await this.insertInDb({
+							generatedValues: generatedValues.slice(
+								batchSize * batchCount,
+								batchSize * (batchCount + 1),
+							),
+							db: db as
+								| PgDatabase<any, any>
+								| MySqlDatabase<any, any, any, any, any, any>
+								| BaseSQLiteDatabase<any, any, any, any, any, any>,
+							schema: schema as {
+								[key: string]: PgTable | MySqlTable | SQLiteTable;
+							},
+							tableName: tableName as string,
+							override,
+						});
+					} else if (updateDataInDb === true) {
+						await this.updateDb({
+							generatedValues: generatedValues.slice(
+								batchSize * batchCount,
+								batchSize * (batchCount + 1),
+							),
+							db: db as
+								| PgDatabase<any, any>
+								| MySqlDatabase<any, any, any, any, any, any>
+								| BaseSQLiteDatabase<any, any, any, any, any, any>,
+							schema: schema as {
+								[key: string]: PgTable | MySqlTable | SQLiteTable;
+							},
+							tableName: tableName as string,
+							uniqueNotNullColName: uniqueNotNullColName as string,
+						});
+					}
 				}
 			}
 		}
@@ -1491,26 +1525,26 @@ export class SeedService {
 			[columnName: string]: number | string | boolean | undefined;
 		}[];
 		db:
-			| PgDatabase<any, any, any, any>
-			| MySqlDatabase<any, any, any, any>
-			| BaseSQLiteDatabase<any, any, any, any>;
+			| PgDatabase<any, any>
+			| MySqlDatabase<any, any, any, any, any, any>
+			| BaseSQLiteDatabase<any, any, any, any, any, any>;
 		schema: {
 			[key: string]: PgTable | MySqlTable | SQLiteTable;
 		};
 		tableName: string;
 		override: boolean;
 	}) => {
-		if (is(db, PgDatabase<any, any, any, any>)) {
+		if (is(db, PgDatabase<any, any, any, any, any>)) {
 			const query = db.insert((schema as { [key: string]: PgTable })[tableName]!);
 			if (override === true) {
 				return await query.overridingSystemValue().values(generatedValues);
 			}
 			await query.values(generatedValues);
-		} else if (is(db, MySqlDatabase<any, any, any, any>)) {
+		} else if (is(db, MySqlDatabase<any, any, any, any, any, any>)) {
 			await db
 				.insert((schema as { [key: string]: MySqlTable })[tableName]!)
 				.values(generatedValues);
-		} else if (is(db, BaseSQLiteDatabase<any, any, any, any>)) {
+		} else if (is(db, BaseSQLiteDatabase<any, any, any, any, any, any>)) {
 			await db
 				.insert((schema as { [key: string]: SQLiteTable })[tableName]!)
 				.values(generatedValues);
@@ -1529,26 +1563,26 @@ export class SeedService {
 		}[];
 		db:
 			| PgDatabase<any, any>
-			| MySqlDatabase<any, any>
-			| BaseSQLiteDatabase<any, any>;
+			| MySqlDatabase<any, any, any, any, any, any>
+			| BaseSQLiteDatabase<any, any, any, any, any, any>;
 		schema: {
 			[key: string]: PgTable | MySqlTable | SQLiteTable;
 		};
 		tableName: string;
 		uniqueNotNullColName: string;
 	}) => {
-		if (is(db, PgDatabase<any>)) {
+		if (is(db, PgDatabase<any, any, any, any, any>)) {
 			const table = (schema as { [key: string]: PgTableWithColumns<any> })[tableName]!;
 			const uniqueNotNullCol = table[uniqueNotNullColName];
 			await db.update(table).set(generatedValues[0]!).where(
 				eq(uniqueNotNullCol, generatedValues[0]![uniqueNotNullColName]),
 			);
-		} else if (is(db, MySqlDatabase<any, any>)) {
+		} else if (is(db, MySqlDatabase<any, any, any, any, any, any>)) {
 			const table = (schema as { [key: string]: MySqlTableWithColumns<any> })[tableName]!;
 			await db.update(table).set(generatedValues[0]!).where(
 				eq(table[uniqueNotNullColName], generatedValues[0]![uniqueNotNullColName]),
 			);
-		} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+		} else if (is(db, BaseSQLiteDatabase<any, any, any, any, any, any>)) {
 			const table = (schema as { [key: string]: SQLiteTableWithColumns<any> })[tableName]!;
 			await db.update(table).set(generatedValues[0]!).where(
 				eq(table[uniqueNotNullColName], generatedValues[0]![uniqueNotNullColName]),
