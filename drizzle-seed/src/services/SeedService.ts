@@ -111,10 +111,11 @@ export class SeedService {
 						if (!tablesInOutRelations[table.name]?.dependantTableNames.has(fkTableName)) {
 							const reason = tablesInOutRelations[table.name]?.selfRelation === true
 								? `"${table.name}" table has self reference`
-								: `"${fkTableName}" table doesn't have reference to "${table.name}" table or`
-									+ `\n you didn't include your one-to-many relation in the seed function schema`;
+								: `"${fkTableName}" table doesn't have a reference to "${table.name}" table or`
+									+ `\nyou didn't include your one-to-many relation in the seed function schema`;
 							throw new Error(
-								`${reason}.` + `\nYou can't specify "${fkTableName}" as parameter in ${table.name}.with object.`,
+								`${reason}.` + `\nYou can't specify "${fkTableName}" as parameter in ${table.name}.with object.`
+									+ `\n\nFor more details, check this: https://orm.drizzle.team/docs/guides/seeding-using-with-option`,
 							);
 						}
 
