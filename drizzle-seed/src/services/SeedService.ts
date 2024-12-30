@@ -1446,7 +1446,7 @@ export class SeedService {
 						await this.insertInDb({
 							generatedValues,
 							db: db as
-								| PgDatabase<any, any>
+								| PgDatabase<any, any, any, any, any>
 								| MySqlDatabase<any, any, any, any, any, any>
 								| BaseSQLiteDatabase<any, any, any, any, any, any>,
 							schema: schema as {
@@ -1459,7 +1459,7 @@ export class SeedService {
 						await this.updateDb({
 							generatedValues,
 							db: db as
-								| PgDatabase<any, any>
+								| PgDatabase<any, any, any, any, any>
 								| MySqlDatabase<any, any, any, any, any, any>
 								| BaseSQLiteDatabase<any, any, any, any, any, any>,
 							schema: schema as {
@@ -1481,7 +1481,7 @@ export class SeedService {
 								batchSize * (batchCount + 1),
 							),
 							db: db as
-								| PgDatabase<any, any>
+								| PgDatabase<any, any, any, any, any>
 								| MySqlDatabase<any, any, any, any, any, any>
 								| BaseSQLiteDatabase<any, any, any, any, any, any>,
 							schema: schema as {
@@ -1497,7 +1497,7 @@ export class SeedService {
 								batchSize * (batchCount + 1),
 							),
 							db: db as
-								| PgDatabase<any, any>
+								| PgDatabase<any, any, any, any, any>
 								| MySqlDatabase<any, any, any, any, any, any>
 								| BaseSQLiteDatabase<any, any, any, any, any, any>,
 							schema: schema as {
@@ -1525,7 +1525,7 @@ export class SeedService {
 			[columnName: string]: number | string | boolean | undefined;
 		}[];
 		db:
-			| PgDatabase<any, any>
+			| PgDatabase<any, any, any, any, any>
 			| MySqlDatabase<any, any, any, any, any, any>
 			| BaseSQLiteDatabase<any, any, any, any, any, any>;
 		schema: {
@@ -1562,7 +1562,7 @@ export class SeedService {
 			[columnName: string]: number | string | boolean | undefined;
 		}[];
 		db:
-			| PgDatabase<any, any>
+			| PgDatabase<any, any, any, any, any>
 			| MySqlDatabase<any, any, any, any, any, any>
 			| BaseSQLiteDatabase<any, any, any, any, any, any>;
 		schema: {
