@@ -66,6 +66,7 @@ export class SeedService {
 			return table1Order - table2Order;
 		});
 
+		const tableNamesSet = new Set(tables.map((table) => table.name));
 		const tablesPossibleGenerators: Prettify<
 			(typeof tablePossibleGenerators)[]
 		> = tables.map((table) => ({
@@ -211,24 +212,36 @@ export class SeedService {
 						columnPossibleGenerator.isCyclic = true;
 					}
 
-					if (foreignKeyColumns[col.name]?.table === undefined && col.notNull === true) {
+					if (
+						(foreignKeyColumns[col.name]?.table === undefined || !tableNamesSet.has(foreignKeyColumns[col.name]!.table))
+						&& col.notNull === true
+					) {
 						throw new Error(
 							`Column '${col.name}' has not null contraint,`
 								+ `\nand you didn't specify a table for foreign key on column '${col.name}' in '${table.name}' table.`
-								+ `\n For more details, check this: https://orm.drizzle.team/docs/guides/seeding-with-partially-exposed-tables#example-1`,
+								+ `\n\nFor more details, check this: https://orm.drizzle.team/docs/guides/seeding-with-partially-exposed-tables#example-1`,
 						);
 					}
 
-					const predicate = (cyclicRelation !== undefined || foreignKeyColumns[col.name]?.table === undefined)
+					const predicate = (
+						cyclicRelation !== undefined
+						|| (
+							foreignKeyColumns[col.name]?.table === undefined
+							|| !tableNamesSet.has(foreignKeyColumns[col.name]!.table)
+						)
+					)
 						&& col.notNull === false;
 
 					if (predicate === true) {
-						if (foreignKeyColumns[col.name]?.table === undefined && col.notNull === false) {
+						if (
+							(foreignKeyColumns[col.name]?.table === undefined
+								|| !tableNamesSet.has(foreignKeyColumns[col.name]!.table)) && col.notNull === false
+						) {
 							console.warn(
 								`Column '${col.name}' in '${table.name}' table will be filled with Null values`
 									+ `\nbecause you specified neither a table for foreign key on column '${col.name}'`
 									+ `\nnor a function for '${col.name}' column in refinements.`
-									+ `\nFor more details, check this: https://orm.drizzle.team/docs/guides/seeding-with-partially-exposed-tables#example-2`,
+									+ `\n\nFor more details, check this: https://orm.drizzle.team/docs/guides/seeding-with-partially-exposed-tables#example-2`,
 							);
 						}
 						columnPossibleGenerator.generator = new generatorsMap.GenerateDefault[0]({ defaultValue: null });
