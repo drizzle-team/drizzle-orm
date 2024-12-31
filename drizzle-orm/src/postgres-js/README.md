@@ -35,6 +35,7 @@ In order to run the migrations, [you need to use `max: 1` in the postgres.js con
 ```typescript
 import postgres from 'postgres';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { drizzle } from "drizzle-orm/postgres-js";
 
 const migrationsClient = postgres(connectionString, {
   max: 1,
