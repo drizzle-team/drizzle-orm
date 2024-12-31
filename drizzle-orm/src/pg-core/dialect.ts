@@ -30,9 +30,7 @@ import {
 	AggregatedField,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
-	type Extras,
 	One,
-	type OrderBy,
 	type Relation,
 	relationExtrasToSQL,
 	relationsFilterToSQL,
@@ -927,10 +925,8 @@ export class PgDialect {
 				const columnIdentifiers: SQL[] = [];
 				let colSelectionMode: boolean | undefined;
 				for (const [k, v] of entries) {
-					if (colSelectionMode === undefined) colSelectionMode = v;
-					else if (v !== undefined && colSelectionMode !== v) {
-						throw new Error('Columns cannot be both true and false at the same time');
-					}
+					if (v === undefined) continue;
+					colSelectionMode = colSelectionMode || v;
 
 					if (v) {
 						columnIdentifiers.push(
@@ -1000,9 +996,9 @@ export class PgDialect {
 			? relationsFilterToSQL(table, params.where)
 			: relationWhere;
 
-		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy as OrderBy) : undefined;
+		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
 		const columns = this.buildColumns(table, tableConfig, selection, params);
-		const extras = params?.extras ? relationExtrasToSQL(table, params.extras as Extras) : undefined;
+		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
 		if (extras) selection.push(...extras.selection);
 
 		const selectionArr: SQL[] = columns ? [columns] : [];

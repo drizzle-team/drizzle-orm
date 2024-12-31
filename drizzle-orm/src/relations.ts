@@ -37,7 +37,7 @@ export class Relations<
 	TConfig extends RelationsBuilderConfig<TTables> = RelationsBuilderConfig<TTables>,
 > {
 	static readonly [entityKind]: string = 'RelationsV2';
-	declare readonly $brand: 'Relations';
+	declare readonly $brand: 'RelationsV2';
 	/** table DB name -> schema table key */
 	readonly tableNamesMap: Record<string, string> = {};
 	readonly tablesConfig: TablesRelationalConfig = {};
@@ -201,8 +201,8 @@ export abstract class Relation<
 	TSourceTableName extends string = string,
 	TTargetTableName extends string = string,
 > {
-	static readonly [entityKind]: string = 'Relation';
-	declare readonly $brand: 'Relation';
+	static readonly [entityKind]: string = 'RelationV2';
+	declare readonly $brand: 'RelationV2';
 
 	fieldName!: string;
 	sourceColumns!: AnyColumn<{ tableName: TSourceTableName }>[];
@@ -222,8 +222,8 @@ export class One<
 	TTargetTableName extends string,
 	TOptional extends boolean = boolean,
 > extends Relation<TSourceTableName, TTargetTableName> {
-	static override readonly [entityKind]: string = 'One';
-	declare protected $relationBrand: 'One';
+	static override readonly [entityKind]: string = 'OneV2';
+	declare protected $relationBrand: 'OneV2';
 
 	readonly optional: TOptional;
 
@@ -252,8 +252,8 @@ export class Many<
 	TSourceTableName extends string,
 	TTargetTableName extends string,
 > extends Relation<TSourceTableName, TTargetTableName> {
-	static override readonly [entityKind]: string = 'Many';
-	declare protected $relationBrand: 'Many';
+	static override readonly [entityKind]: string = 'ManyV2';
+	declare protected $relationBrand: 'ManyV2';
 
 	constructor(
 		targetTable: AnyTable<{ name: TTargetTableName }>,
@@ -388,52 +388,53 @@ export type DBQueryConfig<
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
 > =
 	& {
-		config?: TTableConfig['relations'];
 		columns?:
 			| {
-				[K in keyof TTableConfig['columns']]?: true;
+				[K in keyof TTableConfig['columns']]?: boolean | undefined;
 			}
+			| undefined;
+		with?:
 			| {
-				[K in keyof TTableConfig['columns']]?: false;
-			};
-		with?: {
-			[K in keyof TTableConfig['relations']]?:
-				| true
-				| (TTableConfig['relations'][K] extends Relation ? DBQueryConfig<
-						TTableConfig['relations'][K] extends One<string, string> ? 'one' : 'many',
-						TSchema,
-						FindTableInRelationalConfig<
+				[K in keyof TTableConfig['relations']]?:
+					| true
+					| (TTableConfig['relations'][K] extends Relation ? DBQueryConfig<
+							TTableConfig['relations'][K] extends One<string, string> ? 'one' : 'many',
 							TSchema,
-							TTableConfig['relations'][K]['targetTable']
+							FindTableInRelationalConfig<
+								TSchema,
+								TTableConfig['relations'][K]['targetTable']
+							>
 						>
-					>
-					: never);
-		};
+						: never)
+					| undefined;
+			}
+			| undefined;
 		extras?:
 			| Record<string, SQLWrapper>
 			| ((
 				table: Simplify<
 					& AnyTable<TTableConfig>
-					& {
-						[K in keyof TTableConfig['columns']]: TTableConfig['columns'][K];
-					}
+					& TTableConfig['columns']
 				>,
 				operators: SQLOperator,
-			) => Record<string, SQLWrapper>);
-		offset?: number | Placeholder;
-		where?: RelationsFilter<TTableConfig['columns']>;
+			) => Record<string, SQLWrapper>)
+			| undefined;
+		offset?: number | Placeholder | undefined;
+		where?: RelationsFilter<TTableConfig['columns']> | undefined;
 		orderBy?:
-			| ValueOrArray<AnyColumn | SQL>
+			| {
+				[K in keyof TTableConfig['columns']]?: 'asc' | 'desc' | undefined;
+			}
 			| ((
 				fields: Simplify<
-					[TTableConfig['columns']] extends [never] ? {}
-						: TTableConfig['columns']
+					AnyTable<TTableConfig> & TTableConfig['columns']
 				>,
 				operators: OrderByOperators,
-			) => ValueOrArray<AnyColumn | SQL>);
+			) => ValueOrArray<AnyColumn | SQL>)
+			| undefined;
 	}
 	& (TRelationType extends 'many' ? {
-			limit?: number | Placeholder;
+			limit?: number | Placeholder | undefined;
 		}
 		: {});
 
@@ -943,7 +944,7 @@ export function defineRelations<
 	);
 }
 
-export type WithContainer<TRelatedTables extends Record<string, Table>> = {
+export type WithContainer<TRelatedTables extends Record<string, Table> = Record<string, Table>> = {
 	with?: {
 		[K in keyof TRelatedTables]?: boolean | DBQueryConfig;
 	};
@@ -958,19 +959,9 @@ export type RelationsOrder<TColumns extends Record<string, Column>> = {
 	[K in keyof TColumns]?: 'asc' | 'desc';
 };
 
-export type OrderBy =
-	| ValueOrArray<AnyColumn | SQL>
-	| ((
-		fields: Record<string, Column>,
-		operators: OrderByOperators,
-	) => ValueOrArray<AnyColumn | SQL>);
+export type OrderBy = Exclude<DBQueryConfig['orderBy'], undefined>;
 
-export type Extras =
-	| Record<string, SQL>
-	| ((
-		fields: Record<string, Column>,
-		operators: SQLOperator,
-	) => Record<string, SQL>);
+export type Extras = Exclude<DBQueryConfig['extras'], undefined>;
 
 function relationsFieldFilterToSQL(column: Column, filter: RelationsFieldFilter<unknown>): SQL | undefined {
 	if (typeof filter !== 'object' || is(filter, Placeholder)) return eq(column, filter);
@@ -1082,38 +1073,38 @@ export function relationsFilterToSQL(
 
 export function relationsOrderToSQL(
 	table: Table,
-	orders:
-		| ValueOrArray<AnyColumn | SQL>
-		| ((
-			fields: Record<string, Column>,
-			operators: OrderByOperators,
-		) => ValueOrArray<AnyColumn | SQL>),
+	orders: OrderBy,
 ): SQL | undefined {
-	const data = typeof orders === 'function'
-		? orders(table[Columns], orderByOperators)
-		: orders;
+	if (typeof orders === 'function') {
+		const data = orders(table as any, orderByOperators);
 
-	return is(data, SQL)
-		? data
-		: Array.isArray(data)
-		? data.length
-			? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), sql`, `)
-			: undefined
-		: asc(data);
+		return is(data, SQL)
+			? data
+			: Array.isArray(data)
+			? data.length
+				? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), sql`, `)
+				: undefined
+			: is(data, Column)
+			? asc(data)
+			: undefined;
+	}
+
+	const entries = Object.entries(orders).filter(([_, value]) => value);
+	if (!entries.length) return undefined;
+
+	return sql.join(entries.map(([column, value]) => (value === 'asc' ? asc : desc)(table[Columns][column]!)), sql`, `);
 }
 
 export function relationExtrasToSQL(
 	table: Table,
-	extras:
-		| Record<string, SQLWrapper>
-		| ((columns: Record<string, Column>, operators: SQLOperator) => Record<string, SQLWrapper>),
+	extras: Extras,
 ) {
 	const subqueries: SQL[] = [];
 	const selection: BuildRelationalQueryResult['selection'] = [];
 
 	for (
 		const [key, extra] of Object.entries(
-			typeof extras === 'function' ? extras(table[Columns], { sql: operators.sql }) : extras,
+			typeof extras === 'function' ? extras(table as any, { sql: operators.sql }) : extras,
 		)
 	) {
 		if (!extra) continue;

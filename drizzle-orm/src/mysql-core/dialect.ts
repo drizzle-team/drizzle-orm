@@ -10,8 +10,6 @@ import type {
 	BuildRelationalQueryResult,
 	ColumnWithTSName,
 	DBQueryConfig,
-	Extras,
-	OrderBy,
 	Relation,
 	TableRelationalConfig,
 	TablesRelationalConfig,
@@ -1187,10 +1185,8 @@ export class MySqlDialect {
 
 		let colSelectionMode: boolean | undefined;
 		for (const [k, v] of entries) {
-			if (colSelectionMode === undefined) colSelectionMode = v;
-			else if (v !== undefined && colSelectionMode !== v) {
-				throw new Error('Columns cannot be both true and false at the same time');
-			}
+			if (v === undefined) continue;
+			colSelectionMode = colSelectionMode || v;
 
 			if (v) {
 				selectedColumns.push({
@@ -1278,15 +1274,15 @@ export class MySqlDialect {
 			: params?.where
 			? relationsFilterToSQL(table, params.where)
 			: relationWhere;
-		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy as OrderBy) : undefined;
-		const extras = params?.extras ? relationExtrasToSQL(table, params.extras as Extras) : undefined;
+		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
+		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
 		if (extras) selection.push(...extras.selection);
 
 		const selectionArr: SQL[] = columns ? [columns] : [];
 
 		const joins = params
 			? (() => {
-				const { with: joins } = params as WithContainer<any>;
+				const { with: joins } = params as WithContainer;
 				if (!joins) return;
 
 				const withEntries = Object.entries(joins).filter(([_, v]) => v);
