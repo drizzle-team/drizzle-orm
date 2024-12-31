@@ -1005,7 +1005,7 @@ export class PgDialect {
 
 		const joins = params
 			? (() => {
-				const { with: joins } = params as WithContainer<any>;
+				const { with: joins } = params as WithContainer;
 				if (!joins) return;
 
 				const withEntries = Object.entries(joins).filter(([_, v]) => v);

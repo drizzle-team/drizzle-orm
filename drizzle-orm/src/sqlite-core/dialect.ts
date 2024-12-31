@@ -931,7 +931,7 @@ export abstract class SQLiteDialect {
 
 		const joins = params
 			? (() => {
-				const { with: joins } = params as WithContainer<any>;
+				const { with: joins } = params as WithContainer;
 				if (!joins) return;
 
 				const withEntries = Object.entries(joins).filter(([_, v]) => v);
@@ -955,7 +955,7 @@ export abstract class SQLiteDialect {
 
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
-						const targetTable = relation.targetTable;
+						const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
 						const relationFilter = relationToSQL(relation, table, targetTable);
 
 						const innerQuery = this.buildRelationalQuery({
