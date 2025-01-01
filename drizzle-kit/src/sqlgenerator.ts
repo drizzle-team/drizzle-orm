@@ -3557,8 +3557,12 @@ class PgDropIndexConvertor extends Convertor {
 	}
 
 	convert(statement: JsonDropIndexStatement): string {
+		const { schema } = statement;
 		const { name } = PgSquasher.unsquashIdx(statement.data);
-		return `DROP INDEX "${name}";`;
+
+		const indexNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+
+		return `DROP INDEX ${indexNameWithSchema};`;
 	}
 }
 
