@@ -24,6 +24,7 @@ import { SeedService } from './services/SeedService.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
 import type { RefinementsType } from './types/seedService.ts';
 import type { Column, Relation, RelationWithReferences, Table } from './types/tables.ts';
+import { push_array } from './utils.ts';
 
 type InferCallbackType<
 	DB extends
@@ -703,7 +704,7 @@ const getPostgresInfo = (
 		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
 			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
 		}
-		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+		push_array(tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!, newRelations);
 
 		const getAllBaseColumns = (
 			baseColumn: PgArray<any, any>['baseColumn'] & { baseColumn?: PgArray<any, any>['baseColumn'] },
@@ -1078,7 +1079,7 @@ const getMySqlInfo = (
 		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
 			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
 		}
-		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+		push_array(tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!, newRelations);
 
 		const getTypeParams = (sqlType: string) => {
 			// get type params and set only type
@@ -1384,7 +1385,7 @@ const getSqliteInfo = (
 		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
 			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
 		}
-		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+		push_array(tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!, newRelations);
 
 		const getTypeParams = (sqlType: string) => {
 			// get type params and set only type

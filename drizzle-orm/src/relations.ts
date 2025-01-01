@@ -29,6 +29,7 @@ import {
 } from './sql/expressions/index.ts';
 import { type Placeholder, SQL, sql } from './sql/sql.ts';
 import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
+import { push_array } from './utils.ts';
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';
@@ -464,7 +465,7 @@ export function extractTablesRelationalConfig<
 			if (extraConfig) {
 				for (const configEntry of Object.values(extraConfig)) {
 					if (is(configEntry, PrimaryKeyBuilder)) {
-						tablesConfig[key]!.primaryKey.push(...configEntry.columns);
+						push_array(tablesConfig[key]!.primaryKey, configEntry.columns);
 					}
 				}
 			}
@@ -481,7 +482,7 @@ export function extractTablesRelationalConfig<
 					const tableConfig = tablesConfig[tableName]!;
 					tableConfig.relations[relationName] = relation;
 					if (primaryKey) {
-						tableConfig.primaryKey.push(...primaryKey);
+						push_array(tableConfig.primaryKey, primaryKey);
 					}
 				} else {
 					if (!(dbName in relationsBuffer)) {

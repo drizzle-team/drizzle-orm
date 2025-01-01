@@ -5,6 +5,7 @@ import {
 	prepareCreateIndexesJson,
 } from './jsonStatements';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
+import { push_array } from './utils';
 
 export const prepareLibSQLRecreateTable = (
 	table: SQLiteSchemaSquashed['tables'][keyof SQLiteSchemaSquashed['tables']],
@@ -34,7 +35,7 @@ export const prepareLibSQLRecreateTable = (
 	];
 
 	if (Object.keys(indexes).length) {
-		statements.push(...prepareCreateIndexesJson(name, '', indexes));
+		push_array(statements, prepareCreateIndexesJson(name, '', indexes));
 	}
 	return statements;
 };
@@ -67,7 +68,7 @@ export const prepareSQLiteRecreateTable = (
 	];
 
 	if (Object.keys(indexes).length) {
-		statements.push(...prepareCreateIndexesJson(name, '', indexes));
+		push_array(statements, prepareCreateIndexesJson(name, '', indexes));
 	}
 	return statements;
 };
@@ -106,7 +107,7 @@ export const libSQLCombineStatements = (
 				const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
 
 				if (wasRename) {
-					newStatements[tableName].push(...preparedStatements);
+					push_array(newStatements[tableName], preparedStatements);
 				} else {
 					newStatements[tableName] = preparedStatements;
 				}
@@ -153,7 +154,7 @@ export const libSQLCombineStatements = (
 					const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
 
 					if (wasRename) {
-						newStatements[tableName].push(...preparedStatements);
+						push_array(newStatements[tableName], preparedStatements);
 					} else {
 						newStatements[tableName] = preparedStatements;
 					}
@@ -207,7 +208,7 @@ export const libSQLCombineStatements = (
 					const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
 
 					if (wasRename) {
-						newStatements[tableName].push(...preparedStatements);
+						push_array(newStatements[tableName], preparedStatements);
 					} else {
 						newStatements[tableName] = preparedStatements;
 					}
@@ -240,7 +241,7 @@ export const libSQLCombineStatements = (
 				const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
 
 				if (wasRename) {
-					newStatements[tableName].push(...preparedStatements);
+					push_array(newStatements[tableName], preparedStatements);
 				} else {
 					newStatements[tableName] = preparedStatements;
 				}
@@ -266,7 +267,7 @@ export const libSQLCombineStatements = (
 				const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
 
 				if (wasRename) {
-					newStatements[tableName].push(...preparedStatements);
+					push_array(newStatements[tableName], preparedStatements);
 				} else {
 					newStatements[tableName] = preparedStatements;
 				}
@@ -343,7 +344,7 @@ export const sqliteCombineStatements = (
 				const preparedStatements = prepareSQLiteRecreateTable(json2.tables[tableName], action);
 
 				if (wasRename) {
-					newStatements[tableName].push(...preparedStatements);
+					push_array(newStatements[tableName], preparedStatements);
 				} else {
 					newStatements[tableName] = preparedStatements;
 				}
@@ -369,7 +370,7 @@ export const sqliteCombineStatements = (
 				const preparedStatements = prepareSQLiteRecreateTable(json2.tables[tableName], action);
 
 				if (wasRename) {
-					newStatements[tableName].push(...preparedStatements);
+					push_array(newStatements[tableName], preparedStatements);
 				} else {
 					newStatements[tableName] = preparedStatements;
 				}
@@ -408,7 +409,7 @@ export const sqliteCombineStatements = (
 				const preparedStatements = prepareSQLiteRecreateTable(json2.tables[tableName], action);
 
 				if (wasRename) {
-					newStatements[tableName].push(...preparedStatements);
+					push_array(newStatements[tableName], preparedStatements);
 				} else {
 					newStatements[tableName] = preparedStatements;
 				}

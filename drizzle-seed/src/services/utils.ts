@@ -1,3 +1,5 @@
+import { push_array } from '../utils';
+
 export const fastCartesianProduct = (sets: (number | string | boolean | object)[][], index: number) => {
 	const resultList = [];
 	let currSet: (typeof sets)[number];
@@ -36,7 +38,7 @@ export const getWeightedIndices = (weights: number[], accuracy = 100) => {
 	const weightedIndices: number[] = [];
 	for (const [index, weight] of weights.entries()) {
 		const ticketsNumb = Math.floor(weight * accuracy);
-		weightedIndices.push(...Array.from<number>({ length: ticketsNumb }).fill(index));
+		push_array(weightedIndices, Array.from<number>({ length: ticketsNumb }).fill(index));
 	}
 
 	return weightedIndices;

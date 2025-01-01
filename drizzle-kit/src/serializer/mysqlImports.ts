@@ -1,6 +1,7 @@
 import { is } from 'drizzle-orm';
 import { AnyMySqlTable, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { safeRegister } from '../cli/commands/utils';
+import { push_array } from '../utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyMySqlTable[] = [];
@@ -30,8 +31,8 @@ export const prepareFromMySqlImports = async (imports: string[]) => {
 		const i0: Record<string, unknown> = require(`${it}`);
 		const prepared = prepareFromExports(i0);
 
-		tables.push(...prepared.tables);
-		views.push(...prepared.views);
+		push_array(tables, prepared.tables);
+		push_array(views, prepared.views);
 	}
 	unregister();
 	return { tables: Array.from(new Set(tables)), views };

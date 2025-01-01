@@ -83,9 +83,9 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased)) {
 			result.push({ path: newPath, field });
 		} else if (is(field, Table)) {
-			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
+			push_array(result, orderSelectedFields(field[Table.Symbol.Columns], newPath));
 		} else {
-			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath));
+			push_array(result, orderSelectedFields(field as Record<string, unknown>, newPath));
 		}
 		return result;
 	}, []) as SelectedFieldsOrdered<TColumn>;
@@ -317,3 +317,15 @@ export function isConfig(data: any): boolean {
 }
 
 export type NeonAuthToken = string | (() => string | Promise<string>);
+
+/**
+ * To avoid a potential `Maximum call stack size exceeded` error with `Array.push(...items)`, we use push one element at a time.
+ * Please note that there is a same function in `drizzle-kit/src/utils.ts#push_array`, `drizzle-seed/src/utils.ts`.
+ */
+export function push_array<T>(array: T[], items: T[]): void {
+  // eslint-disable-next-line unicorn/no-for-loop -- for is faster than for of
+  for (let i = 0; i < items.length; i++) {
+    array.push(items[i]!);
+  }
+}
+

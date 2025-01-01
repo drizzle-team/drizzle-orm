@@ -12,6 +12,7 @@ import {
 	UniqueConstraint,
 } from './serializer/singlestoreSchema';
 import { indexName } from './serializer/singlestoreSerializer';
+import { push_array } from './utils';
 
 // time precision to fsp
 // {mode: "string"} for timestamp by default
@@ -151,9 +152,9 @@ export const schemaToTypeScript = (
 				(it) => 'unique',
 			);
 
-			res.singlestore.push(...idxImports);
-			res.singlestore.push(...pkImports);
-			res.singlestore.push(...uniqueImports);
+			push_array(res.singlestore, idxImports);
+			push_array(res.singlestore, pkImports);
+			push_array(res.singlestore, uniqueImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -183,7 +184,7 @@ export const schemaToTypeScript = (
 					return singlestoreImportsList.has(type);
 				});
 
-			res.singlestore.push(...columnImports);
+			push_array(res.singlestore, columnImports);
 			return res;
 		},
 		{ singlestore: [] as string[] },
@@ -220,7 +221,7 @@ export const schemaToTypeScript = (
 				return singlestoreImportsList.has(type);
 			});
 
-		imports.singlestore.push(...columnImports);
+		push_array(imports.singlestore, columnImports);
 	}); */
 
 	const tableStatements = Object.values(schema.tables).map((table) => {

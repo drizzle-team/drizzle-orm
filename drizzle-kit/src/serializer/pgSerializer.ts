@@ -41,6 +41,7 @@ import type {
 } from '../serializer/pgSchema';
 import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
+import { push_array } from '../utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -930,7 +931,7 @@ function prepareRoles(entities?: {
 		if (typeof entities.roles === 'object') {
 			if (entities.roles.provider) {
 				if (entities.roles.provider === 'supabase') {
-					excludeRoles.push(...[
+					push_array(excludeRoles, [
 						'anon',
 						'authenticator',
 						'authenticated',
@@ -941,14 +942,14 @@ function prepareRoles(entities?: {
 						'supabase_admin',
 					]);
 				} else if (entities.roles.provider === 'neon') {
-					excludeRoles.push(...['authenticated', 'anonymous']);
+					push_array(excludeRoles, ['authenticated', 'anonymous']);
 				}
 			}
 			if (entities.roles.include) {
-				includeRoles.push(...entities.roles.include);
+				push_array(includeRoles, entities.roles.include);
 			}
 			if (entities.roles.exclude) {
-				excludeRoles.push(...entities.roles.exclude);
+				push_array(excludeRoles, entities.roles.exclude);
 			}
 		} else {
 			useRoles = entities.roles;
