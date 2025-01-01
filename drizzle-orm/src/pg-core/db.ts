@@ -600,9 +600,9 @@ export class PgDatabase<
 	protected authToken?: NeonAuthToken;
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
-		query: SQLWrapper | string,
+		query: SQLWrapper,
 	): PgRaw<PgQueryResultKind<TQueryResult, TRow>> {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const sequel = query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
