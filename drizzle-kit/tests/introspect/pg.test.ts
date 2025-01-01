@@ -35,7 +35,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
-import { introspectPgToFile } from 'tests/schemaDiffer';
+import { introspectAfterSqlStatements, introspectPgToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
 if (!fs.existsSync('tests/introspect/postgres')) {
@@ -891,4 +891,16 @@ test('multiple policies with roles from schema', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+test('composite index', async () => {
+  const client = new PGlite();
+  const indexExpression = `name text_ops, deleted bool_ops, age int4_ops`;
+  const statements = [
+    `CREATE TABLE "users" ("name" text, deleted boolean, age integer);\n`,
+    `CREATE INDEX "idx" ON "users" USING btree (${indexExpression})`,
+  ];
+  const { tables } = await introspectAfterSqlStatements(client, statements);
+  const types = tables['public.users']?.indexes.idx?.columns.map((c) => `${c.expression} ${c.opclass}`).join(', ')
+  expect(types).toBe(indexExpression);
 });
