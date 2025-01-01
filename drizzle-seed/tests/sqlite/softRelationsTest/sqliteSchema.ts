@@ -1,10 +1,8 @@
-import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { integer, numeric, pgSchema, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
+import { integer, numeric, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-export const schema = pgSchema('seeder_lib_pg');
-
-export const customers = schema.table('customer', {
-	id: varchar('id', { length: 256 }).primaryKey(),
+export const customers = sqliteTable('customer', {
+	id: text('id').primaryKey(),
 	companyName: text('company_name').notNull(),
 	contactName: text('contact_name').notNull(),
 	contactTitle: text('contact_title').notNull(),
@@ -17,7 +15,7 @@ export const customers = schema.table('customer', {
 	fax: text('fax'),
 });
 
-export const employees = schema.table(
+export const employees = sqliteTable(
 	'employee',
 	{
 		id: integer('id').primaryKey(),
@@ -25,8 +23,8 @@ export const employees = schema.table(
 		firstName: text('first_name'),
 		title: text('title').notNull(),
 		titleOfCourtesy: text('title_of_courtesy').notNull(),
-		birthDate: timestamp('birth_date').notNull(),
-		hireDate: timestamp('hire_date').notNull(),
+		birthDate: integer('birth_date', { mode: 'timestamp' }).notNull(),
+		hireDate: integer('hire_date', { mode: 'timestamp' }).notNull(),
 		address: text('address').notNull(),
 		city: text('city').notNull(),
 		postalCode: text('postal_code').notNull(),
@@ -34,16 +32,23 @@ export const employees = schema.table(
 		homePhone: text('home_phone').notNull(),
 		extension: integer('extension').notNull(),
 		notes: text('notes').notNull(),
-		reportsTo: integer('reports_to').references((): AnyPgColumn => employees.id),
+		reportsTo: integer('reports_to'),
 		photoPath: text('photo_path'),
 	},
 );
 
-export const orders = schema.table('order', {
+export const employeesRelations = relations(employees, ({ one }) => ({
+	employee: one(employees, {
+		fields: [employees.reportsTo],
+		references: [employees.id],
+	}),
+}));
+
+export const orders = sqliteTable('order', {
 	id: integer('id').primaryKey(),
-	orderDate: timestamp('order_date').notNull(),
-	requiredDate: timestamp('required_date').notNull(),
-	shippedDate: timestamp('shipped_date'),
+	orderDate: integer('order_date', { mode: 'timestamp' }).notNull(),
+	requiredDate: integer('required_date', { mode: 'timestamp' }).notNull(),
+	shippedDate: integer('shipped_date', { mode: 'timestamp' }),
 	shipVia: integer('ship_via').notNull(),
 	freight: numeric('freight').notNull(),
 	shipName: text('ship_name').notNull(),
@@ -52,17 +57,24 @@ export const orders = schema.table('order', {
 	shipPostalCode: text('ship_postal_code'),
 	shipCountry: text('ship_country').notNull(),
 
-	customerId: text('customer_id')
-		.notNull()
-		.references(() => customers.id, { onDelete: 'cascade' }),
+	customerId: text('customer_id').notNull(),
 
-	employeeId: integer('employee_id')
-		.notNull()
-		.references(() => employees.id, { onDelete: 'cascade' }),
+	employeeId: integer('employee_id').notNull(),
 });
 
-export const suppliers = schema.table('supplier', {
-	id: integer('id').primaryKey(),
+export const ordersRelations = relations(orders, ({ one }) => ({
+	customer: one(customers, {
+		fields: [orders.customerId],
+		references: [customers.id],
+	}),
+	employee: one(employees, {
+		fields: [orders.employeeId],
+		references: [employees.id],
+	}),
+}));
+
+export const suppliers = sqliteTable('supplier', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
 	companyName: text('company_name').notNull(),
 	contactName: text('contact_name').notNull(),
 	contactTitle: text('contact_title').notNull(),
@@ -74,8 +86,8 @@ export const suppliers = schema.table('supplier', {
 	phone: text('phone').notNull(),
 });
 
-export const products = schema.table('product', {
-	id: integer('id').primaryKey(),
+export const products = sqliteTable('product', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
 	name: text('name').notNull(),
 	quantityPerUnit: text('quantity_per_unit').notNull(),
 	unitPrice: numeric('unit_price').notNull(),
@@ -84,36 +96,33 @@ export const products = schema.table('product', {
 	reorderLevel: integer('reorder_level').notNull(),
 	discontinued: integer('discontinued').notNull(),
 
-	supplierId: integer('supplier_id')
-		.notNull()
-		.references(() => suppliers.id, { onDelete: 'cascade' }),
+	supplierId: integer('supplier_id').notNull(),
 });
 
-export const details = schema.table('order_detail', {
+export const productsRelations = relations(products, ({ one }) => ({
+	supplier: one(suppliers, {
+		fields: [products.supplierId],
+		references: [suppliers.id],
+	}),
+}));
+
+export const details = sqliteTable('order_detail', {
 	unitPrice: numeric('unit_price').notNull(),
 	quantity: integer('quantity').notNull(),
 	discount: numeric('discount').notNull(),
 
-	orderId: integer('order_id')
-		.notNull()
-		.references(() => orders.id, { onDelete: 'cascade' }),
+	orderId: integer('order_id').notNull(),
 
-	productId: integer('product_id')
-		.notNull()
-		.references(() => products.id, { onDelete: 'cascade' }),
+	productId: integer('product_id').notNull(),
 });
 
-export const identityColumnsTable = schema.table('identity_columns_table', {
-	id: integer().generatedAlwaysAsIdentity(),
-	id1: integer().generatedByDefaultAsIdentity(),
-	name: text(),
-});
-
-export const user = schema.table(
-	'user',
-	{
-		id: serial().primaryKey(),
-		name: text(),
-		invitedBy: integer().references((): AnyPgColumn => user.id),
-	},
-);
+export const detailsRelations = relations(details, ({ one }) => ({
+	order: one(orders, {
+		fields: [details.orderId],
+		references: [orders.id],
+	}),
+	product: one(products, {
+		fields: [details.productId],
+		references: [products.id],
+	}),
+}));
