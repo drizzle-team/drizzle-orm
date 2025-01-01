@@ -2240,6 +2240,40 @@ export const diffTestSchemasLibSQL = async (
 	return { sqlStatements, statements };
 };
 
+export const introspectAfterSqlStatements = async (
+	client: PGlite,
+	sqlStatements: string[],
+	schemas: string[] = ['public'],
+	entities?: Entities,
+) => {
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+	// introspect to schema
+	const introspectedSchema = await fromDatabase(
+		{
+			query: async (query: string, values?: any[] | undefined) => {
+				const res = await client.query(query, values);
+				return res.rows as any[];
+			},
+		},
+		undefined,
+		schemas,
+		entities,
+	);
+
+	const { version: _initV, dialect: _initD, ...initRest } = introspectedSchema;
+
+	const initSch = {
+		version: '7',
+		dialect: 'postgresql',
+		id: '0',
+		prevId: '0',
+		...initRest,
+	} as const;
+
+	return pgSchema.parse(initSch);
+};
 // --- Introspect to file helpers ---
 
 export const introspectPgToFile = async (
