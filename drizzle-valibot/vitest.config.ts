@@ -8,6 +8,7 @@ export default defineConfig({
 		],
 		exclude: [
 			'tests/bun/**/*',
+			'tests/deno/**/*',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',

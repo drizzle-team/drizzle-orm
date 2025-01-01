@@ -1,0 +1,9 @@
+{
+	"tasks": {
+		"start": "deno run -A --unstable-sloppy-imports src/main.ts"
+	},
+	"imports": {
+		"@db/sqlite": "jsr:@db/sqlite@^0.12.0",
+		"mitata": "npm:mitata@^1.0.23"
+	}
+}
