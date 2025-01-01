@@ -29,6 +29,7 @@ import type { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
 import {
 	alias,
 	bigint,
+	blob,
 	boolean,
 	date,
 	datetime,
@@ -38,7 +39,6 @@ import {
 	index,
 	int,
 	intersect,
-	json,
 	mediumint,
 	primaryKey,
 	serial,
@@ -83,7 +83,7 @@ const usersTable = singlestoreTable('userstest', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: json('jsonb').$type<string[]>(),
+	json: blob('json', { mode: 'json' }).$type<string[]>(), // very similar to the sqlite test
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -146,6 +146,12 @@ const usersMigratorTable = singlestoreTable('users12', {
 	};
 });
 
+const bigIntExample = singlestoreTable('big_int_example', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	bigInt: blob('big_int', { mode: 'bigint' }).notNull(),
+});
+
 // To test aggregate functions
 const aggregateTable = singlestoreTable('aggregate_table', {
 	id: serial('id').notNull(),
@@ -163,7 +169,7 @@ const usersMySchemaTable = mySchema.table('userstest', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: json('jsonb').$type<string[]>(),
+	json: blob('json', { mode: 'json' }).$type<string[]>(), // very similar to the sqlite test
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -221,6 +227,7 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table if exists userstest`);
 			await db.execute(sql`drop table if exists users2`);
 			await db.execute(sql`drop table if exists cities`);
+			await db.execute(sql`drop table if exists ${bigIntExample}`);
 
 			await db.execute(sql`drop schema if exists \`mySchema\``);
 			await db.execute(sql`create schema if not exists \`mySchema\``);
@@ -231,7 +238,7 @@ export function tests(driver?: string) {
 						id serial primary key,
 						name text not null,
 						verified boolean not null default false,
-						jsonb json,
+						json blob,
 						created_at timestamp not null default now()
 					)
 				`,
@@ -263,7 +270,7 @@ export function tests(driver?: string) {
 						\`id\` serial primary key,
 						\`name\` text not null,
 						\`verified\` boolean not null default false,
-						\`jsonb\` json,
+						\`json\` blob,
 						\`created_at\` timestamp not null default now()
 					)
 				`,
@@ -287,6 +294,14 @@ export function tests(driver?: string) {
 					)
 				`,
 			);
+
+			await db.execute(sql`
+				create table ${bigIntExample} (
+				  id serial primary key,
+				  name text not null,
+				  big_int blob not null
+				)
+			`);
 		});
 
 		async function setupReturningFunctionsTest(db: SingleStoreDatabase<any, any>) {
@@ -482,7 +497,7 @@ export function tests(driver?: string) {
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
 			// not timezone based timestamp, thats why it should not work here
 			// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([{ id: 1, name: 'John', verified: false, json: null, createdAt: result[0]!.createdAt }]);
 		});
 
 		test('select sql', async (ctx) => {
@@ -603,7 +618,7 @@ export function tests(driver?: string) {
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
 			// not timezone based timestamp, thats why it should not work here
 			// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
-			expect(users).toEqual([{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+			expect(users).toEqual([{ id: 1, name: 'Jane', verified: false, json: null, createdAt: users[0]!.createdAt }]);
 		});
 
 		test('update with returning partial', async (ctx) => {
@@ -644,27 +659,27 @@ export function tests(driver?: string) {
 
 			await db.insert(usersTable).values({ id: 1, name: 'John' });
 			const result = await db.select().from(usersTable);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([{ id: 1, name: 'John', verified: false, json: null, createdAt: result[0]!.createdAt }]);
 
 			await db.insert(usersTable).values({ id: 2, name: 'Jane' });
 			const result2 = await db.select().from(usersTable).orderBy(asc(usersTable.id));
 			expect(result2).toEqual([
-				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
-				{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+				{ id: 1, name: 'John', verified: false, json: null, createdAt: result2[0]!.createdAt },
+				{ id: 2, name: 'Jane', verified: false, json: null, createdAt: result2[1]!.createdAt },
 			]);
 		});
 
 		test('json insert', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values({ id: 1, name: 'John', jsonb: ['foo', 'bar'] });
+			await db.insert(usersTable).values({ id: 1, name: 'John', json: ['foo', 'bar'] });
 			const result = await db.select({
 				id: usersTable.id,
 				name: usersTable.name,
-				jsonb: usersTable.jsonb,
+				json: usersTable.json,
 			}).from(usersTable);
 
-			expect(result).toEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
+			expect(result).toEqual([{ id: 1, name: 'John', json: ['foo', 'bar'] }]);
 		});
 
 		test('insert with overridden default values', async (ctx) => {
@@ -673,7 +688,7 @@ export function tests(driver?: string) {
 			await db.insert(usersTable).values({ id: 1, name: 'John', verified: true });
 			const result = await db.select().from(usersTable);
 
-			expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([{ id: 1, name: 'John', verified: true, json: null, createdAt: result[0]!.createdAt }]);
 		});
 
 		test('insert many', async (ctx) => {
@@ -681,23 +696,23 @@ export function tests(driver?: string) {
 
 			await db.insert(usersTable).values([
 				{ id: 1, name: 'John' },
-				{ id: 2, name: 'Bruce', jsonb: ['foo', 'bar'] },
+				{ id: 2, name: 'Bruce', json: ['foo', 'bar'] },
 				{ id: 3, name: 'Jane' },
 				{ id: 4, name: 'Austin', verified: true },
 			]);
 			const result = await db.select({
 				id: usersTable.id,
 				name: usersTable.name,
-				jsonb: usersTable.jsonb,
+				json: usersTable.json,
 				verified: usersTable.verified,
 			}).from(usersTable)
 				.orderBy(asc(usersTable.id));
 
 			expect(result).toEqual([
-				{ id: 1, name: 'John', jsonb: null, verified: false },
-				{ id: 2, name: 'Bruce', jsonb: ['foo', 'bar'], verified: false },
-				{ id: 3, name: 'Jane', jsonb: null, verified: false },
-				{ id: 4, name: 'Austin', jsonb: null, verified: true },
+				{ id: 1, name: 'John', json: null, verified: false },
+				{ id: 2, name: 'Bruce', json: ['foo', 'bar'], verified: false },
+				{ id: 3, name: 'Jane', json: null, verified: false },
+				{ id: 4, name: 'Austin', json: null, verified: true },
 			]);
 		});
 
@@ -706,7 +721,7 @@ export function tests(driver?: string) {
 
 			const result = await db.insert(usersTable).values([
 				{ name: 'John' },
-				{ name: 'Bruce', jsonb: ['foo', 'bar'] },
+				{ name: 'Bruce', json: ['foo', 'bar'] },
 				{ name: 'Jane' },
 				{ name: 'Austin', verified: true },
 			]);
@@ -951,13 +966,13 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			const query = db.insert(usersTable)
-				.values({ id: 1, name: 'John', jsonb: ['foo', 'bar'] })
+				.values({ id: 1, name: 'John', json: ['foo', 'bar'] })
 				.onDuplicateKeyUpdate({ set: { id: 1, name: 'John1' } })
 				.toSQL();
 
 			expect(query).toEqual({
 				sql:
-					'insert into `userstest` (`id`, `name`, `verified`, `jsonb`, `created_at`) values (?, ?, default, ?, default) on duplicate key update `id` = ?, `name` = ?',
+					'insert into `userstest` (`id`, `name`, `verified`, `json`, `created_at`) values (?, ?, default, ?, default) on duplicate key update `id` = ?, `name` = ?',
 				params: [1, 'John', '["foo","bar"]', 1, 'John1'],
 			});
 		});
@@ -3012,7 +3027,7 @@ export function tests(driver?: string) {
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
 			// not timezone based timestamp, thats why it should not work here
 			// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([{ id: 1, name: 'John', verified: false, json: null, createdAt: result[0]!.createdAt }]);
 		});
 
 		test('mySchema :: select sql', async (ctx) => {
@@ -3121,13 +3136,13 @@ export function tests(driver?: string) {
 
 			await db.insert(usersMySchemaTable).values({ id: 1, name: 'John' });
 			const result = await db.select().from(usersMySchemaTable);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([{ id: 1, name: 'John', verified: false, json: null, createdAt: result[0]!.createdAt }]);
 
 			await db.insert(usersMySchemaTable).values({ id: 2, name: 'Jane' });
 			const result2 = await db.select().from(usersMySchemaTable).orderBy(asc(usersMySchemaTable.id));
 			expect(result2).toEqual([
-				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
-				{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+				{ id: 1, name: 'John', verified: false, json: null, createdAt: result2[0]!.createdAt },
+				{ id: 2, name: 'Jane', verified: false, json: null, createdAt: result2[1]!.createdAt },
 			]);
 		});
 
@@ -3138,7 +3153,7 @@ export function tests(driver?: string) {
 			await db.insert(usersMySchemaTable).values({ id: 1, name: 'John', verified: true });
 			const result = await db.select().from(usersMySchemaTable);
 
-			expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([{ id: 1, name: 'John', verified: true, json: null, createdAt: result[0]!.createdAt }]);
 		});
 
 		test('mySchema :: insert many', async (ctx) => {
@@ -3147,23 +3162,23 @@ export function tests(driver?: string) {
 
 			await db.insert(usersMySchemaTable).values([
 				{ id: 1, name: 'John' },
-				{ id: 2, name: 'Bruce', jsonb: ['foo', 'bar'] },
+				{ id: 2, name: 'Bruce', json: ['foo', 'bar'] },
 				{ id: 3, name: 'Jane' },
 				{ id: 4, name: 'Austin', verified: true },
 			]);
 			const result = await db.select({
 				id: usersMySchemaTable.id,
 				name: usersMySchemaTable.name,
-				jsonb: usersMySchemaTable.jsonb,
+				json: usersMySchemaTable.json,
 				verified: usersMySchemaTable.verified,
 			}).from(usersMySchemaTable)
 				.orderBy(asc(usersMySchemaTable.id));
 
 			expect(result).toEqual([
-				{ id: 1, name: 'John', jsonb: null, verified: false },
-				{ id: 2, name: 'Bruce', jsonb: ['foo', 'bar'], verified: false },
-				{ id: 3, name: 'Jane', jsonb: null, verified: false },
-				{ id: 4, name: 'Austin', jsonb: null, verified: true },
+				{ id: 1, name: 'John', json: null, verified: false },
+				{ id: 2, name: 'Bruce', json: ['foo', 'bar'], verified: false },
+				{ id: 3, name: 'Jane', json: null, verified: false },
+				{ id: 4, name: 'Austin', json: null, verified: true },
 			]);
 		});
 
@@ -3252,7 +3267,7 @@ export function tests(driver?: string) {
 					    \`id\` serial primary key,
 					    \`name\` text not null,
 					    \`verified\` boolean not null default false,
-					    \`jsonb\` json,
+					    \`json\` blob,
 					    \`created_at\` timestamp not null default now()
 					)
 				`,
@@ -3273,14 +3288,14 @@ export function tests(driver?: string) {
 					id: 10,
 					name: 'Ivan',
 					verified: false,
-					jsonb: null,
+					json: null,
 					createdAt: result[0]!.userstest.createdAt,
 				},
 				customer: {
 					id: 11,
 					name: 'Hans',
 					verified: false,
-					jsonb: null,
+					json: null,
 					createdAt: result[0]!.customer!.createdAt,
 				},
 			}]);
