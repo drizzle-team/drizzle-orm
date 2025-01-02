@@ -44,6 +44,7 @@ import {
 	GenerateUniquePostcode,
 	GenerateUniqueStreetAddress,
 	GenerateUniqueString,
+	GenerateULID,
 	GenerateUUID,
 	GenerateValuesFromArray,
 	GenerateWeightedCount,
@@ -401,6 +402,27 @@ export const generatorsFuncs = {
 	 * ```
 	 */
 	uuid: createGenerator(GenerateUUID),
+	// uniqueString: createGenerator(GenerateUniqueString),
+
+	/**
+	 * generates ULID strings if arraySize is not specified, or ULID 1D arrays if it is.
+	 *
+	 * @param arraySize - number of elements in each one-dimensional array. (If specified, arrays will be generated.)
+	 *
+	 * @example
+	 * ```ts
+	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
+	 *    users: {
+	 *      columns: {
+	 *        ulid: funcs.ulid({
+	 *          arraySize: 4
+	 *        })
+	 *      },
+	 *    },
+	 *  }));
+	 * ```
+	 */
+	ulid: createGenerator(GenerateULID),
 
 	/**
 	 * generates person's first names.
