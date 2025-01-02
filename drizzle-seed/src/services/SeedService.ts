@@ -699,7 +699,6 @@ export class SeedService {
 
 				return generator;
 			}
-			}
 
 			// ULID
 			if (col.columnType === 'ulid') {
