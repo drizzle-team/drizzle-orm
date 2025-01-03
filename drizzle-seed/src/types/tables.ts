@@ -29,7 +29,7 @@ export type Table = {
 
 export type Relation = {
 	// name: string;
-	// type: "one" | "many";
+	type?: 'one' | 'many';
 	table: string;
 	// schema: string;
 	columns: string[];
