@@ -10,7 +10,7 @@ import * as schema from './pg.schema.ts';
 
 const { Client } = pg;
 
-const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
+const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable, walletTable } = schema;
 
 const ENABLE_LOGGING = false;
 
@@ -161,6 +161,15 @@ beforeEach(async (ctx) => {
 				"creator" int REFERENCES "users"("id"),
 				"comment_id" int REFERENCES "comments"("id"),
 				"created_at" timestamp with time zone DEFAULT now() NOT NULL
+			);
+		`,
+	);
+	await ctx.pgDb.execute(
+		sql`
+			CREATE TABLE IF NOT EXISTS "wallet" (
+				"id" serial PRIMARY KEY NOT NULL,
+				"user_id" int REFERENCES "users"("id"),
+				"balance" numeric(10, 2) NOT NULL
 			);
 		`,
 	);
@@ -6277,6 +6286,30 @@ test('Filter by columns not present in select', async (t) => {
 	});
 
 	expect(response).toEqual({ id: 1 });
+});
+
+test('Return users with wallet where numeric balance column must be casted to text', async (t) => {
+	const { pgDb: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+	]);
+
+	await db.insert(walletTable).values([
+		{ id: 1, userId: 1, balance: 0.1 * 0.2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		with: {
+			wallet: true,
+		},
+	});
+
+	expect(response).toHaveProperty('wallet', {
+		id: 1,
+		balance: '0.02',
+		userId: 1,
+	});
 });
 
 test('.toSQL()', () => {
