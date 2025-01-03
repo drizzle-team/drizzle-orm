@@ -60,6 +60,7 @@
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.16.0",
 		"@types/better-sqlite3": "^7.6.4",
+		"@types/bun": "^1.1.14",
 		"@types/dockerode": "^3.3.28",
 		"@types/glob": "^8.1.0",
 		"@types/json-diff": "^1.0.3",

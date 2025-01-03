@@ -850,8 +850,50 @@ export const connectToSQLite = async (
 		return { ...db, ...proxy, migrate: migrateFn };
 	}
 
+	if (await checkPackage('bun:sqlite')) {
+		const { default: Database } = await import('bun:sqlite');
+		const { drizzle } = await import('drizzle-orm/bun-sqlite');
+		const { migrate } = await import('drizzle-orm/bun-sqlite/migrator');
+
+		const sqlite = new Database(
+			normaliseSQLiteUrl(credentials.url, 'better-sqlite'),
+		);
+		const drzl = drizzle(sqlite);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(drzl, config);
+		};
+
+		const db: SQLiteDB = {
+			query: async <T>(sql: string, params: any[] = []) => {
+				return sqlite.prepare(sql,params).all() as T[];
+			},
+			run: async (query: string) => {
+				sqlite.prepare(query).run();
+			},
+		};
+
+		const proxy: SqliteProxy = {
+			proxy: async (params: ProxyParams) => {
+				const preparedParams = prepareSqliteParams(params.params);
+				if (
+					params.method === 'values'
+					|| params.method === 'get'
+					|| params.method === 'all'
+				) {
+					return sqlite
+						.prepare(params.sql)
+						.raw(params.mode === 'array')
+						.all(preparedParams);
+				}
+
+				return sqlite.prepare(params.sql).run(preparedParams);
+			},
+		};
+		return { ...db, ...proxy, migrate: migrateFn };
+	}
+
 	console.log(
-		"Please install either 'better-sqlite3' or '@libsql/client' for Drizzle Kit to connect to SQLite databases",
+		"Please install either 'better-sqlite3' or '@libsql/client' or use 'bun:sqlite' so that Drizzle Kit can connect to SQLite databases",
 	);
 	process.exit(1);
 };
