@@ -23,7 +23,7 @@ import {
 	GeneratePoint,
 	GeneratePostcode,
 	GenerateState,
-	GenerateStreetAdddress,
+	GenerateStreetAddress,
 	GenerateString,
 	GenerateTime,
 	GenerateTimestamp,
@@ -35,12 +35,12 @@ import {
 	GenerateUniqueNumber,
 	GenerateUniquePoint,
 	GenerateUniquePostcode,
-	GenerateUniqueStreetAdddress,
+	GenerateUniqueStreetAddress,
 	GenerateUniqueString,
 	GenerateValuesFromArray,
 	GenerateYear,
 	WeightedRandomGenerator,
-} from '../../src/services/GeneratorsWrappers.ts';
+} from '../../src/services/Generators.ts';
 
 const benchmark = ({ generatorName, generator, count = 100000, seed = 1 }: {
 	generatorName: string;
@@ -107,8 +107,8 @@ const generatorsFuncs = {
 	// uniqueCountry: new GenerateUniqueCountry({}),
 	city: new GenerateCity({}),
 	// uniqueCity: new GenerateUniqueCity({}),
-	streetAddress: new GenerateStreetAdddress({}),
-	uniqueStreetAddress: new GenerateUniqueStreetAdddress({}),
+	streetAddress: new GenerateStreetAddress({}),
+	uniqueStreetAddress: new GenerateUniqueStreetAddress({}),
 	jobTitle: new GenerateJobTitle({}),
 	postcode: new GeneratePostcode({}),
 	uniquePostcode: new GenerateUniquePostcode({}),

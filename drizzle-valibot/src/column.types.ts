@@ -20,31 +20,34 @@ export type GetBaseColumn<TColumn extends Column> = TColumn['_'] extends { baseC
 export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { readonly [K in TEnumValues[number]]: K };
 
 export type ExtractAdditionalProperties<TColumn extends Column> = {
-	max: TColumn['_']['columnType'] extends 'PgVarchar' | 'SQLiteText' | 'PgChar' | 'MySqlChar'
+	max: TColumn['_']['columnType'] extends 'PgVarchar' | 'SQLiteText' | 'PgChar' | 'MySqlChar' | 'SingleStoreChar'
 		? Assume<TColumn['_'], { length: number | undefined }>['length']
-		: TColumn['_']['columnType'] extends 'MySqlText' | 'MySqlVarChar' ? number
+		: TColumn['_']['columnType'] extends 'MySqlText' | 'MySqlVarChar' | 'SingleStoreText' | 'SingleStoreVarChar'
+			? number
 		: TColumn['_']['columnType'] extends 'PgBinaryVector' | 'PgHalfVector' | 'PgVector'
 			? Assume<TColumn['_'], { dimensions: number }>['dimensions']
 		: TColumn['_']['columnType'] extends 'PgArray' ? Assume<TColumn['_'], { size: number | undefined }>['size']
 		: undefined;
-	fixedLength: TColumn['_']['columnType'] extends 'PgChar' | 'MySqlChar' | 'PgHalfVector' | 'PgVector' | 'PgArray'
-		? true
+	fixedLength: TColumn['_']['columnType'] extends
+		'PgChar' | 'PgHalfVector' | 'PgVector' | 'PgArray' | 'MySqlChar' | 'SingleStoreChar' ? true
 		: false;
-	arrayPipelines: [];
 };
 
-type RemovePipeIfNoElements<T extends v.SchemaWithPipe<[any, ...any[]]>> = T extends
-	infer TPiped extends { pipe: [any, ...any[]] } ? TPiped['pipe'][1] extends undefined ? T['pipe'][0] : TPiped
-	: never;
+type GetLengthAction<T extends Record<string, any>, TType extends string | ArrayLike<unknown>> =
+	T['fixedLength'] extends true ? v.LengthAction<TType, number, undefined>
+		: v.MaxLengthAction<TType, number, undefined>;
 
-type BuildArraySchema<
-	TWrapped extends v.GenericSchema,
-	TPipelines extends any[][],
-> = TPipelines extends [infer TFirst extends any[], ...infer TRest extends any[][]]
-	? BuildArraySchema<RemovePipeIfNoElements<v.SchemaWithPipe<[v.ArraySchema<TWrapped, undefined>, ...TFirst]>>, TRest>
-	: TPipelines extends [infer TFirst extends any[]]
-		? BuildArraySchema<RemovePipeIfNoElements<v.SchemaWithPipe<[v.ArraySchema<TWrapped, undefined>, ...TFirst]>>, []>
-	: TWrapped;
+type GetArraySchema<T extends Column> = v.ArraySchema<
+	GetValibotType<
+		T['_']['data'],
+		T['_']['dataType'],
+		T['_']['columnType'],
+		GetEnumValuesFromColumn<T>,
+		GetBaseColumn<T>,
+		ExtractAdditionalProperties<T>
+	>,
+	undefined
+>;
 
 export type GetValibotType<
 	TData,
@@ -53,51 +56,22 @@ export type GetValibotType<
 	TEnumValues extends [string, ...string[]] | undefined,
 	TBaseColumn extends Column | undefined,
 	TAdditionalProperties extends Record<string, any>,
-> = TColumnType extends 'PgHalfVector' | 'PgVector' ? RemovePipeIfNoElements<
-		v.SchemaWithPipe<
+> = TColumnType extends 'PgHalfVector' | 'PgVector' ? TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
+			[v.ArraySchema<v.NumberSchema<undefined>, undefined>, GetLengthAction<TAdditionalProperties, number[]>]
+		>
+	: v.ArraySchema<v.NumberSchema<undefined>, undefined>
+	: TColumnType extends 'PgUUID' ? v.SchemaWithPipe<[v.StringSchema<undefined>, v.UuidAction<string, undefined>]>
+	: TColumnType extends 'PgBinaryVector' ? v.SchemaWithPipe<
 			RemoveNeverElements<[
-				v.ArraySchema<v.NumberSchema<undefined>, undefined>,
-				TAdditionalProperties['max'] extends number
-					? TAdditionalProperties['fixedLength'] extends true ? v.LengthAction<number[], number, undefined>
-					: v.MaxLengthAction<number[], number, undefined>
-					: never,
+				v.StringSchema<undefined>,
+				v.RegexAction<string, undefined>,
+				TAdditionalProperties['max'] extends number ? GetLengthAction<TAdditionalProperties, string> : never,
 			]>
 		>
-	>
-	: TColumnType extends 'PgUUID' ? v.SchemaWithPipe<[v.StringSchema<undefined>, v.UuidAction<string, undefined>]>
-	// PG array handling start
-	// Nesting `GetValibotType` within `v.ArraySchema` will cause infinite recursion
-	// The workaround is to accumulate all the array validations (done via `arrayPipelines` in `TAdditionalProperties`) and then build the schema afterwards
-	: TAdditionalProperties['arrayFinished'] extends true ? GetValibotType<
-			TData,
-			TDataType,
-			TColumnType,
-			TEnumValues,
-			TBaseColumn,
-			Omit<TAdditionalProperties, 'arrayFinished'>
-		> extends infer TSchema extends v.GenericSchema ? BuildArraySchema<TSchema, TAdditionalProperties['arrayPipelines']>
-		: never
-	: TBaseColumn extends Column ? GetValibotType<
-			TBaseColumn['_']['data'],
-			TBaseColumn['_']['dataType'],
-			TBaseColumn['_']['columnType'],
-			GetEnumValuesFromColumn<TBaseColumn>,
-			GetBaseColumn<TBaseColumn>,
-			Omit<ExtractAdditionalProperties<TBaseColumn>, 'arrayPipelines'> & {
-				arrayPipelines: [
-					RemoveNeverElements<[
-						TAdditionalProperties['max'] extends number
-							? TAdditionalProperties['fixedLength'] extends true
-								? v.LengthAction<Assume<TBaseColumn['_']['data'], any[]>[], number, undefined>
-							: v.MaxLengthAction<Assume<TBaseColumn['_']['data'], any[]>[], number, undefined>
-							: never,
-					]>,
-					...TAdditionalProperties['arrayPipelines'],
-				];
-				arrayFinished: GetBaseColumn<TBaseColumn> extends undefined ? true : false;
-			}
-		>
-	// PG array handling end
+	: TBaseColumn extends Column ? TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
+				[GetArraySchema<TBaseColumn>, GetLengthAction<TAdditionalProperties, TBaseColumn['_']['data'][]>]
+			>
+		: GetArraySchema<TBaseColumn>
 	: ArrayHasAtLeastOneValue<TEnumValues> extends true
 		? v.EnumSchema<EnumValuesToEnum<Assume<TEnumValues, [string, ...string[]]>>, undefined>
 	: TData extends infer TTuple extends [any, ...any[]] ? v.TupleSchema<
@@ -125,19 +99,26 @@ export type GetValibotType<
 				v.MaxValueAction<number, number, undefined>,
 				TColumnType extends
 					| 'MySqlTinyInt'
+					| 'SingleStoreTinyInt'
 					| 'PgSmallInt'
 					| 'PgSmallSerial'
 					| 'MySqlSmallInt'
 					| 'MySqlMediumInt'
+					| 'SingleStoreSmallInt'
+					| 'SingleStoreMediumInt'
 					| 'PgInteger'
 					| 'PgSerial'
 					| 'MySqlInt'
+					| 'SingleStoreInt'
 					| 'PgBigInt53'
 					| 'PgBigSerial53'
 					| 'MySqlBigInt53'
 					| 'MySqlSerial'
+					| 'SingleStoreBigInt53'
+					| 'SingleStoreSerial'
 					| 'SQLiteInteger'
-					| 'MySqlYear' ? v.IntegerAction<number, undefined>
+					| 'MySqlYear'
+					| 'SingleStoreYear' ? v.IntegerAction<number, undefined>
 					: never,
 			]>
 		>
@@ -147,19 +128,10 @@ export type GetValibotType<
 			v.MaxValueAction<bigint, bigint, undefined>,
 		]>
 	: TData extends boolean ? v.BooleanSchema<undefined>
-	: TData extends string ? RemovePipeIfNoElements<
-			v.SchemaWithPipe<
-				RemoveNeverElements<[
-					v.StringSchema<undefined>,
-					TColumnType extends 'PgBinaryVector' ? v.RegexAction<string, undefined>
-						: never,
-					TAdditionalProperties['max'] extends number
-						? TAdditionalProperties['fixedLength'] extends true ? v.LengthAction<string, number, undefined>
-						: v.MaxLengthAction<string, number, undefined>
-						: never,
-				]>
-			>
-		>
+	: TData extends string
+		? TAdditionalProperties['max'] extends number
+			? v.SchemaWithPipe<[v.StringSchema<undefined>, GetLengthAction<TAdditionalProperties, string>]>
+		: v.StringSchema<undefined>
 	: v.AnySchema;
 
 type HandleSelectColumn<

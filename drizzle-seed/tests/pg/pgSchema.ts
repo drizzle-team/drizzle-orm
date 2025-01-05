@@ -1,29 +1,3 @@
-// import { serial, integer, varchar, pgSchema, getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
-
-// export const schema = pgSchema("seeder_lib_pg");
-
-// export const users = schema.table("users", {
-//     id: serial("id").primaryKey(),
-//     name: varchar("name", { length: 256 }),
-//     email: varchar("email", { length: 256 }),
-//     phone: varchar("phone", { length: 256 }),
-//     password: varchar("password", { length: 256 })
-// });
-
-// export const posts = schema.table("posts", {
-//     id: serial("id").primaryKey(),
-//     title: varchar("title", { length: 256 }),
-//     content: varchar("content", { length: 256 }),
-//     userId: integer("user_id").references(() => users.id)
-// });
-
-// export const comments = schema.table("comments", {
-//     id: serial("id").primaryKey(),
-//     content: varchar("content", { length: 256 }),
-//     postId: integer("post_id").references(() => posts.id),
-//     userId: integer("user_id").references(() => users.id)
-// });
-
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { integer, numeric, pgSchema, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
