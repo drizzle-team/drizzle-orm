@@ -40,12 +40,19 @@ export type BuildRefine<
 	: never;
 
 type HandleRefinement<
+	TType extends 'select' | 'insert' | 'update',
 	TRefinement extends t.TSchema | ((schema: t.TSchema) => t.TSchema),
 	TColumn extends Column,
-> = TRefinement extends (schema: t.TSchema) => t.TSchema
-	? TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
-	: t.TTuple<[ReturnType<TRefinement>, t.TNull]>
+> = TRefinement extends (schema: any) => t.TSchema ? (TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
+		: t.TUnion<[ReturnType<TRefinement>, t.TNull]>) extends infer TSchema
+		? TType extends 'update' ? t.TOptional<Assume<TSchema, t.TSchema>> : TSchema
+	: t.TSchema
 	: TRefinement;
+
+type IsRefinementDefined<TRefinements, TKey extends string> = TKey extends keyof TRefinements
+	? TRefinements[TKey] extends t.TSchema | ((schema: any) => any) ? true
+	: false
+	: false;
 
 export type BuildSchema<
 	TType extends 'select' | 'insert' | 'update',
@@ -57,9 +64,8 @@ export type BuildSchema<
 			{
 				[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column
 					? TRefinements extends object
-						? TRefinements[Assume<K, keyof TRefinements>] extends
-							infer TRefinement extends t.TSchema | ((schema: t.TSchema) => t.TSchema)
-							? HandleRefinement<TRefinement, TColumn>
+						? IsRefinementDefined<TRefinements, Assume<K, string>> extends true
+							? HandleRefinement<TType, TRefinements[Assume<K, keyof TRefinements>], TColumn>
 						: HandleColumn<TType, TColumn>
 					: HandleColumn<TType, TColumn>
 					: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View ? BuildSchema<

@@ -1,6 +1,16 @@
 import { Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
-import { integer, pgEnum, pgMaterializedView, pgSchema, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
+import {
+	customType,
+	integer,
+	pgEnum,
+	pgMaterializedView,
+	pgSchema,
+	pgTable,
+	pgView,
+	serial,
+	text,
+} from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
@@ -229,6 +239,32 @@ test('refine table - select', (tc) => {
 		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - select with custom data type', (tc) => {
+	const customText = customType({ dataType: () => 'text' });
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().notNull(),
+		c4: customText(),
+	});
+
+	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
+	const result = createSelectSchema(table, {
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c4: customTextSchema,
+	});
+	const expected = t.Object({
+		c1: t.Union([integerSchema, t.Null()]),
+		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c4: customTextSchema,
+	});
+
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
