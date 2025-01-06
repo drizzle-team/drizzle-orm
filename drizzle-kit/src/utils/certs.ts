@@ -11,7 +11,7 @@ export const certs = async () => {
 		const p = envPaths('drizzle-studio', {
 			suffix: '',
 		});
-		
+
 		$.verbose = false;
 		$.cwd = p.data;
 
