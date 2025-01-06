@@ -1,9 +1,10 @@
-import type { ColumnBaseConfig } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import { SQL } from '~/sql/index.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreGeneratedColumnConfig } from './common.ts';
 
 export type SingleStoreVectorBuilderInitial<TName extends string> = SingleStoreVectorBuilder<{
 	name: TName;
@@ -33,6 +34,11 @@ export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array',
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
+	}
+
+	/** @internal */
+	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: SingleStoreGeneratedColumnConfig) {
+		throw new Error('not implemented');
 	}
 }
 
