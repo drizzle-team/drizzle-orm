@@ -5,6 +5,8 @@ import { join } from 'path';
 import { $ } from 'zx';
 
 export const certs = async () => {
+	$.verbose = false;
+
 	const res = await $`mkcert --help`.nothrow();
 
 	if (res.exitCode === 0) {
@@ -12,7 +14,6 @@ export const certs = async () => {
 			suffix: '',
 		});
 
-		$.verbose = false;
 		$.cwd = p.data;
 
 		// create ~/.local/share/drizzle-studio
