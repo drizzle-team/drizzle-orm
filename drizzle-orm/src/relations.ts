@@ -2,6 +2,7 @@ import { type AnyTable, getTableUniqueName, type InferModelFromColumns, IsAlias,
 import { Columns, getTableName } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
+import { DrizzleError } from './errors.ts';
 import { PrimaryKeyBuilder } from './pg-core/primary-keys.ts';
 import {
 	and,
@@ -28,7 +29,7 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { Placeholder, SQL, sql, type SQLWrapper } from './sql/sql.ts';
+import { type Placeholder, SQL, sql, type SQLWrapper } from './sql/sql.ts';
 import { type Assume, type Equal, getTableColumns, type Simplify, type ValueOrArray, type Writable } from './utils.ts';
 
 export class Relations<
@@ -498,7 +499,10 @@ export type BuildRelationResult<
 			Assume<TInclude[K], true | Record<string, unknown>>
 		> extends infer TResult ? TRel extends One<string, string> ?
 					| TResult
-					| (Equal<TRel['optional'], true> extends true ? null : never)
+					| (Equal<TRel['optional'], true> extends true ? null
+						: TInclude[K] extends Record<string, unknown> ? TInclude[K]['where'] extends Record<string, any> ? null
+							: never
+						: never)
 			: TResult[]
 		: never
 		: TRelations[K] extends AggregatedField<infer TData> ? TData
@@ -583,6 +587,7 @@ export interface BuildRelationalQueryResult {
 		field: Column | Table | SQL | SQL.Aliased | SQLWrapper | AggregatedField;
 		isArray?: boolean;
 		selection?: BuildRelationalQueryResult['selection'];
+		isOptional?: boolean;
 	}[];
 	sql: SQL;
 }
@@ -593,18 +598,38 @@ export function mapRelationalRow(
 	mapColumnValue: (value: unknown) => unknown = (value) => value,
 	/** Needed for SQLite as it returns JSON values as strings */
 	parseJson: boolean = false,
+	path?: string,
 ): Record<string, unknown> {
 	for (
 		const selectionItem of buildQueryResultSelection
 	) {
 		const field = selectionItem.field!;
+
 		if (is(field, Table)) {
-			if (row[selectionItem.key] === null) continue;
+			const currentPath = `${path ? `${path}.` : ''}${selectionItem.key}`;
+
+			if (row[selectionItem.key] === null) {
+				if (!selectionItem.isOptional) {
+					throw new DrizzleError({
+						message:
+							`Unexpected null in relational query result on field "${currentPath}".\nDid you forget to mark relation as optional?`,
+					});
+				}
+
+				continue;
+			}
+
 			if (parseJson) row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
 
 			if (selectionItem.isArray) {
 				for (const item of (row[selectionItem.key] as Array<Record<string, unknown>>)) {
-					mapRelationalRow(item, selectionItem.selection!, mapColumnValue);
+					mapRelationalRow(
+						item,
+						selectionItem.selection!,
+						mapColumnValue,
+						false,
+						currentPath,
+					);
 				}
 
 				continue;
@@ -614,6 +639,8 @@ export function mapRelationalRow(
 				row[selectionItem.key] as Record<string, unknown>,
 				selectionItem.selection!,
 				mapColumnValue,
+				false,
+				currentPath,
 			);
 
 			continue;
@@ -702,25 +729,29 @@ export class RelationsBuilderColumn<
 }
 
 export type RelationFieldsFilterInternals<T> = {
-	eq?: T;
-	ne?: T;
-	gt?: T;
-	gte?: T;
-	lt?: T;
-	lte?: T;
-	in?: T[];
-	notIn?: T[];
-	like?: string;
-	ilike?: string;
-	notLike?: string;
-	notIlike?: string;
+	eq?: T | Placeholder;
+	ne?: T | Placeholder;
+	gt?: T | Placeholder;
+	gte?: T | Placeholder;
+	lt?: T | Placeholder;
+	lte?: T | Placeholder;
+	in?: (T | Placeholder)[] | Placeholder;
+	notIn?: (T | Placeholder)[] | Placeholder;
+	like?: string | Placeholder;
+	ilike?: string | Placeholder;
+	notLike?: string | Placeholder;
+	notIlike?: string | Placeholder;
 	isNull?: true;
 	isNotNull?: true;
 	NOT?: RelationsFieldFilter<T>;
 	OR?: RelationsFieldFilter<T>[];
 };
 
-export type RelationsFieldFilter<T> = T | RelationFieldsFilterInternals<T | Placeholder>;
+export type RelationsFieldFilter<T> =
+	| RelationFieldsFilterInternals<T>
+	| (
+		T extends Record<string, any> ? never : T
+	);
 
 export type RelationsFilter<TColumns extends Record<string, Column>> =
 	& {
@@ -964,7 +995,7 @@ export type OrderBy = Exclude<DBQueryConfig['orderBy'], undefined>;
 export type Extras = Exclude<DBQueryConfig['extras'], undefined>;
 
 function relationsFieldFilterToSQL(column: Column, filter: RelationsFieldFilter<unknown>): SQL | undefined {
-	if (typeof filter !== 'object' || is(filter, Placeholder)) return eq(column, filter);
+	if (typeof filter !== 'object') return eq(column, filter);
 
 	const entries = Object.entries(filter as RelationFieldsFilterInternals<unknown>);
 	if (!entries.length) return undefined;
@@ -973,7 +1004,7 @@ function relationsFieldFilterToSQL(column: Column, filter: RelationsFieldFilter<
 	for (const [target, value] of entries) {
 		if (value === undefined) continue;
 
-		switch (target) {
+		switch (target as keyof RelationFieldsFilterInternals<unknown>) {
 			case 'NOT': {
 				const res = relationsFieldFilterToSQL(column, value as RelationsFieldFilter<unknown>);
 				if (!res) continue;
@@ -982,6 +1013,7 @@ function relationsFieldFilterToSQL(column: Column, filter: RelationsFieldFilter<
 
 				continue;
 			}
+
 			case 'OR': {
 				if (!(value as RelationsFieldFilter<unknown>[]).length) continue;
 
@@ -990,6 +1022,27 @@ function relationsFieldFilterToSQL(column: Column, filter: RelationsFieldFilter<
 						...(value as RelationsFilter<any>[]).map((subFilter) => relationsFieldFilterToSQL(column, subFilter)),
 					)!,
 				);
+
+				continue;
+			}
+
+			case 'isNotNull':
+			case 'isNull': {
+				if (!value) continue;
+
+				parts.push(operators[target as 'isNull' | 'isNotNull'](column));
+
+				continue;
+			}
+
+			case 'in': {
+				parts.push(operators.inArray(column, value as any[] | Placeholder));
+
+				continue;
+			}
+
+			case 'notIn': {
+				parts.push(operators.notInArray(column, value as any[] | Placeholder));
 
 				continue;
 			}

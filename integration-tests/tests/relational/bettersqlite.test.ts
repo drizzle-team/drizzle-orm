@@ -1695,7 +1695,7 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', () 
 		where: {
 			id: {
 				OR: [
-					sql.placeholder('id'),
+					{ eq: sql.placeholder('id') },
 					3,
 				],
 			},
@@ -6319,6 +6319,94 @@ test('async api - sync() + prepare', () => {
 	const queryStmt = db.query.usersTable.findMany().prepare();
 	const users = queryStmt.execute().sync();
 	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
+});
+
+test('Error on empty non-optional relation', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	expect(async () =>
+		await db.query.usersTable.findMany({
+			with: {
+				inviteeRequired: true,
+			},
+		})
+	).rejects.toThrow(DrizzleError);
+});
+
+test('Force optional on where on non-optional relation query', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		with: {
+			inviteeRequired: {
+				where: {
+					id: 1,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			inviteeRequired: {
+				id: number;
+				name: string;
+				verified: number;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
+	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(usersWithInvitee.length).eq(4);
+	expect(usersWithInvitee[0]?.inviteeRequired).toBeNull();
+	expect(usersWithInvitee[1]?.inviteeRequired).toBeNull();
+	expect(usersWithInvitee[2]?.inviteeRequired).not.toBeNull();
+	expect(usersWithInvitee[3]?.inviteeRequired).toBeNull();
+
+	expect(usersWithInvitee[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		inviteeRequired: null,
+	});
+	expect(usersWithInvitee[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		inviteeRequired: null,
+	});
+	expect(usersWithInvitee[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: 1,
+		inviteeRequired: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+	});
+	expect(usersWithInvitee[3]).toEqual({
+		id: 4,
+		name: 'John',
+		verified: 0,
+		invitedBy: 2,
+		inviteeRequired: null,
+	});
 });
 
 test('.toSQL()', () => {

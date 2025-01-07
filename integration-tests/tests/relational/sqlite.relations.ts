@@ -8,6 +8,10 @@ export default defineRelations(schema, (r) => ({
 			to: r.usersTable.id,
 			optional: true,
 		}),
+		inviteeRequired: r.one.usersTable({
+			from: r.usersTable.invitedBy,
+			to: r.usersTable.id,
+		}),
 		usersToGroups: r.many.usersToGroupsTable(),
 		posts: r.many.postsTable(),
 	},

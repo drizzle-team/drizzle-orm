@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createClient, type VercelClient } from '@vercel/postgres';
 import Docker from 'dockerode';
-import { sql, TransactionRollbackError } from 'drizzle-orm';
+import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type VercelPgDatabase } from 'drizzle-orm/vercel-postgres';
 import getPort from 'get-port';
 import { v4 as uuid } from 'uuid';
@@ -1820,7 +1820,7 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 		offset: sql.placeholder('uOffset'),
 		where: {
 			id: {
-				OR: [sql.placeholder('id'), 3],
+				OR: [{ eq: sql.placeholder('id') }, 3],
 			},
 		},
 		with: {
@@ -6411,6 +6411,97 @@ test('Get groups with users + custom', async (t) => {
 				invitedBy: null,
 			},
 		}],
+	});
+});
+
+test('Error on empty non-optional relation', async (t) => {
+	const { vpgDbV2: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	expect(async () =>
+		await db.query.usersTable.findMany({
+			with: {
+				inviteeRequired: true,
+			},
+		})
+	).rejects.toThrow(DrizzleError);
+});
+test('Force optional on where on non-optional relation query', async (t) => {
+	const { vpgDbV2: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		with: {
+			inviteeRequired: {
+				where: {
+					id: 1,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			inviteeRequired: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
+	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(usersWithInvitee.length).eq(4);
+	expect(usersWithInvitee[0]?.inviteeRequired).toBeNull();
+	expect(usersWithInvitee[1]?.inviteeRequired).toBeNull();
+	expect(usersWithInvitee[2]?.inviteeRequired).not.toBeNull();
+	expect(usersWithInvitee[3]?.inviteeRequired).toBeNull();
+
+	expect(usersWithInvitee[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		inviteeRequired: null,
+	});
+	expect(usersWithInvitee[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		inviteeRequired: null,
+	});
+	expect(usersWithInvitee[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: 1,
+		inviteeRequired: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+	});
+	expect(usersWithInvitee[3]).toEqual({
+		id: 4,
+		name: 'John',
+		verified: false,
+		invitedBy: 2,
+		inviteeRequired: null,
 	});
 });
 

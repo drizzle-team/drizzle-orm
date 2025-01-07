@@ -245,10 +245,8 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
 		const stmt: InStatement = { sql: query.sql, args: params as InArgs };
-		// Possibly needs separate v2 method or flag - WIP
-		if (tx) return tx.execute(stmt);
 
-		const rows = await client.execute(stmt).then(({ rows }) => rows.map((row) => normalizeRow(row)));
+		const rows = await (tx ?? client).execute(stmt).then(({ rows }) => rows.map((row) => normalizeRow(row)));
 
 		return (customResultMapper as (
 			rows: Record<string, unknown>[],
@@ -303,13 +301,11 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
 		const stmt: InStatement = { sql: query.sql, args: params as InArgs };
-		// Possibly needs separate v2 method or flag - WIP
-		if (tx) return tx.execute(stmt);
 
-		const { rows } = await client.execute(stmt);
+		const { rows } = await (tx ?? client).execute(stmt);
+		if (rows[0] === undefined) return;
+
 		const row = normalizeRow((rows as unknown[])[0]);
-
-		if (!row) return;
 
 		return (customResultMapper as (
 			rows: Record<string, unknown>[],

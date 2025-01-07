@@ -914,7 +914,6 @@ export class PgDialect {
 
 	private buildColumns = (
 		table: PgTable,
-		tableConfig: TableRelationalConfig,
 		selection: BuildRelationalQueryResult['selection'],
 		config?: DBQueryConfig<'many'>,
 	) =>
@@ -997,7 +996,7 @@ export class PgDialect {
 			: relationWhere;
 
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
-		const columns = this.buildColumns(table, tableConfig, selection, params);
+		const columns = this.buildColumns(table, selection, params);
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
 		if (extras) selection.push(...extras.selection);
 
@@ -1058,6 +1057,8 @@ export class PgDialect {
 							key: k,
 							selection: innerQuery.selection,
 							isArray: !isSingle,
+							isOptional: ((relation as One<any, any>).optional ?? false)
+								|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
 						});
 
 						return sql`left join lateral(select ${
