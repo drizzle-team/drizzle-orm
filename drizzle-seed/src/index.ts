@@ -1,4 +1,13 @@
-import { entityKind, getTableName, is, sql } from 'drizzle-orm';
+/* eslint-disable drizzle-internal/require-entity-kind */
+import {
+	createTableRelationsHelpers,
+	extractTablesRelationalConfig,
+	getTableName,
+	is,
+	One,
+	Relations,
+	sql,
+} from 'drizzle-orm';
 
 import type { MySqlColumn, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { getTableConfig as getMysqlTableConfig, MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core';
@@ -9,8 +18,8 @@ import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase, getTableConfig as getSqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 
-import type { AbstractGenerator } from './services/GeneratorsWrappers.ts';
-import { generatorsFuncs } from './services/GeneratorsWrappers.ts';
+import { generatorsFuncs, generatorsFuncsV2 } from './services/GeneratorFuncs.ts';
+import type { AbstractGenerator } from './services/Generators.ts';
 import { SeedService } from './services/SeedService.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
 import type { RefinementsType } from './types/seedService.ts';
@@ -22,7 +31,7 @@ type InferCallbackType<
 		| MySqlDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
-		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable;
+		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | Relations;
 	},
 > = DB extends PgDatabase<any, any> ? SCHEMA extends {
 		[key: string]:
@@ -30,7 +39,8 @@ type InferCallbackType<
 			| PgSchema
 			| MySqlTable
 			| MySqlSchema
-			| SQLiteTable;
+			| SQLiteTable
+			| Relations;
 	} ? {
 			// iterates through schema fields. example -> schema: {"tableName": PgTable}
 			[
@@ -62,7 +72,8 @@ type InferCallbackType<
 				| PgSchema
 				| MySqlTable
 				| MySqlSchema
-				| SQLiteTable;
+				| SQLiteTable
+				| Relations;
 		} ? {
 				// iterates through schema fields. example -> schema: {"tableName": MySqlTable}
 				[
@@ -94,7 +105,8 @@ type InferCallbackType<
 				| PgSchema
 				| MySqlTable
 				| MySqlSchema
-				| SQLiteTable;
+				| SQLiteTable
+				| Relations;
 		} ? {
 				// iterates through schema fields. example -> schema: {"tableName": SQLiteTable}
 				[
@@ -128,17 +140,18 @@ class SeedPromise<
 		| MySqlDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
-		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable;
+		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | Relations;
 	},
+	VERSION extends string | undefined,
 > implements Promise<void> {
-	static readonly [entityKind]: string = 'SeedPromise';
+	static readonly entityKind: string = 'SeedPromise';
 
 	[Symbol.toStringTag] = 'SeedPromise';
 
 	constructor(
 		private db: DB,
 		private schema: SCHEMA,
-		private options?: { count?: number; seed?: number },
+		private options?: { count?: number; seed?: number; version?: VERSION },
 	) {}
 
 	then<TResult1 = void, TResult2 = never>(
@@ -180,13 +193,21 @@ class SeedPromise<
 	}
 
 	async refine(
-		callback: (funcs: typeof generatorsFuncs) => InferCallbackType<DB, SCHEMA>,
+		callback: (
+			funcs: FunctionsVersioning<VERSION>,
+		) => InferCallbackType<DB, SCHEMA>,
 	): Promise<void> {
-		const refinements = callback(generatorsFuncs) as RefinementsType;
+		const refinements = this.options?.version === undefined || this.options.version === '2'
+			? callback(generatorsFuncsV2 as FunctionsVersioning<VERSION>) as RefinementsType
+			: callback(generatorsFuncs as FunctionsVersioning<VERSION>) as RefinementsType;
 
 		await seedFunc(this.db, this.schema, this.options, refinements);
 	}
 }
+
+type FunctionsVersioning<VERSION extends string | undefined> = VERSION extends `1` ? typeof generatorsFuncs
+	: VERSION extends `2` ? typeof generatorsFuncsV2
+	: typeof generatorsFuncsV2;
 
 export function getGeneratorsFunctions() {
 	return generatorsFuncs;
@@ -222,6 +243,8 @@ export async function seedForDrizzleStudio(
 				name: col.name,
 				dataType: 'string',
 				columnType: col.type,
+				// TODO: revise later
+				typeParams: {},
 				default: col.default,
 				hasDefault: col.default === undefined ? false : true,
 				isUnique: col.isUnique === undefined ? false : col.isUnique,
@@ -257,7 +280,6 @@ export async function seedForDrizzleStudio(
 			sqlDialect,
 			tables,
 			isCyclicRelations,
-			{}, // TODO: fix later
 			refinements,
 			options,
 		);
@@ -324,7 +346,7 @@ export async function seedForDrizzleStudio(
 export function seed<
 	DB extends
 		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
+		| MySqlDatabase<any, any, any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]:
@@ -333,10 +355,12 @@ export function seed<
 			| MySqlTable
 			| MySqlSchema
 			| SQLiteTable
+			| Relations
 			| any;
 	},
->(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number }) {
-	return new SeedPromise<typeof db, typeof schema>(db, schema, options);
+	VERSION extends '2' | '1' | undefined,
+>(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number; version?: VERSION }) {
+	return new SeedPromise<typeof db, typeof schema, VERSION>(db, schema, options);
 }
 
 const seedFunc = async (
@@ -348,23 +372,23 @@ const seedFunc = async (
 			| MySqlTable
 			| MySqlSchema
 			| SQLiteTable
+			| Relations
 			| any;
 	},
-	options: { count?: number; seed?: number } = {},
+	options: { count?: number; seed?: number; version?: string } = {},
 	refinements?: RefinementsType,
 ) => {
+	let version: number | undefined;
+	if (options?.version !== undefined) {
+		version = Number(options?.version);
+	}
+
 	if (is(db, PgDatabase<any, any>)) {
-		const { pgSchema } = filterPgTables(schema);
-
-		await seedPostgres(db, pgSchema, options, refinements);
+		await seedPostgres(db, schema, { ...options, version }, refinements);
 	} else if (is(db, MySqlDatabase<any, any>)) {
-		const { mySqlSchema } = filterMySqlTables(schema);
-
-		await seedMySql(db, mySqlSchema, options, refinements);
+		await seedMySql(db, schema, { ...options, version }, refinements);
 	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
-		const { sqliteSchema } = filterSqliteTables(schema);
-
-		await seedSqlite(db, sqliteSchema, options, refinements);
+		await seedSqlite(db, schema, { ...options, version }, refinements);
 	} else {
 		throw new Error(
 			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
@@ -417,7 +441,7 @@ const seedFunc = async (
 export async function reset<
 	DB extends
 		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
+		| MySqlDatabase<any, any, any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]:
@@ -430,22 +454,22 @@ export async function reset<
 	},
 >(db: DB, schema: SCHEMA) {
 	if (is(db, PgDatabase<any, any>)) {
-		const { pgSchema } = filterPgTables(schema);
+		const { pgTables } = filterPgSchema(schema);
 
-		if (Object.entries(pgSchema).length > 0) {
-			await resetPostgres(db, pgSchema);
+		if (Object.entries(pgTables).length > 0) {
+			await resetPostgres(db, pgTables);
 		}
 	} else if (is(db, MySqlDatabase<any, any>)) {
-		const { mySqlSchema } = filterMySqlTables(schema);
+		const { mysqlTables } = filterMysqlTables(schema);
 
-		if (Object.entries(mySqlSchema).length > 0) {
-			await resetMySql(db, mySqlSchema);
+		if (Object.entries(mysqlTables).length > 0) {
+			await resetMySql(db, mysqlTables);
 		}
 	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
-		const { sqliteSchema } = filterSqliteTables(schema);
+		const { sqliteTables } = filterSqliteTables(schema);
 
-		if (Object.entries(sqliteSchema).length > 0) {
-			await resetSqlite(db, sqliteSchema);
+		if (Object.entries(sqliteTables).length > 0) {
+			await resetSqlite(db, sqliteTables);
 		}
 	} else {
 		throw new Error(
@@ -457,9 +481,9 @@ export async function reset<
 // Postgres-----------------------------------------------------------------------------------------------------------
 const resetPostgres = async (
 	db: PgDatabase<any, any>,
-	schema: { [key: string]: PgTable },
+	pgTables: { [key: string]: PgTable },
 ) => {
-	const tablesToTruncate = Object.entries(schema).map(([_, table]) => {
+	const tablesToTruncate = Object.entries(pgTables).map(([_, table]) => {
 		const config = getPgTableConfig(table);
 		config.schema = config.schema === undefined ? 'public' : config.schema;
 
@@ -469,36 +493,53 @@ const resetPostgres = async (
 	await db.execute(sql.raw(`truncate ${tablesToTruncate.join(',')} cascade;`));
 };
 
-const filterPgTables = (schema: {
+const filterPgSchema = (schema: {
 	[key: string]:
 		| PgTable
 		| PgSchema
 		| MySqlTable
 		| MySqlSchema
 		| SQLiteTable
+		| Relations
 		| any;
 }) => {
 	const pgSchema = Object.fromEntries(
+		Object.entries(schema).filter((keyValue): keyValue is [string, PgTable | Relations] =>
+			is(keyValue[1], PgTable) || is(keyValue[1], Relations)
+		),
+	);
+
+	const pgTables = Object.fromEntries(
 		Object.entries(schema).filter((keyValue): keyValue is [string, PgTable] => is(keyValue[1], PgTable)),
 	);
 
-	return { pgSchema };
+	return { pgSchema, pgTables };
 };
 
 const seedPostgres = async (
 	db: PgDatabase<any, any>,
-	schema: { [key: string]: PgTable },
-	options: { count?: number; seed?: number } = {},
+	schema: {
+		[key: string]:
+			| PgTable
+			| PgSchema
+			| MySqlTable
+			| MySqlSchema
+			| SQLiteTable
+			| Relations
+			| any;
+	},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
 	const seedService = new SeedService();
 
-	const { tables, relations, tableRelations } = getPostgresInfo(schema);
+	const { pgSchema, pgTables } = filterPgSchema(schema);
+
+	const { tables, relations } = getPostgresInfo(pgSchema, pgTables);
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'postgresql',
 		tables,
 		relations,
-		tableRelations,
 		refinements,
 		options,
 	);
@@ -509,7 +550,7 @@ const seedPostgres = async (
 		relations,
 		generatedTablesGenerators,
 		db,
-		schema,
+		pgTables,
 		{ ...options, preserveCyclicTablesData },
 	);
 
@@ -522,16 +563,19 @@ const seedPostgres = async (
 		relations,
 		filteredTablesGenerators,
 		db,
-		schema,
+		pgTables,
 		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
 	);
 };
 
-const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
+const getPostgresInfo = (
+	pgSchema: { [key: string]: PgTable | Relations },
+	pgTables: { [key: string]: PgTable },
+) => {
 	let tableConfig: ReturnType<typeof getPgTableConfig>;
 	let dbToTsColumnNamesMap: { [key: string]: string };
 	const dbToTsTableNamesMap: { [key: string]: string } = Object.fromEntries(
-		Object.entries(schema).map(([key, value]) => [getTableName(value), key]),
+		Object.entries(pgTables).map(([key, value]) => [getTableName(value), key]),
 	);
 
 	const tables: Table[] = [];
@@ -559,7 +603,65 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		return dbToTsColumnNamesMap;
 	};
 
-	for (const table of Object.values(schema)) {
+	const transformFromDrizzleRelation = (
+		schema: Record<string, PgTable | Relations>,
+		getDbToTsColumnNamesMap: (table: PgTable) => {
+			[dbColName: string]: string;
+		},
+		tableRelations: {
+			[tableName: string]: RelationWithReferences[];
+		},
+	) => {
+		const schemaConfig = extractTablesRelationalConfig(schema, createTableRelationsHelpers);
+		const relations: RelationWithReferences[] = [];
+		for (const table of Object.values(schemaConfig.tables)) {
+			if (table.relations !== undefined) {
+				for (const drizzleRel of Object.values(table.relations)) {
+					if (is(drizzleRel, One)) {
+						const tableConfig = getPgTableConfig(drizzleRel.sourceTable as PgTable);
+						const tableDbSchema = tableConfig.schema ?? 'public';
+						const tableDbName = tableConfig.name;
+						const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
+
+						const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable);
+						const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
+							?? [];
+
+						const refTableConfig = getPgTableConfig(drizzleRel.referencedTable as PgTable);
+						const refTableDbSchema = refTableConfig.schema ?? 'public';
+						const refTableDbName = refTableConfig.name;
+						const refTableTsName = schemaConfig.tableNamesMap[`${refTableDbSchema}.${refTableDbName}`]
+							?? refTableDbName;
+
+						const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable);
+						const refColumns = drizzleRel.config?.references.map((ref) =>
+							dbToTsColumnNamesMapForRefTable[ref.name] as string
+						)
+							?? [];
+
+						if (tableRelations[refTableTsName] === undefined) {
+							tableRelations[refTableTsName] = [];
+						}
+
+						const relation: RelationWithReferences = {
+							table: tableTsName,
+							columns,
+							refTable: refTableTsName,
+							refColumns,
+							refTableRels: tableRelations[refTableTsName],
+							type: 'one',
+						};
+
+						relations.push(relation);
+						tableRelations[tableTsName]!.push(relation);
+					}
+				}
+			}
+		}
+		return relations;
+	};
+
+	for (const table of Object.values(pgTables)) {
 		tableConfig = getPgTableConfig(table);
 
 		dbToTsColumnNamesMap = {};
@@ -608,7 +710,8 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 		): Column['baseColumn'] => {
 			const baseColumnResult: Column['baseColumn'] = {
 				name: baseColumn.name,
-				columnType: baseColumn.columnType.replace('Pg', '').toLowerCase(),
+				columnType: baseColumn.getSQLType(),
+				typeParams: getTypeParams(baseColumn.getSQLType()),
 				dataType: baseColumn.dataType,
 				size: (baseColumn as PgArray<any, any>).size,
 				hasDefault: baseColumn.hasDefault,
@@ -623,12 +726,54 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 			return baseColumnResult;
 		};
 
+		const getTypeParams = (sqlType: string) => {
+			// get type params
+			const typeParams: Column['typeParams'] = {};
+
+			// handle dimensions
+			if (sqlType.includes('[')) {
+				const match = sqlType.match(/\[\w*]/g);
+				if (match) {
+					typeParams['dimensions'] = match.length;
+				}
+			}
+
+			if (
+				sqlType.startsWith('numeric')
+				|| sqlType.startsWith('decimal')
+				|| sqlType.startsWith('double precision')
+				|| sqlType.startsWith('real')
+			) {
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('varchar')
+				|| sqlType.startsWith('bpchar')
+				|| sqlType.startsWith('char')
+				|| sqlType.startsWith('bit')
+				|| sqlType.startsWith('time')
+				|| sqlType.startsWith('timestamp')
+				|| sqlType.startsWith('interval')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
+
 		// console.log(tableConfig.columns);
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.columnType.replace('Pg', '').toLowerCase(),
+				columnType: column.getSQLType(),
+				typeParams: getTypeParams(column.getSQLType()),
 				dataType: column.dataType,
 				size: (column as PgArray<any, any>).size,
 				hasDefault: column.hasDefault,
@@ -647,6 +792,11 @@ const getPostgresInfo = (schema: { [key: string]: PgTable }) => {
 				.map((column) => dbToTsColumnNamesMap[column.name] as string),
 		});
 	}
+
+	const transformedDrizzleRelations = transformFromDrizzleRelation(pgSchema, getDbToTsColumnNamesMap, tableRelations);
+	relations.push(
+		...transformedDrizzleRelations,
+	);
 
 	const isCyclicRelations = relations.map(
 		(relI) => {
@@ -718,7 +868,7 @@ const resetMySql = async (
 	await db.execute(sql.raw('SET FOREIGN_KEY_CHECKS = 1;'));
 };
 
-const filterMySqlTables = (schema: {
+const filterMysqlTables = (schema: {
 	[key: string]:
 		| PgTable
 		| PgSchema
@@ -727,22 +877,39 @@ const filterMySqlTables = (schema: {
 		| SQLiteTable
 		| any;
 }) => {
-	const mySqlSchema = Object.fromEntries(
+	const mysqlSchema = Object.fromEntries(
+		Object.entries(schema).filter(
+			(keyValue): keyValue is [string, MySqlTable | Relations] =>
+				is(keyValue[1], MySqlTable) || is(keyValue[1], Relations),
+		),
+	);
+
+	const mysqlTables = Object.fromEntries(
 		Object.entries(schema).filter(
 			(keyValue): keyValue is [string, MySqlTable] => is(keyValue[1], MySqlTable),
 		),
 	);
 
-	return { mySqlSchema };
+	return { mysqlSchema, mysqlTables };
 };
 
 const seedMySql = async (
 	db: MySqlDatabase<any, any>,
-	schema: { [key: string]: MySqlTable },
-	options: { count?: number; seed?: number } = {},
+	schema: {
+		[key: string]:
+			| PgTable
+			| PgSchema
+			| MySqlTable
+			| MySqlSchema
+			| SQLiteTable
+			| Relations
+			| any;
+	},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
-	const { tables, relations, tableRelations } = getMySqlInfo(schema);
+	const { mysqlSchema, mysqlTables } = filterMysqlTables(schema);
+	const { tables, relations } = getMySqlInfo(mysqlSchema, mysqlTables);
 
 	const seedService = new SeedService();
 
@@ -750,7 +917,6 @@ const seedMySql = async (
 		'mysql',
 		tables,
 		relations,
-		tableRelations,
 		refinements,
 		options,
 	);
@@ -761,7 +927,7 @@ const seedMySql = async (
 		relations,
 		generatedTablesGenerators,
 		db,
-		schema,
+		mysqlTables,
 		{ ...options, preserveCyclicTablesData },
 	);
 
@@ -774,17 +940,20 @@ const seedMySql = async (
 		relations,
 		filteredTablesGenerators,
 		db,
-		schema,
+		mysqlTables,
 		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
 	);
 };
 
-const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
+const getMySqlInfo = (
+	mysqlSchema: { [key: string]: MySqlTable | Relations },
+	mysqlTables: { [key: string]: MySqlTable },
+) => {
 	let tableConfig: ReturnType<typeof getMysqlTableConfig>;
 	let dbToTsColumnNamesMap: { [key: string]: string };
 
 	const dbToTsTableNamesMap: { [key: string]: string } = Object.fromEntries(
-		Object.entries(schema).map(([key, value]) => [getTableName(value), key]),
+		Object.entries(mysqlTables).map(([key, value]) => [getTableName(value), key]),
 	);
 
 	const tables: Table[] = [];
@@ -812,7 +981,65 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 		return dbToTsColumnNamesMap;
 	};
 
-	for (const table of Object.values(schema)) {
+	const transformFromDrizzleRelation = (
+		schema: Record<string, MySqlTable | Relations>,
+		getDbToTsColumnNamesMap: (table: MySqlTable) => {
+			[dbColName: string]: string;
+		},
+		tableRelations: {
+			[tableName: string]: RelationWithReferences[];
+		},
+	) => {
+		const schemaConfig = extractTablesRelationalConfig(schema, createTableRelationsHelpers);
+		const relations: RelationWithReferences[] = [];
+		for (const table of Object.values(schemaConfig.tables)) {
+			if (table.relations !== undefined) {
+				for (const drizzleRel of Object.values(table.relations)) {
+					if (is(drizzleRel, One)) {
+						const tableConfig = getMysqlTableConfig(drizzleRel.sourceTable as MySqlTable);
+						const tableDbSchema = tableConfig.schema ?? 'public';
+						const tableDbName = tableConfig.name;
+						const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
+
+						const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as MySqlTable);
+						const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
+							?? [];
+
+						const refTableConfig = getMysqlTableConfig(drizzleRel.referencedTable as MySqlTable);
+						const refTableDbSchema = refTableConfig.schema ?? 'public';
+						const refTableDbName = refTableConfig.name;
+						const refTableTsName = schemaConfig.tableNamesMap[`${refTableDbSchema}.${refTableDbName}`]
+							?? refTableDbName;
+
+						const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as MySqlTable);
+						const refColumns = drizzleRel.config?.references.map((ref) =>
+							dbToTsColumnNamesMapForRefTable[ref.name] as string
+						)
+							?? [];
+
+						if (tableRelations[refTableTsName] === undefined) {
+							tableRelations[refTableTsName] = [];
+						}
+
+						const relation: RelationWithReferences = {
+							table: tableTsName,
+							columns,
+							refTable: refTableTsName,
+							refColumns,
+							refTableRels: tableRelations[refTableTsName],
+							type: 'one',
+						};
+
+						relations.push(relation);
+						tableRelations[tableTsName]!.push(relation);
+					}
+				}
+			}
+		}
+		return relations;
+	};
+
+	for (const table of Object.values(mysqlTables)) {
 		tableConfig = getMysqlTableConfig(table);
 
 		dbToTsColumnNamesMap = {};
@@ -853,11 +1080,42 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 		}
 		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
 
+		const getTypeParams = (sqlType: string) => {
+			// get type params and set only type
+			const typeParams: Column['typeParams'] = {};
+
+			if (
+				sqlType.startsWith('decimal')
+				|| sqlType.startsWith('real')
+				|| sqlType.startsWith('double')
+				|| sqlType.startsWith('float')
+			) {
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('char')
+				|| sqlType.startsWith('varchar')
+				|| sqlType.startsWith('binary')
+				|| sqlType.startsWith('varbinary')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
+
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.columnType.replace('MySql', '').toLowerCase(),
+				columnType: column.getSQLType(),
+				typeParams: getTypeParams(column.getSQLType()),
 				dataType: column.dataType,
 				hasDefault: column.hasDefault,
 				default: column.default,
@@ -871,6 +1129,15 @@ const getMySqlInfo = (schema: { [key: string]: MySqlTable }) => {
 				.map((column) => dbToTsColumnNamesMap[column.name] as string),
 		});
 	}
+
+	const transformedDrizzleRelations = transformFromDrizzleRelation(
+		mysqlSchema,
+		getDbToTsColumnNamesMap,
+		tableRelations,
+	);
+	relations.push(
+		...transformedDrizzleRelations,
+	);
 
 	const isCyclicRelations = relations.map(
 		(relI) => {
@@ -918,20 +1185,38 @@ const filterSqliteTables = (schema: {
 }) => {
 	const sqliteSchema = Object.fromEntries(
 		Object.entries(schema).filter(
+			(keyValue): keyValue is [string, SQLiteTable | Relations] =>
+				is(keyValue[1], SQLiteTable) || is(keyValue[1], Relations),
+		),
+	);
+
+	const sqliteTables = Object.fromEntries(
+		Object.entries(schema).filter(
 			(keyValue): keyValue is [string, SQLiteTable] => is(keyValue[1], SQLiteTable),
 		),
 	);
 
-	return { sqliteSchema };
+	return { sqliteSchema, sqliteTables };
 };
 
 const seedSqlite = async (
 	db: BaseSQLiteDatabase<any, any>,
-	schema: { [key: string]: SQLiteTable },
-	options: { count?: number; seed?: number } = {},
+	schema: {
+		[key: string]:
+			| PgTable
+			| PgSchema
+			| MySqlTable
+			| MySqlSchema
+			| SQLiteTable
+			| Relations
+			| any;
+	},
+	options: { count?: number; seed?: number; version?: number } = {},
 	refinements?: RefinementsType,
 ) => {
-	const { tables, relations, tableRelations } = getSqliteInfo(schema);
+	const { sqliteSchema, sqliteTables } = filterSqliteTables(schema);
+
+	const { tables, relations } = getSqliteInfo(sqliteSchema, sqliteTables);
 
 	const seedService = new SeedService();
 
@@ -939,7 +1224,6 @@ const seedSqlite = async (
 		'sqlite',
 		tables,
 		relations,
-		tableRelations,
 		refinements,
 		options,
 	);
@@ -950,7 +1234,7 @@ const seedSqlite = async (
 		relations,
 		generatedTablesGenerators,
 		db,
-		schema,
+		sqliteTables,
 		{ ...options, preserveCyclicTablesData },
 	);
 
@@ -963,16 +1247,19 @@ const seedSqlite = async (
 		relations,
 		filteredTablesGenerators,
 		db,
-		schema,
+		sqliteTables,
 		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
 	);
 };
 
-const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
+const getSqliteInfo = (
+	sqliteSchema: { [key: string]: SQLiteTable | Relations },
+	sqliteTables: { [key: string]: SQLiteTable },
+) => {
 	let tableConfig: ReturnType<typeof getSqliteTableConfig>;
 	let dbToTsColumnNamesMap: { [key: string]: string };
 	const dbToTsTableNamesMap: { [key: string]: string } = Object.fromEntries(
-		Object.entries(schema).map(([key, value]) => [getTableName(value), key]),
+		Object.entries(sqliteTables).map(([key, value]) => [getTableName(value), key]),
 	);
 
 	const tables: Table[] = [];
@@ -1000,7 +1287,64 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 		return dbToTsColumnNamesMap;
 	};
 
-	for (const table of Object.values(schema)) {
+	const transformFromDrizzleRelation = (
+		schema: Record<string, SQLiteTable | Relations>,
+		getDbToTsColumnNamesMap: (table: SQLiteTable) => {
+			[dbColName: string]: string;
+		},
+		tableRelations: {
+			[tableName: string]: RelationWithReferences[];
+		},
+	) => {
+		const schemaConfig = extractTablesRelationalConfig(schema, createTableRelationsHelpers);
+		const relations: RelationWithReferences[] = [];
+		for (const table of Object.values(schemaConfig.tables)) {
+			if (table.relations !== undefined) {
+				for (const drizzleRel of Object.values(table.relations)) {
+					if (is(drizzleRel, One)) {
+						const tableConfig = getSqliteTableConfig(drizzleRel.sourceTable as SQLiteTable);
+						const tableDbName = tableConfig.name;
+						// TODO: tableNamesMap: have {public.customer: 'customer'} structure in sqlite
+						const tableTsName = schemaConfig.tableNamesMap[`public.${tableDbName}`] ?? tableDbName;
+
+						const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as SQLiteTable);
+						const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
+							?? [];
+
+						const refTableConfig = getSqliteTableConfig(drizzleRel.referencedTable as SQLiteTable);
+						const refTableDbName = refTableConfig.name;
+						const refTableTsName = schemaConfig.tableNamesMap[`public.${refTableDbName}`]
+							?? refTableDbName;
+
+						const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as SQLiteTable);
+						const refColumns = drizzleRel.config?.references.map((ref) =>
+							dbToTsColumnNamesMapForRefTable[ref.name] as string
+						)
+							?? [];
+
+						if (tableRelations[refTableTsName] === undefined) {
+							tableRelations[refTableTsName] = [];
+						}
+
+						const relation: RelationWithReferences = {
+							table: tableTsName,
+							columns,
+							refTable: refTableTsName,
+							refColumns,
+							refTableRels: tableRelations[refTableTsName],
+							type: 'one',
+						};
+
+						relations.push(relation);
+						tableRelations[tableTsName]!.push(relation);
+					}
+				}
+			}
+		}
+		return relations;
+	};
+
+	for (const table of Object.values(sqliteTables)) {
 		tableConfig = getSqliteTableConfig(table);
 
 		dbToTsColumnNamesMap = {};
@@ -1042,11 +1386,38 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 		}
 		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
 
+		const getTypeParams = (sqlType: string) => {
+			// get type params and set only type
+			const typeParams: Column['typeParams'] = {};
+
+			if (
+				sqlType.startsWith('decimal')
+			) {
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('char')
+				|| sqlType.startsWith('varchar')
+				|| sqlType.startsWith('text')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
+
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
 			columns: tableConfig.columns.map((column) => ({
 				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.columnType.replace('SQLite', '').toLowerCase(),
+				columnType: column.getSQLType(),
+				typeParams: getTypeParams(column.getSQLType()),
 				dataType: column.dataType,
 				hasDefault: column.hasDefault,
 				default: column.default,
@@ -1060,6 +1431,15 @@ const getSqliteInfo = (schema: { [key: string]: SQLiteTable }) => {
 				.map((column) => dbToTsColumnNamesMap[column.name] as string),
 		});
 	}
+
+	const transformedDrizzleRelations = transformFromDrizzleRelation(
+		sqliteSchema,
+		getDbToTsColumnNamesMap,
+		tableRelations,
+	);
+	relations.push(
+		...transformedDrizzleRelations,
+	);
 
 	const isCyclicRelations = relations.map(
 		(relI) => {

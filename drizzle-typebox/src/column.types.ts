@@ -21,19 +21,26 @@ export type GetTypeboxType<
 	TBaseColumn extends Column | undefined,
 > = TColumnType extends
 	| 'MySqlTinyInt'
+	| 'SingleStoreTinyInt'
 	| 'PgSmallInt'
 	| 'PgSmallSerial'
 	| 'MySqlSmallInt'
 	| 'MySqlMediumInt'
+	| 'SingleStoreSmallInt'
+	| 'SingleStoreMediumInt'
 	| 'PgInteger'
 	| 'PgSerial'
 	| 'MySqlInt'
+	| 'SingleStoreInt'
 	| 'PgBigInt53'
 	| 'PgBigSerial53'
 	| 'MySqlBigInt53'
 	| 'MySqlSerial'
+	| 'SingleStoreBigInt53'
+	| 'SingleStoreSerial'
 	| 'SQLiteInteger'
-	| 'MySqlYear' ? t.TInteger
+	| 'MySqlYear'
+	| 'SingleStoreYear' ? t.TInteger
 	: TColumnType extends 'PgBinaryVector' ? t.TRegExp
 	: TBaseColumn extends Column ? t.TArray<
 			GetTypeboxType<

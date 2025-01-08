@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-seed",
-	"version": "0.1.3",
+	"version": "0.3.0",
 	"main": "index.js",
 	"type": "module",
 	"scripts": {
@@ -12,7 +12,7 @@
 		"generate-for-tests:mysql": "drizzle-kit generate --config=./src/tests/mysql/drizzle.config.ts",
 		"generate-for-tests:sqlite": "drizzle-kit generate --config=./src/tests/sqlite/drizzle.config.ts",
 		"generate": "drizzle-kit generate",
-		"start": "npx tsx ./src/test.ts",
+		"start": "npx tsx ./src/dev/test.ts",
 		"start:pg": "npx tsx ./src/tests/northwind/pgTest.ts",
 		"start:mysql": "npx tsx ./src/tests/northwind/mysqlTest.ts",
 		"start:sqlite": "npx tsx ./src/tests/northwind/sqliteTest.ts",
