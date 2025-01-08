@@ -1299,6 +1299,8 @@ export class MySqlDialect {
 
 				return sql.join(
 					withEntries.map(([k, join]) => {
+						selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
+
 						if (is(tableConfig.relations[k]!, AggregatedField)) {
 							const relation = tableConfig.relations[k]!;
 							relation.onTable(table);
@@ -1309,11 +1311,8 @@ export class MySqlDialect {
 								field: relation,
 							});
 
-							selectionArr.push(sql`(${query}) as ${sql.identifier(k)}`);
-							return;
+							return sql` left join lateral (${query}) as ${sql.identifier(k)} on true`;
 						}
-
-						selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
 
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
@@ -1348,9 +1347,13 @@ export class MySqlDialect {
 							sql`, `,
 						);
 
-						return sql`, lateral(select ${sql`coalesce(json_arrayagg(json_object(${jsonColumns})), json_array()) as ${
-							sql.identifier('r')
-						}`} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)}`;
+						return sql` left join lateral(select ${sql`${
+							isSingle
+								? sql`json_object(${jsonColumns})`
+								: sql`coalesce(json_arrayagg(json_object(${jsonColumns})), json_array())`
+						} as ${sql.identifier('r')}`} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${
+							sql.identifier(k)
+						} on true`;
 					}),
 				);
 			})()

@@ -1,4 +1,12 @@
-import { type AnyTable, getTableUniqueName, type InferModelFromColumns, IsAlias, Schema, Table } from '~/table.ts';
+import {
+	type AnyTable,
+	getTableUniqueName,
+	type InferModelFromColumns,
+	IsAlias,
+	OriginalName,
+	Schema,
+	Table,
+} from '~/table.ts';
 import { Columns, getTableName } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
@@ -307,7 +315,15 @@ export class Count extends AggregatedField<number> {
 		if (!this.query) {
 			if (!this.table) throw new Error('Table must be set before building aggregate field');
 
-			this.query = sql`select count(*) as ${sql.identifier('r')} from ${this.table}`.mapWith(Number);
+			const table = this.table;
+
+			this.query = sql`select count(*) as ${sql.identifier('r')} from ${
+				table[IsAlias]
+					? sql`${sql`${sql.identifier(table[Schema] ?? '')}.`.if(table[Schema])}${
+						sql.identifier(table[OriginalName])
+					} as ${table}`
+					: table
+			}`.mapWith(Number);
 		}
 
 		return this.query;
@@ -606,11 +622,6 @@ export function mapRelationalRow(
 		const field = selectionItem.field!;
 
 		if (is(field, Table)) {
-			// MySQL's lateral joins act only as inner joins, thus must have null responses on single relations be casted as arrays to preserve rows
-			if (!selectionItem.isArray && Array.isArray(row[selectionItem.key])) {
-				row[selectionItem.key] = (row[selectionItem.key] as Array<any>)[0] ?? null;
-			}
-
 			const currentPath = `${path ? `${path}.` : ''}${selectionItem.key}`;
 
 			if (row[selectionItem.key] === null) {
