@@ -129,6 +129,8 @@ export const generateSingleStoreSnapshot = (
 				} else {
 					if (typeof column.default === 'string') {
 						columnToSet.default = `'${column.default}'`;
+					} else if (typeof column.default === 'bigint') {
+						columnToSet.default = Number(column.default);
 					} else {
 						if (sqlTypeLowered === 'json') {
 							columnToSet.default = `'${JSON.stringify(column.default)}'`;
@@ -150,9 +152,6 @@ export const generateSingleStoreSnapshot = (
 							columnToSet.default = column.default;
 						}
 					}
-					// if (['blob', 'text', 'json'].includes(column.getSQLType())) {
-					// 	columnToSet.default = `(${columnToSet.default})`;
-					// }
 				}
 			}
 			columnsObject[column.name] = columnToSet;

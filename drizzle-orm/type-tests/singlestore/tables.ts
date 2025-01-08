@@ -4,6 +4,7 @@ import { eq } from '~/expressions.ts';
 import {
 	bigint,
 	binary,
+	blob,
 	boolean,
 	char,
 	customType,
@@ -836,6 +837,9 @@ Expect<
 
 {
 	singlestoreTable('all_columns', {
+		blob: blob('blob'),
+		blob2: blob('blob2', { mode: 'bigint' }),
+		blobdef: blob('blobdef').default(0),
 		bigint: bigint('bigint', { mode: 'number' }),
 		bigint2: bigint('bigint', { mode: 'number', unsigned: true }),
 		bigintdef: bigint('bigintdef', { mode: 'number' }).default(0),
@@ -934,6 +938,9 @@ Expect<
 
 {
 	singlestoreTable('all_columns_without_name', {
+		blob: blob(),
+		blob2: blob({ mode: 'bigint' }),
+		blobdef: blob().default(0),
 		bigint: bigint({ mode: 'number' }),
 		bigint2: bigint({ mode: 'number', unsigned: true }),
 		bigintdef: bigint({ mode: 'number' }).default(0),
