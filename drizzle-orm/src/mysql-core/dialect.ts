@@ -1225,6 +1225,13 @@ export class MySqlDialect {
 					columnIdentifiers.push(
 						sql`${table[column.tsName as keyof typeof table]} as ${sql.identifier(column.tsName)}`,
 					);
+
+					selection.push(
+						{
+							key: column.tsName,
+							field: column.column,
+						},
+					);
 				}
 
 				return columnIdentifiers.length
@@ -1245,6 +1252,7 @@ export class MySqlDialect {
 			mode,
 			errorPath,
 			depth,
+			isNested,
 		}: {
 			tables: Record<string, MySqlTable>;
 			schema: TablesRelationalConfig;
@@ -1256,6 +1264,7 @@ export class MySqlDialect {
 			mode: 'first' | 'many';
 			errorPath?: string;
 			depth?: number;
+			isNested?: boolean;
 		},
 	): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -1290,8 +1299,6 @@ export class MySqlDialect {
 
 				return sql.join(
 					withEntries.map(([k, join]) => {
-						selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
-
 						if (is(tableConfig.relations[k]!, AggregatedField)) {
 							const relation = tableConfig.relations[k]!;
 							relation.onTable(table);
@@ -1302,8 +1309,11 @@ export class MySqlDialect {
 								field: relation,
 							});
 
-							return sql`, lateral(${query}) as ${sql.identifier(k)}`;
+							selectionArr.push(sql`(${query}) as ${sql.identifier(k)}`);
+							return;
 						}
+
+						selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
 
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
@@ -1321,6 +1331,7 @@ export class MySqlDialect {
 							relationWhere: relationFilter,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
+							isNested: true,
 						});
 
 						selection.push({
@@ -1337,11 +1348,9 @@ export class MySqlDialect {
 							sql`, `,
 						);
 
-						return sql`, lateral(select ${
-							isSingle
-								? sql`json_object(${jsonColumns}) as ${sql.identifier('r')}`
-								: sql`coalesce(json_arrayagg(json_object(${jsonColumns})), json_array()) as ${sql.identifier('r')}`
-						} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)}`;
+						return sql`, lateral(select ${sql`coalesce(json_arrayagg(json_object(${jsonColumns})), json_array()) as ${
+							sql.identifier('r')
+						}`} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)}`;
 					}),
 				);
 			})()
@@ -1352,6 +1361,10 @@ export class MySqlDialect {
 			throw new DrizzleError({
 				message: `No fields selected for table "${tableConfig.tsName}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
+		}
+		// json_arrayagg() ignores order by clause otherwise
+		if (isNested && order) {
+			selectionArr.push(sql`row_number() over (order by ${order})`);
 		}
 		const selectionSet = sql.join(selectionArr, sql`, `);
 

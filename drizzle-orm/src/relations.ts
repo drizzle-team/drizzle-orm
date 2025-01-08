@@ -606,6 +606,11 @@ export function mapRelationalRow(
 		const field = selectionItem.field!;
 
 		if (is(field, Table)) {
+			// MySQL's lateral joins act only as inner joins, thus must have null responses on single relations be casted as arrays to preserve rows
+			if (!selectionItem.isArray && Array.isArray(row[selectionItem.key])) {
+				row[selectionItem.key] = (row[selectionItem.key] as Array<any>)[0] ?? null;
+			}
+
 			const currentPath = `${path ? `${path}.` : ''}${selectionItem.key}`;
 
 			if (row[selectionItem.key] === null) {
@@ -719,8 +724,8 @@ export class RelationsBuilderColumn<
 
 	through(column: RelationsBuilderColumnBase<string, TData>): Omit<this, 'through'> {
 		this._.through = column;
-
-		return this;
+		throw new Error('Not implemented');
+		// return this;
 	}
 
 	getSQL(): SQL {
@@ -763,9 +768,7 @@ export type RelationsFilter<TColumns extends Record<string, Column>> =
 		RAW?: (
 			table: Simplify<
 				& AnyTable<{ columns: TColumns }>
-				& {
-					[K in keyof TColumns]: TColumns[K];
-				}
+				& TColumns
 			>,
 			operators: Operators,
 		) => SQL;

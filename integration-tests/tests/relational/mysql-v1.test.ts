@@ -1,14 +1,14 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/mysql-core';
+import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './mysql.relations.ts';
-import { commentsTable, groupsTable, postsTable, usersTable, usersToGroupsTable } from './mysql.schema.ts';
+import * as schema from './mysql.schema.ts';
+
+const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
 const ENABLE_LOGGING = false;
 
@@ -21,14 +21,14 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		mysqlContainer: Docker.Container;
-		mysqlDbV2: MySql2Database<never, typeof relations>;
+		mysqlDb: MySql2Database<typeof schema>;
 		mysqlClient: mysql.Connection;
 	}
 }
 
 let globalDocker: Docker;
 let mysqlContainer: Docker.Container;
-let db: MySql2Database<never, typeof relations>;
+let db: MySql2Database<typeof schema>;
 let client: mysql.Connection;
 
 async function createDockerDB(): Promise<string> {
@@ -83,7 +83,7 @@ beforeAll(async () => {
 		await mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { relations, logger: ENABLE_LOGGING, mode: 'default' });
+	db = drizzle(client, { schema, logger: ENABLE_LOGGING, mode: 'default' });
 });
 
 afterAll(async () => {
@@ -92,19 +92,19 @@ afterAll(async () => {
 });
 
 beforeEach(async (ctx) => {
-	ctx.mysqlDbV2 = db;
+	ctx.mysqlDb = db;
 	ctx.mysqlClient = client;
 	ctx.docker = globalDocker;
 	ctx.mysqlContainer = mysqlContainer;
 
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`users\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`groups\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`users_to_groups\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`posts\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`comments\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`comment_likes\``);
+	await ctx.mysqlDb.execute(sql`drop table if exists \`users\``);
+	await ctx.mysqlDb.execute(sql`drop table if exists \`groups\``);
+	await ctx.mysqlDb.execute(sql`drop table if exists \`users_to_groups\``);
+	await ctx.mysqlDb.execute(sql`drop table if exists \`posts\``);
+	await ctx.mysqlDb.execute(sql`drop table if exists \`comments\``);
+	await ctx.mysqlDb.execute(sql`drop table if exists \`comment_likes\``);
 
-	await ctx.mysqlDbV2.execute(
+	await ctx.mysqlDb.execute(
 		sql`
 			CREATE TABLE \`users\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -114,7 +114,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await ctx.mysqlDb.execute(
 		sql`
 			CREATE TABLE \`groups\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -123,7 +123,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await ctx.mysqlDb.execute(
 		sql`
 			CREATE TABLE \`users_to_groups\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -132,7 +132,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await ctx.mysqlDb.execute(
 		sql`
 			CREATE TABLE \`posts\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -142,7 +142,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await ctx.mysqlDb.execute(
 		sql`
 			CREATE TABLE \`comments\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -153,7 +153,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await ctx.mysqlDb.execute(
 		sql`
 			CREATE TABLE \`comment_likes\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -170,7 +170,7 @@ beforeEach(async (ctx) => {
 */
 
 test('[Find Many] Get users with posts', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -184,7 +184,7 @@ test('[Find Many] Get users with posts', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		with: {
 			posts: true,
 		},
@@ -234,7 +234,7 @@ test('[Find Many] Get users with posts', async (t) => {
 });
 
 test('[Find Many] Get users with posts + limit posts', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -252,7 +252,7 @@ test('[Find Many] Get users with posts + limit posts', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		with: {
 			posts: {
 				limit: 1,
@@ -307,7 +307,7 @@ test('[Find Many] Get users with posts + limit posts', async (t) => {
 });
 
 test('[Find Many] Get users with posts + limit posts and users', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -325,7 +325,7 @@ test('[Find Many] Get users with posts + limit posts and users', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		limit: 2,
 		with: {
 			posts: {
@@ -372,7 +372,7 @@ test('[Find Many] Get users with posts + limit posts and users', async (t) => {
 });
 
 test('[Find Many] Get users with posts + custom fields', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -390,7 +390,7 @@ test('[Find Many] Get users with posts + custom fields', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		with: {
 			posts: true,
 		},
@@ -465,7 +465,7 @@ test('[Find Many] Get users with posts + custom fields', async (t) => {
 });
 
 test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -483,7 +483,7 @@ test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		limit: 1,
 		with: {
 			posts: {
@@ -523,7 +523,7 @@ test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
 });
 
 test('[Find Many] Get users with posts + orderBy', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -541,17 +541,13 @@ test('[Find Many] Get users with posts + orderBy', async (t) => {
 		{ ownerId: 3, content: '7' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		with: {
 			posts: {
-				orderBy: {
-					content: 'desc',
-				},
+				orderBy: (postsTable, { desc }) => [desc(postsTable.content)],
 			},
 		},
-		orderBy: {
-			id: 'desc',
-		},
+		orderBy: (usersTable, { desc }) => [desc(usersTable.id)],
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -611,7 +607,7 @@ test('[Find Many] Get users with posts + orderBy', async (t) => {
 });
 
 test('[Find Many] Get users with posts + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -626,15 +622,11 @@ test('[Find Many] Get users with posts + where', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
-		where: {
-			id: 1,
-		},
+	const usersWithPosts = await db._query.usersTable.findMany({
+		where: (({ id }, { eq }) => eq(id, 1)),
 		with: {
 			posts: {
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
 	});
@@ -665,7 +657,7 @@ test('[Find Many] Get users with posts + where', async (t) => {
 });
 
 test('[Find Many] Get users with posts + where + partial', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -680,7 +672,7 @@ test('[Find Many] Get users with posts + where + partial', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {
 			id: true,
 			name: true,
@@ -691,14 +683,10 @@ test('[Find Many] Get users with posts + where + partial', async (t) => {
 					id: true,
 					content: true,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -721,7 +709,7 @@ test('[Find Many] Get users with posts + where + partial', async (t) => {
 });
 
 test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -736,7 +724,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {
 			id: true,
 			name: true,
@@ -747,14 +735,10 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 					id: true,
 					content: true,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -777,7 +761,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 });
 
 test('[Find Many] Get users with posts + where + partial(true + false)', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -792,7 +776,7 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {
 			id: true,
 			name: false,
@@ -803,14 +787,10 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 					id: true,
 					content: false,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -830,7 +810,7 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 });
 
 test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -845,7 +825,7 @@ test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {
 			name: false,
 		},
@@ -854,14 +834,10 @@ test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
 				columns: {
 					content: false,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -887,7 +863,7 @@ test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
 });
 
 test('[Find Many] Get users with posts in transaction', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	let usersWithPosts: {
 		id: number;
@@ -916,15 +892,11 @@ test('[Find Many] Get users with posts in transaction', async (t) => {
 			{ ownerId: 3, content: 'Post3' },
 		]);
 
-		usersWithPosts = await tx.query.usersTable.findMany({
-			where: {
-				id: 1,
-			},
+		usersWithPosts = await tx._query.usersTable.findMany({
+			where: (({ id }, { eq }) => eq(id, 1)),
 			with: {
 				posts: {
-					where: {
-						id: 1,
-					},
+					where: (({ id }, { eq }) => eq(id, 1)),
 				},
 			},
 		});
@@ -956,7 +928,7 @@ test('[Find Many] Get users with posts in transaction', async (t) => {
 });
 
 test('[Find Many] Get users with posts in rollbacked transaction', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	let usersWithPosts: {
 		id: number;
@@ -987,15 +959,11 @@ test('[Find Many] Get users with posts in rollbacked transaction', async (t) => 
 
 		tx.rollback();
 
-		usersWithPosts = await tx.query.usersTable.findMany({
-			where: {
-				id: 1,
-			},
+		usersWithPosts = await tx._query.usersTable.findMany({
+			where: (({ id }, { eq }) => eq(id, 1)),
 			with: {
 				posts: {
-					where: {
-						id: 1,
-					},
+					where: (({ id }, { eq }) => eq(id, 1)),
 				},
 			},
 		});
@@ -1035,7 +1003,7 @@ test('[Find Many] Get only custom fields', async () => {
 		{ id: 7, ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
@@ -1096,7 +1064,7 @@ test('[Find Many] Get only custom fields', async () => {
 });
 
 test('[Find Many] Get only custom fields + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1114,24 +1082,18 @@ test('[Find Many] Get only custom fields + where', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: {
-						gte: 2,
-					},
-				},
+				where: gte(postsTable.id, 2),
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1154,7 +1116,7 @@ test('[Find Many] Get only custom fields + where', async (t) => {
 });
 
 test('[Find Many] Get only custom fields + where + limit', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1172,25 +1134,19 @@ test('[Find Many] Get only custom fields + where + limit', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: {
-						gte: 2,
-					},
-				},
+				where: gte(postsTable.id, 2),
 				limit: 1,
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1213,7 +1169,7 @@ test('[Find Many] Get only custom fields + where + limit', async (t) => {
 });
 
 test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1231,27 +1187,19 @@ test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findMany({
+	const usersWithPosts = await db._query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: {
-						gte: 2,
-					},
-				},
-				orderBy: {
-					id: 'desc',
-				},
+				where: gte(postsTable.id, 2),
+				orderBy: [desc(postsTable.id)],
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1291,7 +1239,7 @@ test('[Find One] Get only custom fields', async () => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
@@ -1333,7 +1281,7 @@ test('[Find One] Get only custom fields', async () => {
 });
 
 test('[Find One] Get only custom fields + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1351,24 +1299,18 @@ test('[Find One] Get only custom fields + where', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: {
-						gte: 2,
-					},
-				},
+				where: gte(postsTable.id, 2),
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1392,7 +1334,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 });
 
 test('[Find One] Get only custom fields + where + limit', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1410,25 +1352,19 @@ test('[Find One] Get only custom fields + where + limit', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: {
-						gte: 2,
-					},
-				},
+				where: gte(postsTable.id, 2),
 				limit: 1,
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1452,7 +1388,7 @@ test('[Find One] Get only custom fields + where + limit', async (t) => {
 });
 
 test('[Find One] Get only custom fields + where + orderBy', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1470,27 +1406,19 @@ test('[Find One] Get only custom fields + where + orderBy', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
-				where: {
-					id: {
-						gte: 2,
-					},
-				},
-				orderBy: {
-					id: 'desc',
-				},
+				where: gte(postsTable.id, 2),
+				orderBy: [desc(postsTable.id)],
 				extras: ({ content }) => ({
 					lowerName: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: eq(usersTable.id, 1),
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
@@ -1515,7 +1443,7 @@ test('[Find One] Get only custom fields + where + orderBy', async (t) => {
 
 // columns {}
 test('[Find Many] Get select {}', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1525,7 +1453,7 @@ test('[Find Many] Get select {}', async (t) => {
 
 	await expect(
 		async () =>
-			await db.query.usersTable.findMany({
+			await db._query.usersTable.findMany({
 				columns: {},
 			}),
 	).rejects.toThrow(DrizzleError);
@@ -1533,7 +1461,7 @@ test('[Find Many] Get select {}', async (t) => {
 
 // columns {}
 test('[Find One] Get select {}', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1542,7 +1470,7 @@ test('[Find One] Get select {}', async (t) => {
 	]);
 
 	await expect(async () =>
-		await db.query.usersTable.findFirst({
+		await db._query.usersTable.findFirst({
 			columns: {},
 		})
 	).rejects.toThrow(DrizzleError);
@@ -1550,7 +1478,7 @@ test('[Find One] Get select {}', async (t) => {
 
 // deep select {}
 test('[Find Many] Get deep select {}', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1565,7 +1493,7 @@ test('[Find Many] Get deep select {}', async (t) => {
 	]);
 
 	await expect(async () =>
-		await db.query.usersTable.findMany({
+		await db._query.usersTable.findMany({
 			columns: {},
 			with: {
 				posts: {
@@ -1578,7 +1506,7 @@ test('[Find Many] Get deep select {}', async (t) => {
 
 // deep select {}
 test('[Find One] Get deep select {}', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1593,7 +1521,7 @@ test('[Find One] Get deep select {}', async (t) => {
 	]);
 
 	await expect(async () =>
-		await db.query.usersTable.findFirst({
+		await db._query.usersTable.findFirst({
 			columns: {},
 			with: {
 				posts: {
@@ -1608,7 +1536,7 @@ test('[Find One] Get deep select {}', async (t) => {
 	Prepared statements for users+posts
 */
 test('[Find Many] Get users with posts + prepared limit', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1626,10 +1554,10 @@ test('[Find Many] Get users with posts + prepared limit', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const prepared = db.query.usersTable.findMany({
+	const prepared = db._query.usersTable.findMany({
 		with: {
 			posts: {
-				limit: sql.placeholder('limit'),
+				limit: placeholder('limit'),
 			},
 		},
 	}).prepare();
@@ -1678,7 +1606,7 @@ test('[Find Many] Get users with posts + prepared limit', async (t) => {
 });
 
 test('[Find Many] Get users with posts + prepared limit + offset', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1696,12 +1624,12 @@ test('[Find Many] Get users with posts + prepared limit + offset', async (t) => 
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const prepared = db.query.usersTable.findMany({
-		limit: sql.placeholder('uLimit'),
-		offset: sql.placeholder('uOffset'),
+	const prepared = db._query.usersTable.findMany({
+		limit: placeholder('uLimit'),
+		offset: placeholder('uOffset'),
 		with: {
 			posts: {
-				limit: sql.placeholder('pLimit'),
+				limit: placeholder('pLimit'),
 			},
 		},
 	}).prepare();
@@ -1742,7 +1670,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', async (t) => 
 });
 
 test('[Find Many] Get users with posts + prepared where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1757,17 +1685,11 @@ test('[Find Many] Get users with posts + prepared where', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const prepared = db.query.usersTable.findMany({
-		where: {
-			id: {
-				eq: sql.placeholder('id'),
-			},
-		},
+	const prepared = db._query.usersTable.findMany({
+		where: (({ id }, { eq }) => eq(id, placeholder('id'))),
 		with: {
 			posts: {
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
 	}).prepare();
@@ -1800,7 +1722,7 @@ test('[Find Many] Get users with posts + prepared where', async (t) => {
 });
 
 test('[Find Many] Get users with posts + prepared + limit + offset + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1818,27 +1740,14 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const prepared = db.query.usersTable.findMany({
-		limit: sql.placeholder('uLimit'),
-		offset: sql.placeholder('uOffset'),
-		where: {
-			id: {
-				OR: [
-					{
-						eq: sql.placeholder('id'),
-					},
-					3,
-				],
-			},
-		},
+	const prepared = db._query.usersTable.findMany({
+		limit: placeholder('uLimit'),
+		offset: placeholder('uOffset'),
+		where: (({ id }, { eq, or }) => or(eq(id, placeholder('id')), eq(id, 3))),
 		with: {
 			posts: {
-				where: {
-					id: {
-						eq: sql.placeholder('pid'),
-					},
-				},
-				limit: sql.placeholder('pLimit'),
+				where: (({ id }, { eq }) => eq(id, placeholder('pid'))),
+				limit: placeholder('pLimit'),
 			},
 		},
 	}).prepare();
@@ -1875,7 +1784,7 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 */
 
 test('[Find One] Get users with posts', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1889,7 +1798,7 @@ test('[Find One] Get users with posts', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: true,
 		},
@@ -1922,7 +1831,7 @@ test('[Find One] Get users with posts', async (t) => {
 });
 
 test('[Find One] Get users with posts + limit posts', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -1940,7 +1849,7 @@ test('[Find One] Get users with posts + limit posts', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
@@ -1975,9 +1884,9 @@ test('[Find One] Get users with posts + limit posts', async (t) => {
 });
 
 test('[Find One] Get users with posts no results found', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
@@ -2004,7 +1913,7 @@ test('[Find One] Get users with posts no results found', async (t) => {
 });
 
 test('[Find One] Get users with posts + limit posts and users', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2022,7 +1931,7 @@ test('[Find One] Get users with posts + limit posts and users', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
@@ -2073,7 +1982,7 @@ test('[Find One] Get users with posts + custom fields', async () => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: true,
 		},
@@ -2129,7 +2038,7 @@ test('[Find One] Get users with posts + custom fields', async () => {
 });
 
 test('[Find One] Get users with posts + custom fields + limits', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2147,7 +2056,7 @@ test('[Find One] Get users with posts + custom fields + limits', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
@@ -2187,7 +2096,7 @@ test('[Find One] Get users with posts + custom fields + limits', async (t) => {
 });
 
 test('[Find One] Get users with posts + orderBy', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2205,17 +2114,13 @@ test('[Find One] Get users with posts + orderBy', async (t) => {
 		{ ownerId: 3, content: '7' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
-				orderBy: {
-					content: 'desc',
-				},
+				orderBy: (postsTable, { desc }) => [desc(postsTable.content)],
 			},
 		},
-		orderBy: {
-			id: 'desc',
-		},
+		orderBy: (usersTable, { desc }) => [desc(usersTable.id)],
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2250,7 +2155,7 @@ test('[Find One] Get users with posts + orderBy', async (t) => {
 });
 
 test('[Find One] Get users with posts + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2265,15 +2170,11 @@ test('[Find One] Get users with posts + where', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
-		where: {
-			id: 1,
-		},
+	const usersWithPosts = await db._query.usersTable.findFirst({
+		where: (({ id }, { eq }) => eq(id, 1)),
 		with: {
 			posts: {
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
 	});
@@ -2305,7 +2206,7 @@ test('[Find One] Get users with posts + where', async (t) => {
 });
 
 test('[Find One] Get users with posts + where + partial', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2320,7 +2221,7 @@ test('[Find One] Get users with posts + where + partial', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {
 			id: true,
 			name: true,
@@ -2331,14 +2232,10 @@ test('[Find One] Get users with posts + where + partial', async (t) => {
 					id: true,
 					content: true,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2362,7 +2259,7 @@ test('[Find One] Get users with posts + where + partial', async (t) => {
 });
 
 test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2377,7 +2274,7 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {
 			id: true,
 			name: true,
@@ -2388,14 +2285,10 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 					id: true,
 					content: true,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2419,7 +2312,7 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 });
 
 test('[Find One] Get users with posts + where + partial(true + false)', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2434,7 +2327,7 @@ test('[Find One] Get users with posts + where + partial(true + false)', async (t
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {
 			id: true,
 			name: false,
@@ -2445,14 +2338,10 @@ test('[Find One] Get users with posts + where + partial(true + false)', async (t
 					id: true,
 					content: false,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2473,7 +2362,7 @@ test('[Find One] Get users with posts + where + partial(true + false)', async (t
 });
 
 test('[Find One] Get users with posts + where + partial(false)', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2488,7 +2377,7 @@ test('[Find One] Get users with posts + where + partial(false)', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const usersWithPosts = await db.query.usersTable.findFirst({
+	const usersWithPosts = await db._query.usersTable.findFirst({
 		columns: {
 			name: false,
 		},
@@ -2497,14 +2386,10 @@ test('[Find One] Get users with posts + where + partial(false)', async (t) => {
 				columns: {
 					content: false,
 				},
-				where: {
-					id: 1,
-				},
+				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-		where: {
-			id: 1,
-		},
+		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2535,7 +2420,7 @@ test('[Find One] Get users with posts + where + partial(false)', async (t) => {
 */
 
 test('Get user with invitee', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2544,7 +2429,7 @@ test('Get user with invitee', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
+	const usersWithInvitee = await db._query.usersTable.findMany({
 		with: {
 			invitee: true,
 		},
@@ -2604,7 +2489,7 @@ test('Get user with invitee', async (t) => {
 });
 
 test('Get user + limit with invitee', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2613,7 +2498,7 @@ test('Get user + limit with invitee', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
+	const usersWithInvitee = await db._query.usersTable.findMany({
 		with: {
 			invitee: true,
 		},
@@ -2658,7 +2543,7 @@ test('Get user + limit with invitee', async (t) => {
 });
 
 test('Get user with invitee and custom fields', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2667,7 +2552,7 @@ test('Get user with invitee and custom fields', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
+	const usersWithInvitee = await db._query.usersTable.findMany({
 		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
@@ -2736,7 +2621,7 @@ test('Get user with invitee and custom fields', async (t) => {
 });
 
 test('Get user with invitee and custom fields + limits', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2745,7 +2630,7 @@ test('Get user with invitee and custom fields + limits', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
+	const usersWithInvitee = await db._query.usersTable.findMany({
 		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
 		limit: 3,
 		with: {
@@ -2806,7 +2691,7 @@ test('Get user with invitee and custom fields + limits', async (t) => {
 });
 
 test('Get user with invitee + order by', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2815,10 +2700,8 @@ test('Get user with invitee + order by', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		orderBy: {
-			id: 'desc',
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		orderBy: (users, { desc }) => [desc(users.id)],
 		with: {
 			invitee: true,
 		},
@@ -2876,7 +2759,7 @@ test('Get user with invitee + order by', async (t) => {
 });
 
 test('Get user with invitee + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2885,12 +2768,8 @@ test('Get user with invitee + where', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		with: {
 			invitee: true,
 		},
@@ -2932,7 +2811,7 @@ test('Get user with invitee + where', async (t) => {
 });
 
 test('Get user with invitee + where + partial', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2941,12 +2820,8 @@ test('Get user with invitee + where + partial', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		columns: {
 			id: true,
 			name: true,
@@ -2989,7 +2864,7 @@ test('Get user with invitee + where + partial', async (t) => {
 });
 
 test('Get user with invitee + where + partial.  Did not select users id, but used it in where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -2998,12 +2873,8 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		columns: {
 			name: true,
 		},
@@ -3042,7 +2913,7 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 });
 
 test('Get user with invitee + where + partial(true+false)', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3051,12 +2922,8 @@ test('Get user with invitee + where + partial(true+false)', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		columns: {
 			id: true,
 			name: true,
@@ -3101,7 +2968,7 @@ test('Get user with invitee + where + partial(true+false)', async (t) => {
 });
 
 test('Get user with invitee + where + partial(false)', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3110,12 +2977,8 @@ test('Get user with invitee + where + partial(false)', async (t) => {
 		{ id: 4, name: 'John', invitedBy: 2 },
 	]);
 
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const usersWithInvitee = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		columns: {
 			verified: false,
 		},
@@ -3164,7 +3027,7 @@ test('Get user with invitee + where + partial(false)', async (t) => {
 */
 
 test('Get user with invitee and posts', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3179,7 +3042,7 @@ test('Get user with invitee and posts', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		with: {
 			invitee: true,
 			posts: true,
@@ -3250,7 +3113,7 @@ test('Get user with invitee and posts', async (t) => {
 });
 
 test('Get user with invitee and posts + limit posts and users', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3268,7 +3131,7 @@ test('Get user with invitee and posts + limit posts and users', async (t) => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		limit: 3,
 		with: {
 			invitee: true,
@@ -3333,7 +3196,7 @@ test('Get user with invitee and posts + limit posts and users', async (t) => {
 });
 
 test('Get user with invitee and posts + limits + custom fields in each', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3351,7 +3214,7 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		limit: 3,
 		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
@@ -3441,7 +3304,7 @@ test('Get user with invitee and posts + custom fields in each', async () => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
@@ -3546,7 +3409,7 @@ test('Get user with invitee and posts + custom fields in each', async () => {
 });
 
 test('Get user with invitee and posts + orderBy', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3563,16 +3426,12 @@ test('Get user with invitee and posts + orderBy', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		orderBy: {
-			id: 'desc',
-		},
+	const response = await db._query.usersTable.findMany({
+		orderBy: (users, { desc }) => [desc(users.id)],
 		with: {
 			invitee: true,
 			posts: {
-				orderBy: {
-					id: 'desc',
-				},
+				orderBy: (posts, { desc }) => [desc(posts.id)],
 			},
 		},
 	});
@@ -3655,7 +3514,7 @@ test('Get user with invitee and posts + orderBy', async (t) => {
 });
 
 test('Get user with invitee and posts + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3670,18 +3529,12 @@ test('Get user with invitee and posts + where', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [2, 3],
-			},
-		},
+	const response = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 2), eq(users.id, 3))),
 		with: {
 			invitee: true,
 			posts: {
-				where: {
-					ownerId: 2,
-				},
+				where: (posts, { eq }) => (eq(posts.ownerId, 2)),
 			},
 		},
 	});
@@ -3731,7 +3584,7 @@ test('Get user with invitee and posts + where', async (t) => {
 });
 
 test('Get user with invitee and posts + limit posts and users + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3749,19 +3602,13 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
+	const response = await db._query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
 		limit: 1,
 		with: {
 			invitee: true,
 			posts: {
-				where: {
-					ownerId: 3,
-				},
+				where: (posts, { eq }) => (eq(posts.ownerId, 3)),
 				limit: 1,
 			},
 		},
@@ -3799,7 +3646,7 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 });
 
 test('Get user with invitee and posts + orderBy + where + custom', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3816,30 +3663,20 @@ test('Get user with invitee and posts + orderBy + where + custom', async (t) => 
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		orderBy: {
-			id: 'desc',
-		},
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
-		extras: (usersTable) => ({
+	const response = await db._query.usersTable.findMany({
+		orderBy: [desc(usersTable.id)],
+		where: or(eq(usersTable.id, 3), eq(usersTable.id, 4)),
+		extras: {
 			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
-		}),
+		},
 		with: {
 			invitee: true,
 			posts: {
-				where: {
-					ownerId: 3,
-				},
-				orderBy: {
-					id: 'desc',
-				},
-				extras: (postsTable) => ({
+				where: eq(postsTable.ownerId, 3),
+				orderBy: [desc(postsTable.id)],
+				extras: {
 					lower: sql<string>`lower(${postsTable.content})`.as('lower_name'),
-				}),
+				},
 			},
 		},
 	});
@@ -3896,7 +3733,7 @@ test('Get user with invitee and posts + orderBy + where + custom', async (t) => 
 });
 
 test('Get user with invitee and posts + orderBy + where + partial + custom', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -3913,18 +3750,12 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		orderBy: {
-			id: 'desc',
-		},
-		where: {
-			id: {
-				OR: [3, 4],
-			},
-		},
-		extras: (usersTable) => ({
+	const response = await db._query.usersTable.findMany({
+		orderBy: [desc(usersTable.id)],
+		where: or(eq(usersTable.id, 3), eq(usersTable.id, 4)),
+		extras: {
 			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
-		}),
+		},
 		columns: {
 			id: true,
 			name: true,
@@ -3935,24 +3766,20 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 					id: true,
 					name: true,
 				},
-				extras: (usersTable) => ({
+				extras: {
 					lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
-				}),
+				},
 			},
 			posts: {
 				columns: {
 					id: true,
 					content: true,
 				},
-				where: {
-					ownerId: 3,
-				},
-				orderBy: {
-					id: 'desc',
-				},
-				extras: (postsTable) => ({
+				where: eq(postsTable.ownerId, 3),
+				orderBy: [desc(postsTable.id)],
+				extras: {
 					lower: sql<string>`lower(${postsTable.content})`.as('lower_name'),
-				}),
+				},
 			},
 		},
 	});
@@ -4004,7 +3831,7 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 */
 
 test('Get user with posts and posts with comments', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4024,7 +3851,7 @@ test('Get user with posts and posts with comments', async (t) => {
 		{ postId: 3, content: 'Comment3', creator: 3 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		with: {
 			posts: {
 				with: {
@@ -4161,7 +3988,7 @@ test('Get user with posts and posts with comments', async (t) => {
 */
 
 test('Get user with posts and posts with comments and comments with owner', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4181,7 +4008,7 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 		{ postId: 3, content: 'Comment3', creator: 3 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		with: {
 			posts: {
 				with: {
@@ -4216,7 +4043,7 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 					name: string;
 					verified: boolean;
 					invitedBy: number | null;
-				};
+				} | null;
 			}[];
 		}[];
 	}[]>();
@@ -4307,7 +4134,7 @@ test('Get user with posts and posts with comments and comments with owner where 
 		{ postId: 3, content: 'Comment3', creator: 3 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		with: {
 			posts: {
 				with: {
@@ -4319,10 +4146,7 @@ test('Get user with posts and posts with comments and comments with owner where 
 				},
 			},
 		},
-		where: {
-			RAW: ({ id }, { exists, eq }) =>
-				exists(db.select({ one: sql`1` }).from(alias(usersTable, 'alias')).where(eq(sql`1`, id))),
-		},
+		where: (table, { exists, eq }) => exists(db.select({ one: sql`1` }).from(usersTable).where(eq(sql`1`, table.id))),
 	});
 
 	expectTypeOf(response).toEqualTypeOf<{
@@ -4346,7 +4170,7 @@ test('Get user with posts and posts with comments and comments with owner where 
 					name: string;
 					verified: boolean;
 					invitedBy: number | null;
-				};
+				} | null;
 			}[];
 		}[];
 	}[]>();
@@ -4402,7 +4226,7 @@ test('Get user with posts and posts with comments and comments with owner where 
 */
 
 test('[Find Many] Get users with groups', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4423,7 +4247,7 @@ test('[Find Many] Get users with groups', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		with: {
 			usersToGroups: {
 				columns: {},
@@ -4506,7 +4330,7 @@ test('[Find Many] Get users with groups', async (t) => {
 });
 
 test('[Find Many] Get groups with users', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4527,7 +4351,7 @@ test('[Find Many] Get groups with users', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
+	const response = await db._query.groupsTable.findMany({
 		with: {
 			usersToGroups: {
 				columns: {},
@@ -4611,7 +4435,7 @@ test('[Find Many] Get groups with users', async (t) => {
 });
 
 test('[Find Many] Get users with groups + limit', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4632,7 +4456,7 @@ test('[Find Many] Get users with groups + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		limit: 2,
 		with: {
 			usersToGroups: {
@@ -4696,7 +4520,7 @@ test('[Find Many] Get users with groups + limit', async (t) => {
 });
 
 test('[Find Many] Get groups with users + limit', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4717,7 +4541,7 @@ test('[Find Many] Get groups with users + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
+	const response = await db._query.groupsTable.findMany({
 		limit: 2,
 		with: {
 			usersToGroups: {
@@ -4781,7 +4605,7 @@ test('[Find Many] Get groups with users + limit', async (t) => {
 });
 
 test('[Find Many] Get users with groups + limit + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4802,18 +4626,12 @@ test('[Find Many] Get users with groups + limit + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
+	const response = await db._query.usersTable.findMany({
 		limit: 1,
-		where: {
-			id: {
-				OR: [1, 2],
-			},
-		},
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
 		with: {
 			usersToGroups: {
-				where: {
-					groupId: 1,
-				},
+				where: eq(usersToGroupsTable.groupId, 1),
 				columns: {},
 				with: {
 					group: true,
@@ -4858,7 +4676,7 @@ test('[Find Many] Get users with groups + limit + where', async (t) => {
 });
 
 test('[Find Many] Get groups with users + limit + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4879,18 +4697,12 @@ test('[Find Many] Get groups with users + limit + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
+	const response = await db._query.groupsTable.findMany({
 		limit: 1,
-		where: {
-			id: {
-				gt: 1,
-			},
-		},
+		where: gt(groupsTable.id, 1),
 		with: {
 			usersToGroups: {
-				where: {
-					userId: 2,
-				},
+				where: eq(usersToGroupsTable.userId, 2),
 				limit: 1,
 				columns: {},
 				with: {
@@ -4936,7 +4748,7 @@ test('[Find Many] Get groups with users + limit + where', async (t) => {
 });
 
 test('[Find Many] Get users with groups + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -4957,17 +4769,11 @@ test('[Find Many] Get users with groups + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		where: {
-			id: {
-				OR: [1, 2],
-			},
-		},
+	const response = await db._query.usersTable.findMany({
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
 		with: {
 			usersToGroups: {
-				where: {
-					groupId: 2,
-				},
+				where: eq(usersToGroupsTable.groupId, 2),
 				columns: {},
 				with: {
 					group: true,
@@ -5021,7 +4827,7 @@ test('[Find Many] Get users with groups + where', async (t) => {
 });
 
 test('[Find Many] Get groups with users + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5042,17 +4848,11 @@ test('[Find Many] Get groups with users + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
-		where: {
-			id: {
-				gt: 1,
-			},
-		},
+	const response = await db._query.groupsTable.findMany({
+		where: gt(groupsTable.id, 1),
 		with: {
 			usersToGroups: {
-				where: {
-					userId: 2,
-				},
+				where: eq(usersToGroupsTable.userId, 2),
 				columns: {},
 				with: {
 					user: true,
@@ -5105,7 +4905,7 @@ test('[Find Many] Get groups with users + where', async (t) => {
 });
 
 test('[Find Many] Get users with groups + orderBy', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5126,15 +4926,11 @@ test('[Find Many] Get users with groups + orderBy', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		orderBy: {
-			id: 'desc',
-		},
+	const response = await db._query.usersTable.findMany({
+		orderBy: (users, { desc }) => [desc(users.id)],
 		with: {
 			usersToGroups: {
-				orderBy: {
-					groupId: 'desc',
-				},
+				orderBy: [desc(usersToGroupsTable.groupId)],
 				columns: {},
 				with: {
 					group: true,
@@ -5213,7 +5009,7 @@ test('[Find Many] Get users with groups + orderBy', async (t) => {
 });
 
 test('[Find Many] Get groups with users + orderBy', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5234,15 +5030,11 @@ test('[Find Many] Get groups with users + orderBy', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
-		orderBy: {
-			id: 'desc',
-		},
+	const response = await db._query.groupsTable.findMany({
+		orderBy: [desc(groupsTable.id)],
 		with: {
 			usersToGroups: {
-				orderBy: {
-					userId: 'desc',
-				},
+				orderBy: (utg, { desc }) => [desc(utg.userId)],
 				columns: {},
 				with: {
 					user: true,
@@ -5322,7 +5114,7 @@ test('[Find Many] Get groups with users + orderBy', async (t) => {
 });
 
 test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5343,17 +5135,13 @@ test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		orderBy: {
-			id: 'desc',
-		},
+	const response = await db._query.usersTable.findMany({
+		orderBy: (users, { desc }) => [desc(users.id)],
 		limit: 2,
 		with: {
 			usersToGroups: {
 				limit: 1,
-				orderBy: {
-					groupId: 'desc',
-				},
+				orderBy: [desc(usersToGroupsTable.groupId)],
 				columns: {},
 				with: {
 					group: true,
@@ -5417,7 +5205,7 @@ test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
 */
 
 test('[Find One] Get users with groups', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5438,7 +5226,7 @@ test('[Find One] Get users with groups', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
+	const response = await db._query.usersTable.findFirst({
 		with: {
 			usersToGroups: {
 				columns: {},
@@ -5483,7 +5271,7 @@ test('[Find One] Get users with groups', async (t) => {
 });
 
 test('[Find One] Get groups with users', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5504,7 +5292,7 @@ test('[Find One] Get groups with users', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findFirst({
+	const response = await db._query.groupsTable.findFirst({
 		with: {
 			usersToGroups: {
 				columns: {},
@@ -5549,7 +5337,7 @@ test('[Find One] Get groups with users', async (t) => {
 });
 
 test('[Find One] Get users with groups + limit', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5570,7 +5358,7 @@ test('[Find One] Get users with groups + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
+	const response = await db._query.usersTable.findFirst({
 		with: {
 			usersToGroups: {
 				limit: 1,
@@ -5616,7 +5404,7 @@ test('[Find One] Get users with groups + limit', async (t) => {
 });
 
 test('[Find One] Get groups with users + limit', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5637,7 +5425,7 @@ test('[Find One] Get groups with users + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findFirst({
+	const response = await db._query.groupsTable.findFirst({
 		with: {
 			usersToGroups: {
 				limit: 1,
@@ -5683,7 +5471,7 @@ test('[Find One] Get groups with users + limit', async (t) => {
 });
 
 test('[Find One] Get users with groups + limit + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5704,17 +5492,11 @@ test('[Find One] Get users with groups + limit + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
-		where: {
-			id: {
-				OR: [1, 2],
-			},
-		},
+	const response = await db._query.usersTable.findFirst({
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
 		with: {
 			usersToGroups: {
-				where: {
-					groupId: 1,
-				},
+				where: eq(usersToGroupsTable.groupId, 1),
 				columns: {},
 				with: {
 					group: true,
@@ -5757,7 +5539,7 @@ test('[Find One] Get users with groups + limit + where', async (t) => {
 });
 
 test('[Find One] Get groups with users + limit + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5778,17 +5560,11 @@ test('[Find One] Get groups with users + limit + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findFirst({
-		where: {
-			id: {
-				gt: 1,
-			},
-		},
+	const response = await db._query.groupsTable.findFirst({
+		where: gt(groupsTable.id, 1),
 		with: {
 			usersToGroups: {
-				where: {
-					userId: 2,
-				},
+				where: eq(usersToGroupsTable.userId, 2),
 				limit: 1,
 				columns: {},
 				with: {
@@ -5832,7 +5608,7 @@ test('[Find One] Get groups with users + limit + where', async (t) => {
 });
 
 test('[Find One] Get users with groups + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5853,17 +5629,11 @@ test('[Find One] Get users with groups + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
-		where: {
-			id: {
-				OR: [1, 2],
-			},
-		},
+	const response = await db._query.usersTable.findFirst({
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
 		with: {
 			usersToGroups: {
-				where: {
-					groupId: 2,
-				},
+				where: eq(usersToGroupsTable.groupId, 2),
 				columns: {},
 				with: {
 					group: true,
@@ -5900,7 +5670,7 @@ test('[Find One] Get users with groups + where', async (t) => {
 });
 
 test('[Find One] Get groups with users + where', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5921,17 +5691,11 @@ test('[Find One] Get groups with users + where', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findFirst({
-		where: {
-			id: {
-				gt: 1,
-			},
-		},
+	const response = await db._query.groupsTable.findFirst({
+		where: gt(groupsTable.id, 1),
 		with: {
 			usersToGroups: {
-				where: {
-					userId: 2,
-				},
+				where: eq(usersToGroupsTable.userId, 2),
 				columns: {},
 				with: {
 					user: true,
@@ -5974,7 +5738,7 @@ test('[Find One] Get groups with users + where', async (t) => {
 });
 
 test('[Find One] Get users with groups + orderBy', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -5995,15 +5759,11 @@ test('[Find One] Get users with groups + orderBy', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
-		orderBy: {
-			id: 'desc',
-		},
+	const response = await db._query.usersTable.findFirst({
+		orderBy: (users, { desc }) => [desc(users.id)],
 		with: {
 			usersToGroups: {
-				orderBy: {
-					groupId: 'desc',
-				},
+				orderBy: [desc(usersToGroupsTable.groupId)],
 				columns: {},
 				with: {
 					group: true,
@@ -6052,7 +5812,7 @@ test('[Find One] Get users with groups + orderBy', async (t) => {
 });
 
 test('[Find One] Get groups with users + orderBy', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -6073,15 +5833,11 @@ test('[Find One] Get groups with users + orderBy', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findFirst({
-		orderBy: {
-			id: 'desc',
-		},
+	const response = await db._query.groupsTable.findFirst({
+		orderBy: [desc(groupsTable.id)],
 		with: {
 			usersToGroups: {
-				orderBy: {
-					userId: 'desc',
-				},
+				orderBy: (utg, { desc }) => [desc(utg.userId)],
 				columns: {},
 				with: {
 					user: true,
@@ -6124,7 +5880,7 @@ test('[Find One] Get groups with users + orderBy', async (t) => {
 });
 
 test('[Find One] Get users with groups + orderBy + limit', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -6145,16 +5901,12 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findFirst({
-		orderBy: {
-			id: 'desc',
-		},
+	const response = await db._query.usersTable.findFirst({
+		orderBy: (users, { desc }) => [desc(users.id)],
 		with: {
 			usersToGroups: {
 				limit: 1,
-				orderBy: {
-					groupId: 'desc',
-				},
+				orderBy: [desc(usersToGroupsTable.groupId)],
 				columns: {},
 				with: {
 					group: true,
@@ -6197,7 +5949,7 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 });
 
 test('Get groups with users + orderBy + limit', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -6218,17 +5970,13 @@ test('Get groups with users + orderBy + limit', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
-		orderBy: {
-			id: 'desc',
-		},
+	const response = await db._query.groupsTable.findMany({
+		orderBy: [desc(groupsTable.id)],
 		limit: 2,
 		with: {
 			usersToGroups: {
 				limit: 1,
-				orderBy: {
-					userId: 'desc',
-				},
+				orderBy: (utg, { desc }) => [desc(utg.userId)],
 				columns: {},
 				with: {
 					user: true,
@@ -6288,7 +6036,7 @@ test('Get groups with users + orderBy + limit', async (t) => {
 });
 
 test('Get users with groups + custom', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -6309,18 +6057,18 @@ test('Get users with groups + custom', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersTable.findMany({
-		extras: (usersTable) => ({
+	const response = await db._query.usersTable.findMany({
+		extras: {
 			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
-		}),
+		},
 		with: {
 			usersToGroups: {
 				columns: {},
 				with: {
 					group: {
-						extras: (groupsTable) => ({
+						extras: {
 							lower: sql<string>`lower(${groupsTable.name})`.as('lower_name'),
-						}),
+						},
 					},
 				},
 			},
@@ -6410,7 +6158,7 @@ test('Get users with groups + custom', async (t) => {
 });
 
 test('Get groups with users + custom', async (t) => {
-	const { mysqlDbV2: db } = t;
+	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
@@ -6431,7 +6179,7 @@ test('Get groups with users + custom', async (t) => {
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
+	const response = await db._query.groupsTable.findMany({
 		extras: (table, { sql }) => ({
 			lower: sql<string>`lower(${table.name})`.as('lower_name'),
 		}),
@@ -6532,100 +6280,8 @@ test('Get groups with users + custom', async (t) => {
 	});
 });
 
-test('Error on empty non-optional relation', async (t) => {
-	const { mysqlDbV2: db } = t;
-
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex', invitedBy: 1 },
-		{ id: 4, name: 'John', invitedBy: 2 },
-	]);
-
-	expect(async () =>
-		await db.query.usersTable.findMany({
-			with: {
-				inviteeRequired: true,
-			},
-		})
-	).rejects.toThrow(DrizzleError);
-});
-
-test('Force optional on where on non-optional relation query', async (t) => {
-	const { mysqlDbV2: db } = t;
-
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex', invitedBy: 1 },
-		{ id: 4, name: 'John', invitedBy: 2 },
-	]);
-
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		with: {
-			inviteeRequired: {
-				where: {
-					id: 1,
-				},
-			},
-		},
-	});
-
-	expectTypeOf(usersWithInvitee).toEqualTypeOf<
-		{
-			id: number;
-			name: string;
-			verified: boolean;
-			invitedBy: number | null;
-			inviteeRequired: {
-				id: number;
-				name: string;
-				verified: boolean;
-				invitedBy: number | null;
-			} | null;
-		}[]
-	>();
-
-	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
-
-	expect(usersWithInvitee.length).eq(4);
-	expect(usersWithInvitee[0]?.inviteeRequired).toBeNull();
-	expect(usersWithInvitee[1]?.inviteeRequired).toBeNull();
-	expect(usersWithInvitee[2]?.inviteeRequired).not.toBeNull();
-	expect(usersWithInvitee[3]?.inviteeRequired).toBeNull();
-
-	expect(usersWithInvitee[0]).toEqual({
-		id: 1,
-		name: 'Dan',
-		verified: false,
-		invitedBy: null,
-		inviteeRequired: null,
-	});
-	expect(usersWithInvitee[1]).toEqual({
-		id: 2,
-		name: 'Andrew',
-		verified: false,
-		invitedBy: null,
-		inviteeRequired: null,
-	});
-	expect(usersWithInvitee[2]).toEqual({
-		id: 3,
-		name: 'Alex',
-		verified: false,
-		invitedBy: 1,
-		inviteeRequired: { id: 1, name: 'Dan', verified: false, invitedBy: null },
-	});
-	expect(usersWithInvitee[3]).toEqual({
-		id: 4,
-		name: 'John',
-		verified: false,
-		invitedBy: 2,
-		inviteeRequired: null,
-	});
-});
-
 test('.toSQL()', () => {
-	const query = db.query.usersTable.findFirst().toSQL();
+	const query = db._query.usersTable.findFirst().toSQL();
 
 	expect(query).toHaveProperty('sql', expect.any(String));
 	expect(query).toHaveProperty('params', expect.any(Array));

@@ -141,33 +141,8 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 
 		this.logger.logQuery(this.rawQuery.sql, params);
 
-		const { client, rawQuery, customResultMapper, returningIds, generatedIds } = this;
+		const { client, rawQuery, customResultMapper } = this;
 		const res = await client.query<any>(rawQuery, params);
-		const insertId = res[0].insertId;
-		const affectedRows = res[0].affectedRows;
-		// for each row, I need to check keys from
-		if (returningIds) {
-			const returningResponse = [];
-			let j = 0;
-			for (let i = insertId; i < insertId + affectedRows; i++) {
-				for (const column of returningIds) {
-					const key = returningIds[0]!.path[0]!;
-					if (is(column.field, Column)) {
-						// @ts-ignore
-						if (column.field.primary && column.field.autoIncrement) {
-							returningResponse.push({ [key]: i });
-						}
-						if (column.field.defaultFn && generatedIds) {
-							// generatedIds[rowIdx][key]
-							returningResponse.push({ [key]: generatedIds[j]![key] });
-						}
-					}
-				}
-				j++;
-			}
-
-			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(returningResponse);
-		}
 
 		const rows = res[0];
 
