@@ -140,7 +140,7 @@ afterAll(async () => {
 export function tests() {
 	describe('common', () => {
 		beforeEach(async (ctx) => {
-			const { db } = ctx.pg;
+			const { db } = ctx.neonPg;
 			await db.execute(sql`drop schema if exists public cascade`);
 			await db.execute(sql`drop schema if exists mySchema cascade`);
 
@@ -255,44 +255,7 @@ export function tests() {
 				db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 				db.insert(usersTable).values({ id: 2, name: 'Dan' }),
 				db._query.usersTable.findMany({}),
-			]);
-
-			expectTypeOf(batchResponse).toEqualTypeOf<[
-				{
-					id: number;
-				}[],
-				NeonHttpQueryResult<never>,
-				{
-					id: number;
-					name: string;
-					verified: number;
-					invitedBy: number | null;
-				}[],
-			]>();
-
-			expect(batchResponse.length).eq(3);
-
-			expect(batchResponse[0]).toEqual([{
-				id: 1,
-			}]);
-
-			expect(batchResponse[1]).toMatchObject({ rows: [], rowCount: 1 });
-
-			expect(batchResponse[2]).toEqual([
-				{ id: 1, name: 'John', verified: 0, invitedBy: null },
-				{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-			]);
-		});
-
-		// batch api relational many + one
-		test('insert + findMany + findFirst', async (ctx) => {
-			const { db } = ctx.neonPg;
-
-			const batchResponse = await db.batch([
-				db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-				db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-				db._query.usersTable.findMany({}),
-				db._query.usersTable.findFirst({}),
+				db.query.usersTable.findMany({}),
 			]);
 
 			expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -311,7 +274,7 @@ export function tests() {
 					name: string;
 					verified: number;
 					invitedBy: number | null;
-				} | undefined,
+				}[],
 			]>();
 
 			expect(batchResponse.length).eq(4);
@@ -327,7 +290,79 @@ export function tests() {
 				{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
 			]);
 
-			expect(batchResponse[3]).toEqual(
+			expect(batchResponse[3]).toEqual([
+				{ id: 1, name: 'John', verified: 0, invitedBy: null },
+				{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+			]);
+		});
+
+		// batch api relational many + one
+		test('insert + findMany + findFirst', async (ctx) => {
+			const { db } = ctx.neonPg;
+
+			const batchResponse = await db.batch([
+				db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+				db.insert(usersTable).values({ id: 2, name: 'Dan' }),
+				db._query.usersTable.findMany({}),
+				db.query.usersTable.findMany({}),
+				db._query.usersTable.findFirst({}),
+				db.query.usersTable.findFirst({}),
+			]);
+
+			expectTypeOf(batchResponse).toEqualTypeOf<[
+				{
+					id: number;
+				}[],
+				NeonHttpQueryResult<never>,
+				{
+					id: number;
+					name: string;
+					verified: number;
+					invitedBy: number | null;
+				}[],
+				{
+					id: number;
+					name: string;
+					verified: number;
+					invitedBy: number | null;
+				}[],
+				{
+					id: number;
+					name: string;
+					verified: number;
+					invitedBy: number | null;
+				} | undefined,
+				{
+					id: number;
+					name: string;
+					verified: number;
+					invitedBy: number | null;
+				} | undefined,
+			]>();
+
+			expect(batchResponse.length).eq(6);
+
+			expect(batchResponse[0]).toEqual([{
+				id: 1,
+			}]);
+
+			expect(batchResponse[1]).toMatchObject({ rows: [], rowCount: 1 });
+
+			expect(batchResponse[2]).toEqual([
+				{ id: 1, name: 'John', verified: 0, invitedBy: null },
+				{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+			]);
+
+			expect(batchResponse[3]).toEqual([
+				{ id: 1, name: 'John', verified: 0, invitedBy: null },
+				{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+			]);
+
+			expect(batchResponse[4]).toEqual(
+				{ id: 1, name: 'John', verified: 0, invitedBy: null },
+			);
+
+			expect(batchResponse[5]).toEqual(
 				{ id: 1, name: 'John', verified: 0, invitedBy: null },
 			);
 		});
@@ -364,6 +399,7 @@ export function tests() {
 				db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 				db.insert(usersTable).values({ id: 2, name: 'Dan' }),
 				db._query.usersTable.findMany({}),
+				db.query.usersTable.findMany({}),
 				db.execute<typeof usersTable.$inferSelect>(sql`select * from users`),
 			]);
 
@@ -378,6 +414,12 @@ export function tests() {
 					verified: number;
 					invitedBy: number | null;
 				}[],
+				{
+					id: number;
+					name: string;
+					verified: number;
+					invitedBy: number | null;
+				}[],
 				NeonHttpQueryResult<{
 					id: number;
 					name: string;
@@ -386,7 +428,7 @@ export function tests() {
 				}>,
 			]>();
 
-			expect(batchResponse.length).eq(4);
+			expect(batchResponse.length).eq(5);
 
 			expect(batchResponse[0]).toEqual([{
 				id: 1,
@@ -399,7 +441,12 @@ export function tests() {
 				{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
 			]);
 
-			expect(batchResponse[3]).toMatchObject({
+			expect(batchResponse[3]).toEqual([
+				{ id: 1, name: 'John', verified: 0, invitedBy: null },
+				{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+			]);
+
+			expect(batchResponse[4]).toMatchObject({
 				rows: [
 					{ id: 1, name: 'John', verified: 0, invited_by: null },
 					{ id: 2, name: 'Dan', verified: 0, invited_by: null },
@@ -415,6 +462,7 @@ export function tests() {
 				db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 				db.update(usersTable).set({ name: 'Dan' }).where(eq(usersTable.id, 1)),
 				db._query.usersTable.findMany({}),
+				db.query.usersTable.findMany({}),
 				db.select().from(usersTable).where(eq(usersTable.id, 1)),
 				db.select({ id: usersTable.id, invitedBy: usersTable.invitedBy }).from(usersTable),
 			]);
@@ -438,11 +486,17 @@ export function tests() {
 				}[],
 				{
 					id: number;
+					name: string;
+					verified: number;
+					invitedBy: number | null;
+				}[],
+				{
+					id: number;
 					invitedBy: number | null;
 				}[],
 			]>();
 
-			expect(batchResponse.length).eq(5);
+			expect(batchResponse.length).eq(6);
 
 			expect(batchResponse[0]).toEqual([{
 				id: 1,
@@ -459,6 +513,10 @@ export function tests() {
 			]);
 
 			expect(batchResponse[4]).toEqual([
+				{ id: 1, name: 'Dan', verified: 0, invitedBy: null },
+			]);
+
+			expect(batchResponse[5]).toEqual([
 				{ id: 1, invitedBy: null },
 			]);
 		});
@@ -480,6 +538,12 @@ export function tests() {
 						invitedBy: true,
 					},
 				}),
+				db.query.usersTable.findFirst({
+					columns: {
+						id: true,
+						invitedBy: true,
+					},
+				}),
 			]);
 
 			expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -495,9 +559,13 @@ export function tests() {
 					id: number;
 					invitedBy: number | null;
 				} | undefined,
+				{
+					id: number;
+					invitedBy: number | null;
+				} | undefined,
 			]>();
 
-			expect(batchResponse.length).eq(4);
+			expect(batchResponse.length).eq(5);
 
 			expect(batchResponse[0]).toEqual([{
 				id: 1,
@@ -510,6 +578,10 @@ export function tests() {
 			]);
 
 			expect(batchResponse[3]).toEqual(
+				{ id: 2, invitedBy: null },
+			);
+
+			expect(batchResponse[4]).toEqual(
 				{ id: 2, invitedBy: null },
 			);
 		});

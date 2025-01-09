@@ -9,10 +9,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vit
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: NeonHttpDatabase;
+let db: NeonHttpDatabase<never, typeof relations>;
 let ddlRunner: Client;
 let client: NeonQueryFunction<any, any>;
 
@@ -36,7 +37,7 @@ beforeAll(async () => {
 			ddlRunner?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {
@@ -432,6 +433,14 @@ skipTests([
 	'transaction',
 	'timestamp timezone',
 	'test $onUpdateFn and $onUpdate works as $default',
+	'RQB v2 transaction find first - no rows',
+	'RQB v2 transaction find first - multiple rows',
+	'RQB v2 transaction find first - with relation',
+	'RQB v2 transaction find first - placeholders',
+	'RQB v2 transaction find many - no rows',
+	'RQB v2 transaction find many - multiple rows',
+	'RQB v2 transaction find many - with relation',
+	'RQB v2 transaction find many - placeholders',
 ]);
 tests();
 

@@ -9,10 +9,11 @@ import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: NeonDatabase;
+let db: NeonDatabase<never, typeof relations>;
 let client: Pool;
 
 beforeAll(async () => {
@@ -40,7 +41,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {

@@ -10,10 +10,11 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: PostgresJsDatabase;
+let db: PostgresJsDatabase<never, typeof relations>;
 let client: Sql;
 
 beforeAll(async () => {
@@ -43,7 +44,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {

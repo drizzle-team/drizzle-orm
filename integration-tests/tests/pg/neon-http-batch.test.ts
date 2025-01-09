@@ -1,4 +1,5 @@
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
+import { defineRelations } from 'drizzle-orm';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
 import {
@@ -31,7 +32,9 @@ export const schema = {
 	usersConfig,
 };
 
-let db: NeonHttpDatabase<typeof schema>;
+export const neonRelations = defineRelations(schema, () => ({}));
+
+let db: NeonHttpDatabase<typeof schema, typeof neonRelations>;
 let client: NeonQueryFunction<false, true>;
 
 beforeAll(async () => {

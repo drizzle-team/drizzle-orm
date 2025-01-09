@@ -111,37 +111,9 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 			queryString,
 			rawQuery,
 			customResultMapper,
-			returningIds,
-			generatedIds,
 		} = this;
 
 		const res = await client.execute(queryString, params, rawQuery);
-
-		const insertId = Number.parseFloat(res.insertId);
-		const affectedRows = res.rowsAffected;
-
-		// for each row, I need to check keys from
-		if (returningIds) {
-			const returningResponse = [];
-			let j = 0;
-			for (let i = insertId; i < insertId + affectedRows; i++) {
-				for (const column of returningIds) {
-					const key = returningIds[0]!.path[0]!;
-					if (is(column.field, Column)) {
-						// @ts-ignore
-						if (column.field.primary && column.field.autoIncrement) {
-							returningResponse.push({ [key]: i });
-						}
-						if (column.field.defaultFn && generatedIds) {
-							// generatedIds[rowIdx][key]
-							returningResponse.push({ [key]: generatedIds[j]![key] });
-						}
-					}
-				}
-				j++;
-			}
-			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(returningResponse);
-		}
 
 		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
 			res.rows as any as Record<string, unknown>[],
