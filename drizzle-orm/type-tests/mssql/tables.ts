@@ -133,6 +133,7 @@ Expect<
 				hasRuntimeDefault: false;
 				tableName: 'new_yorkers';
 				enumValues: undefined;
+				identity: undefined;
 				baseColumn: never;
 				generated: GeneratedColumnConfig<number>;
 			}>;
@@ -150,6 +151,7 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				identity: undefined;
 				generated: GeneratedColumnConfig<number>;
 			}>;
 		}>,
@@ -179,6 +181,7 @@ Expect<
 			MsSqlViewWithSelection<'new_yorkers', false, {
 				userId: MsSqlColumn<{
 					name: 'id';
+					tableName: 'new_yorkers';
 					dataType: 'number';
 					columnType: 'MsSqlInt';
 					data: number;
@@ -188,13 +191,14 @@ Expect<
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
-					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					identity: undefined;
 					generated: GeneratedColumnConfig<number>;
-				}>;
+				}, object>;
 				cityId: MsSqlColumn<{
 					name: 'id';
+					tableName: 'new_yorkers';
 					dataType: 'number';
 					columnType: 'MsSqlInt';
 					data: number;
@@ -204,11 +208,11 @@ Expect<
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
-					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					identity: undefined;
 					generated: GeneratedColumnConfig<number>;
-				}>;
+				}, object>;
 			}>,
 			typeof newYorkers
 		>
@@ -234,36 +238,38 @@ Expect<
 			MsSqlViewWithSelection<'new_yorkers', false, {
 				userId: MsSqlColumn<{
 					name: 'user_id';
+					tableName: 'new_yorkers';
 					dataType: 'number';
 					columnType: 'MsSqlInt';
 					data: number;
 					driverParam: number;
-					hasDefault: false;
 					notNull: true;
+					hasDefault: false;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
-					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					identity: undefined;
 					generated: undefined;
-				}>;
+				}, {}>;
 				cityId: MsSqlColumn<{
 					name: 'city_id';
+					tableName: 'new_yorkers';
+					dataType: 'number';
+					columnType: 'MsSqlInt';
+					data: number;
+					driverParam: number;
 					notNull: false;
 					hasDefault: false;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					identity: undefined;
 					generated: undefined;
-				}>;
+				}, {}>;
 			}>,
 			typeof newYorkers
 		>
@@ -300,15 +306,17 @@ Expect<
 					hasRuntimeDefault: false;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
+					identity: undefined;
 					baseColumn: never;
 					generated: undefined;
-				}>;
+				}, {}>;
 				cityId: MsSqlColumn<{
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
 					isPrimaryKey: false;
 					isAutoincrement: false;
+					identity: undefined;
 					hasRuntimeDefault: false;
 					dataType: 'number';
 					columnType: 'MsSqlInt';
@@ -318,7 +326,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
-				}>;
+				}, {}>;
 			}>,
 			typeof newYorkers
 		>
@@ -348,8 +356,9 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					identity: undefined;
 					generated: undefined;
-				}>;
+				}, {}>;
 				cityId: MsSqlColumn<{
 					name: 'city_id';
 					notNull: false;
@@ -364,8 +373,9 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					identity: undefined;
 					generated: undefined;
-				}>;
+				}, {}>;
 			}>,
 			typeof newYorkers
 		>
@@ -396,7 +406,8 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
-				}>;
+					identity: undefined;
+				}, {}>;
 				cityId: MsSqlColumn<{
 					name: 'city_id';
 					notNull: false;
@@ -412,7 +423,8 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
-				}>;
+					identity: undefined;
+				}, {}>;
 			}>,
 			typeof newYorkers
 		>
@@ -445,6 +457,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				dialect: 'mssql';
+				identity: undefined;
 				generated: undefined;
 			},
 			Simplify<BuildColumn<'table', typeof t, 'mssql'>['_']>
