@@ -1,178 +1,390 @@
-import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import {
-	bigint as valibigint,
-	boolean,
-	date as valiDate,
-	minValue,
-	nullable,
-	number,
-	object,
-	optional,
-	type Output,
-	parse,
-	picklist,
-	string,
-} from 'valibot';
-import { expect, test } from 'vitest';
-import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
-import { expectSchemaShape } from './utils.ts';
+import { type Equal, sql } from 'drizzle-orm';
+import { customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import * as v from 'valibot';
+import { test } from 'vitest';
+import { bufferSchema, jsonSchema } from '~/column.ts';
+import { CONSTANTS } from '~/constants.ts';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { Expect, expectSchemaShape } from './utils.ts';
 
-const blobJsonSchema = object({
-	foo: string(),
-});
+const intSchema = v.pipe(
+	v.number(),
+	v.minValue(Number.MIN_SAFE_INTEGER),
+	v.maxValue(Number.MAX_SAFE_INTEGER),
+	v.integer(),
+);
+const textSchema = v.string();
 
-const users = sqliteTable('users', {
-	id: integer('id').primaryKey(),
-	blobJson: blob('blob', { mode: 'json' })
-		.$type<Output<typeof blobJsonSchema>>()
-		.notNull(),
-	blobBigInt: blob('blob', { mode: 'bigint' }).notNull(),
-	numeric: numeric('numeric').notNull(),
-	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-	createdAtMs: integer('created_at_ms', { mode: 'timestamp_ms' }).notNull(),
-	boolean: integer('boolean', { mode: 'boolean' }).notNull(),
-	real: real('real').notNull(),
-	text: text('text', { length: 255 }),
-	role: text('role', { enum: ['admin', 'user'] })
-		.notNull()
-		.default('user'),
-});
-
-const testUser = {
-	id: 1,
-	blobJson: { foo: 'bar' },
-	blobBigInt: BigInt(123),
-	numeric: '123.45',
-	createdAt: new Date(),
-	createdAtMs: new Date(),
-	boolean: true,
-	real: 123.45,
-	text: 'foobar',
-	role: 'admin' as const,
-};
-
-test('users insert valid user', () => {
-	const schema = createInsertSchema(users);
-	//
-	expect(parse(schema, testUser)).toStrictEqual(testUser);
-});
-
-test('users insert invalid text length', () => {
-	const schema = createInsertSchema(users);
-	expect(() => parse(schema, { ...testUser, text: 'a'.repeat(256) })).toThrow(undefined);
-});
-
-test('users insert schema', (t) => {
-	const actual = createInsertSchema(users, {
-		id: () => number([minValue(0)]),
-		blobJson: blobJsonSchema,
-		role: picklist(['admin', 'user', 'manager']),
+test('table - select', (t) => {
+	const table = sqliteTable('test', {
+		id: int().primaryKey({ autoIncrement: true }),
+		name: text().notNull(),
 	});
 
-	(() => {
-		{
-			createInsertSchema(users, {
-				// @ts-expect-error (missing property)
-				foobar: number(),
-			});
-		}
-
-		{
-			createInsertSchema(users, {
-				// @ts-expect-error (invalid type)
-				id: 123,
-			});
-		}
-	});
-
-	const expected = object({
-		id: optional(number([minValue(0)])),
-		blobJson: blobJsonSchema,
-		blobBigInt: valibigint(),
-		numeric: string(),
-		createdAt: valiDate(),
-		createdAtMs: valiDate(),
-		boolean: boolean(),
-		real: number(),
-		text: optional(nullable(string())),
-		role: optional(picklist(['admin', 'user', 'manager'])),
-	});
-
-	expectSchemaShape(t, expected).from(actual);
+	const result = createSelectSchema(table);
+	const expected = v.object({ id: intSchema, name: textSchema });
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('users insert schema w/ defaults', (t) => {
-	const actual = createInsertSchema(users);
-
-	const expected = object({
-		id: optional(number()),
-		blobJson: jsonSchema,
-		blobBigInt: valibigint(),
-		numeric: string(),
-		createdAt: valiDate(),
-		createdAtMs: valiDate(),
-		boolean: boolean(),
-		real: number(),
-		text: optional(nullable(string())),
-		role: optional(picklist(['admin', 'user'])),
+test('table - insert', (t) => {
+	const table = sqliteTable('test', {
+		id: int().primaryKey({ autoIncrement: true }),
+		name: text().notNull(),
+		age: int(),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	const result = createInsertSchema(table);
+	const expected = v.object({ id: v.optional(intSchema), name: textSchema, age: v.optional(v.nullable(intSchema)) });
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('users select schema', (t) => {
-	const actual = createSelectSchema(users, {
-		blobJson: jsonSchema,
-		role: picklist(['admin', 'user', 'manager']),
+test('table - update', (t) => {
+	const table = sqliteTable('test', {
+		id: int().primaryKey({ autoIncrement: true }),
+		name: text().notNull(),
+		age: int(),
 	});
 
-	(() => {
-		{
-			createSelectSchema(users, {
-				// @ts-expect-error (missing property)
-				foobar: number(),
-			});
-		}
-
-		{
-			createSelectSchema(users, {
-				// @ts-expect-error (invalid type)
-				id: 123,
-			});
-		}
+	const result = createUpdateSchema(table);
+	const expected = v.object({
+		id: v.optional(intSchema),
+		name: v.optional(textSchema),
+		age: v.optional(v.nullable(intSchema)),
 	});
-
-	const expected = object({
-		id: number(),
-		blobJson: jsonSchema,
-		blobBigInt: valibigint(),
-		numeric: string(),
-		createdAt: valiDate(),
-		createdAtMs: valiDate(),
-		boolean: boolean(),
-		real: number(),
-		text: nullable(string()),
-		role: picklist(['admin', 'user', 'manager']),
-	});
-
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('users select schema w/ defaults', (t) => {
-	const actual = createSelectSchema(users);
+test('view qb - select', (t) => {
+	const table = sqliteTable('test', {
+		id: int().primaryKey({ autoIncrement: true }),
+		name: text().notNull(),
+	});
+	const view = sqliteView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
-	const expected = object({
-		id: number(),
-		blobJson: jsonSchema,
-		blobBigInt: valibigint(),
-		numeric: string(),
-		createdAt: valiDate(),
-		createdAtMs: valiDate(),
-		boolean: boolean(),
-		real: number(),
-		text: nullable(string()),
-		role: picklist(['admin', 'user']),
+	const result = createSelectSchema(view);
+	const expected = v.object({ id: intSchema, age: v.any() });
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('view columns - select', (t) => {
+	const view = sqliteView('test', {
+		id: int().primaryKey({ autoIncrement: true }),
+		name: text().notNull(),
+	}).as(sql``);
+
+	const result = createSelectSchema(view);
+	const expected = v.object({ id: intSchema, name: textSchema });
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('view with nested fields - select', (t) => {
+	const table = sqliteTable('test', {
+		id: int().primaryKey({ autoIncrement: true }),
+		name: text().notNull(),
+	});
+	const view = sqliteView('test').as((qb) =>
+		qb.select({
+			id: table.id,
+			nested: {
+				name: table.name,
+				age: sql``.as('age'),
+			},
+			table,
+		}).from(table)
+	);
+
+	const result = createSelectSchema(view);
+	const expected = v.object({
+		id: intSchema,
+		nested: v.object({ name: textSchema, age: v.any() }),
+		table: v.object({ id: intSchema, name: textSchema }),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('nullability - select', (t) => {
+	const table = sqliteTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().default(1),
+		c4: int().notNull().default(1),
 	});
 
-	expectSchemaShape(t, expected).from(actual);
+	const result = createSelectSchema(table);
+	const expected = v.object({
+		c1: v.nullable(intSchema),
+		c2: intSchema,
+		c3: v.nullable(intSchema),
+		c4: intSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
+
+test('nullability - insert', (t) => {
+	const table = sqliteTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().default(1),
+		c4: int().notNull().default(1),
+		c5: int().generatedAlwaysAs(1),
+	});
+
+	const result = createInsertSchema(table);
+	const expected = v.object({
+		c1: v.optional(v.nullable(intSchema)),
+		c2: intSchema,
+		c3: v.optional(v.nullable(intSchema)),
+		c4: v.optional(intSchema),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('nullability - update', (t) => {
+	const table = sqliteTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().default(1),
+		c4: int().notNull().default(1),
+		c5: int().generatedAlwaysAs(1),
+	});
+
+	const result = createUpdateSchema(table);
+	const expected = v.object({
+		c1: v.optional(v.nullable(intSchema)),
+		c2: v.optional(intSchema),
+		c3: v.optional(v.nullable(intSchema)),
+		c4: v.optional(intSchema),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - select', (t) => {
+	const table = sqliteTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+	});
+
+	const result = createSelectSchema(table, {
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+	});
+	const expected = v.object({
+		c1: v.nullable(intSchema),
+		c2: v.pipe(intSchema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - select with custom data type', (t) => {
+	const customText = customType({ dataType: () => 'text' });
+	const table = sqliteTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+		c4: customText(),
+	});
+
+	const customTextSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(100));
+	const result = createSelectSchema(table, {
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+		c4: customTextSchema,
+	});
+	const expected = v.object({
+		c1: v.nullable(intSchema),
+		c2: v.pipe(intSchema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+		c4: customTextSchema,
+	});
+
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - insert', (t) => {
+	const table = sqliteTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+		c4: int().generatedAlwaysAs(1),
+	});
+
+	const result = createInsertSchema(table, {
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+	});
+	const expected = v.object({
+		c1: v.optional(v.nullable(intSchema)),
+		c2: v.pipe(intSchema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - update', (t) => {
+	const table = sqliteTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+		c4: int().generatedAlwaysAs(1),
+	});
+
+	const result = createUpdateSchema(table, {
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+	});
+	const expected = v.object({
+		c1: v.optional(v.nullable(intSchema)),
+		c2: v.optional(v.pipe(intSchema, v.maxValue(1000))),
+		c3: v.pipe(v.string(), v.transform(Number)),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine view - select', (t) => {
+	const table = sqliteTable('test', {
+		c1: int(),
+		c2: int(),
+		c3: int(),
+		c4: int(),
+		c5: int(),
+		c6: int(),
+	});
+	const view = sqliteView('test').as((qb) =>
+		qb.select({
+			c1: table.c1,
+			c2: table.c2,
+			c3: table.c3,
+			nested: {
+				c4: table.c4,
+				c5: table.c5,
+				c6: table.c6,
+			},
+			table,
+		}).from(table)
+	);
+
+	const result = createSelectSchema(view, {
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+		nested: {
+			c5: (schema) => v.pipe(schema, v.maxValue(1000)),
+			c6: v.pipe(v.string(), v.transform(Number)),
+		},
+		table: {
+			c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+			c3: v.pipe(v.string(), v.transform(Number)),
+		},
+	});
+	const expected = v.object({
+		c1: v.nullable(intSchema),
+		c2: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
+		c3: v.pipe(v.string(), v.transform(Number)),
+		nested: v.object({
+			c4: v.nullable(intSchema),
+			c5: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
+			c6: v.pipe(v.string(), v.transform(Number)),
+		}),
+		table: v.object({
+			c1: v.nullable(intSchema),
+			c2: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
+			c3: v.pipe(v.string(), v.transform(Number)),
+			c4: v.nullable(intSchema),
+			c5: v.nullable(intSchema),
+			c6: v.nullable(intSchema),
+		}),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('all data types', (t) => {
+	const table = sqliteTable('test', ({
+		blob,
+		integer,
+		numeric,
+		real,
+		text,
+	}) => ({
+		blob1: blob({ mode: 'buffer' }).notNull(),
+		blob2: blob({ mode: 'bigint' }).notNull(),
+		blob3: blob({ mode: 'json' }).notNull(),
+		integer1: integer({ mode: 'number' }).notNull(),
+		integer2: integer({ mode: 'boolean' }).notNull(),
+		integer3: integer({ mode: 'timestamp' }).notNull(),
+		integer4: integer({ mode: 'timestamp_ms' }).notNull(),
+		numeric: numeric().notNull(),
+		real: real().notNull(),
+		text1: text({ mode: 'text' }).notNull(),
+		text2: text({ mode: 'text', length: 10 }).notNull(),
+		text3: text({ mode: 'text', enum: ['a', 'b', 'c'] }).notNull(),
+		text4: text({ mode: 'json' }).notNull(),
+	}));
+
+	const result = createSelectSchema(table);
+	const expected = v.object({
+		blob1: bufferSchema,
+		blob2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
+		blob3: jsonSchema,
+		integer1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
+		integer2: v.boolean(),
+		integer3: v.date(),
+		integer4: v.date(),
+		numeric: v.string(),
+		real: v.pipe(v.number(), v.minValue(CONSTANTS.INT48_MIN), v.maxValue(CONSTANTS.INT48_MAX)),
+		text1: v.string(),
+		text2: v.pipe(v.string(), v.maxLength(10 as number)),
+		text3: v.enum({ a: 'a', b: 'b', c: 'c' }),
+		text4: jsonSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+/* Disallow unknown keys in table refinement - select */ {
+	const table = sqliteTable('test', { id: int() });
+	// @ts-expect-error
+	createSelectSchema(table, { unknown: v.string() });
+}
+
+/* Disallow unknown keys in table refinement - insert */ {
+	const table = sqliteTable('test', { id: int() });
+	// @ts-expect-error
+	createInsertSchema(table, { unknown: v.string() });
+}
+
+/* Disallow unknown keys in table refinement - update */ {
+	const table = sqliteTable('test', { id: int() });
+	// @ts-expect-error
+	createUpdateSchema(table, { unknown: v.string() });
+}
+
+/* Disallow unknown keys in view qb - select */ {
+	const table = sqliteTable('test', { id: int() });
+	const view = sqliteView('test').as((qb) => qb.select().from(table));
+	const nestedSelect = sqliteView('test').as((qb) => qb.select({ table }).from(table));
+	// @ts-expect-error
+	createSelectSchema(view, { unknown: v.string() });
+	// @ts-expect-error
+	createSelectSchema(nestedSelect, { table: { unknown: v.string() } });
+}
+
+/* Disallow unknown keys in view columns - select */ {
+	const view = sqliteView('test', { id: int() }).as(sql``);
+	// @ts-expect-error
+	createSelectSchema(view, { unknown: v.string() });
+}

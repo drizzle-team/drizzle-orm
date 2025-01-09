@@ -1,0 +1,11 @@
+{
+	"extends": "../tsconfig.build.json",
+	"compilerOptions": {
+		"composite": false,
+		"noEmit": true,
+		"rootDir": "..",
+		"outDir": "./.cache"
+	},
+	"include": [".", "../src"],
+	"exclude": ["**/playground"]
+}

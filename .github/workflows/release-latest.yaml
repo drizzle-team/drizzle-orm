@@ -12,6 +12,7 @@ jobs:
           - drizzle-orm
           - drizzle-kit
           - drizzle-zod
+          - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
           - eslint-plugin-drizzle

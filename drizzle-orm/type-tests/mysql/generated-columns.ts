@@ -17,6 +17,7 @@ const users = mysqlTable(
 		).$type<string | null>(), // There is no way for drizzle to detect nullability in these cases. This is how the user can work around it
 	},
 );
+
 {
 	type User = typeof users.$inferSelect;
 	type NewUser = typeof users.$inferInsert;

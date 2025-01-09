@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, test } from 'vitest';
 
 export interface DialectSuite {
 	allTypes(context?: any): Promise<void>;
@@ -15,6 +15,8 @@ export interface DialectSuite {
 	dropGeneratedConstraint(context?: any): Promise<void>;
 	alterGeneratedConstraint(context?: any): Promise<void>;
 	createTableWithGeneratedConstraint(context?: any): Promise<void>;
+	createCompositePrimaryKey(context?: any): Promise<void>;
+	renameTableWithCompositePrimaryKey(context?: any): Promise<void>;
 	case1(): Promise<void>;
 }
 
@@ -22,9 +24,12 @@ export const run = (
 	suite: DialectSuite,
 	beforeAllFn?: (context: any) => Promise<void>,
 	afterAllFn?: (context: any) => Promise<void>,
+	beforeEachFn?: (context: any) => Promise<void>,
 ) => {
 	let context: any = {};
 	beforeAll(beforeAllFn ? () => beforeAllFn(context) : () => {});
+
+	beforeEach(beforeEachFn ? () => beforeEachFn(context) : () => {});
 
 	test('No diffs for all database types', () => suite.allTypes(context));
 	test('Adding basic indexes', () => suite.addBasicIndexes(context));
@@ -45,6 +50,9 @@ export const run = (
 	// should ignore on push
 	test('Alter generated constraint', () => suite.alterGeneratedConstraint(context));
 	test('Create table with generated column', () => suite.createTableWithGeneratedConstraint(context));
+	test('Rename table with composite primary key', () => suite.renameTableWithCompositePrimaryKey(context));
+
+	test('Create composite primary key', () => suite.createCompositePrimaryKey(context));
 
 	afterAll(afterAllFn ? () => afterAllFn(context) : () => {});
 };

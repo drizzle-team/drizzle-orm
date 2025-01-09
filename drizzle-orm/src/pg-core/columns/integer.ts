@@ -5,14 +5,13 @@ import type { AnyPgTable } from '../table.ts';
 import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
 
-type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
+export type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
 	name: TName;
 	dataType: 'number';
 	columnType: 'PgInteger';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInteger'>>

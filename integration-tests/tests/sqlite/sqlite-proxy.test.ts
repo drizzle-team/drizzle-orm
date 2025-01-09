@@ -72,7 +72,7 @@ beforeAll(async () => {
 
 			return { rows: rows.data };
 		} catch (e: any) {
-			console.error('Error from sqlite proxy server:', e.response.data);
+			console.error('Error from sqlite proxy server:', e.response?.data ?? e.message);
 			throw e;
 		}
 	});

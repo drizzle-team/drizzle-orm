@@ -1,4 +1,4 @@
-import { sql, type VercelPool } from '@vercel/postgres';
+import { sql } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
 
 export interface VercelPgDriverOptions {
@@ -79,23 +79,19 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends VercelPgClient = typeof sql,
 >(
-	...params: IfNotImported<
-		VercelPool,
-		[ImportTypeError<'@vercel/postgres'>],
-		[] | [
-			TClient,
-		] | [
-			TClient,
-			DrizzleConfig<TSchema>,
-		] | [
-			(
-				& DrizzleConfig<TSchema>
-				& ({
-					client?: TClient;
-				})
-			),
-		]
-	>
+	...params: [] | [
+		TClient,
+	] | [
+		TClient,
+		DrizzleConfig<TSchema>,
+	] | [
+		(
+			& DrizzleConfig<TSchema>
+			& ({
+				client?: TClient;
+			})
+		),
+	]
 ): VercelPgDatabase<TSchema> & {
 	$client: TClient;
 } {

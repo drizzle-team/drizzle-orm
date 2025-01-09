@@ -13,7 +13,6 @@ export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends [s
 		data: TEnum[number];
 		driverParam: string;
 		enumValues: TEnum;
-		generated: undefined;
 	}>;
 
 export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlEnumColumn'>>

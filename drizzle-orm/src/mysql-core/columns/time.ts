@@ -12,7 +12,6 @@ export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTime'>> extends MySqlColumnBuilder<

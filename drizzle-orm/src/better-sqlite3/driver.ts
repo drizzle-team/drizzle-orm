@@ -9,7 +9,7 @@ import {
 } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { BetterSQLiteSession } from './session.ts';
 
 export type DrizzleBetterSQLite3DatabaseConfig =
@@ -64,9 +64,7 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 >(
-	...params: IfNotImported<
-		Database,
-		[ImportTypeError<'better-sqlite3'>],
+	...params:
 		| []
 		| [
 			Database | string,
@@ -85,7 +83,6 @@ export function drizzle<
 				})
 			),
 		]
-	>
 ): BetterSQLite3Database<TSchema> & {
 	$client: Database;
 } {

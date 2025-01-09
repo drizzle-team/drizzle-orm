@@ -4,6 +4,8 @@ import {
 	prepareMySqlMigrationSnapshot,
 	preparePgDbPushSnapshot,
 	preparePgMigrationSnapshot,
+	prepareSingleStoreDbPushSnapshot,
+	prepareSingleStoreMigrationSnapshot,
 	prepareSQLiteDbPushSnapshot,
 	prepareSqliteMigrationSnapshot,
 } from '../../migrationPreparator';
@@ -11,29 +13,37 @@ import {
 import chalk from 'chalk';
 import { render } from 'hanji';
 import path, { join } from 'path';
+import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
-import { PgSchema, pgSchema, squashPgScheme, View } from '../../serializer/pgSchema';
+import { PgSchema, pgSchema, Policy, Role, squashPgScheme, View } from '../../serializer/pgSchema';
 import { SQLiteSchema, sqliteSchema, squashSqliteScheme, View as SQLiteView } from '../../serializer/sqliteSchema';
 import {
 	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
+	applySingleStoreSnapshotsDiff,
 	applySqliteSnapshotsDiff,
 	Column,
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
 	Enum,
+	PolicyResolverInput,
+	PolicyResolverOutput,
 	ResolverInput,
 	ResolverOutput,
 	ResolverOutputWithMoved,
+	RolesResolverInput,
+	RolesResolverOutput,
 	Sequence,
 	Table,
+	TablePolicyResolverInput,
+	TablePolicyResolverOutput,
 } from '../../snapshotsDiffer';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
-import { CasingType, Prefix } from '../validations/common';
+import { CasingType, Driver, Prefix } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import {
 	isRenamePromptItem,
@@ -41,9 +51,10 @@ import {
 	ResolveColumnSelect,
 	ResolveSchemasSelect,
 	ResolveSelect,
+	ResolveSelectNamed,
 	schema,
 } from '../views';
-import { GenerateConfig } from './utils';
+import { ExportConfig, GenerateConfig } from './utils';
 
 export type Named = {
 	name: string;
@@ -136,6 +147,28 @@ export const mySqlViewsResolver = async (
 	}
 };
 
+/* export const singleStoreViewsResolver = async (
+	input: ResolverInput<SingleStoreViewSquashed & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<SingleStoreViewSquashed>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+}; */
+
 export const sqliteViewsResolver = async (
 	input: ResolverInput<SQLiteView & { schema: '' }>,
 ): Promise<ResolverOutputWithMoved<SQLiteView>> => {
@@ -178,6 +211,53 @@ export const sequencesResolver = async (
 		console.error(e);
 		throw e;
 	}
+};
+
+export const roleResolver = async (
+	input: RolesResolverInput<Role>,
+): Promise<RolesResolverOutput<Role>> => {
+	const result = await promptNamedConflict(
+		input.created,
+		input.deleted,
+		'role',
+	);
+	return {
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
+};
+
+export const policyResolver = async (
+	input: TablePolicyResolverInput<Policy>,
+): Promise<TablePolicyResolverOutput<Policy>> => {
+	const result = await promptColumnsConflicts(
+		input.tableName,
+		input.created,
+		input.deleted,
+	);
+	return {
+		tableName: input.tableName,
+		schema: input.schema,
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
+};
+
+export const indPolicyResolver = async (
+	input: PolicyResolverInput<Policy>,
+): Promise<PolicyResolverOutput<Policy>> => {
+	const result = await promptNamedConflict(
+		input.created,
+		input.deleted,
+		'policy',
+	);
+	return {
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
 };
 
 export const enumsResolver = async (
@@ -264,6 +344,9 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			schemasResolver,
 			enumsResolver,
 			sequencesResolver,
+			policyResolver,
+			indPolicyResolver,
+			roleResolver,
 			tablesResolver,
 			columnsResolver,
 			viewsResolver,
@@ -285,19 +368,48 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 	}
 };
 
-export const preparePgPush = async (
-	schemaPath: string | string[],
-	snapshot: PgSchema,
-	schemaFilter: string[],
-	casing: CasingType | undefined,
-) => {
-	const { prev, cur } = await preparePgDbPushSnapshot(
-		snapshot,
-		schemaPath,
-		casing,
-		schemaFilter,
-	);
+export const prepareAndExportPg = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
 
+	try {
+		const { prev, cur } = await preparePgMigrationSnapshot(
+			[], // no snapshots before
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = pgSchema.parse(prev);
+		const validatedCur = pgSchema.parse(cur);
+
+		const squashedPrev = squashPgScheme(validatedPrev);
+		const squashedCur = squashPgScheme(validatedCur);
+
+		const { sqlStatements } = await applyPgSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			schemasResolver,
+			enumsResolver,
+			sequencesResolver,
+			policyResolver,
+			indPolicyResolver,
+			roleResolver,
+			tablesResolver,
+			columnsResolver,
+			viewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const preparePgPush = async (
+	cur: PgSchema,
+	prev: PgSchema,
+) => {
 	const validatedPrev = pgSchema.parse(prev);
 	const validatedCur = pgSchema.parse(cur);
 
@@ -310,6 +422,9 @@ export const preparePgPush = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
 		viewsResolver,
@@ -470,6 +585,220 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 	}
 };
 
+// Not needed for now
+function singleStoreSchemaSuggestions(
+	curSchema: TypeOf<typeof singlestoreSchema>,
+	prevSchema: TypeOf<typeof singlestoreSchema>,
+) {
+	const suggestions: string[] = [];
+	const usedSuggestions: string[] = [];
+	const suggestionTypes = {
+		// TODO: Check if SingleStore has serial type
+		serial: withStyle.errorWarning(
+			`We deprecated the use of 'serial' for SingleStore starting from version 0.20.0. In SingleStore, 'serial' is simply an alias for 'bigint unsigned not null auto_increment unique,' which creates all constraints and indexes for you. This may make the process less explicit for both users and drizzle-kit push commands`,
+		),
+	};
+
+	for (const table of Object.values(curSchema.tables)) {
+		for (const column of Object.values(table.columns)) {
+			if (column.type === 'serial') {
+				if (!usedSuggestions.includes('serial')) {
+					suggestions.push(suggestionTypes['serial']);
+				}
+
+				const uniqueForSerial = Object.values(
+					prevSchema.tables[table.name].uniqueConstraints,
+				).find((it) => it.columns[0] === column.name);
+
+				suggestions.push(
+					`\n`
+						+ withStyle.suggestion(
+							`We are suggesting to change ${
+								chalk.blue(
+									column.name,
+								)
+							} column in ${
+								chalk.blueBright(
+									table.name,
+								)
+							} table from serial to bigint unsigned\n\n${
+								chalk.blueBright(
+									`bigint("${column.name}", { mode: "number", unsigned: true }).notNull().autoincrement().unique(${
+										uniqueForSerial?.name ? `"${uniqueForSerial?.name}"` : ''
+									})`,
+								)
+							}`,
+						),
+				);
+			}
+		}
+	}
+
+	return suggestions;
+}
+
+// Intersect with prepareAnMigrate
+export const prepareSingleStorePush = async (
+	schemaPath: string | string[],
+	snapshot: SingleStoreSchema,
+	casing: CasingType | undefined,
+) => {
+	try {
+		const { prev, cur } = await prepareSingleStoreDbPushSnapshot(
+			snapshot,
+			schemaPath,
+			casing,
+		);
+
+		const validatedPrev = singlestoreSchema.parse(prev);
+		const validatedCur = singlestoreSchema.parse(cur);
+
+		const squashedPrev = squashSingleStoreScheme(validatedPrev);
+		const squashedCur = squashSingleStoreScheme(validatedCur);
+
+		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			/* singleStoreViewsResolver, */
+			validatedPrev,
+			validatedCur,
+			'push',
+		);
+
+		return { sqlStatements, statements, validatedCur, validatedPrev };
+	} catch (e) {
+		console.error(e);
+		process.exit(1);
+	}
+};
+
+export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
+	const outFolder = config.out;
+	const schemaPath = config.schema;
+	const casing = config.casing;
+
+	try {
+		// TODO: remove
+		assertV1OutFolder(outFolder);
+
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'singlestore');
+		const { prev, cur, custom } = await prepareSingleStoreMigrationSnapshot(
+			snapshots,
+			schemaPath,
+			casing,
+		);
+
+		const validatedPrev = singlestoreSchema.parse(prev);
+		const validatedCur = singlestoreSchema.parse(cur);
+
+		if (config.custom) {
+			writeResult({
+				cur: custom,
+				sqlStatements: [],
+				journal,
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				type: 'custom',
+				prefixMode: config.prefix,
+			});
+			return;
+		}
+
+		const squashedPrev = squashSingleStoreScheme(validatedPrev);
+		const squashedCur = squashSingleStoreScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applySingleStoreSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			/* singleStoreViewsResolver, */
+			validatedPrev,
+			validatedCur,
+		);
+
+		writeResult({
+			cur,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			prefixMode: config.prefix,
+		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareAndExportSinglestore = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
+
+	try {
+		const { prev, cur } = await prepareSingleStoreMigrationSnapshot(
+			[],
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = singlestoreSchema.parse(prev);
+		const validatedCur = singlestoreSchema.parse(cur);
+
+		const squashedPrev = squashSingleStoreScheme(validatedPrev);
+		const squashedCur = squashSingleStoreScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applySingleStoreSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			/* singleStoreViewsResolver, */
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareAndExportMysql = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
+
+	try {
+		const { prev, cur, custom } = await prepareMySqlMigrationSnapshot(
+			[],
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = mysqlSchema.parse(prev);
+		const validatedCur = mysqlSchema.parse(cur);
+
+		const squashedPrev = squashMysqlScheme(validatedPrev);
+		const squashedCur = squashMysqlScheme(validatedCur);
+
+		const { sqlStatements, statements, _meta } = await applyMysqlSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			mySqlViewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
+	} catch (e) {
+		console.error(e);
+	}
+};
+
 export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
@@ -526,7 +855,40 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 			breakpoints: config.breakpoints,
 			bundle: config.bundle,
 			prefixMode: config.prefix,
+			driver: config.driver,
 		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareAndExportSqlite = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
+
+	try {
+		const { prev, cur } = await prepareSqliteMigrationSnapshot(
+			[],
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = sqliteSchema.parse(prev);
+		const validatedCur = sqliteSchema.parse(cur);
+
+		const squashedPrev = squashSqliteScheme(validatedPrev);
+		const squashedCur = squashSqliteScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			sqliteViewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
 	} catch (e) {
 		console.error(e);
 	}
@@ -589,6 +951,38 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 			bundle: config.bundle,
 			prefixMode: config.prefix,
 		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareAndExportLibSQL = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
+
+	try {
+		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
+			[],
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = sqliteSchema.parse(prev);
+		const validatedCur = sqliteSchema.parse(cur);
+
+		const squashedPrev = squashSqliteScheme(validatedPrev);
+		const squashedCur = squashSqliteScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			sqliteViewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
 	} catch (e) {
 		console.error(e);
 	}
@@ -732,6 +1126,78 @@ export const promptColumnsConflicts = async <T extends Named>(
 		chalk.gray(`--- all columns conflicts in ${tableName} table resolved ---\n`),
 	);
 
+	result.deleted.push(...leftMissing);
+	return result;
+};
+
+export const promptNamedConflict = async <T extends Named>(
+	newItems: T[],
+	missingItems: T[],
+	entity: 'role' | 'policy',
+): Promise<{
+	created: T[];
+	renamed: { from: T; to: T }[];
+	deleted: T[];
+}> => {
+	if (missingItems.length === 0 || newItems.length === 0) {
+		return {
+			created: newItems,
+			renamed: [],
+			deleted: missingItems,
+		};
+	}
+
+	const result: {
+		created: T[];
+		renamed: { from: T; to: T }[];
+		deleted: T[];
+	} = { created: [], renamed: [], deleted: [] };
+	let index = 0;
+	let leftMissing = [...missingItems];
+	do {
+		const created = newItems[index];
+		const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
+			return { from: it, to: created };
+		});
+
+		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
+
+		const { status, data } = await render(
+			new ResolveSelectNamed<T>(created, promptData, entity),
+		);
+		if (status === 'aborted') {
+			console.error('ERROR');
+			process.exit(1);
+		}
+
+		if (isRenamePromptItem(data)) {
+			console.log(
+				`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
+					chalk.gray(
+						`${entity} will be renamed/moved`,
+					)
+				}`,
+			);
+
+			if (data.from.name !== data.to.name) {
+				result.renamed.push(data);
+			}
+
+			delete leftMissing[leftMissing.indexOf(data.from)];
+			leftMissing = leftMissing.filter(Boolean);
+		} else {
+			console.log(
+				`${chalk.green('+')} ${data.name} ${
+					chalk.gray(
+						`${entity} will be created`,
+					)
+				}`,
+			);
+			result.created.push(created);
+		}
+		index += 1;
+	} while (index < newItems.length);
+	console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
 	result.deleted.push(...leftMissing);
 	return result;
 };
@@ -902,6 +1368,7 @@ export const writeResult = ({
 	bundle = false,
 	type = 'none',
 	prefixMode,
+	driver,
 }: {
 	cur: CommonSchema;
 	sqlStatements: string[];
@@ -913,6 +1380,7 @@ export const writeResult = ({
 	name?: string;
 	bundle?: boolean;
 	type?: 'introspect' | 'custom' | 'none';
+	driver?: Driver;
 }) => {
 	if (type === 'none') {
 		console.log(schema(cur));
@@ -955,7 +1423,7 @@ export const writeResult = ({
 
 	if (type === 'custom') {
 		console.log('Prepared empty file for your custom SQL migration!');
-		sql = '-- Custom SQL migration file, put you code below! --';
+		sql = '-- Custom SQL migration file, put your code below! --';
 	}
 
 	journal.entries.push({
@@ -970,9 +1438,9 @@ export const writeResult = ({
 
 	fs.writeFileSync(`${outFolder}/${tag}.sql`, sql);
 
-	// js file with .sql imports for React Native / Expo
+	// js file with .sql imports for React Native / Expo and Durable Sqlite Objects
 	if (bundle) {
-		const js = embeddedMigrations(journal);
+		const js = embeddedMigrations(journal, driver);
 		fs.writeFileSync(`${outFolder}/migrations.js`, js);
 	}
 
@@ -989,9 +1457,11 @@ export const writeResult = ({
 	);
 };
 
-export const embeddedMigrations = (journal: Journal) => {
-	let content =
-		'// This file is required for Expo/React Native SQLite migrations - https://orm.drizzle.team/quick-sqlite/expo\n\n';
+export const embeddedMigrations = (journal: Journal, driver?: Driver) => {
+	let content = driver === 'expo'
+		? '// This file is required for Expo/React Native SQLite migrations - https://orm.drizzle.team/quick-sqlite/expo\n\n'
+		: '';
+
 	content += "import journal from './meta/_journal.json';\n";
 	journal.entries.forEach((entry) => {
 		content += `import m${entry.idx.toString().padStart(4, '0')} from './${entry.tag}.sql';\n`;

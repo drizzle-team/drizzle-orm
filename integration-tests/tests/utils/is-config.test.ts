@@ -298,3 +298,197 @@ describe('Rejects drivers', (it) => {
 		expect(isConfig(cl)).toEqual(false);
 	});
 });
+
+describe('Accepts drivers in .client', (it) => {
+	it('libsql', () => {
+		const cl = libsql({
+			url: ':memory:',
+		});
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+
+	it('better-sqlite3', () => {
+		const cl = new betterSqlite3(':memory:');
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+
+	it('pglite', () => {
+		const cl = new pglite('memory://');
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+
+	it('node-postgres:Pool', () => {
+		const cl = new pg.Pool({
+			connectionString: process.env['PG_CONNECTION_STRING'],
+		});
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+
+	it('node-postgres:Client', async () => {
+		const cl = new pg.Client({
+			connectionString: process.env['PG_CONNECTION_STRING'],
+		});
+
+		const res = isConfig({ client: cl });
+
+		await cl.end();
+
+		expect(res).toEqual(true);
+	});
+
+	it('node-postgres:PoolClient', async () => {
+		const cl = new pg.Pool({
+			connectionString: process.env['PG_CONNECTION_STRING'],
+		});
+
+		const con = await cl.connect();
+
+		const res = isConfig({ client: con });
+
+		con.release();
+
+		expect(res).toEqual(true);
+	});
+
+	it('postgres-js', () => {
+		const cl = postgres(process.env['PG_CONNECTION_STRING']!);
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+
+	it('vercel:sql', () => {
+		expect(isConfig({ client: vcSql })).toEqual(true);
+	});
+
+	// it('vercel:Pool', () => {
+	// 	const cl = vcPool({
+	// 		connectionString: process.env['VERCEL_CONNECTION_STRING'],
+	// 	});
+
+	// 	expect(isConfig({client:cl})).toEqual(true);
+	// });
+
+	it('vercel:Client', async () => {
+		const cl = vcClient({
+			connectionString: process.env['NEON_CONNECTION_STRING'],
+		});
+
+		const res = isConfig({ client: cl });
+
+		expect(res).toEqual(true);
+	});
+
+	// it('vercel:PoolClient', async () => {
+	// 	const cl = vcPool({
+	// 		connectionString: process.env['VERCEL_CONNECTION_STRING'],
+	// 	});
+
+	// 	const con = await cl.connect();
+
+	// 	const res = isConfig({ client: con });
+
+	// 	con.release();
+
+	// 	expect(res).toEqual(true);
+	// });
+
+	it('neon-serverless:Pool', async () => {
+		const cl = new neonPool({
+			connectionString: process.env['NEON_CONNECTION_STRING']!,
+		});
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+
+	it('neon-serverless:Client', async () => {
+		const cl = new neonClient({
+			connectionString: process.env['NEON_CONNECTION_STRING']!,
+		});
+
+		const res = isConfig({ client: cl });
+
+		await cl.end();
+
+		expect(res).toEqual(true);
+	});
+
+	it('neon-serverless:PoolClient', async () => {
+		const cl = new neonPool({
+			connectionString: process.env['NEON_CONNECTION_STRING']!,
+		});
+
+		const con = await cl.connect();
+
+		const res = isConfig({ client: con });
+
+		con.release();
+
+		expect(res).toEqual(true);
+	});
+
+	it('neon-http', async () => {
+		const cl = neon(process.env['NEON_CONNECTION_STRING']!);
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+
+	it('planetscale', async () => {
+		const cl = planetscale({
+			url: process.env['PLANETSCALE_CONNECTION_STRING'],
+		});
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+
+	it('mysql2:Pool', async () => {
+		const cl = ms2Pool({
+			uri: process.env['MYSQL_CONNECTION_STRING'],
+		});
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+
+	it('mysql2:Connection', async () => {
+		const cl = ms2Connection({
+			uri: process.env['MYSQL_CONNECTION_STRING'],
+		});
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+
+	it('mysql2/promise:Pool', async () => {
+		const cl = await ms2pPool({
+			uri: process.env['MYSQL_CONNECTION_STRING'],
+		});
+
+		const res = isConfig({ client: cl });
+
+		await cl.end();
+
+		expect(res).toEqual(true);
+	});
+
+	it('mysql2/promise:Connection', async () => {
+		const cl = await ms2pConnection({
+			uri: process.env['MYSQL_CONNECTION_STRING'],
+		});
+
+		const res = isConfig({ client: cl });
+
+		await cl.end();
+
+		expect(res).toEqual(true);
+	});
+
+	it('tidb', async () => {
+		const cl = tidb({
+			url: process.env['TIDB_CONNECTION_STRING'],
+		});
+
+		expect(isConfig({ client: cl })).toEqual(true);
+	});
+});

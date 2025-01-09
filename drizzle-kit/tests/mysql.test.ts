@@ -4,6 +4,7 @@ import {
 	index,
 	int,
 	json,
+	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
 	primaryKey,
@@ -11,6 +12,7 @@ import {
 	text,
 	unique,
 	uniqueIndex,
+	varchar,
 } from 'drizzle-orm/mysql-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasMysql } from './schemaDiffer';
@@ -201,6 +203,7 @@ test('add table #6', async () => {
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
+		policies: [],
 		tableName: 'users1',
 		schema: undefined,
 	});
@@ -294,6 +297,7 @@ test('change table schema #1', async () => {
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'drop_table',
+		policies: [],
 		tableName: 'users',
 		schema: undefined,
 	});
@@ -531,6 +535,32 @@ test('drop index', async () => {
 	expect(sqlStatements[0]).toBe('DROP INDEX `name_idx` ON `table`;');
 });
 
+test('drop unique constraint', async () => {
+	const from = {
+		users: mysqlTable(
+			'table',
+			{
+				name: text('name'),
+			},
+			(t) => {
+				return {
+					uq: unique('name_uq').on(t.name),
+				};
+			},
+		),
+	};
+
+	const to = {
+		users: mysqlTable('table', {
+			name: text('name'),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe('ALTER TABLE `table` DROP INDEX `name_uq`;');
+});
+
 test('add table with indexes', async () => {
 	const from = {};
 
@@ -573,6 +603,80 @@ test('add table with indexes', async () => {
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
 		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`email`);',
 		'CREATE INDEX `indexColExpr` ON `users` ((lower(`email`)),`email`);',
+	]);
+});
+
+test('varchar and text default values escape single quotes', async (t) => {
+	const schema1 = {
+		table: mysqlTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const schem2 = {
+		table: mysqlTable('table', {
+			id: serial('id').primaryKey(),
+			enum: mysqlEnum('enum', ["escape's quotes", "escape's quotes 2"]).default("escape's quotes"),
+			text: text('text').default("escape's quotes"),
+			varchar: varchar('varchar', { length: 255 }).default("escape's quotes"),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(schema1, schem2, []);
+
+	expect(sqlStatements.length).toBe(3);
+	expect(sqlStatements[0]).toStrictEqual(
+		"ALTER TABLE `table` ADD `enum` enum('escape''s quotes','escape''s quotes 2') DEFAULT 'escape''s quotes';",
+	);
+	expect(sqlStatements[1]).toStrictEqual(
+		"ALTER TABLE `table` ADD `text` text DEFAULT ('escape''s quotes');",
+	);
+	expect(sqlStatements[2]).toStrictEqual(
+		"ALTER TABLE `table` ADD `varchar` varchar(255) DEFAULT 'escape''s quotes';",
+	);
+});
+
+test('composite primary key', async () => {
+	const from = {};
+	const to = {
+		table: mysqlTable('works_to_creators', {
+			workId: int('work_id').notNull(),
+			creatorId: int('creator_id').notNull(),
+			classification: text('classification').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.workId, t.creatorId, t.classification],
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `works_to_creators` (\n\t`work_id` int NOT NULL,\n\t`creator_id` int NOT NULL,\n\t`classification` text NOT NULL,\n\tCONSTRAINT `works_to_creators_work_id_creator_id_classification_pk` PRIMARY KEY(`work_id`,`creator_id`,`classification`)\n);\n',
+	]);
+});
+
+test('add column before creating unique constraint', async () => {
+	const from = {
+		table: mysqlTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const to = {
+		table: mysqlTable('table', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			uq: unique('uq').on(t.name),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE `table` ADD `name` text NOT NULL;',
+		'ALTER TABLE `table` ADD CONSTRAINT `uq` UNIQUE(`name`);',
 	]);
 });
 

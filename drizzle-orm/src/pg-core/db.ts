@@ -21,7 +21,7 @@ import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelation
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
+import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
 import type { PgColumn } from './columns/index.ts';
 import { PgCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
@@ -597,6 +597,8 @@ export class PgDatabase<
 		return new PgRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
+	protected authToken?: NeonAuthToken;
+
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 	): PgRaw<PgQueryResultKind<TQueryResult, TRow>> {
@@ -611,7 +613,7 @@ export class PgDatabase<
 			false,
 		);
 		return new PgRaw(
-			() => prepared.execute(),
+			() => prepared.execute(undefined, this.authToken),
 			sequel,
 			builtQuery,
 			(result) => prepared.mapResult(result, true),
@@ -645,7 +647,8 @@ export const withReplicas = <
 	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
 	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
 	const selectDistinctOn: Q['selectDistinctOn'] = (...args: [any]) => getReplica(replicas).selectDistinctOn(...args);
-	const $with: Q['with'] = (...args: any) => getReplica(replicas).with(...args);
+	const _with: Q['with'] = (...args: any) => getReplica(replicas).with(...args);
+	const $with: Q['$with'] = (arg: any) => getReplica(replicas).$with(arg);
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
@@ -667,7 +670,8 @@ export const withReplicas = <
 		select,
 		selectDistinct,
 		selectDistinctOn,
-		with: $with,
+		$with,
+		with: _with,
 		get query() {
 			return getReplica(replicas).query;
 		},

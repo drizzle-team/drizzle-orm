@@ -1,7 +1,7 @@
 # Drizzle ORM - Joins
 
 As with other parts of Drizzle ORM, the joins syntax is a balance between the SQL-likeness and type safety.
-Here's an example of how a common `1-to-many` relationship can be modelled.
+Here's an example of how a common "one-to-many" relationship can be modelled.
 
 ```typescript
 const users = pgTable('users', {
@@ -96,7 +96,7 @@ In that case, the ORM will use dark TypeScript magic (as if it wasn't already) a
 
 This is much more convenient! Now, you can just do a single check for `row.user !== null`, and all the user fields will become available.
 
-<hr />
+---
 
 Note that you can group any fields in a nested object however you like, but the single check optimization will only be applied to a certain nested object if all its fields belong to the same table.
 So, for example, you can group the city fields, too:
@@ -131,7 +131,7 @@ And the result type will look like this:
 }
 ```
 
-<hr />
+---
 
 If you just need all the fields from all the tables you're selecting and joining, you can simply omit the argument of the `.select()` method altogether:
 
@@ -139,7 +139,8 @@ If you just need all the fields from all the tables you're selecting and joining
 const rows = await db.select().from(cities).leftJoin(users, eq(users.cityId, cities.id));
 ```
 
-> **Note**: in this case, the Drizzle table/column names will be used as the keys in the result object.
+> [!NOTE]
+> In this case, the Drizzle table/column names will be used as the keys in the result object.
 
 ```typescript
 {
@@ -156,7 +157,7 @@ const rows = await db.select().from(cities).leftJoin(users, eq(users.cityId, cit
 }[]
 ```
 
-<hr />
+---
 
 There are cases where you'd want to select all the fields from one table, but pick fields from others. In that case, instead of listing all the table fields, you can just pass a table:
 
@@ -181,7 +182,7 @@ There are cases where you'd want to select all the fields from one table, but pi
 }
 ```
 
-<hr />
+---
 
 But what happens if you group columns from multiple tables in the same nested object? Nothing, really - they will still be all individually nullable, just grouped under the same object (as you might expect!):
 

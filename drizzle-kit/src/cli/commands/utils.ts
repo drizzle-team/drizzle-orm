@@ -3,10 +3,11 @@ import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
+import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
-import { pullParams, pushParams } from '../validations/cli';
+import { Entities, pullParams, pushParams } from '../validations/cli';
 import {
 	Casing,
 	CasingType,
@@ -30,6 +31,11 @@ import {
 	postgresCredentials,
 	printConfigConnectionIssues as printIssuesPg,
 } from '../validations/postgres';
+import {
+	printConfigConnectionIssues as printIssuesSingleStore,
+	SingleStoreCredentials,
+	singlestoreCredentials,
+} from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSqlite,
 	SqliteCredentials,
@@ -126,6 +132,13 @@ export type GenerateConfig = {
 	custom: boolean;
 	bundle: boolean;
 	casing?: CasingType;
+	driver?: Driver;
+};
+
+export type ExportConfig = {
+	dialect: Dialect;
+	schema: string | string[];
+	sql: boolean;
 };
 
 export const prepareGenerateConfig = async (
@@ -169,11 +182,44 @@ export const prepareGenerateConfig = async (
 		name: options.name,
 		custom: options.custom || false,
 		prefix,
-		breakpoints: breakpoints || true,
+		breakpoints: breakpoints ?? true,
 		schema: schema,
 		out: out || 'drizzle',
-		bundle: driver === 'expo',
+		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		casing,
+		driver,
+	};
+};
+
+export const prepareExportConfig = async (
+	options: {
+		config?: string;
+		schema?: string;
+		dialect?: Dialect;
+		sql: boolean;
+	},
+	from: 'config' | 'cli',
+): Promise<ExportConfig> => {
+	const config = from === 'config' ? await drizzleConfigFromFile(options.config, true) : options;
+
+	const { schema, dialect, sql } = config;
+
+	if (!schema || !dialect) {
+		console.log(error('Please provide required params:'));
+		console.log(wrapParam('schema', schema));
+		console.log(wrapParam('dialect', dialect));
+		process.exit(1);
+	}
+
+	const fileNames = prepareFilenames(schema);
+	if (fileNames.length === 0) {
+		render(`[${chalk.blue('i')}] No schema file in ${schema} was found`);
+		process.exit(0);
+	}
+	return {
+		dialect: dialect,
+		schema: schema,
+		sql: sql,
 	};
 };
 
@@ -221,6 +267,10 @@ export const preparePushConfig = async (
 			dialect: 'turso';
 			credentials: LibSQLCredentials;
 		}
+		| {
+			dialect: 'singlestore';
+			credentials: SingleStoreCredentials;
+		}
 	) & {
 		schemaPath: string | string[];
 		verbose: boolean;
@@ -229,6 +279,7 @@ export const preparePushConfig = async (
 		tablesFilter: string[];
 		schemasFilter: string[];
 		casing?: CasingType;
+		entities?: Entities;
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -272,16 +323,7 @@ export const preparePushConfig = async (
 			: schemasFilterConfig
 		: [];
 
-	if (config.extensionsFilters) {
-		if (
-			config.extensionsFilters.includes('postgis')
-			&& config.dialect === 'postgresql'
-		) {
-			tablesFilter.push(
-				...['!geography_columns', '!geometry_columns', '!spatial_ref_sys'],
-			);
-		}
-	}
+	tablesFilter.push(...getTablesFilterByExtensions(config));
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
@@ -300,6 +342,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			tablesFilter,
 			schemasFilter,
+			entities: config.entities,
 		};
 	}
 
@@ -317,6 +360,25 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
+			tablesFilter,
+			schemasFilter,
+		};
+	}
+
+	if (config.dialect === 'singlestore') {
+		const parsed = singlestoreCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesSingleStore(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect: 'singlestore',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -384,6 +446,10 @@ export const preparePullConfig = async (
 			dialect: 'turso';
 			credentials: LibSQLCredentials;
 		}
+		| {
+			dialect: 'singlestore';
+			credentials: SingleStoreCredentials;
+		}
 	) & {
 		out: string;
 		breakpoints: boolean;
@@ -391,6 +457,7 @@ export const preparePullConfig = async (
 		tablesFilter: string[];
 		schemasFilter: string[];
 		prefix: Prefix;
+		entities: Entities;
 	}
 > => {
 	const raw = flattenPull(
@@ -450,6 +517,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -468,6 +536,27 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
+		};
+	}
+
+	if (dialect === 'singlestore') {
+		const parsed = singlestoreCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesSingleStore(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect: 'singlestore',
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -486,6 +575,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -504,6 +594,7 @@ export const preparePullConfig = async (
 			tablesFilter,
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
 		};
 	}
 
@@ -560,6 +651,23 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			credentials,
 		};
 	}
+
+	if (dialect === 'singlestore') {
+		const parsed = singlestoreCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesSingleStore(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+		};
+	}
+
 	if (dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(flattened);
 		if (!parsed.success) {
@@ -645,6 +753,23 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			table,
 		};
 	}
+
+	if (dialect === 'singlestore') {
+		const parsed = singlestoreCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesSingleStore(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
+
 	if (dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(flattened);
 		if (!parsed.success) {
@@ -681,6 +806,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 
 export const drizzleConfigFromFile = async (
 	configPath?: string,
+	isExport?: boolean,
 ): Promise<CliConfig> => {
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
@@ -696,7 +822,7 @@ export const drizzleConfigFromFile = async (
 		? 'drizzle.config.js'
 		: 'drizzle.config.json';
 
-	if (!configPath) {
+	if (!configPath && !isExport) {
 		console.log(
 			chalk.gray(
 				`No config path provided, using default '${defaultConfigPath}'`,
@@ -711,7 +837,8 @@ export const drizzleConfigFromFile = async (
 		process.exit(1);
 	}
 
-	console.log(chalk.grey(`Reading config file '${path}'`));
+	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
+
 	const { unregister } = await safeRegister();
 	const required = require(`${path}`);
 	const content = required.default ?? required;

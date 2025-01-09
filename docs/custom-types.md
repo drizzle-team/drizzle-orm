@@ -1,7 +1,6 @@
 # How to define custom types
 
 Drizzle ORM has a big set of predefined column types for different SQL databases. But still there are additional types that are not supported by Drizzle ORM (yet). That could be native pg types or extension types
-</br>
 
 Here are some instructions on how to create and use your own types with Drizzle ORM
 
@@ -13,14 +12,11 @@ Each type creation should use 2 classes:
 
 - `ColumnBuilder` - class, that is responsible for generating whole set of needed fields for column creation
 - `Column` - class, that is representing Columns itself, that is used in query generation, migration mapping, etc.
-  </br>
-  </br>
+
   Each module has it's own class, representing `ColumnBuilder` or `Column`:
 - For `pg` -> `PgColumnBuilder` and `PgColumn`
 - For `mysql` -> `MySqlColumnBuilder` and `MySqlColumn`
 - For `sqlite` -> `SQLiteColumnBuilder` and `SQLiteColumn`
-  </br>
-  </br>
 
 ### Builder class explanation - (postgresql text data type example)
 
@@ -44,7 +40,7 @@ export class PgTextBuilder<TData extends string = string>
 }
 ```
 
-> **Warning**
+> [!WARNING]
 > `$pgColumnBuilderBrand` should be changed and be equal to class name for new data type builder
 
 ### Column class explanation - (postgresql text data type example)
@@ -104,11 +100,8 @@ export class PgText<TTableName extends string, TData extends string>
 }
 ```
 
-> **Warning**
+> [!WARNING]
 > `$pgColumnBrand` should be changed and be equal to class name for new data type
----
-
-</br>
 
 ### Full text data type for PostgreSQL example
 
@@ -162,19 +155,13 @@ export function text<T extends string = string>(
 
 ## Custom data type example
 
----
-
-> **Note**
+> [!NOTE]
 > We will check example on pg module, but current pattern applies to all dialects, that are currently supported by Drizzle ORM
-
-</br>
 
 ### Setting up CITEXT datatype
 
----
-> **Note**
- This type is available only with extensions and used for example, just to show how you could setup any data type you want. Extension support will come soon
-</br>
+> [!NOTE]
+> This type is available only with extensions and used for example, just to show how you could setup any data type you want. Extension support will come soon
 
 ### CITEXT data type example
 
@@ -224,4 +211,4 @@ You could add your created custom data types to Drizzle ORM, so everyone can use
 
 Each data type should be placed in separate file in `columns` folder and PR open with tag `new-data-type:pg` | `new-data-type:sqlite` | `new-data-type:mysql`
 
-For more Contribution information - please check [CONTRIBUTING.md](https://github.com/drizzle-team/drizzle-orm/blob/main/CONTRIBUTING.md)
+For more Contribution information - please check [CONTRIBUTING.md](../CONTRIBUTING.md)

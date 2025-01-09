@@ -1,6 +1,6 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { gt, inArray } from '~/expressions.ts';
+import { gt, inArray, like } from '~/expressions.ts';
 import { sql } from '~/sql/sql.ts';
 import { integer, sqliteTable, text } from '~/sqlite-core/index.ts';
 import { db } from './db.ts';
@@ -78,4 +78,7 @@ const orders = sqliteTable('orders', {
 			generated: string | null;
 		}[], typeof allFromWith>
 	>;
+
+	const regionalSalesWith = db.$with('regional_sales_with').as(db.select().from(regionalSales));
+	db.with(regionalSalesWith).select().from(regionalSalesWith).where(like(regionalSalesWith.totalSales, 'abc'));
 }

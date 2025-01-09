@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
 
@@ -80,9 +80,7 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends PGlite = PGlite,
 >(
-	...params: IfNotImported<
-		PGlite,
-		[ImportTypeError<'@electric-sql/pglite'>],
+	...params:
 		| []
 		| [
 			TClient | string,
@@ -101,7 +99,6 @@ export function drizzle<
 				})
 			),
 		]
-	>
 ): PgliteDatabase<TSchema> & {
 	$client: TClient;
 } {

@@ -72,7 +72,7 @@ export interface SQLiteSelectConfig {
 	}[];
 }
 
-export type SQLiteJoin<
+export type SQLiteSelectJoin<
 	T extends AnySQLiteSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
@@ -103,7 +103,7 @@ export type SQLiteJoin<
 	>
 	: never;
 
-export type SQLiteJoinFn<
+export type SQLiteSelectJoinFn<
 	T extends AnySQLiteSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
@@ -113,7 +113,7 @@ export type SQLiteJoinFn<
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-) => SQLiteJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+) => SQLiteSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectFieldsFlatBase<SQLiteColumn>;
 

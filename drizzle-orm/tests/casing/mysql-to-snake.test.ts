@@ -66,7 +66,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select `users`.`first_name` || ' ' || `users`.`last_name` as `name`, `users`.`AGE` from `users` left join `test`.`developers` on `users`.`id` = `developers`.`user_id` order by `users`.`first_name` asc",
+				"select `users`.`first_name` || ' ' || `users`.`last_name` as `name`, `users`.`AGE` from `users` left join `test`.`developers` on `users`.`id` = `test`.`developers`.`user_id` order by `users`.`first_name` asc",
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(cache);

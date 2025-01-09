@@ -26,7 +26,12 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
-import type { MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type {
+	AnyMySqlSelectQueryBuilder,
+	MySqlSelectConfig,
+	MySqlSelectJoinConfig,
+	SelectedFieldsOrdered,
+} from './query-builders/select.types.ts';
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
@@ -239,6 +244,18 @@ export class MySqlDialect {
 		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
 	}
 
+	private buildIndex({
+		indexes,
+		indexFor,
+	}: {
+		indexes: string[] | undefined;
+		indexFor: 'USE' | 'FORCE' | 'IGNORE';
+	}): SQL | undefined {
+		return indexes && indexes.length > 0
+			? sql` ${sql.raw(indexFor)} INDEX (${sql.raw(indexes.join(`, `))})`
+			: undefined;
+	}
+
 	buildSelectQuery(
 		{
 			withList,
@@ -255,6 +272,9 @@ export class MySqlDialect {
 			lockingClause,
 			distinct,
 			setOperators,
+			useIndex,
+			forceIndex,
+			ignoreIndex,
 		}: MySqlSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
@@ -314,10 +334,15 @@ export class MySqlDialect {
 					const tableSchema = table[MySqlTable.Symbol.Schema];
 					const origTableName = table[MySqlTable.Symbol.OriginalName];
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
+					const useIndexSql = this.buildIndex({ indexes: joinMeta.useIndex, indexFor: 'USE' });
+					const forceIndexSql = this.buildIndex({ indexes: joinMeta.forceIndex, indexFor: 'FORCE' });
+					const ignoreIndexSql = this.buildIndex({ indexes: joinMeta.ignoreIndex, indexFor: 'IGNORE' });
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origTableName)}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${
+							alias && sql` ${sql.identifier(alias)}`
+						} on ${joinMeta.on}`,
 					);
 				} else if (is(table, View)) {
 					const viewName = table[ViewBaseConfig].name;
@@ -354,6 +379,12 @@ export class MySqlDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
+		const useIndexSql = this.buildIndex({ indexes: useIndex, indexFor: 'USE' });
+
+		const forceIndexSql = this.buildIndex({ indexes: forceIndex, indexFor: 'FORCE' });
+
+		const ignoreIndexSql = this.buildIndex({ indexes: ignoreIndex, indexFor: 'IGNORE' });
+
 		let lockingClausesSql;
 		if (lockingClause) {
 			const { config, strength } = lockingClause;
@@ -366,7 +397,7 @@ export class MySqlDialect {
 		}
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
@@ -439,7 +470,7 @@ export class MySqlDialect {
 	}
 
 	buildInsertQuery(
-		{ table, values, ignore, onConflict }: MySqlInsertConfig,
+		{ table, values: valuesOrSelect, ignore, onConflict, select }: MySqlInsertConfig,
 	): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
@@ -451,39 +482,52 @@ export class MySqlDialect {
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
-		for (const [valueIndex, value] of values.entries()) {
-			const generatedIds: Record<string, unknown> = {};
+		if (select) {
+			const select = valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL;
 
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
-				const colValue = value[fieldName];
-				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
-					// eslint-disable-next-line unicorn/no-negated-condition
-					if (col.defaultFn !== undefined) {
-						const defaultFnResult = col.defaultFn();
-						generatedIds[fieldName] = defaultFnResult;
-						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
-						valueList.push(defaultValue);
-						// eslint-disable-next-line unicorn/no-negated-condition
-					} else if (!col.default && col.onUpdateFn !== undefined) {
-						const onUpdateFnResult = col.onUpdateFn();
-						const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
-						valueList.push(newValue);
-					} else {
-						valueList.push(sql`default`);
-					}
-				} else {
-					if (col.defaultFn && is(colValue, Param)) {
-						generatedIds[fieldName] = colValue.value;
-					}
-					valueList.push(colValue);
-				}
+			if (is(select, SQL)) {
+				valuesSqlList.push(select);
+			} else {
+				valuesSqlList.push(select.getSQL());
 			}
+		} else {
+			const values = valuesOrSelect as Record<string, Param | SQL>[];
+			valuesSqlList.push(sql.raw('values '));
 
-			generatedIdsResponse.push(generatedIds);
-			valuesSqlList.push(valueList);
-			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+			for (const [valueIndex, value] of values.entries()) {
+				const generatedIds: Record<string, unknown> = {};
+
+				const valueList: (SQLChunk | SQL)[] = [];
+				for (const [fieldName, col] of colEntries) {
+					const colValue = value[fieldName];
+					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+						// eslint-disable-next-line unicorn/no-negated-condition
+						if (col.defaultFn !== undefined) {
+							const defaultFnResult = col.defaultFn();
+							generatedIds[fieldName] = defaultFnResult;
+							const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							valueList.push(defaultValue);
+							// eslint-disable-next-line unicorn/no-negated-condition
+						} else if (!col.default && col.onUpdateFn !== undefined) {
+							const onUpdateFnResult = col.onUpdateFn();
+							const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+							valueList.push(newValue);
+						} else {
+							valueList.push(sql`default`);
+						}
+					} else {
+						if (col.defaultFn && is(colValue, Param)) {
+							generatedIds[fieldName] = colValue.value;
+						}
+						valueList.push(colValue);
+					}
+				}
+
+				generatedIdsResponse.push(generatedIds);
+				valuesSqlList.push(valueList);
+				if (valueIndex < values.length - 1) {
+					valuesSqlList.push(sql`, `);
+				}
 			}
 		}
 
@@ -494,7 +538,7 @@ export class MySqlDialect {
 		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
 
 		return {
-			sql: sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`,
+			sql: sql`insert${ignoreSql} into ${table} ${insertOrder} ${valuesSql}${onConflictSql}`,
 			generatedIds: generatedIdsResponse,
 		};
 	}

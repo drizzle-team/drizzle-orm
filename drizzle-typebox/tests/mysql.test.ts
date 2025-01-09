@@ -1,378 +1,495 @@
-import { Type } from '@sinclair/typebox';
-import { Value } from '@sinclair/typebox/value';
-import {
-	bigint,
-	binary,
-	boolean,
-	char,
-	customType,
-	date,
-	datetime,
-	decimal,
-	double,
-	float,
-	int,
-	json,
-	longtext,
-	mediumint,
-	mediumtext,
-	mysqlEnum,
-	mysqlTable,
-	real,
-	serial,
-	smallint,
-	text,
-	time,
-	timestamp,
-	tinyint,
-	tinytext,
-	varbinary,
-	varchar,
-	year,
-} from 'drizzle-orm/mysql-core';
-import { expect, test } from 'vitest';
-import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
-import { expectSchemaShape } from './utils.ts';
+import { Type as t } from '@sinclair/typebox';
+import { type Equal, sql } from 'drizzle-orm';
+import { customType, int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { test } from 'vitest';
+import { jsonSchema } from '~/column.ts';
+import { CONSTANTS } from '~/constants.ts';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { Expect, expectSchemaShape } from './utils.ts';
 
-const customInt = customType<{ data: number }>({
-	dataType() {
-		return 'int';
-	},
+const intSchema = t.Integer({
+	minimum: CONSTANTS.INT32_MIN,
+	maximum: CONSTANTS.INT32_MAX,
+});
+const serialNumberModeSchema = t.Integer({
+	minimum: 0,
+	maximum: Number.MAX_SAFE_INTEGER,
+});
+const textSchema = t.String({ maxLength: CONSTANTS.INT16_UNSIGNED_MAX });
+
+test('table - select', (tc) => {
+	const table = mysqlTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = t.Object({ id: serialNumberModeSchema, name: textSchema });
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
-const testTable = mysqlTable('test', {
-	bigint: bigint('bigint', { mode: 'bigint' }).notNull(),
-	bigintNumber: bigint('bigintNumber', { mode: 'number' }).notNull(),
-	binary: binary('binary').notNull(),
-	boolean: boolean('boolean').notNull(),
-	char: char('char', { length: 4 }).notNull(),
-	charEnum: char('char', { enum: ['a', 'b', 'c'] }).notNull(),
-	customInt: customInt('customInt').notNull(),
-	date: date('date').notNull(),
-	dateString: date('dateString', { mode: 'string' }).notNull(),
-	datetime: datetime('datetime').notNull(),
-	datetimeString: datetime('datetimeString', { mode: 'string' }).notNull(),
-	decimal: decimal('decimal').notNull(),
-	double: double('double').notNull(),
-	enum: mysqlEnum('enum', ['a', 'b', 'c']).notNull(),
-	float: float('float').notNull(),
-	int: int('int').notNull(),
-	json: json('json').notNull(),
-	mediumint: mediumint('mediumint').notNull(),
-	real: real('real').notNull(),
-	serial: serial('serial').notNull(),
-	smallint: smallint('smallint').notNull(),
-	text: text('text').notNull(),
-	textEnum: text('textEnum', { enum: ['a', 'b', 'c'] }).notNull(),
-	tinytext: tinytext('tinytext').notNull(),
-	tinytextEnum: tinytext('tinytextEnum', { enum: ['a', 'b', 'c'] }).notNull(),
-	mediumtext: mediumtext('mediumtext').notNull(),
-	mediumtextEnum: mediumtext('mediumtextEnum', {
-		enum: ['a', 'b', 'c'],
-	}).notNull(),
-	longtext: longtext('longtext').notNull(),
-	longtextEnum: longtext('longtextEnum', { enum: ['a', 'b', 'c'] }).notNull(),
-	time: time('time').notNull(),
-	timestamp: timestamp('timestamp').notNull(),
-	timestampString: timestamp('timestampString', { mode: 'string' }).notNull(),
-	tinyint: tinyint('tinyint').notNull(),
-	varbinary: varbinary('varbinary', { length: 200 }).notNull(),
-	varchar: varchar('varchar', { length: 200 }).notNull(),
-	varcharEnum: varchar('varcharEnum', {
-		length: 1,
-		enum: ['a', 'b', 'c'],
-	}).notNull(),
-	year: year('year').notNull(),
-	autoIncrement: int('autoIncrement').notNull().autoincrement(),
+test('table in schema - select', (tc) => {
+	const schema = mysqlSchema('test');
+	const table = schema.table('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = t.Object({ id: serialNumberModeSchema, name: textSchema });
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
-const testTableRow = {
-	bigint: BigInt(1),
-	bigintNumber: 1,
-	binary: 'binary',
-	boolean: true,
-	char: 'char',
-	charEnum: 'a',
-	customInt: { data: 1 },
-	date: new Date(),
-	dateString: new Date().toISOString(),
-	datetime: new Date(),
-	datetimeString: new Date().toISOString(),
-	decimal: '1.1',
-	double: 1.1,
-	enum: 'a',
-	float: 1.1,
-	int: 1,
-	json: { data: 1 },
-	mediumint: 1,
-	real: 1.1,
-	serial: 1,
-	smallint: 1,
-	text: 'text',
-	textEnum: 'a',
-	tinytext: 'tinytext',
-	tinytextEnum: 'a',
-	mediumtext: 'mediumtext',
-	mediumtextEnum: 'a',
-	longtext: 'longtext',
-	longtextEnum: 'a',
-	time: '00:00:00',
-	timestamp: new Date(),
-	timestampString: new Date().toISOString(),
-	tinyint: 1,
-	varbinary: 'A'.repeat(200),
-	varchar: 'A'.repeat(200),
-	varcharEnum: 'a',
-	year: 2021,
-	autoIncrement: 1,
-};
+test('table - insert', (tc) => {
+	const table = mysqlTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		age: int(),
+	});
 
-test('insert valid row', () => {
-	const schema = createInsertSchema(testTable);
-
-	expect(Value.Check(
-		schema,
-		testTableRow,
-	)).toBeTruthy();
+	const result = createInsertSchema(table);
+	const expected = t.Object({
+		id: t.Optional(serialNumberModeSchema),
+		name: textSchema,
+		age: t.Optional(t.Union([intSchema, t.Null()])),
+	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('insert invalid varchar length', () => {
-	const schema = createInsertSchema(testTable);
+test('table - update', (tc) => {
+	const table = mysqlTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		age: int(),
+	});
 
-	expect(Value.Check(schema, {
-		...testTableRow,
-		varchar: 'A'.repeat(201),
-	})).toBeFalsy();
+	const result = createUpdateSchema(table);
+	const expected = t.Object({
+		id: t.Optional(serialNumberModeSchema),
+		name: t.Optional(textSchema),
+		age: t.Optional(t.Union([intSchema, t.Null()])),
+	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('insert smaller char length should work', () => {
-	const schema = createInsertSchema(testTable);
+test('view qb - select', (tc) => {
+	const table = mysqlTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+	const view = mysqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
-	expect(Value.Check(schema, { ...testTableRow, char: 'abc' })).toBeTruthy();
+	const result = createSelectSchema(view);
+	const expected = t.Object({ id: serialNumberModeSchema, age: t.Any() });
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('insert larger char length should fail', () => {
-	const schema = createInsertSchema(testTable);
+test('view columns - select', (tc) => {
+	const view = mysqlView('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	}).as(sql``);
 
-	expect(Value.Check(schema, { ...testTableRow, char: 'abcde' })).toBeFalsy();
+	const result = createSelectSchema(view);
+	const expected = t.Object({ id: serialNumberModeSchema, name: textSchema });
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('insert schema', (t) => {
-	const actual = createInsertSchema(testTable);
+test('view with nested fields - select', (tc) => {
+	const table = mysqlTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+	const view = mysqlView('test').as((qb) =>
+		qb.select({
+			id: table.id,
+			nested: {
+				name: table.name,
+				age: sql``.as('age'),
+			},
+			table,
+		}).from(table)
+	);
 
-	const expected = Type.Object({
-		bigint: Type.BigInt(),
-		bigintNumber: Type.Number(),
-		binary: Type.String(),
-		boolean: Type.Boolean(),
-		char: Type.String({ minLength: 4, maxLength: 4 }),
-		charEnum: Type.Union([Type.Literal('a'), Type.Literal('b'), Type.Literal('c')]),
-		customInt: Type.Any(),
-		date: Type.Date(),
-		dateString: Type.String(),
-		datetime: Type.Date(),
-		datetimeString: Type.String(),
-		decimal: Type.String(),
-		double: Type.Number(),
-		enum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		float: Type.Number(),
-		int: Type.Number(),
+	const result = createSelectSchema(view);
+	const expected = t.Object({
+		id: serialNumberModeSchema,
+		nested: t.Object({ name: textSchema, age: t.Any() }),
+		table: t.Object({ id: serialNumberModeSchema, name: textSchema }),
+	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('nullability - select', (tc) => {
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().default(1),
+		c4: int().notNull().default(1),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = t.Object({
+		c1: t.Union([intSchema, t.Null()]),
+		c2: intSchema,
+		c3: t.Union([intSchema, t.Null()]),
+		c4: intSchema,
+	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('nullability - insert', (tc) => {
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().default(1),
+		c4: int().notNull().default(1),
+		c5: int().generatedAlwaysAs(1),
+	});
+
+	const result = createInsertSchema(table);
+	const expected = t.Object({
+		c1: t.Optional(t.Union([intSchema, t.Null()])),
+		c2: intSchema,
+		c3: t.Optional(t.Union([intSchema, t.Null()])),
+		c4: t.Optional(intSchema),
+	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('nullability - update', (tc) => {
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().default(1),
+		c4: int().notNull().default(1),
+		c5: int().generatedAlwaysAs(1),
+	});
+
+	const result = createUpdateSchema(table);
+	const expected = t.Object({
+		c1: t.Optional(t.Union([intSchema, t.Null()])),
+		c2: t.Optional(intSchema),
+		c3: t.Optional(t.Union([intSchema, t.Null()])),
+		c4: t.Optional(intSchema),
+	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - select', (tc) => {
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+	});
+
+	const result = createSelectSchema(table, {
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	});
+	const expected = t.Object({
+		c1: t.Union([intSchema, t.Null()]),
+		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	});
+
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - select with custom data type', (tc) => {
+	const customText = customType({ dataType: () => 'text' });
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+		c4: customText(),
+	});
+
+	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
+	const result = createSelectSchema(table, {
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c4: customTextSchema,
+	});
+	const expected = t.Object({
+		c1: t.Union([intSchema, t.Null()]),
+		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c4: customTextSchema,
+	});
+
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - insert', (tc) => {
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+		c4: int().generatedAlwaysAs(1),
+	});
+
+	const result = createInsertSchema(table, {
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	});
+	const expected = t.Object({
+		c1: t.Optional(t.Union([intSchema, t.Null()])),
+		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - update', (tc) => {
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+		c4: int().generatedAlwaysAs(1),
+	});
+
+	const result = createUpdateSchema(table, {
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	});
+	const expected = t.Object({
+		c1: t.Optional(t.Union([intSchema, t.Null()])),
+		c2: t.Optional(t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 })),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine view - select', (tc) => {
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int(),
+		c3: int(),
+		c4: int(),
+		c5: int(),
+		c6: int(),
+	});
+	const view = mysqlView('test').as((qb) =>
+		qb.select({
+			c1: table.c1,
+			c2: table.c2,
+			c3: table.c3,
+			nested: {
+				c4: table.c4,
+				c5: table.c5,
+				c6: table.c6,
+			},
+			table,
+		}).from(table)
+	);
+
+	const result = createSelectSchema(view, {
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		nested: {
+			c5: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+			c6: t.Integer({ minimum: 1, maximum: 10 }),
+		},
+		table: {
+			c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+			c3: t.Integer({ minimum: 1, maximum: 10 }),
+		},
+	});
+	const expected = t.Object({
+		c1: t.Union([intSchema, t.Null()]),
+		c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		nested: t.Object({
+			c4: t.Union([intSchema, t.Null()]),
+			c5: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
+			c6: t.Integer({ minimum: 1, maximum: 10 }),
+		}),
+		table: t.Object({
+			c1: t.Union([intSchema, t.Null()]),
+			c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
+			c3: t.Integer({ minimum: 1, maximum: 10 }),
+			c4: t.Union([intSchema, t.Null()]),
+			c5: t.Union([intSchema, t.Null()]),
+			c6: t.Union([intSchema, t.Null()]),
+		}),
+	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('all data types', (tc) => {
+	const table = mysqlTable('test', ({
+		bigint,
+		binary,
+		boolean,
+		char,
+		date,
+		datetime,
+		decimal,
+		double,
+		float,
+		int,
+		json,
+		mediumint,
+		mysqlEnum,
+		real,
+		serial,
+		smallint,
+		text,
+		time,
+		timestamp,
+		tinyint,
+		varchar,
+		varbinary,
+		year,
+		longtext,
+		mediumtext,
+		tinytext,
+	}) => ({
+		bigint1: bigint({ mode: 'number' }).notNull(),
+		bigint2: bigint({ mode: 'bigint' }).notNull(),
+		bigint3: bigint({ unsigned: true, mode: 'number' }).notNull(),
+		bigint4: bigint({ unsigned: true, mode: 'bigint' }).notNull(),
+		binary: binary({ length: 10 }).notNull(),
+		boolean: boolean().notNull(),
+		char1: char({ length: 10 }).notNull(),
+		char2: char({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
+		date1: date({ mode: 'date' }).notNull(),
+		date2: date({ mode: 'string' }).notNull(),
+		datetime1: datetime({ mode: 'date' }).notNull(),
+		datetime2: datetime({ mode: 'string' }).notNull(),
+		decimal1: decimal().notNull(),
+		decimal2: decimal({ unsigned: true }).notNull(),
+		double1: double().notNull(),
+		double2: double({ unsigned: true }).notNull(),
+		float1: float().notNull(),
+		float2: float({ unsigned: true }).notNull(),
+		int1: int().notNull(),
+		int2: int({ unsigned: true }).notNull(),
+		json: json().notNull(),
+		mediumint1: mediumint().notNull(),
+		mediumint2: mediumint({ unsigned: true }).notNull(),
+		enum: mysqlEnum('enum', ['a', 'b', 'c']).notNull(),
+		real: real().notNull(),
+		serial: serial().notNull(),
+		smallint1: smallint().notNull(),
+		smallint2: smallint({ unsigned: true }).notNull(),
+		text1: text().notNull(),
+		text2: text({ enum: ['a', 'b', 'c'] }).notNull(),
+		time: time().notNull(),
+		timestamp1: timestamp({ mode: 'date' }).notNull(),
+		timestamp2: timestamp({ mode: 'string' }).notNull(),
+		tinyint1: tinyint().notNull(),
+		tinyint2: tinyint({ unsigned: true }).notNull(),
+		varchar1: varchar({ length: 10 }).notNull(),
+		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
+		varbinary: varbinary({ length: 10 }).notNull(),
+		year: year().notNull(),
+		longtext1: longtext().notNull(),
+		longtext2: longtext({ enum: ['a', 'b', 'c'] }).notNull(),
+		mediumtext1: mediumtext().notNull(),
+		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
+		tinytext1: tinytext().notNull(),
+		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+	}));
+
+	const result = createSelectSchema(table);
+	const expected = t.Object({
+		bigint1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
+		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
+		bigint3: t.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
+		bigint4: t.BigInt({ minimum: 0n, maximum: CONSTANTS.INT64_UNSIGNED_MAX }),
+		binary: t.String(),
+		boolean: t.Boolean(),
+		char1: t.String({ minLength: 10, maxLength: 10 }),
+		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		date1: t.Date(),
+		date2: t.String(),
+		datetime1: t.Date(),
+		datetime2: t.String(),
+		decimal1: t.String(),
+		decimal2: t.String(),
+		double1: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
+		double2: t.Number({ minimum: 0, maximum: CONSTANTS.INT48_UNSIGNED_MAX }),
+		float1: t.Number({ minimum: CONSTANTS.INT24_MIN, maximum: CONSTANTS.INT24_MAX }),
+		float2: t.Number({ minimum: 0, maximum: CONSTANTS.INT24_UNSIGNED_MAX }),
+		int1: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: CONSTANTS.INT32_MAX }),
+		int2: t.Integer({ minimum: 0, maximum: CONSTANTS.INT32_UNSIGNED_MAX }),
 		json: jsonSchema,
-		mediumint: Type.Number(),
-		real: Type.Number(),
-		serial: Type.Optional(Type.Number()),
-		smallint: Type.Number(),
-		text: Type.String(),
-		textEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		tinytext: Type.String(),
-		tinytextEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		mediumtext: Type.String(),
-		mediumtextEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		longtext: Type.String(),
-		longtextEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		time: Type.String(),
-		timestamp: Type.Date(),
-		timestampString: Type.String(),
-		tinyint: Type.Number(),
-		varbinary: Type.String({ maxLength: 200 }),
-		varchar: Type.String({ maxLength: 200 }),
-		varcharEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		year: Type.Number(),
-		autoIncrement: Type.Optional(Type.Number()),
+		mediumint1: t.Integer({ minimum: CONSTANTS.INT24_MIN, maximum: CONSTANTS.INT24_MAX }),
+		mediumint2: t.Integer({ minimum: 0, maximum: CONSTANTS.INT24_UNSIGNED_MAX }),
+		enum: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		real: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
+		serial: t.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
+		smallint1: t.Integer({ minimum: CONSTANTS.INT16_MIN, maximum: CONSTANTS.INT16_MAX }),
+		smallint2: t.Integer({ minimum: 0, maximum: CONSTANTS.INT16_UNSIGNED_MAX }),
+		text1: t.String({ maxLength: CONSTANTS.INT16_UNSIGNED_MAX }),
+		text2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		time: t.String(),
+		timestamp1: t.Date(),
+		timestamp2: t.String(),
+		tinyint1: t.Integer({ minimum: CONSTANTS.INT8_MIN, maximum: CONSTANTS.INT8_MAX }),
+		tinyint2: t.Integer({ minimum: 0, maximum: CONSTANTS.INT8_UNSIGNED_MAX }),
+		varchar1: t.String({ maxLength: 10 }),
+		varchar2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		varbinary: t.String(),
+		year: t.Integer({ minimum: 1901, maximum: 2155 }),
+		longtext1: t.String({ maxLength: CONSTANTS.INT32_UNSIGNED_MAX }),
+		longtext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		mediumtext1: t.String({ maxLength: CONSTANTS.INT24_UNSIGNED_MAX }),
+		mediumtext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		tinytext1: t.String({ maxLength: CONSTANTS.INT8_UNSIGNED_MAX }),
+		tinytext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 	});
-
-	expectSchemaShape(t, expected).from(actual);
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('select schema', (t) => {
-	const actual = createSelectSchema(testTable);
+/* Disallow unknown keys in table refinement - select */ {
+	const table = mysqlTable('test', { id: int() });
+	// @ts-expect-error
+	createSelectSchema(table, { unknown: t.String() });
+}
 
-	const expected = Type.Object({
-		bigint: Type.BigInt(),
-		bigintNumber: Type.Number(),
-		binary: Type.String(),
-		boolean: Type.Boolean(),
-		char: Type.String({ minLength: 4, maxLength: 4 }),
-		charEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		customInt: Type.Any(),
-		date: Type.Date(),
-		dateString: Type.String(),
-		datetime: Type.Date(),
-		datetimeString: Type.String(),
-		decimal: Type.String(),
-		double: Type.Number(),
-		enum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		float: Type.Number(),
-		int: Type.Number(),
-		//
-		json: jsonSchema,
-		mediumint: Type.Number(),
-		real: Type.Number(),
-		serial: Type.Number(),
-		smallint: Type.Number(),
-		text: Type.String(),
-		textEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		tinytext: Type.String(),
-		tinytextEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		mediumtext: Type.String(),
-		mediumtextEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		longtext: Type.String(),
-		longtextEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		time: Type.String(),
-		timestamp: Type.Date(),
-		timestampString: Type.String(),
-		tinyint: Type.Number(),
-		varbinary: Type.String({ maxLength: 200 }),
-		varchar: Type.String({ maxLength: 200 }),
-		varcharEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		year: Type.Number(),
-		autoIncrement: Type.Number(),
-	});
+/* Disallow unknown keys in table refinement - insert */ {
+	const table = mysqlTable('test', { id: int() });
+	// @ts-expect-error
+	createInsertSchema(table, { unknown: t.String() });
+}
 
-	expectSchemaShape(t, expected).from(actual);
-});
+/* Disallow unknown keys in table refinement - update */ {
+	const table = mysqlTable('test', { id: int() });
+	// @ts-expect-error
+	createUpdateSchema(table, { unknown: t.String() });
+}
 
-test('select schema w/ refine', (t) => {
-	const actual = createSelectSchema(testTable, {
-		bigint: (_) => Type.BigInt({ minimum: 0n }),
-	});
+/* Disallow unknown keys in view qb - select */ {
+	const table = mysqlTable('test', { id: int() });
+	const view = mysqlView('test').as((qb) => qb.select().from(table));
+	const nestedSelect = mysqlView('test').as((qb) => qb.select({ table }).from(table));
+	// @ts-expect-error
+	createSelectSchema(view, { unknown: t.String() });
+	// @ts-expect-error
+	createSelectSchema(nestedSelect, { table: { unknown: t.String() } });
+}
 
-	const expected = Type.Object({
-		bigint: Type.BigInt({ minimum: 0n }),
-		bigintNumber: Type.Number(),
-		binary: Type.String(),
-		boolean: Type.Boolean(),
-		char: Type.String({ minLength: 5, maxLength: 5 }),
-		charEnum: Type.Union([Type.Literal('a'), Type.Literal('b'), Type.Literal('c')]),
-		customInt: Type.Any(),
-		date: Type.Date(),
-		dateString: Type.String(),
-		datetime: Type.Date(),
-		datetimeString: Type.String(),
-		decimal: Type.String(),
-		double: Type.Number(),
-		enum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		float: Type.Number(),
-		int: Type.Number(),
-		json: jsonSchema,
-		mediumint: Type.Number(),
-		real: Type.Number(),
-		serial: Type.Number(),
-		smallint: Type.Number(),
-		text: Type.String(),
-		textEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		tinytext: Type.String(),
-		tinytextEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		mediumtext: Type.String(),
-		mediumtextEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		longtext: Type.String(),
-		longtextEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		time: Type.String(),
-		timestamp: Type.Date(),
-		timestampString: Type.String(),
-		tinyint: Type.Number(),
-		varbinary: Type.String({ maxLength: 200 }),
-		varchar: Type.String({ maxLength: 200 }),
-		varcharEnum: Type.Union([
-			Type.Literal('a'),
-			Type.Literal('b'),
-			Type.Literal('c'),
-		]),
-		year: Type.Number(),
-		autoIncrement: Type.Number(),
-	});
-
-	expectSchemaShape(t, expected).from(actual);
-});
+/* Disallow unknown keys in view columns - select */ {
+	const view = mysqlView('test', { id: int() }).as(sql``);
+	// @ts-expect-error
+	createSelectSchema(view, { unknown: t.String() });
+}

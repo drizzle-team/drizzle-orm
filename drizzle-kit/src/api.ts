@@ -2,10 +2,14 @@ import { randomUUID } from 'crypto';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { PgDatabase } from 'drizzle-orm/pg-core';
+import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import {
 	columnsResolver,
 	enumsResolver,
+	indPolicyResolver,
 	mySqlViewsResolver,
+	policyResolver,
+	roleResolver,
 	schemasResolver,
 	sequencesResolver,
 	sqliteViewsResolver,
@@ -18,19 +22,28 @@ import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/p
 import { sqlitePushIntrospect } from './cli/commands/sqliteIntrospect';
 import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
 import type { CasingType } from './cli/validations/common';
+import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 import { originUUID } from './global';
+import type { Config } from './index';
 import { fillPgSnapshot } from './migrationPreparator';
 import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
 import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
 import { prepareFromExports } from './serializer/pgImports';
 import { PgSchema as PgSchemaKit, pgSchema, squashPgScheme } from './serializer/pgSchema';
 import { generatePgSnapshot } from './serializer/pgSerializer';
+import {
+	SingleStoreSchema as SingleStoreSchemaKit,
+	singlestoreSchema,
+	squashSingleStoreScheme,
+} from './serializer/singlestoreSchema';
+import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer';
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './serializer/sqliteSchema';
 import { generateSqliteSnapshot } from './serializer/sqliteSerializer';
 import type { DB, SQLiteDB } from './utils';
 export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
+export type DrizzleSingleStoreSnapshotJSON = SingleStoreSchemaKit;
 
 export const generateDrizzleJson = (
 	imports: Record<string, unknown>,
@@ -47,6 +60,8 @@ export const generateDrizzleJson = (
 		prepared.enums,
 		prepared.schemas,
 		prepared.sequences,
+		prepared.roles,
+		prepared.policies,
 		prepared.views,
 		prepared.matViews,
 		casing,
@@ -78,6 +93,9 @@ export const generateMigration = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
 		viewsResolver,
@@ -92,9 +110,14 @@ export const pushSchema = async (
 	imports: Record<string, unknown>,
 	drizzleInstance: PgDatabase<any>,
 	schemaFilters?: string[],
+	tablesFilter?: string[],
+	extensionsFilters?: Config['extensionsFilters'],
 ) => {
 	const { applyPgSnapshotsDiff } = await import('./snapshotsDiffer');
 	const { sql } = await import('drizzle-orm');
+	const filters = (tablesFilter ?? []).concat(
+		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' }),
+	);
 
 	const db: DB = {
 		query: async (query: string, params?: any[]) => {
@@ -106,8 +129,9 @@ export const pushSchema = async (
 	const cur = generateDrizzleJson(imports);
 	const { schema: prev } = await pgPushIntrospect(
 		db,
-		[],
+		filters,
 		schemaFilters ?? ['public'],
+		undefined,
 	);
 
 	const validatedPrev = pgSchema.parse(prev);
@@ -122,6 +146,9 @@ export const pushSchema = async (
 		schemasResolver,
 		enumsResolver,
 		sequencesResolver,
+		policyResolver,
+		indPolicyResolver,
+		roleResolver,
 		tablesResolver,
 		columnsResolver,
 		viewsResolver,
@@ -332,6 +359,112 @@ export const pushMySQLSchema = async (
 		tablesResolver,
 		columnsResolver,
 		mySqlViewsResolver,
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
+
+	const { shouldAskForApprove, statementsToExecute, infoToPrint } = await logSuggestionsAndReturn(
+		db,
+		statements,
+		validatedCur,
+	);
+
+	return {
+		hasDataLoss: shouldAskForApprove,
+		warnings: infoToPrint,
+		statementsToExecute,
+		apply: async () => {
+			for (const dStmnt of statementsToExecute) {
+				await db.query(dStmnt);
+			}
+		},
+	};
+};
+
+// SingleStore
+
+export const generateSingleStoreDrizzleJson = async (
+	imports: Record<string, unknown>,
+	prevId?: string,
+	casing?: CasingType,
+): Promise<SingleStoreSchemaKit> => {
+	const { prepareFromExports } = await import('./serializer/singlestoreImports');
+
+	const prepared = prepareFromExports(imports);
+
+	const id = randomUUID();
+
+	const snapshot = generateSingleStoreSnapshot(prepared.tables, /* prepared.views, */ casing);
+
+	return {
+		...snapshot,
+		id,
+		prevId: prevId ?? originUUID,
+	};
+};
+
+export const generateSingleStoreMigration = async (
+	prev: DrizzleSingleStoreSnapshotJSON,
+	cur: DrizzleSingleStoreSnapshotJSON,
+) => {
+	const { applySingleStoreSnapshotsDiff } = await import('./snapshotsDiffer');
+
+	const validatedPrev = singlestoreSchema.parse(prev);
+	const validatedCur = singlestoreSchema.parse(cur);
+
+	const squashedPrev = squashSingleStoreScheme(validatedPrev);
+	const squashedCur = squashSingleStoreScheme(validatedCur);
+
+	const { sqlStatements } = await applySingleStoreSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		/* singleStoreViewsResolver, */
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
+
+	return sqlStatements;
+};
+
+export const pushSingleStoreSchema = async (
+	imports: Record<string, unknown>,
+	drizzleInstance: SingleStoreDriverDatabase<any>,
+	databaseName: string,
+) => {
+	const { applySingleStoreSnapshotsDiff } = await import('./snapshotsDiffer');
+	const { logSuggestionsAndReturn } = await import(
+		'./cli/commands/singlestorePushUtils'
+	);
+	const { singlestorePushIntrospect } = await import(
+		'./cli/commands/singlestoreIntrospect'
+	);
+	const { sql } = await import('drizzle-orm');
+
+	const db: DB = {
+		query: async (query: string) => {
+			const res = await drizzleInstance.execute(sql.raw(query));
+			return res[0] as unknown as any[];
+		},
+	};
+	const cur = await generateSingleStoreDrizzleJson(imports);
+	const { schema: prev } = await singlestorePushIntrospect(db, databaseName, []);
+
+	const validatedPrev = singlestoreSchema.parse(prev);
+	const validatedCur = singlestoreSchema.parse(cur);
+
+	const squashedPrev = squashSingleStoreScheme(validatedPrev);
+	const squashedCur = squashSingleStoreScheme(validatedCur);
+
+	const { statements } = await applySingleStoreSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		/* singleStoreViewsResolver, */
 		validatedPrev,
 		validatedCur,
 		'push',

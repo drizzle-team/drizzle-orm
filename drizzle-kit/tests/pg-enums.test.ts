@@ -1,4 +1,4 @@
-import { pgEnum, pgSchema, pgTable } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgSchema, pgTable, serial } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
@@ -504,6 +504,77 @@ test('enums #18', async () => {
 		nameTo: 'enum2',
 		schema: 'schema2',
 	});
+});
+
+test('enums #19', async () => {
+	const myEnum = pgEnum('my_enum', ["escape's quotes"]);
+
+	const from = {};
+
+	const to = { myEnum };
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toStrictEqual(
+		'CREATE TYPE "public"."my_enum" AS ENUM(\'escape\'\'s quotes\');',
+	);
+});
+
+test('enums #20', async () => {
+	const myEnum = pgEnum('my_enum', ['one', 'two', 'three']);
+
+	const from = {
+		myEnum,
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const to = {
+		myEnum,
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			col1: myEnum('col1'),
+			col2: integer('col2'),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" ADD COLUMN "col1" "my_enum";',
+		'ALTER TABLE "table" ADD COLUMN "col2" integer;',
+	]);
+});
+
+test('enums #21', async () => {
+	const myEnum = pgEnum('my_enum', ['one', 'two', 'three']);
+
+	const from = {
+		myEnum,
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const to = {
+		myEnum,
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			col1: myEnum('col1').array(),
+			col2: integer('col2').array(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" ADD COLUMN "col1" "my_enum"[];',
+		'ALTER TABLE "table" ADD COLUMN "col2" integer[];',
+	]);
 });
 
 test('drop enum value', async () => {
