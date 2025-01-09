@@ -12,7 +12,7 @@ import {
 	union,
 	ZodTypeAny,
 } from 'zod';
-import { applyJsonDiff, diffColumns, diffSchemasOrTables } from './jsonDiffer';
+import { applyJsonDiff, diffColumns, diffIndPolicies, diffPolicies, diffSchemasOrTables } from './jsonDiffer';
 import { fromJson } from './sqlgenerator';
 
 import {
@@ -21,24 +21,35 @@ import {
 	_prepareSqliteAddColumns,
 	JsonAddColumnStatement,
 	JsonAlterCompositePK,
+	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
+	JsonAlterPolicyStatement,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
 	JsonAlterViewStatement,
 	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
+	JsonCreateIndPolicyStatement,
 	JsonCreateMySqlViewStatement,
 	JsonCreatePgViewStatement,
+	JsonCreatePolicyStatement,
 	JsonCreateReferenceStatement,
 	JsonCreateSqliteViewStatement,
 	JsonCreateUniqueConstraint,
 	JsonDeleteCheckConstraint,
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
+	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
+	JsonDropIndPolicyStatement,
+	JsonDropPolicyStatement,
 	JsonDropViewStatement,
+	JsonEnableRLSStatement,
+	JsonIndRenamePolicyStatement,
 	JsonReferenceStatement,
 	JsonRenameColumnStatement,
+	JsonRenamePolicyStatement,
+	JsonRenameRoleStatement,
 	JsonRenameViewStatement,
 	JsonSqliteAddColumnStatement,
 	JsonStatement,
@@ -52,11 +63,17 @@ import {
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
 	prepareAlterCompositePrimaryKeySqlite,
+	prepareAlterIndPolicyJson,
+	prepareAlterPolicyJson,
 	prepareAlterReferencesJson,
+	prepareAlterRoleJson,
 	prepareAlterSequenceJson,
 	prepareCreateEnumJson,
 	prepareCreateIndexesJson,
+	prepareCreateIndPolicyJsons,
+	prepareCreatePolicyJsons,
 	prepareCreateReferencesJson,
+	prepareCreateRoleJson,
 	prepareCreateSchemasJson,
 	prepareCreateSequenceJson,
 	prepareDeleteCheckConstraint,
@@ -68,7 +85,10 @@ import {
 	prepareDropEnumJson,
 	prepareDropEnumValues,
 	prepareDropIndexesJson,
+	prepareDropIndPolicyJsons,
+	prepareDropPolicyJsons,
 	prepareDropReferencesJson,
+	prepareDropRoleJson,
 	prepareDropSequenceJson,
 	prepareDropTableJson,
 	prepareDropViewJson,
@@ -90,10 +110,14 @@ import {
 	preparePgCreateViewJson,
 	prepareRenameColumns,
 	prepareRenameEnumJson,
+	prepareRenameIndPolicyJsons,
+	prepareRenamePolicyJsons,
+	prepareRenameRoleJson,
 	prepareRenameSchemasJson,
 	prepareRenameSequenceJson,
 	prepareRenameTableJson,
 	prepareRenameViewJson,
+	prepareSingleStoreCreateTableJson,
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
 	prepareSqliteCreateViewJson,
@@ -102,7 +126,20 @@ import {
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher, ViewSquashed } from './serializer/mysqlSchema';
-import { mergedViewWithOption, PgSchema, PgSchemaSquashed, sequenceSquashed, View } from './serializer/pgSchema';
+import {
+	mergedViewWithOption,
+	PgSchema,
+	PgSchemaSquashed,
+	PgSquasher,
+	Policy,
+	policy,
+	policySquashed,
+	Role,
+	roleSchema,
+	sequenceSquashed,
+	View,
+} from './serializer/pgSchema';
+import { SingleStoreSchema, SingleStoreSchemaSquashed, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher, View as SqliteView } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';
@@ -229,7 +266,9 @@ const tableScheme = object({
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()).default({}),
 	uniqueConstraints: record(string(), string()).default({}),
+	policies: record(string(), string()).default({}),
 	checkConstraints: record(string(), string()).default({}),
+	isRLSEnabled: boolean().default(false),
 }).strict();
 
 export const alteredTableScheme = object({
@@ -266,6 +305,15 @@ export const alteredTableScheme = object({
 	addedUniqueConstraints: record(string(), string()),
 	deletedUniqueConstraints: record(string(), string()),
 	alteredUniqueConstraints: record(
+		string(),
+		object({
+			__new: string(),
+			__old: string(),
+		}),
+	),
+	addedPolicies: record(string(), string()),
+	deletedPolicies: record(string(), string()),
+	alteredPolicies: record(
 		string(),
 		object({
 			__new: string(),
@@ -337,6 +385,8 @@ export const diffResultScheme = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
 	alteredEnums: changedEnumSchema.array(),
 	alteredSequences: sequenceSquashed.array(),
+	alteredRoles: roleSchema.array(),
+	alteredPolicies: policySquashed.array(),
 	alteredViews: alteredPgViewSchema.array(),
 }).strict();
 
@@ -344,6 +394,11 @@ export const diffResultSchemeMysql = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
 	alteredEnums: never().array(),
 	alteredViews: alteredMySqlViewSchema.array(),
+});
+
+export const diffResultSchemeSingleStore = object({
+	alteredTablesWithColumns: alteredTableScheme.array(),
+	alteredEnums: never().array(),
 });
 
 export const diffResultSchemeSQLite = object({
@@ -360,6 +415,7 @@ export type Table = TypeOf<typeof tableScheme>;
 export type AlteredTable = TypeOf<typeof alteredTableScheme>;
 export type DiffResult = TypeOf<typeof diffResultScheme>;
 export type DiffResultMysql = TypeOf<typeof diffResultSchemeMysql>;
+export type DiffResultSingleStore = TypeOf<typeof diffResultSchemeSingleStore>;
 export type DiffResultSQLite = TypeOf<typeof diffResultSchemeSQLite>;
 
 export interface ResolverInput<T extends { name: string }> {
@@ -384,6 +440,43 @@ export interface ColumnsResolverInput<T extends { name: string }> {
 	tableName: string;
 	schema: string;
 	created: T[];
+	deleted: T[];
+}
+
+export interface TablePolicyResolverInput<T extends { name: string }> {
+	tableName: string;
+	schema: string;
+	created: T[];
+	deleted: T[];
+}
+
+export interface TablePolicyResolverOutput<T extends { name: string }> {
+	tableName: string;
+	schema: string;
+	created: T[];
+	renamed: { from: T; to: T }[];
+	deleted: T[];
+}
+
+export interface PolicyResolverInput<T extends { name: string }> {
+	created: T[];
+	deleted: T[];
+}
+
+export interface PolicyResolverOutput<T extends { name: string }> {
+	created: T[];
+	renamed: { from: T; to: T }[];
+	deleted: T[];
+}
+
+export interface RolesResolverInput<T extends { name: string }> {
+	created: T[];
+	deleted: T[];
+}
+
+export interface RolesResolverOutput<T extends { name: string }> {
+	created: T[];
+	renamed: { from: T; to: T }[];
 	deleted: T[];
 }
 
@@ -457,6 +550,12 @@ const columnChangeFor = (
 	return column;
 };
 
+// resolve roles same as enums
+// create new json statements
+// sql generators
+
+// tests everything!
+
 export const applyPgSnapshotsDiff = async (
 	json1: PgSchemaSquashed,
 	json2: PgSchemaSquashed,
@@ -469,6 +568,15 @@ export const applyPgSnapshotsDiff = async (
 	sequencesResolver: (
 		input: ResolverInput<Sequence>,
 	) => Promise<ResolverOutputWithMoved<Sequence>>,
+	policyResolver: (
+		input: TablePolicyResolverInput<Policy>,
+	) => Promise<TablePolicyResolverOutput<Policy>>,
+	indPolicyResolver: (
+		input: PolicyResolverInput<Policy>,
+	) => Promise<PolicyResolverOutput<Policy>>,
+	roleResolver: (
+		input: RolesResolverInput<Role>,
+	) => Promise<RolesResolverOutput<Role>>,
 	tablesResolver: (
 		input: ResolverInput<Table>,
 	) => Promise<ResolverOutputWithMoved<Table>>,
@@ -696,6 +804,60 @@ export const applyPgSnapshotsDiff = async (
 		},
 	);
 
+	const rolesDiff = diffSchemasOrTables(
+		schemasPatchedSnap1.roles,
+		json2.roles,
+	);
+
+	const {
+		created: createdRoles,
+		deleted: deletedRoles,
+		renamed: renamedRoles,
+	} = await roleResolver({
+		created: rolesDiff.added,
+		deleted: rolesDiff.deleted,
+	});
+
+	schemasPatchedSnap1.roles = mapEntries(
+		schemasPatchedSnap1.roles,
+		(_, it) => {
+			const { name } = nameChangeFor(it, renamedRoles);
+			it.name = name;
+			return [name, it];
+		},
+	);
+
+	const rolesChangeMap = renamedRoles.reduce(
+		(acc, it) => {
+			acc[it.from.name] = {
+				nameFrom: it.from.name,
+				nameTo: it.to.name,
+			};
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				nameFrom: string;
+				nameTo: string;
+			}
+		>,
+	);
+
+	schemasPatchedSnap1.roles = mapEntries(
+		schemasPatchedSnap1.roles,
+		(roleKey, roleValue) => {
+			const key = roleKey;
+			const change = rolesChangeMap[key];
+
+			if (change) {
+				roleValue.name = change.nameTo;
+			}
+
+			return [roleKey, roleValue];
+		},
+	);
+
 	const tablesDiff = diffSchemasOrTables(
 		schemasPatchedSnap1.tables as Record<string, any>,
 		json2.tables,
@@ -808,7 +970,170 @@ export const applyPgSnapshotsDiff = async (
 		},
 	);
 
-	const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
+	//// Policies
+
+	const policyRes = diffPolicies(tablesPatchedSnap1.tables, json2.tables);
+
+	const policyRenames = [] as {
+		table: string;
+		schema: string;
+		renames: { from: Policy; to: Policy }[];
+	}[];
+
+	const policyCreates = [] as {
+		table: string;
+		schema: string;
+		columns: Policy[];
+	}[];
+
+	const policyDeletes = [] as {
+		table: string;
+		schema: string;
+		columns: Policy[];
+	}[];
+
+	for (let entry of Object.values(policyRes)) {
+		const { renamed, created, deleted } = await policyResolver({
+			tableName: entry.name,
+			schema: entry.schema,
+			deleted: entry.policies.deleted.map(
+				action === 'push' ? PgSquasher.unsquashPolicyPush : PgSquasher.unsquashPolicy,
+			),
+			created: entry.policies.added.map(action === 'push' ? PgSquasher.unsquashPolicyPush : PgSquasher.unsquashPolicy),
+		});
+
+		if (created.length > 0) {
+			policyCreates.push({
+				table: entry.name,
+				schema: entry.schema,
+				columns: created,
+			});
+		}
+
+		if (deleted.length > 0) {
+			policyDeletes.push({
+				table: entry.name,
+				schema: entry.schema,
+				columns: deleted,
+			});
+		}
+
+		if (renamed.length > 0) {
+			policyRenames.push({
+				table: entry.name,
+				schema: entry.schema,
+				renames: renamed,
+			});
+		}
+	}
+
+	const policyRenamesDict = columnRenames.reduce(
+		(acc, it) => {
+			acc[`${it.schema || 'public'}.${it.table}`] = it.renames;
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				from: Named;
+				to: Named;
+			}[]
+		>,
+	);
+
+	const policyPatchedSnap1 = copy(tablesPatchedSnap1);
+	policyPatchedSnap1.tables = mapEntries(
+		policyPatchedSnap1.tables,
+		(tableKey, tableValue) => {
+			const patchedPolicies = mapKeys(
+				tableValue.policies,
+				(policyKey, policy) => {
+					const rens = policyRenamesDict[
+						`${tableValue.schema || 'public'}.${tableValue.name}`
+					] || [];
+
+					const newName = columnChangeFor(policyKey, rens);
+					const unsquashedPolicy = action === 'push'
+						? PgSquasher.unsquashPolicyPush(policy)
+						: PgSquasher.unsquashPolicy(policy);
+					unsquashedPolicy.name = newName;
+					policy = PgSquasher.squashPolicy(unsquashedPolicy);
+					return newName;
+				},
+			);
+
+			tableValue.policies = patchedPolicies;
+			return [tableKey, tableValue];
+		},
+	);
+
+	//// Individual policies
+
+	const indPolicyRes = diffIndPolicies(policyPatchedSnap1.policies, json2.policies);
+
+	const indPolicyCreates = [] as {
+		policies: Policy[];
+	}[];
+
+	const indPolicyDeletes = [] as {
+		policies: Policy[];
+	}[];
+
+	const { renamed: indPolicyRenames, created, deleted } = await indPolicyResolver({
+		deleted: indPolicyRes.deleted.map((t) =>
+			action === 'push' ? PgSquasher.unsquashPolicyPush(t.values) : PgSquasher.unsquashPolicy(t.values)
+		),
+		created: indPolicyRes.added.map((t) =>
+			action === 'push' ? PgSquasher.unsquashPolicyPush(t.values) : PgSquasher.unsquashPolicy(t.values)
+		),
+	});
+
+	if (created.length > 0) {
+		indPolicyCreates.push({
+			policies: created,
+		});
+	}
+
+	if (deleted.length > 0) {
+		indPolicyDeletes.push({
+			policies: deleted,
+		});
+	}
+
+	const indPolicyRenamesDict = indPolicyRenames.reduce(
+		(acc, it) => {
+			acc[it.from.name] = {
+				nameFrom: it.from.name,
+				nameTo: it.to.name,
+			};
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				nameFrom: string;
+				nameTo: string;
+			}
+		>,
+	);
+
+	const indPolicyPatchedSnap1 = copy(policyPatchedSnap1);
+	indPolicyPatchedSnap1.policies = mapEntries(
+		indPolicyPatchedSnap1.policies,
+		(policyKey, policyValue) => {
+			const key = policyKey;
+			const change = indPolicyRenamesDict[key];
+
+			if (change) {
+				policyValue.name = change.nameTo;
+			}
+
+			return [policyKey, policyValue];
+		},
+	);
+
+	////
+	const viewsDiff = diffSchemasOrTables(indPolicyPatchedSnap1.views, json2.views);
 
 	const {
 		created: createdViews,
@@ -830,7 +1155,7 @@ export const applyPgSnapshotsDiff = async (
 		movedViewDic[`${it.schemaFrom}.${it.name}`] = { to: it.schemaTo, from: it.schemaFrom };
 	});
 
-	const viewsPatchedSnap1 = copy(columnsPatchedSnap1);
+	const viewsPatchedSnap1 = copy(policyPatchedSnap1);
 	viewsPatchedSnap1.views = mapEntries(
 		viewsPatchedSnap1.views,
 		(viewKey, viewValue) => {
@@ -908,13 +1233,15 @@ export const applyPgSnapshotsDiff = async (
 
 	const jsonSetTableSchemas: JsonAlterTableSetSchema[] = [];
 
-	for (let it of movedTables) {
-		jsonSetTableSchemas.push({
-			type: 'alter_table_set_schema',
-			tableName: it.name,
-			schemaFrom: it.schemaFrom || 'public',
-			schemaTo: it.schemaTo || 'public',
-		});
+	if (movedTables) {
+		for (let it of movedTables) {
+			jsonSetTableSchemas.push({
+				type: 'alter_table_set_schema',
+				tableName: it.name,
+				schemaFrom: it.schemaFrom || 'public',
+				schemaTo: it.schemaTo || 'public',
+			});
+		}
 	}
 
 	const jsonDeletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
@@ -924,22 +1251,22 @@ export const applyPgSnapshotsDiff = async (
 		// This part is needed to make sure that same columns in a table are not triggered for change
 		// there is a case where orm and kit are responsible for pk name generation and one of them is not sorting name
 		// We double-check that pk with same set of columns are both in added and deleted diffs
-		let addedColumns: string[] = [];
+		let addedColumns: { name: string; columns: string[] } | undefined;
 		for (const addedPkName of Object.keys(it.addedCompositePKs)) {
 			const addedPkColumns = it.addedCompositePKs[addedPkName];
-			addedColumns = SQLiteSquasher.unsquashPK(addedPkColumns);
+			addedColumns = PgSquasher.unsquashPK(addedPkColumns);
 		}
 
-		let deletedColumns: string[] = [];
+		let deletedColumns: { name: string; columns: string[] } | undefined;
 		for (const deletedPkName of Object.keys(it.deletedCompositePKs)) {
 			const deletedPkColumns = it.deletedCompositePKs[deletedPkName];
-			deletedColumns = SQLiteSquasher.unsquashPK(deletedPkColumns);
+			deletedColumns = PgSquasher.unsquashPK(deletedPkColumns);
 		}
 
 		// Don't need to sort, but need to add tests for it
 		// addedColumns.sort();
 		// deletedColumns.sort();
-		const doPerformDeleteAndCreate = JSON.stringify(addedColumns) !== JSON.stringify(deletedColumns);
+		const doPerformDeleteAndCreate = JSON.stringify(addedColumns ?? {}) !== JSON.stringify(deletedColumns ?? {});
 
 		let addedCompositePKs: JsonCreateCompositePK[] = [];
 		let deletedCompositePKs: JsonDeleteCompositePK[] = [];
@@ -1072,7 +1399,223 @@ export const applyPgSnapshotsDiff = async (
 		})
 		.flat();
 
+	const jsonCreatePoliciesStatements: JsonCreatePolicyStatement[] = [];
+	const jsonDropPoliciesStatements: JsonDropPolicyStatement[] = [];
+	const jsonAlterPoliciesStatements: JsonAlterPolicyStatement[] = [];
+	const jsonRenamePoliciesStatements: JsonRenamePolicyStatement[] = [];
+
+	const jsonRenameIndPoliciesStatements: JsonIndRenamePolicyStatement[] = [];
+	const jsonCreateIndPoliciesStatements: JsonCreateIndPolicyStatement[] = [];
+	const jsonDropIndPoliciesStatements: JsonDropIndPolicyStatement[] = [];
+	const jsonAlterIndPoliciesStatements: JsonAlterIndPolicyStatement[] = [];
+
+	const jsonEnableRLSStatements: JsonEnableRLSStatement[] = [];
+	const jsonDisableRLSStatements: JsonDisableRLSStatement[] = [];
+
+	for (let it of indPolicyRenames) {
+		jsonRenameIndPoliciesStatements.push(
+			...prepareRenameIndPolicyJsons([it]),
+		);
+	}
+
+	for (const it of indPolicyCreates) {
+		jsonCreateIndPoliciesStatements.push(
+			...prepareCreateIndPolicyJsons(
+				it.policies,
+			),
+		);
+	}
+
+	for (const it of indPolicyDeletes) {
+		jsonDropIndPoliciesStatements.push(
+			...prepareDropIndPolicyJsons(
+				it.policies,
+			),
+		);
+	}
+
+	typedResult.alteredPolicies.forEach(({ values }) => {
+		// return prepareAlterIndPolicyJson(json1.policies[it.name], json2.policies[it.name]);
+
+		const policy = action === 'push' ? PgSquasher.unsquashPolicyPush(values) : PgSquasher.unsquashPolicy(values);
+
+		const newPolicy = action === 'push'
+			? PgSquasher.unsquashPolicyPush(json2.policies[policy.name].values)
+			: PgSquasher.unsquashPolicy(json2.policies[policy.name].values);
+		const oldPolicy = action === 'push'
+			? PgSquasher.unsquashPolicyPush(json2.policies[policy.name].values)
+			: PgSquasher.unsquashPolicy(json1.policies[policy.name].values);
+
+		if (newPolicy.as !== oldPolicy.as) {
+			jsonDropIndPoliciesStatements.push(
+				...prepareDropIndPolicyJsons(
+					[oldPolicy],
+				),
+			);
+
+			jsonCreateIndPoliciesStatements.push(
+				...prepareCreateIndPolicyJsons(
+					[newPolicy],
+				),
+			);
+			return;
+		}
+
+		if (newPolicy.for !== oldPolicy.for) {
+			jsonDropIndPoliciesStatements.push(
+				...prepareDropIndPolicyJsons(
+					[oldPolicy],
+				),
+			);
+
+			jsonCreateIndPoliciesStatements.push(
+				...prepareCreateIndPolicyJsons(
+					[newPolicy],
+				),
+			);
+			return;
+		}
+
+		// alter
+		jsonAlterIndPoliciesStatements.push(
+			prepareAlterIndPolicyJson(
+				oldPolicy,
+				newPolicy,
+			),
+		);
+	});
+
+	for (let it of policyRenames) {
+		jsonRenamePoliciesStatements.push(
+			...prepareRenamePolicyJsons(it.table, it.schema, it.renames),
+		);
+	}
+
+	for (const it of policyCreates) {
+		jsonCreatePoliciesStatements.push(
+			...prepareCreatePolicyJsons(
+				it.table,
+				it.schema,
+				it.columns,
+			),
+		);
+	}
+
+	for (const it of policyDeletes) {
+		jsonDropPoliciesStatements.push(
+			...prepareDropPolicyJsons(
+				it.table,
+				it.schema,
+				it.columns,
+			),
+		);
+	}
+
 	alteredTables.forEach((it) => {
+		// handle policies
+		Object.keys(it.alteredPolicies).forEach((policyName: string) => {
+			const newPolicy = action === 'push'
+				? PgSquasher.unsquashPolicyPush(it.alteredPolicies[policyName].__new)
+				: PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__new);
+			const oldPolicy = action === 'push'
+				? PgSquasher.unsquashPolicyPush(it.alteredPolicies[policyName].__old)
+				: PgSquasher.unsquashPolicy(it.alteredPolicies[policyName].__old);
+
+			if (newPolicy.as !== oldPolicy.as) {
+				jsonDropPoliciesStatements.push(
+					...prepareDropPolicyJsons(
+						it.name,
+						it.schema,
+						[oldPolicy],
+					),
+				);
+
+				jsonCreatePoliciesStatements.push(
+					...prepareCreatePolicyJsons(
+						it.name,
+						it.schema,
+						[newPolicy],
+					),
+				);
+				return;
+			}
+
+			if (newPolicy.for !== oldPolicy.for) {
+				jsonDropPoliciesStatements.push(
+					...prepareDropPolicyJsons(
+						it.name,
+						it.schema,
+						[oldPolicy],
+					),
+				);
+
+				jsonCreatePoliciesStatements.push(
+					...prepareCreatePolicyJsons(
+						it.name,
+						it.schema,
+						[newPolicy],
+					),
+				);
+				return;
+			}
+
+			// alter
+			jsonAlterPoliciesStatements.push(
+				prepareAlterPolicyJson(
+					it.name,
+					it.schema,
+					it.alteredPolicies[policyName].__old,
+					it.alteredPolicies[policyName].__new,
+				),
+			);
+		});
+
+		// Handle enabling and disabling RLS
+		for (const table of Object.values(json2.tables)) {
+			const policiesInCurrentState = Object.keys(table.policies);
+			const tableInPreviousState =
+				columnsPatchedSnap1.tables[`${table.schema === '' ? 'public' : table.schema}.${table.name}`];
+			const policiesInPreviousState = tableInPreviousState ? Object.keys(tableInPreviousState.policies) : [];
+
+			// const indPoliciesInCurrentState = Object.keys(table.policies);
+			// const indPoliciesInPreviousState = Object.keys(columnsPatchedSnap1.policies);
+
+			if (
+				(policiesInPreviousState.length === 0 && policiesInCurrentState.length > 0) && !table.isRLSEnabled
+			) {
+				jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
+			}
+
+			if (
+				(policiesInPreviousState.length > 0 && policiesInCurrentState.length === 0) && !table.isRLSEnabled
+			) {
+				jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+			}
+
+			// handle table.isRLSEnabled
+			const wasRlsEnabled = tableInPreviousState ? tableInPreviousState.isRLSEnabled : false;
+			if (table.isRLSEnabled !== wasRlsEnabled) {
+				if (table.isRLSEnabled) {
+					// was force enabled
+					jsonEnableRLSStatements.push({ type: 'enable_rls', tableName: table.name, schema: table.schema });
+				} else if (
+					!table.isRLSEnabled && policiesInCurrentState.length === 0
+				) {
+					// was force disabled
+					jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+				}
+			}
+		}
+
+		for (const table of Object.values(columnsPatchedSnap1.tables)) {
+			const tableInCurrentState = json2.tables[`${table.schema === '' ? 'public' : table.schema}.${table.name}`];
+
+			if (tableInCurrentState === undefined && !table.isRLSEnabled) {
+				jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+			}
+		}
+
+		// handle indexes
 		const droppedIndexes = Object.keys(it.alteredIndexes).reduce(
 			(current, item: string) => {
 				current[item] = it.alteredIndexes[item].__old;
@@ -1207,6 +1750,25 @@ export const applyPgSnapshotsDiff = async (
 
 	////////////
 
+	const createRoles = createdRoles.map((it) => {
+		return prepareCreateRoleJson(it);
+	}) ?? [];
+
+	const dropRoles = deletedRoles.map((it) => {
+		return prepareDropRoleJson(it.name);
+	});
+
+	const renameRoles = renamedRoles.map((it) => {
+		return prepareRenameRoleJson(it.from.name, it.to.name);
+	});
+
+	const jsonAlterRoles = typedResult.alteredRoles
+		.map((it) => {
+			return prepareAlterRoleJson(it);
+		})
+		.flat() ?? [];
+
+	////////////
 	const createSchemas = prepareCreateSchemasJson(
 		createdSchemas.map((it) => it.name),
 	);
@@ -1223,6 +1785,15 @@ export const applyPgSnapshotsDiff = async (
 		return preparePgCreateTableJson(it, curFull);
 	});
 
+	jsonCreatePoliciesStatements.push(...([] as JsonCreatePolicyStatement[]).concat(
+		...(createdTables.map((it) =>
+			prepareCreatePolicyJsons(
+				it.name,
+				it.schema,
+				Object.values(it.policies).map(action === 'push' ? PgSquasher.unsquashPolicyPush : PgSquasher.unsquashPolicy),
+			)
+		)),
+	));
 	const createViews: JsonCreatePgViewStatement[] = [];
 	const dropViews: JsonDropViewStatement[] = [];
 	const renameViews: JsonRenameViewStatement[] = [];
@@ -1385,8 +1956,15 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...renameSequences);
 	jsonStatements.push(...jsonAlterSequences);
 
+	jsonStatements.push(...renameRoles);
+	jsonStatements.push(...dropRoles);
+	jsonStatements.push(...createRoles);
+	jsonStatements.push(...jsonAlterRoles);
+
 	jsonStatements.push(...createTables);
 
+	jsonStatements.push(...jsonEnableRLSStatements);
+	jsonStatements.push(...jsonDisableRLSStatements);
 	jsonStatements.push(...dropViews);
 	jsonStatements.push(...renameViews);
 	jsonStatements.push(...alterViews);
@@ -1426,6 +2004,16 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlterEnumsWithDroppedValues);
 
 	jsonStatements.push(...createViews);
+
+	jsonStatements.push(...jsonRenamePoliciesStatements);
+	jsonStatements.push(...jsonDropPoliciesStatements);
+	jsonStatements.push(...jsonCreatePoliciesStatements);
+	jsonStatements.push(...jsonAlterPoliciesStatements);
+
+	jsonStatements.push(...jsonRenameIndPoliciesStatements);
+	jsonStatements.push(...jsonDropIndPoliciesStatements);
+	jsonStatements.push(...jsonCreateIndPoliciesStatements);
+	jsonStatements.push(...jsonAlterIndPoliciesStatements);
 
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);
@@ -1478,7 +2066,7 @@ export const applyPgSnapshotsDiff = async (
 		return true;
 	});
 
-	const sqlStatements = fromJson(filteredEnumsJsonStatements, 'postgresql');
+	const sqlStatements = fromJson(filteredEnumsJsonStatements, 'postgresql', action);
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {
@@ -2054,11 +2642,10 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...jsonDeletedCompositePKs);
 	jsonStatements.push(...jsonTableAlternations);
 	jsonStatements.push(...jsonAddedCompositePKs);
+	jsonStatements.push(...jsonAddColumnsStatemets);
 
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
-
-	jsonStatements.push(...jsonAddColumnsStatemets);
 
 	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
@@ -2078,6 +2665,519 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
 	const sqlStatements = fromJson(jsonStatements, 'mysql');
+
+	const uniqueSqlStatements: string[] = [];
+	sqlStatements.forEach((ss) => {
+		if (!uniqueSqlStatements.includes(ss)) {
+			uniqueSqlStatements.push(ss);
+		}
+	});
+
+	const rTables = renamedTables.map((it) => {
+		return { from: it.from, to: it.to };
+	});
+
+	const _meta = prepareMigrationMeta([], rTables, rColumns);
+
+	return {
+		statements: jsonStatements,
+		sqlStatements: uniqueSqlStatements,
+		_meta,
+	};
+};
+
+export const applySingleStoreSnapshotsDiff = async (
+	json1: SingleStoreSchemaSquashed,
+	json2: SingleStoreSchemaSquashed,
+	tablesResolver: (
+		input: ResolverInput<Table>,
+	) => Promise<ResolverOutputWithMoved<Table>>,
+	columnsResolver: (
+		input: ColumnsResolverInput<Column>,
+	) => Promise<ColumnsResolverOutput<Column>>,
+	/* viewsResolver: (
+		input: ResolverInput<ViewSquashed & { schema: '' }>,
+	) => Promise<ResolverOutputWithMoved<ViewSquashed>>, */
+	prevFull: SingleStoreSchema,
+	curFull: SingleStoreSchema,
+	action?: 'push' | undefined,
+): Promise<{
+	statements: JsonStatement[];
+	sqlStatements: string[];
+	_meta:
+		| {
+			schemas: {};
+			tables: {};
+			columns: {};
+		}
+		| undefined;
+}> => {
+	// squash indexes and fks
+
+	// squash uniqueIndexes and uniqueConstraint into constraints object
+	// it should be done for singlestore only because it has no diffs for it
+
+	// TODO: @AndriiSherman
+	// Add an upgrade to v6 and move all snaphosts to this strcutre
+	// After that we can generate singlestore in 1 object directly(same as sqlite)
+	for (const tableName in json1.tables) {
+		const table = json1.tables[tableName];
+		for (const indexName in table.indexes) {
+			const index = SingleStoreSquasher.unsquashIdx(table.indexes[indexName]);
+			if (index.isUnique) {
+				table.uniqueConstraints[indexName] = SingleStoreSquasher.squashUnique({
+					name: index.name,
+					columns: index.columns,
+				});
+				delete json1.tables[tableName].indexes[index.name];
+			}
+		}
+	}
+
+	for (const tableName in json2.tables) {
+		const table = json2.tables[tableName];
+		for (const indexName in table.indexes) {
+			const index = SingleStoreSquasher.unsquashIdx(table.indexes[indexName]);
+			if (index.isUnique) {
+				table.uniqueConstraints[indexName] = SingleStoreSquasher.squashUnique({
+					name: index.name,
+					columns: index.columns,
+				});
+				delete json2.tables[tableName].indexes[index.name];
+			}
+		}
+	}
+
+	const tablesDiff = diffSchemasOrTables(json1.tables, json2.tables);
+
+	const {
+		created: createdTables,
+		deleted: deletedTables,
+		renamed: renamedTables, // renamed or moved
+	} = await tablesResolver({
+		created: tablesDiff.added,
+		deleted: tablesDiff.deleted,
+	});
+
+	const tablesPatchedSnap1 = copy(json1);
+	tablesPatchedSnap1.tables = mapEntries(tablesPatchedSnap1.tables, (_, it) => {
+		const { name } = nameChangeFor(it, renamedTables);
+		it.name = name;
+		return [name, it];
+	});
+
+	const res = diffColumns(tablesPatchedSnap1.tables, json2.tables);
+	const columnRenames = [] as {
+		table: string;
+		renames: { from: Column; to: Column }[];
+	}[];
+
+	const columnCreates = [] as {
+		table: string;
+		columns: Column[];
+	}[];
+
+	const columnDeletes = [] as {
+		table: string;
+		columns: Column[];
+	}[];
+
+	for (let entry of Object.values(res)) {
+		const { renamed, created, deleted } = await columnsResolver({
+			tableName: entry.name,
+			schema: entry.schema,
+			deleted: entry.columns.deleted,
+			created: entry.columns.added,
+		});
+
+		if (created.length > 0) {
+			columnCreates.push({
+				table: entry.name,
+				columns: created,
+			});
+		}
+
+		if (deleted.length > 0) {
+			columnDeletes.push({
+				table: entry.name,
+				columns: deleted,
+			});
+		}
+
+		if (renamed.length > 0) {
+			columnRenames.push({
+				table: entry.name,
+				renames: renamed,
+			});
+		}
+	}
+
+	const columnRenamesDict = columnRenames.reduce(
+		(acc, it) => {
+			acc[it.table] = it.renames;
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				from: Named;
+				to: Named;
+			}[]
+		>,
+	);
+
+	const columnsPatchedSnap1 = copy(tablesPatchedSnap1);
+	columnsPatchedSnap1.tables = mapEntries(
+		columnsPatchedSnap1.tables,
+		(tableKey, tableValue) => {
+			const patchedColumns = mapKeys(
+				tableValue.columns,
+				(columnKey, column) => {
+					const rens = columnRenamesDict[tableValue.name] || [];
+					const newName = columnChangeFor(columnKey, rens);
+					column.name = newName;
+					return newName;
+				},
+			);
+
+			tableValue.columns = patchedColumns;
+			return [tableKey, tableValue];
+		},
+	);
+
+	/* const viewsDiff = diffSchemasOrTables(json1.views, json2.views);
+
+	const {
+		created: createdViews,
+		deleted: deletedViews,
+		renamed: renamedViews, // renamed or moved
+	} = await viewsResolver({
+		created: viewsDiff.added,
+		deleted: viewsDiff.deleted,
+	});
+
+	const renamesViewDic: Record<string, { to: string; from: string }> = {};
+	renamedViews.forEach((it) => {
+		renamesViewDic[it.from.name] = { to: it.to.name, from: it.from.name };
+	});
+
+	const viewsPatchedSnap1 = copy(columnsPatchedSnap1);
+	viewsPatchedSnap1.views = mapEntries(
+		viewsPatchedSnap1.views,
+		(viewKey, viewValue) => {
+			const rename = renamesViewDic[viewValue.name];
+
+			if (rename) {
+				viewValue.name = rename.to;
+				viewKey = rename.to;
+			}
+
+			return [viewKey, viewValue];
+		},
+	);
+
+	*/
+	const diffResult = applyJsonDiff(tablesPatchedSnap1, json2); // replace tablesPatchedSnap1 with viewsPatchedSnap1
+
+	const typedResult: DiffResultSingleStore = diffResultSchemeSingleStore.parse(diffResult);
+
+	const jsonStatements: JsonStatement[] = [];
+
+	const jsonCreateIndexesForCreatedTables = createdTables
+		.map((it) => {
+			return prepareCreateIndexesJson(
+				it.name,
+				it.schema,
+				it.indexes,
+				curFull.internal,
+			);
+		})
+		.flat();
+
+	const jsonDropTables = deletedTables.map((it) => {
+		return prepareDropTableJson(it);
+	});
+
+	const jsonRenameTables = renamedTables.map((it) => {
+		return prepareRenameTableJson(it.from, it.to);
+	});
+
+	const alteredTables = typedResult.alteredTablesWithColumns;
+
+	const jsonAddedCompositePKs: JsonCreateCompositePK[] = [];
+
+	const jsonAddedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
+	const jsonDeletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
+	const jsonAlteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
+
+	const jsonRenameColumnsStatements: JsonRenameColumnStatement[] = columnRenames
+		.map((it) => prepareRenameColumns(it.table, '', it.renames))
+		.flat();
+
+	const jsonAddColumnsStatemets: JsonAddColumnStatement[] = columnCreates
+		.map((it) => _prepareAddColumns(it.table, '', it.columns))
+		.flat();
+
+	const jsonDropColumnsStatemets: JsonDropColumnStatement[] = columnDeletes
+		.map((it) => _prepareDropColumns(it.table, '', it.columns))
+		.flat();
+
+	alteredTables.forEach((it) => {
+		// This part is needed to make sure that same columns in a table are not triggered for change
+		// there is a case where orm and kit are responsible for pk name generation and one of them is not sorting name
+		// We double-check that pk with same set of columns are both in added and deleted diffs
+		let addedColumns: string[] = [];
+		for (const addedPkName of Object.keys(it.addedCompositePKs)) {
+			const addedPkColumns = it.addedCompositePKs[addedPkName];
+			addedColumns = SingleStoreSquasher.unsquashPK(addedPkColumns).columns;
+		}
+
+		let deletedColumns: string[] = [];
+		for (const deletedPkName of Object.keys(it.deletedCompositePKs)) {
+			const deletedPkColumns = it.deletedCompositePKs[deletedPkName];
+			deletedColumns = SingleStoreSquasher.unsquashPK(deletedPkColumns).columns;
+		}
+
+		// Don't need to sort, but need to add tests for it
+		// addedColumns.sort();
+		// deletedColumns.sort();
+		const doPerformDeleteAndCreate = JSON.stringify(addedColumns) !== JSON.stringify(deletedColumns);
+
+		// add logic for unique constraints
+		let addedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
+		let deletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
+		let alteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
+
+		let createdCheckConstraints: JsonCreateCheckConstraint[] = [];
+		let deletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
+
+		addedUniqueConstraints = prepareAddUniqueConstraint(
+			it.name,
+			it.schema,
+			it.addedUniqueConstraints,
+		);
+		deletedUniqueConstraints = prepareDeleteUniqueConstraint(
+			it.name,
+			it.schema,
+			it.deletedUniqueConstraints,
+		);
+		if (it.alteredUniqueConstraints) {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+			for (const k of Object.keys(it.alteredUniqueConstraints)) {
+				added[k] = it.alteredUniqueConstraints[k].__new;
+				deleted[k] = it.alteredUniqueConstraints[k].__old;
+			}
+			addedUniqueConstraints.push(
+				...prepareAddUniqueConstraint(it.name, it.schema, added),
+			);
+			deletedUniqueConstraints.push(
+				...prepareDeleteUniqueConstraint(it.name, it.schema, deleted),
+			);
+		}
+
+		createdCheckConstraints = prepareAddCheckConstraint(it.name, it.schema, it.addedCheckConstraints);
+		deletedCheckConstraints = prepareDeleteCheckConstraint(
+			it.name,
+			it.schema,
+			it.deletedCheckConstraints,
+		);
+
+		// skip for push
+		if (it.alteredCheckConstraints && action !== 'push') {
+			const added: Record<string, string> = {};
+			const deleted: Record<string, string> = {};
+
+			for (const k of Object.keys(it.alteredCheckConstraints)) {
+				added[k] = it.alteredCheckConstraints[k].__new;
+				deleted[k] = it.alteredCheckConstraints[k].__old;
+			}
+			createdCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
+			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+		}
+
+		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
+		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
+		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+	});
+
+	const rColumns = jsonRenameColumnsStatements.map((it) => {
+		const tableName = it.tableName;
+		const schema = it.schema;
+		return {
+			from: { schema, table: tableName, column: it.oldColumnName },
+			to: { schema, table: tableName, column: it.newColumnName },
+		};
+	});
+
+	const jsonTableAlternations = alteredTables
+		.map((it) => {
+			return prepareAlterColumnsMysql(
+				it.name,
+				it.schema,
+				it.altered,
+				json1,
+				json2,
+				action,
+			);
+		})
+		.flat();
+
+	const jsonCreateIndexesForAllAlteredTables = alteredTables
+		.map((it) => {
+			return prepareCreateIndexesJson(
+				it.name,
+				it.schema,
+				it.addedIndexes || {},
+				curFull.internal,
+			);
+		})
+		.flat();
+
+	const jsonDropIndexesForAllAlteredTables = alteredTables
+		.map((it) => {
+			return prepareDropIndexesJson(
+				it.name,
+				it.schema,
+				it.deletedIndexes || {},
+			);
+		})
+		.flat();
+
+	alteredTables.forEach((it) => {
+		const droppedIndexes = Object.keys(it.alteredIndexes).reduce(
+			(current, item: string) => {
+				current[item] = it.alteredIndexes[item].__old;
+				return current;
+			},
+			{} as Record<string, string>,
+		);
+		const createdIndexes = Object.keys(it.alteredIndexes).reduce(
+			(current, item: string) => {
+				current[item] = it.alteredIndexes[item].__new;
+				return current;
+			},
+			{} as Record<string, string>,
+		);
+
+		jsonCreateIndexesForAllAlteredTables.push(
+			...prepareCreateIndexesJson(it.name, it.schema, createdIndexes || {}),
+		);
+		jsonDropIndexesForAllAlteredTables.push(
+			...prepareDropIndexesJson(it.name, it.schema, droppedIndexes || {}),
+		);
+	});
+
+	const jsonSingleStoreCreateTables = createdTables.map((it) => {
+		return prepareSingleStoreCreateTableJson(
+			it,
+			curFull as SingleStoreSchema,
+			curFull.internal,
+		);
+	});
+
+	/* const createViews: JsonCreateSingleStoreViewStatement[] = [];
+	const dropViews: JsonDropViewStatement[] = [];
+	const renameViews: JsonRenameViewStatement[] = [];
+	const alterViews: JsonAlterSingleStoreViewStatement[] = [];
+
+	createViews.push(
+		...createdViews.filter((it) => !it.isExisting).map((it) => {
+			return prepareSingleStoreCreateViewJson(
+				it.name,
+				it.definition!,
+				it.meta,
+			);
+		}),
+	);
+
+	dropViews.push(
+		...deletedViews.filter((it) => !it.isExisting).map((it) => {
+			return prepareDropViewJson(it.name);
+		}),
+	);
+
+	renameViews.push(
+		...renamedViews.filter((it) => !it.to.isExisting && !json1.views[it.from.name].isExisting).map((it) => {
+			return prepareRenameViewJson(it.to.name, it.from.name);
+		}),
+	);
+
+	const alteredViews = typedResult.alteredViews.filter((it) => !json2.views[it.name].isExisting);
+
+	for (const alteredView of alteredViews) {
+		const { definition, meta } = json2.views[alteredView.name];
+
+		if (alteredView.alteredExisting) {
+			dropViews.push(prepareDropViewJson(alteredView.name));
+
+			createViews.push(
+				prepareSingleStoreCreateViewJson(
+					alteredView.name,
+					definition!,
+					meta,
+				),
+			);
+
+			continue;
+		}
+
+		if (alteredView.alteredDefinition && action !== 'push') {
+			createViews.push(
+				prepareSingleStoreCreateViewJson(
+					alteredView.name,
+					definition!,
+					meta,
+					true,
+				),
+			);
+			continue;
+		}
+
+		if (alteredView.alteredMeta) {
+			const view = curFull['views'][alteredView.name];
+			alterViews.push(
+				prepareSingleStoreAlterView(view),
+			);
+		}
+	} */
+
+	jsonStatements.push(...jsonSingleStoreCreateTables);
+
+	jsonStatements.push(...jsonDropTables);
+	jsonStatements.push(...jsonRenameTables);
+	jsonStatements.push(...jsonRenameColumnsStatements);
+
+	/*jsonStatements.push(...createViews);
+	jsonStatements.push(...dropViews);
+	jsonStatements.push(...renameViews);
+	jsonStatements.push(...alterViews);
+ */
+	jsonStatements.push(...jsonDeletedUniqueConstraints);
+
+	// Will need to drop indexes before changing any columns in table
+	// Then should go column alternations and then index creation
+	jsonStatements.push(...jsonDropIndexesForAllAlteredTables);
+
+	jsonStatements.push(...jsonTableAlternations);
+	jsonStatements.push(...jsonAddedCompositePKs);
+
+	jsonStatements.push(...jsonAddedUniqueConstraints);
+	jsonStatements.push(...jsonDeletedUniqueConstraints);
+
+	jsonStatements.push(...jsonAddColumnsStatemets);
+
+	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
+
+	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
+
+	jsonStatements.push(...jsonDropColumnsStatemets);
+
+	jsonStatements.push(...jsonAddedCompositePKs);
+
+	jsonStatements.push(...jsonAlteredUniqueConstraints);
+
+	const sqlStatements = fromJson(jsonStatements, 'singlestore');
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {
