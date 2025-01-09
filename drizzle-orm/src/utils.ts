@@ -188,6 +188,16 @@ export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
 
+export function pickTableColumns<T extends Table>(
+  table: T,
+  includedColumns: Partial<Record<keyof T['_']['columns'], true>>
+): Pick<T['_']['columns'], keyof typeof includedColumns> {
+  const allColumns = table[Table.Symbol.Columns];
+  return Object.fromEntries(
+    Object.entries(allColumns).filter(([key]) => key in includedColumns)
+  ) as any;
+}
+
 export function getViewSelectedFields<T extends View>(view: T): T['_']['selectedFields'] {
 	return view[ViewBaseConfig].selectedFields;
 }
