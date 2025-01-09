@@ -19,7 +19,7 @@ export type ColumnDataType =
 	| 'custom'
 	| 'buffer';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common';
 
 export type GeneratedStorageMode = 'virtual' | 'stored';
 
@@ -154,14 +154,6 @@ export type $Type<T extends ColumnBuilderBase, TType> = T & {
 export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}> = T & {
 	_: {
 		hasDefault: true;
-		generated: TGenerated;
-	};
-};
-
-export type GeneratedNotNull<T extends ColumnBuilderBase, TGenerated extends {} = {}> = T & {
-	_: {
-		hasDefault: true;
-		notNull: true;
 		generated: TGenerated;
 	};
 };
@@ -338,6 +330,19 @@ export type BuildColumn<
 					| 'dialect'
 					| 'primaryKeyHasDefault'
 					| 'mysqlColumnBuilderBrand'
+				>
+			>
+		>
+	: TDialect extends 'mssql' ? MsSqlColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			Simplify<
+				Omit<
+					TBuilder['_'],
+					| keyof MakeColumnConfig<TBuilder['_'], TTableName>
+					| 'brand'
+					| 'dialect'
+					| 'primaryKeyHasDefault'
+					| 'mssqlColumnBuilderBrand'
 				>
 			>
 		>

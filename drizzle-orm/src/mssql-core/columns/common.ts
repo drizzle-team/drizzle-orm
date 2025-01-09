@@ -5,9 +5,9 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
-	GeneratedNotNull,
 	HasGenerated,
 	MakeColumnConfig,
+	NotNull,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
@@ -61,7 +61,12 @@ export abstract class MsSqlColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: MsSqlGeneratedColumnConfig): HasGenerated<this> {
+	generatedAlwaysAs(
+		as: SQL | T['data'] | (() => SQL),
+		config?: MsSqlGeneratedColumnConfig,
+	): HasGenerated<this, {
+		type: 'always';
+	}> {
 		this.config.generated = {
 			as,
 			type: 'always',
@@ -140,13 +145,13 @@ export abstract class MsSqlColumnBuilderWithIdentity<
 		super(name, dataType, columnType);
 	}
 
-	identity(): GeneratedNotNull<this>;
-	identity(seed: number, increment: number): GeneratedNotNull<this>;
-	identity(seed?: number, increment?: number): GeneratedNotNull<this> {
+	identity(): NotNull<HasGenerated<this>>;
+	identity(seed: number, increment: number): NotNull<HasGenerated<this>>;
+	identity(seed?: number, increment?: number): NotNull<HasGenerated<this>> {
 		this.config.identity = seed !== undefined && increment !== undefined ? { seed, increment } : true;
 		this.config.hasDefault = true;
 		this.config.notNull = true;
-		return this as GeneratedNotNull<this>;
+		return this as NotNull<HasGenerated<this>>;
 	}
 }
 
