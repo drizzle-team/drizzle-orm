@@ -5,7 +5,7 @@ import { wrapParam } from './common';
 
 export const libSQLCredentials = object({
 	url: string().min(1),
-	authToken: string().min(1).optional(),
+	authToken: string().min(0).optional(),
 });
 
 export type LibSQLCredentials = {
