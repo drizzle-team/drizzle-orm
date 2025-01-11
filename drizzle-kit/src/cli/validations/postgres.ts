@@ -18,6 +18,7 @@ export const postgresCredentials = union([
 			boolean(),
 			object({}).passthrough(),
 		]).optional(),
+		max: coerce.number().min(1).optional(),
 	}).transform((o) => {
 		delete o.driver;
 		return o as Omit<typeof o, 'driver'>;
