@@ -61,9 +61,7 @@ import { isColumnType, isWithEnum } from './utils.ts';
 import type { Json } from './utils.ts';
 
 export const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
-export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
-	z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
-);
+export const jsonSchema: z.ZodType<Json> = z.union([literalSchema, z.record(z.any()), z.array(z.any())]);
 export const bufferSchema: z.ZodType<Buffer> = z.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 
 export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptions | undefined): z.ZodTypeAny {
