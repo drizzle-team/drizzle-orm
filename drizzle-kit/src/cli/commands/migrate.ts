@@ -667,7 +667,7 @@ export const prepareSingleStorePush = async (
 			'push',
 		);
 
-		return { sqlStatements, statements, validatedCur, validatedPrev };
+		return { sqlStatements, statements, squashedPrev, squashedCur };
 	} catch (e) {
 		console.error(e);
 		process.exit(1);
