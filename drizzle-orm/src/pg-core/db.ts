@@ -647,6 +647,7 @@ export const withReplicas = <
 	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
 	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
 	const selectDistinctOn: Q['selectDistinctOn'] = (...args: [any]) => getReplica(replicas).selectDistinctOn(...args);
+	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);
 	const _with: Q['with'] = (...args: any) => getReplica(replicas).with(...args);
 	const $with: Q['$with'] = (arg: any) => getReplica(replicas).$with(arg);
 
@@ -670,6 +671,7 @@ export const withReplicas = <
 		select,
 		selectDistinct,
 		selectDistinctOn,
+		$count,
 		$with,
 		with: _with,
 		get query() {

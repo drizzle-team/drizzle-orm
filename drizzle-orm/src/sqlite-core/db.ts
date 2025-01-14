@@ -603,6 +603,7 @@ export const withReplicas = <
 ): SQLiteWithReplicas<Q> => {
 	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
 	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
+	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);
 	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
@@ -627,6 +628,7 @@ export const withReplicas = <
 		$primary: primary,
 		select,
 		selectDistinct,
+		$count,
 		with: $with,
 		get query() {
 			return getReplica(replicas).query;
