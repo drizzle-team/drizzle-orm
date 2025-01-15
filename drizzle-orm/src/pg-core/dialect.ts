@@ -968,6 +968,7 @@ export class PgDialect {
 		mode,
 		errorPath,
 		depth,
+		throughJoin,
 	}: {
 		tables: Record<string, PgTable>;
 		schema: TablesRelationalConfig;
@@ -979,6 +980,7 @@ export class PgDialect {
 		mode: 'first' | 'many';
 		errorPath?: string;
 		depth?: number;
+		throughJoin?: SQL;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
@@ -1031,13 +1033,23 @@ export class PgDialect {
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
 						const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
-						const relationFilter = relationToSQL(relation, table, targetTable);
-
-						selectionArr.push(
-							isSingle
-								? sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`
-								: sql`coalesce(${sql.identifier(k)}.${sql.identifier('r')}, '[]') as ${sql.identifier(k)}`,
+						const throughTable = relation.throughTable
+							? aliasedTable(relation.throughTable, `tr${currentDepth}`)
+							: undefined;
+						const { filter, joinCondition } = relationToSQL(
+							relation,
+							table,
+							targetTable,
+							throughTable,
 						);
+
+						selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
+
+						const throughJoin = throughTable
+							? sql` inner join ${sql`${sql.identifier(throughTable![Schema] ?? '')}.`.if(throughTable![Schema])}${
+								sql.identifier(throughTable![OriginalName])
+							} as ${throughTable!} on ${joinCondition!}`
+							: undefined;
 
 						const innerQuery = this.buildRelationalQuery({
 							table: targetTable as PgTable,
@@ -1047,9 +1059,10 @@ export class PgDialect {
 							tableConfig: schema[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!,
 							tableNamesMap,
 							tables,
-							relationWhere: relationFilter,
+							relationWhere: filter,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
+							throughJoin,
 						});
 
 						selection.push({
@@ -1061,11 +1074,13 @@ export class PgDialect {
 								|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
 						});
 
-						return sql`left join lateral(select ${
+						const joinQuery = sql`left join lateral(select ${
 							isSingle
 								? sql`row_to_json(${sql.identifier('t')}.*) ${sql.identifier('r')}`
-								: sql`json_agg(row_to_json(${sql.identifier('t')}.*)) ${sql.identifier('r')}`
+								: sql`coalesce(json_agg(row_to_json(${sql.identifier('t')}.*)), '[]') as ${sql.identifier('r')}`
 						} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)} on true`;
+
+						return joinQuery;
 					}),
 					sql` `,
 				);
@@ -1086,7 +1101,7 @@ export class PgDialect {
 					sql.identifier(table[OriginalName])
 				} as ${table}`
 				: table
-		}${sql` ${joins}`.if(joins)}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
+		}${throughJoin}${sql` ${joins}`.if(joins)}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
 			sql` limit ${limit}`.if(limit !== undefined)
 		}${sql` offset ${offset}`.if(offset !== undefined)}`;
 

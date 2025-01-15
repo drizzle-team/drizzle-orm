@@ -6236,22 +6236,6 @@ test('async api - prepare', async () => {
 	const users = await queryStmt.execute();
 	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
 });
-test('Error on empty non-optional relation', async () => {
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex', invitedBy: 1 },
-		{ id: 4, name: 'John', invitedBy: 2 },
-	]);
-
-	expect(async () =>
-		await db.query.usersTable.findMany({
-			with: {
-				inviteeRequired: true,
-			},
-		})
-	).rejects.toThrow(DrizzleError);
-});
 
 test('Force optional on where on non-optional relation query', async () => {
 	await db.insert(usersTable).values([

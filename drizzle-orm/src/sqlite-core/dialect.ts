@@ -895,6 +895,7 @@ export abstract class SQLiteDialect {
 			isNested,
 			errorPath,
 			depth,
+			throughJoin,
 		}: {
 			tables: Record<string, SQLiteTable>;
 			schema: TablesRelationalConfig;
@@ -907,6 +908,7 @@ export abstract class SQLiteDialect {
 			isNested?: boolean;
 			errorPath?: string;
 			depth?: number;
+			throughJoin?: SQL;
 		},
 	): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -956,7 +958,21 @@ export abstract class SQLiteDialect {
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
 						const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
-						const relationFilter = relationToSQL(relation, table, targetTable);
+						const throughTable = relation.throughTable
+							? aliasedTable(relation.throughTable, `tr${currentDepth}`)
+							: undefined;
+						const { filter, joinCondition } = relationToSQL(
+							relation,
+							table,
+							targetTable,
+							throughTable,
+						);
+
+						const throughJoin = throughTable
+							? sql` inner join ${sql`${sql.identifier(throughTable![Schema] ?? '')}.`.if(throughTable![Schema])}${
+								sql.identifier(throughTable![OriginalName])
+							} as ${throughTable!} on ${joinCondition!}`
+							: undefined;
 
 						const innerQuery = this.buildRelationalQuery({
 							table: targetTable as SQLiteTable,
@@ -966,10 +982,11 @@ export abstract class SQLiteDialect {
 							tableConfig: schema[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!,
 							tableNamesMap,
 							tables,
-							relationWhere: relationFilter,
+							relationWhere: filter,
 							isNested: true,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
+							throughJoin,
 						});
 
 						selection.push({
@@ -990,21 +1007,17 @@ export abstract class SQLiteDialect {
 							sql`, `,
 						);
 
-						return isNested
-							? isSingle
-								? sql`(select jsonb_object(${jsonColumns}) as ${sql.identifier('r')} from (${innerQuery.sql}) as ${
-									sql.identifier('t')
-								}) as ${sql.identifier(k)}`
-								: sql`coalesce((select jsonb_group_array(json_object(${jsonColumns})) as ${
-									sql.identifier('r')
-								} from (${innerQuery.sql}) as ${sql.identifier('t')}), jsonb_array()) as ${sql.identifier(k)}`
-							: isSingle
-							? sql`(select json_object(${jsonColumns}) as ${sql.identifier('r')} from (${innerQuery.sql}) as ${
+						const json = isNested ? sql`jsonb` : sql`json`;
+
+						const joinQuery = isSingle
+							? sql`(select ${json}_object(${jsonColumns}) as ${sql.identifier('r')} from (${innerQuery.sql}) as ${
 								sql.identifier('t')
 							}) as ${sql.identifier(k)}`
-							: sql`coalesce((select json_group_array(json_object(${jsonColumns})) as ${
+							: sql`coalesce((select ${json}_group_array(json_object(${jsonColumns})) as ${
 								sql.identifier('r')
 							} from (${innerQuery.sql}) as ${sql.identifier('t')}), jsonb_array()) as ${sql.identifier(k)}`;
+
+						return joinQuery;
 					}),
 					sql`, `,
 				);
@@ -1025,7 +1038,7 @@ export abstract class SQLiteDialect {
 					sql.identifier(table[OriginalName])
 				} as ${table}`
 				: table
-		}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
+		}${throughJoin}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
 			sql` limit ${limit}`.if(limit !== undefined)
 		}${sql` offset ${offset}`.if(offset !== undefined)}`;
 

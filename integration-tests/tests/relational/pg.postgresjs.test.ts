@@ -6515,25 +6515,6 @@ test('Get groups with users + custom', async (t) => {
 	});
 });
 
-test('Error on empty non-optional relation', async (t) => {
-	const { pgjsDbV2: db } = t;
-
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex', invitedBy: 1 },
-		{ id: 4, name: 'John', invitedBy: 2 },
-	]);
-
-	expect(async () =>
-		await db.query.usersTable.findMany({
-			with: {
-				inviteeRequired: true,
-			},
-		})
-	).rejects.toThrow(DrizzleError);
-});
-
 test('Force optional on where on non-optional relation query', async (t) => {
 	const { pgjsDbV2: db } = t;
 

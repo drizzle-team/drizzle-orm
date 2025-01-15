@@ -10,7 +10,6 @@ import {
 import { Columns, getTableName } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import { DrizzleError } from './errors.ts';
 import { PrimaryKeyBuilder } from './pg-core/primary-keys.ts';
 import {
 	and,
@@ -120,8 +119,36 @@ export class Relations<
 				if (relation.sourceColumns && relation.targetColumns) {
 					if (relation.sourceColumns.length !== relation.targetColumns.length) {
 						throw new Error(
-							`${relationPrintName}: "from" and "to" arrays must have the same length`,
+							`${relationPrintName}: "from" and "to" fields must have the same length`,
 						);
+					}
+
+					if (relation.through) {
+						if (
+							relation.through.source.length !== relation.through.target.length
+							|| relation.through.source.length !== relation.sourceColumns.length
+							|| relation.through.target.length !== relation.targetColumns.length
+						) {
+							throw new Error(
+								`${relationPrintName}: ".through(column)" must be used either on all columns in "from" and "to" or not defined on any of them`,
+							);
+						}
+
+						for (const column of relation.through.source) {
+							if (column.table !== relation.throughTable) {
+								throw new Error(
+									`${relationPrintName}: ".through(column)" must be used on the same table by all columns of the relation`,
+								);
+							}
+						}
+
+						for (const column of relation.through.target) {
+							if (column.table !== relation.throughTable) {
+								throw new Error(
+									`${relationPrintName}: ".through(column)" must be used on the same table by all columns of the relation`,
+								);
+							}
+						}
 					}
 
 					continue;
@@ -132,12 +159,6 @@ export class Relations<
 						`${relationPrintName}: relation must have either both "from" and "to" defined, or none of them`,
 					);
 				}
-
-				// if (Object.keys(relation).some((it) => it !== 'alias')) {
-				// 	throw new Error(
-				// 		`${relationPrintName}: without "from" and "to", the only field that can be used is "alias"`,
-				// 	);
-				// }
 
 				let reverseRelation: Relation | undefined;
 				const targetTableTsName = this.tableNamesMap[getTableUniqueName(relation.targetTable)];
@@ -197,7 +218,15 @@ export class Relations<
 
 				relation.sourceColumns = reverseRelation.targetColumns;
 				relation.targetColumns = reverseRelation.sourceColumns;
-				relation.where = reverseRelation.where;
+				relation.through = reverseRelation.through
+					? {
+						source: reverseRelation.through.target,
+						target: reverseRelation.through.source,
+					}
+					: undefined;
+				relation.throughTable = reverseRelation.throughTable;
+				relation.isReversed = !relation.where;
+				relation.where = relation.where ?? reverseRelation.where;
 			}
 		}
 	}
@@ -219,6 +248,12 @@ export abstract class Relation<
 	alias: string | undefined;
 	where: RelationsFilter<Record<string, Column>> | undefined;
 	sourceTable!: AnyTable<{ name: TSourceTableName }>;
+	through?: {
+		source: AnyColumn[];
+		target: AnyColumn[];
+	};
+	throughTable?: Table;
+	isReversed?: boolean;
 
 	constructor(
 		readonly targetTable: AnyTable<{ name: TTargetTableName }>,
@@ -244,16 +279,39 @@ export class One<
 		this.alias = config?.alias;
 		this.where = config?.where;
 		if (config?.from) {
-			this.sourceColumns = Array.isArray(config.from)
-				? config.from.map((it) => it._.column as AnyColumn<{ tableName: TSourceTableName }>)
-				: [(config.from as RelationsBuilderColumnBase)._.column as AnyColumn<{ tableName: TSourceTableName }>];
+			this.sourceColumns = ((Array.isArray(config.from)
+				? config.from
+				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
+					this.throughTable ??= it._.through?._.column.table;
+
+					return it._.column as AnyColumn<{ tableName: TSourceTableName }>;
+				});
 		}
 		if (config?.to) {
-			this.targetColumns = Array.isArray(config.to)
-				? config.to.map((it) => it._.column as AnyColumn<{ tableName: TTargetTableName }>)
-				: [(config.to as RelationsBuilderColumnBase)._.column as AnyColumn<{ tableName: TTargetTableName }>];
+			this.targetColumns = (Array.isArray(config.to)
+				? config.to
+				: [config.to]).map((it: RelationsBuilderColumnBase) => {
+					this.throughTable ??= it._.through?._.column.table;
+
+					return it._.column as AnyColumn<{ tableName: TTargetTableName }>;
+				});
 		}
-		this.optional = (config?.optional ?? false) as TOptional;
+
+		if (this.throughTable) {
+			this.through = Array.isArray(config?.from)
+				? {
+					// eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain -- in case it's undefined, error will be thrown in Relations constructor
+					source: config.from.map((e: RelationsBuilderColumnBase) => e._.through?._.column!),
+					target: ((config.to ?? []) as any as RelationsBuilderColumnBase[]).map((e) => e._.column),
+				}
+				: {
+					// eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain -- in case it's undefined, error will be thrown in Relations constructor
+					source: [(config?.from as RelationsBuilderColumnBase | undefined)?._.through?._.column!],
+					// eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
+					target: [config?.to?._.through?._.column!],
+				};
+		}
+		this.optional = (config?.optional ?? true) as TOptional;
 	}
 }
 
@@ -272,14 +330,36 @@ export class Many<
 		this.alias = config?.alias;
 		this.where = config?.where;
 		if (config?.from) {
-			this.sourceColumns = Array.isArray(config.from)
-				? config.from.map((it) => it._.column as AnyColumn<{ tableName: TSourceTableName }>)
-				: [(config.from as RelationsBuilderColumnBase)._.column as AnyColumn<{ tableName: TSourceTableName }>];
+			this.sourceColumns = ((Array.isArray(config.from)
+				? config.from
+				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
+					this.throughTable ??= it._.through?._.column.table;
+
+					return it._.column as AnyColumn<{ tableName: TSourceTableName }>;
+				});
 		}
 		if (config?.to) {
-			this.targetColumns = Array.isArray(config.to)
-				? config.to.map((it) => it._.column as AnyColumn<{ tableName: TTargetTableName }>)
-				: [(config.to as RelationsBuilderColumnBase)._.column as AnyColumn<{ tableName: TTargetTableName }>];
+			this.targetColumns = (Array.isArray(config.to)
+				? config.to
+				: [config.to]).map((it: RelationsBuilderColumnBase) => {
+					this.throughTable ??= it._.through?._.column.table;
+
+					return it._.column as AnyColumn<{ tableName: TTargetTableName }>;
+				});
+		}
+		if (this.throughTable) {
+			this.through = Array.isArray(config?.from)
+				? {
+					// eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain -- in case it's undefined, error will be thrown in Relations constructor
+					source: config.from.map((e: RelationsBuilderColumnBase) => e._.through?._.column!),
+					target: ((config.to ?? []) as any as RelationsBuilderColumnBase[]).map((e) => e._.column),
+				}
+				: {
+					// eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain -- in case it's undefined, error will be thrown in Relations constructor
+					source: [(config?.from as RelationsBuilderColumnBase | undefined)?._.through?._.column!],
+					// eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
+					target: [config?.to?._.through?._.column!],
+				};
 		}
 	}
 }
@@ -413,7 +493,7 @@ export type DBQueryConfig<
 		with?:
 			| {
 				[K in keyof TTableConfig['relations']]?:
-					| true
+					| boolean
 					| (TTableConfig['relations'][K] extends Relation ? DBQueryConfig<
 							TTableConfig['relations'][K] extends One<string, string> ? 'one' : 'many',
 							TSchema,
@@ -507,7 +587,7 @@ export type BuildRelationResult<
 > = {
 	[
 		K in
-			& NonUndefinedKeysOnly<TInclude>
+			& TruthyKeysOnly<TInclude>
 			& keyof TRelations
 	]: TRelations[K] extends infer TRel extends Relation ? BuildQueryResult<
 			TConfig,
@@ -529,6 +609,14 @@ export type NonUndefinedKeysOnly<T> =
 	& ExtractObjectValues<
 		{
 			[K in keyof T as T[K] extends undefined ? never : K]: K;
+		}
+	>
+	& keyof T;
+
+export type TruthyKeysOnly<T> =
+	& ExtractObjectValues<
+		{
+			[K in keyof T as T[K] extends undefined | false ? never : K]: K;
 		}
 	>
 	& keyof T;
@@ -624,16 +712,7 @@ export function mapRelationalRow(
 		if (is(field, Table)) {
 			const currentPath = `${path ? `${path}.` : ''}${selectionItem.key}`;
 
-			if (row[selectionItem.key] === null) {
-				if (!selectionItem.isOptional) {
-					throw new DrizzleError({
-						message:
-							`Unexpected null in relational query result on field "${currentPath}".\nDid you forget to mark relation as optional?`,
-					});
-				}
-
-				continue;
-			}
+			if (row[selectionItem.key] === null) continue;
 
 			if (parseJson) row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
 
@@ -701,14 +780,20 @@ export class RelationsBuilderTable<TTableName extends string = string> implement
 	}
 }
 
-export type RelationsBuilderColumnConfig<TTableName extends string = string, TData = unknown> = {
+export type RelationsBuilderColumnConfig<
+	TTableName extends string = string,
+	TData = unknown,
+> = {
 	readonly tableName: TTableName;
 	readonly data: TData;
 	readonly column: AnyColumn<{ tableName: TTableName }>;
-	through?: RelationsBuilderColumnBase;
+	readonly through?: RelationsBuilderColumnBase;
 };
 
-export type RelationsBuilderColumnBase<TTableName extends string = string, TData = unknown> = {
+export type RelationsBuilderColumnBase<
+	TTableName extends string = string,
+	TData = unknown,
+> = {
 	_: RelationsBuilderColumnConfig<TTableName, TData>;
 } & SQLWrapper;
 
@@ -722,21 +807,20 @@ export class RelationsBuilderColumn<
 		readonly tableName: TTableName;
 		readonly data: TData;
 		readonly column: AnyColumn<{ tableName: TTableName }>;
-		through?: RelationsBuilderColumnBase;
+		readonly through?: RelationsBuilderColumnBase;
 	};
 
-	constructor(column: AnyColumn<{ tableName: TTableName }>) {
+	constructor(column: AnyColumn<{ tableName: TTableName }>, through?: RelationsBuilderColumn) {
 		this._ = {
 			tableName: getTableName(column.table) as TTableName,
 			data: undefined as TData,
 			column,
+			through,
 		};
 	}
 
-	through(column: RelationsBuilderColumnBase<string, TData>): Omit<this, 'through'> {
-		this._.through = column;
-		throw new Error('Not implemented');
-		// return this;
+	through(column: RelationsBuilderColumn): RelationsBuilderColumnBase<TTableName, TData> {
+		return new RelationsBuilderColumn(this._.column, column);
 	}
 
 	getSQL(): SQL {
@@ -843,7 +927,7 @@ export interface OneFn<
 		TSourceColumns extends
 			| Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]>
 			| RelationsBuilderColumnBase = any,
-		TOptional extends boolean = false,
+		TOptional extends boolean = true,
 	>(
 		config?: OneConfig<TTables, TSourceColumns, TTargetTableName, TOptional>,
 	): One<
@@ -1193,23 +1277,72 @@ export function relationExtrasToSQL(
 	};
 }
 
-export function relationToSQL(relation: Relation, sourceTable: Table, targetTable: Table): SQL | undefined {
+function getTableSql(table: Table) {
+	return sql`${sql`${sql`${sql.identifier(table[Schema] ?? '')}.`.if(!table[IsAlias] && table[Schema])}`}${table}`;
+}
+
+export type BuiltRelationFilters = {
+	filter?: SQL;
+	joinCondition?: SQL;
+};
+
+export function relationToSQL(
+	relation: Relation,
+	sourceTable: Table,
+	targetTable: Table,
+	throughTable?: Table,
+): BuiltRelationFilters {
+	if (relation.through) {
+		const outerColumnWhere = relation.sourceColumns.map((s, i) => {
+			const t = relation.through!.source[i]!;
+
+			return eq(
+				sql`${getTableSql(sourceTable)}.${sql.identifier(s.name)}`,
+				sql`${getTableSql(throughTable!)}.${sql.identifier(t.name)}`,
+			);
+		});
+
+		const innerColumnWhere = relation.targetColumns.map((s, i) => {
+			const t = relation.through!.target[i]!;
+
+			return eq(
+				sql`${getTableSql(throughTable!)}.${sql.identifier(t.name)}`,
+				sql`${getTableSql(targetTable)}.${sql.identifier(s.name)}`,
+			);
+		});
+
+		return {
+			filter: and(
+				relation.where
+					? (relation.isReversed
+						? relationsFilterToSQL(targetTable, relation.where)
+						: relationsFilterToSQL(sourceTable, relation.where))
+					: undefined,
+			),
+			joinCondition: and(
+				...outerColumnWhere,
+				...innerColumnWhere,
+			),
+		};
+	}
+
 	const columnWhere = relation.sourceColumns.map((s, i) => {
 		const t = relation.targetColumns[i]!;
 
 		return eq(
-			sql`${sql`${
-				sql`${sql.identifier(sourceTable[Schema] ?? '')}.`.if(sourceTable[Schema] && !sourceTable[IsAlias])
-			}`}${sourceTable}.${sql.identifier(s.name)}`,
-			sql`${sql`${
-				sql`${sql.identifier(targetTable[Schema] ?? '')}.`.if(targetTable[Schema] && !targetTable[IsAlias])
-			}`}${targetTable}.${sql.identifier(t.name)}`,
+			sql`${getTableSql(sourceTable)}.${sql.identifier(s.name)}`,
+			sql`${getTableSql(targetTable)}.${sql.identifier(t.name)}`,
 		);
 	});
 
-	const targetWhere = relation.where
-		? and(...columnWhere, relationsFilterToSQL(sourceTable, relation.where))
-		: and(...columnWhere);
+	const fullWhere = and(
+		...columnWhere,
+		relation.where
+			? relation.isReversed
+				? relationsFilterToSQL(targetTable, relation.where)
+				: relationsFilterToSQL(sourceTable, relation.where)
+			: undefined,
+	)!;
 
-	return targetWhere;
+	return { filter: fullWhere };
 }

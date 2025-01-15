@@ -1253,6 +1253,7 @@ export class MySqlDialect {
 			errorPath,
 			depth,
 			isNested,
+			throughJoin,
 		}: {
 			tables: Record<string, MySqlTable>;
 			schema: TablesRelationalConfig;
@@ -1265,6 +1266,7 @@ export class MySqlDialect {
 			errorPath?: string;
 			depth?: number;
 			isNested?: boolean;
+			throughJoin?: SQL;
 		},
 	): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -1317,7 +1319,21 @@ export class MySqlDialect {
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
 						const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
-						const relationFilter = relationToSQL(relation, table, targetTable);
+						const throughTable = relation.throughTable
+							? aliasedTable(relation.throughTable, `tr${currentDepth}`)
+							: undefined;
+						const { filter, joinCondition } = relationToSQL(
+							relation,
+							table,
+							targetTable,
+							throughTable,
+						);
+
+						const throughJoin = throughTable
+							? sql` inner join ${sql`${sql.identifier(throughTable![Schema] ?? '')}.`.if(throughTable![Schema])}${
+								sql.identifier(throughTable![OriginalName])
+							} as ${throughTable!} on ${joinCondition!}`
+							: undefined;
 
 						const innerQuery = this.buildRelationalQuery({
 							table: targetTable as MySqlTable,
@@ -1327,10 +1343,11 @@ export class MySqlDialect {
 							tableConfig: schema[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!,
 							tableNamesMap,
 							tables,
-							relationWhere: relationFilter,
+							relationWhere: filter,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
 							isNested: true,
+							throughJoin,
 						});
 
 						selection.push({
@@ -1347,13 +1364,15 @@ export class MySqlDialect {
 							sql`, `,
 						);
 
-						return sql` left join lateral(select ${sql`${
+						const joinQuery = sql` left join lateral(select ${sql`${
 							isSingle
 								? sql`json_object(${jsonColumns})`
 								: sql`coalesce(json_arrayagg(json_object(${jsonColumns})), json_array())`
 						} as ${sql.identifier('r')}`} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${
 							sql.identifier(k)
 						} on true`;
+
+						return joinQuery;
 					}),
 				);
 			})()
@@ -1377,7 +1396,7 @@ export class MySqlDialect {
 					sql.identifier(table[OriginalName])
 				} as ${table}`
 				: table
-		}${sql`${joins}`.if(joins)}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
+		}${throughJoin}${sql`${joins}`.if(joins)}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
 			sql` limit ${limit}`.if(limit !== undefined)
 		}${sql` offset ${offset}`.if(offset !== undefined)}`;
 
