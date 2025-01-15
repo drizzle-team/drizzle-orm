@@ -215,6 +215,13 @@ test('add table #7', async () => {
 
 	expect(statements.length).toBe(2);
 	expect(statements[0]).toStrictEqual({
+		type: 'rename_table',
+		tableNameFrom: 'users1',
+		tableNameTo: 'users2',
+		fromSchema: undefined,
+		toSchema: undefined,
+	});
+	expect(statements[1]).toStrictEqual({
 		type: 'create_table',
 		tableName: 'users',
 		schema: undefined,
@@ -226,13 +233,6 @@ test('add table #7', async () => {
 			indexes: {},
 		},
 		compositePkName: '',
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'rename_table',
-		tableNameFrom: 'users1',
-		tableNameTo: 'users2',
-		fromSchema: undefined,
-		toSchema: undefined,
 	});
 });
 
@@ -644,7 +644,7 @@ test('change data type', async () => {
 );\n`,
 	);
 	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_table`("id", "age") SELECT "id", "age" FROM `table`;',
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
 	);
 	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
@@ -678,7 +678,7 @@ test('drop not null', async () => {
 );\n`,
 	);
 	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_table`("id", "age") SELECT "id", "age" FROM `table`;',
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
 	);
 	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
@@ -712,7 +712,7 @@ test('set not null', async () => {
 );\n`,
 	);
 	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_table`("id", "age") SELECT "id", "age" FROM `table`;',
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
 	);
 	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
@@ -746,7 +746,7 @@ test('set default with not null column', async () => {
 );\n`,
 	);
 	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_table`("id", "age") SELECT "id", "age" FROM `table`;',
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
 	);
 	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
@@ -780,7 +780,7 @@ test('drop default with not null column', async () => {
 );\n`,
 	);
 	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_table`("id", "age") SELECT "id", "age" FROM `table`;',
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
 	);
 	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
@@ -859,7 +859,7 @@ test('set pk', async () => {
 );\n`,
 	);
 	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_table`("id", "age") SELECT "id", "age" FROM `table`;',
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
 	);
 	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
@@ -893,7 +893,7 @@ test('drop pk', async () => {
 );\n`,
 	);
 	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_table`("id", "age") SELECT "id", "age" FROM `table`;',
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
 	);
 	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
@@ -930,7 +930,7 @@ test('set not null + rename column on table with indexes', async () => {
 );\n`,
 	);
 	expect(sqlStatements[2]).toBe(
-		'INSERT INTO `__new_table`("id3", "age") SELECT "id3", "age" FROM `table`;',
+		'INSERT INTO `__new_table`(`id3`, `age`) SELECT `id3`, `age` FROM `table`;',
 	);
 	expect(sqlStatements[3]).toBe(
 		'DROP TABLE `table`;',
@@ -967,7 +967,7 @@ test('set not null + rename table on table with indexes', async () => {
 );\n`,
 	);
 	expect(sqlStatements[2]).toBe(
-		'INSERT INTO `__new_table1`("id", "age") SELECT "id", "age" FROM `table1`;',
+		'INSERT INTO `__new_table1`(\`id\`, \`age\`) SELECT \`id\`, \`age\` FROM `table1`;',
 	);
 	expect(sqlStatements[3]).toBe(
 		'DROP TABLE `table1`;',

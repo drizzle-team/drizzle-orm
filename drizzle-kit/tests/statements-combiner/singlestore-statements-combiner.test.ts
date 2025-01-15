@@ -100,6 +100,13 @@ test(`change column data type`, async (t) => {
 
 	const newJsonStatements = [
 		{
+			type: 'alter_table_rename_column',
+			tableName: 'user',
+			oldColumnName: 'lastName',
+			newColumnName: 'lastName123',
+			schema: '',
+		},
+		{
 			type: 'singlestore_recreate_table',
 			tableName: 'user',
 			columns: [
