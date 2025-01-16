@@ -43,6 +43,7 @@ import {
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error, grey } from '../views';
+import { push_array } from '../../utils';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {
@@ -323,7 +324,7 @@ export const preparePushConfig = async (
 			: schemasFilterConfig
 		: [];
 
-	tablesFilter.push(...getTablesFilterByExtensions(config));
+	push_array(tablesFilter, getTablesFilterByExtensions(config));
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);

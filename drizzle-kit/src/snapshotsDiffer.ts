@@ -142,7 +142,7 @@ import {
 import { SingleStoreSchema, SingleStoreSchemaSquashed, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher, View as SqliteView } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
-import { copy, prepareMigrationMeta } from './utils';
+import { copy, prepareMigrationMeta, push_array } from './utils';
 
 const makeChanged = <T extends ZodTypeAny>(schema: T) => {
 	return object({
@@ -1340,20 +1340,20 @@ export const applyPgSnapshotsDiff = async (
 				added[k] = it.alteredCheckConstraints[k].__new;
 				deleted[k] = it.alteredCheckConstraints[k].__old;
 			}
-			createCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
-			deleteCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+			push_array(createCheckConstraints, prepareAddCheckConstraint(it.name, it.schema, added));
+			push_array(deleteCheckConstraints, prepareDeleteCheckConstraint(it.name, it.schema, deleted));
 		}
 
-		jsonCreatedCheckConstraints.push(...createCheckConstraints);
-		jsonDeletedCheckConstraints.push(...deleteCheckConstraints);
+		push_array(jsonCreatedCheckConstraints, createCheckConstraints);
+		push_array(jsonDeletedCheckConstraints, deleteCheckConstraints);
 
-		jsonAddedCompositePKs.push(...addedCompositePKs);
-		jsonDeletedCompositePKs.push(...deletedCompositePKs);
-		jsonAlteredCompositePKs.push(...alteredCompositePKs);
+		push_array(jsonAddedCompositePKs, addedCompositePKs);
+		push_array(jsonDeletedCompositePKs, deletedCompositePKs);
+		push_array(jsonAlteredCompositePKs, alteredCompositePKs);
 
-		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
-		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
-		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+		push_array(jsonAddedUniqueConstraints, addedUniqueConstraints);
+		push_array(jsonDeletedUniqueConstraints, deletedUniqueConstraints);
+		push_array(jsonAlteredUniqueConstraints, alteredUniqueConstraints);
 	}
 
 	const rColumns = jsonRenameColumnsStatements.map((it) => {
@@ -1785,15 +1785,13 @@ export const applyPgSnapshotsDiff = async (
 		return preparePgCreateTableJson(it, curFull);
 	});
 
-	jsonCreatePoliciesStatements.push(...([] as JsonCreatePolicyStatement[]).concat(
-		...(createdTables.map((it) =>
-			prepareCreatePolicyJsons(
+	push_array(jsonCreatePoliciesStatements, createdTables.flatMap((it) => {
+			return prepareCreatePolicyJsons(
 				it.name,
 				it.schema,
 				Object.values(it.policies).map(action === 'push' ? PgSquasher.unsquashPolicyPush : PgSquasher.unsquashPolicy),
 			)
-		)),
-	));
+	}));
 	const createViews: JsonCreatePgViewStatement[] = [];
 	const dropViews: JsonDropViewStatement[] = [];
 	const renameViews: JsonRenameViewStatement[] = [];
@@ -1944,80 +1942,80 @@ export const applyPgSnapshotsDiff = async (
 		}
 	}
 
-	jsonStatements.push(...createSchemas);
-	jsonStatements.push(...renameSchemas);
-	jsonStatements.push(...createEnums);
-	jsonStatements.push(...moveEnums);
-	jsonStatements.push(...renameEnums);
-	jsonStatements.push(...jsonAlterEnumsWithAddedValues);
+	push_array(jsonStatements, createSchemas);
+	push_array(jsonStatements, renameSchemas);
+	push_array(jsonStatements, createEnums);
+	push_array(jsonStatements, moveEnums);
+	push_array(jsonStatements, renameEnums);
+	push_array(jsonStatements, jsonAlterEnumsWithAddedValues);
 
-	jsonStatements.push(...createSequences);
-	jsonStatements.push(...moveSequences);
-	jsonStatements.push(...renameSequences);
-	jsonStatements.push(...jsonAlterSequences);
+	push_array(jsonStatements, createSequences);
+	push_array(jsonStatements, moveSequences);
+	push_array(jsonStatements, renameSequences);
+	push_array(jsonStatements, jsonAlterSequences);
 
-	jsonStatements.push(...renameRoles);
-	jsonStatements.push(...dropRoles);
-	jsonStatements.push(...createRoles);
-	jsonStatements.push(...jsonAlterRoles);
+	push_array(jsonStatements, renameRoles);
+	push_array(jsonStatements, dropRoles);
+	push_array(jsonStatements, createRoles);
+	push_array(jsonStatements, jsonAlterRoles);
 
-	jsonStatements.push(...createTables);
+	push_array(jsonStatements, createTables);
 
-	jsonStatements.push(...jsonEnableRLSStatements);
-	jsonStatements.push(...jsonDisableRLSStatements);
-	jsonStatements.push(...dropViews);
-	jsonStatements.push(...renameViews);
-	jsonStatements.push(...alterViews);
+	push_array(jsonStatements, jsonEnableRLSStatements);
+	push_array(jsonStatements, jsonDisableRLSStatements);
+	push_array(jsonStatements, dropViews);
+	push_array(jsonStatements, renameViews);
+	push_array(jsonStatements, alterViews);
 
-	jsonStatements.push(...jsonDropTables);
-	jsonStatements.push(...jsonSetTableSchemas);
-	jsonStatements.push(...jsonRenameTables);
-	jsonStatements.push(...jsonRenameColumnsStatements);
+	push_array(jsonStatements, jsonDropTables);
+	push_array(jsonStatements, jsonSetTableSchemas);
+	push_array(jsonStatements, jsonRenameTables);
+	push_array(jsonStatements, jsonRenameColumnsStatements);
 
-	jsonStatements.push(...jsonDeletedUniqueConstraints);
-	jsonStatements.push(...jsonDeletedCheckConstraints);
+	push_array(jsonStatements, jsonDeletedUniqueConstraints);
+	push_array(jsonStatements, jsonDeletedCheckConstraints);
 
-	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
+	push_array(jsonStatements, jsonDroppedReferencesForAlteredTables);
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
-	jsonStatements.push(...jsonDropIndexesForAllAlteredTables);
+	push_array(jsonStatements, jsonDropIndexesForAllAlteredTables);
 
-	jsonStatements.push(...jsonDeletedCompositePKs);
-	jsonStatements.push(...jsonTableAlternations);
-	jsonStatements.push(...jsonAddedCompositePKs);
-	jsonStatements.push(...jsonAddColumnsStatemets);
+	push_array(jsonStatements, jsonDeletedCompositePKs);
+	push_array(jsonStatements, jsonTableAlternations);
+	push_array(jsonStatements, jsonAddedCompositePKs);
+	push_array(jsonStatements, jsonAddColumnsStatemets);
 
-	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
-	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
+	push_array(jsonStatements, jsonCreateReferencesForCreatedTables);
+	push_array(jsonStatements, jsonCreateIndexesForCreatedTables);
 
-	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
-	jsonStatements.push(...jsonCreateIndexesFoAlteredTables);
+	push_array(jsonStatements, jsonCreatedReferencesForAlteredTables);
+	push_array(jsonStatements, jsonCreateIndexesFoAlteredTables);
 
-	jsonStatements.push(...jsonDropColumnsStatemets);
-	jsonStatements.push(...jsonAlteredCompositePKs);
+	push_array(jsonStatements, jsonDropColumnsStatemets);
+	push_array(jsonStatements, jsonAlteredCompositePKs);
 
-	jsonStatements.push(...jsonAddedUniqueConstraints);
-	jsonStatements.push(...jsonCreatedCheckConstraints);
+	push_array(jsonStatements, jsonAddedUniqueConstraints);
+	push_array(jsonStatements, jsonCreatedCheckConstraints);
 
-	jsonStatements.push(...jsonAlteredUniqueConstraints);
-	jsonStatements.push(...jsonAlterEnumsWithDroppedValues);
+	push_array(jsonStatements, jsonAlteredUniqueConstraints);
+	push_array(jsonStatements, jsonAlterEnumsWithDroppedValues);
 
-	jsonStatements.push(...createViews);
+	push_array(jsonStatements, createViews);
 
-	jsonStatements.push(...jsonRenamePoliciesStatements);
-	jsonStatements.push(...jsonDropPoliciesStatements);
-	jsonStatements.push(...jsonCreatePoliciesStatements);
-	jsonStatements.push(...jsonAlterPoliciesStatements);
+	push_array(jsonStatements, jsonRenamePoliciesStatements);
+	push_array(jsonStatements, jsonDropPoliciesStatements);
+	push_array(jsonStatements, jsonCreatePoliciesStatements);
+	push_array(jsonStatements, jsonAlterPoliciesStatements);
 
-	jsonStatements.push(...jsonRenameIndPoliciesStatements);
-	jsonStatements.push(...jsonDropIndPoliciesStatements);
-	jsonStatements.push(...jsonCreateIndPoliciesStatements);
-	jsonStatements.push(...jsonAlterIndPoliciesStatements);
+	push_array(jsonStatements, jsonRenameIndPoliciesStatements);
+	push_array(jsonStatements, jsonDropIndPoliciesStatements);
+	push_array(jsonStatements, jsonCreateIndPoliciesStatements);
+	push_array(jsonStatements, jsonAlterIndPoliciesStatements);
 
-	jsonStatements.push(...dropEnums);
-	jsonStatements.push(...dropSequences);
-	jsonStatements.push(...dropSchemas);
+	push_array(jsonStatements, dropEnums);
+	push_array(jsonStatements, dropSequences);
+	push_array(jsonStatements, dropSchemas);
 
 	// generate filters
 	const filteredJsonStatements = jsonStatements.filter((st) => {
@@ -2426,20 +2424,20 @@ export const applyMysqlSnapshotsDiff = async (
 				added[k] = it.alteredCheckConstraints[k].__new;
 				deleted[k] = it.alteredCheckConstraints[k].__old;
 			}
-			createdCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
-			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+			push_array(createdCheckConstraints, prepareAddCheckConstraint(it.name, it.schema, added));
+			push_array(deletedCheckConstraints, prepareDeleteCheckConstraint(it.name, it.schema, deleted));
 		}
 
-		jsonAddedCompositePKs.push(...addedCompositePKs);
-		jsonDeletedCompositePKs.push(...deletedCompositePKs);
-		jsonAlteredCompositePKs.push(...alteredCompositePKs);
+		push_array(jsonAddedCompositePKs, addedCompositePKs);
+		push_array(jsonDeletedCompositePKs, deletedCompositePKs);
+		push_array(jsonAlteredCompositePKs, alteredCompositePKs);
 
-		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
-		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
-		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+		push_array(jsonAddedUniqueConstraints, addedUniqueConstraints);
+		push_array(jsonDeletedUniqueConstraints, deletedUniqueConstraints);
+		push_array(jsonAlteredUniqueConstraints, alteredUniqueConstraints);
 
-		jsonCreatedCheckConstraints.push(...createdCheckConstraints);
-		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);
+		push_array(jsonCreatedCheckConstraints, createdCheckConstraints);
+		push_array(jsonDeletedCheckConstraints, deletedCheckConstraints);
 	});
 
 	const rColumns = jsonRenameColumnsStatements.map((it) => {
@@ -2620,49 +2618,49 @@ export const applyMysqlSnapshotsDiff = async (
 		}
 	}
 
-	jsonStatements.push(...jsonMySqlCreateTables);
+	push_array(jsonStatements, jsonMySqlCreateTables);
 
-	jsonStatements.push(...jsonDropTables);
-	jsonStatements.push(...jsonRenameTables);
-	jsonStatements.push(...jsonRenameColumnsStatements);
+	push_array(jsonStatements, jsonDropTables);
+	push_array(jsonStatements, jsonRenameTables);
+	push_array(jsonStatements, jsonRenameColumnsStatements);
 
-	jsonStatements.push(...dropViews);
-	jsonStatements.push(...renameViews);
-	jsonStatements.push(...alterViews);
+	push_array(jsonStatements, dropViews);
+	push_array(jsonStatements, renameViews);
+	push_array(jsonStatements, alterViews);
 
-	jsonStatements.push(...jsonDeletedUniqueConstraints);
-	jsonStatements.push(...jsonDeletedCheckConstraints);
+	push_array(jsonStatements, jsonDeletedUniqueConstraints);
+	push_array(jsonStatements, jsonDeletedCheckConstraints);
 
-	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
+	push_array(jsonStatements, jsonDroppedReferencesForAlteredTables);
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
-	jsonStatements.push(...jsonDropIndexesForAllAlteredTables);
+	push_array(jsonStatements, jsonDropIndexesForAllAlteredTables);
 
-	jsonStatements.push(...jsonDeletedCompositePKs);
-	jsonStatements.push(...jsonTableAlternations);
-	jsonStatements.push(...jsonAddedCompositePKs);
-	jsonStatements.push(...jsonAddColumnsStatemets);
+	push_array(jsonStatements, jsonDeletedCompositePKs);
+	push_array(jsonStatements, jsonTableAlternations);
+	push_array(jsonStatements, jsonAddedCompositePKs);
+	push_array(jsonStatements, jsonAddColumnsStatemets);
 
-	jsonStatements.push(...jsonAddedUniqueConstraints);
-	jsonStatements.push(...jsonDeletedUniqueConstraints);
+	push_array(jsonStatements, jsonAddedUniqueConstraints);
+	push_array(jsonStatements, jsonDeletedUniqueConstraints);
 
-	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
-	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
-	jsonStatements.push(...jsonCreatedCheckConstraints);
+	push_array(jsonStatements, jsonCreateReferencesForCreatedTables);
+	push_array(jsonStatements, jsonCreateIndexesForCreatedTables);
+	push_array(jsonStatements, jsonCreatedCheckConstraints);
 
-	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
-	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
+	push_array(jsonStatements, jsonCreatedReferencesForAlteredTables);
+	push_array(jsonStatements, jsonCreateIndexesForAllAlteredTables);
 
-	jsonStatements.push(...jsonDropColumnsStatemets);
+	push_array(jsonStatements, jsonDropColumnsStatemets);
 
-	// jsonStatements.push(...jsonDeletedCompositePKs);
-	// jsonStatements.push(...jsonAddedCompositePKs);
-	jsonStatements.push(...jsonAlteredCompositePKs);
+	// push_array(jsonStatements, jsonDeletedCompositePKs);
+	// push_array(jsonStatements, jsonAddedCompositePKs);
+	push_array(jsonStatements, jsonAlteredCompositePKs);
 
-	jsonStatements.push(...createViews);
+	push_array(jsonStatements, createViews);
 
-	jsonStatements.push(...jsonAlteredUniqueConstraints);
+	push_array(jsonStatements, jsonAlteredUniqueConstraints);
 
 	const sqlStatements = fromJson(jsonStatements, 'mysql');
 
@@ -2992,13 +2990,13 @@ export const applySingleStoreSnapshotsDiff = async (
 				added[k] = it.alteredCheckConstraints[k].__new;
 				deleted[k] = it.alteredCheckConstraints[k].__old;
 			}
-			createdCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
-			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+			push_array(createdCheckConstraints, prepareAddCheckConstraint(it.name, it.schema, added));
+			push_array(deletedCheckConstraints, prepareDeleteCheckConstraint(it.name, it.schema, deleted));
 		}
 
-		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
-		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
-		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+		push_array(jsonAddedUniqueConstraints, addedUniqueConstraints);
+		push_array(jsonDeletedUniqueConstraints, deletedUniqueConstraints);
+		push_array(jsonAlteredUniqueConstraints, alteredUniqueConstraints);
 	});
 
 	const rColumns = jsonRenameColumnsStatements.map((it) => {
@@ -3142,40 +3140,40 @@ export const applySingleStoreSnapshotsDiff = async (
 		}
 	} */
 
-	jsonStatements.push(...jsonSingleStoreCreateTables);
+	push_array(jsonStatements, jsonSingleStoreCreateTables);
 
-	jsonStatements.push(...jsonDropTables);
-	jsonStatements.push(...jsonRenameTables);
-	jsonStatements.push(...jsonRenameColumnsStatements);
+	push_array(jsonStatements, jsonDropTables);
+	push_array(jsonStatements, jsonRenameTables);
+	push_array(jsonStatements, jsonRenameColumnsStatements);
 
-	/*jsonStatements.push(...createViews);
-	jsonStatements.push(...dropViews);
-	jsonStatements.push(...renameViews);
-	jsonStatements.push(...alterViews);
+	/*push_array(jsonStatements, createViews);
+	push_array(jsonStatements, dropViews);
+	push_array(jsonStatements, renameViews);
+	push_array(jsonStatements, alterViews);
  */
-	jsonStatements.push(...jsonDeletedUniqueConstraints);
+	push_array(jsonStatements, jsonDeletedUniqueConstraints);
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
-	jsonStatements.push(...jsonDropIndexesForAllAlteredTables);
+	push_array(jsonStatements, jsonDropIndexesForAllAlteredTables);
 
-	jsonStatements.push(...jsonTableAlternations);
-	jsonStatements.push(...jsonAddedCompositePKs);
+	push_array(jsonStatements, jsonTableAlternations);
+	push_array(jsonStatements, jsonAddedCompositePKs);
 
-	jsonStatements.push(...jsonAddedUniqueConstraints);
-	jsonStatements.push(...jsonDeletedUniqueConstraints);
+	push_array(jsonStatements, jsonAddedUniqueConstraints);
+	push_array(jsonStatements, jsonDeletedUniqueConstraints);
 
-	jsonStatements.push(...jsonAddColumnsStatemets);
+	push_array(jsonStatements, jsonAddColumnsStatemets);
 
-	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
+	push_array(jsonStatements, jsonCreateIndexesForCreatedTables);
 
-	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
+	push_array(jsonStatements, jsonCreateIndexesForAllAlteredTables);
 
-	jsonStatements.push(...jsonDropColumnsStatemets);
+	push_array(jsonStatements, jsonDropColumnsStatemets);
 
-	jsonStatements.push(...jsonAddedCompositePKs);
+	push_array(jsonStatements, jsonAddedCompositePKs);
 
-	jsonStatements.push(...jsonAlteredUniqueConstraints);
+	push_array(jsonStatements, jsonAlteredUniqueConstraints);
 
 	const sqlStatements = fromJson(jsonStatements, 'singlestore');
 
@@ -3536,20 +3534,20 @@ export const applySqliteSnapshotsDiff = async (
 				added[k] = it.alteredCheckConstraints[k].__new;
 				deleted[k] = it.alteredCheckConstraints[k].__old;
 			}
-			createdCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
-			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+			push_array(createdCheckConstraints, prepareAddCheckConstraint(it.name, it.schema, added));
+			push_array(deletedCheckConstraints, prepareDeleteCheckConstraint(it.name, it.schema, deleted));
 		}
 
-		jsonAddedCompositePKs.push(...addedCompositePKs);
-		jsonDeletedCompositePKs.push(...deletedCompositePKs);
-		jsonAlteredCompositePKs.push(...alteredCompositePKs);
+		push_array(jsonAddedCompositePKs, addedCompositePKs);
+		push_array(jsonDeletedCompositePKs, deletedCompositePKs);
+		push_array(jsonAlteredCompositePKs, alteredCompositePKs);
 
-		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
-		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
-		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+		push_array(jsonAddedUniqueConstraints, addedUniqueConstraints);
+		push_array(jsonDeletedUniqueConstraints, deletedUniqueConstraints);
+		push_array(jsonAlteredUniqueConstraints, alteredUniqueConstraints);
 
-		jsonCreatedCheckConstraints.push(...createdCheckConstraints);
-		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);
+		push_array(jsonCreatedCheckConstraints, createdCheckConstraints);
+		push_array(jsonDeletedCheckConstraints, deletedCheckConstraints);
 	});
 
 	const rColumns = jsonRenameColumnsStatements.map((it) => {
@@ -3695,41 +3693,41 @@ export const applySqliteSnapshotsDiff = async (
 	}
 
 	const jsonStatements: JsonStatement[] = [];
-	jsonStatements.push(...jsonCreateTables);
+	push_array(jsonStatements, jsonCreateTables);
 
-	jsonStatements.push(...jsonDropTables);
-	jsonStatements.push(...jsonRenameTables);
-	jsonStatements.push(...jsonRenameColumnsStatements);
+	push_array(jsonStatements, jsonDropTables);
+	push_array(jsonStatements, jsonRenameTables);
+	push_array(jsonStatements, jsonRenameColumnsStatements);
 
-	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
-	jsonStatements.push(...jsonDeletedCheckConstraints);
+	push_array(jsonStatements, jsonDroppedReferencesForAlteredTables);
+	push_array(jsonStatements, jsonDeletedCheckConstraints);
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
-	jsonStatements.push(...jsonDropIndexesForAllAlteredTables);
+	push_array(jsonStatements, jsonDropIndexesForAllAlteredTables);
 
-	jsonStatements.push(...jsonDeletedCompositePKs);
-	jsonStatements.push(...jsonTableAlternations);
-	jsonStatements.push(...jsonAddedCompositePKs);
-	jsonStatements.push(...jsonAddColumnsStatemets);
+	push_array(jsonStatements, jsonDeletedCompositePKs);
+	push_array(jsonStatements, jsonTableAlternations);
+	push_array(jsonStatements, jsonAddedCompositePKs);
+	push_array(jsonStatements, jsonAddColumnsStatemets);
 
-	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
-	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
+	push_array(jsonStatements, jsonCreateIndexesForCreatedTables);
+	push_array(jsonStatements, jsonCreateIndexesForAllAlteredTables);
 
-	jsonStatements.push(...jsonCreatedCheckConstraints);
+	push_array(jsonStatements, jsonCreatedCheckConstraints);
 
-	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
+	push_array(jsonStatements, jsonCreatedReferencesForAlteredTables);
 
-	jsonStatements.push(...jsonDropColumnsStatemets);
+	push_array(jsonStatements, jsonDropColumnsStatemets);
 
-	// jsonStatements.push(...jsonDeletedCompositePKs);
-	// jsonStatements.push(...jsonAddedCompositePKs);
-	jsonStatements.push(...jsonAlteredCompositePKs);
+	// push_array(jsonStatements, jsonDeletedCompositePKs);
+	// push_array(jsonStatements, jsonAddedCompositePKs);
+	push_array(jsonStatements, jsonAlteredCompositePKs);
 
-	jsonStatements.push(...jsonAlteredUniqueConstraints);
+	push_array(jsonStatements, jsonAlteredUniqueConstraints);
 
-	jsonStatements.push(...dropViews);
-	jsonStatements.push(...createViews);
+	push_array(jsonStatements, dropViews);
+	push_array(jsonStatements, createViews);
 
 	const combinedJsonStatements = sqliteCombineStatements(jsonStatements, json2, action);
 	const sqlStatements = fromJson(combinedJsonStatements, 'sqlite');
@@ -4081,20 +4079,20 @@ export const applyLibSQLSnapshotsDiff = async (
 				added[k] = it.alteredCheckConstraints[k].__new;
 				deleted[k] = it.alteredCheckConstraints[k].__old;
 			}
-			createdCheckConstraints.push(...prepareAddCheckConstraint(it.name, it.schema, added));
-			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
+			push_array(createdCheckConstraints, prepareAddCheckConstraint(it.name, it.schema, added));
+			push_array(deletedCheckConstraints, prepareDeleteCheckConstraint(it.name, it.schema, deleted));
 		}
 
-		jsonAddedCompositePKs.push(...addedCompositePKs);
-		jsonDeletedCompositePKs.push(...deletedCompositePKs);
-		jsonAlteredCompositePKs.push(...alteredCompositePKs);
+		push_array(jsonAddedCompositePKs, addedCompositePKs);
+		push_array(jsonDeletedCompositePKs, deletedCompositePKs);
+		push_array(jsonAlteredCompositePKs, alteredCompositePKs);
 
-		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
-		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
-		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+		push_array(jsonAddedUniqueConstraints, addedUniqueConstraints);
+		push_array(jsonDeletedUniqueConstraints, deletedUniqueConstraints);
+		push_array(jsonAlteredUniqueConstraints, alteredUniqueConstraints);
 
-		jsonCreatedCheckConstraints.push(...createdCheckConstraints);
-		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);
+		push_array(jsonCreatedCheckConstraints, createdCheckConstraints);
+		push_array(jsonDeletedCheckConstraints, deletedCheckConstraints);
 	});
 
 	const jsonTableAlternations = allAltered
@@ -4233,39 +4231,39 @@ export const applyLibSQLSnapshotsDiff = async (
 	}
 
 	const jsonStatements: JsonStatement[] = [];
-	jsonStatements.push(...jsonCreateTables);
+	push_array(jsonStatements, jsonCreateTables);
 
-	jsonStatements.push(...jsonDropTables);
-	jsonStatements.push(...jsonRenameTables);
-	jsonStatements.push(...jsonRenameColumnsStatements);
+	push_array(jsonStatements, jsonDropTables);
+	push_array(jsonStatements, jsonRenameTables);
+	push_array(jsonStatements, jsonRenameColumnsStatements);
 
-	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
+	push_array(jsonStatements, jsonDroppedReferencesForAlteredTables);
 
-	jsonStatements.push(...jsonDeletedCheckConstraints);
+	push_array(jsonStatements, jsonDeletedCheckConstraints);
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
-	jsonStatements.push(...jsonDropIndexesForAllAlteredTables);
+	push_array(jsonStatements, jsonDropIndexesForAllAlteredTables);
 
-	jsonStatements.push(...jsonDeletedCompositePKs);
-	jsonStatements.push(...jsonTableAlternations);
-	jsonStatements.push(...jsonAddedCompositePKs);
-	jsonStatements.push(...jsonAddColumnsStatemets);
+	push_array(jsonStatements, jsonDeletedCompositePKs);
+	push_array(jsonStatements, jsonTableAlternations);
+	push_array(jsonStatements, jsonAddedCompositePKs);
+	push_array(jsonStatements, jsonAddColumnsStatemets);
 
-	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
-	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
-	jsonStatements.push(...jsonCreatedCheckConstraints);
+	push_array(jsonStatements, jsonCreateIndexesForCreatedTables);
+	push_array(jsonStatements, jsonCreateIndexesForAllAlteredTables);
+	push_array(jsonStatements, jsonCreatedCheckConstraints);
 
-	jsonStatements.push(...dropViews);
-	jsonStatements.push(...createViews);
+	push_array(jsonStatements, dropViews);
+	push_array(jsonStatements, createViews);
 
-	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
+	push_array(jsonStatements, jsonCreatedReferencesForAlteredTables);
 
-	jsonStatements.push(...jsonDropColumnsStatemets);
+	push_array(jsonStatements, jsonDropColumnsStatemets);
 
-	jsonStatements.push(...jsonAlteredCompositePKs);
+	push_array(jsonStatements, jsonAlteredCompositePKs);
 
-	jsonStatements.push(...jsonAlteredUniqueConstraints);
+	push_array(jsonStatements, jsonAlteredUniqueConstraints);
 
 	const combinedJsonStatements = libSQLCombineStatements(jsonStatements, json2, action);
 

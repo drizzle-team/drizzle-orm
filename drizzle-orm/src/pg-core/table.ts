@@ -9,6 +9,7 @@ import type { AnyIndexBuilder } from './indexes.ts';
 import type { PgPolicy } from './policies.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
+import { push_array } from '../utils.ts';
 
 export type PgTableExtraConfigValue =
 	| AnyIndexBuilder
@@ -97,7 +98,7 @@ export function pgTableWithSchema<
 			const colBuilder = colBuilderBase as PgColumnBuilder;
 			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
-			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
+			push_array(rawTable[InlineForeignKeys], colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
 	) as unknown as BuildColumns<TTableName, TColumnsMap, 'pg'>;
