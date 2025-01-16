@@ -3535,15 +3535,13 @@ export class CreateSqliteIndexConvertor extends Convertor {
 		const { name, columns, isUnique, where } = SQLiteSquasher.unsquashIdx(
 			statement.data,
 		);
-		// // since postgresql 9.5
+
 		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
 		const whereStatement = where ? ` WHERE ${where}` : '';
 		const uniqueString = columns
 			.map((it) => {
-				return statement.internal?.indexes
-					? statement.internal?.indexes[name]?.columns[it]?.isExpression
-						? it
-						: `\`${it}\``
+				return statement.internal?.indexes?.[name]?.columns?.[it]?.isExpression
+					? it
 					: `\`${it}\``;
 			})
 			.join(',');
