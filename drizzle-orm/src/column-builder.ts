@@ -2,6 +2,7 @@ import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
+import type { SingleStoreColumn } from './singlestore-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
 import type { Assume, Simplify } from './utils.ts';
@@ -17,7 +18,7 @@ export type ColumnDataType =
 	| 'custom'
 	| 'buffer';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'common';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common';
 
 export type GeneratedStorageMode = 'virtual' | 'stored';
 
@@ -42,7 +43,6 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColu
 	data: unknown;
 	driverParam: unknown;
 	enumValues: string[] | undefined;
-	generated: GeneratedColumnConfig<unknown> | undefined;
 }
 
 export type MakeColumnConfig<
@@ -64,7 +64,11 @@ export type MakeColumnConfig<
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
-	generated: T['generated'] extends object ? T['generated'] : undefined;
+	identity: T extends { identity: 'always' } ? 'always' : T extends { identity: 'byDefault' } ? 'byDefault' : undefined;
+	generated: T extends { generated: infer G } ? unknown extends G ? undefined
+		: G extends undefined ? undefined
+		: G
+		: undefined;
 } & {};
 
 export type ColumnBuilderTypeConfig<
@@ -82,7 +86,8 @@ export type ColumnBuilderTypeConfig<
 		notNull: T extends { notNull: infer U } ? U : boolean;
 		hasDefault: T extends { hasDefault: infer U } ? U : boolean;
 		enumValues: T['enumValues'];
-		generated: GeneratedColumnConfig<T['data']> | undefined;
+		identity: T extends { identity: infer U } ? U : unknown;
+		generated: T extends { generated: infer G } ? G extends undefined ? unknown : G : unknown;
 	}
 	& TTypeConfig
 >;
@@ -152,17 +157,16 @@ export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}
 	};
 };
 
-export type IsIdentityByDefault<
+export type IsIdentity<
 	T extends ColumnBuilderBase,
 	TType extends 'always' | 'byDefault',
 > = T & {
 	_: {
 		notNull: true;
 		hasDefault: true;
-		generated: { as: any; type: TType };
+		identity: TType;
 	};
 };
-
 export interface ColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
@@ -294,7 +298,9 @@ export abstract class ColumnBuilder<
 	abstract generatedAlwaysAs(
 		as: SQL | T['data'] | (() => SQL),
 		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this>;
+	): HasGenerated<this, {
+		type: 'always';
+	}>;
 
 	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
 	setName(name: string) {
@@ -307,10 +313,49 @@ export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
-> = TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
-	: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
-	: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
-	: TDialect extends 'common' ? Column<MakeColumnConfig<TBuilder['_'], TTableName>>
+> = TDialect extends 'pg' ? PgColumn<
+		MakeColumnConfig<TBuilder['_'], TTableName>,
+		{},
+		Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+	>
+	: TDialect extends 'mysql' ? MySqlColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<
+				Omit<
+					TBuilder['_'],
+					| keyof MakeColumnConfig<TBuilder['_'], TTableName>
+					| 'brand'
+					| 'dialect'
+					| 'primaryKeyHasDefault'
+					| 'mysqlColumnBuilderBrand'
+				>
+			>
+		>
+	: TDialect extends 'sqlite' ? SQLiteColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+		>
+	: TDialect extends 'common' ? Column<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+		>
+	: TDialect extends 'singlestore' ? SingleStoreColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<
+				Omit<
+					TBuilder['_'],
+					| keyof MakeColumnConfig<TBuilder['_'], TTableName>
+					| 'brand'
+					| 'dialect'
+					| 'primaryKeyHasDefault'
+					| 'singlestoreColumnBuilderBrand'
+				>
+			>
+		>
 	: never;
 
 export type BuildIndexColumn<
@@ -351,5 +396,6 @@ export type BuildExtraConfigColumns<
 export type ChangeColumnTableName<TColumn extends Column, TAlias extends string, TDialect extends Dialect> =
 	TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: never;

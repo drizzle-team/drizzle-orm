@@ -9,7 +9,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { PostgresJsQueryResultHKT } from './session.ts';
 import { PostgresJsSession } from './session.ts';
 
@@ -67,25 +67,21 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends Sql = Sql,
 >(
-	...params: IfNotImported<
-		Options<any>,
-		[ImportTypeError<'postgres'>],
-		[
-			TClient | string,
-		] | [
-			TClient | string,
-			DrizzleConfig<TSchema>,
-		] | [
-			(
-				& DrizzleConfig<TSchema>
-				& ({
-					connection: string | ({ url?: string } & Options<Record<string, PostgresType>>);
-				} | {
-					client: TClient;
-				})
-			),
-		]
-	>
+	...params: [
+		TClient | string,
+	] | [
+		TClient | string,
+		DrizzleConfig<TSchema>,
+	] | [
+		(
+			& DrizzleConfig<TSchema>
+			& ({
+				connection: string | ({ url?: string } & Options<Record<string, PostgresType>>);
+			} | {
+				client: TClient;
+			})
+		),
+	]
 ): PostgresJsDatabase<TSchema> & {
 	$client: TClient;
 } {
@@ -123,6 +119,11 @@ export namespace drizzle {
 	): PostgresJsDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({} as any, config) as any;
+		return construct({
+			options: {
+				parsers: {},
+				serializers: {},
+			},
+		} as any, config) as any;
 	}
 }

@@ -20,8 +20,11 @@ import {
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
+	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
+	JsonAlterPolicyStatement,
 	JsonAlterReferenceStatement,
+	JsonAlterRoleStatement,
 	JsonAlterSequenceStatement,
 	JsonAlterTableRemoveFromSchema,
 	JsonAlterTableSetNewSchema,
@@ -35,9 +38,12 @@ import {
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
+	JsonCreateIndPolicyStatement,
 	JsonCreateMySqlViewStatement,
 	JsonCreatePgViewStatement,
+	JsonCreatePolicyStatement,
 	JsonCreateReferenceStatement,
+	JsonCreateRoleStatement,
 	JsonCreateSchema,
 	JsonCreateSequenceStatement,
 	JsonCreateSqliteViewStatement,
@@ -47,19 +53,27 @@ import {
 	JsonDeleteCompositePK,
 	JsonDeleteReferenceStatement,
 	JsonDeleteUniqueConstraint,
+	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
 	JsonDropEnumStatement,
 	JsonDropIndexStatement,
+	JsonDropIndPolicyStatement,
+	JsonDropPolicyStatement,
+	JsonDropRoleStatement,
 	JsonDropSequenceStatement,
 	JsonDropTableStatement,
 	JsonDropValueFromEnumStatement,
 	JsonDropViewStatement,
+	JsonEnableRLSStatement,
+	JsonIndRenamePolicyStatement,
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
 	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
 	JsonRenameEnumStatement,
+	JsonRenamePolicyStatement,
+	JsonRenameRoleStatement,
 	JsonRenameSchema,
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
@@ -70,77 +84,63 @@ import {
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSquasher } from './serializer/pgSchema';
+import { PgSquasher, policy } from './serializer/pgSchema';
+import { SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 
-export const pgNativeTypes = new Set([
-	'uuid',
-	'smallint',
-	'integer',
-	'bigint',
-	'boolean',
-	'text',
-	'varchar',
-	'serial',
-	'bigserial',
-	'decimal',
-	'numeric',
-	'real',
-	'json',
-	'jsonb',
-	'time',
-	'time with time zone',
-	'time without time zone',
-	'time',
-	'timestamp',
-	'timestamp with time zone',
-	'timestamp without time zone',
-	'date',
-	'interval',
-	'bigint',
-	'bigserial',
-	'double precision',
-	'interval year',
-	'interval month',
-	'interval day',
-	'interval hour',
-	'interval minute',
-	'interval second',
-	'interval year to month',
-	'interval day to hour',
-	'interval day to minute',
-	'interval day to second',
-	'interval hour to minute',
-	'interval hour to second',
-	'interval minute to second',
-]);
+import { escapeSingleQuotes } from './utils';
 
-const isPgNativeType = (it: string) => {
-	if (pgNativeTypes.has(it)) return true;
-	const toCheck = it.replace(/ /g, '');
-	return (
-		toCheck.startsWith('varchar(')
-		|| toCheck.startsWith('char(')
-		|| toCheck.startsWith('numeric(')
-		|| toCheck.startsWith('timestamp(')
-		|| toCheck.startsWith('doubleprecision[')
-		|| toCheck.startsWith('intervalyear(')
-		|| toCheck.startsWith('intervalmonth(')
-		|| toCheck.startsWith('intervalday(')
-		|| toCheck.startsWith('intervalhour(')
-		|| toCheck.startsWith('intervalminute(')
-		|| toCheck.startsWith('intervalsecond(')
-		|| toCheck.startsWith('intervalyeartomonth(')
-		|| toCheck.startsWith('intervaldaytohour(')
-		|| toCheck.startsWith('intervaldaytominute(')
-		|| toCheck.startsWith('intervaldaytosecond(')
-		|| toCheck.startsWith('intervalhourtominute(')
-		|| toCheck.startsWith('intervalhourtosecond(')
-		|| toCheck.startsWith('intervalminutetosecond(')
-		|| toCheck.startsWith('vector(')
-		|| toCheck.startsWith('geometry(')
-		|| /^(\w+)(\[\d*])+$/.test(it)
-	);
+const parseType = (schemaPrefix: string, type: string) => {
+	const pgNativeTypes = [
+		'uuid',
+		'smallint',
+		'integer',
+		'bigint',
+		'boolean',
+		'text',
+		'varchar',
+		'serial',
+		'bigserial',
+		'decimal',
+		'numeric',
+		'real',
+		'json',
+		'jsonb',
+		'time',
+		'time with time zone',
+		'time without time zone',
+		'time',
+		'timestamp',
+		'timestamp with time zone',
+		'timestamp without time zone',
+		'date',
+		'interval',
+		'bigint',
+		'bigserial',
+		'double precision',
+		'interval year',
+		'interval month',
+		'interval day',
+		'interval hour',
+		'interval minute',
+		'interval second',
+		'interval year to month',
+		'interval day to hour',
+		'interval day to minute',
+		'interval day to second',
+		'interval hour to minute',
+		'interval hour to second',
+		'interval minute to second',
+		'char',
+		'vector',
+		'geometry',
+	];
+	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
+	const arrayDefinition = (type.match(arrayDefinitionRegex) ?? []).join('');
+	const withoutArrayDefinition = type.replace(arrayDefinitionRegex, '');
+	return pgNativeTypes.some((it) => type.startsWith(it))
+		? `${withoutArrayDefinition}${arrayDefinition}`
+		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
 };
 
 abstract class Convertor {
@@ -155,18 +155,241 @@ abstract class Convertor {
 	): string | string[];
 }
 
+class PgCreateRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreateRoleStatement): string | string[] {
+		return `CREATE ROLE "${statement.name}"${
+			statement.values.createDb || statement.values.createRole || !statement.values.inherit
+				? ` WITH${statement.values.createDb ? ' CREATEDB' : ''}${statement.values.createRole ? ' CREATEROLE' : ''}${
+					statement.values.inherit ? '' : ' NOINHERIT'
+				}`
+				: ''
+		};`;
+	}
+}
+
+class PgDropRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropRoleStatement): string | string[] {
+		return `DROP ROLE "${statement.name}";`;
+	}
+}
+
+class PgRenameRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonRenameRoleStatement): string | string[] {
+		return `ALTER ROLE "${statement.nameFrom}" RENAME TO "${statement.nameTo}";`;
+	}
+}
+
+class PgAlterRoleConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_role' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterRoleStatement): string | string[] {
+		return `ALTER ROLE "${statement.name}"${` WITH${statement.values.createDb ? ' CREATEDB' : ' NOCREATEDB'}${
+			statement.values.createRole ? ' CREATEROLE' : ' NOCREATEROLE'
+		}${statement.values.inherit ? ' INHERIT' : ' NOINHERIT'}`};`;
+	}
+}
+
+/////
+
+class PgCreatePolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreatePolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		const usingPart = policy.using ? ` USING (${policy.using})` : '';
+
+		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
+
+		const policyToPart = policy.to?.map((v) =>
+			['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
+		).join(', ');
+
+		return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
+	}
+}
+
+class PgDropPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `DROP POLICY "${policy.name}" ON ${tableNameWithSchema} CASCADE;`;
+	}
+}
+
+class PgRenamePolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonRenamePolicyStatement): string | string[] {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER POLICY "${statement.oldName}" ON ${tableNameWithSchema} RENAME TO "${statement.newName}";`;
+	}
+}
+
+class PgAlterPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterPolicyStatement, _dialect: any, action?: string): string | string[] {
+		const newPolicy = action === 'push'
+			? PgSquasher.unsquashPolicyPush(statement.newData)
+			: PgSquasher.unsquashPolicy(statement.newData);
+		const oldPolicy = action === 'push'
+			? PgSquasher.unsquashPolicyPush(statement.oldData)
+			: PgSquasher.unsquashPolicy(statement.oldData);
+
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		const usingPart = newPolicy.using
+			? ` USING (${newPolicy.using})`
+			: oldPolicy.using
+			? ` USING (${oldPolicy.using})`
+			: '';
+
+		const withCheckPart = newPolicy.withCheck
+			? ` WITH CHECK (${newPolicy.withCheck})`
+			: oldPolicy.withCheck
+			? ` WITH CHECK  (${oldPolicy.withCheck})`
+			: '';
+
+		return `ALTER POLICY "${oldPolicy.name}" ON ${tableNameWithSchema} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
+	}
+}
+
+////
+
+class PgCreateIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreateIndPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		const usingPart = policy.using ? ` USING (${policy.using})` : '';
+
+		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
+
+		const policyToPart = policy.to?.map((v) =>
+			['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
+		).join(', ');
+
+		return `CREATE POLICY "${policy.name}" ON ${policy.on} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
+	}
+}
+
+class PgDropIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropIndPolicyStatement): string | string[] {
+		const policy = statement.data;
+
+		return `DROP POLICY "${policy.name}" ON ${policy.on} CASCADE;`;
+	}
+}
+
+class PgRenameIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonIndRenamePolicyStatement): string | string[] {
+		return `ALTER POLICY "${statement.oldName}" ON ${statement.tableKey} RENAME TO "${statement.newName}";`;
+	}
+}
+
+class PgAlterIndPolicyConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_ind_policy' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonAlterIndPolicyStatement): string | string[] {
+		const newPolicy = statement.newData;
+		const oldPolicy = statement.oldData;
+
+		const usingPart = newPolicy.using
+			? ` USING (${newPolicy.using})`
+			: oldPolicy.using
+			? ` USING (${oldPolicy.using})`
+			: '';
+
+		const withCheckPart = newPolicy.withCheck
+			? ` WITH CHECK (${newPolicy.withCheck})`
+			: oldPolicy.withCheck
+			? ` WITH CHECK  (${oldPolicy.withCheck})`
+			: '';
+
+		return `ALTER POLICY "${oldPolicy.name}" ON ${oldPolicy.on} TO ${newPolicy.to}${usingPart}${withCheckPart};`;
+	}
+}
+
+////
+
+class PgEnableRlsConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'enable_rls' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonEnableRLSStatement): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} ENABLE ROW LEVEL SECURITY;`;
+	}
+}
+
+class PgDisableRlsConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'disable_rls' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDisableRLSStatement): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} DISABLE ROW LEVEL SECURITY;`;
+	}
+}
+
 class PgCreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_table' && dialect === 'postgresql';
 	}
 
 	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints } = st;
+		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
+			st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
 
-		statement += `CREATE TABLE IF NOT EXISTS ${name} (\n`;
+		statement += `CREATE TABLE ${name} (\n`;
 		for (let i = 0; i < columns.length; i++) {
 			const column = columns[i];
 
@@ -182,9 +405,7 @@ class PgCreateTableConvertor extends Convertor {
 				? `"${column.typeSchema}".`
 				: '';
 
-			const type = isPgNativeType(column.type)
-				? column.type
-				: `${schemaPrefix}"${column.type}"`;
+			const type = parseType(schemaPrefix, column.type);
 			const generated = column.generated;
 
 			const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
@@ -258,7 +479,13 @@ class PgCreateTableConvertor extends Convertor {
 		statement += `\n);`;
 		statement += `\n`;
 
-		return statement;
+		const enableRls = new PgEnableRlsConvertor().convert({
+			type: 'enable_rls',
+			tableName,
+			schema,
+		});
+
+		return [statement, ...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : [])];
 	}
 }
 
@@ -339,6 +566,81 @@ class MySqlCreateTableConvertor extends Convertor {
 				const unsquashedCheck = MySqlSquasher.unsquashCheck(checkConstraint);
 
 				statement += `\tCONSTRAINT \`${unsquashedCheck.name}\` CHECK(${unsquashedCheck.value})`;
+			}
+		}
+
+		statement += `\n);`;
+		statement += `\n`;
+		return statement;
+	}
+}
+class SingleStoreCreateTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_table' && dialect === 'singlestore';
+	}
+
+	convert(st: JsonCreateTableStatement) {
+		const {
+			tableName,
+			columns,
+			schema,
+			compositePKs,
+			uniqueConstraints,
+			internals,
+		} = st;
+
+		let statement = '';
+		statement += `CREATE TABLE \`${tableName}\` (\n`;
+		for (let i = 0; i < columns.length; i++) {
+			const column = columns[i];
+
+			const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
+			const notNullStatement = column.notNull ? ' NOT NULL' : '';
+			const defaultStatement = column.default !== undefined ? ` DEFAULT ${column.default}` : '';
+
+			const onUpdateStatement = column.onUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+
+			const autoincrementStatement = column.autoincrement
+				? ' AUTO_INCREMENT'
+				: '';
+
+			const generatedStatement = column.generated
+				? ` GENERATED ALWAYS AS (${column.generated?.as}) ${column.generated?.type.toUpperCase()}`
+				: '';
+
+			statement += '\t'
+				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${generatedStatement}`;
+			statement += i === columns.length - 1 ? '' : ',\n';
+		}
+
+		if (typeof compositePKs !== 'undefined' && compositePKs.length > 0) {
+			statement += ',\n';
+			const compositePK = SingleStoreSquasher.unsquashPK(compositePKs[0]);
+			statement += `\tCONSTRAINT \`${st.compositePkName}\` PRIMARY KEY(\`${compositePK.columns.join(`\`,\``)}\`)`;
+		}
+
+		if (
+			typeof uniqueConstraints !== 'undefined'
+			&& uniqueConstraints.length > 0
+		) {
+			for (const uniqueConstraint of uniqueConstraints) {
+				statement += ',\n';
+				const unsquashedUnique = SingleStoreSquasher.unsquashUnique(uniqueConstraint);
+
+				const uniqueString = unsquashedUnique.columns
+					.map((it) => {
+						return internals?.indexes
+							? internals?.indexes[unsquashedUnique.name]?.columns[it]
+									?.isExpression
+								? it
+								: `\`${it}\``
+							: `\`${it}\``;
+					})
+					.join(',');
+
+				statement += `\tCONSTRAINT \`${unsquashedUnique.name}\` UNIQUE(${uniqueString})`;
 			}
 		}
 
@@ -940,6 +1242,29 @@ class MySqlAlterTableAddCheckConstraintConvertor extends Convertor {
 	}
 }
 
+class SingleStoreAlterTableAddUniqueConstraintConvertor extends Convertor {
+	can(statement: JsonCreateUniqueConstraint, dialect: Dialect): boolean {
+		return statement.type === 'create_unique_constraint' && dialect === 'singlestore';
+	}
+	convert(statement: JsonCreateUniqueConstraint): string {
+		const unsquashed = SingleStoreSquasher.unsquashUnique(statement.data);
+
+		return `ALTER TABLE \`${statement.tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` UNIQUE(\`${
+			unsquashed.columns.join('`,`')
+		}\`);`;
+	}
+}
+class SingleStoreAlterTableDropUniqueConstraintConvertor extends Convertor {
+	can(statement: JsonDeleteUniqueConstraint, dialect: Dialect): boolean {
+		return statement.type === 'delete_unique_constraint' && dialect === 'singlestore';
+	}
+	convert(statement: JsonDeleteUniqueConstraint): string {
+		const unsquashed = SingleStoreSquasher.unsquashUnique(statement.data);
+
+		return `ALTER TABLE \`${statement.tableName}\` DROP INDEX \`${unsquashed.name}\`;`;
+	}
+}
+
 class MySqlAlterTableDeleteCheckConstraintConvertor extends Convertor {
 	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
 		return (
@@ -1053,7 +1378,7 @@ class CreateTypeEnumConvertor extends Convertor {
 		const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 
 		let valuesStatement = '(';
-		valuesStatement += values.map((it) => `'${it}'`).join(', ');
+		valuesStatement += values.map((it) => `'${escapeSingleQuotes(it)}'`).join(', ');
 		valuesStatement += ')';
 
 		// TODO do we need this?
@@ -1169,20 +1494,46 @@ class PgDropTableConvertor extends Convertor {
 		return statement.type === 'drop_table' && dialect === 'postgresql';
 	}
 
-	convert(statement: JsonDropTableStatement) {
-		const { tableName, schema } = statement;
+	convert(statement: JsonDropTableStatement, _d: any, action?: string) {
+		const { tableName, schema, policies } = statement;
 
 		const tableNameWithSchema = schema
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		return `DROP TABLE ${tableNameWithSchema};`;
+		const dropPolicyConvertor = new PgDropPolicyConvertor();
+		const droppedPolicies = policies?.map((p) => {
+			return dropPolicyConvertor.convert({
+				type: 'drop_policy',
+				tableName,
+				data: action === 'push'
+					? PgSquasher.unsquashPolicyPush(p)
+					: PgSquasher.unsquashPolicy(p),
+				schema,
+			}) as string;
+		}) ?? [];
+
+		return [
+			...droppedPolicies,
+			`DROP TABLE ${tableNameWithSchema} CASCADE;`,
+		];
 	}
 }
 
 class MySQLDropTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_table' && dialect === 'mysql';
+	}
+
+	convert(statement: JsonDropTableStatement) {
+		const { tableName } = statement;
+		return `DROP TABLE \`${tableName}\`;`;
+	}
+}
+
+class SingleStoreDropTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_table' && dialect === 'singlestore';
 	}
 
 	convert(statement: JsonDropTableStatement) {
@@ -1239,6 +1590,17 @@ class MySqlRenameTableConvertor extends Convertor {
 	}
 }
 
+class SingleStoreRenameTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_table' && dialect === 'singlestore';
+	}
+
+	convert(statement: JsonRenameTableStatement) {
+		const { tableNameFrom, tableNameTo } = statement;
+		return `RENAME TABLE \`${tableNameFrom}\` TO \`${tableNameTo}\`;`;
+	}
+}
+
 class PgAlterTableRenameColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
@@ -1261,6 +1623,19 @@ class MySqlAlterTableRenameColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_rename_column' && dialect === 'mysql'
+		);
+	}
+
+	convert(statement: JsonRenameColumnStatement) {
+		const { tableName, oldColumnName, newColumnName } = statement;
+		return `ALTER TABLE \`${tableName}\` RENAME COLUMN \`${oldColumnName}\` TO \`${newColumnName}\`;`;
+	}
+}
+
+class SingleStoreAlterTableRenameColumnConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_rename_column' && dialect === 'singlestore'
 		);
 	}
 
@@ -1297,13 +1672,24 @@ class PgAlterTableDropColumnConvertor extends Convertor {
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} DROP COLUMN IF EXISTS "${columnName}";`;
+		return `ALTER TABLE ${tableNameWithSchema} DROP COLUMN "${columnName}";`;
 	}
 }
 
 class MySqlAlterTableDropColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_table_drop_column' && dialect === 'mysql';
+	}
+
+	convert(statement: JsonDropColumnStatement) {
+		const { tableName, columnName } = statement;
+		return `ALTER TABLE \`${tableName}\` DROP COLUMN \`${columnName}\`;`;
+	}
+}
+
+class SingleStoreAlterTableDropColumnConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_drop_column' && dialect === 'singlestore';
 	}
 
 	convert(statement: JsonDropColumnStatement) {
@@ -1346,9 +1732,7 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 			? `"${column.typeSchema}".`
 			: '';
 
-		const fixedType = isPgNativeType(column.type)
-			? column.type
-			: `${schemaPrefix}"${column.type}"`;
+		const fixedType = parseType(schemaPrefix, column.type);
 
 		const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 
@@ -1418,6 +1802,37 @@ class MySqlAlterTableAddColumnConvertor extends Convertor {
 			: '';
 
 		return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
+	}
+}
+
+class SingleStoreAlterTableAddColumnConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_add_column' && dialect === 'singlestore';
+	}
+
+	convert(statement: JsonAddColumnStatement) {
+		const { tableName, column } = statement;
+		const {
+			name,
+			type,
+			notNull,
+			primaryKey,
+			autoincrement,
+			onUpdate,
+			generated,
+		} = column;
+
+		const defaultStatement = `${column.default !== undefined ? ` DEFAULT ${column.default}` : ''}`;
+		const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
+		const primaryKeyStatement = `${primaryKey ? ' PRIMARY KEY' : ''}`;
+		const autoincrementStatement = `${autoincrement ? ' AUTO_INCREMENT' : ''}`;
+		const onUpdateStatement = `${onUpdate ? ' ON UPDATE CURRENT_TIMESTAMP' : ''}`;
+
+		const generatedStatement = generated
+			? ` GENERATED ALWAYS AS (${generated?.as}) ${generated?.type.toUpperCase()}`
+			: '';
+
+		return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${notNullStatement}${onUpdateStatement}${generatedStatement};`;
 	}
 }
 
@@ -1915,7 +2330,7 @@ export class LibSQLModifyColumn extends Convertor {
 		for (const table of Object.values(json2.tables)) {
 			for (const index of Object.values(table.indexes)) {
 				const unsquashed = SQLiteSquasher.unsquashIdx(index);
-				sqlStatements.push(`DROP INDEX IF EXISTS "${unsquashed.name}";`);
+				sqlStatements.push(`DROP INDEX "${unsquashed.name}";`);
 				indexes.push({ ...unsquashed, tableName: table.name });
 			}
 		}
@@ -2224,6 +2639,360 @@ class MySqlModifyColumn extends Convertor {
 	}
 }
 
+class SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_alter_generated'
+			&& dialect === 'singlestore'
+		);
+	}
+
+	convert(statement: JsonAlterColumnAlterGeneratedStatement) {
+		const {
+			tableName,
+			columnName,
+			schema,
+			columnNotNull: notNull,
+			columnDefault,
+			columnOnUpdate,
+			columnAutoIncrement,
+			columnPk,
+			columnGenerated,
+		} = statement;
+
+		const tableNameWithSchema = schema
+			? `\`${schema}\`.\`${tableName}\``
+			: `\`${tableName}\``;
+
+		const addColumnStatement = new SingleStoreAlterTableAddColumnConvertor().convert({
+			schema,
+			tableName,
+			column: {
+				name: columnName,
+				type: statement.newDataType,
+				notNull,
+				default: columnDefault,
+				onUpdate: columnOnUpdate,
+				autoincrement: columnAutoIncrement,
+				primaryKey: columnPk,
+				generated: columnGenerated,
+			},
+			type: 'alter_table_add_column',
+		});
+
+		return [
+			`ALTER TABLE ${tableNameWithSchema} drop column \`${columnName}\`;`,
+			addColumnStatement,
+		];
+	}
+}
+
+class SingleStoreAlterTableAlterColumnSetDefaultConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_set_default'
+			&& dialect === 'singlestore'
+		);
+	}
+
+	convert(statement: JsonAlterColumnSetDefaultStatement) {
+		const { tableName, columnName } = statement;
+		return `ALTER TABLE \`${tableName}\` ALTER COLUMN \`${columnName}\` SET DEFAULT ${statement.newDefaultValue};`;
+	}
+}
+
+class SingleStoreAlterTableAlterColumnDropDefaultConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_drop_default'
+			&& dialect === 'singlestore'
+		);
+	}
+
+	convert(statement: JsonAlterColumnDropDefaultStatement) {
+		const { tableName, columnName } = statement;
+		return `ALTER TABLE \`${tableName}\` ALTER COLUMN \`${columnName}\` DROP DEFAULT;`;
+	}
+}
+
+class SingleStoreAlterTableAddPk extends Convertor {
+	can(statement: JsonStatement, dialect: string): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_set_pk'
+			&& dialect === 'singlestore'
+		);
+	}
+	convert(statement: JsonAlterColumnSetPrimaryKeyStatement): string {
+		return `ALTER TABLE \`${statement.tableName}\` ADD PRIMARY KEY (\`${statement.columnName}\`);`;
+	}
+}
+
+class SingleStoreAlterTableDropPk extends Convertor {
+	can(statement: JsonStatement, dialect: string): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_drop_pk'
+			&& dialect === 'singlestore'
+		);
+	}
+	convert(statement: JsonAlterColumnDropPrimaryKeyStatement): string {
+		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY`;
+	}
+}
+
+type SingleStoreModifyColumnStatement =
+	| JsonAlterColumnDropNotNullStatement
+	| JsonAlterColumnSetNotNullStatement
+	| JsonAlterColumnTypeStatement
+	| JsonAlterColumnDropOnUpdateStatement
+	| JsonAlterColumnSetOnUpdateStatement
+	| JsonAlterColumnDropAutoincrementStatement
+	| JsonAlterColumnSetAutoincrementStatement
+	| JsonAlterColumnSetDefaultStatement
+	| JsonAlterColumnDropDefaultStatement
+	| JsonAlterColumnSetGeneratedStatement
+	| JsonAlterColumnDropGeneratedStatement;
+
+class SingleStoreModifyColumn extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			(statement.type === 'alter_table_alter_column_set_type'
+				|| statement.type === 'alter_table_alter_column_set_notnull'
+				|| statement.type === 'alter_table_alter_column_drop_notnull'
+				|| statement.type === 'alter_table_alter_column_drop_on_update'
+				|| statement.type === 'alter_table_alter_column_set_on_update'
+				|| statement.type === 'alter_table_alter_column_set_autoincrement'
+				|| statement.type === 'alter_table_alter_column_drop_autoincrement'
+				|| statement.type === 'alter_table_alter_column_set_default'
+				|| statement.type === 'alter_table_alter_column_drop_default'
+				|| statement.type === 'alter_table_alter_column_set_generated'
+				|| statement.type === 'alter_table_alter_column_drop_generated')
+			&& dialect === 'singlestore'
+		);
+	}
+
+	convert(statement: SingleStoreModifyColumnStatement) {
+		const { tableName, columnName } = statement;
+		let columnType = ``;
+		let columnDefault: any = '';
+		let columnNotNull = '';
+		let columnOnUpdate = '';
+		let columnAutoincrement = '';
+		let primaryKey = statement.columnPk ? ' PRIMARY KEY' : '';
+		let columnGenerated = '';
+
+		if (statement.type === 'alter_table_alter_column_drop_notnull') {
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_set_notnull') {
+			columnNotNull = ` NOT NULL`;
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_drop_on_update') {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnOnUpdate = '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_set_on_update') {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = ` ON UPDATE CURRENT_TIMESTAMP`;
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (
+			statement.type === 'alter_table_alter_column_set_autoincrement'
+		) {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = ' AUTO_INCREMENT';
+		} else if (
+			statement.type === 'alter_table_alter_column_drop_autoincrement'
+		) {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = '';
+		} else if (statement.type === 'alter_table_alter_column_set_default') {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = ` DEFAULT ${statement.newDefaultValue}`;
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_drop_default') {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_set_generated') {
+			columnType = ` ${statement.newDataType}`;
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+
+			if (statement.columnGenerated?.type === 'virtual') {
+				return [
+					new SingleStoreAlterTableDropColumnConvertor().convert({
+						type: 'alter_table_drop_column',
+						tableName: statement.tableName,
+						columnName: statement.columnName,
+						schema: statement.schema,
+					}),
+					new SingleStoreAlterTableAddColumnConvertor().convert({
+						tableName,
+						column: {
+							name: columnName,
+							type: statement.newDataType,
+							notNull: statement.columnNotNull,
+							default: statement.columnDefault,
+							onUpdate: statement.columnOnUpdate,
+							autoincrement: statement.columnAutoIncrement,
+							primaryKey: statement.columnPk,
+							generated: statement.columnGenerated,
+						},
+						schema: statement.schema,
+						type: 'alter_table_add_column',
+					}),
+				];
+			} else {
+				columnGenerated = statement.columnGenerated
+					? ` GENERATED ALWAYS AS (${statement.columnGenerated?.as}) ${statement.columnGenerated?.type.toUpperCase()}`
+					: '';
+			}
+		} else if (statement.type === 'alter_table_alter_column_drop_generated') {
+			columnType = ` ${statement.newDataType}`;
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+
+			if (statement.oldColumn?.generated?.type === 'virtual') {
+				return [
+					new SingleStoreAlterTableDropColumnConvertor().convert({
+						type: 'alter_table_drop_column',
+						tableName: statement.tableName,
+						columnName: statement.columnName,
+						schema: statement.schema,
+					}),
+					new SingleStoreAlterTableAddColumnConvertor().convert({
+						tableName,
+						column: {
+							name: columnName,
+							type: statement.newDataType,
+							notNull: statement.columnNotNull,
+							default: statement.columnDefault,
+							onUpdate: statement.columnOnUpdate,
+							autoincrement: statement.columnAutoIncrement,
+							primaryKey: statement.columnPk,
+							generated: statement.columnGenerated,
+						},
+						schema: statement.schema,
+						type: 'alter_table_add_column',
+					}),
+				];
+			}
+		} else {
+			columnType = ` ${statement.newDataType}`;
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+			columnGenerated = statement.columnGenerated
+				? ` GENERATED ALWAYS AS (${statement.columnGenerated?.as}) ${statement.columnGenerated?.type.toUpperCase()}`
+				: '';
+		}
+
+		// Seems like getting value from simple json2 shanpshot makes dates be dates
+		columnDefault = columnDefault instanceof Date
+			? columnDefault.toISOString()
+			: columnDefault;
+
+		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnNotNull}${columnDefault}${columnOnUpdate}${columnGenerated};`;
+	}
+}
+class SqliteAlterTableAlterColumnDropDefaultConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_drop_default'
+			&& dialect === 'sqlite'
+		);
+	}
+
+	convert(statement: JsonAlterColumnDropDefaultStatement) {
+		return (
+			'/*\n SQLite does not support "Drop default from column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
+			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
+			+ '\n                  https://www.sqlite.org/lang_altertable.html'
+			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
+			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
+			+ '\n*/'
+		);
+	}
+}
+
 class PgAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_composite_pk' && dialect === 'postgresql';
@@ -2272,9 +3041,9 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT ${statement.oldConstraintName};\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT ${statement.newConstraintName} PRIMARY KEY(${
-			newColumns.join(',')
-		});`;
+		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.oldConstraintName}";\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.newConstraintName}" PRIMARY KEY("${
+			newColumns.join('","')
+		}");`;
 	}
 }
 
@@ -2311,6 +3080,89 @@ class MySqlAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 			statement.new,
 		);
 		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY, ADD PRIMARY KEY(\`${newColumns.join('`,`')}\`);`;
+	}
+}
+
+class SqliteAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_composite_pk' && dialect === 'sqlite';
+	}
+
+	convert(statement: JsonCreateCompositePK) {
+		let msg = '/*\n';
+		msg += `You're trying to add PRIMARY KEY(${statement.data}) to '${statement.tableName}' table\n`;
+		msg += 'SQLite does not support adding primary key to an already created table\n';
+		msg += 'You can do it in 3 steps with drizzle orm:\n';
+		msg += ' - create new mirror table with needed pk, rename current table to old_table, generate SQL\n';
+		msg += ' - migrate old data from one table to another\n';
+		msg += ' - delete old_table in schema, generate sql\n\n';
+		msg += 'or create manual migration like below:\n\n';
+		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
+		msg += 'CREATE TABLE table_name (\n';
+		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
+		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
+		msg += '\t...\n';
+		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
+		msg += ' );\n';
+		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
+		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
+		msg += '*/\n';
+		return msg;
+	}
+}
+class SqliteAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'delete_composite_pk' && dialect === 'sqlite';
+	}
+
+	convert(statement: JsonDeleteCompositePK) {
+		let msg = '/*\n';
+		msg += `You're trying to delete PRIMARY KEY(${statement.data}) from '${statement.tableName}' table\n`;
+		msg += 'SQLite does not supportprimary key deletion from existing table\n';
+		msg += 'You can do it in 3 steps with drizzle orm:\n';
+		msg += ' - create new mirror table table without pk, rename current table to old_table, generate SQL\n';
+		msg += ' - migrate old data from one table to another\n';
+		msg += ' - delete old_table in schema, generate sql\n\n';
+		msg += 'or create manual migration like below:\n\n';
+		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
+		msg += 'CREATE TABLE table_name (\n';
+		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
+		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
+		msg += '\t...\n';
+		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
+		msg += ' );\n';
+		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
+		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
+		msg += '*/\n';
+		return msg;
+	}
+}
+
+class SqliteAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_composite_pk' && dialect === 'sqlite';
+	}
+
+	convert(statement: JsonAlterCompositePK) {
+		let msg = '/*\n';
+		msg += 'SQLite does not support altering primary key\n';
+		msg += 'You can do it in 3 steps with drizzle orm:\n';
+		msg += ' - create new mirror table with needed pk, rename current table to old_table, generate SQL\n';
+		msg += ' - migrate old data from one table to another\n';
+		msg += ' - delete old_table in schema, generate sql\n\n';
+		msg += 'or create manual migration like below:\n\n';
+		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
+		msg += 'CREATE TABLE table_name (\n';
+		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
+		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
+		msg += '\t...\n';
+		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
+		msg += ' );\n';
+		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
+		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
+		msg += '*/\n';
+
+		return msg;
 	}
 }
 
@@ -2431,14 +3283,9 @@ class PgCreateForeignKeyConvertor extends Convertor {
 			: `"${tableTo}"`;
 
 		const alterStatement =
-			`ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
+			`ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 
-		let sql = 'DO $$ BEGIN\n';
-		sql += ' ' + alterStatement + ';\n';
-		sql += 'EXCEPTION\n';
-		sql += ' WHEN duplicate_object THEN null;\n';
-		sql += 'END $$;\n';
-		return sql;
+		return alterStatement;
 	}
 }
 
@@ -2535,13 +3382,9 @@ class PgAlterForeignKeyConvertor extends Convertor {
 			: `"${newFk.tableFrom}"`;
 
 		const alterStatement =
-			`ALTER TABLE ${tableFromNameWithSchema} ADD CONSTRAINT "${newFk.name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
+			`ALTER TABLE ${tableFromNameWithSchema} ADD CONSTRAINT "${newFk.name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 
-		sql += 'DO $$ BEGIN\n';
-		sql += ' ' + alterStatement + ';\n';
-		sql += 'EXCEPTION\n';
-		sql += ' WHEN duplicate_object THEN null;\n';
-		sql += 'END $$;\n';
+		sql += alterStatement;
 		return sql;
 	}
 }
@@ -2622,7 +3465,7 @@ class CreatePgIndexConvertor extends Convertor {
 
 		return `CREATE ${indexPart}${
 			concurrently ? ' CONCURRENTLY' : ''
-		} IF NOT EXISTS "${name}" ON ${tableNameWithSchema} USING ${method} (${value})${
+		} "${name}" ON ${tableNameWithSchema} USING ${method} (${value})${
 			Object.keys(withMap!).length !== 0
 				? ` WITH (${reverseLogic(withMap!)})`
 				: ''
@@ -2638,6 +3481,32 @@ class CreateMySqlIndexConvertor extends Convertor {
 	convert(statement: JsonCreateIndexStatement): string {
 		// should be changed
 		const { name, columns, isUnique } = MySqlSquasher.unsquashIdx(
+			statement.data,
+		);
+		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
+
+		const uniqueString = columns
+			.map((it) => {
+				return statement.internal?.indexes
+					? statement.internal?.indexes[name]?.columns[it]?.isExpression
+						? it
+						: `\`${it}\``
+					: `\`${it}\``;
+			})
+			.join(',');
+
+		return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString});`;
+	}
+}
+
+class CreateSingleStoreIndexConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_index' && dialect === 'singlestore';
+	}
+
+	convert(statement: JsonCreateIndexStatement): string {
+		// should be changed
+		const { name, columns, isUnique } = SingleStoreSquasher.unsquashIdx(
 			statement.data,
 		);
 		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
@@ -2689,7 +3558,7 @@ class PgDropIndexConvertor extends Convertor {
 
 	convert(statement: JsonDropIndexStatement): string {
 		const { name } = PgSquasher.unsquashIdx(statement.data);
-		return `DROP INDEX IF EXISTS "${name}";`;
+		return `DROP INDEX "${name}";`;
 	}
 }
 
@@ -2785,7 +3654,7 @@ export class SqliteDropIndexConvertor extends Convertor {
 
 	convert(statement: JsonDropIndexStatement): string {
 		const { name } = PgSquasher.unsquashIdx(statement.data);
-		return `DROP INDEX IF EXISTS \`${name}\`;`;
+		return `DROP INDEX \`${name}\`;`;
 	}
 }
 
@@ -2796,6 +3665,17 @@ class MySqlDropIndexConvertor extends Convertor {
 
 	convert(statement: JsonDropIndexStatement): string {
 		const { name } = MySqlSquasher.unsquashIdx(statement.data);
+		return `DROP INDEX \`${name}\` ON \`${statement.tableName}\`;`;
+	}
+}
+
+class SingleStoreDropIndexConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_index' && dialect === 'singlestore';
+	}
+
+	convert(statement: JsonDropIndexStatement): string {
+		const { name } = SingleStoreSquasher.unsquashIdx(statement.data);
 		return `DROP INDEX \`${name}\` ON \`${statement.tableName}\`;`;
 	}
 }
@@ -2935,6 +3815,7 @@ class LibSQLRecreateTableConvertor extends Convertor {
 const convertors: Convertor[] = [];
 convertors.push(new PgCreateTableConvertor());
 convertors.push(new MySqlCreateTableConvertor());
+convertors.push(new SingleStoreCreateTableConvertor());
 convertors.push(new SQLiteCreateTableConvertor());
 convertors.push(new SQLiteRecreateTableConvertor());
 convertors.push(new LibSQLRecreateTableConvertor());
@@ -2971,22 +3852,27 @@ convertors.push(new AlterPgSequenceConvertor());
 
 convertors.push(new PgDropTableConvertor());
 convertors.push(new MySQLDropTableConvertor());
+convertors.push(new SingleStoreDropTableConvertor());
 convertors.push(new SQLiteDropTableConvertor());
 
 convertors.push(new PgRenameTableConvertor());
 convertors.push(new MySqlRenameTableConvertor());
+convertors.push(new SingleStoreRenameTableConvertor());
 convertors.push(new SqliteRenameTableConvertor());
 
 convertors.push(new PgAlterTableRenameColumnConvertor());
 convertors.push(new MySqlAlterTableRenameColumnConvertor());
+convertors.push(new SingleStoreAlterTableRenameColumnConvertor());
 convertors.push(new SQLiteAlterTableRenameColumnConvertor());
 
 convertors.push(new PgAlterTableDropColumnConvertor());
 convertors.push(new MySqlAlterTableDropColumnConvertor());
+convertors.push(new SingleStoreAlterTableDropColumnConvertor());
 convertors.push(new SQLiteAlterTableDropColumnConvertor());
 
 convertors.push(new PgAlterTableAddColumnConvertor());
 convertors.push(new MySqlAlterTableAddColumnConvertor());
+convertors.push(new SingleStoreAlterTableAddColumnConvertor());
 convertors.push(new SQLiteAlterTableAddColumnConvertor());
 
 convertors.push(new PgAlterTableAlterColumnSetTypeConvertor());
@@ -3002,13 +3888,18 @@ convertors.push(new MySqlAlterTableDeleteCheckConstraintConvertor());
 convertors.push(new MySQLAlterTableAddUniqueConstraintConvertor());
 convertors.push(new MySQLAlterTableDropUniqueConstraintConvertor());
 
+convertors.push(new SingleStoreAlterTableAddUniqueConstraintConvertor());
+convertors.push(new SingleStoreAlterTableDropUniqueConstraintConvertor());
+
 convertors.push(new CreatePgIndexConvertor());
 convertors.push(new CreateMySqlIndexConvertor());
+convertors.push(new CreateSingleStoreIndexConvertor());
 convertors.push(new CreateSqliteIndexConvertor());
 
 convertors.push(new PgDropIndexConvertor());
 convertors.push(new SqliteDropIndexConvertor());
 convertors.push(new MySqlDropIndexConvertor());
+convertors.push(new SingleStoreDropIndexConvertor());
 
 convertors.push(new PgAlterTableAlterColumnSetPrimaryKeyConvertor());
 convertors.push(new PgAlterTableAlterColumnDropPrimaryKeyConvertor());
@@ -3017,12 +3908,32 @@ convertors.push(new PgAlterTableAlterColumnDropNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnSetDefaultConvertor());
 convertors.push(new PgAlterTableAlterColumnDropDefaultConvertor());
 
+convertors.push(new PgAlterPolicyConvertor());
+convertors.push(new PgCreatePolicyConvertor());
+convertors.push(new PgDropPolicyConvertor());
+convertors.push(new PgRenamePolicyConvertor());
+
+convertors.push(new PgAlterIndPolicyConvertor());
+convertors.push(new PgCreateIndPolicyConvertor());
+convertors.push(new PgDropIndPolicyConvertor());
+convertors.push(new PgRenameIndPolicyConvertor());
+
+convertors.push(new PgEnableRlsConvertor());
+convertors.push(new PgDisableRlsConvertor());
+
+convertors.push(new PgDropRoleConvertor());
+convertors.push(new PgAlterRoleConvertor());
+convertors.push(new PgCreateRoleConvertor());
+convertors.push(new PgRenameRoleConvertor());
+
 /// generated
 convertors.push(new PgAlterTableAlterColumnSetExpressionConvertor());
 convertors.push(new PgAlterTableAlterColumnDropGeneratedConvertor());
 convertors.push(new PgAlterTableAlterColumnAlterrGeneratedConvertor());
 
 convertors.push(new MySqlAlterTableAlterColumnAlterrGeneratedConvertor());
+
+convertors.push(new SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor());
 
 convertors.push(new SqliteAlterTableAlterColumnDropGeneratedConvertor());
 convertors.push(new SqliteAlterTableAlterColumnAlterGeneratedConvertor());
@@ -3032,6 +3943,8 @@ convertors.push(new MySqlModifyColumn());
 convertors.push(new LibSQLModifyColumn());
 // convertors.push(new MySqlAlterTableAlterColumnSetDefaultConvertor());
 // convertors.push(new MySqlAlterTableAlterColumnDropDefaultConvertor());
+
+convertors.push(new SingleStoreModifyColumn());
 
 convertors.push(new PgCreateForeignKeyConvertor());
 convertors.push(new MySqlCreateForeignKeyConvertor());
@@ -3064,16 +3977,8 @@ convertors.push(new MySqlAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new MySqlAlterTableAddPk());
 convertors.push(new MySqlAlterTableAlterCompositePrimaryKeyConvertor());
 
-export function fromJson(
-	statements: JsonStatement[],
-	dialect: Exclude<Dialect, 'sqlite' | 'turso'>,
-): string[];
-export function fromJson(
-	statements: JsonStatement[],
-	dialect: 'sqlite' | 'turso',
-	action?: 'push',
-	json2?: SQLiteSchemaSquashed,
-): string[];
+convertors.push(new SingleStoreAlterTableDropPk());
+convertors.push(new SingleStoreAlterTableAddPk());
 
 export function fromJson(
 	statements: JsonStatement[],
