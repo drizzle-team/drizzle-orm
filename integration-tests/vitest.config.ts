@@ -64,6 +64,8 @@ export default defineConfig({
 			// get back when planetscale will open free tier for our CI/CD
 			'tests/mysql/mysql-planetscale.test.ts',
 			'tests/relational/mysql.planetscale.test.ts',
+			'js-tests/driver-init/module/planetscale.test.mjs',
+			'js-tests/driver-init/module/planetscale.test.cjs',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
