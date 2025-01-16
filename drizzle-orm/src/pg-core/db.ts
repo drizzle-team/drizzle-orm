@@ -28,7 +28,7 @@ import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { PgRaw } from './query-builders/raw.ts';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
-import type { WithSubqueryWithSelection } from './subquery.ts';
+import type { WithSubqueryQuery } from './subquery.ts';
 import type { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView } from './view.ts';
 
@@ -122,20 +122,17 @@ export class PgDatabase<
 	 */
 	$with<TAlias extends string>(alias: TAlias) {
 		const self = this;
-		return {
-			as<TSelection extends ColumnsSelection>(
-				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias> {
-				if (typeof qb === 'function') {
-					qb = qb(new QueryBuilder(self.dialect));
-				}
+		const as: WithSubqueryQuery<TAlias> = (qb: TypedQueryBuilder<ColumnsSelection | undefined> | ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined>)) => {
+			if (typeof qb === 'function') {
+				qb = qb(new QueryBuilder(self.dialect));
+			}
 
-				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
-					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubqueryWithSelection<TSelection, TAlias>;
-			},
+			return new Proxy(
+				new WithSubquery(qb.getSQL(), (qb.getSelectedFields() ?? {}) as SelectedFields, alias, true),
+				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			) as any;
 		};
+		return { as };
 	}
 
 	$count(
@@ -205,7 +202,7 @@ export class PgDatabase<
 		 */
 		function select(): PgSelectBuilder<undefined>;
 		function select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-		function select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
+		function select<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined> {
 			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -240,7 +237,7 @@ export class PgDatabase<
 		 */
 		function selectDistinct(): PgSelectBuilder<undefined>;
 		function selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-		function selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
+		function selectDistinct<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined> {
 			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -280,10 +277,10 @@ export class PgDatabase<
 			on: (PgColumn | SQLWrapper)[],
 			fields: TSelection,
 		): PgSelectBuilder<TSelection>;
-		function selectDistinctOn(
+		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
-			fields?: SelectedFields,
-		): PgSelectBuilder<SelectedFields | undefined> {
+			fields?: TSelection,
+		): PgSelectBuilder<TSelection | undefined> {
 			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -421,7 +418,7 @@ export class PgDatabase<
 	 */
 	select(): PgSelectBuilder<undefined>;
 	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-	select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
+	select<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined> {
 		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -455,7 +452,7 @@ export class PgDatabase<
 	 */
 	selectDistinct(): PgSelectBuilder<undefined>;
 	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-	selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
+	selectDistinct<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined> {
 		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -494,10 +491,10 @@ export class PgDatabase<
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
 	): PgSelectBuilder<TSelection>;
-	selectDistinctOn(
+	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
-		fields?: SelectedFields,
-	): PgSelectBuilder<SelectedFields | undefined> {
+		fields?: TSelection,
+	): PgSelectBuilder<TSelection | undefined> {
 		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,

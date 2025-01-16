@@ -23,7 +23,7 @@ import type {
 import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
-import type { Assume, ValidateShape, ValueOrArray } from '~/utils.ts';
+import type { Assume, DrizzleTypeError, ValidateShape, ValueOrArray } from '~/utils.ts';
 import type { PgPreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { PgSelectBase, PgSelectQueryBuilderBase } from './select.ts';
 
@@ -79,6 +79,9 @@ export interface PgSelectConfig {
 	}[];
 }
 
+/** @internal */
+export type TableLikeHasEmptySelection<T> = T extends Subquery<any, infer TSelection> ? {} extends TSelection ? true : false : false;
+
 export type PgSelectJoin<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
@@ -118,7 +121,9 @@ export type PgSelectJoinFn<
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+) => TableLikeHasEmptySelection<TJoinedTable> extends true
+		? DrizzleTypeError<'Cannot reference a data-modifying statement subquery if it doesn\'t contain a `returning` clause'>
+		: PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn>;
 
@@ -208,7 +213,9 @@ export type CreatePgSelectFromBuilderMode<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
-> = TBuilderMode extends 'db' ? PgSelectBase<TTableName, TSelection, TSelectMode>
+> = {} extends TSelection
+	?	DrizzleTypeError<'Cannot reference a data-modifying statement subquery in if it doesn\'t contain a `returning` clause'>
+	: TBuilderMode extends 'db' ? PgSelectBase<TTableName, TSelection, TSelectMode>
 	: PgSelectQueryBuilderBase<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>;
 
 export type PgSetOperatorExcludedMethods =
