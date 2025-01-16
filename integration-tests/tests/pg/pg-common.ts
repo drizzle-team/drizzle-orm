@@ -31,7 +31,7 @@ import {
 	sumDistinct,
 	TransactionRollbackError,
 } from 'drizzle-orm';
-import { authenticatedRole, crudPolicy } from 'drizzle-orm/neon';
+import { authenticatedRole, crudPolicy, usersSync } from 'drizzle-orm/neon';
 import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
@@ -5128,6 +5128,16 @@ export function tests() {
 				expect(policies[0]?.name === 'crud-custom-policy-modify');
 				expect(policies[1]?.name === 'crud-custom-policy-read');
 			}
+		});
+
+		test('neon: neon_identity', () => {
+			const usersSyncTable = usersSync;
+
+			const { columns, schema, name } = getTableConfig(usersSyncTable);
+
+			expect(name).toBe('users_sync');
+			expect(schema).toBe('neon_identity');
+			expect(columns).toHaveLength(6);
 		});
 
 		test('Enable RLS function', () => {
