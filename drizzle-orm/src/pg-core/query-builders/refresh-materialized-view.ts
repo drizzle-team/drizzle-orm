@@ -2,35 +2,36 @@ import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
 	PgPreparedQuery,
+	PgQueryResultHKT,
+	PgQueryResultKind,
 	PgSession,
 	PreparedQueryConfig,
-	QueryResultHKT,
-	QueryResultKind,
 } from '~/pg-core/session.ts';
 import type { PgMaterializedView } from '~/pg-core/view.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
+import type { NeonAuthToken } from '~/utils';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
+export interface PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 	extends
-		QueryPromise<QueryResultKind<TQueryResult, never>>,
-		RunnableQuery<QueryResultKind<TQueryResult, never>, 'pg'>,
+		QueryPromise<PgQueryResultKind<TQueryResult, never>>,
+		RunnableQuery<PgQueryResultKind<TQueryResult, never>, 'pg'>,
 		SQLWrapper
 {
 	readonly _: {
 		readonly dialect: 'pg';
-		readonly result: QueryResultKind<TQueryResult, never>;
+		readonly result: PgQueryResultKind<TQueryResult, never>;
 	};
 }
 
-export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
-	extends QueryPromise<QueryResultKind<TQueryResult, never>>
-	implements RunnableQuery<QueryResultKind<TQueryResult, never>, 'pg'>, SQLWrapper
+export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
+	extends QueryPromise<PgQueryResultKind<TQueryResult, never>>
+	implements RunnableQuery<PgQueryResultKind<TQueryResult, never>, 'pg'>, SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgRefreshMaterializedView';
+	static override readonly [entityKind]: string = 'PgRefreshMaterializedView';
 
 	private config: {
 		view: PgMaterializedView;
@@ -76,7 +77,7 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	/** @internal */
 	_prepare(name?: string): PgPreparedQuery<
 		PreparedQueryConfig & {
-			execute: QueryResultKind<TQueryResult, never>;
+			execute: PgQueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
@@ -86,15 +87,22 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 
 	prepare(name: string): PgPreparedQuery<
 		PreparedQueryConfig & {
-			execute: QueryResultKind<TQueryResult, never>;
+			execute: PgQueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return this._prepare(name);
 	}
 
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 }

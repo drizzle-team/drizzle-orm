@@ -28,7 +28,7 @@ export class SQLiteD1Session<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'async', D1Result, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteD1Session';
+	static override readonly [entityKind]: string = 'SQLiteD1Session';
 
 	private logger: Logger;
 
@@ -116,7 +116,7 @@ export class D1Transaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'async', D1Result, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'D1Transaction';
+	static override readonly [entityKind]: string = 'D1Transaction';
 
 	override async transaction<T>(transaction: (tx: D1Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
@@ -149,9 +149,9 @@ function d1ToRawMapping(results: any) {
 }
 
 export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
-	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
+	{ type: 'async'; run: D1Response; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'D1PreparedQuery';
+	static override readonly [entityKind]: string = 'D1PreparedQuery';
 
 	/** @internal */
 	customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown;
@@ -177,7 +177,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		this.stmt = stmt;
 	}
 
-	run(placeholderValues?: Record<string, unknown>): Promise<D1Result> {
+	run(placeholderValues?: Record<string, unknown>): Promise<D1Response> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.bind(...params).run();

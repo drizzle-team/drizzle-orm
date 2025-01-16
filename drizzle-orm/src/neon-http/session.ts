@@ -6,12 +6,12 @@ import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery as PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
-import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { mapResultRow } from '~/utils.ts';
+import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
+import { mapResultRow, type NeonAuthToken } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
 
@@ -25,7 +25,7 @@ const queryConfig = {
 } as const;
 
 export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'NeonHttpPreparedQuery';
+	static override readonly [entityKind]: string = 'NeonHttpPreparedQuery';
 
 	constructor(
 		private client: NeonHttpClient,
@@ -38,7 +38,14 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		super(query);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async execute(placeholderValues: Record<string, unknown> | undefined): Promise<T['execute']>;
+	/** @internal */
+	async execute(placeholderValues: Record<string, unknown> | undefined, token?: NeonAuthToken): Promise<T['execute']>;
+	/** @internal */
+	async execute(
+		placeholderValues: Record<string, unknown> | undefined = {},
+		token: NeonAuthToken | undefined = this.authToken,
+	): Promise<T['execute']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 
 		this.logger.logQuery(this.query.sql, params);
@@ -46,10 +53,28 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		const { fields, client, query, customResultMapper } = this;
 
 		if (!fields && !customResultMapper) {
-			return client(query.sql, params, rawQueryConfig);
+			return client(
+				query.sql,
+				params,
+				token === undefined
+					? rawQueryConfig
+					: {
+						...rawQueryConfig,
+						authToken: token,
+					},
+			);
 		}
 
-		const result = await client(query.sql, params, queryConfig);
+		const result = await client(
+			query.sql,
+			params,
+			token === undefined
+				? queryConfig
+				: {
+					...queryConfig,
+					authToken: token,
+				},
+		);
 
 		return this.mapResult(result);
 	}
@@ -71,13 +96,26 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
-		return this.client(this.query.sql, params, rawQueryConfig).then((result) => result.rows);
+		return this.client(
+			this.query.sql,
+			params,
+			this.authToken === undefined ? rawQueryConfig : {
+				...rawQueryConfig,
+				authToken: this.authToken,
+			},
+		).then((result) => result.rows);
 	}
 
-	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
+	values(placeholderValues: Record<string, unknown> | undefined): Promise<T['values']>;
+	/** @internal */
+	values(placeholderValues: Record<string, unknown> | undefined, token?: NeonAuthToken): Promise<T['values']>;
+	/** @internal */
+	values(placeholderValues: Record<string, unknown> | undefined = {}, token?: NeonAuthToken): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
-		return this.client(this.query.sql, params, { arrayMode: true, fullResults: true }).then((result) => result.rows);
+		return this.client(this.query.sql, params, { arrayMode: true, fullResults: true, authToken: token }).then((
+			result,
+		) => result.rows);
 	}
 
 	/** @internal */
@@ -94,7 +132,7 @@ export class NeonHttpSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<NeonHttpQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NeonHttpSession';
+	static override readonly [entityKind]: string = 'NeonHttpSession';
 
 	private logger: Logger;
 
@@ -125,7 +163,9 @@ export class NeonHttpSession<
 		);
 	}
 
-	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
+	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+		queries: T,
+	) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: NeonQueryPromise<any, true>[] = [];
 
@@ -143,7 +183,7 @@ export class NeonHttpSession<
 
 		const batchResults = await this.client.transaction(builtQueries, queryConfig);
 
-		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
+		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true)) as any;
 	}
 
 	// change return type to QueryRows<true>
@@ -161,6 +201,18 @@ export class NeonHttpSession<
 		return this.client(query, params, { arrayMode: false, fullResults: true });
 	}
 
+	override async count(sql: SQL): Promise<number>;
+	/** @internal */
+	override async count(sql: SQL, token?: NeonAuthToken): Promise<number>;
+	/** @internal */
+	override async count(sql: SQL, token?: NeonAuthToken): Promise<number> {
+		const res = await this.execute<{ rows: [{ count: string }] }>(sql, token);
+
+		return Number(
+			res['rows'][0]['count'],
+		);
+	}
+
 	override async transaction<T>(
 		_transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -174,7 +226,7 @@ export class NeonTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<NeonHttpQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NeonHttpTransaction';
+	static override readonly [entityKind]: string = 'NeonHttpTransaction';
 
 	override async transaction<T>(_transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		throw new Error('No transactions support in neon-http driver');
@@ -194,6 +246,6 @@ export class NeonTransaction<
 
 export type NeonHttpQueryResult<T> = Omit<FullQueryResults<false>, 'rows'> & { rows: T[] };
 
-export interface NeonHttpQueryResultHKT extends QueryResultHKT {
+export interface NeonHttpQueryResultHKT extends PgQueryResultHKT {
 	type: NeonHttpQueryResult<this['row']>;
 }

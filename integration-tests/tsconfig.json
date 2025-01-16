@@ -1,11 +1,12 @@
 {
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
+		"checkJs": false,
 		"noEmit": true,
 		"paths": {
 			"~/*": ["./tests/*"]
 		}
 	},
 	"include": ["tests", "type-tests"],
-	"exclude": ["**/playground", "**/.sst"]
+	"exclude": ["**/playground", "**/.sst", "tests/prisma/*/client/**/*.js"]
 }

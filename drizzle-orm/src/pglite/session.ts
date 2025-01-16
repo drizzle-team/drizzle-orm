@@ -4,10 +4,10 @@ import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
@@ -15,7 +15,7 @@ import { types } from '@electric-sql/pglite';
 export type PgliteClient = PGlite;
 
 export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'PglitePreparedQuery';
+	static override readonly [entityKind]: string = 'PglitePreparedQuery';
 
 	private rawQueryConfig: QueryOptions;
 	private queryConfig: QueryOptions;
@@ -89,7 +89,7 @@ export class PgliteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<PgliteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgliteSession';
+	static override readonly [entityKind]: string = 'PgliteSession';
 
 	private logger: Logger;
 
@@ -133,12 +133,19 @@ export class PgliteSession<
 				this.schema,
 				this.options,
 			);
-			const tx = new PgliteTransaction(this.dialect, session, this.schema);
+			const tx = new PgliteTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 			if (config) {
 				await tx.setTransaction(config);
 			}
 			return transaction(tx);
 		}) as Promise<T>;
+	}
+
+	override async count(sql: SQL): Promise<number> {
+		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
+		return Number(
+			res['rows'][0]['count'],
+		);
 	}
 }
 
@@ -146,11 +153,16 @@ export class PgliteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<PgliteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgliteTransaction';
+	static override readonly [entityKind]: string = 'PgliteTransaction';
 
 	override async transaction<T>(transaction: (tx: PgliteTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new PgliteTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new PgliteTransaction<TFullSchema, TSchema>(
+			this.dialect,
+			this.session,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -163,6 +175,6 @@ export class PgliteTransaction<
 	}
 }
 
-export interface PgliteQueryResultHKT extends QueryResultHKT {
+export interface PgliteQueryResultHKT extends PgQueryResultHKT {
 	type: Results<Assume<this['row'], Row>>;
 }
