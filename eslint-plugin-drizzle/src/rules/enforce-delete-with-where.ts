@@ -1,8 +1,6 @@
-import { ESLintUtils } from '@typescript-eslint/utils';
-import { resolveMemberExpressionPath } from './utils/ast';
-import { isDrizzleObj, type Options } from './utils/options';
-
-const createRule = ESLintUtils.RuleCreator(() => 'https://github.com/drizzle-team/eslint-plugin-drizzle');
+import { resolveMemberExpressionPath } from '../utils/ast';
+import { createRule } from '../utils/create-rule';
+import { isDrizzleObj, type Options } from '../utils/options';
 
 type MessageIds = 'enforceDeleteWithWhere';
 
