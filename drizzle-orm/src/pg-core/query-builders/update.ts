@@ -145,7 +145,9 @@ export type PgUpdateJoinFn<
 > = <
 	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
 >(
-	table: TJoinedTable,
+	table: TableLikeHasEmptySelection<TJoinedTable> extends true
+		? DrizzleTypeError<'Cannot reference a data-modifying statement subquery if it doesn\'t contain a `returning` clause'>
+		: TJoinedTable,
 	on:
 		| (
 			(
@@ -157,9 +159,7 @@ export type PgUpdateJoinFn<
 		)
 		| SQL
 		| undefined,
-) => TableLikeHasEmptySelection<TJoinedTable> extends true
-	? DrizzleTypeError<'Cannot reference a data-modifying statement subquery if it doesn\'t contain a `returning` clause'>
-	: PgUpdateJoin<T, TDynamic, TJoinType, TJoinedTable>;
+) => PgUpdateJoin<T, TDynamic, TJoinType, TJoinedTable>;
 
 export type PgUpdateJoin<
 	T extends AnyPgUpdate,
@@ -363,13 +363,16 @@ export class PgUpdateBase<
 	}
 
 	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
-		source: TFrom,
+		source: TableLikeHasEmptySelection<TFrom> extends true
+			? DrizzleTypeError<'Cannot reference a data-modifying statement subquery if it doesn\'t contain a `returning` clause'>
+			: TFrom,
 	): PgUpdateWithJoins<this, TDynamic, TFrom> {
-		const tableName = getTableLikeName(source);
+		const src = source as TFrom;
+		const tableName = getTableLikeName(src);
 		if (typeof tableName === 'string') {
 			this.joinsNotNullableMap[tableName] = true;
 		}
-		this.config.from = source;
+		this.config.from = src;
 		return this as any;
 	}
 
@@ -519,8 +522,6 @@ export class PgUpdateBase<
 	returning(
 		fields?: SelectedFields,
 	): PgUpdateWithout<AnyPgUpdate, TDynamic, 'returning'> {
-		this.config.returningFields = fields;
-
 		if (!fields) {
 			fields = Object.assign({}, this.config.table[Table.Symbol.Columns]);
 
@@ -543,6 +544,7 @@ export class PgUpdateBase<
 			}
 		}
 
+		this.config.returningFields = fields;
 		this.config.returning = orderSelectedFields<PgColumn>(fields);
 		return this as any;
 	}

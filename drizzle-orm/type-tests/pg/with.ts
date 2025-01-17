@@ -103,10 +103,10 @@ import { DrizzleTypeError } from '~/utils.ts';
 		db.insert(products).values({ productName: sql`` }).returning({ productName: products.productName })
 	);
 
-	const q1 = db.with(sq1).select().from(sq1);
-	Expect<Equal<typeof q1 extends DrizzleTypeError<string> ? true : false, true>>;
-	const q2 = db.with(sq1).select().from(providers).leftJoin(sq1, sql``);
-	Expect<Equal<typeof q2 extends DrizzleTypeError<string> ? true : false, true>>;
+	// @ts-expect-error
+	db.with(sq1).select().from(sq1);
+	// @ts-expect-error
+	db.with(sq1).select().from(providers).leftJoin(sq1, sql``);
 
 	const q3 = await db.with(sq2).select().from(sq2);
 	Expect<Equal<typeof q3, {
@@ -158,10 +158,10 @@ import { DrizzleTypeError } from '~/utils.ts';
 		db.update(products).set({ productName: sql`` }).from(otherProducts).returning()
 	);
 
-	const q1 = db.with(sq1).select().from(sq1);
-	Expect<Equal<typeof q1 extends DrizzleTypeError<string> ? true : false, true>>;
-	const q2 = db.with(sq1).select().from(providers).leftJoin(sq1, sql``);
-	Expect<Equal<typeof q2 extends DrizzleTypeError<string> ? true : false, true>>;
+	// @ts-expect-error
+	db.with(sq1).select().from(sq1);
+	// @ts-expect-error
+	db.with(sq1).select().from(providers).leftJoin(sq1, sql``);
 
 	const q3 = await db.with(sq2).select().from(sq2);
 	Expect<Equal<typeof q3, {
@@ -245,10 +245,10 @@ import { DrizzleTypeError } from '~/utils.ts';
 		db.delete(products).returning({ productName: products.productName })
 	);
 
-	const q1 = db.with(sq1).select().from(sq1);
-	Expect<Equal<typeof q1 extends DrizzleTypeError<string> ? true : false, true>>;
-	const q2 = db.with(sq1).select().from(providers).leftJoin(sq1, sql``);
-	Expect<Equal<typeof q2 extends DrizzleTypeError<string> ? true : false, true>>;
+	// @ts-expect-error
+	db.with(sq1).select().from(sq1);
+	// @ts-expect-error
+	db.with(sq1).select().from(providers).leftJoin(sq1, sql``);
 
 	const q3 = await db.with(sq2).select().from(sq2);
 	Expect<Equal<typeof q3, {

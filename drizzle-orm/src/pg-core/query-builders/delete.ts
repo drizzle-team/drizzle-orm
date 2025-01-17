@@ -216,6 +216,7 @@ export class PgDeleteBase<
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgDeleteReturning<this, TDynamic, any> {
+		this.config.returningFields = fields;
 		this.config.returning = orderSelectedFields<PgColumn>(fields);
 		return this as any;
 	}
