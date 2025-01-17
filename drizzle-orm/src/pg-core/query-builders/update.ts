@@ -24,7 +24,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { getTableName, Table } from '~/table.ts';
 import {
 	type Assume,
 	DrizzleTypeError,
@@ -48,6 +48,7 @@ export interface PgUpdateConfig {
 	table: PgTable;
 	from?: PgTable | Subquery | PgViewBase | SQL;
 	joins: PgSelectJoinConfig[];
+	returningFields?: SelectedFields;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 }
@@ -518,6 +519,8 @@ export class PgUpdateBase<
 	returning(
 		fields?: SelectedFields,
 	): PgUpdateWithout<AnyPgUpdate, TDynamic, 'returning'> {
+		this.config.returningFields = fields;
+
 		if (!fields) {
 			fields = Object.assign({}, this.config.table[Table.Symbol.Columns]);
 
@@ -577,6 +580,18 @@ export class PgUpdateBase<
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return this._prepare().execute(placeholderValues, this.authToken);
 	};
+
+	/** @internal */
+  getSelectedFields(): this['_']['selectedFields'] {
+		return (
+			this.config.returningFields
+				? new Proxy(
+					this.config.returningFields,
+					new SelectionProxyHandler({ alias: getTableName(this.config.table), sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+				)
+				: undefined
+		) as this['_']['selectedFields'];
+	}
 
 	$dynamic(): PgUpdateDynamic<this> {
 		return this as any;

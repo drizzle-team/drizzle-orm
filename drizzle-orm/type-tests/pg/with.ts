@@ -116,12 +116,12 @@ import { DrizzleTypeError } from '~/utils.ts';
 	const q4 = await db.with(sq3).select().from(providers).leftJoin(sq2, sql``);
 	Expect<Equal<typeof q4, {
     providers: {
-        id: number;
-        providerName: string;
+			id: number;
+			providerName: string;
     };
     inserted_products: {
-        id: number;
-        productName: string;
+			id: number;
+			productName: string;
     } | null;
 	}[]>>;
 
@@ -223,4 +223,52 @@ import { DrizzleTypeError } from '~/utils.ts';
 			};
     } | null;
 	}[]>>;
+}
+
+{
+	const providers = pgTable('providers', {
+		id: serial().primaryKey(),
+		providerName: text().notNull()
+	});
+	const products = pgTable('products', {
+		id: serial().primaryKey(),
+		productName: text().notNull()
+	});
+
+	const sq1 = db.$with('inserted_products').as(
+		db.delete(products)
+	);
+	const sq2 = db.$with('inserted_products').as(
+		db.delete(products).returning()
+	);
+	const sq3 = db.$with('inserted_products').as(
+		db.delete(products).returning({ productName: products.productName })
+	);
+
+	const q1 = db.with(sq1).select().from(sq1);
+	Expect<Equal<typeof q1 extends DrizzleTypeError<string> ? true : false, true>>;
+	const q2 = db.with(sq1).select().from(providers).leftJoin(sq1, sql``);
+	Expect<Equal<typeof q2 extends DrizzleTypeError<string> ? true : false, true>>;
+
+	const q3 = await db.with(sq2).select().from(sq2);
+	Expect<Equal<typeof q3, {
+    id: number;
+    productName: string;
+	}[]>>;
+	const q4 = await db.with(sq3).select().from(providers).leftJoin(sq2, sql``);
+	Expect<Equal<typeof q4, {
+    providers: {
+			id: number;
+			providerName: string;
+    };
+    inserted_products: {
+			id: number;
+			productName: string;
+    } | null;
+	}[]>>;
+
+	const q5 = await db.with(sq3).select().from(sq3);
+	Expect<Equal<typeof q5, { productName: string }[]>>;
+	const q6 = await db.with(sq3).select().from(providers).leftJoin(sq3, sql``);
+	Expect<Equal<typeof q6, { providers: { id: number; providerName: string; }; inserted_products: { productName: string } | null }[]>>;
 }
