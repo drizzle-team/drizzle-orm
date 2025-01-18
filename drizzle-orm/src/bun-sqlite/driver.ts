@@ -11,7 +11,7 @@ import {
 } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { SQLiteBunSession } from './session.ts';
 
 export class BunSQLiteDatabase<
@@ -86,9 +86,7 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends Database = Database,
 >(
-	...params: IfNotImported<
-		Database,
-		[ImportTypeError<'bun-types'>],
+	...params:
 		| []
 		| [
 			TClient | string,
@@ -107,7 +105,6 @@ export function drizzle<
 				})
 			),
 		]
-	>
 ): BunSQLiteDatabase<TSchema> & {
 	$client: TClient;
 } {

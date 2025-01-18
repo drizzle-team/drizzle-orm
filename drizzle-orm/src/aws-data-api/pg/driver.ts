@@ -15,7 +15,7 @@ import {
 } from '~/relations.ts';
 import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
-import type { DrizzleConfig, IfNotImported, ImportTypeError, UpdateSet } from '~/utils.ts';
+import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
 
@@ -129,29 +129,25 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends AwsDataApiClient = RDSDataClient,
 >(
-	...params: IfNotImported<
-		RDSDataClientConfig,
-		[ImportTypeError<'@aws-sdk/client-rds-data'>],
-		[
-			TClient,
-			DrizzleAwsDataApiPgConfig<TSchema>,
-		] | [
-			(
-				| (
-					& DrizzleConfig<TSchema>
-					& {
-						connection: RDSDataClientConfig & Omit<DrizzleAwsDataApiPgConfig, keyof DrizzleConfig>;
-					}
-				)
-				| (
-					& DrizzleAwsDataApiPgConfig<TSchema>
-					& {
-						client: TClient;
-					}
-				)
-			),
-		]
-	>
+	...params: [
+		TClient,
+		DrizzleAwsDataApiPgConfig<TSchema>,
+	] | [
+		(
+			| (
+				& DrizzleConfig<TSchema>
+				& {
+					connection: RDSDataClientConfig & Omit<DrizzleAwsDataApiPgConfig, keyof DrizzleConfig>;
+				}
+			)
+			| (
+				& DrizzleAwsDataApiPgConfig<TSchema>
+				& {
+					client: TClient;
+				}
+			)
+		),
+	]
 ): AwsDataApiPgDatabase<TSchema> & {
 	$client: TClient;
 } {

@@ -537,8 +537,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			|| Object.keys(table.checkConstraints).length > 0
 		) {
 			statement += ', ';
-			statement += '(table) => {\n';
-			statement += '\treturn {\n';
+			statement += '(table) => [';
 			statement += createTableIndexes(table.name, Object.values(table.indexes), casing);
 			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing);
 			statement += createTablePKs(
@@ -558,8 +557,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 				Object.values(table.checkConstraints),
 				casing,
 			);
-			statement += '\t}\n';
-			statement += '}';
+			statement += '\n]';
 		}
 
 		statement += ');';
@@ -1216,7 +1214,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 		);
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `${escapedIndexName})`;
 		statement += `${it.concurrently ? `.concurrently()` : ''}`;
@@ -1252,7 +1250,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 		}
 
 		statement += it.with && Object.keys(it.with).length > 0 ? `.with(${reverseLogic(it.with)})` : '';
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -1262,9 +1260,7 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 	let statement = '';
 
 	pks.forEach((it) => {
-		let idxKey = withCasing(it.name, casing);
-
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'primaryKey({ columns: [';
 		statement += `${
 			it.columns
@@ -1274,7 +1270,7 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 				.join(', ')
 		}]${it.name ? `, name: "${it.name}"` : ''}}`;
 		statement += ')';
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -1297,13 +1293,13 @@ const createTablePolicies = (
 			return rolesNameToTsKey[v] ? withCasing(rolesNameToTsKey[v], casing) : `"${v}"`;
 		});
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'pgPolicy(';
 		statement += `"${it.name}", { `;
 		statement += `as: "${it.as?.toLowerCase()}", for: "${it.for?.toLowerCase()}", to: [${mappedItTo?.join(', ')}]${
 			it.using ? `, using: sql\`${it.using}\`` : ''
 		}${it.withCheck ? `, withCheck: sql\`${it.withCheck}\` ` : ''}`;
-		statement += ` }),\n`;
+		statement += ` }),`;
 	});
 
 	return statement;
@@ -1316,14 +1312,12 @@ const createTableUniques = (
 	let statement = '';
 
 	unqs.forEach((it) => {
-		const idxKey = withCasing(it.name, casing);
-
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'unique(';
 		statement += `"${it.name}")`;
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
 		statement += it.nullsNotDistinct ? `.nullsNotDistinct()` : '';
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -1336,12 +1330,11 @@ const createTableChecks = (
 	let statement = '';
 
 	checkConstraints.forEach((it) => {
-		const checkKey = withCasing(it.name, casing);
-		statement += `\t\t${checkKey}: `;
+		statement += `\n\t`;
 		statement += 'check(';
 		statement += `"${it.name}", `;
 		statement += `sql\`${it.value}\`)`;
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -1356,7 +1349,8 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 
 		const isSelf = it.tableTo === it.tableFrom;
 		const tableTo = isSelf ? 'table' : `${withCasing(paramName, casing)}`;
-		statement += `\t\t${withCasing(it.name, casing)}: foreignKey({\n`;
+		statement += `\n\t`;
+		statement += `foreignKey({\n`;
 		statement += `\t\t\tcolumns: [${it.columnsFrom.map((i) => `table.${withCasing(i, casing)}`).join(', ')}],\n`;
 		statement += `\t\t\tforeignColumns: [${
 			it.columnsTo.map((i) => `${tableTo}.${withCasing(i, casing)}`).join(', ')
@@ -1368,7 +1362,7 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 
 		statement += it.onDelete && it.onDelete !== 'no action' ? `.onDelete("${it.onDelete}")` : '';
 
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;

@@ -8,7 +8,6 @@ import { getTableColumns } from '~/utils.ts';
 import type { RequireAtLeastOne } from '~/utils.ts';
 import type { PgColumn, PgColumnBuilderBase } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
-import type { SelectedFields } from './query-builders/select.types.ts';
 import { pgTable } from './table.ts';
 import { PgViewBase } from './view-base.ts';
 import { PgViewConfig } from './view-common.ts';
@@ -45,7 +44,7 @@ export class DefaultViewBuilderCore<TConfig extends { name: string; columns?: un
 export class ViewBuilder<TName extends string = string> extends DefaultViewBuilderCore<{ name: TName }> {
 	static override readonly [entityKind]: string = 'PgViewBuilder';
 
-	as<TSelectedFields extends SelectedFields>(
+	as<TSelectedFields extends ColumnsSelection>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
 	): PgViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'pg'>> {
 		if (typeof qb === 'function') {
@@ -198,7 +197,7 @@ export class MaterializedViewBuilder<TName extends string = string>
 {
 	static override readonly [entityKind]: string = 'PgMaterializedViewBuilder';
 
-	as<TSelectedFields extends SelectedFields>(
+	as<TSelectedFields extends ColumnsSelection>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
 	): PgMaterializedViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'pg'>> {
 		if (typeof qb === 'function') {
@@ -317,7 +316,7 @@ export class PgView<
 		config: {
 			name: TName;
 			schema: string | undefined;
-			selectedFields: SelectedFields;
+			selectedFields: ColumnsSelection;
 			query: SQL | undefined;
 		};
 	}) {
@@ -362,7 +361,7 @@ export class PgMaterializedView<
 		config: {
 			name: TName;
 			schema: string | undefined;
-			selectedFields: SelectedFields;
+			selectedFields: ColumnsSelection;
 			query: SQL | undefined;
 		};
 	}) {
