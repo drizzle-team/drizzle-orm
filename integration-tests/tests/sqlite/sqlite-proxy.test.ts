@@ -100,23 +100,6 @@ skipTests([
 	'insert via db.run + select via db.get',
 	'insert via db.get',
 	'insert via db.run + select via db.all',
-
-	'RQB v2 simple find first - no rows',
-	'RQB v2 simple find first - multiple rows',
-	'RQB v2 simple find first - with relation',
-	'RQB v2 simple find first - placeholders',
-	'RQB v2 simple find many - no rows',
-	'RQB v2 simple find many - multiple rows',
-	'RQB v2 simple find many - with relation',
-	'RQB v2 simple find many - placeholders',
-	'RQB v2 transaction find first - no rows',
-	'RQB v2 transaction find first - multiple rows',
-	'RQB v2 transaction find first - with relation',
-	'RQB v2 transaction find first - placeholders',
-	'RQB v2 transaction find many - no rows',
-	'RQB v2 transaction find many - multiple rows',
-	'RQB v2 transaction find many - with relation',
-	'RQB v2 transaction find many - placeholders',
 ]);
 tests();
 

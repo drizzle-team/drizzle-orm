@@ -71,6 +71,7 @@ export class BaseSQLiteDatabase<
 		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TRelations, TTablesConfig, TSchema>,
 		relations: AnyRelations | undefined,
 		_schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		readonly rowModeRQB?: boolean,
 	) {
 		const rel = relations ?? {} as EmptyRelations;
 
@@ -125,6 +126,7 @@ export class BaseSQLiteDatabase<
 					relation,
 					dialect,
 					session as SQLiteSession<any, any, any, any, any>,
+					rowModeRQB,
 				);
 			}
 		}

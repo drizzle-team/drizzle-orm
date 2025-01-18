@@ -9,7 +9,7 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { type Query, type QueryWithTypings, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { PreparedQueryConfig, SQLitePreparedQuery, SQLiteSession } from '../session.ts';
@@ -35,6 +35,7 @@ export class RelationalQueryBuilder<
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
 		private session: SQLiteSession<any, any, any, any, any, any>,
+		private rowMode?: boolean,
 	) {
 	}
 
@@ -52,6 +53,7 @@ export class RelationalQueryBuilder<
 				this.session,
 				config as DBQueryConfig<'many'> | undefined ?? true,
 				'many',
+				this.rowMode,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>
 			: new SQLiteRelationalQuery(
 				this.tables,
@@ -63,6 +65,7 @@ export class RelationalQueryBuilder<
 				this.session,
 				config as DBQueryConfig<'many'> | undefined ?? true,
 				'many',
+				this.rowMode,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>;
 	}
 
@@ -80,6 +83,7 @@ export class RelationalQueryBuilder<
 				this.session,
 				config as DBQueryConfig<'one'> | undefined ?? true,
 				'first',
+				this.rowMode,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined>
 			: new SQLiteRelationalQuery(
 				this.tables,
@@ -91,6 +95,7 @@ export class RelationalQueryBuilder<
 				this.session,
 				config as DBQueryConfig<'one'> | undefined ?? true,
 				'first',
+				this.rowMode,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined>;
 	}
 }
@@ -121,6 +126,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		private session: SQLiteSession<TType, any, any, any, any, any>,
 		private config: DBQueryConfig<'many' | 'one'> | true,
 		mode: 'many' | 'first',
+		private rowMode?: boolean,
 	) {
 		super();
 		this.mode = mode;
@@ -153,7 +159,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			undefined,
 			this.mode === 'first' ? 'get' : 'all',
 			(rawRows, mapColumnValue) => {
-				const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, true));
+				const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, !this.rowMode));
 				if (this.mode === 'first') {
 					return rows[0] as TResult;
 				}
@@ -167,7 +173,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	}
 
 	private _getQuery() {
-		return this.dialect.buildRelationalQuery({
+		const query = this.dialect.buildRelationalQuery({
 			schema: this.schema,
 			tableNamesMap: this.tableNamesMap,
 			table: this.table,
@@ -175,7 +181,25 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			queryConfig: this.config,
 			tables: this.tables,
 			mode: this.mode,
+			isNested: this.rowMode,
 		});
+
+		if (this.rowMode) {
+			const jsonColumns = sql.join(
+				query.selection.map((s) => {
+					return sql`${sql.raw(this.dialect.escapeString(s.key))}, ${
+						s.selection ? sql`jsonb(${sql.identifier(s.key)})` : sql.identifier(s.key)
+					}`;
+				}),
+				sql`, `,
+			);
+
+			query.sql = sql`select json_object(${jsonColumns}) as ${sql.identifier('r')} from (${query.sql}) as ${
+				sql.identifier('t')
+			}`;
+		}
+
+		return query;
 	}
 
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {

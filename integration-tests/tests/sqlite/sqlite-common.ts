@@ -3663,6 +3663,30 @@ export function tests() {
 				await clear(db);
 			}
 		});
+
+		test('limit 0', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values({ name: 'John' });
+			const users = await db
+				.select()
+				.from(usersTable)
+				.limit(0);
+
+			expect(users).toEqual([]);
+		});
+
+		test('limit -1', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values({ name: 'John' });
+			const users = await db
+				.select()
+				.from(usersTable)
+				.limit(-1);
+
+			expect(users.length).toBeGreaterThan(0);
+		});
 	});
 
 	test('table configs: unique third param', () => {
@@ -3711,30 +3735,6 @@ export function tests() {
 		const columnField = tableConfig.columns.find((it) => it.name === 'field');
 		expect(columnField?.isUnique).toBeTruthy();
 		expect(columnField?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnField!.name]));
-	});
-
-	test('limit 0', async (ctx) => {
-		const { db } = ctx.sqlite;
-
-		await db.insert(usersTable).values({ name: 'John' });
-		const users = await db
-			.select()
-			.from(usersTable)
-			.limit(0);
-
-		expect(users).toEqual([]);
-	});
-
-	test('limit -1', async (ctx) => {
-		const { db } = ctx.sqlite;
-
-		await db.insert(usersTable).values({ name: 'John' });
-		const users = await db
-			.select()
-			.from(usersTable)
-			.limit(-1);
-
-		expect(users.length).toBeGreaterThan(0);
 	});
 
 	test('update ... from', async (ctx) => {

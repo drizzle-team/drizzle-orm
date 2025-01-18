@@ -1222,16 +1222,11 @@ export class MySqlDialect {
 				const selectedColumns = this.getSelectedTableColumns(table, params?.columns);
 
 				for (const column of selectedColumns) {
-					columnIdentifiers.push(
-						sql`${table[column.tsName as keyof typeof table]} as ${sql.identifier(column.tsName)}`,
-					);
-
-					selection.push(
-						{
-							key: column.tsName,
-							field: column.column,
-						},
-					);
+					columnIdentifiers.push(sql`${column.column} as ${sql.identifier(column.tsName)}`);
+					selection.push({
+						key: column.tsName,
+						field: column.column,
+					});
 				}
 
 				return columnIdentifiers.length

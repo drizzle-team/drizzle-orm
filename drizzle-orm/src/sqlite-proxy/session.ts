@@ -76,7 +76,7 @@ export class SQLiteRemoteSession<
 			this.logger,
 			fields,
 			executeMethod,
-			false,
+			true,
 			customResultMapper,
 			true,
 		);
@@ -101,7 +101,7 @@ export class SQLiteRemoteSession<
 		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.relations, this.schema);
+		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.relations, this.schema, undefined, true);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -145,6 +145,7 @@ export class SQLiteProxyTransaction<
 			this.relations,
 			this.schema,
 			this.nestedIndex + 1,
+			true,
 		);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
@@ -206,7 +207,9 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		if (this.customResultMapper) {
-			return (this.customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]) as T['all'];
+			return (this.customResultMapper as (rows: unknown[][]) => unknown)(
+				this.isRqbV2Query ? (rows as unknown[][]).map((r) => JSON.parse(r[0] as string)) : rows as unknown[][],
+			) as T['all'];
 		}
 
 		return (rows as unknown[][]).map((row) => {
@@ -243,31 +246,25 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		return this.mapGetResult(clientResult.rows);
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	private async allRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		throw new Error('Not implemented');
+		const { query, logger, client } = this;
 
-		// const { query, logger, client } = this;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
 
-		// const params = fillPlaceholders(query.params, placeholderValues ?? {});
-		// logger.logQuery(query.sql, params);
-
-		// const { rows } = await (client as AsyncRemoteCallback)(query.sql, params, 'all');
-		// return this.mapAllResult(rows);
+		const { rows } = await (client as AsyncRemoteCallback)(query.sql, params, 'all');
+		return this.mapAllResult(rows);
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	private async getRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		throw new Error('Not implemented');
+		const { query, logger, client } = this;
 
-		// const { query, logger, client } = this;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
 
-		// const params = fillPlaceholders(query.params, placeholderValues ?? {});
-		// logger.logQuery(query.sql, params);
+		const { rows } = await (client as AsyncRemoteCallback)(query.sql, params, 'get');
 
-		// const clientResult = await (client as AsyncRemoteCallback)(query.sql, params, 'get');
-
-		// return this.mapGetResult(clientResult.rows);
+		return this.mapGetResult(rows);
 	}
 
 	override mapGetResult(rows: unknown, isFromBatch?: boolean): unknown {
@@ -275,7 +272,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			rows = (rows as SqliteRemoteResult).rows;
 		}
 
-		const row = rows as unknown[];
+		const row = rows as unknown[] | string;
 
 		if (!this.fields && !this.customResultMapper) {
 			return row;
@@ -286,12 +283,14 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		if (this.customResultMapper) {
-			return (this.customResultMapper as (rows: unknown[][]) => unknown)([rows] as unknown[][]) as T['get'];
+			return (this.customResultMapper as (rows: unknown[][]) => unknown)(
+				[this.isRqbV2Query ? JSON.parse(row as string) : rows] as unknown[][],
+			) as T['get'];
 		}
 
 		return mapResultRow(
 			this.fields!,
-			row,
+			row as unknown[],
 			this.joinsNotNullableMap,
 		);
 	}

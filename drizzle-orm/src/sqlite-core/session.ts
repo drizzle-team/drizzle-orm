@@ -244,8 +244,9 @@ export abstract class SQLiteTransaction<
 			tableNamesMap: Record<string, string>;
 		} | undefined,
 		protected readonly nestedIndex = 0,
+		rowModeRQB?: boolean,
 	) {
-		super(resultType, dialect, session, relations, schema);
+		super(resultType, dialect, session, relations, schema, rowModeRQB);
 	}
 
 	rollback(): never {

@@ -112,6 +112,7 @@ export function drizzle<
 		session as SqliteRemoteDatabase<TSchema, TRelations>['session'],
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
+		true,
 	) as SqliteRemoteDatabase<
 		TSchema,
 		TRelations
