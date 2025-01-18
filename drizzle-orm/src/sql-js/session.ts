@@ -93,6 +93,26 @@ export class SQLJsSession<
 		);
 	}
 
+	override prepareOneTimeRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+	): PreparedQuery<T, true> {
+		const stmt = this.client.prepare(query.sql);
+		return new PreparedQuery(
+			stmt,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			false,
+			customResultMapper,
+			true,
+			true,
+		);
+	}
+
 	override transaction<T>(
 		transaction: (tx: SQLJsTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
 		config: SQLiteTransactionConfig = {},
@@ -281,6 +301,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 
 		if (!row) {
 			return undefined;
+		}
+
+		for (const v of Object.values(row)) {
+			if (v === undefined) return undefined;
 		}
 
 		return (customResultMapper as (

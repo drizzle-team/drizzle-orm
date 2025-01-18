@@ -243,31 +243,31 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		return this.mapGetResult(clientResult.rows);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	private async allRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { query, logger, client, customResultMapper } = this;
+		throw new Error('Not implemented');
 
-		const params = fillPlaceholders(query.params, placeholderValues ?? {});
-		logger.logQuery(query.sql, params);
+		// const { query, logger, client } = this;
 
-		const { rows } = await (client as AsyncRemoteCallback)(query.sql, params, 'all');
-		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows);
+		// const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		// logger.logQuery(query.sql, params);
+
+		// const { rows } = await (client as AsyncRemoteCallback)(query.sql, params, 'all');
+		// return this.mapAllResult(rows);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	private async getRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		const { query, logger, client, customResultMapper } = this;
+		throw new Error('Not implemented');
 
-		const params = fillPlaceholders(query.params, placeholderValues ?? {});
-		logger.logQuery(query.sql, params);
+		// const { query, logger, client } = this;
 
-		const clientResult = await (client as AsyncRemoteCallback)(query.sql, params, 'get');
+		// const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		// logger.logQuery(query.sql, params);
 
-		const row = clientResult.rows[0];
+		// const clientResult = await (client as AsyncRemoteCallback)(query.sql, params, 'get');
 
-		if (!row) {
-			return undefined;
-		}
-
-		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]);
+		// return this.mapGetResult(clientResult.rows);
 	}
 
 	override mapGetResult(rows: unknown, isFromBatch?: boolean): unknown {

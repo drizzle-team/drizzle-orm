@@ -25,7 +25,7 @@ export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	callback: RemoteCallback,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, TRelations> = {},
 ): MySqlRemoteDatabase<TSchema, TRelations> {
 	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;

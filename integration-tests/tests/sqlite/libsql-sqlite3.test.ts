@@ -7,11 +7,12 @@ import { drizzle } from 'drizzle-orm/libsql/sqlite3';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
+import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 
 const ENABLE_LOGGING = false;
 
-let db: LibSQLDatabase;
+let db: LibSQLDatabase<never, typeof relations>;
 let client: Client;
 
 beforeAll(async () => {
@@ -29,7 +30,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {

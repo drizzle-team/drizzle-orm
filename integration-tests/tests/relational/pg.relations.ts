@@ -14,9 +14,38 @@ export default defineRelations(schema, (r) => ({
 		}),
 		usersToGroups: r.many.usersToGroupsTable(),
 		posts: r.many.postsTable(),
+		postsFiltered: r.many.postsTable({
+			alias: 'author-filtered',
+		}),
+		group: r.one.groupsTable({
+			from: r.usersTable.id.through(r.usersToGroupsTable.userId),
+			to: r.groupsTable.id.through(r.usersToGroupsTable.groupId),
+		}),
+		groups: r.many.groupsTable({
+			from: r.usersTable.id.through(r.usersToGroupsTable.userId),
+			to: r.groupsTable.id.through(r.usersToGroupsTable.groupId),
+			alias: 'users-groups-direct',
+		}),
+		groupsFiltered: r.many.groupsTable({
+			from: r.usersTable.id.through(r.usersToGroupsTable.userId),
+			to: r.groupsTable.id.through(r.usersToGroupsTable.groupId),
+			where: {
+				id: {
+					gte: 2,
+				},
+			},
+			alias: 'users-groups-direct-filtered',
+		}),
 	},
 	groupsTable: {
 		usersToGroups: r.many.usersToGroupsTable(),
+		user: r.one.usersTable(),
+		users: r.many.usersTable({
+			alias: 'users-groups-direct',
+		}),
+		usersFiltered: r.many.usersTable({
+			alias: 'users-groups-direct-filtered',
+		}),
 	},
 	usersToGroupsTable: {
 		group: r.one.groupsTable({
@@ -35,6 +64,26 @@ export default defineRelations(schema, (r) => ({
 			from: r.postsTable.ownerId,
 			to: r.usersTable.id,
 			optional: false,
+		}),
+		authorFiltered: r.one.usersTable({
+			from: r.postsTable.ownerId,
+			to: r.usersTable.id,
+			optional: false,
+			where: {
+				ownerId: 2,
+			},
+			alias: 'author-filtered',
+		}),
+		authorAltFiltered: r.one.usersTable({
+			from: r.postsTable.ownerId,
+			to: r.usersTable.id,
+			optional: false,
+			where: {
+				content: {
+					like: '%.1',
+				},
+			},
+			alias: 'author-alt-filtered',
 		}),
 		comments: r.many.commentsTable(),
 	},

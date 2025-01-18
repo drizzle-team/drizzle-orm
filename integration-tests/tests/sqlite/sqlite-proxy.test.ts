@@ -6,7 +6,10 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
+import relations from './relations';
 import { tests, usersTable } from './sqlite-common';
+
+const ENABLE_LOGGING = false;
 
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
@@ -53,7 +56,7 @@ class ServerSimulator {
 	}
 }
 
-let db: SqliteRemoteDatabase;
+let db: SqliteRemoteDatabase<never, typeof relations>;
 let client: Database.Database;
 let serverSimulator: ServerSimulator;
 
@@ -75,6 +78,9 @@ beforeAll(async () => {
 			console.error('Error from sqlite proxy server:', e.response?.data ?? e.message);
 			throw e;
 		}
+	}, {
+		logger: ENABLE_LOGGING,
+		relations,
 	});
 });
 
@@ -94,6 +100,23 @@ skipTests([
 	'insert via db.run + select via db.get',
 	'insert via db.get',
 	'insert via db.run + select via db.all',
+
+	'RQB v2 simple find first - no rows',
+	'RQB v2 simple find first - multiple rows',
+	'RQB v2 simple find first - with relation',
+	'RQB v2 simple find first - placeholders',
+	'RQB v2 simple find many - no rows',
+	'RQB v2 simple find many - multiple rows',
+	'RQB v2 simple find many - with relation',
+	'RQB v2 simple find many - placeholders',
+	'RQB v2 transaction find first - no rows',
+	'RQB v2 transaction find first - multiple rows',
+	'RQB v2 transaction find first - with relation',
+	'RQB v2 transaction find first - placeholders',
+	'RQB v2 transaction find many - no rows',
+	'RQB v2 transaction find many - multiple rows',
+	'RQB v2 transaction find many - with relation',
+	'RQB v2 transaction find many - placeholders',
 ]);
 tests();
 

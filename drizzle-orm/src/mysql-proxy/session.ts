@@ -207,37 +207,12 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
-		const { client, queryString, logger, customResultMapper, returningIds, generatedIds } = this;
+		const { client, queryString, logger, customResultMapper } = this;
 
 		logger.logQuery(queryString, params);
 
-		const { rows: rows } = await client(queryString, params, 'execute');
-
-		const insertId = rows[0].insertId as number;
-		const affectedRows = rows[0].affectedRows;
-
-		if (returningIds) {
-			const returningResponse = [];
-			let j = 0;
-			for (let i = insertId; i < insertId + affectedRows; i++) {
-				for (const column of returningIds) {
-					const key = returningIds[0]!.path[0]!;
-					if (is(column.field, Column)) {
-						// @ts-ignore
-						if (column.field.primary && column.field.autoIncrement) {
-							returningResponse.push({ [key]: i });
-						}
-						if (column.field.defaultFn && generatedIds) {
-							// generatedIds[rowIdx][key]
-							returningResponse.push({ [key]: generatedIds[j]![key] });
-						}
-					}
-				}
-				j++;
-			}
-
-			return returningResponse;
-		}
+		const { rows: res } = await client(queryString, params, 'execute');
+		const rows = res[0];
 
 		return customResultMapper!(rows);
 	}

@@ -6,17 +6,18 @@ import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
+import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 
 const ENABLE_LOGGING = false;
 
-let db: SQLJsDatabase;
+let db: SQLJsDatabase<never, typeof relations>;
 let client: Database;
 
 beforeAll(async () => {
 	const SQL = await initSqlJs();
 	client = new SQL.Database();
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 beforeEach((ctx) => {
@@ -60,5 +61,22 @@ skipTests([
 	'nested transaction rollback',
 	'delete with limit and order by',
 	'update with limit and order by',
+
+	'RQB v2 simple find first - no rows',
+	'RQB v2 simple find first - multiple rows',
+	'RQB v2 simple find first - with relation',
+	'RQB v2 simple find first - placeholders',
+	'RQB v2 simple find many - no rows',
+	'RQB v2 simple find many - multiple rows',
+	'RQB v2 simple find many - with relation',
+	'RQB v2 simple find many - placeholders',
+	'RQB v2 transaction find first - no rows',
+	'RQB v2 transaction find first - multiple rows',
+	'RQB v2 transaction find first - with relation',
+	'RQB v2 transaction find first - placeholders',
+	'RQB v2 transaction find many - no rows',
+	'RQB v2 transaction find many - multiple rows',
+	'RQB v2 transaction find many - with relation',
+	'RQB v2 transaction find many - placeholders',
 ]);
 tests();

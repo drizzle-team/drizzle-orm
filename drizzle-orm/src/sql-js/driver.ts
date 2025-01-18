@@ -17,7 +17,7 @@ export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: Database,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, TRelations> = {},
 ): SQLJsDatabase<TSchema, TRelations> {
 	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;

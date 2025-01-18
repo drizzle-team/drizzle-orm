@@ -53,7 +53,7 @@ export function drizzle<
 >(
 	callback: RemoteCallback,
 	config?: DrizzleConfig<TSchema, TRelations>,
-): SqliteRemoteDatabase<TSchema>;
+): SqliteRemoteDatabase<TSchema, TRelations>;
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -61,7 +61,7 @@ export function drizzle<
 	callback: RemoteCallback,
 	batchCallback?: AsyncBatchRemoteCallback,
 	config?: DrizzleConfig<TSchema, TRelations>,
-): SqliteRemoteDatabase<TSchema>;
+): SqliteRemoteDatabase<TSchema, TRelations>;
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -104,7 +104,7 @@ export function drizzle<
 		};
 	}
 
-	const relations = config?.relations;
+	const relations = _config.relations;
 	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, { logger });
 	return new SqliteRemoteDatabase(
 		'async',
