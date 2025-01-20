@@ -1277,10 +1277,6 @@ export function relationExtrasToSQL(
 	};
 }
 
-function getTableSql(table: Table) {
-	return sql`${sql`${sql`${sql.identifier(table[Schema] ?? '')}.`.if(!table[IsAlias] && table[Schema])}`}${table}`;
-}
-
 export type BuiltRelationFilters = {
 	filter?: SQL;
 	joinCondition?: SQL;
@@ -1297,8 +1293,8 @@ export function relationToSQL(
 			const t = relation.through!.source[i]!;
 
 			return eq(
-				sql`${getTableSql(sourceTable)}.${sql.identifier(s.name)}`,
-				sql`${getTableSql(throughTable!)}.${sql.identifier(t.name)}`,
+				sql`${sourceTable}.${sql.identifier(s.name)}`,
+				sql`${throughTable!}.${sql.identifier(t.name)}`,
 			);
 		});
 
@@ -1306,8 +1302,8 @@ export function relationToSQL(
 			const t = relation.through!.target[i]!;
 
 			return eq(
-				sql`${getTableSql(throughTable!)}.${sql.identifier(t.name)}`,
-				sql`${getTableSql(targetTable)}.${sql.identifier(s.name)}`,
+				sql`${throughTable!}.${sql.identifier(t.name)}`,
+				sql`${targetTable}.${sql.identifier(s.name)}`,
 			);
 		});
 
@@ -1330,8 +1326,8 @@ export function relationToSQL(
 		const t = relation.targetColumns[i]!;
 
 		return eq(
-			sql`${getTableSql(sourceTable)}.${sql.identifier(s.name)}`,
-			sql`${getTableSql(targetTable)}.${sql.identifier(t.name)}`,
+			sql`${sourceTable}.${sql.identifier(s.name)}`,
+			sql`${targetTable}.${sql.identifier(t.name)}`,
 		);
 	});
 

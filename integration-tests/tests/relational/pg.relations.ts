@@ -112,4 +112,30 @@ export default defineRelations(schema, (r) => ({
 			optional: false,
 		}),
 	},
+	schemaUsers: {
+		posts: r.many.schemaPosts(),
+		groups: r.many.schemaGroups({
+			from: r.schemaUsers.id.through(r.schemaUsersToGroups.userId),
+			to: r.schemaGroups.id.through(r.schemaUsersToGroups.groupId),
+			where: {
+				id: {
+					gte: 2,
+				},
+			},
+		}),
+	},
+	schemaPosts: {
+		author: r.one.schemaUsers({
+			from: r.schemaPosts.ownerId,
+			to: r.schemaUsers.id,
+			where: {
+				content: {
+					like: 'M%',
+				},
+			},
+		}),
+	},
+	schemaGroups: {
+		users: r.many.schemaUsers(),
+	},
 }));

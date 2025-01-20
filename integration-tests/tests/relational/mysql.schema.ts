@@ -2,6 +2,7 @@ import {
 	type AnyMySqlColumn,
 	bigint,
 	boolean,
+	mysqlSchema,
 	mysqlTable,
 	primaryKey,
 	serial,
@@ -127,3 +128,47 @@ export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 		references: [usersTable.id],
 	}),
 }));
+
+export const rqbSchema = mysqlSchema('rqb_test_schema');
+
+export const schemaUsers = rqbSchema.table('users', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: bigint('invited_by', { mode: 'number' }).references(
+		(): AnyMySqlColumn => schemaUsers.id,
+	),
+});
+
+export const schemaPosts = rqbSchema.table('posts', {
+	id: serial('id').primaryKey(),
+	content: text('content').notNull(),
+	ownerId: bigint('owner_id', { mode: 'number' }).references(
+		() => schemaUsers.id,
+	),
+	createdAt: timestamp('created_at')
+		.notNull()
+		.defaultNow(),
+});
+
+export const schemaGroups = rqbSchema.table('groups', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	description: text('description'),
+});
+
+export const schemaUsersToGroups = rqbSchema.table(
+	'users_to_groups',
+	{
+		id: serial('id').primaryKey(),
+		userId: bigint('user_id', { mode: 'number' }).notNull().references(
+			() => schemaUsers.id,
+		),
+		groupId: bigint('group_id', { mode: 'number' }).notNull().references(
+			() => schemaGroups.id,
+		),
+	},
+	(t) => ({
+		pk: primaryKey(t.userId, t.groupId),
+	}),
+);

@@ -181,7 +181,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				const schemaName = chunk[Table.Symbol.Schema];
 				const tableName = chunk[Table.Symbol.Name];
 				return {
-					sql: schemaName === undefined
+					sql: schemaName === undefined || chunk[Table.Symbol.IsAlias]
 						? escapeName(tableName)
 						: escapeName(schemaName) + '.' + escapeName(tableName),
 					params: [],

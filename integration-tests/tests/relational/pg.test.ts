@@ -8,7 +8,17 @@ import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import relations from './pg.relations.ts';
-import { commentsTable, groupsTable, postsTable, usersTable, usersToGroupsTable } from './pg.schema.ts';
+import {
+	commentsTable,
+	groupsTable,
+	postsTable,
+	schemaGroups,
+	schemaPosts,
+	schemaUsers,
+	schemaUsersToGroups,
+	usersTable,
+	usersToGroupsTable,
+} from './pg.schema.ts';
 
 const { Client } = pg;
 
@@ -99,7 +109,9 @@ beforeEach(async (ctx) => {
 	ctx.pgContainer = pgContainer;
 
 	await ctx.pgDbV2.execute(sql`drop schema public cascade`);
+	await ctx.pgDbV2.execute(sql`drop schema if exists rqb_test_schema cascade`);
 	await ctx.pgDbV2.execute(sql`create schema public`);
+	await ctx.pgDbV2.execute(sql`create schema rqb_test_schema`);
 	await ctx.pgDbV2.execute(
 		sql`
 			CREATE TABLE "users" (
@@ -112,7 +124,26 @@ beforeEach(async (ctx) => {
 	);
 	await ctx.pgDbV2.execute(
 		sql`
+			CREATE TABLE "rqb_test_schema"."users" (
+				"id" serial PRIMARY KEY NOT NULL,
+				"name" text NOT NULL,
+				"verified" boolean DEFAULT false NOT NULL,
+				"invited_by" int REFERENCES "rqb_test_schema"."users"("id")
+			);
+		`,
+	);
+	await ctx.pgDbV2.execute(
+		sql`
 			CREATE TABLE IF NOT EXISTS "groups" (
+				"id" serial PRIMARY KEY NOT NULL,
+				"name" text NOT NULL,
+				"description" text
+			);
+		`,
+	);
+	await ctx.pgDbV2.execute(
+		sql`
+			CREATE TABLE IF NOT EXISTS "rqb_test_schema"."groups" (
 				"id" serial PRIMARY KEY NOT NULL,
 				"name" text NOT NULL,
 				"description" text
@@ -130,10 +161,29 @@ beforeEach(async (ctx) => {
 	);
 	await ctx.pgDbV2.execute(
 		sql`
+			CREATE TABLE IF NOT EXISTS "rqb_test_schema"."users_to_groups" (
+				"id" serial PRIMARY KEY NOT NULL,
+				"user_id" int REFERENCES "rqb_test_schema"."users"("id"),
+				"group_id" int REFERENCES "rqb_test_schema"."groups"("id")
+			);
+		`,
+	);
+	await ctx.pgDbV2.execute(
+		sql`
 			CREATE TABLE IF NOT EXISTS "posts" (
 				"id" serial PRIMARY KEY NOT NULL,
 				"content" text NOT NULL,
 				"owner_id" int REFERENCES "users"("id"),
+				"created_at" timestamp with time zone DEFAULT now() NOT NULL
+			);
+		`,
+	);
+	await ctx.pgDbV2.execute(
+		sql`
+			CREATE TABLE IF NOT EXISTS "rqb_test_schema"."posts" (
+				"id" serial PRIMARY KEY NOT NULL,
+				"content" text NOT NULL,
+				"owner_id" int REFERENCES "rqb_test_schema"."users"("id"),
 				"created_at" timestamp with time zone DEFAULT now() NOT NULL
 			);
 		`,
@@ -9084,6 +9134,327 @@ test('[Find Many] Get posts with filtered authors + where', async (t) => {
 		{ id: 5, content: 'Post2.2', authorAltFiltered: null },
 		{ id: 6, content: 'Post3.2', authorAltFiltered: null },
 	]);
+});
+
+test('[Find Many] Get custom schema users with filtered posts + where', async (t) => {
+	const { pgDbV2: db } = t;
+
+	await db.insert(schemaUsers).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(schemaPosts).values([
+		{ id: 1, ownerId: 1, content: 'Message1.1' },
+		{ id: 2, ownerId: 2, content: 'Message2.1' },
+		{ id: 3, ownerId: 3, content: 'Message3.1' },
+		{ id: 4, ownerId: 1, content: 'Message1.2' },
+		{ id: 5, ownerId: 2, content: 'Message2.2' },
+		{ id: 6, ownerId: 3, content: 'Message3.2' },
+		{ id: 7, ownerId: 1, content: 'Message1.3' },
+		{ id: 8, ownerId: 2, content: 'Message2.3' },
+		{ id: 9, ownerId: 3, content: 'Message3.3' },
+		{ id: 10, ownerId: 1, content: 'Post1.1' },
+		{ id: 11, ownerId: 2, content: 'Post2.1' },
+		{ id: 12, ownerId: 3, content: 'Post3.1' },
+		{ id: 13, ownerId: 1, content: 'Post1.2' },
+		{ id: 14, ownerId: 2, content: 'Post2.2' },
+		{ id: 15, ownerId: 3, content: 'Post3.2' },
+		{ id: 16, ownerId: 1, content: 'Post1.3' },
+		{ id: 17, ownerId: 2, content: 'Post2.3' },
+		{ id: 18, ownerId: 3, content: 'Post3.3' },
+	]);
+
+	const usersWithPosts = await db.query.schemaUsers.findMany({
+		with: {
+			posts: {
+				columns: {
+					ownerId: true,
+					content: true,
+				},
+				where: {
+					content: {
+						like: '%2.%',
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			id: 'desc',
+		},
+		where: {
+			id: {
+				gte: 2,
+			},
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			ownerId: number | null;
+			content: string;
+		}[];
+	}[]>();
+
+	expect(usersWithPosts).toStrictEqual([{
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		posts: [],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		posts: [
+			{ ownerId: 2, content: 'Message2.1' },
+			{ ownerId: 2, content: 'Message2.2' },
+			{ ownerId: 2, content: 'Message2.3' },
+		],
+	}]);
+});
+
+test('[Find Many] Get custom schema posts with filtered authors + where', async (t) => {
+	const { pgDbV2: db } = t;
+
+	await db.insert(schemaUsers).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(schemaPosts).values([
+		{ id: 1, ownerId: 1, content: 'Message1.1' },
+		{ id: 2, ownerId: 2, content: 'Message2.1' },
+		{ id: 3, ownerId: 3, content: 'Message3.1' },
+		{ id: 4, ownerId: 1, content: 'Message1.2' },
+		{ id: 5, ownerId: 2, content: 'Message2.2' },
+		{ id: 6, ownerId: 3, content: 'Message3.2' },
+		{ id: 7, ownerId: 1, content: 'Message1.3' },
+		{ id: 8, ownerId: 2, content: 'Message2.3' },
+		{ id: 9, ownerId: 3, content: 'Message3.3' },
+		{ id: 10, ownerId: 1, content: 'Post1.1' },
+		{ id: 11, ownerId: 2, content: 'Post2.1' },
+		{ id: 12, ownerId: 3, content: 'Post3.1' },
+		{ id: 13, ownerId: 1, content: 'Post1.2' },
+		{ id: 14, ownerId: 2, content: 'Post2.2' },
+		{ id: 15, ownerId: 3, content: 'Post3.2' },
+		{ id: 16, ownerId: 1, content: 'Post1.3' },
+		{ id: 17, ownerId: 2, content: 'Post2.3' },
+		{ id: 18, ownerId: 3, content: 'Post3.3' },
+	]);
+
+	const posts = await db.query.schemaPosts.findMany({
+		columns: {
+			content: true,
+		},
+		with: {
+			author: {
+				columns: {
+					name: true,
+					id: true,
+				},
+				where: {
+					id: 2,
+				},
+			},
+		},
+		orderBy: {
+			id: 'desc',
+		},
+	});
+
+	expectTypeOf(posts).toEqualTypeOf<{
+		content: string;
+		author: {
+			id: number;
+			name: string;
+		} | null;
+	}[]>();
+
+	expect(posts).toStrictEqual([
+		{ content: 'Post3.3', author: null },
+		{ content: 'Post2.3', author: null },
+		{ content: 'Post1.3', author: null },
+		{ content: 'Post3.2', author: null },
+		{ content: 'Post2.2', author: null },
+		{ content: 'Post1.2', author: null },
+		{ content: 'Post3.1', author: null },
+		{ content: 'Post2.1', author: null },
+		{ content: 'Post1.1', author: null },
+		{ content: 'Message3.3', author: null },
+		{ content: 'Message2.3', author: { id: 2, name: 'Andrew' } },
+		{ content: 'Message1.3', author: null },
+		{ content: 'Message3.2', author: null },
+		{ content: 'Message2.2', author: { id: 2, name: 'Andrew' } },
+		{ content: 'Message1.2', author: null },
+		{ content: 'Message3.1', author: null },
+		{ content: 'Message2.1', author: { id: 2, name: 'Andrew' } },
+		{ content: 'Message1.1', author: null },
+	]);
+});
+
+test('[Find Many .through] Get custom schema users with filtered groups + where', async (t) => {
+	const { pgDbV2: db } = t;
+
+	await db.insert(schemaUsers).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(schemaGroups).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(schemaUsersToGroups).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.schemaUsers.findMany({
+		with: {
+			groups: {
+				where: {
+					id: {
+						lt: 3,
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		groups: [],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		groups: [
+			{
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+		],
+	}]);
+});
+
+test('[Find Many .through] Get custom schema groups with filtered users + where', async (t) => {
+	const { pgDbV2: db } = t;
+
+	await db.insert(schemaUsers).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(schemaGroups).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(schemaUsersToGroups).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.schemaGroups.findMany({
+		with: {
+			users: {
+				where: { id: { lt: 3 } },
+				orderBy: {
+					id: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		users: {
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Group1',
+		description: null,
+		users: [],
+	}, {
+		id: 2,
+		name: 'Group2',
+		description: null,
+		users: [{
+			id: 2,
+			name: 'Andrew',
+			verified: false,
+			invitedBy: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Group3',
+		description: null,
+		users: [],
+	}]);
 });
 
 test('Filter by columns not present in select', async (t) => {
