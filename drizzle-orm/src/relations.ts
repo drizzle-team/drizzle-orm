@@ -1178,7 +1178,7 @@ export function relationsFilterToSQL(
 			case 'RAW': {
 				if (value) {
 					parts.push(
-						(value as (table: Record<string, Column>, operators: Operators) => SQL)(table[Columns], operators),
+						(value as (table: Record<string, Column>, operators: Operators) => SQL)(table as any, operators),
 					);
 				}
 
