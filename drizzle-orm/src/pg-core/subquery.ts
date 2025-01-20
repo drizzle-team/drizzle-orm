@@ -1,7 +1,7 @@
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
-import type { Subquery, WithSubquery } from '~/subquery.ts';
+import type { Subquery, WithSubquery, WithSubqueryWithoutSelection } from '~/subquery.ts';
 import type { QueryBuilder } from './query-builders';
 
 export type SubqueryWithSelection<TSelection extends ColumnsSelection, TAlias extends string> =
@@ -11,8 +11,6 @@ export type SubqueryWithSelection<TSelection extends ColumnsSelection, TAlias ex
 export type WithSubqueryWithSelection<TSelection extends ColumnsSelection, TAlias extends string> =
 	& WithSubquery<TAlias, AddAliasToSelection<TSelection, TAlias, 'pg'>>
 	& AddAliasToSelection<TSelection, TAlias, 'pg'>;
-
-export type WithSubqueryWithoutSelection<TAlias extends string> = WithSubquery<TAlias, {}>;
 
 export interface WithBuilder {
 	<TAlias extends string>(alias: TAlias): {
