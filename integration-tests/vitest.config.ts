@@ -67,6 +67,9 @@ export default defineConfig({
 			'tests/mysql/mysql-planetscale.test.ts',
 			'tests/relational/mysql.planetscale.test.ts',
 			'tests/relational/mysql.planetscale-v1.test.ts',
+			'js-tests/driver-init/module/planetscale.test.mjs',
+			'js-tests/driver-init/module/planetscale.test.cjs',
+			'js-tests/driver-init/commonjs/planetscale.test.cjs',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
