@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { float, int, mysqlTable, text, timestamp, varchar } from 'drizzle-orm/mysql-core';
 
 export const customers = mysqlTable('customer', {
