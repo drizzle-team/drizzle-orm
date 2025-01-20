@@ -4793,22 +4793,22 @@ export function tests(driver?: string) {
 		await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
 		await db.insert(users).values([
 			{ name: 'John' },
-			{ name: 'Jane' }
+			{ name: 'Jane' },
 		]);
 
 		const sq1 = db.$with('sq', {
 			userId: users.id,
 			data: {
-				name: users.name
-			}
+				name: users.name,
+			},
 		}).as(sql`select * from ${users} where ${users.name} = 'John'`);
 		const result1 = await db.with(sq1).select().from(sq1);
 
 		const sq2 = db.$with('sq', {
 			userId: users.id,
 			data: {
-				name: users.name
-			}
+				name: users.name,
+			},
 		}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
 		const result2 = await db.with(sq2).select().from(sq1);
 

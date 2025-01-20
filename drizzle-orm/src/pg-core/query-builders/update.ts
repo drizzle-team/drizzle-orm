@@ -9,6 +9,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
+import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -39,8 +40,12 @@ import {
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
-import type { PgSelectJoinConfig, SelectedFields, SelectedFieldsOrdered, TableLikeHasEmptySelection } from './select.types.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type {
+	PgSelectJoinConfig,
+	SelectedFields,
+	SelectedFieldsOrdered,
+	TableLikeHasEmptySelection,
+} from './select.types.ts';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
@@ -145,8 +150,9 @@ export type PgUpdateJoinFn<
 > = <
 	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true
-		? DrizzleTypeError<'Cannot reference a data-modifying statement subquery if it doesn\'t contain a `returning` clause'>
+	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
+			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+		>
 		: TJoinedTable,
 	on:
 		| (
@@ -215,8 +221,11 @@ export type PgUpdateReturningAll<T extends AnyPgUpdate, TDynamic extends boolean
 		T['_']['queryResult'],
 		T['_']['from'],
 		Equal<T['_']['joins'], []> extends true ? T['_']['table']['_']['columns'] : Simplify<
-			Record<T['_']['table']['_']['name'], T['_']['table']['_']['columns']> &
-			{ [K in keyof T['_']['joins'] as T['_']['joins'][K]['table']['_']['name']]: T['_']['joins'][K]['table']['_']['columns'] }
+			& Record<T['_']['table']['_']['name'], T['_']['table']['_']['columns']>
+			& {
+				[K in keyof T['_']['joins'] as T['_']['joins'][K]['table']['_']['name']]:
+					T['_']['joins'][K]['table']['_']['columns'];
+			}
 		>,
 		SelectResult<
 			AccumulateToResult<
@@ -304,7 +313,10 @@ export interface PgUpdateBase<
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends
-	TypedQueryBuilder<TSelectedFields, TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
+	TypedQueryBuilder<
+		TSelectedFields,
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+	>,
 	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
 	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
@@ -363,8 +375,9 @@ export class PgUpdateBase<
 	}
 
 	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
-		source: TableLikeHasEmptySelection<TFrom> extends true
-			? DrizzleTypeError<'Cannot reference a data-modifying statement subquery if it doesn\'t contain a `returning` clause'>
+		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
 			: TFrom,
 	): PgUpdateWithJoins<this, TDynamic, TFrom> {
 		const src = source as TFrom;
@@ -584,12 +597,16 @@ export class PgUpdateBase<
 	};
 
 	/** @internal */
-  getSelectedFields(): this['_']['selectedFields'] {
+	getSelectedFields(): this['_']['selectedFields'] {
 		return (
 			this.config.returningFields
 				? new Proxy(
 					this.config.returningFields,
-					new SelectionProxyHandler({ alias: getTableName(this.config.table), sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+					new SelectionProxyHandler({
+						alias: getTableName(this.config.table),
+						sqlAliasedBehavior: 'alias',
+						sqlBehavior: 'error',
+					}),
 				)
 				: undefined
 		) as this['_']['selectedFields'];

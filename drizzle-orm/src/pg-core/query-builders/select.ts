@@ -104,8 +104,9 @@ export class PgSelectBuilder<
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
 	 */
 	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
-		source: TableLikeHasEmptySelection<TFrom> extends true
-			? DrizzleTypeError<'Cannot reference a data-modifying statement subquery if it doesn\'t contain a `returning` clause'>
+		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
 			: TFrom,
 	): CreatePgSelectFromBuilderMode<
 		TBuilderMode,

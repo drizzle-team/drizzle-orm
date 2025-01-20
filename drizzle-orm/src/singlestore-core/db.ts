@@ -116,19 +116,27 @@ export class SingleStoreDatabase<
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
 		const self = this;
 		const as = (
-			qb: TypedQueryBuilder<ColumnsSelection | undefined> | SQL | ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL)
+			qb:
+				| TypedQueryBuilder<ColumnsSelection | undefined>
+				| SQL
+				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
 		) => {
 			if (typeof qb === 'function') {
 				qb = qb(new QueryBuilder(self.dialect));
 			}
 
 			return new Proxy(
-				new WithSubquery(qb.getSQL(), selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields, alias, true),
+				new WithSubquery(
+					qb.getSQL(),
+					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
+					alias,
+					true,
+				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			);
 		};
 		return { as };
-	}
+	};
 
 	$count(
 		source: SingleStoreTable | SQL | SQLWrapper, // SingleStoreViewBase |

@@ -13,6 +13,7 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -24,7 +25,6 @@ import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
@@ -208,7 +208,10 @@ export interface PgInsertBase<
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends
-	TypedQueryBuilder<TSelectedFields, TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
+	TypedQueryBuilder<
+		TSelectedFields,
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+	>,
 	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
 	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
@@ -236,7 +239,10 @@ export class PgInsertBase<
 	TExcludedMethods extends string = never,
 > extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
 	implements
-		TypedQueryBuilder<TSelectedFields, TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
+		TypedQueryBuilder<
+			TSelectedFields,
+			TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+		>,
 		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
@@ -418,12 +424,16 @@ export class PgInsertBase<
 	};
 
 	/** @internal */
-  getSelectedFields(): this['_']['selectedFields'] {
+	getSelectedFields(): this['_']['selectedFields'] {
 		return (
 			this.config.returningFields
 				? new Proxy(
 					this.config.returningFields,
-					new SelectionProxyHandler({ alias: getTableName(this.config.table), sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+					new SelectionProxyHandler({
+						alias: getTableName(this.config.table),
+						sqlAliasedBehavior: 'alias',
+						sqlBehavior: 'error',
+					}),
 				)
 				: undefined
 		) as this['_']['selectedFields'];

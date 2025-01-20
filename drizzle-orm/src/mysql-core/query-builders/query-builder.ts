@@ -22,18 +22,28 @@ export class QueryBuilder {
 
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
 		const queryBuilder = this;
-		const as = (qb: TypedQueryBuilder<ColumnsSelection | undefined> | SQL | ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL)) => {
+		const as = (
+			qb:
+				| TypedQueryBuilder<ColumnsSelection | undefined>
+				| SQL
+				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
+		) => {
 			if (typeof qb === 'function') {
 				qb = qb(queryBuilder);
 			}
 
 			return new Proxy(
-				new WithSubquery(qb.getSQL(), selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields, alias, true),
+				new WithSubquery(
+					qb.getSQL(),
+					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
+					alias,
+					true,
+				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			) as any;
 		};
 		return { as };
-	}
+	};
 
 	with(...queries: WithSubquery[]) {
 		const self = this;

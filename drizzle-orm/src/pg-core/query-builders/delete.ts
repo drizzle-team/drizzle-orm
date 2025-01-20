@@ -8,9 +8,11 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
+import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
@@ -18,8 +20,6 @@ import { tracer } from '~/tracing.ts';
 import { type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export type PgDeleteWithout<
 	T extends AnyPgDeleteBase,
@@ -110,7 +110,10 @@ export interface PgDeleteBase<
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends
-	TypedQueryBuilder<TSelectedFields, TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
+	TypedQueryBuilder<
+		TSelectedFields,
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+	>,
 	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
 	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
@@ -137,7 +140,10 @@ export class PgDeleteBase<
 	TExcludedMethods extends string = never,
 > extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
 	implements
-		TypedQueryBuilder<TSelectedFields, TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
+		TypedQueryBuilder<
+			TSelectedFields,
+			TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+		>,
 		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
@@ -260,12 +266,16 @@ export class PgDeleteBase<
 	};
 
 	/** @internal */
-  getSelectedFields(): this['_']['selectedFields'] {
+	getSelectedFields(): this['_']['selectedFields'] {
 		return (
 			this.config.returningFields
 				? new Proxy(
 					this.config.returningFields,
-					new SelectionProxyHandler({ alias: getTableName(this.config.table), sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+					new SelectionProxyHandler({
+						alias: getTableName(this.config.table),
+						sqlAliasedBehavior: 'alias',
+						sqlBehavior: 'error',
+					}),
 				)
 				: undefined
 		) as this['_']['selectedFields'];
