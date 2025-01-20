@@ -5521,5 +5521,40 @@ export function tests() {
 		expect(result3).toEqual([{ id: 2, name: 'Jane' }]);
 		expect(result4).toEqual([{ name: 'Jane' }]);
 	});
+
+	test('sql operator as cte', async (ctx) => {
+		const { db } = ctx.pg;
+
+		const users = pgTable('users', {
+			id: serial().primaryKey(),
+			name: text().notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+		await db.insert(users).values([
+			{ name: 'John' },
+			{ name: 'Jane' }
+		]);
+
+		const sq1 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name
+			}
+		}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+		const result1 = await db.with(sq1).select().from(sq1);
+
+		const sq2 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name
+			}
+		}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+		const result2 = await db.with(sq2).select().from(sq1);
+
+		expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
+		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+	});
 };
 

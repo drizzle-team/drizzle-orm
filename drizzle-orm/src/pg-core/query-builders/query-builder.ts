@@ -3,10 +3,10 @@ import type { PgDialectConfig } from '~/pg-core/dialect.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { PgColumn } from '../columns/index.ts';
-import type { WithSubqueryQuery, WithSubqueryWithSelection } from '../subquery.ts';
+import type { WithBuilder } from '../subquery.ts';
 import { PgSelectBuilder } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
 
@@ -21,15 +21,15 @@ export class QueryBuilder {
 		this.dialectConfig = is(dialect, PgDialect) ? undefined : dialect;
 	}
 
-	$with<TAlias extends string>(alias: TAlias) {
+	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
 		const queryBuilder = this;
-		const as: WithSubqueryQuery<TAlias> = (qb: TypedQueryBuilder<ColumnsSelection | undefined> | ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined>)) => {
+		const as = (qb: TypedQueryBuilder<ColumnsSelection | undefined> | SQL | ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL)) => {
 			if (typeof qb === 'function') {
 				qb = qb(queryBuilder);
 			}
 
 			return new Proxy(
-				new WithSubquery(qb.getSQL(), (qb.getSelectedFields() ?? {}) as SelectedFields, alias, true),
+				new WithSubquery(qb.getSQL(), selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields, alias, true),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			) as any;
 		};

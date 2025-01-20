@@ -28,7 +28,7 @@ import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { PgRaw } from './query-builders/raw.ts';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
-import type { WithSubqueryQuery } from './subquery.ts';
+import type { WithBuilder } from './subquery.ts';
 import type { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView } from './view.ts';
 
@@ -120,17 +120,17 @@ export class PgDatabase<
 	 * const result = await db.with(sq).select({ name: sq.name }).from(sq);
 	 * ```
 	 */
-	$with<TAlias extends string>(alias: TAlias) {
+	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
 		const self = this;
-		const as: WithSubqueryQuery<TAlias> = (qb: TypedQueryBuilder<ColumnsSelection | undefined> | ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined>)) => {
+		const as = (qb: TypedQueryBuilder<ColumnsSelection | undefined> | SQL | ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL)) => {
 			if (typeof qb === 'function') {
 				qb = qb(new QueryBuilder(self.dialect));
 			}
 
 			return new Proxy(
-				new WithSubquery(qb.getSQL(), (qb.getSelectedFields() ?? {}) as SelectedFields, alias, true),
+				new WithSubquery(qb.getSQL(), selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields, alias, true),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-			) as any;
+			);
 		};
 		return { as };
 	}
@@ -645,7 +645,7 @@ export const withReplicas = <
 	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
 	const selectDistinctOn: Q['selectDistinctOn'] = (...args: [any]) => getReplica(replicas).selectDistinctOn(...args);
 	const _with: Q['with'] = (...args: any) => getReplica(replicas).with(...args);
-	const $with: Q['$with'] = (arg: any) => getReplica(replicas).$with(arg);
+	const $with: Q['$with'] = (arg: any) => getReplica(replicas).$with(arg) as any;
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
