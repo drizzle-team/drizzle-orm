@@ -62,8 +62,8 @@ export interface QueryWithTypings extends Query {
  * - `Placeholder`
  * - `Param`
  */
-export interface SQLWrapper {
-	getSQL(): SQL;
+export interface SQLWrapper<T = unknown> {
+	getSQL(): SQL<T>;
 	shouldOmitSQLParens?(): boolean;
 }
 
@@ -100,7 +100,7 @@ export class StringChunk implements SQLWrapper {
 	}
 }
 
-export class SQL<T = unknown> implements SQLWrapper {
+export class SQL<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'SQL';
 
 	declare _: {
@@ -181,7 +181,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 				const schemaName = chunk[Table.Symbol.Schema];
 				const tableName = chunk[Table.Symbol.Name];
 				return {
-					sql: schemaName === undefined
+					sql: schemaName === undefined || chunk[Table.Symbol.IsAlias]
 						? escapeName(tableName)
 						: escapeName(schemaName) + '.' + escapeName(tableName),
 					params: [],
@@ -307,7 +307,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		throw new Error('Unexpected param value: ' + chunk);
 	}
 
-	getSQL(): SQL {
+	getSQL(): SQL<T> {
 		return this;
 	}
 
@@ -550,7 +550,7 @@ export namespace sql {
 }
 
 export namespace SQL {
-	export class Aliased<T = unknown> implements SQLWrapper {
+	export class Aliased<T = unknown> implements SQLWrapper<T> {
 		static readonly [entityKind]: string = 'SQL.Aliased';
 
 		declare _: {
@@ -562,17 +562,17 @@ export namespace SQL {
 		isSelectionField = false;
 
 		constructor(
-			readonly sql: SQL,
+			readonly sql: SQL<T>,
 			readonly fieldAlias: string,
 		) {}
 
-		getSQL(): SQL {
-			return this.sql;
+		getSQL(): SQL<T> {
+			return this.sql as SQL<T>;
 		}
 
 		/** @internal */
 		clone() {
-			return new Aliased(this.sql, this.fieldAlias);
+			return new Aliased<T>(this.sql, this.fieldAlias);
 		}
 	}
 }

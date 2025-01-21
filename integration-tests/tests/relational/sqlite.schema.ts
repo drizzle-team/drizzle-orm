@@ -1,6 +1,7 @@
 import { type AnySQLiteColumn, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 
 export const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey({ autoIncrement: true }),

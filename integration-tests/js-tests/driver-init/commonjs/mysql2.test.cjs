@@ -29,7 +29,7 @@ describe('mysql2', async (it) => {
 		);
 		await db.$client.execute('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client.getConnection).not.toStrictEqual(undefined);
 	});
 
@@ -42,7 +42,7 @@ describe('mysql2', async (it) => {
 
 		await db.$client.execute('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client.getConnection).not.toStrictEqual(undefined);
 	});
 
@@ -57,7 +57,7 @@ describe('mysql2', async (it) => {
 
 		await db.$client.execute('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client.getConnection).not.toStrictEqual(undefined);
 	});
 
@@ -84,7 +84,7 @@ describe('mysql2', async (it) => {
 
 		await db.$client.execute('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client.getConnection).not.toStrictEqual(undefined);
 	});
 
@@ -101,7 +101,7 @@ describe('mysql2', async (it) => {
 
 		await db.$client.execute('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client.getConnection).not.toStrictEqual(undefined);
 	});
 });
@@ -130,7 +130,7 @@ describe('mysql2:connection', async (it) => {
 
 		await db.$client.execute('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client.getConnection).toStrictEqual(undefined);
 	});
 
@@ -147,7 +147,7 @@ describe('mysql2:connection', async (it) => {
 
 		await db.$client.execute('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client.getConnection).toStrictEqual(undefined);
 	});
 });

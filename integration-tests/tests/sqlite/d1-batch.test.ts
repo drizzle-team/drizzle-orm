@@ -2,7 +2,8 @@
 import 'dotenv/config';
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { createSQLiteDB } from '@miniflare/shared';
-import { eq, relations, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import { drizzle } from 'drizzle-orm/d1';
 import { type AnySQLiteColumn, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
@@ -275,7 +276,7 @@ test('insert + findMany', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db.query.usersTable.findMany({}),
+		db._query.usersTable.findMany({}),
 	]);
 
 	expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -310,8 +311,8 @@ test('insert + findMany + findFirst', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db.query.usersTable.findMany({}),
-		db.query.usersTable.findFirst({}),
+		db._query.usersTable.findMany({}),
+		db._query.usersTable.findFirst({}),
 	]);
 
 	expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -405,7 +406,7 @@ test('insert + findManyWith + db.all', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db.query.usersTable.findMany({}),
+		db._query.usersTable.findMany({}),
 		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
 	]);
 
@@ -452,7 +453,7 @@ test('insert + update + select + select partial', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.update(usersTable).set({ name: 'Dan' }).where(eq(usersTable.id, 1)),
-		db.query.usersTable.findMany({}),
+		db._query.usersTable.findMany({}),
 		db.select().from(usersTable).where(eq(usersTable.id, 1)),
 		db.select({ id: usersTable.id, invitedBy: usersTable.invitedBy }).from(usersTable),
 	]);
@@ -507,7 +508,7 @@ test('insert + delete + select + select partial', async () => {
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
 		db.delete(usersTable).where(eq(usersTable.id, 1)).returning({ id: usersTable.id, invitedBy: usersTable.invitedBy }),
-		db.query.usersTable.findFirst({
+		db._query.usersTable.findFirst({
 			columns: {
 				id: true,
 				invitedBy: true,

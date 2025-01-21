@@ -1,7 +1,7 @@
+import type * as V1 from './_relations.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import type { Relation } from './relations.ts';
 import type { View } from './sql/sql.ts';
 import { SQL, sql } from './sql/sql.ts';
 import { Table } from './table.ts';
@@ -74,7 +74,7 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 	}
 }
 
-export class RelationTableAliasProxyHandler<T extends Relation> implements ProxyHandler<T> {
+export class RelationTableAliasProxyHandler<T extends V1.Relation> implements ProxyHandler<T> {
 	static readonly [entityKind]: string = 'RelationTableAliasProxyHandler';
 
 	constructor(private alias: string) {}
@@ -92,7 +92,7 @@ export function aliasedTable<T extends Table>(table: T, tableAlias: string): T {
 	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false));
 }
 
-export function aliasedRelation<T extends Relation>(relation: T, tableAlias: string): T {
+export function aliasedRelation<T extends V1.Relation>(relation: T, tableAlias: string): T {
 	return new Proxy(relation, new RelationTableAliasProxyHandler(tableAlias));
 }
 
