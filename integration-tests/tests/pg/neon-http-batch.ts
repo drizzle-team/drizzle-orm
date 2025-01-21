@@ -144,6 +144,8 @@ export function tests() {
 			await db.execute(sql`drop schema if exists public cascade`);
 			await db.execute(sql`drop schema if exists mySchema cascade`);
 
+			await db.execute(sql`create schema public`);
+
 			await db.execute(
 				sql`
 					create table users (

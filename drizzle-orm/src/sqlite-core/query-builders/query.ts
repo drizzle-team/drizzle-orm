@@ -150,7 +150,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 
 	/** @internal */
 	_prepare(
-		isOneTimeQuery = false,
+		isOneTimeQuery = true,
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
 		const { query, builtQuery } = this._toSQL();
 
@@ -217,9 +217,9 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	/** @internal */
 	executeRaw(): TResult {
 		if (this.mode === 'first') {
-			return this._prepare(false).get() as TResult;
+			return this._prepare().get() as TResult;
 		}
-		return this._prepare(false).all() as TResult;
+		return this._prepare().all() as TResult;
 	}
 
 	override async execute(): Promise<TResult> {

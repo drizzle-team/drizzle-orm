@@ -1,4 +1,4 @@
-import type { BindParams, Database, Statement } from 'sql.js';
+import type { BindParams, Database } from 'sql.js';
 import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -49,28 +49,7 @@ export class SQLJsSession<
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
 	): PreparedQuery<T> {
-		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query, this.logger, fields, executeMethod, isResponseInArrayMode);
-	}
-
-	override prepareOneTimeQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
-	): PreparedQuery<T> {
-		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(
-			stmt,
-			query,
-			this.logger,
-			fields,
-			executeMethod,
-			isResponseInArrayMode,
-			customResultMapper,
-			true,
-		);
+		return new PreparedQuery(this.client, query, this.logger, fields, executeMethod, isResponseInArrayMode);
 	}
 
 	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -79,36 +58,14 @@ export class SQLJsSession<
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
 	): PreparedQuery<T, true> {
-		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(
-			stmt,
+			this.client,
 			query,
 			this.logger,
 			fields,
 			executeMethod,
 			false,
 			customResultMapper,
-			false,
-			true,
-		);
-	}
-
-	override prepareOneTimeRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
-	): PreparedQuery<T, true> {
-		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(
-			stmt,
-			query,
-			this.logger,
-			fields,
-			executeMethod,
-			false,
-			customResultMapper,
-			true,
 			true,
 		);
 	}
@@ -170,7 +127,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 	static override readonly [entityKind]: string = 'SQLJsPreparedQuery';
 
 	constructor(
-		private stmt: Statement,
+		private client: Database,
 		query: Query,
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
@@ -180,28 +137,28 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
-		private isOneTimeQuery = false,
 		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super('sync', executeMethod, query);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): void {
+		const stmt = this.client.prepare(this.query.sql);
+
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		const result = this.stmt.run(params as BindParams);
+		const result = stmt.run(params as BindParams);
 
-		if (this.isOneTimeQuery) {
-			this.free();
-		}
+		stmt.free();
 
 		return result;
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
 		if (this.isRqbV2Query) return this.allRqbV2(placeholderValues);
+		const stmt = this.client.prepare(this.query.sql);
 
-		const { fields, joinsNotNullableMap, logger, query, stmt, isOneTimeQuery, customResultMapper } = this;
+		const { fields, joinsNotNullableMap, logger, query, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
@@ -211,9 +168,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 				rows.push(stmt.getAsObject());
 			}
 
-			if (isOneTimeQuery) {
-				this.free();
-			}
+			stmt.free();
 
 			return rows;
 		}
@@ -231,7 +186,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 	}
 
 	private allRqbV2(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { logger, query, stmt, isOneTimeQuery, customResultMapper } = this;
+		const stmt = this.client.prepare(this.query.sql);
+
+		const { logger, query, customResultMapper } = this;
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
 		stmt.bind(params as BindParams);
@@ -240,9 +197,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			rows.push(stmt.getAsObject());
 		}
 
-		if (isOneTimeQuery) {
-			this.free();
-		}
+		stmt.free();
 
 		return (customResultMapper as (
 			rows: Record<string, unknown>[],
@@ -252,26 +207,23 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
 		if (this.isRqbV2Query) return this.getRqbV2(placeholderValues);
+		const stmt = this.client.prepare(this.query.sql);
 
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, stmt, isOneTimeQuery, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, joinsNotNullableMap, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const result = stmt.getAsObject(params as BindParams);
 
-			if (isOneTimeQuery) {
-				this.free();
-			}
+			stmt.free();
 
 			return result;
 		}
 
 		const row = stmt.get(params as BindParams);
 
-		if (isOneTimeQuery) {
-			this.free();
-		}
+		stmt.free();
 
 		if (!row || (row.length === 0 && fields!.length > 0)) {
 			return undefined;
@@ -288,24 +240,29 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 	}
 
 	private getRqbV2(placeholderValues?: Record<string, unknown>): T['get'] {
+		const stmt = this.client.prepare(this.query.sql);
+
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
-		const { stmt, isOneTimeQuery, customResultMapper } = this;
+		const { customResultMapper } = this;
 
 		const row = stmt.getAsObject(params as BindParams);
 
-		if (isOneTimeQuery) {
-			this.free();
-		}
+		stmt.free();
 
 		if (!row) {
 			return undefined;
 		}
 
+		let nonUndef = false;
 		for (const v of Object.values(row)) {
-			if (v === undefined) return undefined;
+			if (v !== undefined) {
+				nonUndef = true;
+				break;
+			}
 		}
+		if (!nonUndef) return undefined;
 
 		return (customResultMapper as (
 			rows: Record<string, unknown>[],
@@ -314,23 +271,19 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
+		const stmt = this.client.prepare(this.query.sql);
+
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		this.stmt.bind(params as BindParams);
+		stmt.bind(params as BindParams);
 		const rows: unknown[] = [];
-		while (this.stmt.step()) {
-			rows.push(this.stmt.get());
+		while (stmt.step()) {
+			rows.push(stmt.get());
 		}
 
-		if (this.isOneTimeQuery) {
-			this.free();
-		}
+		stmt.free();
 
 		return rows;
-	}
-
-	free(): boolean {
-		return this.stmt.free();
 	}
 
 	/** @internal */
