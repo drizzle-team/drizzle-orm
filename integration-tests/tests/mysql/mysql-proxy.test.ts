@@ -130,6 +130,7 @@ skipTests([
 	'transaction rollback',
 	'transaction',
 	'transaction with options (set isolationLevel)',
+	'transaction with options (set isolationLevel) w/ prepared queries',
 	'migrator',
 ]);
 

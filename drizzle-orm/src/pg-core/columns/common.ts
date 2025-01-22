@@ -11,13 +11,14 @@ import { ColumnBuilder } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { Simplify, Update } from '~/utils.ts';
+import type { Casing, Simplify, Update } from '~/utils.ts';
 
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
+import type { PgDatabase } from '../db.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
@@ -47,22 +48,24 @@ export abstract class PgColumnBuilder<
 
 	static override readonly [entityKind]: string = 'PgColumnBuilder';
 
-	array<TSize extends number | undefined = undefined>(size?: TSize): PgArrayBuilder<
-		& {
-			name: T['name'];
-			dataType: 'array';
-			columnType: 'PgArray';
-			data: T['data'][];
-			driverParam: T['driverParam'][] | string;
-			enumValues: T['enumValues'];
-			size: TSize;
-			baseBuilder: T;
-		}
-		& (T extends { notNull: true } ? { notNull: true } : {})
-		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
-		T
-	> {
-		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size as any);
+	array<TSize extends number | undefined = undefined>(size?: TSize): this extends infer TThis ? PgArrayBuilder<
+			& {
+				name: T['name'];
+				dataType: 'array';
+				columnType: 'PgArray';
+				data: TThis extends { _: { $type: infer U } } ? U[] : T['data'][];
+				driverParam: T['driverParam'][] | string;
+				enumValues: T['enumValues'];
+				size: TSize;
+				baseBuilder: T;
+			}
+			& (T extends { notNull: true } ? { notNull: true } : {})
+			& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
+			T
+		>
+		: never
+	{
+		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size as any) as any;
 	}
 
 	references(
@@ -149,6 +152,11 @@ export abstract class PgColumn<
 		}
 		super(table, config);
 	}
+
+	override nameWithCasing: {
+		(casing: Casing): string;
+		(db: PgDatabase<any>): string;
+	} = super.nameWithCasing;
 }
 
 export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };

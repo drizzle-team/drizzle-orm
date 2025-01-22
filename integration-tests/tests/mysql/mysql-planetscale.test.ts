@@ -60,6 +60,7 @@ skipTests([
 	'utc config for datetime',
 	'transaction',
 	'transaction with options (set isolationLevel)',
+	'transaction with options (set isolationLevel) w/ prepared queries',
 	'having',
 	'select count()',
 	'insert via db.execute w/ query builder',

@@ -32,7 +32,7 @@ export class SingleStoreTable<T extends TableConfig = TableConfig> extends Table
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
-		| ((self: Record<string, SingleStoreColumn>) => SingleStoreTableExtraConfig)
+		| ((self: Record<string, SingleStoreColumn>) => SingleStoreTableExtraConfig | SingleStoreTableExtraConfigValue[])
 		| undefined = undefined;
 }
 
@@ -94,87 +94,13 @@ export function singlestoreTableWithSchema<
 	>;
 
 	if (extraConfig) {
-		table[SingleStoreTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (
-			self: Record<string, SingleStoreColumn>,
-		) => SingleStoreTableExtraConfig;
+		table[SingleStoreTable.Symbol.ExtraConfigBuilder] = extraConfig as any;
 	}
 
 	return table;
 }
 
 export interface SingleStoreTableFn<TSchemaName extends string | undefined = undefined> {
-	/**
-	 * @deprecated The third parameter of singlestoreTable is changing and will only accept an array instead of an object
-	 *
-	 * @example
-	 * Deprecated version:
-	 * ```ts
-	 * export const users = singlestoreTable("users", {
-	 * 	id: int(),
-	 * }, (t) => ({
-	 * 	idx: index('custom_name').on(t.id)
-	 * }));
-	 * ```
-	 *
-	 * New API:
-	 * ```ts
-	 * export const users = singlestoreTable("users", {
-	 * 	id: int(),
-	 * }, (t) => [
-	 * 	index('custom_name').on(t.id)
-	 * ]);
-	 * ```
-	 */
-	<
-		TTableName extends string,
-		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
-	>(
-		name: TTableName,
-		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfig,
-	): SingleStoreTableWithColumns<{
-		name: TTableName;
-		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
-		dialect: 'singlestore';
-	}>;
-
-	/**
-	 * @deprecated The third parameter of singlestoreTable is changing and will only accept an array instead of an object
-	 *
-	 * @example
-	 * Deprecated version:
-	 * ```ts
-	 * export const users = singlestoreTable("users", {
-	 * 	id: int(),
-	 * }, (t) => ({
-	 * 	idx: index('custom_name').on(t.id)
-	 * }));
-	 * ```
-	 *
-	 * New API:
-	 * ```ts
-	 * export const users = singlestoreTable("users", {
-	 * 	id: int(),
-	 * }, (t) => [
-	 * 	index('custom_name').on(t.id)
-	 * ]);
-	 * ```
-	 */
-	<
-		TTableName extends string,
-		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
-	>(
-		name: TTableName,
-		columns: (columnTypes: SingleStoreColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfig,
-	): SingleStoreTableWithColumns<{
-		name: TTableName;
-		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
-		dialect: 'singlestore';
-	}>;
-
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
@@ -204,14 +130,92 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
 	}>;
+
+	/**
+	 * @deprecated The third parameter of singlestoreTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfig,
+	): SingleStoreTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
+		dialect: 'singlestore';
+	}>;
+
+	/**
+	 * @deprecated The third parameter of singlestoreTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = singlestoreTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: SingleStoreColumnBuilders) => TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfig,
+	): SingleStoreTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
+		dialect: 'singlestore';
+	}>;
 }
 
 export const singlestoreTable: SingleStoreTableFn = (name, columns, extraConfig) => {
-	return singlestoreTableWithSchema(name, columns, extraConfig, undefined, name);
+	return singlestoreTableWithSchema(name, columns, extraConfig as any, undefined, name);
 };
 
 export function singlestoreTableCreator(customizeTableName: (name: string) => string): SingleStoreTableFn {
 	return (name, columns, extraConfig) => {
-		return singlestoreTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return singlestoreTableWithSchema(
+			customizeTableName(name) as typeof name,
+			columns,
+			extraConfig as any,
+			undefined,
+			name,
+		);
 	};
 }

@@ -1,3 +1,4 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
 import { SQLiteTable } from './table.ts';
@@ -43,8 +44,8 @@ export class PrimaryKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: SQLiteTable): PrimaryKey {
-		return new PrimaryKey(table, this.columns, this.name);
+	build(table: SQLiteTable, casing?: CasingCache): PrimaryKey {
+		return new PrimaryKey(table, this.columns, this.name, casing);
 	}
 }
 
@@ -54,13 +55,19 @@ export class PrimaryKey {
 	readonly columns: SQLiteColumn[];
 	readonly name?: string;
 
-	constructor(readonly table: SQLiteTable, columns: SQLiteColumn[], name?: string) {
+	constructor(readonly table: SQLiteTable, columns: SQLiteColumn[], name?: string, private casing?: CasingCache) {
 		this.columns = columns;
 		this.name = name;
 	}
 
 	getName(): string {
 		return this.name
-			?? `${this.table[SQLiteTable.Symbol.Name]}_${this.columns.map((column) => column.name).join('_')}_pk`;
+			?? `${this.table[SQLiteTable.Symbol.Name]}_${
+				(
+					this.casing
+						? this.columns.map((column) => this.casing!.getColumnCasing(column))
+						: this.columns.map((column) => column.name)
+				).join('_')
+			}_pk`;
 	}
 }

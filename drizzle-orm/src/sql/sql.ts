@@ -280,6 +280,10 @@ export class SQL<T = unknown> implements SQLWrapper {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
 
+			if (typeof chunk === 'object' && chunk.toString() === '[object Object]') {
+				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [JSON.stringify(chunk)] };
+			}
+
 			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
 		}));
 	}
@@ -356,10 +360,12 @@ export class SQL<T = unknown> implements SQLWrapper {
 	}
 }
 
-export type GetDecoderResult<T> = T extends Column ? T['_']['data'] : T extends
-	| DriverValueDecoder<infer TData, any>
-	| DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? TData
-: never;
+export type GetDecoderResult<T> = T extends Column
+	? T['_']['notNull'] extends true ? T['_']['data'] : T['_']['data'] | null
+	: T extends
+		| DriverValueDecoder<infer TData, any>
+		| DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? TData
+	: never;
 
 /**
  * Any DB name (table, column, index etc.)
