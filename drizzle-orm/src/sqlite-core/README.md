@@ -8,7 +8,7 @@
 <hr />
 </div>
 
-DrizzleORM is a [tiny](https://twitter.com/_alexblokh/status/1594735880417472512), [blazingly fast](#️-performance-and-prepared-statements) TypeScript ORM library with a [drizzle-kit](#-migrations) CLI companion for automatic SQL migrations generation.
+Drizzle ORM is a [tiny](https://twitter.com/_alexblokh/status/1594735880417472512), [blazingly fast](#️-performance-and-prepared-statements) TypeScript ORM library with a [drizzle-kit](#-migrations) CLI companion for automatic SQL migrations generation.
 Here you can find extensive docs for SQLite module.
 
 | Driver                                                                | Support |                                    |
@@ -178,7 +178,7 @@ import Database from 'better-sqlite3';
 const sqlite = new Database('sqlite.db');
 const db: BetterSQLite3Database = drizzle(sqlite);
 
-const result: User[] = db.select().from(users).all();
+const result: User[] = await db.select().from(users).all();
 
 const insertUser = (user: InsertUser) => {
   return db.insert(users).values(user).run()
@@ -365,7 +365,8 @@ const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
 const result = db.with(sq).select().from(sq).all();
 ```
 
-> **Note**: Keep in mind that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
+> [!NOTE]
+> Keep in mind that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
 
 ```typescript
 const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users.name})`.as('name') }).from(users));
@@ -582,7 +583,8 @@ db
 
 ### Joins
 
-> **Note**: for in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
+> [!NOTE]
+> For in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
 
 ### Many-to-one
 
@@ -721,7 +723,8 @@ const { sql, params } = query.toSQL();
 
 ## Views (WIP)
 
-> **Warning**: views are currently only implemented on the ORM side. That means you can query the views that already exist in the database, but they won't be added to drizzle-kit migrations or `db push` yet.
+> [!WARNING]
+> views are currently only implemented on the ORM side. That means you can query the views that already exist in the database, but they won't be added to drizzle-kit migrations or `db push` yet.
 
 ### Creating a view
 
@@ -731,7 +734,8 @@ import { sqliteView } from 'drizzle-orm/sqlite-core';
 const newYorkers = sqliteView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 ```
 
-> **Warning**: All the parameters inside the query will be inlined, instead of replaced by `$1`, `$2`, etc.
+> [!WARNING]
+> All the parameters inside the query will be inlined, instead of replaced by `$1`, `$2`, etc.
 
 You can also use the [`queryBuilder` instance](#query-builder) directly instead of passing a callback, if you already have it imported.
 
@@ -794,8 +798,8 @@ q.all({ name: '%an%' }) // SELECT * FROM customers WHERE name ilike '%an%'
 
 ### Automatic SQL migrations generation with drizzle-kit
 
-[Drizzle Kit](https://www.npmjs.com/package/drizzle-kit) is a CLI migrator tool for Drizzle ORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
-Check out the [docs for Drizzle Kit](https://github.com/drizzle-team/drizzle-kit-mirror)
+[Drizzle Kit](https://www.npmjs.com/package/drizzle-kit) is a CLI migrator tool for Drizzle ORM. It is probably the one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
+Check out the [docs for Drizzle Kit](https://github.com/drizzle-team/drizzle-kit-mirror).
 
 For schema file:
 

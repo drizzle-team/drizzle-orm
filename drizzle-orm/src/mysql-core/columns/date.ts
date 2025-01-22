@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import type { Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlDateBuilderInitial<TName extends string> = MySqlDateBuilder<{
@@ -15,7 +15,7 @@ export type MySqlDateBuilderInitial<TName extends string> = MySqlDateBuilder<{
 }>;
 
 export class MySqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDate'>> extends MySqlColumnBuilder<T> {
-	static readonly [entityKind]: string = 'MySqlDateBuilder';
+	static override readonly [entityKind]: string = 'MySqlDateBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'date', 'MySqlDate');
@@ -30,7 +30,7 @@ export class MySqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDa
 }
 
 export class MySqlDate<T extends ColumnBaseConfig<'date', 'MySqlDate'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlDate';
+	static override readonly [entityKind]: string = 'MySqlDate';
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
@@ -60,7 +60,7 @@ export type MySqlDateStringBuilderInitial<TName extends string> = MySqlDateStrin
 export class MySqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlDateString'>>
 	extends MySqlColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'MySqlDateStringBuilder';
+	static override readonly [entityKind]: string = 'MySqlDateStringBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'string', 'MySqlDateString');
@@ -78,7 +78,7 @@ export class MySqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 
 }
 
 export class MySqlDateString<T extends ColumnBaseConfig<'string', 'MySqlDateString'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlDateString';
+	static override readonly [entityKind]: string = 'MySqlDateString';
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
@@ -96,12 +96,17 @@ export interface MySqlDateConfig<TMode extends 'date' | 'string' = 'date' | 'str
 	mode?: TMode;
 }
 
+export function date(): MySqlDateBuilderInitial<''>;
+export function date<TMode extends MySqlDateConfig['mode'] & {}>(
+	config?: MySqlDateConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<''> : MySqlDateBuilderInitial<''>;
 export function date<TName extends string, TMode extends MySqlDateConfig['mode'] & {}>(
 	name: TName,
 	config?: MySqlDateConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<TName> : MySqlDateBuilderInitial<TName>;
-export function date(name: string, config: MySqlDateConfig = {}) {
-	if (config.mode === 'string') {
+export function date(a?: string | MySqlDateConfig, b?: MySqlDateConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlDateConfig | undefined>(a, b);
+	if (config?.mode === 'string') {
 		return new MySqlDateStringBuilder(name);
 	}
 	return new MySqlDateBuilder(name);

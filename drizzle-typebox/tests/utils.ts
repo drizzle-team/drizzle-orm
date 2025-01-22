@@ -1,17 +1,34 @@
-import type { TSchema } from '@sinclair/typebox';
-import type { ExecutionContext } from 'ava';
+import type * as t from '@sinclair/typebox';
+import { expect, type TaskContext } from 'vitest';
 
-export function expectSchemaShape<T extends TSchema>(t: ExecutionContext, expected: T) {
+function removeKeysFromObject(obj: Record<string, any>, keys: string[]) {
+	for (const key of keys) {
+		delete obj[key];
+	}
+	return obj;
+}
+
+export function expectSchemaShape<T extends t.TObject>(t: TaskContext, expected: T) {
 	return {
 		from(actual: T) {
-			t.deepEqual(Object.keys(actual), Object.keys(expected));
+			expect(Object.keys(actual.properties)).toStrictEqual(Object.keys(expected.properties));
+			const keys = ['$id', '$schema', 'title', 'description', 'default', 'examples', 'readOnly', 'writeOnly'];
 
-			for (const key of Object.keys(actual)) {
-				t.deepEqual(actual[key].type, expected[key]?.type, `key: ${key}`);
-				if (actual[key].optional) {
-					t.deepEqual(actual[key].optional, expected[key]?.optional, `key (optional): ${key}`);
-				}
+			for (const key of Object.keys(actual.properties)) {
+				expect(removeKeysFromObject(actual.properties[key]!, keys)).toStrictEqual(
+					removeKeysFromObject(expected.properties[key]!, keys),
+				);
 			}
 		},
 	};
 }
+
+export function expectEnumValues<T extends t.TEnum<any>>(t: TaskContext, expected: T) {
+	return {
+		from(actual: T) {
+			expect(actual.anyOf).toStrictEqual(expected.anyOf);
+		},
+	};
+}
+
+export function Expect<_ extends true>() {}

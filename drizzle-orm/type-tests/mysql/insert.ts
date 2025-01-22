@@ -1,10 +1,21 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { int, type MySqlInsert, mysqlTable, text } from '~/mysql-core/index.ts';
+import { boolean, int, mysqlTable, QueryBuilder, serial, text } from '~/mysql-core/index.ts';
+import type { MySqlInsert } from '~/mysql-core/index.ts';
 import type { MySqlRawQueryResult } from '~/mysql2/index.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
+
+const mysqlInsertReturning = await db.insert(users).values({
+	//    ^?
+	homeCity: 1,
+	class: 'A',
+	age1: 1,
+	enumCol: 'a',
+}).$returningId();
+
+Expect<Equal<{ id: number; serialNullable: number; serialNotNull: number }[], typeof mysqlInsertReturning>>;
 
 const insert = await db.insert(users).values({
 	homeCity: 1,
@@ -110,6 +121,7 @@ Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 	const qbBase = db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0 }).$dynamic();
 	const qb = dynamic(qbBase);
 	const result = await qb;
+
 	Expect<Equal<MySqlRawQueryResult, typeof result>>;
 }
 
@@ -120,4 +132,76 @@ Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 		.onDuplicateKeyUpdate({ set: {} })
 		// @ts-expect-error method was already called
 		.onDuplicateKeyUpdate({ set: {} });
+}
+
+{
+	const users1 = mysqlTable('users1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		admin: boolean('admin').notNull().default(false),
+	});
+	const users2 = mysqlTable('users2', {
+		id: serial('id').primaryKey(),
+		firstName: text('first_name').notNull(),
+		lastName: text('last_name').notNull(),
+		admin: boolean('admin').notNull().default(false),
+		phoneNumber: text('phone_number'),
+	});
+
+	const qb = new QueryBuilder();
+
+	db.insert(users1).select(sql`select * from users1`);
+	db.insert(users1).select(() => sql`select * from users1`);
+
+	db
+		.insert(users1)
+		.select(
+			qb.select({
+				name: users2.firstName,
+				admin: users2.admin,
+			}).from(users2),
+		);
+
+	db
+		.insert(users1)
+		.select(
+			qb.select({
+				name: users2.firstName,
+				admin: users2.admin,
+			}).from(users2).where(sql``),
+		);
+
+	db
+		.insert(users2)
+		.select(
+			qb.select({
+				firstName: users2.firstName,
+				lastName: users2.lastName,
+				admin: users2.admin,
+			}).from(users2),
+		);
+
+	db
+		.insert(users1)
+		.select(
+			qb.select({
+				name: sql`${users2.firstName} || ' ' || ${users2.lastName}`.as('name'),
+				admin: users2.admin,
+			}).from(users2),
+		);
+
+	db
+		.insert(users1)
+		.select(
+			// @ts-expect-error name is undefined
+			qb.select({ admin: users1.admin }).from(users1),
+		);
+
+	db.insert(users1).select(db.select().from(users1));
+	db.insert(users1).select(() => db.select().from(users1));
+	db.insert(users1).select((qb) => qb.select().from(users1));
+	// @ts-expect-error tables have different keys
+	db.insert(users1).select(db.select().from(users2));
+	// @ts-expect-error tables have different keys
+	db.insert(users1).select(() => db.select().from(users2));
 }
