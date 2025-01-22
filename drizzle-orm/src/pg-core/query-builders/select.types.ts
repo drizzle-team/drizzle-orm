@@ -79,7 +79,6 @@ export interface PgSelectConfig {
 	}[];
 }
 
-/** @internal */
 export type TableLikeHasEmptySelection<T extends PgTable | Subquery | PgViewBase | SQL> = T extends Subquery
 	? Equal<T['_']['selectedFields'], {}> extends true ? true : false
 	: false;

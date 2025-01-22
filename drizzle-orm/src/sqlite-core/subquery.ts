@@ -1,8 +1,8 @@
-import type { TypedQueryBuilder } from '~/query-builders/query-builder';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery, WithSubquery, WithSubqueryWithoutSelection } from '~/subquery.ts';
-import type { QueryBuilder } from './query-builders';
+import type { QueryBuilder } from './query-builders/query-builder.ts';
 
 export type SubqueryWithSelection<TSelection extends ColumnsSelection, TAlias extends string> =
 	& Subquery<TAlias, AddAliasToSelection<TSelection, TAlias, 'sqlite'>>
