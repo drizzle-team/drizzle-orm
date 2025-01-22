@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import type { Placeholder, SQL } from '~/sql/sql.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
 
@@ -13,11 +14,10 @@ export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
 	data: Date;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgDate'>> extends PgDateColumnBaseBuilder<T> {
-	static readonly [entityKind]: string = 'PgDateBuilder';
+	static override readonly [entityKind]: string = 'PgDateBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'date', 'PgDate');
@@ -32,7 +32,7 @@ export class PgDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgDate'>> 
 }
 
 export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgDate';
+	static override readonly [entityKind]: string = 'PgDate';
 
 	getSQLType(): string {
 		return 'date';
@@ -55,13 +55,12 @@ export type PgDateStringBuilderInitial<TName extends string> = PgDateStringBuild
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgDateString'>>
 	extends PgDateColumnBaseBuilder<T>
 {
-	static readonly [entityKind]: string = 'PgDateStringBuilder';
+	static override readonly [entityKind]: string = 'PgDateStringBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'string', 'PgDateString');
@@ -79,19 +78,27 @@ export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'Pg
 }
 
 export class PgDateString<T extends ColumnBaseConfig<'string', 'PgDateString'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgDateString';
+	static override readonly [entityKind]: string = 'PgDateString';
 
 	getSQLType(): string {
 		return 'date';
 	}
 }
 
-export function date<TName extends string>(
+export interface PgDateConfig<T extends 'date' | 'string' = 'date' | 'string'> {
+	mode: T;
+}
+
+export function date(): PgDateStringBuilderInitial<''>;
+export function date<TMode extends PgDateConfig['mode'] & {}>(
+	config?: PgDateConfig<TMode>,
+): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<''> : PgDateStringBuilderInitial<''>;
+export function date<TName extends string, TMode extends PgDateConfig['mode'] & {}>(
 	name: TName,
-	config?: { mode: 'string' },
-): PgDateStringBuilderInitial<TName>;
-export function date<TName extends string>(TName: TName, config?: { mode: 'date' }): PgDateBuilderInitial<TName>;
-export function date<TName extends string>(name: TName, config?: { mode: 'date' | 'string' }) {
+	config?: PgDateConfig<TMode>,
+): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<TName> : PgDateStringBuilderInitial<TName>;
+export function date(a?: string | PgDateConfig, b?: PgDateConfig) {
+	const { name, config } = getColumnNameAndConfig<PgDateConfig>(a, b);
 	if (config?.mode === 'date') {
 		return new PgDateBuilder(name);
 	}

@@ -18,6 +18,7 @@ import {
 	gte,
 	ilike,
 	inArray,
+	is,
 	lt,
 	max,
 	min,
@@ -30,10 +31,12 @@ import {
 	sumDistinct,
 	TransactionRollbackError,
 } from 'drizzle-orm';
+import { authenticatedRole, crudPolicy } from 'drizzle-orm/neon';
 import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
 	alias,
+	bigserial,
 	boolean,
 	char,
 	cidr,
@@ -44,6 +47,7 @@ import {
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
+	index,
 	inet,
 	integer,
 	intersect,
@@ -54,8 +58,11 @@ import {
 	macaddr,
 	macaddr8,
 	numeric,
+	PgDialect,
 	pgEnum,
 	pgMaterializedView,
+	PgPolicy,
+	pgPolicy,
 	pgSchema,
 	pgTable,
 	pgTableCreator,
@@ -178,9 +185,9 @@ const aggregateTable = pgTable('aggregate_table', {
 });
 
 // To test another schema and multischema
-const mySchema = pgSchema('mySchema');
+export const mySchema = pgSchema('mySchema');
 
-const usersMySchemaTable = mySchema.table('users', {
+export const usersMySchemaTable = mySchema.table('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
@@ -1251,6 +1258,29 @@ export function tests() {
 			const result = await stmt.execute({ offset: 1 });
 
 			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+		});
+
+		test('prepared statement built using $dynamic', async (ctx) => {
+			const { db } = ctx.pg;
+
+			function withLimitOffset(qb: any) {
+				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
+			}
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.$dynamic();
+			withLimitOffset(stmt).prepare('stmt_limit');
+
+			const result = await stmt.execute({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+			expect(result).toHaveLength(1);
 		});
 
 		// TODO change tests to new structure
@@ -4287,7 +4317,7 @@ export function tests() {
 				.toSQL();
 
 			expect(query).toEqual({
-				sql: 'select "id", "name" from "mySchema"."users" group by "users"."id", "users"."name"',
+				sql: 'select "id", "name" from "mySchema"."users" group by "mySchema"."users"."id", "mySchema"."users"."name"',
 				params: [],
 			});
 		});
@@ -4566,6 +4596,49 @@ export function tests() {
 			expect(users.length).toBeGreaterThan(0);
 		});
 
+		test('Object keys as column names', async (ctx) => {
+			const { db } = ctx.pg;
+
+			// Tests the following:
+			// Column with required config
+			// Column with optional config without providing a value
+			// Column with optional config providing a value
+			// Column without config
+			const users = pgTable('users', {
+				id: bigserial({ mode: 'number' }).primaryKey(),
+				firstName: varchar(),
+				lastName: varchar({ length: 50 }),
+				admin: boolean(),
+			});
+
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(
+				sql`
+					create table users (
+						"id" bigserial primary key,
+						"firstName" varchar,
+						"lastName" varchar(50),
+						"admin" boolean
+					)
+				`,
+			);
+
+			await db.insert(users).values([
+				{ firstName: 'John', lastName: 'Doe', admin: true },
+				{ firstName: 'Jane', lastName: 'Smith', admin: false },
+			]);
+			const result = await db
+				.select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+				.from(users)
+				.where(eq(users.admin, true));
+
+			expect(result).toEqual([
+				{ id: 1, firstName: 'John', lastName: 'Doe' },
+			]);
+
+			await db.execute(sql`drop table users`);
+		});
+
 		test('proper json and jsonb handling', async (ctx) => {
 			const { db } = ctx.pg;
 
@@ -4704,6 +4777,413 @@ export function tests() {
 				jsonbStringField: testString,
 				jsonbNumberField: testNumber,
 			}]);
+		});
+
+		test('update ... from', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(cities2Table).values([
+				{ name: 'New York City' },
+				{ name: 'Seattle' },
+			]);
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+			]);
+
+			const result = await db
+				.update(users2Table)
+				.set({
+					cityId: cities2Table.id,
+				})
+				.from(cities2Table)
+				.where(and(eq(cities2Table.name, 'Seattle'), eq(users2Table.name, 'John')))
+				.returning();
+
+			expect(result).toStrictEqual([{
+				id: 1,
+				name: 'John',
+				cityId: 2,
+				cities: {
+					id: 2,
+					name: 'Seattle',
+				},
+			}]);
+		});
+
+		test('update ... from with alias', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(cities2Table).values([
+				{ name: 'New York City' },
+				{ name: 'Seattle' },
+			]);
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+			]);
+
+			const users = alias(users2Table, 'u');
+			const cities = alias(cities2Table, 'c');
+			const result = await db
+				.update(users)
+				.set({
+					cityId: cities.id,
+				})
+				.from(cities)
+				.where(and(eq(cities.name, 'Seattle'), eq(users.name, 'John')))
+				.returning();
+
+			expect(result).toStrictEqual([{
+				id: 1,
+				name: 'John',
+				cityId: 2,
+				c: {
+					id: 2,
+					name: 'Seattle',
+				},
+			}]);
+		});
+
+		test('update ... from with join', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const states = pgTable('states', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const cities = pgTable('cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				stateId: integer('state_id').references(() => states.id),
+			});
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').notNull().references(() => cities.id),
+			});
+
+			await db.execute(sql`drop table if exists "states" cascade`);
+			await db.execute(sql`drop table if exists "cities" cascade`);
+			await db.execute(sql`drop table if exists "users" cascade`);
+			await db.execute(sql`
+				create table "states" (
+					"id" serial primary key,
+					"name" text not null
+				)
+			`);
+			await db.execute(sql`
+				create table "cities" (
+					"id" serial primary key,
+					"name" text not null,
+					"state_id" integer references "states"("id")
+				)
+			`);
+			await db.execute(sql`
+				create table "users" (
+					"id" serial primary key,
+					"name" text not null,
+					"city_id" integer not null references "cities"("id")
+				)
+			`);
+
+			await db.insert(states).values([
+				{ name: 'New York' },
+				{ name: 'Washington' },
+			]);
+			await db.insert(cities).values([
+				{ name: 'New York City', stateId: 1 },
+				{ name: 'Seattle', stateId: 2 },
+				{ name: 'London' },
+			]);
+			await db.insert(users).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 3 },
+			]);
+
+			const result1 = await db
+				.update(users)
+				.set({
+					cityId: cities.id,
+				})
+				.from(cities)
+				.leftJoin(states, eq(cities.stateId, states.id))
+				.where(and(eq(cities.name, 'Seattle'), eq(users.name, 'John')))
+				.returning();
+			const result2 = await db
+				.update(users)
+				.set({
+					cityId: cities.id,
+				})
+				.from(cities)
+				.leftJoin(states, eq(cities.stateId, states.id))
+				.where(and(eq(cities.name, 'London'), eq(users.name, 'Jack')))
+				.returning();
+
+			expect(result1).toStrictEqual([{
+				id: 1,
+				name: 'John',
+				cityId: 2,
+				cities: {
+					id: 2,
+					name: 'Seattle',
+					stateId: 2,
+				},
+				states: {
+					id: 2,
+					name: 'Washington',
+				},
+			}]);
+			expect(result2).toStrictEqual([{
+				id: 3,
+				name: 'Jack',
+				cityId: 3,
+				cities: {
+					id: 3,
+					name: 'London',
+					stateId: null,
+				},
+				states: null,
+			}]);
+		});
+
+		test('insert into ... select', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const notifications = pgTable('notifications', {
+				id: serial('id').primaryKey(),
+				sentAt: timestamp('sent_at').notNull().defaultNow(),
+				message: text('message').notNull(),
+			});
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const userNotications = pgTable('user_notifications', {
+				userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+				notificationId: integer('notification_id').notNull().references(() => notifications.id, {
+					onDelete: 'cascade',
+				}),
+			}, (t) => ({
+				pk: primaryKey({ columns: [t.userId, t.notificationId] }),
+			}));
+
+			await db.execute(sql`drop table if exists notifications`);
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(sql`drop table if exists user_notifications`);
+			await db.execute(sql`
+				create table notifications (
+					id serial primary key,
+					sent_at timestamp not null default now(),
+					message text not null
+				)
+			`);
+			await db.execute(sql`
+				create table users (
+					id serial primary key,
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table user_notifications (
+					user_id int references users(id) on delete cascade,
+					notification_id int references notifications(id) on delete cascade,
+					primary key (user_id, notification_id)
+				)
+			`);
+
+			const newNotification = await db
+				.insert(notifications)
+				.values({ message: 'You are one of the 3 lucky winners!' })
+				.returning({ id: notifications.id })
+				.then((result) => result[0]);
+			await db.insert(users).values([
+				{ name: 'Alice' },
+				{ name: 'Bob' },
+				{ name: 'Charlie' },
+				{ name: 'David' },
+				{ name: 'Eve' },
+			]);
+
+			const sentNotifications = await db
+				.insert(userNotications)
+				.select(
+					db
+						.select({
+							userId: users.id,
+							notificationId: sql`${newNotification!.id}`.as('notification_id'),
+						})
+						.from(users)
+						.where(inArray(users.name, ['Alice', 'Charlie', 'Eve']))
+						.orderBy(asc(users.id)),
+				)
+				.returning();
+
+			expect(sentNotifications).toStrictEqual([
+				{ userId: 1, notificationId: newNotification!.id },
+				{ userId: 3, notificationId: newNotification!.id },
+				{ userId: 5, notificationId: newNotification!.id },
+			]);
+		});
+
+		test('insert into ... select with keys in different order', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users1 = pgTable('users1', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const users2 = pgTable('users2', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists users1`);
+			await db.execute(sql`drop table if exists users2`);
+			await db.execute(sql`
+				create table users1 (
+					id serial primary key,
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table users2 (
+					id serial primary key,
+					name text not null
+				)
+			`);
+
+			expect(
+				() =>
+					db
+						.insert(users1)
+						.select(
+							db
+								.select({
+									name: users2.name,
+									id: users2.id,
+								})
+								.from(users2),
+						),
+			).toThrowError();
+		});
+
+		test('policy', () => {
+			{
+				const policy = pgPolicy('test policy');
+
+				expect(is(policy, PgPolicy)).toBe(true);
+				expect(policy.name).toBe('test policy');
+			}
+
+			{
+				const policy = pgPolicy('test policy', {
+					as: 'permissive',
+					for: 'all',
+					to: 'public',
+					using: sql`1=1`,
+					withCheck: sql`1=1`,
+				});
+
+				expect(is(policy, PgPolicy)).toBe(true);
+				expect(policy.name).toBe('test policy');
+				expect(policy.as).toBe('permissive');
+				expect(policy.for).toBe('all');
+				expect(policy.to).toBe('public');
+				const dialect = new PgDialect();
+				expect(is(policy.using, SQL)).toBe(true);
+				expect(dialect.sqlToQuery(policy.using!).sql).toBe('1=1');
+				expect(is(policy.withCheck, SQL)).toBe(true);
+				expect(dialect.sqlToQuery(policy.withCheck!).sql).toBe('1=1');
+			}
+
+			{
+				const policy = pgPolicy('test policy', {
+					to: 'custom value',
+				});
+
+				expect(policy.to).toBe('custom value');
+			}
+
+			{
+				const p1 = pgPolicy('test policy');
+				const p2 = pgPolicy('test policy 2', {
+					as: 'permissive',
+					for: 'all',
+					to: 'public',
+					using: sql`1=1`,
+					withCheck: sql`1=1`,
+				});
+				const table = pgTable('table_with_policy', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				}, () => ({
+					p1,
+					p2,
+				}));
+				const config = getTableConfig(table);
+				expect(config.policies).toHaveLength(2);
+				expect(config.policies[0]).toBe(p1);
+				expect(config.policies[1]).toBe(p2);
+			}
+		});
+
+		test('neon: policy', () => {
+			{
+				const policy = crudPolicy({
+					read: true,
+					modify: true,
+					role: authenticatedRole,
+				});
+
+				for (const it of Object.values(policy)) {
+					expect(is(it, PgPolicy)).toBe(true);
+					expect(it?.to).toStrictEqual(authenticatedRole);
+					it?.using ? expect(it.using).toStrictEqual(sql`true`) : '';
+					it?.withCheck ? expect(it.withCheck).toStrictEqual(sql`true`) : '';
+				}
+			}
+
+			{
+				const table = pgTable('name', {
+					id: integer('id'),
+				}, (t) => [
+					index('name').on(t.id),
+					crudPolicy({
+						read: true,
+						modify: true,
+						role: authenticatedRole,
+					}),
+					primaryKey({ columns: [t.id], name: 'custom' }),
+				]);
+
+				const { policies, indexes, primaryKeys } = getTableConfig(table);
+
+				expect(policies.length).toBe(4);
+				expect(indexes.length).toBe(1);
+				expect(primaryKeys.length).toBe(1);
+
+				expect(policies[0]?.name === 'crud-custom-policy-modify');
+				expect(policies[1]?.name === 'crud-custom-policy-read');
+			}
+		});
+
+		test('Enable RLS function', () => {
+			const usersWithRLS = pgTable('users', {
+				id: integer(),
+			}).enableRLS();
+
+			const config1 = getTableConfig(usersWithRLS);
+
+			const usersNoRLS = pgTable('users', {
+				id: integer(),
+			});
+
+			const config2 = getTableConfig(usersNoRLS);
+
+			expect(config1.enableRLS).toBeTruthy();
+			expect(config2.enableRLS).toBeFalsy();
 		});
 
 		test('$count separate', async (ctx) => {
@@ -4911,6 +5391,70 @@ export function tests() {
 				{ count: 3 },
 				{ count: 3 },
 				{ count: 3 },
+			]);
+		});
+
+		test('insert multiple rows into table with generated identity column', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const identityColumnsTable = pgTable('identity_columns_table', {
+				id: integer('id').generatedAlwaysAsIdentity(),
+				id1: integer('id1').generatedByDefaultAsIdentity(),
+				name: text('name').notNull(),
+			});
+
+			// not passing identity columns
+			await db.execute(sql`drop table if exists ${identityColumnsTable}`);
+			await db.execute(
+				sql`create table ${identityColumnsTable} ("id" integer generated always as identity, "id1" integer generated by default as identity, "name" text)`,
+			);
+
+			let result = await db.insert(identityColumnsTable).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+				{ name: 'Bob' },
+			]).returning();
+
+			expect(result).toEqual([
+				{ id: 1, id1: 1, name: 'John' },
+				{ id: 2, id1: 2, name: 'Jane' },
+				{ id: 3, id1: 3, name: 'Bob' },
+			]);
+
+			// passing generated by default as identity column
+			await db.execute(sql`drop table if exists ${identityColumnsTable}`);
+			await db.execute(
+				sql`create table ${identityColumnsTable} ("id" integer generated always as identity, "id1" integer generated by default as identity, "name" text)`,
+			);
+
+			result = await db.insert(identityColumnsTable).values([
+				{ name: 'John', id1: 3 },
+				{ name: 'Jane', id1: 5 },
+				{ name: 'Bob', id1: 5 },
+			]).returning();
+
+			expect(result).toEqual([
+				{ id: 1, id1: 3, name: 'John' },
+				{ id: 2, id1: 5, name: 'Jane' },
+				{ id: 3, id1: 5, name: 'Bob' },
+			]);
+
+			// passing all identity columns
+			await db.execute(sql`drop table if exists ${identityColumnsTable}`);
+			await db.execute(
+				sql`create table ${identityColumnsTable} ("id" integer generated always as identity, "id1" integer generated by default as identity, "name" text)`,
+			);
+
+			result = await db.insert(identityColumnsTable).overridingSystemValue().values([
+				{ name: 'John', id: 2, id1: 3 },
+				{ name: 'Jane', id: 4, id1: 5 },
+				{ name: 'Bob', id: 4, id1: 5 },
+			]).returning();
+
+			expect(result).toEqual([
+				{ id: 2, id1: 3, name: 'John' },
+				{ id: 4, id1: 5, name: 'Jane' },
+				{ id: 4, id1: 5, name: 'Bob' },
 			]);
 		});
 	});

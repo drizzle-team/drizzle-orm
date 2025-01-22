@@ -1,4 +1,4 @@
-import type { SQLiteDatabase, SQLiteRunResult, SQLiteStatement } from 'expo-sqlite/next';
+import type { SQLiteDatabase, SQLiteRunResult, SQLiteStatement } from 'expo-sqlite';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -26,7 +26,7 @@ export class ExpoSQLiteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'sync', SQLiteRunResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'ExpoSQLiteSession';
+	static override readonly [entityKind]: string = 'ExpoSQLiteSession';
 
 	private logger: Logger;
 
@@ -80,7 +80,7 @@ export class ExpoSQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'sync', SQLiteRunResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'ExpoSQLiteTransaction';
+	static override readonly [entityKind]: string = 'ExpoSQLiteTransaction';
 
 	override transaction<T>(transaction: (tx: ExpoSQLiteTransaction<TFullSchema, TSchema>) => T): T {
 		const savepointName = `sp${this.nestedIndex}`;
@@ -100,7 +100,7 @@ export class ExpoSQLiteTransaction<
 export class ExpoSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
 	{ type: 'sync'; run: SQLiteRunResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'ExpoSQLitePreparedQuery';
+	static override readonly [entityKind]: string = 'ExpoSQLitePreparedQuery';
 
 	constructor(
 		private stmt: SQLiteStatement,

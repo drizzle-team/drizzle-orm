@@ -10,7 +10,8 @@ export type Commands =
 	| 'check'
 	| 'up'
 	| 'drop'
-	| 'push';
+	| 'push'
+	| 'export';
 
 type Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never;
 type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true;
@@ -63,6 +64,7 @@ export const assertCollisions = <
 export const sqliteDriversLiterals = [
 	literal('d1-http'),
 	literal('expo'),
+	literal('durable-sqlite'),
 ] as const;
 
 export const postgresqlDriversLiterals = [
@@ -83,6 +85,10 @@ export type Prefix = (typeof prefixes)[number];
 {
 	const _: Prefix = '' as TypeOf<typeof prefix>;
 }
+
+export const casingTypes = ['snake_case', 'camelCase'] as const;
+export const casingType = enum_(casingTypes);
+export type CasingType = (typeof casingTypes)[number];
 
 export const sqliteDriver = union(sqliteDriversLiterals);
 export const postgresDriver = union(postgresqlDriversLiterals);
@@ -105,6 +111,8 @@ export const configCommonSchema = object({
 	schemaFilter: union([string(), string().array()]).default(['public']),
 	migrations: configMigrations,
 	dbCredentials: any().optional(),
+	casing: casingType.optional(),
+	sql: boolean().default(true),
 }).passthrough();
 
 export const casing = union([literal('camel'), literal('preserve')]).default(
@@ -155,7 +163,7 @@ export const configPushSchema = object({
 });
 
 export type CliConfig = TypeOf<typeof configCommonSchema>;
-export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite'] as const;
+export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite'] as const;
 export type Driver = (typeof drivers)[number];
 const _: Driver = '' as TypeOf<typeof driver>;
 

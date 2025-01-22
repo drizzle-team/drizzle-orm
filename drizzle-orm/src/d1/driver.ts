@@ -24,7 +24,7 @@ export type AnyD1Database = IfNotImported<
 export class DrizzleD1Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends BaseSQLiteDatabase<'async', D1Result, TSchema> {
-	static readonly [entityKind]: string = 'D1Database';
+	static override readonly [entityKind]: string = 'D1Database';
 
 	/** @internal */
 	declare readonly session: SQLiteD1Session<TSchema, ExtractTablesWithRelations<TSchema>>;
@@ -45,7 +45,7 @@ export function drizzle<
 ): DrizzleD1Database<TSchema> & {
 	$client: TClient;
 } {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

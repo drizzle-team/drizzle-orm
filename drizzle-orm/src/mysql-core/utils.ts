@@ -9,6 +9,7 @@ import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
+import type { IndexForHint } from './query-builders/select.ts';
 import { MySqlTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import { MySqlViewConfig } from './view-common.ts';
@@ -29,7 +30,8 @@ export function getTableConfig(table: MySqlTable) {
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[MySqlTable.Symbol.Columns]);
-		for (const builder of Object.values(extraConfig)) {
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
+		for (const builder of Object.values(extraValues)) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
@@ -65,4 +67,14 @@ export function getViewConfig<
 		...view[ViewBaseConfig],
 		...view[MySqlViewConfig],
 	};
+}
+
+export function convertIndexToString(indexes: IndexForHint[]) {
+	return indexes.map((idx) => {
+		return typeof idx === 'object' ? idx.config.name : idx;
+	});
+}
+
+export function toArray<T>(value: T | T[]): T[] {
+	return Array.isArray(value) ? value : [value];
 }
