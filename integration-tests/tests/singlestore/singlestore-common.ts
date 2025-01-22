@@ -3525,8 +3525,8 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			const users = singlestoreTable('users', {
-				id: serial().primaryKey(),
-				name: text().notNull(),
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
 			});
 
 			await db.execute(sql`drop table if exists ${users}`);

@@ -3438,8 +3438,8 @@ export function tests() {
 		const { db } = ctx.sqlite;
 
 		const users = sqliteTable('users', {
-			id: integer().primaryKey({ autoIncrement: true }),
-			name: text().notNull(),
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
 		});
 
 		await db.run(sql`drop table if exists ${users}`);
