@@ -5423,8 +5423,8 @@ export function tests() {
 			const { db } = ctx.pg;
 
 			const users = pgTable('users', {
-				id: serial().primaryKey(),
-				name: text().notNull(),
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
 			});
 
 			await db.execute(sql`drop table if exists ${users}`);
@@ -5447,115 +5447,116 @@ export function tests() {
 			expect(result3).toEqual([{ id: 3, name: 'Jane' }]);
 			expect(result4).toEqual([{ name: 'Jane' }]);
 		});
-	});
 
-	test('update as cte', async (ctx) => {
-		const { db } = ctx.pg;
-
-		const users = pgTable('users', {
-			id: serial().primaryKey(),
-			name: text().notNull(),
-			age: integer().notNull(),
+		test('update as cte', async (ctx) => {
+			const { db } = ctx.pg;
+	
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				age: integer('age').notNull(),
+			});
+	
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(
+				sql`create table ${users} (id serial not null primary key, name text not null, age integer not null)`,
+			);
+	
+			await db.insert(users).values([
+				{ name: 'John', age: 30 },
+				{ name: 'Jane', age: 30 },
+			]);
+	
+			const sq1 = db.$with('sq').as(
+				db.update(users).set({ age: 25 }).where(eq(users.name, 'John')).returning(),
+			);
+			const result1 = await db.with(sq1).select().from(sq1);
+			await db.update(users).set({ age: 30 });
+			const result2 = await db.with(sq1).select({ age: sq1.age }).from(sq1);
+	
+			const sq2 = db.$with('sq').as(
+				db.update(users).set({ age: 20 }).where(eq(users.name, 'Jane')).returning({ name: users.name, age: users.age }),
+			);
+			const result3 = await db.with(sq2).select().from(sq2);
+			await db.update(users).set({ age: 30 });
+			const result4 = await db.with(sq2).select({ age: sq2.age }).from(sq2);
+	
+			expect(result1).toEqual([{ id: 1, name: 'John', age: 25 }]);
+			expect(result2).toEqual([{ age: 25 }]);
+			expect(result3).toEqual([{ name: 'Jane', age: 20 }]);
+			expect(result4).toEqual([{ age: 20 }]);
 		});
-
-		await db.execute(sql`drop table if exists ${users}`);
-		await db.execute(
-			sql`create table ${users} (id serial not null primary key, name text not null, age integer not null)`,
-		);
-
-		await db.insert(users).values([
-			{ name: 'John', age: 30 },
-			{ name: 'Jane', age: 30 },
-		]);
-
-		const sq1 = db.$with('sq').as(
-			db.update(users).set({ age: 25 }).where(eq(users.name, 'John')).returning(),
-		);
-		const result1 = await db.with(sq1).select().from(sq1);
-		await db.update(users).set({ age: 30 });
-		const result2 = await db.with(sq1).select({ age: sq1.age }).from(sq1);
-
-		const sq2 = db.$with('sq').as(
-			db.update(users).set({ age: 20 }).where(eq(users.name, 'Jane')).returning({ name: users.name, age: users.age }),
-		);
-		const result3 = await db.with(sq2).select().from(sq2);
-		await db.update(users).set({ age: 30 });
-		const result4 = await db.with(sq2).select({ age: sq2.age }).from(sq2);
-
-		expect(result1).toEqual([{ id: 1, name: 'John', age: 25 }]);
-		expect(result2).toEqual([{ age: 25 }]);
-		expect(result3).toEqual([{ name: 'Jane', age: 20 }]);
-		expect(result4).toEqual([{ age: 20 }]);
-	});
-
-	test('delete as cte', async (ctx) => {
-		const { db } = ctx.pg;
-
-		const users = pgTable('users', {
-			id: serial().primaryKey(),
-			name: text().notNull(),
+	
+		test('delete as cte', async (ctx) => {
+			const { db } = ctx.pg;
+	
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+	
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+	
+			await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+			]);
+	
+			const sq1 = db.$with('sq').as(
+				db.delete(users).where(eq(users.name, 'John')).returning(),
+			);
+			const result1 = await db.with(sq1).select().from(sq1);
+			await db.insert(users).values({ name: 'John' });
+			const result2 = await db.with(sq1).select({ name: sq1.name }).from(sq1);
+	
+			const sq2 = db.$with('sq').as(
+				db.delete(users).where(eq(users.name, 'Jane')).returning({ id: users.id, name: users.name }),
+			);
+			const result3 = await db.with(sq2).select().from(sq2);
+			await db.insert(users).values({ name: 'Jane' });
+			const result4 = await db.with(sq2).select({ name: sq2.name }).from(sq2);
+	
+			expect(result1).toEqual([{ id: 1, name: 'John' }]);
+			expect(result2).toEqual([{ name: 'John' }]);
+			expect(result3).toEqual([{ id: 2, name: 'Jane' }]);
+			expect(result4).toEqual([{ name: 'Jane' }]);
 		});
-
-		await db.execute(sql`drop table if exists ${users}`);
-		await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
-
-		await db.insert(users).values([
-			{ name: 'John' },
-			{ name: 'Jane' },
-		]);
-
-		const sq1 = db.$with('sq').as(
-			db.delete(users).where(eq(users.name, 'John')).returning(),
-		);
-		const result1 = await db.with(sq1).select().from(sq1);
-		await db.insert(users).values({ name: 'John' });
-		const result2 = await db.with(sq1).select({ name: sq1.name }).from(sq1);
-
-		const sq2 = db.$with('sq').as(
-			db.delete(users).where(eq(users.name, 'Jane')).returning({ id: users.id, name: users.name }),
-		);
-		const result3 = await db.with(sq2).select().from(sq2);
-		await db.insert(users).values({ name: 'Jane' });
-		const result4 = await db.with(sq2).select({ name: sq2.name }).from(sq2);
-
-		expect(result1).toEqual([{ id: 1, name: 'John' }]);
-		expect(result2).toEqual([{ name: 'John' }]);
-		expect(result3).toEqual([{ id: 2, name: 'Jane' }]);
-		expect(result4).toEqual([{ name: 'Jane' }]);
-	});
-
-	test('sql operator as cte', async (ctx) => {
-		const { db } = ctx.pg;
-
-		const users = pgTable('users', {
-			id: serial().primaryKey(),
-			name: text().notNull(),
+	
+		test('sql operator as cte', async (ctx) => {
+			const { db } = ctx.pg;
+	
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+	
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+			await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+			]);
+	
+			const sq1 = db.$with('sq', {
+				userId: users.id,
+				data: {
+					name: users.name,
+				},
+			}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+			const result1 = await db.with(sq1).select().from(sq1);
+	
+			const sq2 = db.$with('sq', {
+				userId: users.id,
+				data: {
+					name: users.name,
+				},
+			}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+			const result2 = await db.with(sq2).select().from(sq1);
+	
+			expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
+			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 		});
-
-		await db.execute(sql`drop table if exists ${users}`);
-		await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
-		await db.insert(users).values([
-			{ name: 'John' },
-			{ name: 'Jane' },
-		]);
-
-		const sq1 = db.$with('sq', {
-			userId: users.id,
-			data: {
-				name: users.name,
-			},
-		}).as(sql`select * from ${users} where ${users.name} = 'John'`);
-		const result1 = await db.with(sq1).select().from(sq1);
-
-		const sq2 = db.$with('sq', {
-			userId: users.id,
-			data: {
-				name: users.name,
-			},
-		}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
-		const result2 = await db.with(sq2).select().from(sq1);
-
-		expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
-		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 	});
+
 }
