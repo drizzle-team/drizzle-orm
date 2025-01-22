@@ -105,7 +105,7 @@ export function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]
 				}
 				return enumObj as any;
 			},
-			$inferValues: undefined as any
+			$inferValues: undefined as any,
 		} as const,
 	);
 

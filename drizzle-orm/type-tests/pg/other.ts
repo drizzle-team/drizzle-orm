@@ -4,9 +4,9 @@ import { sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import { type InferEnumValues, pgEnum } from '~/pg-core/columns/enum.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
-import { type InferEnumValues, pgEnum } from '~/pg-core/columns/enum.ts';
 
 const rawQuery = await db.execute(
 	sql`select ${users.id}, ${users.class} from ${users} where ${inArray(users.id, [1, 2, 3])} and ${
