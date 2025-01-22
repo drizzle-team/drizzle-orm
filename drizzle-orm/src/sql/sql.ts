@@ -1,12 +1,14 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { SelectedFields } from '~/operations.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
+import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
+import type { Assume, Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
-import { Table } from '../table.ts';
+import { IsAlias, Table } from '../table.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -28,6 +30,7 @@ export type Chunk =
 	| SQL;
 
 export interface BuildQueryConfig {
+	casing: CasingCache;
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
@@ -134,6 +137,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		});
 
 		const {
+			casing,
 			escapeName,
 			escapeParam,
 			prepareTyping,
@@ -185,10 +189,19 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Column)) {
+				const columnName = casing.getColumnCasing(chunk);
 				if (_config.invokeSource === 'indexes') {
-					return { sql: escapeName(chunk.name), params: [] };
+					return { sql: escapeName(columnName), params: [] };
 				}
-				return { sql: escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name), params: [] };
+
+				const schemaName = chunk.table[Table.Symbol.Schema];
+				return {
+					sql: chunk.table[IsAlias] || schemaName === undefined
+						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
+						: escapeName(schemaName) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
+							+ escapeName(columnName),
+					params: [],
+				};
 			}
 
 			if (is(chunk, View)) {
@@ -605,6 +618,8 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 
 export type ColumnsSelection = Record<string, unknown>;
 
+const IsDrizzleView = Symbol.for('drizzle:IsDrizzleView');
+
 export abstract class View<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
@@ -625,17 +640,22 @@ export abstract class View<
 		name: TName;
 		originalName: TName;
 		schema: string | undefined;
-		selectedFields: SelectedFields<AnyColumn, Table>;
+		selectedFields: ColumnsSelection;
 		isExisting: TExisting;
 		query: TExisting extends true ? undefined : SQL;
 		isAlias: boolean;
 	};
 
+	/** @internal */
+	[IsDrizzleView] = true;
+
+	declare readonly $inferSelect: InferSelectViewModel<View<Assume<TName, string>, TExisting, TSelection>>;
+
 	constructor(
 		{ name, schema, selectedFields, query }: {
 			name: TName;
 			schema: string | undefined;
-			selectedFields: SelectedFields<AnyColumn, Table>;
+			selectedFields: ColumnsSelection;
 			query: SQL | undefined;
 		},
 	) {
@@ -654,6 +674,18 @@ export abstract class View<
 		return new SQL([this]);
 	}
 }
+
+export function isView(view: unknown): view is View {
+	return typeof view === 'object' && view !== null && IsDrizzleView in view;
+}
+
+export type InferSelectViewModel<TView extends View> =
+	Equal<TView['_']['selectedFields'], { [x: string]: unknown }> extends true ? { [x: string]: unknown }
+		: SelectResult<
+			TView['_']['selectedFields'],
+			'single',
+			Record<TView['_']['name'], 'not-null'>
+		>;
 
 // Defined separately from the Column class to resolve circular dependency
 Column.prototype.getSQL = function() {
