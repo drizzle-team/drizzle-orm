@@ -33,7 +33,7 @@ import {
 } from 'drizzle-orm';
 import { authenticatedRole, crudPolicy } from 'drizzle-orm/neon';
 import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
-import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
+import type { InferEnumValues, PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
 	alias,
 	bigserial,
@@ -5417,6 +5417,20 @@ export function tests() {
 				{ id: 4, id1: 5, name: 'Jane' },
 				{ id: 4, id1: 5, name: 'Bob' },
 			]);
+		});
+
+		test('enums', async (t) => {
+			const myEnum = pgEnum('my_enum', ['abc', 'def', '1', '2']);
+
+			Expect<Equal<'abc' | 'def' | '1' | '2', typeof myEnum.$inferValues>>;
+			Expect<Equal<'abc' | 'def' | '1' | '2', InferEnumValues<typeof myEnum>>>;
+
+			expect(myEnum.enum).toStrictEqual({
+				abc: 'abc',
+				def: 'def',
+				'1': '1',
+				'2': '2',
+			});
 		});
 	});
 }

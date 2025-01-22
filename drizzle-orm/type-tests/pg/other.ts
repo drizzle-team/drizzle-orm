@@ -4,6 +4,7 @@ import { sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import { type InferEnumValues, pgEnum } from '~/pg-core/columns/enum.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
 
@@ -14,3 +15,8 @@ const rawQuery = await db.execute(
 );
 
 Expect<Equal<QueryResult<Record<string, unknown>>, typeof rawQuery>>;
+
+const enumValues = pgEnum('roles', ['admin', 'basic']);
+
+Expect<Equal<'admin' | 'basic', typeof enumValues.$inferValues>>;
+Expect<Equal<'admin' | 'basic', InferEnumValues<typeof enumValues>>>;
