@@ -43,6 +43,6 @@
 			"~/*": ["src/*"]
 		}
 	},
-	"exclude": ["**/dist", "src/schemaTest.ts", "src/test.ts"],
+	"exclude": ["**/dist", "src/dev"],
 	"include": ["src", "*.ts", "tests"]
 }

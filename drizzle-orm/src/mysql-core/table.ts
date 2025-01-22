@@ -215,6 +215,77 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
 	}>;
+	/**
+	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+
+	/**
+	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
+		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
 }
 
 export const mysqlTable: MySqlTableFn = (name, columns, extraConfig) => {

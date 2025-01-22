@@ -4,6 +4,12 @@ export type Column = {
 	name: string;
 	dataType: string;
 	columnType: string;
+	typeParams: {
+		precision?: number;
+		scale?: number;
+		length?: number;
+		dimensions?: number;
+	};
 	size?: number;
 	default?: any;
 	hasDefault: boolean;
@@ -23,7 +29,7 @@ export type Table = {
 
 export type Relation = {
 	// name: string;
-	// type: "one" | "many";
+	type?: 'one' | 'many';
 	table: string;
 	// schema: string;
 	columns: string[];
