@@ -1,5 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
+import type { MsSqlColumn } from './mssql-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SingleStoreColumn } from './singlestore-core/index.ts';
@@ -18,14 +19,14 @@ export type ColumnDataType =
 	| 'custom'
 	| 'buffer';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common';
 
 export type GeneratedStorageMode = 'virtual' | 'stored';
 
 export type GeneratedType = 'always' | 'byDefault';
 
 export type GeneratedColumnConfig<TDataType> = {
-	as: TDataType | SQL | (() => SQL);
+	as: TDataType | SQL;
 	type?: GeneratedType;
 	mode?: GeneratedStorageMode;
 };
@@ -332,6 +333,19 @@ export type BuildColumn<
 				>
 			>
 		>
+	: TDialect extends 'mssql' ? MsSqlColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			Simplify<
+				Omit<
+					TBuilder['_'],
+					| keyof MakeColumnConfig<TBuilder['_'], TTableName>
+					| 'brand'
+					| 'dialect'
+					| 'primaryKeyHasDefault'
+					| 'mssqlColumnBuilderBrand'
+				>
+			>
+		>
 	: TDialect extends 'sqlite' ? SQLiteColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
@@ -398,4 +412,5 @@ export type ChangeColumnTableName<TColumn extends Column, TAlias extends string,
 		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: never;
