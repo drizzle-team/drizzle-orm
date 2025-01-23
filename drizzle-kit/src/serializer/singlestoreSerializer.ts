@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { is, SQL } from 'drizzle-orm';
 import {
 	AnySingleStoreTable,
@@ -96,22 +96,22 @@ export const generateSingleStoreSnapshot = (
 					console.log(
 						`\n${
 							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
+								pico.underline(pico.blue(
 									tableName,
-								)
+								))
 							} table. 
           The unique constraint ${
-								chalk.underline.blue(
+								pico.underline(pico.blue(
 									column.uniqueName,
-								)
+								))
 							} on the ${
-								chalk.underline.blue(
+								pico.underline(pico.blue(
 									column.name,
-								)
+								))
 							} column is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
+								pico.underline(pico.blue(
 									existingUnique.columns.join(','),
-								)
+								))
 							} columns\n`)
 						}`,
 					);
@@ -182,21 +182,21 @@ export const generateSingleStoreSnapshot = (
 					`\n${
 						withStyle.errorWarning(
 							`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
+								pico.underline(pico.blue(
 									tableName,
-								)
+								))
 							} table. \nThe unique constraint ${
-								chalk.underline.blue(
+								pico.underline(pico.blue(
 									name,
-								)
+								))
 							} on the ${
-								chalk.underline.blue(
+								pico.underline(pico.blue(
 									columnNames.join(','),
-								)
+								))
 							} columns is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
+								pico.underline(pico.blue(
 									existingUnique.columns.join(','),
-								)
+								))
 							} columns\n`,
 						)
 					}`,
@@ -246,21 +246,21 @@ export const generateSingleStoreSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`We\'ve found duplicated unique constraint names in ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										tableName,
-									)
+									))
 								} table. \nThe unique index ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										name,
-									)
+									))
 								} on the ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										indexColumns.join(','),
-									)
+									))
 								} columns is confilcting with a unique constraint name already defined for ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										uniqueConstraintObject[name].columns.join(','),
-									)
+									))
 								} columns\n`,
 							)
 						}`,
@@ -311,9 +311,9 @@ export const generateSingleStoreSnapshot = (
 				`\n${
 					withStyle.errorWarning(
 						`We\'ve found duplicated view name across ${
-							chalk.underline.blue(
+							pico.underline(pico.blue(
 								schema ?? 'public',
-							)
+							))
 						} schema. Please rename your view`,
 					)
 				}`,

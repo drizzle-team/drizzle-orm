@@ -262,7 +262,7 @@ export const logSuggestionsAndReturn = async (
 						dataLoss = true;
 						infoToPrint.push(
 							`· You're about to add not-null ${
-								chalk.underline(
+								pico.underline(
 									addedColumn,
 								)
 							} column without default value to table, which contains ${count} items`,

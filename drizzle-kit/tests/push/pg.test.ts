@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
-import chalk from 'chalk';
+import pico from 'picocolors';
 import {
 	bigint,
 	bigserial,
@@ -2540,7 +2540,7 @@ test('drop mat view with data', async () => {
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`DROP MATERIALIZED VIEW "public"."view";`);
 	expect(infoToPrint!.length).toBe(1);
-	expect(infoToPrint![0]).toBe(`· You're about to delete "${chalk.underline('view')}" materialized view with 3 items`);
+	expect(infoToPrint![0]).toBe(`· You're about to delete "${pico.underline('view')}" materialized view with 3 items`);
 	expect(columnsToRemove!.length).toBe(0);
 	expect(schemasToRemove!.length).toBe(0);
 	expect(shouldAskForApprove).toBe(true);

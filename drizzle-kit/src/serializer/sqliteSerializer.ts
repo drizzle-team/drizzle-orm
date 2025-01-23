@@ -289,13 +289,13 @@ export const generateSqliteSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`We\'ve found duplicated check constraint name in ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										tableName,
-									)
+									))
 								}. Please rename your check constraint in the ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										tableName,
-									)
+									))
 								} table`,
 							)
 						}`,
@@ -335,9 +335,9 @@ export const generateSqliteSnapshot = (
 				`\n${
 					withStyle.errorWarning(
 						`We\'ve found duplicated view name across ${
-							chalk.underline.blue(
+							pico.underline(pico.blue(
 								schema ?? 'public',
-							)
+							))
 						} schema. Please rename your view`,
 					)
 				}`,

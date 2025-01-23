@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { sql } from 'drizzle-orm';
 import {
 	blob,
@@ -262,7 +262,7 @@ test('added column not null and without default to table with data', async (t) =
 	expect(infoToPrint!.length).toBe(1);
 	expect(infoToPrint![0]).toBe(
 		`· You're about to add not-null ${
-			chalk.underline(
+			pico.underline(
 				'age',
 			)
 		} column without default value, which contains 2 items`,
@@ -405,7 +405,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 	expect(infoToPrint!.length).toBe(1);
 	expect(infoToPrint![0]).toBe(
 		`· You're about to delete ${
-			chalk.underline(
+			pico.underline(
 				'name',
 			)
 		} column in companies table with 2 items`,
@@ -523,7 +523,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 	expect(infoToPrint!.length).toBe(1);
 	expect(infoToPrint![0]).toBe(
 		`· You're about to delete ${
-			chalk.underline(
+			pico.underline(
 				'name',
 			)
 		} column in companies table with 2 items`,
@@ -1194,7 +1194,7 @@ test('recreate table with added column not null and without default with data', 
 	expect(infoToPrint!.length).toBe(1);
 	expect(infoToPrint![0]).toBe(
 		`· You're about to add not-null ${
-			chalk.underline('new_column')
+			pico.underline('new_column')
 		} column without default value to table, which contains 2 items`,
 	);
 	expect(shouldAskForApprove).toBe(true);

@@ -1,5 +1,5 @@
 import { createClient } from '@libsql/client';
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { sql } from 'drizzle-orm';
 import {
 	blob,
@@ -266,7 +266,7 @@ test('added column not null and without default to table with data', async (t) =
 	expect(infoToPrint!.length).toBe(1);
 	expect(infoToPrint![0]).toBe(
 		`· You're about to add not-null ${
-			chalk.underline(
+			pico.underline(
 				'age',
 			)
 		} column without default value, which contains 2 items`,
@@ -410,7 +410,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 	expect(infoToPrint!.length).toBe(1);
 	expect(infoToPrint![0]).toBe(
 		`· You're about to delete ${
-			chalk.underline(
+			pico.underline(
 				'name',
 			)
 		} column in companies table with 2 items`,
@@ -665,7 +665,7 @@ test('drop table with data', async (t) => {
 	expect(sqlStatements![0]).toBe(`DROP TABLE \`users\`;`);
 	expect(columnsToRemove!.length).toBe(0);
 	expect(infoToPrint!.length).toBe(1);
-	expect(infoToPrint![0]).toBe(`· You're about to delete ${chalk.underline('users')} table with 1 items`);
+	expect(infoToPrint![0]).toBe(`· You're about to delete ${pico.underline('users')} table with 1 items`);
 	expect(shouldAskForApprove).toBe(true);
 	expect(tablesToRemove!.length).toBe(1);
 	expect(tablesToRemove![0]).toBe('users');
@@ -886,7 +886,7 @@ test('recreate table with added column not null and without default', async (t) 
 	expect(infoToPrint!.length).toBe(1);
 	expect(infoToPrint![0]).toBe(
 		`· You're about to add not-null ${
-			chalk.underline('new_column')
+			pico.underline('new_column')
 		} column without default value to table, which contains 2 items`,
 	);
 	expect(shouldAskForApprove).toBe(true);

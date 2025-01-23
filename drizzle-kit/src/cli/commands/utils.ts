@@ -213,7 +213,7 @@ export const prepareExportConfig = async (
 
 	const fileNames = prepareFilenames(schema);
 	if (fileNames.length === 0) {
-		render(`[${chalk.blue('i')}] No schema file in ${schema} was found`);
+		render(`[${pico.blue('i')}] No schema file in ${schema} was found`);
 		process.exit(0);
 	}
 	return {

@@ -140,7 +140,7 @@ export const mysqlPush = async (
 					]),
 				);
 				if (data?.index === 0) {
-					render(`[${chalk.red('x')}] All changes were aborted`);
+					render(`[${pico.red('x')}] All changes were aborted`);
 					process.exit(0);
 				}
 			}
@@ -153,9 +153,9 @@ export const mysqlPush = async (
 				await db.query(statement);
 			}
 			if (filteredStatements.length > 0) {
-				render(`[${chalk.green('✓')}] Changes applied`);
+				render(`[${pico.green('✓')}] Changes applied`);
 			} else {
-				render(`[${chalk.blue('i')}] No changes detected`);
+				render(`[${pico.blue('i')}] No changes detected`);
 			}
 		}
 	} catch (e) {
@@ -194,7 +194,7 @@ export const singlestorePush = async (
 
 	try {
 		if (filteredStatements.length === 0) {
-			render(`[${chalk.blue('i')}] No changes detected`);
+			render(`[${pico.blue('i')}] No changes detected`);
 		} else {
 			const {
 				shouldAskForApprove,
@@ -570,7 +570,7 @@ export const libSQLPush = async (
 	const statements = await prepareLibSQLPush(schemaPath, schema, casing);
 
 	if (statements.sqlStatements.length === 0) {
-		render(`\n[${chalk.blue('i')}] No changes detected`);
+		render(`\n[${pico.blue('i')}] No changes detected`);
 	} else {
 		const {
 			shouldAskForApprove,
@@ -593,7 +593,7 @@ export const libSQLPush = async (
 				withStyle.warning('You are about to execute current statements:'),
 			);
 			console.log();
-			console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+			console.log(statementsToExecute.map((s) => pico.blue(s)).join('\n'));
 			console.log();
 		}
 
@@ -603,7 +603,7 @@ export const libSQLPush = async (
 					new Select(['No, abort', `Yes, I want to execute all statements`]),
 				);
 				if (data?.index === 0) {
-					render(`[${chalk.red('x')}] All changes were aborted`);
+					render(`[${pico.red('x')}] All changes were aborted`);
 					process.exit(0);
 				}
 			}
@@ -614,12 +614,12 @@ export const libSQLPush = async (
 			console.log(infoToPrint.join('\n'));
 			console.log();
 			console.log(
-				chalk.red.bold(
+				pico.red(pico.bold(
 					'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-				),
+				)),
 			);
 
-			console.log(chalk.white('Do you still want to push changes?'));
+			console.log(pico.white('Do you still want to push changes?'));
 
 			const { status, data } = await render(
 				new Select([
@@ -643,16 +643,16 @@ export const libSQLPush = async (
 				]),
 			);
 			if (data?.index === 0) {
-				render(`[${chalk.red('x')}] All changes were aborted`);
+				render(`[${pico.red('x')}] All changes were aborted`);
 				process.exit(0);
 			}
 		}
 
 		if (statementsToExecute.length === 0) {
-			render(`\n[${chalk.blue('i')}] No changes detected`);
+			render(`\n[${pico.blue('i')}] No changes detected`);
 		} else {
 			await db.batchWithPragma!(statementsToExecute);
-			render(`[${chalk.green('✓')}] Changes applied`);
+			render(`[${pico.green('✓')}] Changes applied`);
 		}
 	}
 };

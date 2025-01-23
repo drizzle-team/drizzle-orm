@@ -614,15 +614,15 @@ function singleStoreSchemaSuggestions(
 					`\n`
 						+ withStyle.suggestion(
 							`We are suggesting to change ${
-								chalk.blue(
+								pico.blue(
 									column.name,
 								)
 							} column in ${
-								chalk.blueBright(
+								pico.blue(
 									table.name,
 								)
 							} table from serial to bigint unsigned\n\n${
-								chalk.blueBright(
+								pico.blue(
 									`bigint("${column.name}", { mode: "number", unsigned: true }).notNull().autoincrement().unique(${
 										uniqueForSerial?.name ? `"${uniqueForSerial?.name}"` : ''
 									})`,
@@ -1172,8 +1172,8 @@ export const promptNamedConflict = async <T extends Named>(
 
 		if (isRenamePromptItem(data)) {
 			console.log(
-				`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
-					chalk.gray(
+				`${pico.yellow('~')} ${data.from.name} › ${data.to.name} ${
+					pico.gray(
 						`${entity} will be renamed/moved`,
 					)
 				}`,
@@ -1187,8 +1187,8 @@ export const promptNamedConflict = async <T extends Named>(
 			leftMissing = leftMissing.filter(Boolean);
 		} else {
 			console.log(
-				`${chalk.green('+')} ${data.name} ${
-					chalk.gray(
+				`${pico.green('+')} ${data.name} ${
+					pico.gray(
 						`${entity} will be created`,
 					)
 				}`,
@@ -1197,7 +1197,7 @@ export const promptNamedConflict = async <T extends Named>(
 		}
 		index += 1;
 	} while (index < newItems.length);
-	console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
+	console.log(pico.gray(`--- all ${entity} conflicts resolved ---\n`));
 	result.deleted.push(...leftMissing);
 	return result;
 };

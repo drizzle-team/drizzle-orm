@@ -95,7 +95,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			const count = Number(res[0].count);
 			if (count > 0) {
 				infoToPrint.push(
-					`· You're about to delete "${chalk.underline(statement.name)}" materialized view with ${count} items`,
+					`· You're about to delete "${pico.underline(statement.name)}" materialized view with ${count} items`,
 				);
 
 				matViewsToRemove.push(statement.name);

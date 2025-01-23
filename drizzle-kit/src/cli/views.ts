@@ -187,15 +187,15 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 		}
 		const key = this.base.name;
 
-		let text = `\nIs ${chalk.bold.blue(key)} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
+		let text = `\nIs ${pico.blue(pico.bold(key))} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
 
 		const isSelectedRenamed = isRenamePromptItem(
 			this.state.items[this.state.selectedIdx],
 		);
 
 		const selectedPrefix = isSelectedRenamed
-			? chalk.yellow('❯ ')
-			: chalk.green('❯ ');
+			? pico.yellow('❯ ')
+			: pico.green('❯ ');
 
 		const labelLength: number = this.state.items
 			.filter((it) => isRenamePromptItem(it))
@@ -221,8 +221,8 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 				: it.name.padEnd(labelLength, ' ');
 
 			const label = isRenamed
-				? `${chalk.yellow('~')} ${title} ${chalk.gray(`rename ${entityType}`)}`
-				: `${chalk.green('+')} ${title} ${chalk.gray(`create ${entityType}`)}`;
+				? `${pico.yellow('~')} ${title} ${pico.gray(`rename ${entityType}`)}`
+				: `${pico.green('+')} ${title} ${pico.gray(`create ${entityType}`)}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
 			text += idx != this.state.items.length - 1 ? '\n' : '';

@@ -504,11 +504,11 @@ export const generatePgSnapshot = (
 					`\n${
 						withStyle.errorWarning(
 							`We\'ve found duplicated policy name across ${
-								chalk.underline.blue(tableKey)
+								pico.underline(pico.blue(tableKey))
 							} table. Please rename one of the policies with ${
-								chalk.underline.blue(
+								pico.underline(pico.blue(
 									policy.name,
-								)
+								))
 							} name`,
 						)
 					}`,
@@ -535,17 +535,17 @@ export const generatePgSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`We\'ve found duplicated check constraint name across ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										schema ?? 'public',
-									)
+									))
 								} schema in ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										tableName,
-									)
+									))
 								}. Please rename your check constraint in either the ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										tableName,
-									)
+									))
 								} table or the table with the duplicated check contraint name`,
 							)
 						}`,
@@ -626,11 +626,11 @@ export const generatePgSnapshot = (
 				`\n${
 					withStyle.errorWarning(
 						`We\'ve found duplicated policy name across ${
-							chalk.underline.blue(tableKey)
+							pico.underline(pico.blue(tableKey))
 						} table. Please rename one of the policies with ${
-							chalk.underline.blue(
+							pico.underline(pico.blue(
 								policy.name,
-							)
+							))
 						} name`,
 					)
 				}`,
@@ -730,7 +730,7 @@ export const generatePgSnapshot = (
 				`\n${
 					withStyle.errorWarning(
 						`We\'ve found duplicated view name across ${
-							chalk.underline.blue(schema ?? 'public')
+							pico.underline(pico.blue(schema ?? 'public'))
 						} schema. Please rename your view`,
 					)
 				}`,
@@ -796,13 +796,13 @@ export const generatePgSnapshot = (
 						console.log(
 							`\n${
 								withStyle.errorWarning(
-									`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(viewName)} table. 
-          The unique constraint ${chalk.underline.blue(column.uniqueName)} on the ${
-										chalk.underline.blue(
+									`We\'ve found duplicated unique constraint names in ${pico.underline(pico.blue(viewName))} table. 
+          The unique constraint ${pico.underline(pico.blue(column.uniqueName))} on the ${
+										pico.underline(pico.blue(
 											column.name,
 										)
 									} column is confilcting with a unique constraint name already defined for ${
-										chalk.underline.blue(existingUnique.columns.join(','))
+										pico.underline(pico.blue(existingUnique.columns.join(',')))
 									} columns\n`,
 								)
 							}`,

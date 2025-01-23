@@ -60,7 +60,7 @@ export const serializeSingleStore = async (
 ): Promise<SingleStoreSchemaInternal> => {
 	const filenames = prepareFilenames(path);
 
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+	console.log(pico.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 
 	const { prepareFromSingleStoreImports } = await import('./singlestoreImports');
 	const { generateSingleStoreSnapshot } = await import('./singlestoreSerializer');
