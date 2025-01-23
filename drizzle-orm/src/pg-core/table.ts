@@ -134,42 +134,6 @@ export function pgTableWithSchema<
 }
 
 export interface PgTableFn<TSchema extends string | undefined = undefined> {
-	/**
-	 * @deprecated This overload is deprecated. Use the other method overload instead.
-	 */
-	<
-		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
-	>(
-		name: TTableName,
-		columns: TColumnsMap,
-		extraConfig: (
-			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>,
-		) => PgTableExtraConfig,
-	): PgTableWithColumns<{
-		name: TTableName;
-		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
-		dialect: 'pg';
-	}>;
-
-	/**
-	 * @deprecated This overload is deprecated. Use the other method overload instead.
-	 */
-	<
-		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
-	>(
-		name: TTableName,
-		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
-		extraConfig: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfig,
-	): PgTableWithColumns<{
-		name: TTableName;
-		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
-		dialect: 'pg';
-	}>;
-
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, PgColumnBuilderBase>,
@@ -193,6 +157,79 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 		name: TTableName,
 		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
 		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfigValue[],
+	): PgTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+		dialect: 'pg';
+	}>;
+	/**
+	 * @deprecated The third parameter of pgTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = pgTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = pgTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig: (
+			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>,
+		) => PgTableExtraConfig,
+	): PgTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+		dialect: 'pg';
+	}>;
+
+	/**
+	 * @deprecated The third parameter of pgTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = pgTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = pgTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
+		extraConfig: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfig,
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
