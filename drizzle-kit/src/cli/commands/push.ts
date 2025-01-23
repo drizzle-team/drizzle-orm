@@ -188,8 +188,8 @@ export const singlestorePush = async (
 
 	const filteredStatements = singleStoreFilterStatements(
 		statements.statements ?? [],
-		statements.squashedCur,
-		statements.squashedPrev,
+		statements.validatedCur,
+		statements.validatedPrev,
 	);
 
 	try {
@@ -207,8 +207,8 @@ export const singlestorePush = async (
 			} = await singleStoreLogSuggestionsAndReturn(
 				db,
 				filteredStatements,
-				statements.squashedCur,
-				statements.squashedPrev,
+				statements.validatedCur,
+				statements.validatedPrev,
 			);
 
 			if (verbose) {

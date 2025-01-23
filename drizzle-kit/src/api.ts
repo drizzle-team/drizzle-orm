@@ -473,8 +473,8 @@ export const pushSingleStoreSchema = async (
 	const { shouldAskForApprove, statementsToExecute, infoToPrint } = await logSuggestionsAndReturn(
 		db,
 		statements,
-		squashedCur,
-		squashedPrev,
+		validatedCur,
+		validatedPrev,
 	);
 
 	return {

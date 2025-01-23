@@ -1,16 +1,18 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import { fromJson } from 'src/sqlgenerator';
+import { TypeOf } from 'zod';
 import { JsonAlterColumnTypeStatement, JsonStatement } from '../../jsonStatements';
 import { Column, SingleStoreSchemaSquashed, SingleStoreSquasher } from '../../serializer/singlestoreSchema';
+import { singlestoreSchema } from '../../serializer/singlestoreSchema';
 import { type DB, findAddedAndRemoved } from '../../utils';
 import { Select } from '../selector-ui';
 import { withStyle } from '../validations/outputs';
 
 export const filterStatements = (
 	statements: JsonStatement[],
-	currentSchema: SingleStoreSchemaSquashed,
-	prevSchema: SingleStoreSchemaSquashed,
+	currentSchema: TypeOf<typeof singlestoreSchema>,
+	prevSchema: TypeOf<typeof singlestoreSchema>,
 ) => {
 	return statements.filter((statement) => {
 		if (statement.type === 'alter_table_alter_column_set_type') {
@@ -126,8 +128,8 @@ export function findColumnTypeAlternations(
 export const logSuggestionsAndReturn = async (
 	db: DB,
 	statements: JsonStatement[],
-	json2: SingleStoreSchemaSquashed,
-	json1: SingleStoreSchemaSquashed,
+	json2: TypeOf<typeof singlestoreSchema>,
+	json1: TypeOf<typeof singlestoreSchema>,
 ) => {
 	let shouldAskForApprove = false;
 	const statementsToExecute: string[] = [];
