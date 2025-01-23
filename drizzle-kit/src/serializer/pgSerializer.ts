@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { getTableName, is, SQL } from 'drizzle-orm';
 import {
 	AnyPgTable,
@@ -208,22 +208,22 @@ export const generatePgSnapshot = (
 					console.log(
 						`\n${
 							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									tableName,
-								)
+							))
 							} table. 
           The unique constraint ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									column.uniqueName,
-								)
+							))
 							} on the ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									name,
-								)
+							))
 							} column is conflicting with a unique constraint name already defined for ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									existingUnique.columns.join(','),
-								)
+							))
 							} columns\n`)
 						}`,
 					);
@@ -293,13 +293,13 @@ export const generatePgSnapshot = (
 				console.log(
 					`\n${
 						withStyle.errorWarning(
-							`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(tableName)} table. 
-        The unique constraint ${chalk.underline.blue(name)} on the ${
-								chalk.underline.blue(
+							`We\'ve found duplicated unique constraint names in ${pico.blue(pico.underline(tableName))} table. 
+        The unique constraint ${pico.blue(pico.underline(name))} on the ${
+								pico.blue(
 									columnNames.join(','),
 								)
 							} columns is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(existingUnique.columns.join(','))
+								pico.blue(pico.underline(existingUnique.columns.join(',')))
 							} columns\n`,
 						)
 					}`,
@@ -386,23 +386,23 @@ export const generatePgSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`You are specifying an index on the ${
-									chalk.blueBright(
+									pico.blueBright(
 										name,
 									)
 								} column inside the ${
-									chalk.blueBright(
+									pico.blueBright(
 										tableName,
 									)
 								} table with the ${
-									chalk.blueBright(
+									pico.blueBright(
 										'vector',
 									)
 								} type without specifying an operator class. Vector extension doesn't have a default operator class, so you need to specify one of the available options. Here is a list of available op classes for the vector extension: [${
 									vectorOps
-										.map((it) => `${chalk.underline(`${it}`)}`)
+										.map((it) => `${pico.underline(`${it}`)}`)
 										.join(', ')
 								}].\n\nYou can specify it using current syntax: ${
-									chalk.underline(
+									pico.underline(
 										`index("${value.config.name}").using("${value.config.method}", table.${name}.op("${
 											vectorOps[0]
 										}"))`,
@@ -451,11 +451,11 @@ export const generatePgSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`We\'ve found duplicated index name across ${
-									chalk.underline.blue(schema ?? 'public')
+									pico.underline(pico.blue(schema ?? 'public'))
 								} schema. Please rename your index in either the ${
-									chalk.underline.blue(
+									pico.blue(pico.underline(
 										tableName,
-									)
+							))
 								} table or the table with the duplicated index name`,
 							)
 						}`,
@@ -504,11 +504,11 @@ export const generatePgSnapshot = (
 					`\n${
 						withStyle.errorWarning(
 							`We\'ve found duplicated policy name across ${
-								chalk.underline.blue(tableKey)
+								pico.underline(pico.blue(tableKey))
 							} table. Please rename one of the policies with ${
-								chalk.underline.blue(
+								pico.underline(pico.blue(
 									policy.name,
-								)
+								))
 							} name`,
 						)
 					}`,
@@ -535,17 +535,17 @@ export const generatePgSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`We\'ve found duplicated check constraint name across ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										schema ?? 'public',
-									)
+									))
 								} schema in ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										tableName,
-									)
+									))
 								}. Please rename your check constraint in either the ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										tableName,
-									)
+									))
 								} table or the table with the duplicated check contraint name`,
 							)
 						}`,
@@ -626,11 +626,11 @@ export const generatePgSnapshot = (
 				`\n${
 					withStyle.errorWarning(
 						`We\'ve found duplicated policy name across ${
-							chalk.underline.blue(tableKey)
+							pico.underline(pico.blue(tableKey))
 						} table. Please rename one of the policies with ${
-							chalk.underline.blue(
+							pico.underline(pico.blue(
 								policy.name,
-							)
+							))
 						} name`,
 					)
 				}`,
@@ -730,7 +730,7 @@ export const generatePgSnapshot = (
 				`\n${
 					withStyle.errorWarning(
 						`We\'ve found duplicated view name across ${
-							chalk.underline.blue(schema ?? 'public')
+							pico.underline(pico.blue(schema ?? 'public'))
 						} schema. Please rename your view`,
 					)
 				}`,
@@ -796,13 +796,13 @@ export const generatePgSnapshot = (
 						console.log(
 							`\n${
 								withStyle.errorWarning(
-									`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(viewName)} table. 
-          The unique constraint ${chalk.underline.blue(column.uniqueName)} on the ${
-										chalk.underline.blue(
+									`We\'ve found duplicated unique constraint names in ${pico.underline(pico.blue(viewName))} table. 
+          The unique constraint ${pico.underline(pico.blue(column.uniqueName))} on the ${
+										pico.underline(pico.blue(
 											column.name,
-										)
+										))
 									} column is confilcting with a unique constraint name already defined for ${
-										chalk.underline.blue(existingUnique.columns.join(','))
+										pico.underline(pico.blue(existingUnique.columns.join(',')))
 									} columns\n`,
 								)
 							}`,

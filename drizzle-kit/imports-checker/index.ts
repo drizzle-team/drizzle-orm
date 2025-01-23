@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { analyzeImports, ChainLink } from './checker';
 
 const issues = analyzeImports({
@@ -35,7 +35,7 @@ const chainToString = (chains: ChainLink[]) => {
 		out += ' '.repeat(indentation)
 			+ '└'
 			+ chain.import
-			+ ` ${chalk.gray(chain.file)}\n`;
+			+ ` ${pico.gray(chain.file)}\n`;
 		indentation += 1;
 	}
 	return out;
@@ -43,6 +43,6 @@ const chainToString = (chains: ChainLink[]) => {
 
 console.log();
 for (const issue of issues) {
-	console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+	console.log(pico.red(issue.imports.map((it) => it.name).join('\n')));
 	console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
 }

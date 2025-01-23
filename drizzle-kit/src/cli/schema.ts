@@ -1,5 +1,5 @@
 import { boolean, command, number, string } from '@drizzle-team/brocli';
-import chalk from 'chalk';
+import pico from 'picocolors';
 import 'dotenv/config';
 import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
@@ -734,7 +734,7 @@ export const studio = command({
 
 						console.log(
 							`\nDrizzle Studio is up and running on ${
-								chalk.blue(
+								pico.blue(
 									`https://local.drizzle.studio${queryString ? `?${queryString}` : ''}`,
 								)
 							}`,

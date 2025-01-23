@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 
 import { JsonStatement } from 'src/jsonStatements';
 import { findAddedAndRemoved, SQLiteDB } from 'src/utils';
@@ -134,7 +134,7 @@ export const libSqlLogSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
-						chalk.underline(
+						pico.underline(
 							statement.tableName,
 						)
 					} table with ${count} items`,
@@ -156,7 +156,7 @@ export const libSqlLogSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
-						chalk.underline(
+						pico.underline(
 							statement.columnName,
 						)
 					} column in ${tableName} table with ${count} items`,
@@ -182,7 +182,7 @@ export const libSqlLogSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to add not-null ${
-						chalk.underline(
+						pico.underline(
 							statement.column.name,
 						)
 					} column without default value, which contains ${count} items`,
@@ -212,7 +212,7 @@ export const libSqlLogSuggestionsAndReturn = async (
 				if (count > 0) {
 					infoToPrint.push(
 						`· You're about to add not-null constraint to ${
-							chalk.underline(
+							pico.underline(
 								statement.columnName,
 							)
 						} column without default value, which contains ${count} items`,
@@ -253,7 +253,7 @@ export const libSqlLogSuggestionsAndReturn = async (
 					if (count > 0) {
 						infoToPrint.push(
 							`· You're about to delete ${
-								chalk.underline(
+								pico.underline(
 									removedColumn,
 								)
 							} column in ${tableName} table with ${count} items`,
@@ -278,7 +278,7 @@ export const libSqlLogSuggestionsAndReturn = async (
 
 						infoToPrint.push(
 							`· You're about to add not-null ${
-								chalk.underline(
+								pico.underline(
 									addedColumn,
 								)
 							} column without default value to table, which contains ${count} items`,
@@ -324,7 +324,7 @@ export const libSqlLogSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
-						chalk.underline(
+						pico.underline(
 							statement.columnName,
 						)
 					} column in ${tableName} table with ${count} items`,

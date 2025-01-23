@@ -1,13 +1,13 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { sqliteDriversLiterals } from './common';
 
 export const withStyle = {
-	error: (str: string) => `${chalk.red(`${chalk.white.bgRed(' Invalid input ')} ${str}`)}`,
-	warning: (str: string) => `${chalk.white.bgGray(' Warning ')} ${str}`,
-	errorWarning: (str: string) => `${chalk.red(`${chalk.white.bgRed(' Warning ')} ${str}`)}`,
-	fullWarning: (str: string) => `${chalk.black.bgYellow(' Warning ')} ${chalk.bold(str)}`,
-	suggestion: (str: string) => `${chalk.white.bgGray(' Suggestion ')} ${str}`,
-	info: (str: string) => `${chalk.grey(str)}`,
+	error: (str: string) => `${pico.red(`${pico.bgRed(pico.white(' Invalid input '))} ${str}`)}`,
+	warning: (str: string) => `${pico.bgGray(pico.white(' Warning '))} ${str}`,
+	errorWarning: (str: string) => `${pico.red(`${pico.bgRed(pico.white(' Warning '))} ${str}`)}`,
+	fullWarning: (str: string) => `${pico.bgYellow(pico.black(' Warning '))} ${pico.bold(str)}`,
+	suggestion: (str: string) => `${pico.bgGray(pico.white(' Suggestion '))} ${str}`,
+	info: (str: string) => `${pico.gray(str)}`,
 };
 
 export const outputs = {

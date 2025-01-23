@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { getTableName, is, SQL } from 'drizzle-orm';
 import {
 	AnySQLiteTable,
@@ -105,22 +105,22 @@ export const generateSqliteSnapshot = (
 					console.log(
 						`\n${
 							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									tableName,
-								)
+							))
 							} table. 
           The unique constraint ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									column.uniqueName,
-								)
+							))
 							} on the ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									name,
-								)
+							))
 							} column is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									existingUnique.columns.join(','),
-								)
+							))
 							} columns\n`)
 						}`,
 					);
@@ -231,21 +231,21 @@ export const generateSqliteSnapshot = (
 					`\n${
 						withStyle.errorWarning(
 							`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									tableName,
-								)
+						))
 							} table. \nThe unique constraint ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									name,
-								)
+						))
 							} on the ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									columnNames.join(','),
-								)
+						))
 							} columns is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(
+								pico.blue(pico.underline(
 									existingUnique.columns.join(','),
-								)
+						))
 							} columns\n`,
 						)
 					}`,
@@ -289,13 +289,13 @@ export const generateSqliteSnapshot = (
 						`\n${
 							withStyle.errorWarning(
 								`We\'ve found duplicated check constraint name in ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										tableName,
-									)
+									))
 								}. Please rename your check constraint in the ${
-									chalk.underline.blue(
+									pico.underline(pico.blue(
 										tableName,
-									)
+									))
 								} table`,
 							)
 						}`,
@@ -335,9 +335,9 @@ export const generateSqliteSnapshot = (
 				`\n${
 					withStyle.errorWarning(
 						`We\'ve found duplicated view name across ${
-							chalk.underline.blue(
+							pico.underline(pico.blue(
 								schema ?? 'public',
-							)
+							))
 						} schema. Please rename your view`,
 					)
 				}`,

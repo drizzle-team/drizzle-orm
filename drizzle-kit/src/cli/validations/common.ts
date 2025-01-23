@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { UnionToIntersection } from 'hono/utils/types';
 import { any, boolean, enum as enum_, literal, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
@@ -173,8 +173,8 @@ export const wrapParam = (
 	optional: boolean = false,
 	type?: 'url' | 'secret',
 ) => {
-	const check = `[${chalk.green('✓')}]`;
-	const cross = `[${chalk.red('x')}]`;
+	const check = `[${pico.green('✓')}]`;
+	const cross = `[${pico.red('x')}]`;
 	if (typeof param === 'string') {
 		if (param.length === 0) {
 			return `    ${cross} ${name}: ''`;
@@ -187,7 +187,7 @@ export const wrapParam = (
 		return `    ${check} ${name}: '${param}'`;
 	}
 	if (optional) {
-		return chalk.gray(`        ${name}?: `);
+		return pico.gray(`        ${name}?: `);
 	}
-	return `    ${cross} ${name}: ${chalk.gray('undefined')}`;
+	return `    ${cross} ${name}: ${pico.gray('undefined')}`;
 };

@@ -1,5 +1,5 @@
-import chalk from 'chalk';
-import { getNewTableName } from './cli/commands/sqlitePushUtils';
+import pico from 'picocolors';
+import { table } from 'console';
 import { warning } from './cli/views';
 import { CommonSquashedSchema } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher, View as MySqlView } from './serializer/mysqlSchema';
@@ -22,6 +22,7 @@ import {
 	View as SqliteView,
 } from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
+import { getNewTableName } from './cli/commands/sqlitePushUtils';
 
 export interface JsonSqliteCreateTableStatement {
 	type: 'sqlite_create_table';
@@ -1563,7 +1564,7 @@ export const prepareAlterColumnsMysql = (
 			if (columnGenerated?.type === 'virtual') {
 				warning(
 					`You are trying to add virtual generated constraint to ${
-						chalk.blue(
+						pico.blue(
 							columnName,
 						)
 					} column. As MySQL docs mention: "Nongenerated columns can be altered to stored but not virtual generated columns". We will drop an existing column and add it with a virtual generated statement. This means that the data previously stored in this column will be wiped, and new data will be generated on each read for this column\n`,
@@ -1604,7 +1605,7 @@ export const prepareAlterColumnsMysql = (
 			if (columnGenerated?.type === 'virtual') {
 				warning(
 					`You are trying to remove virtual generated constraint from ${
-						chalk.blue(
+						pico.blue(
 							columnName,
 						)
 					} column. As MySQL docs mention: "Stored but not virtual generated columns can be altered to nongenerated columns. The stored generated values become the values of the nongenerated column". We will drop an existing column and add it without a virtual generated statement. This means that this column will have no data after migration\n`,
@@ -1919,7 +1920,7 @@ export const prepareAlterColumnsSingleStore = (
 				// TODO: Change warning message according to SingleStore docs
 				warning(
 					`You are trying to add virtual generated constraint to ${
-						chalk.blue(
+						pico.blue(
 							columnName,
 						)
 					} column. As MySQL docs mention: "Nongenerated columns can be altered to stored but not virtual generated columns". We will drop an existing column and add it with a virtual generated statement. This means that the data previously stored in this column will be wiped, and new data will be generated on each read for this column\n`,
@@ -1961,7 +1962,7 @@ export const prepareAlterColumnsSingleStore = (
 				// TODO: Change warning message according to SingleStore docs
 				warning(
 					`You are trying to remove virtual generated constraint from ${
-						chalk.blue(
+						pico.blue(
 							columnName,
 						)
 					} column. As MySQL docs mention: "Stored but not virtual generated columns can be altered to nongenerated columns. The stored generated values become the values of the nongenerated column". We will drop an existing column and add it without a virtual generated statement. This means that this column will have no data after migration\n`,

@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { render } from 'hanji';
 import type { JsonStatement } from '../../jsonStatements';
 import { PgSquasher } from '../../serializer/pgSchema';
@@ -83,7 +83,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
-				infoToPrint.push(`· You're about to delete ${chalk.underline(statement.tableName)} table with ${count} items`);
+				infoToPrint.push(`· You're about to delete ${pico.underline(statement.tableName)} table with ${count} items`);
 				// statementsToExecute.push(
 				//   `truncate table ${tableNameWithSchemaFrom(statement)} cascade;`
 				// );
@@ -95,7 +95,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			const count = Number(res[0].count);
 			if (count > 0) {
 				infoToPrint.push(
-					`· You're about to delete "${chalk.underline(statement.name)}" materialized view with ${count} items`,
+					`· You're about to delete "${pico.underline(statement.name)}" materialized view with ${count} items`,
 				);
 
 				matViewsToRemove.push(statement.name);
@@ -111,7 +111,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
-						chalk.underline(statement.columnName)
+						pico.underline(statement.columnName)
 					} column in ${statement.tableName} table with ${count} items`,
 				);
 				columnsToRemove.push(`${statement.tableName}_${statement.columnName}`);
@@ -123,7 +123,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
-				infoToPrint.push(`· You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables`);
+				infoToPrint.push(`· You're about to delete ${pico.underline(statement.name)} schema with ${count} tables`);
 				schemasToRemove.push(statement.name);
 				shouldAskForApprove = true;
 			}
@@ -136,13 +136,15 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			const count = Number(res[0].count);
 			if (count > 0) {
 				infoToPrint.push(
-					`· You're about to change ${chalk.underline(statement.columnName)} column type from ${
-						chalk.underline(statement.oldDataType)
-					} to ${
-						chalk.underline(
-							statement.newDataType,
+					`· You're about to change ${
+						pico.underline(
+							statement.columnName,
 						)
-					} with ${count} items`,
+					} column type from ${
+						pico.underline(
+							statement.oldDataType,
+						)
+					} to ${pico.underline(statement.newDataType)} with ${count} items`,
 				);
 				statementsToExecute.push(
 					`truncate table ${
@@ -162,7 +164,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to change ${
-						chalk.underline(statement.tableName)
+						pico.underline(statement.tableName)
 					} primary key. This statements may fail and you table may left without primary key`,
 				);
 
@@ -202,7 +204,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 				if (count > 0) {
 					infoToPrint.push(
 						`· You're about to add not-null ${
-							chalk.underline(statement.column.name)
+							pico.underline(statement.column.name)
 						} column without default value, which contains ${count} items`,
 					);
 
@@ -227,11 +229,11 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 				const unsquashedUnique = PgSquasher.unsquashUnique(statement.data);
 				console.log(
 					`· You're about to add ${
-						chalk.underline(
+						pico.underline(
 							unsquashedUnique.name,
 						)
 					} unique constraint to the table, which contains ${count} items. If this statement fails, you will receive an error from the database. Do you want to truncate ${
-						chalk.underline(
+						pico.underline(
 							statement.tableName,
 						)
 					} table?\n`,

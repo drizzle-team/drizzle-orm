@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { assert, test } from 'vitest';
 import { analyzeImports, ChainLink } from '../imports-checker/checker';
 
@@ -22,7 +22,7 @@ test('imports-issues', () => {
 			'@hono/*',
 			'crypto',
 			'hanji',
-			'chalk',
+			'picocolors',
 			'dotenv/config',
 			'camelcase',
 			'semver',
@@ -42,7 +42,7 @@ test('imports-issues', () => {
 			out += ' '.repeat(indentation)
 				+ '└'
 				+ chain.import
-				+ ` ${chalk.gray(chain.file)}\n`;
+				+ ` ${pico.gray(chain.file)}\n`;
 			indentation += 1;
 		}
 		return out;
@@ -50,7 +50,7 @@ test('imports-issues', () => {
 
 	console.log();
 	for (const issue of issues) {
-		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+		console.log(pico.red(issue.imports.map((it) => it.name).join('\n')));
 		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
 	}
 

@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { writeFileSync } from 'fs';
 import {
 	Column,
@@ -33,7 +33,7 @@ export const upPgHandler = (out: string) => {
 
 			const result = updateUpToV7(resultV6);
 
-			console.log(`[${chalk.green('✓')}] ${path}`);
+			console.log(`[${pico.green('✓')}] ${path}`);
 
 			writeFileSync(path, JSON.stringify(result, null, 2));
 		});

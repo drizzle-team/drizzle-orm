@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import fs from 'fs';
 import * as glob from 'glob';
 import Path from 'path';
@@ -15,7 +15,7 @@ export const serializeMySql = async (
 ): Promise<MySqlSchemaInternal> => {
 	const filenames = prepareFilenames(path);
 
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+	console.log(pico.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 
 	const { prepareFromMySqlImports } = await import('./mysqlImports');
 	const { generateMySqlSnapshot } = await import('./mysqlSerializer');
@@ -60,7 +60,7 @@ export const serializeSingleStore = async (
 ): Promise<SingleStoreSchemaInternal> => {
 	const filenames = prepareFilenames(path);
 
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+	console.log(pico.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 
 	const { prepareFromSingleStoreImports } = await import('./singlestoreImports');
 	const { generateSingleStoreSnapshot } = await import('./singlestoreSerializer');

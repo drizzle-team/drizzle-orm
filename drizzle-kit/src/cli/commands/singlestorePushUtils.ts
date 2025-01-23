@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import pico from 'picocolors';
 import { render } from 'hanji';
 import { TypeOf } from 'zod';
 import { JsonAlterColumnTypeStatement, JsonStatement } from '../../jsonStatements';
@@ -127,7 +127,7 @@ export const logSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
-						chalk.underline(
+						pico.underline(
 							statement.tableName,
 						)
 					} table with ${count} items`,
@@ -143,7 +143,7 @@ export const logSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
-						chalk.underline(
+						pico.underline(
 							statement.columnName,
 						)
 					} column in ${statement.tableName} table with ${count} items`,
@@ -159,7 +159,7 @@ export const logSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
-						chalk.underline(
+						pico.underline(
 							statement.name,
 						)
 					} schema with ${count} tables`,
@@ -175,14 +175,14 @@ export const logSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to change ${
-						chalk.underline(
+						pico.underline(
 							statement.columnName,
 						)
 					} column type from ${
-						chalk.underline(
+						pico.underline(
 							statement.oldDataType,
 						)
-					} to ${chalk.underline(statement.newDataType)} with ${count} items`,
+					} to ${pico.underline(statement.newDataType)} with ${count} items`,
 				);
 				statementsToExecute.push(`truncate table ${statement.tableName};`);
 				tablesToTruncate.push(statement.tableName);
@@ -198,7 +198,7 @@ export const logSuggestionsAndReturn = async (
 				if (count > 0) {
 					infoToPrint.push(
 						`· You're about to remove default value from ${
-							chalk.underline(
+							pico.underline(
 								statement.columnName,
 							)
 						} not-null column with ${count} items`,
@@ -221,7 +221,7 @@ export const logSuggestionsAndReturn = async (
 				if (count > 0) {
 					infoToPrint.push(
 						`· You're about to set not-null constraint to ${
-							chalk.underline(
+							pico.underline(
 								statement.columnName,
 							)
 						} column without default, which contains ${count} items`,
@@ -258,7 +258,7 @@ export const logSuggestionsAndReturn = async (
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to change ${
-						chalk.underline(
+						pico.underline(
 							statement.tableName,
 						)
 					} primary key. This statements may fail and you table may left without primary key`,
@@ -295,7 +295,7 @@ export const logSuggestionsAndReturn = async (
 				if (count > 0) {
 					infoToPrint.push(
 						`· You're about to add not-null ${
-							chalk.underline(
+							pico.underline(
 								statement.column.name,
 							)
 						} column without default value, which contains ${count} items`,
@@ -316,11 +316,11 @@ export const logSuggestionsAndReturn = async (
 				const unsquashedUnique = SingleStoreSquasher.unsquashUnique(statement.data);
 				console.log(
 					`· You're about to add ${
-						chalk.underline(
+						pico.underline(
 							unsquashedUnique.name,
 						)
 					} unique constraint to the table, which contains ${count} items. If this statement fails, you will receive an error from the database. Do you want to truncate ${
-						chalk.underline(
+						pico.underline(
 							statement.tableName,
 						)
 					} table?\n`,
