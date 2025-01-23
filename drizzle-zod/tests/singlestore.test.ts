@@ -1,4 +1,4 @@
-import { type Equal } from 'drizzle-orm';
+import type { Equal } from 'drizzle-orm';
 import { customType, int, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
 import { test } from 'vitest';
 import { z } from 'zod';

@@ -800,7 +800,6 @@ describe('[findMany] read replicas sqlite', () => {
 	});
 });
 
-
 describe('[$count] read replicas postgres', () => {
 	it('primary $count', () => {
 		const primaryDb = drizzle.mock();

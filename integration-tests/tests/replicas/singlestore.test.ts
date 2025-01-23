@@ -813,7 +813,6 @@ describe('[transaction] replicas singlestore', () => {
 // 	// });
 // });
 
-
 describe('[$count] read replicas postgres', () => {
 	it('primary $count', () => {
 		const primaryDb = drizzle.mock();
