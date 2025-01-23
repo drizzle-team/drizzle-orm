@@ -11,7 +11,6 @@ import {
 import './@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from './cli/validations/common';
-import { vectorOps } from './extensions/vector';
 import { assertUnreachable } from './global';
 import {
 	CheckConstraint,
@@ -25,6 +24,7 @@ import {
 	UniqueConstraint,
 } from './serializer/pgSchema';
 import { indexName } from './serializer/pgSerializer';
+import { unescapeSingleQuotes } from './utils';
 
 const pgImportsList = new Set([
 	'pgTable',
@@ -436,7 +436,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			const func = enumSchema ? `${enumSchema}.enum` : 'pgEnum';
 
 			const values = Object.values(it.values)
-				.map((it) => `'${it}'`)
+				.map((it) => `'${unescapeSingleQuotes(it, false)}'`)
 				.join(', ');
 			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
 		})
@@ -537,8 +537,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			|| Object.keys(table.checkConstraints).length > 0
 		) {
 			statement += ', ';
-			statement += '(table) => {\n';
-			statement += '\treturn {\n';
+			statement += '(table) => [';
 			statement += createTableIndexes(table.name, Object.values(table.indexes), casing);
 			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing);
 			statement += createTablePKs(
@@ -558,8 +557,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 				Object.values(table.checkConstraints),
 				casing,
 			);
-			statement += '\t}\n';
-			statement += '}';
+			statement += '\n]';
 		}
 
 		statement += ');';
@@ -690,7 +688,9 @@ const mapDefault = (
 	}
 
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	if (lowered.startsWith('integer')) {
@@ -737,18 +737,20 @@ const mapDefault = (
 	if (lowered.startsWith('timestamp')) {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue === 'CURRENT_TIMESTAMP'
-			? '.default(sql`CURRENT_TIMESTAMP`)'
-			: defaultValue
+			: /^'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?'$/.test(defaultValue) // Matches 'YYYY-MM-DD HH:MI:SS', 'YYYY-MM-DD HH:MI:SS.FFFFFF', 'YYYY-MM-DD HH:MI:SS+TZ', 'YYYY-MM-DD HH:MI:SS.FFFFFF+TZ' and 'YYYY-MM-DD HH:MI:SS+HH:MI'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
 	if (lowered.startsWith('time')) {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue
+			: /^'\d{2}:\d{2}(:\d{2})?(\.\d+)?'$/.test(defaultValue) // Matches 'HH:MI', 'HH:MI:SS' and 'HH:MI:SS.FFFFFF'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
@@ -759,15 +761,17 @@ const mapDefault = (
 	if (lowered === 'date') {
 		return defaultValue === 'now()'
 			? '.defaultNow()'
-			: defaultValue === 'CURRENT_DATE'
-			? `.default(sql\`${defaultValue}\`)`
-			: defaultValue
+			: /^'\d{4}-\d{2}-\d{2}'$/.test(defaultValue) // Matches 'YYYY-MM-DD'
 			? `.default(${defaultValue})`
+			: defaultValue
+			? `.default(sql\`${defaultValue}\`)`
 			: '';
 	}
 
 	if (lowered.startsWith('text')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	if (lowered.startsWith('jsonb')) {
@@ -801,7 +805,9 @@ const mapDefault = (
 	}
 
 	if (lowered.startsWith('varchar')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	if (lowered.startsWith('point')) {
@@ -821,7 +827,9 @@ const mapDefault = (
 	}
 
 	if (lowered.startsWith('char')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(unescapeSingleQuotes(defaultValue, true), isExpression)})`
+			: '';
 	}
 
 	return '';
@@ -1206,7 +1214,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 		);
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `${escapedIndexName})`;
 		statement += `${it.concurrently ? `.concurrently()` : ''}`;
@@ -1219,7 +1227,11 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 					} else {
 						return `table.${withCasing(it.expression, casing)}${it.asc ? '.asc()' : '.desc()'}${
 							it.nulls === 'first' ? '.nullsFirst()' : '.nullsLast()'
-						}${it.opclass && vectorOps.includes(it.opclass) ? `.op("${it.opclass}")` : ''}`;
+						}${
+							it.opclass
+								? `.op("${it.opclass}")`
+								: ''
+						}`;
 					}
 				})
 				.join(', ')
@@ -1238,7 +1250,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 		}
 
 		statement += it.with && Object.keys(it.with).length > 0 ? `.with(${reverseLogic(it.with)})` : '';
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -1248,9 +1260,7 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 	let statement = '';
 
 	pks.forEach((it) => {
-		let idxKey = withCasing(it.name, casing);
-
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'primaryKey({ columns: [';
 		statement += `${
 			it.columns
@@ -1260,7 +1270,7 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 				.join(', ')
 		}]${it.name ? `, name: "${it.name}"` : ''}}`;
 		statement += ')';
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -1283,13 +1293,13 @@ const createTablePolicies = (
 			return rolesNameToTsKey[v] ? withCasing(rolesNameToTsKey[v], casing) : `"${v}"`;
 		});
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'pgPolicy(';
 		statement += `"${it.name}", { `;
 		statement += `as: "${it.as?.toLowerCase()}", for: "${it.for?.toLowerCase()}", to: [${mappedItTo?.join(', ')}]${
 			it.using ? `, using: sql\`${it.using}\`` : ''
 		}${it.withCheck ? `, withCheck: sql\`${it.withCheck}\` ` : ''}`;
-		statement += ` }),\n`;
+		statement += ` }),`;
 	});
 
 	return statement;
@@ -1302,14 +1312,12 @@ const createTableUniques = (
 	let statement = '';
 
 	unqs.forEach((it) => {
-		const idxKey = withCasing(it.name, casing);
-
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'unique(';
 		statement += `"${it.name}")`;
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
 		statement += it.nullsNotDistinct ? `.nullsNotDistinct()` : '';
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -1322,12 +1330,11 @@ const createTableChecks = (
 	let statement = '';
 
 	checkConstraints.forEach((it) => {
-		const checkKey = withCasing(it.name, casing);
-		statement += `\t\t${checkKey}: `;
+		statement += `\n\t`;
 		statement += 'check(';
 		statement += `"${it.name}", `;
 		statement += `sql\`${it.value}\`)`;
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -1342,7 +1349,8 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 
 		const isSelf = it.tableTo === it.tableFrom;
 		const tableTo = isSelf ? 'table' : `${withCasing(paramName, casing)}`;
-		statement += `\t\t${withCasing(it.name, casing)}: foreignKey({\n`;
+		statement += `\n\t`;
+		statement += `foreignKey({\n`;
 		statement += `\t\t\tcolumns: [${it.columnsFrom.map((i) => `table.${withCasing(i, casing)}`).join(', ')}],\n`;
 		statement += `\t\t\tforeignColumns: [${
 			it.columnsTo.map((i) => `${tableTo}.${withCasing(i, casing)}`).join(', ')
@@ -1354,7 +1362,7 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 
 		statement += it.onDelete && it.onDelete !== 'no action' ? `.onDelete("${it.onDelete}")` : '';
 
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;

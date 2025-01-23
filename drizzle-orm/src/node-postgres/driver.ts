@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { NodePgClient, NodePgQueryResultHKT } from './session.ts';
 import { NodePgSession } from './session.ts';
 
@@ -83,9 +83,7 @@ export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends NodePgClient = Pool,
 >(
-	...params: IfNotImported<
-		Pool,
-		[ImportTypeError<'@types/pg` `pg'>],
+	...params:
 		| [
 			TClient | string,
 		]
@@ -103,7 +101,6 @@ export function drizzle<
 				})
 			),
 		]
-	>
 ): NodePgDatabase<TSchema> & {
 	$client: TClient;
 } {

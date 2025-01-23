@@ -1,7 +1,7 @@
 import { renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { originUUID } from '../../global';
-import type { PgSchema } from '../../serializer/pgSchema';
+import type { PgSchema, PgSchemaInternal } from '../../serializer/pgSchema';
 import { fromDatabase } from '../../serializer/pgSerializer';
 import type { DB } from '../../utils';
 import { Entities } from '../validations/cli';
@@ -11,7 +11,8 @@ export const pgPushIntrospect = async (
 	db: DB,
 	filters: string[],
 	schemaFilters: string[],
-	entities: Entities = { roles: true },
+	entities: Entities,
+	tsSchema?: PgSchemaInternal,
 ) => {
 	const matchers = filters.map((it) => {
 		return new Minimatch(it);
@@ -45,7 +46,7 @@ export const pgPushIntrospect = async (
 	);
 	const res = await renderWithTask(
 		progress,
-		fromDatabase(db, filter, schemaFilters, entities),
+		fromDatabase(db, filter, schemaFilters, entities, undefined, tsSchema),
 	);
 
 	const schema = { id: originUUID, prevId: '', ...res } as PgSchema;

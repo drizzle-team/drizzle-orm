@@ -11,12 +11,14 @@ import {
 	isPgView,
 	PgEnum,
 	PgMaterializedView,
+	PgPolicy,
 	PgRole,
 	PgSchema,
 	PgSequence,
 	PgTable,
 	PgView,
 } from 'drizzle-orm/pg-core';
+import { SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { Connection } from 'mysql2/promise';
@@ -24,6 +26,7 @@ import { libSqlLogSuggestionsAndReturn } from 'src/cli/commands/libSqlPushUtils'
 import {
 	columnsResolver,
 	enumsResolver,
+	indPolicyResolver,
 	mySqlViewsResolver,
 	Named,
 	policyResolver,
@@ -35,32 +38,41 @@ import {
 	viewsResolver,
 } from 'src/cli/commands/migrate';
 import { pgSuggestions } from 'src/cli/commands/pgPushUtils';
+import { logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn } from 'src/cli/commands/singlestorePushUtils';
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { Entities } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
+import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
 import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/introspect-sqlite';
 import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
 import { mysqlSchema, squashMysqlScheme, ViewSquashed } from 'src/serializer/mysqlSchema';
-import { generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
-import { fromDatabase as fromMySqlDatabase } from 'src/serializer/mysqlSerializer';
+import { fromDatabase as fromMySqlDatabase, generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
 import { prepareFromPgImports } from 'src/serializer/pgImports';
-import { pgSchema, PgSquasher, Policy, Role, squashPgScheme, View } from 'src/serializer/pgSchema';
+import { pgSchema, Policy, Role, squashPgScheme, View } from 'src/serializer/pgSchema';
 import { fromDatabase, generatePgSnapshot } from 'src/serializer/pgSerializer';
+import { prepareFromSingleStoreImports } from 'src/serializer/singlestoreImports';
+import { singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
+import {
+	fromDatabase as fromSingleStoreDatabase,
+	generateSingleStoreSnapshot,
+} from 'src/serializer/singlestoreSerializer';
 import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
 import { sqliteSchema, squashSqliteScheme, View as SqliteView } from 'src/serializer/sqliteSchema';
-import { fromDatabase as fromSqliteDatabase } from 'src/serializer/sqliteSerializer';
-import { generateSqliteSnapshot } from 'src/serializer/sqliteSerializer';
+import { fromDatabase as fromSqliteDatabase, generateSqliteSnapshot } from 'src/serializer/sqliteSerializer';
 import {
 	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
+	applySingleStoreSnapshotsDiff,
 	applySqliteSnapshotsDiff,
 	Column,
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
 	Enum,
+	PolicyResolverInput,
+	PolicyResolverOutput,
 	ResolverInput,
 	ResolverOutput,
 	ResolverOutputWithMoved,
@@ -68,19 +80,39 @@ import {
 	RolesResolverOutput,
 	Sequence,
 	Table,
+	TablePolicyResolverInput,
+	TablePolicyResolverOutput,
 } from 'src/snapshotsDiffer';
 
 export type PostgresSchema = Record<
 	string,
-	PgTable<any> | PgEnum<any> | PgSchema | PgSequence | PgView | PgMaterializedView | PgRole
+	| PgTable<any>
+	| PgEnum<any>
+	| PgSchema
+	| PgSequence
+	| PgView
+	| PgMaterializedView
+	| PgRole
+	| PgPolicy
 >;
-export type MysqlSchema = Record<string, MySqlTable<any> | MySqlSchema | MySqlView>;
+export type MysqlSchema = Record<
+	string,
+	MySqlTable<any> | MySqlSchema | MySqlView
+>;
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
+export type SinglestoreSchema = Record<
+	string,
+	SingleStoreTable<any> | SingleStoreSchema /* | SingleStoreView */
+>;
 
 export const testSchemasResolver =
 	(renames: Set<string>) => async (input: ResolverInput<Named>): Promise<ResolverOutput<Named>> => {
 		try {
-			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
+			if (
+				input.created.length === 0
+				|| input.deleted.length === 0
+				|| renames.size === 0
+			) {
 				return {
 					created: input.created,
 					renamed: [],
@@ -132,278 +164,302 @@ export const testSchemasResolver =
 		}
 	};
 
-export const testSequencesResolver =
-	(renames: Set<string>) => async (input: ResolverInput<Sequence>): Promise<ResolverOutputWithMoved<Sequence>> => {
-		try {
-			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
-				return {
-					created: input.created,
-					moved: [],
-					renamed: [],
-					deleted: input.deleted,
-				};
-			}
-
-			let createdSequences = [...input.created];
-			let deletedSequences = [...input.deleted];
-
-			const result: {
-				created: Sequence[];
-				moved: { name: string; schemaFrom: string; schemaTo: string }[];
-				renamed: { from: Sequence; to: Sequence }[];
-				deleted: Sequence[];
-			} = { created: [], renamed: [], deleted: [], moved: [] };
-
-			for (let rename of renames) {
-				const [from, to] = rename.split('->');
-
-				const idxFrom = deletedSequences.findIndex((it) => {
-					return `${it.schema || 'public'}.${it.name}` === from;
-				});
-
-				if (idxFrom >= 0) {
-					const idxTo = createdSequences.findIndex((it) => {
-						return `${it.schema || 'public'}.${it.name}` === to;
-					});
-
-					const tableFrom = deletedSequences[idxFrom];
-					const tableTo = createdSequences[idxFrom];
-
-					if (tableFrom.schema !== tableTo.schema) {
-						result.moved.push({
-							name: tableFrom.name,
-							schemaFrom: tableFrom.schema,
-							schemaTo: tableTo.schema,
-						});
-					}
-
-					if (tableFrom.name !== tableTo.name) {
-						result.renamed.push({
-							from: deletedSequences[idxFrom],
-							to: createdSequences[idxTo],
-						});
-					}
-
-					delete createdSequences[idxTo];
-					delete deletedSequences[idxFrom];
-
-					createdSequences = createdSequences.filter(Boolean);
-					deletedSequences = deletedSequences.filter(Boolean);
-				}
-			}
-
-			result.created = createdSequences;
-			result.deleted = deletedSequences;
-
-			return result;
-		} catch (e) {
-			console.error(e);
-			throw e;
+export const testSequencesResolver = (renames: Set<string>) =>
+async (
+	input: ResolverInput<Sequence>,
+): Promise<ResolverOutputWithMoved<Sequence>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
 		}
-	};
 
-export const testEnumsResolver =
-	(renames: Set<string>) => async (input: ResolverInput<Enum>): Promise<ResolverOutputWithMoved<Enum>> => {
-		try {
-			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
-				return {
-					created: input.created,
-					moved: [],
-					renamed: [],
-					deleted: input.deleted,
-				};
-			}
+		let createdSequences = [...input.created];
+		let deletedSequences = [...input.deleted];
 
-			let createdEnums = [...input.created];
-			let deletedEnums = [...input.deleted];
+		const result: {
+			created: Sequence[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: Sequence; to: Sequence }[];
+			deleted: Sequence[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
 
-			const result: {
-				created: Enum[];
-				moved: { name: string; schemaFrom: string; schemaTo: string }[];
-				renamed: { from: Enum; to: Enum }[];
-				deleted: Enum[];
-			} = { created: [], renamed: [], deleted: [], moved: [] };
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
 
-			for (let rename of renames) {
-				const [from, to] = rename.split('->');
+			const idxFrom = deletedSequences.findIndex((it) => {
+				return `${it.schema || 'public'}.${it.name}` === from;
+			});
 
-				const idxFrom = deletedEnums.findIndex((it) => {
-					return `${it.schema || 'public'}.${it.name}` === from;
+			if (idxFrom >= 0) {
+				const idxTo = createdSequences.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === to;
 				});
 
-				if (idxFrom >= 0) {
-					const idxTo = createdEnums.findIndex((it) => {
-						return `${it.schema || 'public'}.${it.name}` === to;
+				const tableFrom = deletedSequences[idxFrom];
+				const tableTo = createdSequences[idxFrom];
+
+				if (tableFrom.schema !== tableTo.schema) {
+					result.moved.push({
+						name: tableFrom.name,
+						schemaFrom: tableFrom.schema,
+						schemaTo: tableTo.schema,
 					});
-
-					const tableFrom = deletedEnums[idxFrom];
-					const tableTo = createdEnums[idxFrom];
-
-					if (tableFrom.schema !== tableTo.schema) {
-						result.moved.push({
-							name: tableFrom.name,
-							schemaFrom: tableFrom.schema,
-							schemaTo: tableTo.schema,
-						});
-					}
-
-					if (tableFrom.name !== tableTo.name) {
-						result.renamed.push({
-							from: deletedEnums[idxFrom],
-							to: createdEnums[idxTo],
-						});
-					}
-
-					delete createdEnums[idxTo];
-					delete deletedEnums[idxFrom];
-
-					createdEnums = createdEnums.filter(Boolean);
-					deletedEnums = deletedEnums.filter(Boolean);
 				}
+
+				if (tableFrom.name !== tableTo.name) {
+					result.renamed.push({
+						from: deletedSequences[idxFrom],
+						to: createdSequences[idxTo],
+					});
+				}
+
+				delete createdSequences[idxTo];
+				delete deletedSequences[idxFrom];
+
+				createdSequences = createdSequences.filter(Boolean);
+				deletedSequences = deletedSequences.filter(Boolean);
 			}
-
-			result.created = createdEnums;
-			result.deleted = deletedEnums;
-
-			return result;
-		} catch (e) {
-			console.error(e);
-			throw e;
 		}
-	};
 
-export const testTablesResolver =
-	(renames: Set<string>) => async (input: ResolverInput<Table>): Promise<ResolverOutputWithMoved<Table>> => {
-		try {
-			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
-				return {
-					created: input.created,
-					moved: [],
-					renamed: [],
-					deleted: input.deleted,
-				};
-			}
+		result.created = createdSequences;
+		result.deleted = deletedSequences;
 
-			let createdTables = [...input.created];
-			let deletedTables = [...input.deleted];
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
 
-			const result: {
-				created: Table[];
-				moved: { name: string; schemaFrom: string; schemaTo: string }[];
-				renamed: { from: Table; to: Table }[];
-				deleted: Table[];
-			} = { created: [], renamed: [], deleted: [], moved: [] };
-
-			for (let rename of renames) {
-				const [from, to] = rename.split('->');
-
-				const idxFrom = deletedTables.findIndex((it) => {
-					return `${it.schema || 'public'}.${it.name}` === from;
-				});
-
-				if (idxFrom >= 0) {
-					const idxTo = createdTables.findIndex((it) => {
-						return `${it.schema || 'public'}.${it.name}` === to;
-					});
-
-					const tableFrom = deletedTables[idxFrom];
-					const tableTo = createdTables[idxFrom];
-
-					if (tableFrom.schema !== tableTo.schema) {
-						result.moved.push({
-							name: tableFrom.name,
-							schemaFrom: tableFrom.schema,
-							schemaTo: tableTo.schema,
-						});
-					}
-
-					if (tableFrom.name !== tableTo.name) {
-						result.renamed.push({
-							from: deletedTables[idxFrom],
-							to: createdTables[idxTo],
-						});
-					}
-
-					delete createdTables[idxTo];
-					delete deletedTables[idxFrom];
-
-					createdTables = createdTables.filter(Boolean);
-					deletedTables = deletedTables.filter(Boolean);
-				}
-			}
-
-			result.created = createdTables;
-			result.deleted = deletedTables;
-
-			return result;
-		} catch (e) {
-			console.error(e);
-			throw e;
+export const testEnumsResolver = (renames: Set<string>) =>
+async (
+	input: ResolverInput<Enum>,
+): Promise<ResolverOutputWithMoved<Enum>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
 		}
-	};
 
-export const testColumnsResolver =
-	(renames: Set<string>) => async (input: ColumnsResolverInput<Column>): Promise<ColumnsResolverOutput<Column>> => {
-		try {
-			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
-				return {
-					tableName: input.tableName,
-					schema: input.schema,
-					created: input.created,
-					renamed: [],
-					deleted: input.deleted,
-				};
-			}
+		let createdEnums = [...input.created];
+		let deletedEnums = [...input.deleted];
 
-			let createdColumns = [...input.created];
-			let deletedColumns = [...input.deleted];
+		const result: {
+			created: Enum[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: Enum; to: Enum }[];
+			deleted: Enum[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
 
-			const renamed: { from: Column; to: Column }[] = [];
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
 
-			const schema = input.schema || 'public';
+			const idxFrom = deletedEnums.findIndex((it) => {
+				return `${it.schema || 'public'}.${it.name}` === from;
+			});
 
-			for (let rename of renames) {
-				const [from, to] = rename.split('->');
-
-				const idxFrom = deletedColumns.findIndex((it) => {
-					return `${schema}.${input.tableName}.${it.name}` === from;
+			if (idxFrom >= 0) {
+				const idxTo = createdEnums.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === to;
 				});
 
-				if (idxFrom >= 0) {
-					const idxTo = createdColumns.findIndex((it) => {
-						return `${schema}.${input.tableName}.${it.name}` === to;
+				const tableFrom = deletedEnums[idxFrom];
+				const tableTo = createdEnums[idxFrom];
+
+				if (tableFrom.schema !== tableTo.schema) {
+					result.moved.push({
+						name: tableFrom.name,
+						schemaFrom: tableFrom.schema,
+						schemaTo: tableTo.schema,
 					});
-
-					renamed.push({
-						from: deletedColumns[idxFrom],
-						to: createdColumns[idxTo],
-					});
-
-					delete createdColumns[idxTo];
-					delete deletedColumns[idxFrom];
-
-					createdColumns = createdColumns.filter(Boolean);
-					deletedColumns = deletedColumns.filter(Boolean);
 				}
-			}
 
+				if (tableFrom.name !== tableTo.name) {
+					result.renamed.push({
+						from: deletedEnums[idxFrom],
+						to: createdEnums[idxTo],
+					});
+				}
+
+				delete createdEnums[idxTo];
+				delete deletedEnums[idxFrom];
+
+				createdEnums = createdEnums.filter(Boolean);
+				deletedEnums = deletedEnums.filter(Boolean);
+			}
+		}
+
+		result.created = createdEnums;
+		result.deleted = deletedEnums;
+
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const testTablesResolver = (renames: Set<string>) =>
+async (
+	input: ResolverInput<Table>,
+): Promise<ResolverOutputWithMoved<Table>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdTables = [...input.created];
+		let deletedTables = [...input.deleted];
+
+		const result: {
+			created: Table[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: Table; to: Table }[];
+			deleted: Table[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedTables.findIndex((it) => {
+				return `${it.schema || 'public'}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdTables.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === to;
+				});
+
+				const tableFrom = deletedTables[idxFrom];
+				const tableTo = createdTables[idxFrom];
+
+				if (tableFrom.schema !== tableTo.schema) {
+					result.moved.push({
+						name: tableFrom.name,
+						schemaFrom: tableFrom.schema,
+						schemaTo: tableTo.schema,
+					});
+				}
+
+				if (tableFrom.name !== tableTo.name) {
+					result.renamed.push({
+						from: deletedTables[idxFrom],
+						to: createdTables[idxTo],
+					});
+				}
+
+				delete createdTables[idxTo];
+				delete deletedTables[idxFrom];
+
+				createdTables = createdTables.filter(Boolean);
+				deletedTables = deletedTables.filter(Boolean);
+			}
+		}
+
+		result.created = createdTables;
+		result.deleted = deletedTables;
+
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const testColumnsResolver = (renames: Set<string>) =>
+async (
+	input: ColumnsResolverInput<Column>,
+): Promise<ColumnsResolverOutput<Column>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
 			return {
 				tableName: input.tableName,
 				schema: input.schema,
-				created: createdColumns,
-				deleted: deletedColumns,
-				renamed,
+				created: input.created,
+				renamed: [],
+				deleted: input.deleted,
 			};
-		} catch (e) {
-			console.error(e);
-			throw e;
 		}
-	};
+
+		let createdColumns = [...input.created];
+		let deletedColumns = [...input.deleted];
+
+		const renamed: { from: Column; to: Column }[] = [];
+
+		const schema = input.schema || 'public';
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedColumns.findIndex((it) => {
+				return `${schema}.${input.tableName}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdColumns.findIndex((it) => {
+					return `${schema}.${input.tableName}.${it.name}` === to;
+				});
+
+				renamed.push({
+					from: deletedColumns[idxFrom],
+					to: createdColumns[idxTo],
+				});
+
+				delete createdColumns[idxTo];
+				delete deletedColumns[idxFrom];
+
+				createdColumns = createdColumns.filter(Boolean);
+				deletedColumns = deletedColumns.filter(Boolean);
+			}
+		}
+
+		return {
+			tableName: input.tableName,
+			schema: input.schema,
+			created: createdColumns,
+			deleted: deletedColumns,
+			renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
 
 export const testPolicyResolver = (renames: Set<string>) =>
 async (
-	input: ColumnsResolverInput<Policy>,
-): Promise<ColumnsResolverOutput<Policy>> => {
+	input: TablePolicyResolverInput<Policy>,
+): Promise<TablePolicyResolverOutput<Policy>> => {
 	try {
 		if (
 			input.created.length === 0
@@ -454,6 +510,64 @@ async (
 		return {
 			tableName: input.tableName,
 			schema: input.schema,
+			created: createdPolicies,
+			deleted: deletedPolicies,
+			renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const testIndPolicyResolver = (renames: Set<string>) =>
+async (
+	input: PolicyResolverInput<Policy>,
+): Promise<PolicyResolverOutput<Policy>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdPolicies = [...input.created];
+		let deletedPolicies = [...input.deleted];
+
+		const renamed: { from: Policy; to: Policy }[] = [];
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedPolicies.findIndex((it) => {
+				return `${it.on}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdPolicies.findIndex((it) => {
+					return `${it.on}.${it.name}` === to;
+				});
+
+				renamed.push({
+					from: deletedPolicies[idxFrom],
+					to: createdPolicies[idxTo],
+				});
+
+				delete createdPolicies[idxTo];
+				delete deletedPolicies[idxFrom];
+
+				createdPolicies = createdPolicies.filter(Boolean);
+				deletedPolicies = deletedPolicies.filter(Boolean);
+			}
+		}
+
+		return {
 			created: createdPolicies,
 			deleted: deletedPolicies,
 			renamed,
@@ -522,208 +636,301 @@ async (
 	}
 };
 
-export const testViewsResolver =
-	(renames: Set<string>) => async (input: ResolverInput<View>): Promise<ResolverOutputWithMoved<View>> => {
-		try {
-			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
-				return {
-					created: input.created,
-					moved: [],
-					renamed: [],
-					deleted: input.deleted,
-				};
-			}
+export const testViewsResolver = (renames: Set<string>) =>
+async (
+	input: ResolverInput<View>,
+): Promise<ResolverOutputWithMoved<View>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
 
-			let createdViews = [...input.created];
-			let deletedViews = [...input.deleted];
+		let createdViews = [...input.created];
+		let deletedViews = [...input.deleted];
 
-			const result: {
-				created: View[];
-				moved: { name: string; schemaFrom: string; schemaTo: string }[];
-				renamed: { from: View; to: View }[];
-				deleted: View[];
-			} = { created: [], renamed: [], deleted: [], moved: [] };
+		const result: {
+			created: View[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: View; to: View }[];
+			deleted: View[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
 
-			for (let rename of renames) {
-				const [from, to] = rename.split('->');
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
 
-				const idxFrom = deletedViews.findIndex((it) => {
-					return `${it.schema || 'public'}.${it.name}` === from;
+			const idxFrom = deletedViews.findIndex((it) => {
+				return `${it.schema || 'public'}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdViews.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === to;
 				});
 
-				if (idxFrom >= 0) {
-					const idxTo = createdViews.findIndex((it) => {
-						return `${it.schema || 'public'}.${it.name}` === to;
+				const viewFrom = deletedViews[idxFrom];
+				const viewTo = createdViews[idxFrom];
+
+				if (viewFrom.schema !== viewTo.schema) {
+					result.moved.push({
+						name: viewFrom.name,
+						schemaFrom: viewFrom.schema,
+						schemaTo: viewTo.schema,
 					});
-
-					const viewFrom = deletedViews[idxFrom];
-					const viewTo = createdViews[idxFrom];
-
-					if (viewFrom.schema !== viewTo.schema) {
-						result.moved.push({
-							name: viewFrom.name,
-							schemaFrom: viewFrom.schema,
-							schemaTo: viewTo.schema,
-						});
-					}
-
-					if (viewFrom.name !== viewTo.name) {
-						result.renamed.push({
-							from: deletedViews[idxFrom],
-							to: createdViews[idxTo],
-						});
-					}
-
-					delete createdViews[idxTo];
-					delete deletedViews[idxFrom];
-
-					createdViews = createdViews.filter(Boolean);
-					deletedViews = deletedViews.filter(Boolean);
 				}
+
+				if (viewFrom.name !== viewTo.name) {
+					result.renamed.push({
+						from: deletedViews[idxFrom],
+						to: createdViews[idxTo],
+					});
+				}
+
+				delete createdViews[idxTo];
+				delete deletedViews[idxFrom];
+
+				createdViews = createdViews.filter(Boolean);
+				deletedViews = deletedViews.filter(Boolean);
 			}
-
-			result.created = createdViews;
-			result.deleted = deletedViews;
-
-			return result;
-		} catch (e) {
-			console.error(e);
-			throw e;
 		}
-	};
 
-export const testViewsResolverMySql =
-	(renames: Set<string>) =>
-	async (input: ResolverInput<ViewSquashed & { schema: '' }>): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
-		try {
-			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
-				return {
-					created: input.created,
-					moved: [],
-					renamed: [],
-					deleted: input.deleted,
-				};
-			}
+		result.created = createdViews;
+		result.deleted = deletedViews;
 
-			let createdViews = [...input.created];
-			let deletedViews = [...input.deleted];
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
 
-			const result: {
-				created: ViewSquashed[];
-				moved: { name: string; schemaFrom: string; schemaTo: string }[];
-				renamed: { from: ViewSquashed; to: ViewSquashed }[];
-				deleted: ViewSquashed[];
-			} = { created: [], renamed: [], deleted: [], moved: [] };
+export const testViewsResolverMySql = (renames: Set<string>) =>
+async (
+	input: ResolverInput<ViewSquashed & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
 
-			for (let rename of renames) {
-				const [from, to] = rename.split('->');
+		let createdViews = [...input.created];
+		let deletedViews = [...input.deleted];
 
-				const idxFrom = deletedViews.findIndex((it) => {
-					return `${it.schema || 'public'}.${it.name}` === from;
+		const result: {
+			created: ViewSquashed[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: ViewSquashed; to: ViewSquashed }[];
+			deleted: ViewSquashed[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedViews.findIndex((it) => {
+				return `${it.schema || 'public'}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdViews.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === to;
 				});
 
-				if (idxFrom >= 0) {
-					const idxTo = createdViews.findIndex((it) => {
-						return `${it.schema || 'public'}.${it.name}` === to;
+				const viewFrom = deletedViews[idxFrom];
+				const viewTo = createdViews[idxFrom];
+
+				if (viewFrom.schema !== viewTo.schema) {
+					result.moved.push({
+						name: viewFrom.name,
+						schemaFrom: viewFrom.schema,
+						schemaTo: viewTo.schema,
 					});
-
-					const viewFrom = deletedViews[idxFrom];
-					const viewTo = createdViews[idxFrom];
-
-					if (viewFrom.schema !== viewTo.schema) {
-						result.moved.push({
-							name: viewFrom.name,
-							schemaFrom: viewFrom.schema,
-							schemaTo: viewTo.schema,
-						});
-					}
-
-					if (viewFrom.name !== viewTo.name) {
-						result.renamed.push({
-							from: deletedViews[idxFrom],
-							to: createdViews[idxTo],
-						});
-					}
-
-					delete createdViews[idxTo];
-					delete deletedViews[idxFrom];
-
-					createdViews = createdViews.filter(Boolean);
-					deletedViews = deletedViews.filter(Boolean);
 				}
+
+				if (viewFrom.name !== viewTo.name) {
+					result.renamed.push({
+						from: deletedViews[idxFrom],
+						to: createdViews[idxTo],
+					});
+				}
+
+				delete createdViews[idxTo];
+				delete deletedViews[idxFrom];
+
+				createdViews = createdViews.filter(Boolean);
+				deletedViews = deletedViews.filter(Boolean);
 			}
-
-			result.created = createdViews;
-			result.deleted = deletedViews;
-
-			return result;
-		} catch (e) {
-			console.error(e);
-			throw e;
 		}
-	};
 
-export const testViewsResolverSqlite =
-	(renames: Set<string>) => async (input: ResolverInput<SqliteView>): Promise<ResolverOutputWithMoved<SqliteView>> => {
-		try {
-			if (input.created.length === 0 || input.deleted.length === 0 || renames.size === 0) {
-				return {
-					created: input.created,
-					moved: [],
-					renamed: [],
-					deleted: input.deleted,
-				};
-			}
+		result.created = createdViews;
+		result.deleted = deletedViews;
 
-			let createdViews = [...input.created];
-			let deletedViews = [...input.deleted];
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
 
-			const result: {
-				created: SqliteView[];
-				moved: { name: string; schemaFrom: string; schemaTo: string }[];
-				renamed: { from: SqliteView; to: SqliteView }[];
-				deleted: SqliteView[];
-			} = { created: [], renamed: [], deleted: [], moved: [] };
+export const testViewsResolverSingleStore = (renames: Set<string>) =>
+async (
+	input: ResolverInput<ViewSquashed & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
 
-			for (let rename of renames) {
-				const [from, to] = rename.split('->');
+		let createdViews = [...input.created];
+		let deletedViews = [...input.deleted];
 
-				const idxFrom = deletedViews.findIndex((it) => {
-					return it.name === from;
+		const result: {
+			created: ViewSquashed[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: ViewSquashed; to: ViewSquashed }[];
+			deleted: ViewSquashed[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedViews.findIndex((it) => {
+				return `${it.schema || 'public'}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdViews.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === to;
 				});
 
-				if (idxFrom >= 0) {
-					const idxTo = createdViews.findIndex((it) => {
-						return it.name === to;
+				const viewFrom = deletedViews[idxFrom];
+				const viewTo = createdViews[idxFrom];
+
+				if (viewFrom.schema !== viewTo.schema) {
+					result.moved.push({
+						name: viewFrom.name,
+						schemaFrom: viewFrom.schema,
+						schemaTo: viewTo.schema,
 					});
-
-					const viewFrom = deletedViews[idxFrom];
-					const viewTo = createdViews[idxFrom];
-
-					if (viewFrom.name !== viewTo.name) {
-						result.renamed.push({
-							from: deletedViews[idxFrom],
-							to: createdViews[idxTo],
-						});
-					}
-
-					delete createdViews[idxTo];
-					delete deletedViews[idxFrom];
-
-					createdViews = createdViews.filter(Boolean);
-					deletedViews = deletedViews.filter(Boolean);
 				}
+
+				if (viewFrom.name !== viewTo.name) {
+					result.renamed.push({
+						from: deletedViews[idxFrom],
+						to: createdViews[idxTo],
+					});
+				}
+
+				delete createdViews[idxTo];
+				delete deletedViews[idxFrom];
+
+				createdViews = createdViews.filter(Boolean);
+				deletedViews = deletedViews.filter(Boolean);
 			}
-
-			result.created = createdViews;
-			result.deleted = deletedViews;
-
-			return result;
-		} catch (e) {
-			console.error(e);
-			throw e;
 		}
-	};
+
+		result.created = createdViews;
+		result.deleted = deletedViews;
+
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const testViewsResolverSqlite = (renames: Set<string>) =>
+async (
+	input: ResolverInput<SqliteView>,
+): Promise<ResolverOutputWithMoved<SqliteView>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdViews = [...input.created];
+		let deletedViews = [...input.deleted];
+
+		const result: {
+			created: SqliteView[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: SqliteView; to: SqliteView }[];
+			deleted: SqliteView[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedViews.findIndex((it) => {
+				return it.name === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdViews.findIndex((it) => {
+					return it.name === to;
+				});
+
+				const viewFrom = deletedViews[idxFrom];
+				const viewTo = createdViews[idxFrom];
+
+				if (viewFrom.name !== viewTo.name) {
+					result.renamed.push({
+						from: deletedViews[idxFrom],
+						to: createdViews[idxTo],
+					});
+				}
+
+				delete createdViews[idxTo];
+				delete deletedViews[idxFrom];
+
+				createdViews = createdViews.filter(Boolean);
+				deletedViews = deletedViews.filter(Boolean);
+			}
+		}
+
+		result.created = createdViews;
+		result.deleted = deletedViews;
+
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
 
 export const diffTestSchemasPush = async (
 	client: PGlite,
@@ -734,13 +941,19 @@ export const diffTestSchemasPush = async (
 	schemas: string[] = ['public'],
 	casing?: CasingType | undefined,
 	entities?: Entities,
-	sqlStatementsToRun: { before?: string[]; after?: string[]; runApply?: boolean } = {
+	sqlStatementsToRun: {
+		before?: string[];
+		after?: string[];
+		runApply?: boolean;
+	} = {
 		before: [],
 		after: [],
 		runApply: true,
 	},
 ) => {
-	const shouldRunApply = sqlStatementsToRun.runApply === undefined ? true : sqlStatementsToRun.runApply;
+	const shouldRunApply = sqlStatementsToRun.runApply === undefined
+		? true
+		: sqlStatementsToRun.runApply;
 
 	for (const st of sqlStatementsToRun.before ?? []) {
 		await client.query(st);
@@ -796,6 +1009,8 @@ export const diffTestSchemasPush = async (
 
 	const leftRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
 
+	const leftPolicies = Object.values(right).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
 	const leftViews = Object.values(right).filter((it) => isPgView(it)) as PgView[];
 
 	const leftMaterializedViews = Object.values(right).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
@@ -806,6 +1021,7 @@ export const diffTestSchemasPush = async (
 		leftSchemas,
 		leftSequences,
 		leftRoles,
+		leftPolicies,
 		leftViews,
 		leftMaterializedViews,
 		casing,
@@ -846,6 +1062,7 @@ export const diffTestSchemasPush = async (
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
 			testPolicyResolver(renames),
+			testIndPolicyResolver(renames),
 			testRolesResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
@@ -892,6 +1109,7 @@ export const diffTestSchemasPush = async (
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
+			indPolicyResolver,
 			roleResolver,
 			tablesResolver,
 			columnsResolver,
@@ -904,7 +1122,10 @@ export const diffTestSchemasPush = async (
 	}
 };
 
-export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | undefined) => {
+export const applyPgDiffs = async (
+	sn: PostgresSchema,
+	casing: CasingType | undefined,
+) => {
 	const dryRun = {
 		version: '7',
 		dialect: 'postgresql',
@@ -915,6 +1136,7 @@ export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | unde
 		views: {},
 		schemas: {},
 		sequences: {},
+		policies: {},
 		roles: {},
 		_meta: {
 			schemas: {},
@@ -935,9 +1157,21 @@ export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | unde
 
 	const views = Object.values(sn).filter((it) => isPgView(it)) as PgView[];
 
+	const policies = Object.values(sn).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
 	const materializedViews = Object.values(sn).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
-	const serialized1 = generatePgSnapshot(tables, enums, schemas, sequences, roles, views, materializedViews, casing);
+	const serialized1 = generatePgSnapshot(
+		tables,
+		enums,
+		schemas,
+		sequences,
+		roles,
+		policies,
+		views,
+		materializedViews,
+		casing,
+	);
 
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
@@ -961,6 +1195,7 @@ export const applyPgDiffs = async (sn: PostgresSchema, casing: CasingType | unde
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testPolicyResolver(new Set()),
+		testIndPolicyResolver(new Set()),
 		testRolesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
@@ -997,6 +1232,11 @@ export const diffTestSchemas = async (
 	const leftRoles = Object.values(left).filter((it) => is(it, PgRole)) as PgRole[];
 
 	const rightRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
+
+	const leftPolicies = Object.values(left).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
+	const rightPolicies = Object.values(right).filter((it) => is(it, PgPolicy)) as PgPolicy[];
+
 	const leftViews = Object.values(left).filter((it) => isPgView(it)) as PgView[];
 
 	const rightViews = Object.values(right).filter((it) => isPgView(it)) as PgView[];
@@ -1011,6 +1251,7 @@ export const diffTestSchemas = async (
 		leftSchemas,
 		leftSequences,
 		leftRoles,
+		leftPolicies,
 		leftViews,
 		leftMaterializedViews,
 		casing,
@@ -1021,6 +1262,7 @@ export const diffTestSchemas = async (
 		rightSchemas,
 		rightSequences,
 		rightRoles,
+		rightPolicies,
 		rightViews,
 		rightMaterializedViews,
 		casing,
@@ -1061,6 +1303,7 @@ export const diffTestSchemas = async (
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
 			testPolicyResolver(renames),
+			testIndPolicyResolver(renames),
 			testRolesResolver(renames),
 			testTablesResolver(renames),
 			testColumnsResolver(renames),
@@ -1077,6 +1320,7 @@ export const diffTestSchemas = async (
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
+			indPolicyResolver,
 			roleResolver,
 			tablesResolver,
 			columnsResolver,
@@ -1172,7 +1416,10 @@ export const diffTestSchemasPushMysql = async (
 	}
 };
 
-export const applyMySqlDiffs = async (sn: MysqlSchema, casing: CasingType | undefined) => {
+export const applyMySqlDiffs = async (
+	sn: MysqlSchema,
+	casing: CasingType | undefined,
+) => {
 	const dryRun = {
 		version: '5',
 		dialect: 'mysql',
@@ -1286,6 +1533,277 @@ export const diffTestSchemasMysql = async (
 		tablesResolver,
 		columnsResolver,
 		mySqlViewsResolver,
+		validatedPrev,
+		validatedCur,
+	);
+	return { sqlStatements, statements };
+};
+
+export const diffTestSchemasSingleStore = async (
+	left: SinglestoreSchema,
+	right: SinglestoreSchema,
+	renamesArr: string[],
+	cli: boolean = false,
+	casing?: CasingType | undefined,
+) => {
+	const leftTables = Object.values(left).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
+
+	/* const leftViews = Object.values(left).filter((it) => is(it, SingleStoreView)) as SingleStoreView[]; */
+
+	const rightTables = Object.values(right).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
+
+	/* const rightViews = Object.values(right).filter((it) => is(it, SingleStoreView)) as SingleStoreView[]; */
+
+	const serialized1 = generateSingleStoreSnapshot(
+		leftTables,
+		/* leftViews, */
+		casing,
+	);
+	const serialized2 = generateSingleStoreSnapshot(
+		rightTables,
+		/* rightViews, */
+		casing,
+	);
+
+	const { version: v1, dialect: d1, ...rest1 } = serialized1;
+	const { version: v2, dialect: d2, ...rest2 } = serialized2;
+
+	const sch1 = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...rest1,
+	} as const;
+
+	const sch2 = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...rest2,
+	} as const;
+
+	const sn1 = squashSingleStoreScheme(sch1);
+	const sn2 = squashSingleStoreScheme(sch2);
+
+	const validatedPrev = singlestoreSchema.parse(sch1);
+	const validatedCur = singlestoreSchema.parse(sch2);
+
+	const renames = new Set(renamesArr);
+
+	if (!cli) {
+		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+			sn1,
+			sn2,
+			testTablesResolver(renames),
+			testColumnsResolver(renames),
+			/* testViewsResolverSingleStore(renames), */
+			validatedPrev,
+			validatedCur,
+		);
+		return { sqlStatements, statements };
+	}
+
+	const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+		sn1,
+		sn2,
+		tablesResolver,
+		columnsResolver,
+		/* singleStoreViewsResolver, */
+		validatedPrev,
+		validatedCur,
+	);
+	return { sqlStatements, statements };
+};
+
+export const diffTestSchemasPushSingleStore = async (
+	client: Connection,
+	left: SinglestoreSchema,
+	right: SinglestoreSchema,
+	renamesArr: string[],
+	schema: string,
+	cli: boolean = false,
+	casing?: CasingType | undefined,
+	sqlStatementsToRun: {
+		before?: string[];
+		after?: string[];
+		runApply?: boolean;
+	} = {
+		before: [],
+		after: [],
+		runApply: true,
+	},
+) => {
+	const shouldRunApply = sqlStatementsToRun.runApply === undefined
+		? true
+		: sqlStatementsToRun.runApply;
+
+	for (const st of sqlStatementsToRun.before ?? []) {
+		await client.query(st);
+	}
+
+	if (shouldRunApply) {
+		const res = await applySingleStoreDiffs(left, casing);
+		for (const st of res.sqlStatements) {
+			await client.query(st);
+		}
+	}
+
+	for (const st of sqlStatementsToRun.after ?? []) {
+		await client.query(st);
+	}
+
+	// do introspect into PgSchemaInternal
+	const introspectedSchema = await fromSingleStoreDatabase(
+		{
+			query: async (sql: string, params?: any[]) => {
+				const res = await client.execute(sql, params);
+				return res[0] as any;
+			},
+		},
+		schema,
+	);
+
+	const leftTables = Object.values(right).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
+
+	/* const leftViews = Object.values(right).filter((it) => is(it, SingleStoreView)) as SingleStoreView[]; */
+
+	const serialized2 = generateSingleStoreSnapshot(
+		leftTables,
+		/* leftViews, */
+		casing,
+	);
+
+	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
+	const { version: v2, dialect: d2, ...rest2 } = serialized2;
+
+	const sch1 = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...rest1,
+	} as const;
+
+	const sch2 = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...rest2,
+	} as const;
+
+	const sn1 = squashSingleStoreScheme(sch1);
+	const sn2 = squashSingleStoreScheme(sch2);
+
+	const validatedPrev = singlestoreSchema.parse(sch1);
+	const validatedCur = singlestoreSchema.parse(sch2);
+
+	const renames = new Set(renamesArr);
+
+	if (!cli) {
+		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+			sn1,
+			sn2,
+			testTablesResolver(renames),
+			testColumnsResolver(renames),
+			/* testViewsResolverSingleStore(renames), */
+			validatedPrev,
+			validatedCur,
+			'push',
+		);
+
+		const {
+			statementsToExecute,
+			columnsToRemove,
+			infoToPrint,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		} = await singleStoreLogSuggestionsAndReturn(
+			{
+				query: async <T>(sql: string, params?: any[]) => {
+					const res = await client.execute(sql, params);
+					return res[0] as T[];
+				},
+			},
+			statements,
+			sn1,
+			sn2,
+		);
+
+		return {
+			sqlStatements: statementsToExecute,
+			statements,
+			columnsToRemove,
+			infoToPrint,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		};
+	} else {
+		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+			sn1,
+			sn2,
+			tablesResolver,
+			columnsResolver,
+			/* singleStoreViewsResolver, */
+			validatedPrev,
+			validatedCur,
+			'push',
+		);
+		return { sqlStatements, statements };
+	}
+};
+
+export const applySingleStoreDiffs = async (
+	sn: SinglestoreSchema,
+	casing: CasingType | undefined,
+) => {
+	const dryRun = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		tables: {},
+		views: {},
+		enums: {},
+		schemas: {},
+		_meta: {
+			schemas: {},
+			tables: {},
+			columns: {},
+		},
+	} as const;
+
+	const tables = Object.values(sn).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
+
+	/* const views = Object.values(sn).filter((it) => is(it, SingleStoreView)) as SingleStoreView[]; */
+
+	const serialized1 = generateSingleStoreSnapshot(tables, /* views, */ casing);
+
+	const { version: v1, dialect: d1, ...rest1 } = serialized1;
+
+	const sch1 = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...rest1,
+	} as const;
+
+	const sn1 = squashSingleStoreScheme(sch1);
+
+	const validatedPrev = singlestoreSchema.parse(dryRun);
+	const validatedCur = singlestoreSchema.parse(sch1);
+
+	const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+		dryRun,
+		sn1,
+		testTablesResolver(new Set()),
+		testColumnsResolver(new Set()),
+		/* testViewsResolverSingleStore(new Set()), */
 		validatedPrev,
 		validatedCur,
 	);
@@ -1488,22 +2006,28 @@ export async function diffTestSchemasPushLibSQL(
 			'push',
 		);
 
-		const { statementsToExecute, columnsToRemove, infoToPrint, shouldAskForApprove, tablesToRemove, tablesToTruncate } =
-			await libSqlLogSuggestionsAndReturn(
-				{
-					query: async <T>(sql: string, params?: any[]) => {
-						const res = await client.execute({ sql, args: params || [] });
-						return res.rows as T[];
-					},
-					run: async (query: string) => {
-						await client.execute(query);
-					},
+		const {
+			statementsToExecute,
+			columnsToRemove,
+			infoToPrint,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		} = await libSqlLogSuggestionsAndReturn(
+			{
+				query: async <T>(sql: string, params?: any[]) => {
+					const res = await client.execute({ sql, args: params || [] });
+					return res.rows as T[];
 				},
-				statements,
-				sn1,
-				sn2,
-				_meta!,
-			);
+				run: async (query: string) => {
+					await client.execute(query);
+				},
+			},
+			statements,
+			sn1,
+			sn2,
+			_meta!,
+		);
 
 		return {
 			sqlStatements: statementsToExecute,
@@ -1817,7 +2341,9 @@ export const introspectPgToFile = async (
 	fs.writeFileSync(`tests/introspect/postgres/${testName}.ts`, file.file);
 
 	// generate snapshot from ts file
-	const response = await prepareFromPgImports([`tests/introspect/postgres/${testName}.ts`]);
+	const response = await prepareFromPgImports([
+		`tests/introspect/postgres/${testName}.ts`,
+	]);
 
 	const afterFileImports = generatePgSnapshot(
 		response.tables,
@@ -1825,6 +2351,7 @@ export const introspectPgToFile = async (
 		response.schemas,
 		response.sequences,
 		response.roles,
+		response.policies,
 		response.views,
 		response.matViews,
 		casing,
@@ -1843,13 +2370,17 @@ export const introspectPgToFile = async (
 	const sn2AfterIm = squashPgScheme(sch2);
 	const validatedCurAfterImport = pgSchema.parse(sch2);
 
-	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await applyPgSnapshotsDiff(
+	const {
+		sqlStatements: afterFileSqlStatements,
+		statements: afterFileStatements,
+	} = await applyPgSnapshotsDiff(
 		initSn,
 		sn2AfterIm,
 		testSchemasResolver(new Set()),
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testPolicyResolver(new Set()),
+		testIndPolicyResolver(new Set()),
 		testRolesResolver(new Set()),
 		testTablesResolver(new Set()),
 		testColumnsResolver(new Set()),
@@ -1907,9 +2438,15 @@ export const introspectMySQLToFile = async (
 
 	fs.writeFileSync(`tests/introspect/mysql/${testName}.ts`, file.file);
 
-	const response = await prepareFromMySqlImports([`tests/introspect/mysql/${testName}.ts`]);
+	const response = await prepareFromMySqlImports([
+		`tests/introspect/mysql/${testName}.ts`,
+	]);
 
-	const afterFileImports = generateMySqlSnapshot(response.tables, response.views, casing);
+	const afterFileImports = generateMySqlSnapshot(
+		response.tables,
+		response.views,
+		casing,
+	);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 
@@ -1924,7 +2461,10 @@ export const introspectMySQLToFile = async (
 	const sn2AfterIm = squashMysqlScheme(sch2);
 	const validatedCurAfterImport = mysqlSchema.parse(sch2);
 
-	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await applyMysqlSnapshotsDiff(
+	const {
+		sqlStatements: afterFileSqlStatements,
+		statements: afterFileStatements,
+	} = await applyMysqlSnapshotsDiff(
 		sn2AfterIm,
 		initSn,
 		testTablesResolver(new Set()),
@@ -1935,6 +2475,99 @@ export const introspectMySQLToFile = async (
 	);
 
 	fs.rmSync(`tests/introspect/mysql/${testName}.ts`);
+
+	return {
+		sqlStatements: afterFileSqlStatements,
+		statements: afterFileStatements,
+	};
+};
+
+export const introspectSingleStoreToFile = async (
+	client: Connection,
+	initSchema: SinglestoreSchema,
+	testName: string,
+	schema: string,
+	casing?: CasingType | undefined,
+) => {
+	// put in db
+	const { sqlStatements } = await applySingleStoreDiffs(initSchema, casing);
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+
+	// introspect to schema
+	const introspectedSchema = await fromSingleStoreDatabase(
+		{
+			query: async (sql: string, params?: any[] | undefined) => {
+				const res = await client.execute(sql, params);
+				return res[0] as any;
+			},
+		},
+		schema,
+	);
+
+	const file = schemaToTypeScriptSingleStore(introspectedSchema, 'camel');
+
+	fs.writeFileSync(`tests/introspect/singlestore/${testName}.ts`, file.file);
+
+	const response = await prepareFromSingleStoreImports([
+		`tests/introspect/singlestore/${testName}.ts`,
+	]);
+
+	const afterFileImports = generateSingleStoreSnapshot(
+		response.tables,
+		/* response.views, */
+		casing,
+	);
+
+	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
+
+	const sch2 = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...rest2,
+	} as const;
+
+	const sn2AfterIm = squashSingleStoreScheme(sch2);
+	const validatedCurAfterImport = singlestoreSchema.parse(sch2);
+
+	const leftTables = Object.values(initSchema).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
+
+	const initSnapshot = generateSingleStoreSnapshot(
+		leftTables,
+		/* response.views, */
+		casing,
+	);
+
+	const { version: initV, dialect: initD, ...initRest } = initSnapshot;
+
+	const initSch = {
+		version: '1',
+		dialect: 'singlestore',
+		id: '0',
+		prevId: '0',
+		...initRest,
+	} as const;
+
+	const initSn = squashSingleStoreScheme(initSch);
+	const validatedCur = singlestoreSchema.parse(initSch);
+
+	const {
+		sqlStatements: afterFileSqlStatements,
+		statements: afterFileStatements,
+	} = await applySingleStoreSnapshotsDiff(
+		sn2AfterIm,
+		initSn,
+		testTablesResolver(new Set()),
+		testColumnsResolver(new Set()),
+		/* testViewsResolverSingleStore(new Set()), */
+		validatedCurAfterImport,
+		validatedCur,
+	);
+
+	fs.rmSync(`tests/introspect/singlestore/${testName}.ts`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,
@@ -1985,9 +2618,15 @@ export const introspectSQLiteToFile = async (
 
 	fs.writeFileSync(`tests/introspect/sqlite/${testName}.ts`, file.file);
 
-	const response = await prepareFromSqliteImports([`tests/introspect/sqlite/${testName}.ts`]);
+	const response = await prepareFromSqliteImports([
+		`tests/introspect/sqlite/${testName}.ts`,
+	]);
 
-	const afterFileImports = generateSqliteSnapshot(response.tables, response.views, casing);
+	const afterFileImports = generateSqliteSnapshot(
+		response.tables,
+		response.views,
+		casing,
+	);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 
@@ -2002,7 +2641,10 @@ export const introspectSQLiteToFile = async (
 	const sn2AfterIm = squashSqliteScheme(sch2);
 	const validatedCurAfterImport = sqliteSchema.parse(sch2);
 
-	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await applySqliteSnapshotsDiff(
+	const {
+		sqlStatements: afterFileSqlStatements,
+		statements: afterFileStatements,
+	} = await applySqliteSnapshotsDiff(
 		sn2AfterIm,
 		initSn,
 		testTablesResolver(new Set()),
@@ -2063,9 +2705,15 @@ export const introspectLibSQLToFile = async (
 
 	fs.writeFileSync(`tests/introspect/libsql/${testName}.ts`, file.file);
 
-	const response = await prepareFromSqliteImports([`tests/introspect/libsql/${testName}.ts`]);
+	const response = await prepareFromSqliteImports([
+		`tests/introspect/libsql/${testName}.ts`,
+	]);
 
-	const afterFileImports = generateSqliteSnapshot(response.tables, response.views, casing);
+	const afterFileImports = generateSqliteSnapshot(
+		response.tables,
+		response.views,
+		casing,
+	);
 
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 
@@ -2080,7 +2728,10 @@ export const introspectLibSQLToFile = async (
 	const sn2AfterIm = squashSqliteScheme(sch2);
 	const validatedCurAfterImport = sqliteSchema.parse(sch2);
 
-	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await applyLibSQLSnapshotsDiff(
+	const {
+		sqlStatements: afterFileSqlStatements,
+		statements: afterFileStatements,
+	} = await applyLibSQLSnapshotsDiff(
 		sn2AfterIm,
 		initSn,
 		testTablesResolver(new Set()),

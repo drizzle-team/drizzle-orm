@@ -1,8 +1,6 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'drizzle-orm';
-import { toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
-	// AnySQLiteColumnBuilder,
 	AnySQLiteTable,
 	getTableConfig,
 	getViewConfig,
@@ -27,8 +25,8 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/sqliteSchema';
-import { getColumnCasing, type SQLiteDB } from '../utils';
-import { sqlToStr } from '.';
+import { escapeSingleQuotes, type SQLiteDB } from '../utils';
+import { getColumnCasing, sqlToStr } from './utils';
 
 export const generateSqliteSnapshot = (
 	tables: AnySQLiteTable[],
@@ -92,7 +90,7 @@ export const generateSqliteSnapshot = (
 					columnToSet.default = sqlToStr(column.default, casing);
 				} else {
 					columnToSet.default = typeof column.default === 'string'
-						? `'${column.default}'`
+						? `'${escapeSingleQuotes(column.default)}'`
 						: typeof column.default === 'object'
 								|| Array.isArray(column.default)
 						? `'${JSON.stringify(column.default)}'`

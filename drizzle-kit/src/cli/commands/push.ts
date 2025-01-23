@@ -1,5 +1,7 @@
 import chalk from 'chalk';
+import { randomUUID } from 'crypto';
 import { render } from 'hanji';
+import { serializePg } from 'src/serializer';
 import { fromJson } from '../../sqlgenerator';
 import { Select } from '../selector-ui';
 import { Entities } from '../validations/cli';
@@ -8,10 +10,18 @@ import { LibSQLCredentials } from '../validations/libsql';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
+import { SingleStoreCredentials } from '../validations/singlestore';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { libSqlLogSuggestionsAndReturn } from './libSqlPushUtils';
-import { filterStatements, logSuggestionsAndReturn } from './mysqlPushUtils';
+import {
+	filterStatements as mySqlFilterStatements,
+	logSuggestionsAndReturn as mySqlLogSuggestionsAndReturn,
+} from './mysqlPushUtils';
 import { pgSuggestions } from './pgPushUtils';
+import {
+	filterStatements as singleStoreFilterStatements,
+	logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn,
+} from './singlestorePushUtils';
 import { logSuggestionsAndReturn as sqliteSuggestions } from './sqlitePushUtils';
 
 export const mysqlPush = async (
@@ -33,7 +43,7 @@ export const mysqlPush = async (
 
 	const statements = await prepareMySQLPush(schemaPath, schema, casing);
 
-	const filteredStatements = filterStatements(
+	const filteredStatements = mySqlFilterStatements(
 		statements.statements ?? [],
 		statements.validatedCur,
 		statements.validatedPrev,
@@ -50,8 +60,7 @@ export const mysqlPush = async (
 				tablesToRemove,
 				tablesToTruncate,
 				infoToPrint,
-				schemasToRemove,
-			} = await logSuggestionsAndReturn(
+			} = await mySqlLogSuggestionsAndReturn(
 				db,
 				filteredStatements,
 				statements.validatedCur,
@@ -154,6 +163,129 @@ export const mysqlPush = async (
 	}
 };
 
+export const singlestorePush = async (
+	schemaPath: string | string[],
+	credentials: SingleStoreCredentials,
+	tablesFilter: string[],
+	strict: boolean,
+	verbose: boolean,
+	force: boolean,
+	casing: CasingType | undefined,
+) => {
+	const { connectToSingleStore } = await import('../connections');
+	const { singlestorePushIntrospect } = await import('./singlestoreIntrospect');
+
+	const { db, database } = await connectToSingleStore(credentials);
+
+	const { schema } = await singlestorePushIntrospect(
+		db,
+		database,
+		tablesFilter,
+	);
+	const { prepareSingleStorePush } = await import('./migrate');
+
+	const statements = await prepareSingleStorePush(schemaPath, schema, casing);
+
+	const filteredStatements = singleStoreFilterStatements(
+		statements.statements ?? [],
+		statements.validatedCur,
+		statements.validatedPrev,
+	);
+
+	try {
+		if (filteredStatements.length === 0) {
+			render(`[${chalk.blue('i')}] No changes detected`);
+		} else {
+			const {
+				shouldAskForApprove,
+				statementsToExecute,
+				columnsToRemove,
+				tablesToRemove,
+				tablesToTruncate,
+				infoToPrint,
+				schemasToRemove,
+			} = await singleStoreLogSuggestionsAndReturn(
+				db,
+				filteredStatements,
+				statements.validatedCur,
+				statements.validatedPrev,
+			);
+
+			if (verbose) {
+				console.log();
+				console.log(
+					withStyle.warning('You are about to execute current statements:'),
+				);
+				console.log();
+				console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+				console.log();
+			}
+
+			if (!force && strict) {
+				if (!shouldAskForApprove) {
+					const { status, data } = await render(
+						new Select(['No, abort', `Yes, I want to execute all statements`]),
+					);
+					if (data?.index === 0) {
+						render(`[${chalk.red('x')}] All changes were aborted`);
+						process.exit(0);
+					}
+				}
+			}
+
+			if (!force && shouldAskForApprove) {
+				console.log(withStyle.warning('Found data-loss statements:'));
+				console.log(infoToPrint.join('\n'));
+				console.log();
+				console.log(
+					chalk.red.bold(
+						'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
+					),
+				);
+
+				console.log(chalk.white('Do you still want to push changes?'));
+
+				const { status, data } = await render(
+					new Select([
+						'No, abort',
+						`Yes, I want to${
+							tablesToRemove.length > 0
+								? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'},`
+								: ' '
+						}${
+							columnsToRemove.length > 0
+								? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'},`
+								: ' '
+						}${
+							tablesToTruncate.length > 0
+								? ` truncate ${tablesToTruncate.length} ${tablesToTruncate.length > 1 ? 'tables' : 'table'}`
+								: ''
+						}`
+							.replace(/(^,)|(,$)/g, '')
+							.replace(/ +(?= )/g, ''),
+					]),
+				);
+				if (data?.index === 0) {
+					render(`[${chalk.red('x')}] All changes were aborted`);
+					process.exit(0);
+				}
+			}
+
+			for (const dStmnt of statementsToExecute) {
+				await db.query(dStmnt);
+			}
+
+			if (filteredStatements.length > 0) {
+				render(`[${chalk.green('✓')}] Changes applied`);
+			} else {
+				render(`[${chalk.blue('i')}] No changes detected`);
+			}
+		}
+	} catch (e) {
+		console.log(e);
+	}
+};
+
 export const pgPush = async (
 	schemaPath: string | string[],
 	verbose: boolean,
@@ -169,11 +301,16 @@ export const pgPush = async (
 	const { pgPushIntrospect } = await import('./pgIntrospect');
 
 	const db = await preparePostgresDB(credentials);
-	const { schema } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities);
+	const serialized = await serializePg(schemaPath, casing, schemasFilter);
+
+	const { schema } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities, serialized);
 
 	const { preparePgPush } = await import('./migrate');
 
-	const statements = await preparePgPush(schemaPath, schema, schemasFilter, casing);
+	const statements = await preparePgPush(
+		{ id: randomUUID(), prevId: schema.id, ...serialized },
+		schema,
+	);
 
 	try {
 		if (statements.sqlStatements.length === 0) {
@@ -375,15 +512,15 @@ export const sqlitePush = async (
 			render(`\n[${chalk.blue('i')}] No changes detected`);
 		} else {
 			if (!('driver' in credentials)) {
-				await db.query('begin');
+				await db.run('begin');
 				try {
 					for (const dStmnt of statementsToExecute) {
-						await db.query(dStmnt);
+						await db.run(dStmnt);
 					}
-					await db.query('commit');
+					await db.run('commit');
 				} catch (e) {
 					console.error(e);
-					await db.query('rollback');
+					await db.run('rollback');
 					process.exit(1);
 				}
 			}

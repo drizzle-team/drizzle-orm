@@ -1,4 +1,3 @@
-import { vectorOps } from 'src/extensions/vector';
 import { mapValues, originUUID, snapshotVersion } from '../global';
 
 import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
@@ -232,13 +231,20 @@ const uniqueConstraint = object({
 	nullsNotDistinct: boolean(),
 }).strict();
 
-const policy = object({
+export const policy = object({
 	name: string(),
 	as: enumType(['PERMISSIVE', 'RESTRICTIVE']).optional(),
 	for: enumType(['ALL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE']).optional(),
 	to: string().array().optional(),
 	using: string().optional(),
 	withCheck: string().optional(),
+	on: string().optional(),
+	schema: string().optional(),
+}).strict();
+
+export const policySquashed = object({
+	name: string(),
+	values: string(),
 }).strict();
 
 const viewWithOption = object({
@@ -437,6 +443,7 @@ export const pgSchemaInternal = object({
 	views: record(string(), view).default({}),
 	sequences: record(string(), sequenceSchema).default({}),
 	roles: record(string(), roleSchema).default({}),
+	policies: record(string(), policy).default({}),
 	_meta: object({
 		schemas: record(string(), string()),
 		tables: record(string(), string()),
@@ -491,6 +498,7 @@ export const pgSchemaSquashed = object({
 	views: record(string(), view),
 	sequences: record(string(), sequenceSquashed),
 	roles: record(string(), roleSchema).default({}),
+	policies: record(string(), policySquashed).default({}),
 }).strict();
 
 export const pgSchemaV3 = pgSchemaInternalV3.merge(schemaHash);
@@ -546,10 +554,7 @@ export const PgSquasher = {
 		return `${idx.name};${
 			idx.columns
 				.map(
-					(c) =>
-						`${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${
-							c.opclass && vectorOps.includes(c.opclass) ? c.opclass : ''
-						}`,
+					(c) => `${c.expression}--${c.isExpression}--${c.asc}--${c.nulls}--${c.opclass ? c.opclass : ''}`,
 				)
 				.join(',,')
 		};${idx.isUnique};${idx.concurrently};${idx.method};${idx.where};${JSON.stringify(idx.with)}`;
@@ -630,7 +635,9 @@ export const PgSquasher = {
 		};${fk.onDelete ?? ''};${fk.schemaTo || 'public'}`;
 	},
 	squashPolicy: (policy: Policy) => {
-		return `${policy.name}--${policy.as}--${policy.for}--${policy.to?.join(',')}--${policy.using}--${policy.withCheck}`;
+		return `${policy.name}--${policy.as}--${policy.for}--${
+			policy.to?.join(',')
+		}--${policy.using}--${policy.withCheck}--${policy.on}`;
 	},
 	unsquashPolicy: (policy: string): Policy => {
 		const splitted = policy.split('--');
@@ -641,10 +648,21 @@ export const PgSquasher = {
 			to: splitted[3].split(','),
 			using: splitted[4] !== 'undefined' ? splitted[4] : undefined,
 			withCheck: splitted[5] !== 'undefined' ? splitted[5] : undefined,
+			on: splitted[6] !== 'undefined' ? splitted[6] : undefined,
 		};
 	},
 	squashPolicyPush: (policy: Policy) => {
-		return `${policy.name}--${policy.as}--${policy.for}--${policy.to?.join(',')}`;
+		return `${policy.name}--${policy.as}--${policy.for}--${policy.to?.join(',')}--${policy.on}`;
+	},
+	unsquashPolicyPush: (policy: string): Policy => {
+		const splitted = policy.split('--');
+		return {
+			name: splitted[0],
+			as: splitted[1] as Policy['as'],
+			for: splitted[2] as Policy['for'],
+			to: splitted[3].split(','),
+			on: splitted[4] !== 'undefined' ? splitted[4] : undefined,
+		};
 	},
 	squashPK: (pk: PrimaryKey) => {
 		return `${pk.columns.join(',')};${pk.name}`;
@@ -822,6 +840,20 @@ export const squashPgScheme = (
 		}),
 	);
 
+	const mappedPolicies = Object.fromEntries(
+		Object.entries(json.policies).map((it) => {
+			return [
+				it[0],
+				{
+					name: it[1].name,
+					values: action === 'push'
+						? PgSquasher.squashPolicyPush(it[1])
+						: PgSquasher.squashPolicy(it[1]),
+				},
+			];
+		}),
+	);
+
 	return {
 		version: '7',
 		dialect: json.dialect,
@@ -829,6 +861,7 @@ export const squashPgScheme = (
 		enums: json.enums,
 		schemas: json.schemas,
 		views: json.views,
+		policies: mappedPolicies,
 		sequences: mappedSequences,
 		roles: json.roles,
 	};
@@ -842,6 +875,8 @@ export const dryPg = pgSchema.parse({
 	tables: {},
 	enums: {},
 	schemas: {},
+	policies: {},
+	roles: {},
 	sequences: {},
 	_meta: {
 		schemas: {},

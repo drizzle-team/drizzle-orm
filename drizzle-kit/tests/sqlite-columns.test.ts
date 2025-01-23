@@ -1025,3 +1025,25 @@ test('recreate table with nested references', async (t) => {
 	expect(sqlStatements[4]).toBe(`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`);
 	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });
+
+test('text default values escape single quotes', async (t) => {
+	const schema1 = {
+		table: sqliteTable('table', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const schem2 = {
+		table: sqliteTable('table', {
+			id: integer('id').primaryKey(),
+			text: text('text').default("escape's quotes"),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schem2, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toStrictEqual(
+		"ALTER TABLE `table` ADD `text` text DEFAULT 'escape''s quotes';",
+	);
+});
