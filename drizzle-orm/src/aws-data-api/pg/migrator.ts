@@ -4,7 +4,7 @@ import type { AwsDataApiPgDatabase } from './driver.ts';
 
 export async function migrate<TSchema extends Record<string, unknown>>(
 	db: AwsDataApiPgDatabase<TSchema>,
-	config: string | MigrationConfig,
+	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
 	await db.dialect.migrate(migrations, db.session, config);

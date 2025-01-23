@@ -1,7 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
+import { toCamelCase } from 'drizzle-orm/casing';
 import './@types/utils';
 import type { Casing } from './cli/validations/common';
+import { assertUnreachable } from './global';
 import {
+	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
@@ -11,9 +14,7 @@ import {
 	UniqueConstraint,
 } from './serializer/mysqlSchema';
 import { indexName } from './serializer/mysqlSerializer';
-
-// time precision to fsp
-// {mode: "string"} for timestamp by default
+import { unescapeSingleQuotes } from './utils';
 
 const mysqlImportsList = new Set([
 	'mysqlTable',
@@ -101,15 +102,33 @@ const importsPatch = {
 
 const relations = new Set<string>();
 
+const escapeColumnKey = (value: string) => {
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
+		return `"${value}"`;
+	}
+	return value;
+};
+
 const prepareCasing = (casing?: Casing) => (value: string) => {
-	if (typeof casing === 'undefined') {
-		return value;
+	if (casing === 'preserve') {
+		return escapeColumnKey(value);
 	}
 	if (casing === 'camel') {
-		return value.camelCase();
+		return escapeColumnKey(value.camelCase());
 	}
 
-	return value;
+	assertUnreachable(casing);
+};
+
+const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
+	if (casing === 'preserve') {
+		return '';
+	}
+	if (casing === 'camel') {
+		return toCamelCase(name) === name ? '' : withMode ? `"${name}", ` : `"${name}"`;
+	}
+
+	assertUnreachable(casing);
 };
 
 export const schemaToTypeScript = (
@@ -135,11 +154,15 @@ export const schemaToTypeScript = (
 			const uniqueImports = Object.values(it.uniqueConstraints).map(
 				(it) => 'unique',
 			);
+			const checkImports = Object.values(it.checkConstraint).map(
+				(it) => 'check',
+			);
 
 			res.mysql.push(...idxImports);
 			res.mysql.push(...fkImpots);
 			res.mysql.push(...pkImports);
 			res.mysql.push(...uniqueImports);
+			res.mysql.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -153,6 +176,13 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('datetime(') ? 'datetime' : patched;
 					patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 					patched = patched.startsWith('int(') ? 'int' : patched;
+					patched = patched.startsWith('double(') ? 'double' : patched;
+					patched = patched.startsWith('float(') ? 'float' : patched;
+					patched = patched.startsWith('int unsigned') ? 'int' : patched;
+					patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+					patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+					patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+					patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
 					return patched;
 				})
 				.filter((type) => {
@@ -164,6 +194,37 @@ export const schemaToTypeScript = (
 		},
 		{ mysql: [] as string[] },
 	);
+
+	Object.values(schema.views).forEach((it) => {
+		imports.mysql.push('mysqlView');
+
+		const columnImports = Object.values(it.columns)
+			.map((col) => {
+				let patched = importsPatch[col.type] ?? col.type;
+				patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+				patched = patched.startsWith('char(') ? 'char' : patched;
+				patched = patched.startsWith('binary(') ? 'binary' : patched;
+				patched = patched.startsWith('decimal(') ? 'decimal' : patched;
+				patched = patched.startsWith('smallint(') ? 'smallint' : patched;
+				patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
+				patched = patched.startsWith('datetime(') ? 'datetime' : patched;
+				patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
+				patched = patched.startsWith('int(') ? 'int' : patched;
+				patched = patched.startsWith('double(') ? 'double' : patched;
+				patched = patched.startsWith('float(') ? 'float' : patched;
+				patched = patched.startsWith('int unsigned') ? 'int' : patched;
+				patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+				patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+				patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+				patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
+				return patched;
+			})
+			.filter((type) => {
+				return mysqlImportsList.has(type);
+			});
+
+		imports.mysql.push(...columnImports);
+	});
 
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const func = 'mysqlTable';
@@ -180,6 +241,7 @@ export const schemaToTypeScript = (
 			Object.values(table.columns),
 			Object.values(table.foreignKeys),
 			withCasing,
+			casing,
 			table.name,
 			schema,
 		);
@@ -195,10 +257,10 @@ export const schemaToTypeScript = (
 			|| filteredFKs.length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
+			|| Object.keys(table.checkConstraint).length > 0
 		) {
 			statement += ',\n';
-			statement += '(table) => {\n';
-			statement += '\treturn {\n';
+			statement += '(table) => [';
 			statement += createTableIndexes(
 				table.name,
 				Object.values(table.indexes),
@@ -213,11 +275,45 @@ export const schemaToTypeScript = (
 				Object.values(table.uniqueConstraints),
 				withCasing,
 			);
-			statement += '\t}\n';
-			statement += '}';
+			statement += createTableChecks(
+				Object.values(table.checkConstraint),
+				withCasing,
+			);
+			statement += '\n]';
 		}
 
 		statement += ');';
+		return statement;
+	});
+
+	const viewsStatements = Object.values(schema.views).map((view) => {
+		const { columns, name, algorithm, definition, sqlSecurity, withCheckOption } = view;
+		const func = 'mysqlView';
+		let statement = '';
+
+		if (imports.mysql.includes(withCasing(name))) {
+			statement = `// Table name is in conflict with ${
+				withCasing(
+					view.name,
+				)
+			} import.\n// Please change to any other name, that is not in imports list\n`;
+		}
+		statement += `export const ${withCasing(name)} = ${func}("${name}", {\n`;
+		statement += createTableColumns(
+			Object.values(columns),
+			[],
+			withCasing,
+			casing,
+			name,
+			schema,
+		);
+		statement += '})';
+
+		statement += algorithm ? `.algorithm("${algorithm}")` : '';
+		statement += sqlSecurity ? `.sqlSecurity("${sqlSecurity}")` : '';
+		statement += withCheckOption ? `.withCheckOption("${withCheckOption}")` : '';
+		statement += `.as(sql\`${definition?.replaceAll('`', '\\`')}\`);`;
+
 		return statement;
 	});
 
@@ -235,6 +331,8 @@ export const schemaToTypeScript = (
 
 	let decalrations = '';
 	decalrations += tableStatements.join('\n\n');
+	decalrations += '\n';
+	decalrations += viewsStatements.join('\n\n');
 
 	const file = importsTs + decalrations;
 
@@ -290,6 +388,7 @@ const column = (
 	type: string,
 	name: string,
 	casing: (value: string) => string,
+	rawCasing: Casing,
 	defaultValue?: any,
 	autoincrement?: boolean,
 	onUpdate?: boolean,
@@ -301,12 +400,15 @@ const column = (
 	}
 
 	if (lowered === 'serial') {
-		return `${casing(name)}: serial("${name}")`;
+		return `${casing(name)}: serial(${dbColumnName({ name, casing: rawCasing })})`;
 	}
 
 	if (lowered.startsWith('int')) {
 		const isUnsigned = lowered.startsWith('int unsigned');
-		let out = `${casing(name)}: int("${name}"${isUnsigned ? ', { unsigned: true }' : ''})`;
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: int(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
+		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -316,8 +418,11 @@ const column = (
 
 	if (lowered.startsWith('tinyint')) {
 		const isUnsigned = lowered.startsWith('tinyint unsigned');
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		// let out = `${name.camelCase()}: tinyint("${name}")`;
-		let out: string = `${casing(name)}: tinyint("${name}"${isUnsigned ? ', { unsigned: true }' : ''})`;
+		let out: string = `${casing(name)}: tinyint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
+		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -327,7 +432,10 @@ const column = (
 
 	if (lowered.startsWith('smallint')) {
 		const isUnsigned = lowered.startsWith('smallint unsigned');
-		let out = `${casing(name)}: smallint("${name}"${isUnsigned ? ', { unsigned: true }' : ''})`;
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: smallint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
+		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -337,7 +445,10 @@ const column = (
 
 	if (lowered.startsWith('mediumint')) {
 		const isUnsigned = lowered.startsWith('mediumint unsigned');
-		let out = `${casing(name)}: mediumint("${name}"${isUnsigned ? ', { unsigned: true }' : ''})`;
+		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
+		let out = `${casing(name)}: mediumint(${columnName}${
+			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
+		})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -347,7 +458,9 @@ const column = (
 
 	if (lowered.startsWith('bigint')) {
 		const isUnsigned = lowered.startsWith('bigint unsigned');
-		let out = `${casing(name)}: bigint("${name}", { mode: "number"${isUnsigned ? ', unsigned: true' : ''} })`;
+		let out = `${casing(name)}: bigint(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: "number"${
+			isUnsigned ? ', unsigned: true' : ''
+		} })`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -356,7 +469,7 @@ const column = (
 	}
 
 	if (lowered === 'boolean') {
-		let out = `${casing(name)}: boolean("${name}")`;
+		let out = `${casing(name)}: boolean(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
@@ -365,19 +478,27 @@ const column = (
 
 	if (lowered.startsWith('double')) {
 		let params:
-			| { precision: string | undefined; scale: string | undefined }
+			| { precision?: string; scale?: string; unsigned?: boolean }
 			| undefined;
 
-		if (lowered.length > 6) {
+		if (lowered.length > (lowered.includes('unsigned') ? 15 : 6)) {
 			const [precision, scale] = lowered
-				.slice(7, lowered.length - 1)
+				.slice(7, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
 				.split(',');
 			params = { precision, scale };
 		}
 
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
+		}
+
+		const timeConfigParams = params ? timeConfig(params) : undefined;
+
 		let out = params
-			? `${casing(name)}: double("${name}", ${timeConfig(params)})`
-			: `${casing(name)}: double("${name}")`;
+			? `${casing(name)}: double(${
+				dbColumnName({ name, casing: rawCasing, withMode: timeConfigParams !== undefined })
+			}${timeConfig(params)})`
+			: `${casing(name)}: double(${dbColumnName({ name, casing: rawCasing })})`;
 
 		// let out = `${name.camelCase()}: double("${name}")`;
 		out += defaultValue
@@ -386,8 +507,23 @@ const column = (
 		return out;
 	}
 
-	if (lowered === 'float') {
-		let out = `${casing(name)}: float("${name}")`;
+	if (lowered.startsWith('float')) {
+		let params:
+			| { precision?: string; scale?: string; unsigned?: boolean }
+			| undefined;
+
+		if (lowered.length > (lowered.includes('unsigned') ? 14 : 5)) {
+			const [precision, scale] = lowered
+				.slice(6, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
+				.split(',');
+			params = { precision, scale };
+		}
+
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
+		}
+
+		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })}${params ? timeConfig(params) : ''})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
@@ -395,7 +531,7 @@ const column = (
 	}
 
 	if (lowered === 'real') {
-		let out = `${casing(name)}: real("${name}")`;
+		let out = `${casing(name)}: real(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
@@ -412,8 +548,10 @@ const column = (
 		const params = timeConfig({ fsp, mode: "'string'" });
 
 		let out = params
-			? `${casing(name)}: timestamp("${name}", ${params})`
-			: `${casing(name)}: timestamp("${name}")`;
+			? `${casing(name)}: timestamp(${
+				dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })
+			}${params})`
+			: `${casing(name)}: timestamp(${dbColumnName({ name, casing: rawCasing })})`;
 
 		// mysql has only CURRENT_TIMESTAMP, as I found from docs. But will leave now() for just a case
 		defaultValue = defaultValue === 'now()' || defaultValue === '(CURRENT_TIMESTAMP)'
@@ -440,8 +578,8 @@ const column = (
 		const params = timeConfig({ fsp });
 
 		let out = params
-			? `${casing(name)}: time("${name}", ${params})`
-			: `${casing(name)}: time("${name}")`;
+			? `${casing(name)}: time(${dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })}${params})`
+			: `${casing(name)}: time(${dbColumnName({ name, casing: rawCasing })})`;
 
 		defaultValue = defaultValue === 'now()'
 			? '.defaultNow()'
@@ -458,7 +596,7 @@ const column = (
 			casing(
 				name,
 			)
-		}: date("${name}", { mode: 'string' })`;
+		}: date(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string' })`;
 
 		defaultValue = defaultValue === 'now()'
 			? '.defaultNow()'
@@ -472,7 +610,7 @@ const column = (
 
 	// in mysql text can't have default value. Will leave it in case smth ;)
 	if (lowered === 'text') {
-		let out = `${casing(name)}: text("${name}")`;
+		let out = `${casing(name)}: text(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
@@ -481,7 +619,7 @@ const column = (
 
 	// in mysql text can't have default value. Will leave it in case smth ;)
 	if (lowered === 'tinytext') {
-		let out = `${casing(name)}: tinytext("${name}")`;
+		let out = `${casing(name)}: tinytext(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
@@ -490,7 +628,7 @@ const column = (
 
 	// in mysql text can't have default value. Will leave it in case smth ;)
 	if (lowered === 'mediumtext') {
-		let out = `${casing(name)}: mediumtext("${name}")`;
+		let out = `${casing(name)}: mediumtext(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
@@ -499,7 +637,7 @@ const column = (
 
 	// in mysql text can't have default value. Will leave it in case smth ;)
 	if (lowered === 'longtext') {
-		let out = `${casing(name)}: longtext("${name}")`;
+		let out = `${casing(name)}: longtext(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
@@ -507,7 +645,7 @@ const column = (
 	}
 
 	if (lowered === 'year') {
-		let out = `${casing(name)}: year("${name}")`;
+		let out = `${casing(name)}: year(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
@@ -516,7 +654,7 @@ const column = (
 
 	// in mysql json can't have default value. Will leave it in case smth ;)
 	if (lowered === 'json') {
-		let out = `${casing(name)}: json("${name}")`;
+		let out = `${casing(name)}: json(${dbColumnName({ name, casing: rawCasing })})`;
 
 		out += defaultValue
 			? `.default(${mapColumnDefaultForJson(defaultValue)})`
@@ -530,15 +668,16 @@ const column = (
 			casing(
 				name,
 			)
-		}: varchar("${name}", { length: ${
+		}: varchar(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ length: ${
 			lowered.substring(
 				'varchar'.length + 1,
 				lowered.length - 1,
 			)
 		} })`;
 
+		const mappedDefaultValue = mapColumnDefault(defaultValue, isExpression);
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
 			: '';
 		return out;
 	}
@@ -548,7 +687,7 @@ const column = (
 			casing(
 				name,
 			)
-		}: char("${name}", { length: ${
+		}: char(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ length: ${
 			lowered.substring(
 				'char'.length + 1,
 				lowered.length - 1,
@@ -573,13 +712,13 @@ const column = (
 				casing(
 					name,
 				)
-			}: datetime("${name}", { mode: 'string', fsp: ${
+			}: datetime(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string', fsp: ${
 				lowered.substring(
 					'datetime'.length + 1,
 					lowered.length - 1,
 				)
 			} })`
-			: `${casing(name)}: datetime("${name}", { mode: 'string'})`;
+			: `${casing(name)}: datetime(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string'})`;
 
 		defaultValue = defaultValue === 'now()'
 			? '.defaultNow()'
@@ -593,19 +732,27 @@ const column = (
 
 	if (lowered.startsWith('decimal')) {
 		let params:
-			| { precision: string | undefined; scale: string | undefined }
+			| { precision?: string; scale?: string; unsigned?: boolean }
 			| undefined;
 
-		if (lowered.length > 7) {
+		if (lowered.length > (lowered.includes('unsigned') ? 16 : 7)) {
 			const [precision, scale] = lowered
-				.slice(8, lowered.length - 1)
+				.slice(8, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
 				.split(',');
 			params = { precision, scale };
 		}
 
+		if (lowered.includes('unsigned')) {
+			params = { ...(params ?? {}), unsigned: true };
+		}
+
+		const timeConfigParams = params ? timeConfig(params) : undefined;
+
 		let out = params
-			? `${casing(name)}: decimal("${name}", ${timeConfig(params)})`
-			: `${casing(name)}: decimal("${name}")`;
+			? `${casing(name)}: decimal(${
+				dbColumnName({ name, casing: rawCasing, withMode: timeConfigParams !== undefined })
+			}${timeConfigParams})`
+			: `${casing(name)}: decimal(${dbColumnName({ name, casing: rawCasing })})`;
 
 		defaultValue = typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -625,8 +772,8 @@ const column = (
 		const params = binaryConfig({ length });
 
 		let out = params
-			? `${casing(name)}: binary("${name}", ${params})`
-			: `${casing(name)}: binary("${name}")`;
+			? `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })}${params})`
+			: `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing })})`;
 
 		defaultValue = defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -637,10 +784,15 @@ const column = (
 	}
 
 	if (lowered.startsWith('enum')) {
-		const values = lowered.substring('enum'.length + 1, lowered.length - 1);
-		let out = `${casing(name)}: mysqlEnum("${name}", [${values}])`;
+		const values = lowered
+			.substring('enum'.length + 1, lowered.length - 1)
+			.split(',')
+			.map((v) => unescapeSingleQuotes(v, true))
+			.join(',');
+		let out = `${casing(name)}: mysqlEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
+		const mappedDefaultValue = mapColumnDefault(defaultValue, isExpression);
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
 			: '';
 		return out;
 	}
@@ -655,8 +807,10 @@ const column = (
 		const params = binaryConfig({ length });
 
 		let out = params
-			? `${casing(name)}: varbinary("${name}", ${params})`
-			: `${casing(name)}: varbinary("${name}")`;
+			? `${casing(name)}: varbinary(${
+				dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })
+			}${params})`
+			: `${casing(name)}: varbinary(${dbColumnName({ name, casing: rawCasing })})`;
 
 		defaultValue = defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -674,6 +828,7 @@ const createTableColumns = (
 	columns: Column[],
 	fks: ForeignKey[],
 	casing: (val: string) => string,
+	rawCasing: Casing,
 	tableName: string,
 	schema: MySqlSchemaInternal,
 ): string => {
@@ -699,6 +854,7 @@ const createTableColumns = (
 			it.type,
 			it.name,
 			casing,
+			rawCasing,
 			it.default,
 			it.autoincrement,
 			it.onUpdate,
@@ -771,7 +927,7 @@ const createTableIndexes = (
 		const indexGeneratedName = indexName(tableName, it.columns);
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `${escapedIndexName})`;
 		statement += `.on(${
@@ -779,7 +935,6 @@ const createTableIndexes = (
 				.map((it) => `table.${casing(it)}`)
 				.join(', ')
 		}),`;
-		statement += `\n`;
 	});
 
 	return statement;
@@ -794,7 +949,7 @@ const createTableUniques = (
 	unqs.forEach((it) => {
 		const idxKey = casing(it.name);
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'unique(';
 		statement += `"${it.name}")`;
 		statement += `.on(${
@@ -802,7 +957,23 @@ const createTableUniques = (
 				.map((it) => `table.${casing(it)}`)
 				.join(', ')
 		}),`;
-		statement += `\n`;
+	});
+
+	return statement;
+};
+
+const createTableChecks = (
+	checks: CheckConstraint[],
+	casing: (value: string) => string,
+): string => {
+	let statement = '';
+
+	checks.forEach((it) => {
+		statement += `\n\t`;
+		statement += 'check(';
+		statement += `"${it.name}", `;
+		statement += `sql\`${it.value.replace(/`/g, '\\`')}\`)`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -817,7 +988,7 @@ const createTablePKs = (
 	pks.forEach((it) => {
 		let idxKey = casing(it.name);
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'primaryKey({ columns: [';
 		statement += `${
 			it.columns
@@ -827,7 +998,6 @@ const createTablePKs = (
 				.join(', ')
 		}]${it.name ? `, name: "${it.name}"` : ''}}`;
 		statement += '),';
-		statement += `\n`;
 	});
 
 	return statement;
@@ -842,7 +1012,8 @@ const createTableFKs = (
 	fks.forEach((it) => {
 		const isSelf = it.tableTo === it.tableFrom;
 		const tableTo = isSelf ? 'table' : `${casing(it.tableTo)}`;
-		statement += `\t\t${casing(it.name)}: foreignKey({\n`;
+		statement += `\n\t`;
+		statement += `foreignKey({\n`;
 		statement += `\t\t\tcolumns: [${
 			it.columnsFrom
 				.map((i) => `table.${casing(i)}`)
@@ -864,7 +1035,7 @@ const createTableFKs = (
 			? `.onDelete("${it.onDelete}")`
 			: '';
 
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;

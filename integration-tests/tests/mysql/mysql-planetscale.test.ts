@@ -59,6 +59,7 @@ skipTests([
 	// to redefine in this file
 	'utc config for datetime',
 	'transaction',
+	'transaction with options (set isolationLevel)',
 	'having',
 	'select count()',
 	'insert via db.execute w/ query builder',
