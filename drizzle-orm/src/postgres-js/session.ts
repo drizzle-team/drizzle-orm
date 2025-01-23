@@ -1,16 +1,48 @@
+import client from 'postgres';
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import { entityKind } from '~/entity.ts';
+import type { ErrorHandler } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgTransaction } from '~/pg-core/index.ts';
+import { PgQueryError, PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
+import { trace, PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
+
+const handleError: ErrorHandler = (err, queryString, queryParams, duration) => {
+  if (err instanceof client.PostgresError) {
+    throw new PgQueryError(err, {
+			code: err.code,
+			message: err.message,
+			file: err.file,
+			line: err.line,
+			routine: err.routine,
+			position: err.position,
+			severity: err.severity,
+			severityLocal: err.severity_local,
+			columnName: err.column_name,
+			constraintName: err.constraint_name,
+			dataTypeName: err.table_name,
+			detail: err.detail,
+			hint: err.hint,
+			internalPosition: err.internal_position,
+			internalQuery: err.internal_query,
+			schemaName: err.schema_name,
+			tableName: err.table_name,
+			where: err.where,
+		}, {
+			params: queryParams,
+			sql: queryString,
+			duration
+		});
+  }
+  throw err;
+}
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'PostgresJsPreparedQuery';
@@ -36,23 +68,33 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 				'drizzle.query.params': JSON.stringify(params),
 			});
 
-			this.logger.logQuery(this.queryString, params);
-
 			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper } = this;
 			if (!fields && !customResultMapper) {
-				return tracer.startActiveSpan('drizzle.driver.execute', () => {
-					return client.unsafe(query, params as any[]);
-				});
+				return trace(
+					tracer.startActiveSpan('drizzle.driver.execute', () => {
+						return client.unsafe(query, params as any[]);
+					}),
+					this.logger,
+					this.queryString,
+					params,
+					handleError
+				);
 			}
 
-			const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
-				span?.setAttributes({
-					'drizzle.query.text': query,
-					'drizzle.query.params': JSON.stringify(params),
-				});
-
-				return client.unsafe(query, params as any[]).values();
-			});
+			const rows = await trace(
+				tracer.startActiveSpan('drizzle.driver.execute', () => {
+					span?.setAttributes({
+						'drizzle.query.text': query,
+						'drizzle.query.params': JSON.stringify(params),
+					});
+	
+					return client.unsafe(query, params as any[]).values();
+				}),
+				this.logger,
+				this.queryString,
+				params,
+				handleError
+			);
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
 				return customResultMapper
@@ -69,14 +111,19 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 				'drizzle.query.text': this.queryString,
 				'drizzle.query.params': JSON.stringify(params),
 			});
-			this.logger.logQuery(this.queryString, params);
-			return tracer.startActiveSpan('drizzle.driver.execute', () => {
-				span?.setAttributes({
-					'drizzle.query.text': this.queryString,
-					'drizzle.query.params': JSON.stringify(params),
-				});
-				return this.client.unsafe(this.queryString, params as any[]);
-			});
+			return await trace(
+				tracer.startActiveSpan('drizzle.driver.execute', () => {
+					span?.setAttributes({
+						'drizzle.query.text': this.queryString,
+						'drizzle.query.params': JSON.stringify(params),
+					});
+					return this.client.unsafe(this.queryString, params as any[]);
+				}),
+				this.logger,
+				this.queryString,
+				params,
+				handleError
+			);
 		});
 	}
 
@@ -129,15 +176,26 @@ export class PostgresJsSession<
 	}
 
 	query(query: string, params: unknown[]): Promise<RowList<Row[]>> {
-		this.logger.logQuery(query, params);
-		return this.client.unsafe(query, params as any[]).values();
+		return trace(
+			this.client.unsafe(query, params as any[]).values(),
+			this.logger,
+			query,
+			params,
+			handleError
+		);
 	}
 
 	queryObjects<T extends Row>(
 		query: string,
 		params: unknown[],
 	): Promise<RowList<T[]>> {
-		return this.client.unsafe(query, params as any[]);
+		return trace(
+			this.client.unsafe(query, params as any[]),
+			this.logger,
+			query,
+			params,
+			handleError
+		);
 	}
 
 	override transaction<T>(

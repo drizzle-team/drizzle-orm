@@ -78,6 +78,8 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
+	PgQueryError,
+	ERROR,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
@@ -5417,6 +5419,79 @@ export function tests() {
 				{ id: 4, id1: 5, name: 'Jane' },
 				{ id: 4, id1: 5, name: 'Bob' },
 			]);
+		});
+
+		test('error handling', async (ctx) => {
+			const { db } = ctx.pg;
+			const q = db.execute(sql`selec 1`);
+			await expect(() => q).rejects.toThrow(PgQueryError);
+			
+			const caught = (await q.catch((e) => e)) as PgQueryError;
+			expect(caught.severity).toBe('ERROR');
+			expect(caught.code).toBe(ERROR.SYNTAX_ERROR_OR_ACCESS_RULE_VIOLATION.SYNTAX_ERROR);
+			expect(caught.message).toBeTypeOf('string');
+			expect(caught.query).toStrictEqual({
+				sql: 'selec 1',
+				params: [],
+				duration: expect.any(Number),
+			});
+		});
+
+		test('error handling: integrity constraint violation', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				email: text('email').notNull().unique(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial primary key, email text not null unique)`);
+			await db.insert(users).values({ email: 'first@email.com' });
+
+			const q = db.insert(users).values({ email: 'first@email.com' });
+			await expect(() => q).rejects.toThrow(PgQueryError);
+
+			const caught = (await q.catch((e) => e)) as PgQueryError;
+			expect(caught.severity).toBe('ERROR');
+			expect(caught.code).toBe(ERROR.INTEGRITY_CONSTRAINT_VIOLATION.UNIQUE_VIOLATION);
+			expect(caught.message).toBeTypeOf('string');
+			expect(caught.getConstraintColumnNames()).toEqual(['email']);
+			expect(caught.query).toStrictEqual({
+				sql: 'insert into "users" ("id", "email") values (default, $1)',
+				params: ['first@email.com'],
+				duration: expect.any(Number),
+			});
+		});
+
+		test('error handling: integrity constraint violation with multiple columns', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				email1: text('email1').notNull(),
+				email2: text('email2').notNull(),
+			}, (users) => [
+				unique('unique').on(users.email1, users.email2),
+			]);
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial primary key, email1 text not null, email2 text not null, unique(email1, email2))`);
+			await db.insert(users).values({ email1: 'first@email.com', email2: 'second@email.com' });
+
+			const q = db.insert(users).values({ email1: 'first@email.com', email2: 'second@email.com' });
+			await expect(() => q).rejects.toThrow(PgQueryError);
+
+			const caught = (await q.catch((e) => e)) as PgQueryError;
+			expect(caught.severity).toBe('ERROR');
+			expect(caught.code).toBe(ERROR.INTEGRITY_CONSTRAINT_VIOLATION.UNIQUE_VIOLATION);
+			expect(caught.message).toBeTypeOf('string');
+			expect(caught.getConstraintColumnNames()).toEqual(['email1', 'email2']);
+			expect(caught.query).toStrictEqual({
+				sql: 'insert into "users" ("id", "email1", "email2") values (default, $1, $2)',
+				params: ['first@email.com', 'second@email.com'],
+				duration: expect.any(Number),
+			});
 		});
 	});
 }

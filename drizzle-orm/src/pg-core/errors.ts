@@ -1,11 +1,11 @@
 import { entityKind } from '~/entity';
-import { Query } from '~/sql';
+import type { Query } from '~/sql';
 
 // https://www.postgresql.org/docs/current/protocol-error-fields.html
-export interface ErrorDetails {
-  readonly severity: 'ERROR' | 'FATAL' | 'PANIC';
+export interface PgErrorDetails {
+  readonly severity: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
   readonly severityLocal: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
-  readonly code: ErrorCode;
+  readonly code: PgErrorCode;
   readonly message: string;
   readonly detail?: string | undefined;
   readonly hint?: string | undefined;
@@ -23,12 +23,12 @@ export interface ErrorDetails {
   readonly routine: string;
 }
 
-export abstract class QueryError extends Error {
+export class PgQueryError extends Error {
   static readonly [entityKind]: string = 'PgQueryError';
 
-  readonly severity: 'ERROR' | 'FATAL' | 'PANIC';
+  readonly severity: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
   readonly severityLocal: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
-  readonly code: ErrorCode;
+  readonly code: PgErrorCode;
   readonly detail?: string | undefined;
   readonly hint?: string | undefined;
   readonly position: string;
@@ -44,9 +44,9 @@ export abstract class QueryError extends Error {
   readonly line: string;
   readonly routine: string;
 
+	// Only do this for unique, FK and exclusion constraints
   getConstraintColumnNames(): string[] {
-    // Only do this for unique, FK and exclusion constraints
-    if (['23001', '23503', '23505', '23P01'].includes(this.code)) return [];
+    if (!['23001', '23503', '23505', '23P01'].includes(this.code)) return [];
     
     let columns: string[] = [];
     if (this.detail) {
@@ -60,8 +60,8 @@ export abstract class QueryError extends Error {
     return columns;
   }
 
-  constructor(driverError: unknown, details: ErrorDetails, readonly query: Query) {
-    super(details.message, { cause: driverError });
+  constructor(cause: unknown, details: PgErrorDetails, readonly query: Query & { duration?: number }) {
+    super(`PgQueryError: ${details.message}`, { cause });
     this.name = 'PgQueryError';
     this.severity = details.severity;
     this.severityLocal = details.severityLocal;
@@ -418,7 +418,7 @@ export const ERROR = {
 	},
 } as const;
 
-export type ErrorCode = {
+export type PgErrorCode = {
   [K1 in keyof typeof ERROR]: {
     [K2 in keyof typeof ERROR[K1]]: typeof ERROR[K1][K2]
   }[keyof typeof ERROR[K1]]

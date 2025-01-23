@@ -1,7 +1,12 @@
 import { entityKind } from '~/entity.ts';
 
+export interface LogQueryOptions  {
+	duration?: number | undefined;
+	failed?: boolean;
+}
+
 export interface Logger {
-	logQuery(query: string, params: unknown[]): void;
+	logQuery(query: string, params: unknown[], options?: LogQueryOptions): void;
 }
 
 export interface LogWriter {
@@ -25,7 +30,8 @@ export class DefaultLogger implements Logger {
 		this.writer = config?.writer ?? new ConsoleLogWriter();
 	}
 
-	logQuery(query: string, params: unknown[]): void {
+	logQuery(query: string, params: unknown[], options: LogQueryOptions = {}): void {
+		const { duration, failed } = options;
 		const stringifiedParams = params.map((p) => {
 			try {
 				return JSON.stringify(p);
@@ -34,7 +40,9 @@ export class DefaultLogger implements Logger {
 			}
 		});
 		const paramsStr = stringifiedParams.length ? ` -- params: [${stringifiedParams.join(', ')}]` : '';
-		this.writer.write(`Query: ${query}${paramsStr}`);
+		const durationStr = duration ? ` [${Math.round(duration)}ms]` : '';
+		const openingStr = failed ? 'Failed query' : 'Query';
+		this.writer.write(`${openingStr}${durationStr}: ${query}${paramsStr}`);
 	}
 }
 

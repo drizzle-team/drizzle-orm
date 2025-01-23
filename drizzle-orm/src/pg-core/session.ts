@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import { TransactionRollbackError } from '~/errors.ts';
+import { TransactionRollbackError, type ErrorHandler } from '~/errors.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
@@ -8,11 +8,34 @@ import type { NeonAuthToken } from '~/utils.ts';
 import { PgDatabase } from './db.ts';
 import type { PgDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type { Logger } from '~/logger.ts';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
 	all: unknown;
 	values: unknown;
+}
+
+/** @internal */
+export async function trace<T>(
+	query: Promise<T>,
+	logger: Logger,
+	queryString: string,
+	queryParams: any[],
+	handleError: ErrorHandler
+): Promise<T> {
+	const start = performance.now();
+
+	try {
+		const result = await query;
+		const duration = performance.now() - start;
+		logger.logQuery(queryString, queryParams, { duration });
+		return result;
+	} catch (err) {
+		const duration = performance.now() - start;
+		logger.logQuery(queryString, queryParams, { duration, failed: true });
+		throw handleError(err, queryString, queryParams, duration);
+	}
 }
 
 export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {

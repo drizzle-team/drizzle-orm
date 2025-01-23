@@ -17,3 +17,5 @@ export class TransactionRollbackError extends DrizzleError {
 		super({ message: 'Rollback' });
 	}
 }
+
+export type ErrorHandler = (err: unknown, queryString: string, queryParams: any[], duration: number) => never;
