@@ -4780,4 +4780,39 @@ export function tests(driver?: string) {
 
 		expect(query.sql).not.include('USE INDEX');
 	});
+
+	test('sql operator as cte', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+		await db.insert(users).values([
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
+
+		const sq1 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name,
+			},
+		}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+		const result1 = await db.with(sq1).select().from(sq1);
+
+		const sq2 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name,
+			},
+		}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+		const result2 = await db.with(sq2).select().from(sq1);
+
+		expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
+		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+	});
 }

@@ -28,7 +28,6 @@ export type GetZodType<
 	: TData extends infer TTuple extends [any, ...any[]]
 		? z.ZodTuple<Assume<{ [K in keyof TTuple]: GetZodType<TTuple[K], string, undefined, undefined> }, [any, ...any[]]>>
 	: TData extends Date ? z.ZodDate
-	: TData extends Buffer ? z.ZodType<Buffer>
 	: TDataType extends 'array' ? z.ZodArray<GetZodType<Assume<TData, any[]>[number], string, undefined, undefined>>
 	: TData extends infer TDict extends Record<string, any>
 		? z.ZodObject<{ [K in keyof TDict]: GetZodType<TDict[K], string, undefined, undefined> }, 'strip'>
@@ -37,6 +36,7 @@ export type GetZodType<
 	: TData extends bigint ? z.ZodBigInt
 	: TData extends boolean ? z.ZodBoolean
 	: TData extends string ? z.ZodString
+	: TData extends Buffer ? z.ZodType<Buffer>
 	: z.ZodTypeAny;
 
 type HandleSelectColumn<
