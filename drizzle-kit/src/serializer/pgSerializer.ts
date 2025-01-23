@@ -800,7 +800,7 @@ export const generatePgSnapshot = (
           The unique constraint ${pico.underline(pico.blue(column.uniqueName))} on the ${
 										pico.underline(pico.blue(
 											column.name,
-										)
+										))
 									} column is confilcting with a unique constraint name already defined for ${
 										pico.underline(pico.blue(existingUnique.columns.join(',')))
 									} columns\n`,
