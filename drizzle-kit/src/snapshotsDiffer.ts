@@ -1969,6 +1969,10 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...renameViews);
 	jsonStatements.push(...alterViews);
 
+	// It needs to be before jsonDropTables, in case you're about to drop
+	// a table that is referenced by another one
+	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
+
 	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameTables);
@@ -1976,8 +1980,6 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
 	jsonStatements.push(...jsonDeletedCheckConstraints);
-
-	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
