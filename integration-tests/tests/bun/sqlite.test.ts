@@ -1,40 +1,34 @@
 import { Database } from 'bun:sqlite';
-import { DefaultLogger, sql } from 'drizzle-orm';
+import { beforeAll, beforeEach, expect, test } from 'bun:test';
+import { sql } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { blob, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { suite } from 'uvu';
-import * as assert from 'uvu/assert';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: integer('verified').notNull().default(0),
 	json: blob('json', { mode: 'json' }).$type<string[]>(),
-	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
+	bigInt: blob('big_int', { mode: 'bigint' }),
+	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().default(sql`strftime('%s', 'now')`),
 });
 
-interface Context {
-	db: BunSQLiteDatabase;
-}
+let db: BunSQLiteDatabase;
 
-const test = suite<Context>('sqlite-bun');
-
-test.before((ctx) => {
+beforeAll(async () => {
 	try {
 		const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
 		const client = new Database(dbPath);
-		ctx.db = drizzle(client, { logger: new DefaultLogger() });
+		db = drizzle(client);
 	} catch (e) {
 		console.error(e);
 	}
 });
 
-test.before.each((ctx) => {
+beforeEach(async () => {
 	try {
-		const { db } = ctx;
-
 		db.run(sql`drop table if exists ${usersTable}`);
 		db.run(sql`
 			create table ${usersTable} (
@@ -42,7 +36,8 @@ test.before.each((ctx) => {
 				name text not null,
 				verified integer not null default 0,
 				json blob,
-				created_at text not null default (strftime('%s', 'now'))
+				big_int blob,
+				created_at integer not null default (strftime('%s', 'now'))
 			)
 		`);
 	} catch (e) {
@@ -50,34 +45,30 @@ test.before.each((ctx) => {
 	}
 });
 
-test.skip('select large integer', async (ctx) => {
+test.skip('select large integer', () => {
 	const a = 1667476703000;
-	const res = await ctx.db.all<{ a: number }>(sql`select ${sql.raw(String(a))} as a`);
+	const res = db.all<{ a: number }>(sql`select ${sql.raw(String(a))} as a`);
 	const result = res[0]!;
-	assert.equal(result.a, a);
+	expect(result.a).toEqual(a);
 });
 
-test('select all fields', (ctx) => {
-	const { db } = ctx;
-
+test('select all fields', () => {
 	const now = Date.now();
 
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const result = db.select().from(usersTable).all()[0]!;
 
-	assert.ok(result.createdAt instanceof Date, 'createdAt is a Date'); // eslint-disable-line no-instanceof/no-instanceof
-	assert.ok(
-		Math.abs(result.createdAt.getTime() - now) < 100,
-		`${result.createdAt.getTime()} is within 100ms of ${now}`,
-	);
-	assert.equal(
-		result,
-		{ id: 1, name: 'John', verified: 0, json: null, createdAt: result.createdAt },
-		'result is correct',
-	);
+	expect(result.createdAt).toBeInstanceOf(Date);
+	expect(Math.abs(result.createdAt.getTime() - now)).toBeLessThan(100);
+	expect(result).toEqual({ id: 1, name: 'John', verified: 0, json: null, createdAt: result.createdAt, bigInt: null });
 });
 
-test.run();
+test('select bigint', () => {
+	db.insert(usersTable).values({ name: 'John', bigInt: BigInt(100) }).run();
+	const result = db.select({ bigInt: usersTable.bigInt }).from(usersTable).all()[0]!;
+
+	expect(result).toEqual({ bigInt: BigInt(100) });
+});
 
 // test.serial('select partial', (t) => {
 // 	const { db } = t.context;

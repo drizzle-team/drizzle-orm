@@ -9,7 +9,7 @@ export interface PgRaw<TResult> extends QueryPromise<TResult>, RunnableQuery<TRe
 export class PgRaw<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'pg'>, SQLWrapper, PreparedQuery
 {
-	static readonly [entityKind]: string = 'PgRaw';
+	static override readonly [entityKind]: string = 'PgRaw';
 
 	declare readonly _: {
 		readonly dialect: 'pg';

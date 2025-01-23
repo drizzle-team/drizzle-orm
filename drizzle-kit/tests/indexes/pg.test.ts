@@ -64,7 +64,7 @@ const pgSuite: DialectSuite = {
 		});
 		expect(sqlStatements.length).toBe(1);
 		expect(sqlStatements[0]).toBe(
-			`CREATE INDEX IF NOT EXISTS "vector_embedding_idx" ON "users" USING hnsw ("name" vector_ip_ops) WITH (m=16,ef_construction=64);`,
+			`CREATE INDEX "vector_embedding_idx" ON "users" USING hnsw ("name" vector_ip_ops) WITH (m=16,ef_construction=64);`,
 		);
 	},
 
@@ -123,15 +123,15 @@ const pgSuite: DialectSuite = {
 		);
 
 		expect(sqlStatements).toStrictEqual([
-			'DROP INDEX IF EXISTS "indx";',
-			'DROP INDEX IF EXISTS "indx1";',
-			'DROP INDEX IF EXISTS "indx2";',
-			'DROP INDEX IF EXISTS "indx3";',
-			'CREATE INDEX IF NOT EXISTS "indx4" ON "users" USING btree (lower(id)) WHERE true;',
-			'CREATE INDEX IF NOT EXISTS "indx" ON "users" USING btree ("name" DESC NULLS LAST);',
-			'CREATE INDEX IF NOT EXISTS "indx1" ON "users" USING btree ("name" DESC NULLS LAST) WHERE false;',
-			'CREATE INDEX IF NOT EXISTS "indx2" ON "users" USING btree ("name" test) WHERE true;',
-			'CREATE INDEX IF NOT EXISTS "indx3" ON "users" USING btree (lower("id")) WHERE true;',
+			'DROP INDEX "indx";',
+			'DROP INDEX "indx1";',
+			'DROP INDEX "indx2";',
+			'DROP INDEX "indx3";',
+			'CREATE INDEX "indx4" ON "users" USING btree (lower(id)) WHERE true;',
+			'CREATE INDEX "indx" ON "users" USING btree ("name" DESC NULLS LAST);',
+			'CREATE INDEX "indx1" ON "users" USING btree ("name" DESC NULLS LAST) WHERE false;',
+			'CREATE INDEX "indx2" ON "users" USING btree ("name" test) WHERE true;',
+			'CREATE INDEX "indx3" ON "users" USING btree (lower("id")) WHERE true;',
 		]);
 	},
 
@@ -180,14 +180,14 @@ const pgSuite: DialectSuite = {
 						expression: 'name',
 						isExpression: false,
 						nulls: 'last',
-						opclass: undefined,
+						opclass: '',
 					},
 					{
 						asc: true,
 						expression: 'id',
 						isExpression: false,
 						nulls: 'last',
-						opclass: undefined,
+						opclass: '',
 					},
 				],
 				concurrently: false,
@@ -212,14 +212,14 @@ const pgSuite: DialectSuite = {
 						expression: 'name',
 						isExpression: false,
 						nulls: 'last',
-						opclass: undefined,
+						opclass: '',
 					},
 					{
 						asc: true,
 						expression: '"name"',
 						isExpression: true,
 						nulls: 'last',
-						opclass: undefined,
+						opclass: '',
 					},
 				],
 				concurrently: false,
@@ -234,10 +234,10 @@ const pgSuite: DialectSuite = {
 		});
 		expect(sqlStatements.length).toBe(2);
 		expect(sqlStatements[0]).toBe(
-			`CREATE INDEX IF NOT EXISTS "users_name_id_index" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
+			`CREATE INDEX "users_name_id_index" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
 		);
 		expect(sqlStatements[1]).toBe(
-			`CREATE INDEX IF NOT EXISTS "indx1" ON "users" USING hash ("name" DESC NULLS LAST,"name") WITH (fillfactor=70);`,
+			`CREATE INDEX "indx1" ON "users" USING hash ("name" DESC NULLS LAST,"name") WITH (fillfactor=70);`,
 		);
 	},
 };
