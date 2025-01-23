@@ -855,7 +855,7 @@ describe('[$count] read replicas postgres', () => {
 
 		db.select().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
-		expect(spyRead2).toHaveBeenCalledTimes(1);
+		expect(spyRead2).toHaveBeenCalledTimes(0);
 	});
 
 	it('single read replica $count', () => {

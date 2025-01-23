@@ -844,7 +844,7 @@ describe('[$count] read replicas postgres', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
-		db.select().from(users);
+		db.$count(users);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 	});
