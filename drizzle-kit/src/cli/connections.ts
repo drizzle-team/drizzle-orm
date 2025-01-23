@@ -1,7 +1,6 @@
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
-import fetch from 'node-fetch';
 import ws from 'ws';
 import { assertUnreachable } from '../global';
 import type { ProxyParams } from '../serializer/studio';
