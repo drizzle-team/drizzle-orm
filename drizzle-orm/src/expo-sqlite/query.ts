@@ -1,12 +1,15 @@
-import { addDatabaseChangeListener } from 'expo-sqlite/next';
+import { addDatabaseChangeListener } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { is, SQL, Subquery } from '~/index.ts';
+import { is } from '~/entity.ts';
+import { SQL } from '~/sql/sql.ts';
 import type { AnySQLiteSelect } from '~/sqlite-core/index.ts';
 import { getTableConfig, getViewConfig, SQLiteTable, SQLiteView } from '~/sqlite-core/index.ts';
 import { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query.ts';
+import { Subquery } from '~/subquery.ts';
 
 export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQLiteRelationalQuery<'sync', unknown>>(
 	query: T,
+	deps: unknown[] = [],
 ) => {
 	const [data, setData] = useState<Awaited<T>>(
 		(is(query, SQLiteRelationalQuery) && query.mode === 'first' ? undefined : []) as Awaited<T>,
@@ -43,7 +46,7 @@ export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQL
 		return () => {
 			listener?.remove();
 		};
-	}, []);
+	}, deps);
 
 	return {
 		data,
