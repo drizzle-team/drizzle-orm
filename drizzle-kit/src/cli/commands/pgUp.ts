@@ -93,7 +93,7 @@ export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
 					return [idx[0], { columns: mappedColumns, with: {}, ...rest }];
 				}),
 			);
-			return [it[0], { ...table, indexes: mappedIndexes }];
+			return [it[0], { ...table, indexes: mappedIndexes, policies: {}, isRLSEnabled: false, checkConstraints: {} }];
 		}),
 	);
 
@@ -103,6 +103,9 @@ export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
 		dialect: 'postgresql',
 		sequences: {},
 		tables: tables,
+		policies: {},
+		views: {},
+		roles: {},
 	};
 };
 

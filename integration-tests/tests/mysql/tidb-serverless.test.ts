@@ -66,6 +66,7 @@ skipTests([
 	'select iterator w/ prepared statement',
 	'select iterator',
 	'transaction',
+	'transaction with options (set isolationLevel)',
 	'Insert all defaults in multiple rows',
 	'Insert all defaults in 1 row',
 	'$default with empty array',

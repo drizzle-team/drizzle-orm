@@ -26,11 +26,6 @@ export const sqliteCredentials = union([
 
 export type SqliteCredentials =
 	| {
-		driver: 'turso';
-		url: string;
-		authToken: string;
-	}
-	| {
 		driver: 'd1-http';
 		accountId: string;
 		databaseId: string;
@@ -75,14 +70,29 @@ export const printConfigConnectionIssues = (
 		console.log(error(text));
 		console.log(wrapParam('accountId', options.accountId));
 		console.log(wrapParam('databaseId', options.databaseId));
-		console.log(wrapParam('token', options.token));
+		console.log(wrapParam('token', options.token, false, 'secret'));
 		process.exit(1);
-	} else if (driver === 'turso') {
-		let text = `Please provide required params for Turso driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('url', options.url));
-		console.log(wrapParam('authToken', options.authToken));
-		return;
+	} else if (driver === 'durable-sqlite') {
+		if (command === 'migrate') {
+			console.log(
+				error(
+					`You can't use 'migrate' command with SQLite Durable Objects`,
+				),
+			);
+		} else if (command === 'studio') {
+			console.log(
+				error(
+					`You can't use 'migrate' command with SQLite Durable Objects`,
+				),
+			);
+		} else if (command === 'pull') {
+			console.log(error("You can't use 'pull' command with SQLite Durable Objects"));
+		} else if (command === 'push') {
+			console.log(error("You can't use 'push' command with SQLite Durable Objects"));
+		} else {
+			console.log(error('Unexpected error with SQLite Durable Object driver 🤔'));
+		}
+		process.exit(1);
 	} else {
 		softAssertUnreachable(driver);
 	}

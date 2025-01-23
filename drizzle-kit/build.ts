@@ -1,7 +1,24 @@
+/// <reference types="bun-types" />
 import * as esbuild from 'esbuild';
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as tsup from 'tsup';
 import pkg from './package.json';
+
+const driversPackages = [
+	// postgres drivers
+	'pg',
+	'postgres',
+	'@vercel/postgres',
+	'@neondatabase/serverless',
+	'@electric-sql/pglite',
+	//  mysql drivers
+	'mysql2',
+	'@planetscale/database',
+	// sqlite drivers
+	'@libsql/client',
+	'better-sqlite3',
+	'bun:sqlite',
+];
 
 esbuild.buildSync({
 	entryPoints: ['./src/utils.ts'],
@@ -11,14 +28,12 @@ esbuild.buildSync({
 	target: 'node16',
 	platform: 'node',
 	external: [
-		'@libsql/client',
 		'commander',
 		'json-diff',
 		'glob',
 		'esbuild',
 		'drizzle-orm',
-		'pg-native',
-		'better-sqlite3',
+		...driversPackages,
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,
@@ -33,14 +48,12 @@ esbuild.buildSync({
 	target: 'node16',
 	platform: 'node',
 	external: [
-		'@libsql/client',
 		'commander',
 		'json-diff',
 		'glob',
 		'esbuild',
 		'drizzle-orm',
-		'pg-native',
-		'better-sqlite3',
+		...driversPackages,
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,
@@ -58,11 +71,9 @@ esbuild.buildSync({
 		'process.env.DRIZZLE_KIT_VERSION': `"${pkg.version}"`,
 	},
 	external: [
-		'@libsql/client',
 		'esbuild',
 		'drizzle-orm',
-		'pg-native',
-		'better-sqlite3',
+		...driversPackages,
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,
@@ -73,6 +84,7 @@ const main = async () => {
 	await tsup.build({
 		entryPoints: ['./src/index.ts', './src/api.ts'],
 		outDir: './dist',
+		external: ['bun:sqlite'],
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],

@@ -35,6 +35,10 @@ export const postgresCredentials = union([
 		secretArn: string().min(1),
 		resourceArn: string().min(1),
 	}),
+	object({
+		driver: literal('pglite'),
+		url: string().min(1),
+	}),
 ]);
 
 export type PostgresCredentials = TypeOf<typeof postgresCredentials>;
@@ -46,15 +50,15 @@ export const printConfigConnectionIssues = (
 		let text = `Please provide required params for AWS Data API driver:\n`;
 		console.log(error(text));
 		console.log(wrapParam('database', options.database));
-		console.log(wrapParam('secretArn', options.secretArn));
-		console.log(wrapParam('resourceArn', options.resourceArn));
+		console.log(wrapParam('secretArn', options.secretArn, false, 'secret'));
+		console.log(wrapParam('resourceArn', options.resourceArn, false, 'secret'));
 		process.exit(1);
 	}
 
 	if ('url' in options) {
 		let text = `Please provide required params for Postgres driver:\n`;
 		console.log(error(text));
-		console.log(wrapParam('url', options.url));
+		console.log(wrapParam('url', options.url, false, 'url'));
 		process.exit(1);
 	}
 
@@ -64,7 +68,7 @@ export const printConfigConnectionIssues = (
 		console.log(wrapParam('host', options.host));
 		console.log(wrapParam('port', options.port, true));
 		console.log(wrapParam('user', options.user, true));
-		console.log(wrapParam('password', options.password, true));
+		console.log(wrapParam('password', options.password, true, 'secret'));
 		console.log(wrapParam('database', options.database));
 		console.log(wrapParam('ssl', options.ssl, true));
 		process.exit(1);

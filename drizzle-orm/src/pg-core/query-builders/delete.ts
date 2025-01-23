@@ -15,7 +15,7 @@ import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { orderSelectedFields } from '~/utils.ts';
+import { type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
@@ -128,7 +128,7 @@ export class PgDeleteBase<
 		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
-	static readonly [entityKind]: string = 'PgDelete';
+	static override readonly [entityKind]: string = 'PgDelete';
 
 	private config: PgDeleteConfig;
 
@@ -232,9 +232,16 @@ export class PgDeleteBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 

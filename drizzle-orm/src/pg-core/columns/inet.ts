@@ -11,11 +11,10 @@ export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<{
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgInetBuilder';
+	static override readonly [entityKind]: string = 'PgInetBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'string', 'PgInet');
@@ -30,13 +29,15 @@ export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>
 }
 
 export class PgInet<T extends ColumnBaseConfig<'string', 'PgInet'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgInet';
+	static override readonly [entityKind]: string = 'PgInet';
 
 	getSQLType(): string {
 		return 'inet';
 	}
 }
 
-export function inet<TName extends string>(name: TName): PgInetBuilderInitial<TName> {
-	return new PgInetBuilder(name);
+export function inet(): PgInetBuilderInitial<''>;
+export function inet<TName extends string>(name: TName): PgInetBuilderInitial<TName>;
+export function inet(name?: string) {
+	return new PgInetBuilder(name ?? '');
 }

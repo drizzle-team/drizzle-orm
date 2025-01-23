@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
 export type PgSparseVectorBuilderInitial<TName extends string> = PgSparseVectorBuilder<{
@@ -11,7 +12,6 @@ export type PgSparseVectorBuilderInitial<TName extends string> = PgSparseVectorB
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class PgSparseVectorBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgSparseVector'>>
@@ -20,7 +20,7 @@ export class PgSparseVectorBuilder<T extends ColumnBuilderBaseConfig<'string', '
 		{ dimensions: number | undefined }
 	>
 {
-	static readonly [entityKind]: string = 'PgSparseVectorBuilder';
+	static override readonly [entityKind]: string = 'PgSparseVectorBuilder';
 
 	constructor(name: string, config: PgSparseVectorConfig) {
 		super(name, 'string', 'PgSparseVector');
@@ -41,7 +41,7 @@ export class PgSparseVectorBuilder<T extends ColumnBuilderBaseConfig<'string', '
 export class PgSparseVector<T extends ColumnBaseConfig<'string', 'PgSparseVector'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
-	static readonly [entityKind]: string = 'PgSparseVector';
+	static override readonly [entityKind]: string = 'PgSparseVector';
 
 	readonly dimensions = this.config.dimensions;
 
@@ -54,9 +54,14 @@ export interface PgSparseVectorConfig {
 	dimensions: number;
 }
 
+export function sparsevec(
+	config: PgSparseVectorConfig,
+): PgSparseVectorBuilderInitial<''>;
 export function sparsevec<TName extends string>(
 	name: TName,
 	config: PgSparseVectorConfig,
-): PgSparseVectorBuilderInitial<TName> {
+): PgSparseVectorBuilderInitial<TName>;
+export function sparsevec(a: string | PgSparseVectorConfig, b?: PgSparseVectorConfig) {
+	const { name, config } = getColumnNameAndConfig<PgSparseVectorConfig>(a, b);
 	return new PgSparseVectorBuilder(name, config);
 }

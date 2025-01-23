@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
-import type { Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
@@ -14,13 +14,12 @@ export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuild
 	data: bigint;
 	driverParam: Buffer;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQLiteBigInt'>>
 	extends SQLiteColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'SQLiteBigIntBuilder';
+	static override readonly [entityKind]: string = 'SQLiteBigIntBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'bigint', 'SQLiteBigInt');
@@ -35,14 +34,25 @@ export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQ
 }
 
 export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> extends SQLiteColumn<T> {
-	static readonly [entityKind]: string = 'SQLiteBigInt';
+	static override readonly [entityKind]: string = 'SQLiteBigInt';
 
 	getSQLType(): string {
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer): bigint {
-		return BigInt(value.toString());
+	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): bigint {
+		if (Buffer.isBuffer(value)) {
+			return BigInt(value.toString());
+		}
+
+		// for sqlite durable objects
+		// eslint-disable-next-line no-instanceof/no-instanceof
+		if (value instanceof ArrayBuffer) {
+			const decoder = new TextDecoder();
+			return BigInt(decoder.decode(value));
+		}
+
+		return BigInt(String.fromCodePoint(...value));
 	}
 
 	override mapToDriverValue(value: bigint): Buffer {
@@ -57,13 +67,12 @@ export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonB
 	data: unknown;
 	driverParam: Buffer;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteBlobJson'>>
 	extends SQLiteColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'SQLiteBlobJsonBuilder';
+	static override readonly [entityKind]: string = 'SQLiteBlobJsonBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'json', 'SQLiteBlobJson');
@@ -81,14 +90,25 @@ export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQ
 }
 
 export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>> extends SQLiteColumn<T> {
-	static readonly [entityKind]: string = 'SQLiteBlobJson';
+	static override readonly [entityKind]: string = 'SQLiteBlobJson';
 
 	getSQLType(): string {
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer): T['data'] {
-		return JSON.parse(value.toString());
+	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {
+		if (Buffer.isBuffer(value)) {
+			return JSON.parse(value.toString());
+		}
+
+		// for sqlite durable objects
+		// eslint-disable-next-line no-instanceof/no-instanceof
+		if (value instanceof ArrayBuffer) {
+			const decoder = new TextDecoder();
+			return JSON.parse(decoder.decode(value));
+		}
+
+		return JSON.parse(String.fromCodePoint(...value));
 	}
 
 	override mapToDriverValue(value: T['data']): Buffer {
@@ -103,13 +123,12 @@ export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBuf
 	data: Buffer;
 	driverParam: Buffer;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'SQLiteBlobBuffer'>>
 	extends SQLiteColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'SQLiteBlobBufferBuilder';
+	static override readonly [entityKind]: string = 'SQLiteBlobBufferBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'buffer', 'SQLiteBlobBuffer');
@@ -124,7 +143,7 @@ export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer',
 }
 
 export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'buffer', 'SQLiteBlobBuffer'>> extends SQLiteColumn<T> {
-	static readonly [entityKind]: string = 'SQLiteBlobBuffer';
+	static override readonly [entityKind]: string = 'SQLiteBlobBuffer';
 
 	getSQLType(): string {
 		return 'blob';
@@ -141,13 +160,20 @@ export interface BlobConfig<TMode extends BlobMode = BlobMode> {
  *
  * https://www.sqlite.org/json1.html
  */
+export function blob(): SQLiteBlobJsonBuilderInitial<''>;
+export function blob<TMode extends BlobMode = BlobMode>(
+	config?: BlobConfig<TMode>,
+): Equal<TMode, 'bigint'> extends true ? SQLiteBigIntBuilderInitial<''>
+	: Equal<TMode, 'buffer'> extends true ? SQLiteBlobBufferBuilderInitial<''>
+	: SQLiteBlobJsonBuilderInitial<''>;
 export function blob<TName extends string, TMode extends BlobMode = BlobMode>(
 	name: TName,
 	config?: BlobConfig<TMode>,
 ): Equal<TMode, 'bigint'> extends true ? SQLiteBigIntBuilderInitial<TName>
 	: Equal<TMode, 'buffer'> extends true ? SQLiteBlobBufferBuilderInitial<TName>
 	: SQLiteBlobJsonBuilderInitial<TName>;
-export function blob(name: string, config?: BlobConfig) {
+export function blob(a?: string | BlobConfig, b?: BlobConfig) {
+	const { name, config } = getColumnNameAndConfig<BlobConfig | undefined>(a, b);
 	if (config?.mode === 'json') {
 		return new SQLiteBlobJsonBuilder(name);
 	}
