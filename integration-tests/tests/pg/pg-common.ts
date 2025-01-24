@@ -4224,9 +4224,18 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
-		test('mySchema :: insert many', async (ctx) => {
+		test.only('mySchema :: insert many', async (ctx) => {
 			const { db } = ctx.pg;
 
+			console.log('before');
+			console.log(
+				db.insert(usersMySchemaTable).values([
+					{ name: 'John' },
+					{ name: 'Bruce', jsonb: ['foo', 'bar'] },
+					{ name: 'Jane' },
+					{ name: 'Austin', verified: true },
+				]).toSQL(),
+			);
 			await db.insert(usersMySchemaTable).values([
 				{ name: 'John' },
 				{ name: 'Bruce', jsonb: ['foo', 'bar'] },
