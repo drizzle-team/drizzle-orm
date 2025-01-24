@@ -62,10 +62,10 @@ function stringFromDatabaseIdentityProperty(field: any): string | undefined {
 	return typeof field === 'string'
 		? (field as string)
 		: typeof field === 'undefined'
-			? undefined
-			: typeof field === 'bigint'
-				? field.toString()
-				: String(field);
+		? undefined
+		: typeof field === 'bigint'
+		? field.toString()
+		: String(field);
 }
 
 export function buildArrayString(array: any[], sqlType: string): string {
@@ -182,8 +182,8 @@ export const generatePgSnapshot = (
 						as: is(generated.as, SQL)
 							? dialect.sqlToQuery(generated.as as SQL).sql
 							: typeof generated.as === 'function'
-								? dialect.sqlToQuery(generated.as() as SQL).sql
-								: (generated.as as any),
+							? dialect.sqlToQuery(generated.as() as SQL).sql
+							: (generated.as as any),
 						type: 'stored',
 					}
 					: undefined,
@@ -206,19 +206,24 @@ export const generatePgSnapshot = (
 				const existingUnique = uniqueConstraintObject[column.uniqueName!];
 				if (typeof existingUnique !== 'undefined') {
 					console.log(
-						`\n${withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(
-							tableName,
-						)
+						`\n${
+							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
+								chalk.underline.blue(
+									tableName,
+								)
 							} table. 
-          The unique constraint ${chalk.underline.blue(
-								column.uniqueName,
-							)
-							} on the ${chalk.underline.blue(
-								name,
-							)
-							} column is conflicting with a unique constraint name already defined for ${chalk.underline.blue(
-								existingUnique.columns.join(','),
-							)
+          The unique constraint ${
+								chalk.underline.blue(
+									column.uniqueName,
+								)
+							} on the ${
+								chalk.underline.blue(
+									name,
+								)
+							} column is conflicting with a unique constraint name already defined for ${
+								chalk.underline.blue(
+									existingUnique.columns.join(','),
+								)
 							} columns\n`)
 						}`,
 					);
@@ -286,14 +291,17 @@ export const generatePgSnapshot = (
 			const existingUnique = uniqueConstraintObject[name];
 			if (typeof existingUnique !== 'undefined') {
 				console.log(
-					`\n${withStyle.errorWarning(
-						`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(tableName)} table. 
-        The unique constraint ${chalk.underline.blue(name)} on the ${chalk.underline.blue(
-							columnNames.join(','),
+					`\n${
+						withStyle.errorWarning(
+							`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(tableName)} table. 
+        The unique constraint ${chalk.underline.blue(name)} on the ${
+								chalk.underline.blue(
+									columnNames.join(','),
+								)
+							} columns is confilcting with a unique constraint name already defined for ${
+								chalk.underline.blue(existingUnique.columns.join(','))
+							} columns\n`,
 						)
-						} columns is confilcting with a unique constraint name already defined for ${chalk.underline.blue(existingUnique.columns.join(','))
-						} columns\n`,
-					)
 					}`,
 				);
 				process.exit(1);
@@ -356,10 +364,12 @@ export const generatePgSnapshot = (
 				if (is(it, SQL)) {
 					if (typeof value.config.name === 'undefined') {
 						console.log(
-							`\n${withStyle.errorWarning(
-								`Please specify an index name in ${getTableName(value.config.table)} table that has "${dialect.sqlToQuery(it).sql
-								}" expression. We can generate index names for indexes on columns only; for expressions in indexes, you need to specify the name yourself.`,
-							)
+							`\n${
+								withStyle.errorWarning(
+									`Please specify an index name in ${getTableName(value.config.table)} table that has "${
+										dialect.sqlToQuery(it).sql
+									}" expression. We can generate index names for indexes on columns only; for expressions in indexes, you need to specify the name yourself.`,
+								)
 							}`,
 						);
 						process.exit(1);
@@ -373,25 +383,32 @@ export const generatePgSnapshot = (
 					&& typeof it.indexConfig!.opClass === 'undefined'
 				) {
 					console.log(
-						`\n${withStyle.errorWarning(
-							`You are specifying an index on the ${chalk.blueBright(
-								name,
+						`\n${
+							withStyle.errorWarning(
+								`You are specifying an index on the ${
+									chalk.blueBright(
+										name,
+									)
+								} column inside the ${
+									chalk.blueBright(
+										tableName,
+									)
+								} table with the ${
+									chalk.blueBright(
+										'vector',
+									)
+								} type without specifying an operator class. Vector extension doesn't have a default operator class, so you need to specify one of the available options. Here is a list of available op classes for the vector extension: [${
+									vectorOps
+										.map((it) => `${chalk.underline(`${it}`)}`)
+										.join(', ')
+								}].\n\nYou can specify it using current syntax: ${
+									chalk.underline(
+										`index("${value.config.name}").using("${value.config.method}", table.${name}.op("${
+											vectorOps[0]
+										}"))`,
+									)
+								}\n\nYou can check the "pg_vector" docs for more info: https://github.com/pgvector/pgvector?tab=readme-ov-file#indexing\n`,
 							)
-							} column inside the ${chalk.blueBright(
-								tableName,
-							)
-							} table with the ${chalk.blueBright(
-								'vector',
-							)
-							} type without specifying an operator class. Vector extension doesn't have a default operator class, so you need to specify one of the available options. Here is a list of available op classes for the vector extension: [${vectorOps
-								.map((it) => `${chalk.underline(`${it}`)}`)
-								.join(', ')
-							}].\n\nYou can specify it using current syntax: ${chalk.underline(
-								`index("${value.config.name}").using("${value.config.method}", table.${name}.op("${vectorOps[0]
-								}"))`,
-							)
-							}\n\nYou can check the "pg_vector" docs for more info: https://github.com/pgvector/pgvector?tab=readme-ov-file#indexing\n`,
-						)
 						}`,
 					);
 					process.exit(1);
@@ -419,8 +436,8 @@ export const generatePgSnapshot = (
 							nulls: it.indexConfig?.nulls
 								? it.indexConfig?.nulls
 								: it.indexConfig?.order === 'desc'
-									? 'first'
-									: 'last',
+								? 'first'
+								: 'last',
 							opclass: it.indexConfig?.opClass,
 						};
 					}
@@ -431,13 +448,16 @@ export const generatePgSnapshot = (
 			if (typeof indexesInSchema[schema ?? 'public'] !== 'undefined') {
 				if (indexesInSchema[schema ?? 'public'].includes(name)) {
 					console.log(
-						`\n${withStyle.errorWarning(
-							`We\'ve found duplicated index name across ${chalk.underline.blue(schema ?? 'public')
-							} schema. Please rename your index in either the ${chalk.underline.blue(
-								tableName,
+						`\n${
+							withStyle.errorWarning(
+								`We\'ve found duplicated index name across ${
+									chalk.underline.blue(schema ?? 'public')
+								} schema. Please rename your index in either the ${
+									chalk.underline.blue(
+										tableName,
+									)
+								} table or the table with the duplicated index name`,
 							)
-							} table or the table with the duplicated index name`,
-						)
 						}`,
 					);
 					process.exit(1);
@@ -481,13 +501,16 @@ export const generatePgSnapshot = (
 
 			if (policiesObject[policy.name] !== undefined) {
 				console.log(
-					`\n${withStyle.errorWarning(
-						`We\'ve found duplicated policy name across ${chalk.underline.blue(tableKey)
-						} table. Please rename one of the policies with ${chalk.underline.blue(
-							policy.name,
+					`\n${
+						withStyle.errorWarning(
+							`We\'ve found duplicated policy name across ${
+								chalk.underline.blue(tableKey)
+							} table. Please rename one of the policies with ${
+								chalk.underline.blue(
+									policy.name,
+								)
+							} name`,
 						)
-						} name`,
-					)
 					}`,
 				);
 				process.exit(1);
@@ -509,18 +532,22 @@ export const generatePgSnapshot = (
 			if (typeof checksInTable[`"${schema ?? 'public'}"."${tableName}"`] !== 'undefined') {
 				if (checksInTable[`"${schema ?? 'public'}"."${tableName}"`].includes(check.name)) {
 					console.log(
-						`\n${withStyle.errorWarning(
-							`We\'ve found duplicated check constraint name across ${chalk.underline.blue(
-								schema ?? 'public',
+						`\n${
+							withStyle.errorWarning(
+								`We\'ve found duplicated check constraint name across ${
+									chalk.underline.blue(
+										schema ?? 'public',
+									)
+								} schema in ${
+									chalk.underline.blue(
+										tableName,
+									)
+								}. Please rename your check constraint in either the ${
+									chalk.underline.blue(
+										tableName,
+									)
+								} table or the table with the duplicated check contraint name`,
 							)
-							} schema in ${chalk.underline.blue(
-								tableName,
-							)
-							}. Please rename your check constraint in either the ${chalk.underline.blue(
-								tableName,
-							)
-							} table or the table with the duplicated check contraint name`,
-						)
 						}`,
 					);
 					process.exit(1);
@@ -556,9 +583,10 @@ export const generatePgSnapshot = (
 		// @ts-ignore
 		if (!policy._linkedTable) {
 			console.log(
-				`\n${withStyle.errorWarning(
-					`"Policy ${policy.name} was skipped because it was not linked to any table. You should either include the policy in a table or use .link() on the policy to link it to any table you have. For more information, please check:`,
-				)
+				`\n${
+					withStyle.errorWarning(
+						`"Policy ${policy.name} was skipped because it was not linked to any table. You should either include the policy in a table or use .link() on the policy to link it to any table you have. For more information, please check:`,
+					)
 				}`,
 			);
 			continue;
@@ -595,13 +623,16 @@ export const generatePgSnapshot = (
 
 		if (result[tableKey]?.policies[policy.name] !== undefined || policiesToReturn[policy.name] !== undefined) {
 			console.log(
-				`\n${withStyle.errorWarning(
-					`We\'ve found duplicated policy name across ${chalk.underline.blue(tableKey)
-					} table. Please rename one of the policies with ${chalk.underline.blue(
-						policy.name,
+				`\n${
+					withStyle.errorWarning(
+						`We\'ve found duplicated policy name across ${
+							chalk.underline.blue(tableKey)
+						} table. Please rename one of the policies with ${
+							chalk.underline.blue(
+								policy.name,
+							)
+						} name`,
 					)
-					} name`,
-				)
 				}`,
 			);
 			process.exit(1);
@@ -696,10 +727,12 @@ export const generatePgSnapshot = (
 		const existingView = resultViews[viewKey];
 		if (typeof existingView !== 'undefined') {
 			console.log(
-				`\n${withStyle.errorWarning(
-					`We\'ve found duplicated view name across ${chalk.underline.blue(schema ?? 'public')
-					} schema. Please rename your view`,
-				)
+				`\n${
+					withStyle.errorWarning(
+						`We\'ve found duplicated view name across ${
+							chalk.underline.blue(schema ?? 'public')
+						} schema. Please rename your view`,
+					)
 				}`,
 			);
 			process.exit(1);
@@ -737,8 +770,8 @@ export const generatePgSnapshot = (
 							as: is(generated.as, SQL)
 								? dialect.sqlToQuery(generated.as as SQL).sql
 								: typeof generated.as === 'function'
-									? dialect.sqlToQuery(generated.as() as SQL).sql
-									: (generated.as as any),
+								? dialect.sqlToQuery(generated.as() as SQL).sql
+								: (generated.as as any),
 							type: 'stored',
 						}
 						: undefined,
@@ -761,14 +794,17 @@ export const generatePgSnapshot = (
 					const existingUnique = uniqueConstraintObject[column.uniqueName!];
 					if (typeof existingUnique !== 'undefined') {
 						console.log(
-							`\n${withStyle.errorWarning(
-								`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(viewName)} table. 
-          The unique constraint ${chalk.underline.blue(column.uniqueName)} on the ${chalk.underline.blue(
-									column.name,
+							`\n${
+								withStyle.errorWarning(
+									`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(viewName)} table. 
+          The unique constraint ${chalk.underline.blue(column.uniqueName)} on the ${
+										chalk.underline.blue(
+											column.name,
+										)
+									} column is confilcting with a unique constraint name already defined for ${
+										chalk.underline.blue(existingUnique.columns.join(','))
+									} columns\n`,
 								)
-								} column is confilcting with a unique constraint name already defined for ${chalk.underline.blue(existingUnique.columns.join(','))
-								} columns\n`,
-							)
 							}`,
 						);
 						process.exit(1);
@@ -996,7 +1032,8 @@ WHERE
 	const seqWhere = schemaFilters.map((t) => `schemaname = '${t}'`).join(' or ');
 
 	const allSequences = await db.query(
-		`select schemaname, sequencename, start_value, min_value, max_value, increment_by, cycle, cache_size from pg_sequences as seq${seqWhere === '' ? '' : ` WHERE ${seqWhere}`
+		`select schemaname, sequencename, start_value, min_value, max_value, increment_by, cycle, cache_size from pg_sequences as seq${
+			seqWhere === '' ? '' : ` WHERE ${seqWhere}`
 		};`,
 	);
 
@@ -1119,8 +1156,9 @@ WHERE
 			using: string;
 			withCheck: string;
 		}
-	>(`SELECT schemaname, tablename, policyname as name, permissive as "as", roles as to, cmd as for, qual as using, with_check as "withCheck" FROM pg_policies${wherePolicies === '' ? '' : ` WHERE ${wherePolicies}`
-		};`);
+	>(`SELECT schemaname, tablename, policyname as name, permissive as "as", roles as to, cmd as for, qual as using, with_check as "withCheck" FROM pg_policies${
+		wherePolicies === '' ? '' : ` WHERE ${wherePolicies}`
+	};`);
 
 	for (const dbPolicy of allPolicies) {
 		const { tablename, schemaname, to, withCheck, using, ...rest } = dbPolicy;
@@ -1479,8 +1517,8 @@ WHERE
 									cache: sequencesToReturn[identityName]?.cache
 										? sequencesToReturn[identityName]?.cache
 										: sequencesToReturn[`${tableSchema}.${identityName}`]?.cache
-											? sequencesToReturn[`${tableSchema}.${identityName}`]?.cache
-											: undefined,
+										? sequencesToReturn[`${tableSchema}.${identityName}`]?.cache
+										: undefined,
 									cycle: identityCycle,
 									schema: tableSchema,
 								}
@@ -1490,7 +1528,8 @@ WHERE
 						if (identityName && typeof identityName === 'string') {
 							// remove "" from sequence name
 							delete sequencesToReturn[
-								`${tableSchema}.${identityName.startsWith('"') && identityName.endsWith('"') ? identityName.slice(1, -1) : identityName
+								`${tableSchema}.${
+									identityName.startsWith('"') && identityName.endsWith('"') ? identityName.slice(1, -1) : identityName
 								}`
 							];
 							delete sequencesToReturn[identityName];
@@ -1776,8 +1815,8 @@ WHERE
 									cache: sequencesToReturn[identityName]?.cache
 										? sequencesToReturn[identityName]?.cache
 										: sequencesToReturn[`${viewSchema}.${identityName}`]?.cache
-											? sequencesToReturn[`${viewSchema}.${identityName}`]?.cache
-											: undefined,
+										? sequencesToReturn[`${viewSchema}.${identityName}`]?.cache
+										: undefined,
 									cycle: identityCycle,
 									schema: viewSchema,
 								}
@@ -1787,7 +1826,8 @@ WHERE
 						if (identityName) {
 							// remove "" from sequence name
 							delete sequencesToReturn[
-								`${viewSchema}.${identityName.startsWith('"') && identityName.endsWith('"') ? identityName.slice(1, -1) : identityName
+								`${viewSchema}.${
+									identityName.startsWith('"') && identityName.endsWith('"') ? identityName.slice(1, -1) : identityName
 								}`
 							];
 							delete sequencesToReturn[identityName];
@@ -1930,26 +1970,27 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 	const columnDefaultAsString: string = column.column_default.toString();
 
 	if (isArray) {
-		return `'{${columnDefaultAsString
-			.slice(2, -2)
-			.split(/\s*,\s*/g)
-			.map((value) => {
-				if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
-					return value;
-				} else if (column.data_type.startsWith('timestamp')) {
-					return `${value}`;
-				} else if (column.data_type.slice(0, -2) === 'interval') {
-					return value.replaceAll('"', `\"`);
-				} else if (column.data_type.slice(0, -2) === 'boolean') {
-					return value === 't' ? 'true' : 'false';
-				} else if (['json', 'jsonb'].includes(column.data_type.slice(0, -2))) {
-					return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
-				} else {
-					return `\"${value}\"`;
-				}
-			})
-			.join(',')
-			}}'`;
+		return `'{${
+			columnDefaultAsString
+				.slice(2, -2)
+				.split(/\s*,\s*/g)
+				.map((value) => {
+					if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
+						return value;
+					} else if (column.data_type.startsWith('timestamp')) {
+						return `${value}`;
+					} else if (column.data_type.slice(0, -2) === 'interval') {
+						return value.replaceAll('"', `\"`);
+					} else if (column.data_type.slice(0, -2) === 'boolean') {
+						return value === 't' ? 'true' : 'false';
+					} else if (['json', 'jsonb'].includes(column.data_type.slice(0, -2))) {
+						return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
+					} else {
+						return `\"${value}\"`;
+					}
+				})
+				.join(',')
+		}}'`;
 	}
 
 	if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type)) {
