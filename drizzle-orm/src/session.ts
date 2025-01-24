@@ -6,3 +6,7 @@ export interface PreparedQuery {
 	/** @internal */
 	isResponseInArrayMode(): boolean;
 }
+
+export interface TransactionConfig {
+	name?: string;
+}

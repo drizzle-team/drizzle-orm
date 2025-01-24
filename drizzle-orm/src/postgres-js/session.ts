@@ -1,48 +1,19 @@
-import client from 'postgres';
+
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import { entityKind } from '~/entity.ts';
-import type { ErrorHandler } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgQueryError, PgTransaction } from '~/pg-core/index.ts';
+import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { trace, PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
+import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
-
-const handleError: ErrorHandler = (err, queryString, queryParams, duration) => {
-  if (err instanceof client.PostgresError) {
-    throw new PgQueryError(err, {
-			code: err.code,
-			message: err.message,
-			file: err.file,
-			line: err.line,
-			routine: err.routine,
-			position: err.position,
-			severity: err.severity,
-			severityLocal: err.severity_local,
-			columnName: err.column_name,
-			constraintName: err.constraint_name,
-			dataTypeName: err.table_name,
-			detail: err.detail,
-			hint: err.hint,
-			internalPosition: err.internal_position,
-			internalQuery: err.internal_query,
-			schemaName: err.schema_name,
-			tableName: err.table_name,
-			where: err.where,
-		}, {
-			params: queryParams,
-			sql: queryString,
-			duration
-		});
-  }
-  throw err;
-}
+import { PostgresJsTracer } from './tracer.ts';
+import type { TransactionConfig } from '~/session.ts';
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'PostgresJsPreparedQuery';
@@ -68,33 +39,35 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 				'drizzle.query.params': JSON.stringify(params),
 			});
 
-			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper } = this;
+			const { fields, queryString, client, joinsNotNullableMap, customResultMapper } = this;
 			if (!fields && !customResultMapper) {
-				return trace(
-					tracer.startActiveSpan('drizzle.driver.execute', () => {
-						return client.unsafe(query, params as any[]);
-					}),
+				const query = client.unsafe(queryString, params as any[]);
+				const traced = PostgresJsTracer.traceQuery(
+					query,
 					this.logger,
 					this.queryString,
-					params,
-					handleError
+					params
 				);
+
+				return tracer.startActiveSpan('drizzle.driver.execute', () => traced);
 			}
 
-			const rows = await trace(
-				tracer.startActiveSpan('drizzle.driver.execute', () => {
-					span?.setAttributes({
-						'drizzle.query.text': query,
-						'drizzle.query.params': JSON.stringify(params),
-					});
-	
-					return client.unsafe(query, params as any[]).values();
-				}),
+			const query = client.unsafe(queryString, params as any[]).values();
+			const traced = PostgresJsTracer.traceQuery(
+				query,
 				this.logger,
 				this.queryString,
-				params,
-				handleError
+				params
 			);
+
+			const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
+				span?.setAttributes({
+					'drizzle.query.text': queryString,
+					'drizzle.query.params': JSON.stringify(params),
+				});
+
+				return traced;
+			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
 				return customResultMapper
@@ -111,7 +84,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 				'drizzle.query.text': this.queryString,
 				'drizzle.query.params': JSON.stringify(params),
 			});
-			return await trace(
+			return await PostgresJsTracer.traceQuery(
 				tracer.startActiveSpan('drizzle.driver.execute', () => {
 					span?.setAttributes({
 						'drizzle.query.text': this.queryString,
@@ -121,8 +94,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 				}),
 				this.logger,
 				this.queryString,
-				params,
-				handleError
+				params
 			);
 		});
 	}
@@ -176,12 +148,11 @@ export class PostgresJsSession<
 	}
 
 	query(query: string, params: unknown[]): Promise<RowList<Row[]>> {
-		return trace(
+		return PostgresJsTracer.traceQuery(
 			this.client.unsafe(query, params as any[]).values(),
 			this.logger,
 			query,
-			params,
-			handleError
+			params
 		);
 	}
 
@@ -189,12 +160,11 @@ export class PostgresJsSession<
 		query: string,
 		params: unknown[],
 	): Promise<RowList<T[]>> {
-		return trace(
+		return PostgresJsTracer.traceQuery(
 			this.client.unsafe(query, params as any[]),
 			this.logger,
 			query,
-			params,
-			handleError
+			params
 		);
 	}
 
@@ -202,19 +172,29 @@ export class PostgresJsSession<
 		transaction: (tx: PostgresJsTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
-		return this.client.begin(async (client) => {
+		const name = config?.name ?? PostgresJsTracer.generateTransactionName();
+		const tx = this.client.begin(async (client) => {
 			const session = new PostgresJsSession<TransactionSql, TFullSchema, TSchema>(
 				client,
 				this.dialect,
 				this.schema,
 				this.options,
 			);
+			session.logger.setTransactionName(name);
+			
 			const tx = new PostgresJsTransaction(this.dialect, session, this.schema);
 			if (config) {
 				await tx.setTransaction(config);
 			}
 			return transaction(tx);
 		}) as Promise<T>;
+
+		return PostgresJsTracer.traceTransaction(
+			tx,
+			this.logger,
+			name,
+			'transaction'
+		);
 	}
 }
 
@@ -236,17 +216,27 @@ export class PostgresJsTransaction<
 
 	override transaction<T>(
 		transaction: (tx: PostgresJsTransaction<TFullSchema, TSchema>) => Promise<T>,
+		config?: TransactionConfig,
 	): Promise<T> {
-		return this.session.client.savepoint((client) => {
+		const name = config?.name ?? PostgresJsTracer.generateTransactionName();
+		const tx = this.session.client.savepoint((client) => {
 			const session = new PostgresJsSession<TransactionSql, TFullSchema, TSchema>(
 				client,
 				this.dialect,
 				this.schema,
 				this.session.options,
 			);
+			session.logger.setTransactionName(name);
 			const tx = new PostgresJsTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 			return transaction(tx);
 		}) as Promise<T>;
+
+		return PostgresJsTracer.traceTransaction(
+			tx,
+			this.session.logger,
+			name,
+			'savepoint'
+		);
 	}
 }
 

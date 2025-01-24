@@ -2829,6 +2829,33 @@ export function tests() {
 			await db.execute(sql`drop table ${users}`);
 		});
 
+		test('transaction rollback with details', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users_transactions_rollback', {
+				id: serial('id').primaryKey(),
+				balance: integer('balance').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+
+			await db.execute(
+				sql`create table users_transactions_rollback (id serial not null primary key, balance integer not null)`,
+			);
+
+			const transaction = db.transaction(async (tx) => {
+				await tx.insert(users).values({ balance: 100 });
+				tx.rollback('custom message', { id: '1' });
+			});
+
+			await expect(async () => await transaction).rejects.toThrowError(TransactionRollbackError);
+
+			const caught = (await transaction.catch((e) => e)) as TransactionRollbackError;
+
+			expect(caught.message).toBe('Rollback: custom message');
+			expect(caught.details).toEqual({ id: '1' });
+		});
+
 		test('nested transaction', async (ctx) => {
 			const { db } = ctx.pg;
 

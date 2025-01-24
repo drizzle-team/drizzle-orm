@@ -1,12 +1,28 @@
 import { entityKind } from '~/entity.ts';
+import { TransactionRollbackError } from './errors';
 
 export interface LogQueryOptions  {
 	duration?: number | undefined;
 	failed?: boolean;
 }
 
-export interface Logger {
-	logQuery(query: string, params: unknown[], options?: LogQueryOptions): void;
+export interface LogTransactionEndOptions  {
+	duration?: number | undefined;
+	status?: 'commit' | 'rollback' | 'error';
+}
+
+export abstract class Logger {
+	/** @internal */
+	transactionId?: string;
+
+	/** @internal */
+	setTransactionName(id: string): void {
+		this.transactionId = id;
+	}
+
+	abstract logQuery(query: string, params: unknown[], options?: LogQueryOptions): void;
+	abstract logTransactionBegin(transactionId: string, type: 'transaction' | 'savepoint'): void;
+	abstract logTransactionEnd(transactionId: string, type: 'transaction' | 'savepoint', options?: LogTransactionEndOptions): void;
 }
 
 export interface LogWriter {
@@ -21,12 +37,13 @@ export class ConsoleLogWriter implements LogWriter {
 	}
 }
 
-export class DefaultLogger implements Logger {
+export class DefaultLogger extends Logger {
 	static readonly [entityKind]: string = 'DefaultLogger';
 
 	readonly writer: LogWriter;
 
 	constructor(config?: { writer: LogWriter }) {
+		super();
 		this.writer = config?.writer ?? new ConsoleLogWriter();
 	}
 
@@ -44,12 +61,31 @@ export class DefaultLogger implements Logger {
 		const openingStr = failed ? 'Failed query' : 'Query';
 		this.writer.write(`${openingStr}${durationStr}: ${query}${paramsStr}`);
 	}
+
+	logTransactionBegin(id: string, type: 'transaction' | 'savepoint'): void {
+		this.writer.write(`Begin ${type}: ${id}`);
+	}
+
+	logTransactionEnd(transactionId: string, type: 'transaction' | 'savepoint', options?: LogTransactionEndOptions): void {
+		const { duration, status } = options ?? {};
+		const statusStr = status === 'commit' ? 'Commit' : status === 'rollback' ? 'Rollback' : 'Failed';
+		const durationStr = duration ? ` [${Math.round(duration)}ms]` : '';
+		this.writer.write(`${statusStr} ${type}${durationStr}: ${transactionId}`);
+	}
 }
 
-export class NoopLogger implements Logger {
+export class NoopLogger extends Logger {
 	static readonly [entityKind]: string = 'NoopLogger';
 
 	logQuery(): void {
+		// noop
+	}
+
+	logTransactionBegin(): void {
+		// noop
+	}
+
+	logTransactionEnd(): void {
 		// noop
 	}
 }

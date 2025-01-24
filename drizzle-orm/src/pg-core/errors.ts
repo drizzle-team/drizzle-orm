@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity';
-import type { Query } from '~/sql';
+import type { TracedTransaction, TracedQuery } from '~/tracer.ts';
 
 // https://www.postgresql.org/docs/current/protocol-error-fields.html
 export interface PgErrorDetails {
@@ -23,8 +23,8 @@ export interface PgErrorDetails {
   readonly routine: string;
 }
 
-export class PgQueryError extends Error {
-  static readonly [entityKind]: string = 'PgQueryError';
+export class PgError extends Error {
+  static readonly [entityKind]: string = 'PgError';
 
   readonly severity: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
   readonly severityLocal: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
@@ -43,6 +43,8 @@ export class PgQueryError extends Error {
   readonly file: string;
   readonly line: string;
   readonly routine: string;
+	readonly query?: TracedQuery | undefined;
+	readonly transaction?: TracedTransaction | undefined;
 
 	// Only do this for unique, FK and exclusion constraints
   getConstraintColumnNames(): string[] {
@@ -60,9 +62,9 @@ export class PgQueryError extends Error {
     return columns;
   }
 
-  constructor(cause: unknown, details: PgErrorDetails, readonly query: Query & { duration?: number }) {
-    super(`PgQueryError: ${details.message}`, { cause });
-    this.name = 'PgQueryError';
+  constructor(cause: unknown, details: PgErrorDetails & { query?: TracedQuery, transaction?: TracedTransaction }) {
+    super(`PgError: ${details.message}`, { cause });
+    this.name = 'PgError';
     this.severity = details.severity;
     this.severityLocal = details.severityLocal;
     this.code = details.code;
@@ -81,6 +83,8 @@ export class PgQueryError extends Error {
     this.file = details.file;
     this.line = details.line;
     this.routine = details.routine;
+		this.query = details.query;
+		this.transaction = details.transaction;
   }
 }
 
