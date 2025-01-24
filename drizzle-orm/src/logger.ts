@@ -1,7 +1,10 @@
 import { entityKind } from '~/entity.ts';
-import { TransactionRollbackError } from './errors';
 
 export interface LogQueryOptions  {
+	transaction?: {
+		name: string;
+		type: 'transaction' | 'savepoint';
+	};
 	duration?: number | undefined;
 	failed?: boolean;
 }
@@ -13,16 +16,16 @@ export interface LogTransactionEndOptions  {
 
 export abstract class Logger {
 	/** @internal */
-	transactionId?: string;
+	transaction?: LogQueryOptions['transaction'];
 
 	/** @internal */
-	setTransactionName(id: string): void {
-		this.transactionId = id;
+	setTransactionDetails(details: LogQueryOptions['transaction']): void {
+		this.transaction = details;
 	}
 
 	abstract logQuery(query: string, params: unknown[], options?: LogQueryOptions): void;
-	abstract logTransactionBegin(transactionId: string, type: 'transaction' | 'savepoint'): void;
-	abstract logTransactionEnd(transactionId: string, type: 'transaction' | 'savepoint', options?: LogTransactionEndOptions): void;
+	abstract logTransactionBegin(name: string, type: 'transaction' | 'savepoint'): void;
+	abstract logTransactionEnd(name: string, type: 'transaction' | 'savepoint', options?: LogTransactionEndOptions): void;
 }
 
 export interface LogWriter {
@@ -48,7 +51,7 @@ export class DefaultLogger extends Logger {
 	}
 
 	logQuery(query: string, params: unknown[], options: LogQueryOptions = {}): void {
-		const { duration, failed } = options;
+		const { duration, failed, transaction } = options;
 		const stringifiedParams = params.map((p) => {
 			try {
 				return JSON.stringify(p);
@@ -59,18 +62,19 @@ export class DefaultLogger extends Logger {
 		const paramsStr = stringifiedParams.length ? ` -- params: [${stringifiedParams.join(', ')}]` : '';
 		const durationStr = duration ? ` [${Math.round(duration)}ms]` : '';
 		const openingStr = failed ? 'Failed query' : 'Query';
-		this.writer.write(`${openingStr}${durationStr}: ${query}${paramsStr}`);
+		const transactionStr = transaction ? ` in ${transaction.type} ${transaction.name}` : ''
+		this.writer.write(`${openingStr}${transactionStr}${durationStr}: ${query}${paramsStr}`);
 	}
 
-	logTransactionBegin(id: string, type: 'transaction' | 'savepoint'): void {
-		this.writer.write(`Begin ${type}: ${id}`);
+	logTransactionBegin(name: string, type: 'transaction' | 'savepoint'): void {
+		this.writer.write(`Begin ${type} ${name}`);
 	}
 
-	logTransactionEnd(transactionId: string, type: 'transaction' | 'savepoint', options?: LogTransactionEndOptions): void {
+	logTransactionEnd(name: string, type: 'transaction' | 'savepoint', options?: LogTransactionEndOptions): void {
 		const { duration, status } = options ?? {};
 		const statusStr = status === 'commit' ? 'Commit' : status === 'rollback' ? 'Rollback' : 'Failed';
 		const durationStr = duration ? ` [${Math.round(duration)}ms]` : '';
-		this.writer.write(`${statusStr} ${type}${durationStr}: ${transactionId}`);
+		this.writer.write(`${statusStr} ${type} ${name}${durationStr}`);
 	}
 }
 

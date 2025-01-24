@@ -180,10 +180,10 @@ export class PostgresJsSession<
 				this.schema,
 				this.options,
 			);
-			session.logger.setTransactionName(name);
+			session.logger.setTransactionDetails({ name, type: 'transaction' });
 			
 			const tx = new PostgresJsTransaction(this.dialect, session, this.schema);
-			if (config) {
+			if (config?.accessMode || config?.isolationLevel || config?.deferrable) {
 				await tx.setTransaction(config);
 			}
 			return transaction(tx);
@@ -226,7 +226,7 @@ export class PostgresJsTransaction<
 				this.schema,
 				this.session.options,
 			);
-			session.logger.setTransactionName(name);
+			session.logger.setTransactionDetails({ name, type: 'savepoint' });
 			const tx = new PostgresJsTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 			return transaction(tx);
 		}) as Promise<T>;

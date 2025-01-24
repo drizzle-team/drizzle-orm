@@ -166,6 +166,7 @@ export abstract class PgTransaction<
 
 	abstract override transaction<T>(
 		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		config?: TransactionConfig,
 	): Promise<T>;
 }
 

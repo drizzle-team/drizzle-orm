@@ -251,9 +251,7 @@ export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends 
 	: never;
 
 type ExpectedConfigShape = {
-	logger?: boolean | {
-		logQuery(query: string, params: unknown[]): void;
-	};
+	logger?: boolean | Logger;
 	schema?: Record<string, never>;
 	casing?: 'snake_case' | 'camelCase';
 };
