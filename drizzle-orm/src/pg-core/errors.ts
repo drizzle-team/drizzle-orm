@@ -1,91 +1,91 @@
 import { entityKind } from '~/entity';
-import type { TracedTransaction, TracedQuery } from '~/tracer.ts';
+import type { TracedQuery, TracedTransaction } from '~/tracer.ts';
 
 // https://www.postgresql.org/docs/current/protocol-error-fields.html
 export interface PgErrorDetails {
-  readonly severity: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
-  readonly severityLocal: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
-  readonly code: PgErrorCode;
-  readonly message: string;
-  readonly detail?: string | undefined;
-  readonly hint?: string | undefined;
-  readonly position: string;
-  readonly internalPosition?: string | undefined;
-  readonly internalQuery?: string | undefined;
-  readonly where?: string | undefined;
-  readonly schemaName?: string | undefined;
-  readonly tableName?: string | undefined;
-  readonly columnName?: string | undefined;
-  readonly dataTypeName?: string | undefined;
-  readonly constraintName?: string | undefined;
-  readonly file: string;
-  readonly line: string;
-  readonly routine: string;
+	readonly severity: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
+	readonly severityLocal: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
+	readonly code: PgErrorCode;
+	readonly message: string;
+	readonly detail?: string | undefined;
+	readonly hint?: string | undefined;
+	readonly position: string;
+	readonly internalPosition?: string | undefined;
+	readonly internalQuery?: string | undefined;
+	readonly where?: string | undefined;
+	readonly schemaName?: string | undefined;
+	readonly tableName?: string | undefined;
+	readonly columnName?: string | undefined;
+	readonly dataTypeName?: string | undefined;
+	readonly constraintName?: string | undefined;
+	readonly file: string;
+	readonly line: string;
+	readonly routine: string;
 }
 
 export class PgError extends Error {
-  static readonly [entityKind]: string = 'PgError';
+	static readonly [entityKind]: string = 'PgError';
 
-  readonly severity: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
-  readonly severityLocal: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
-  readonly code: PgErrorCode;
-  readonly detail?: string | undefined;
-  readonly hint?: string | undefined;
-  readonly position: string;
-  readonly internalPosition?: string | undefined;
-  readonly internalQuery?: string | undefined;
-  readonly where?: string | undefined;
-  readonly schemaName?: string | undefined;
-  readonly tableName?: string | undefined;
-  readonly columnName?: string | undefined;
-  readonly dataTypeName?: string | undefined;
-  readonly constraintName?: string | undefined;
-  readonly file: string;
-  readonly line: string;
-  readonly routine: string;
+	readonly severity: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
+	readonly severityLocal: 'ERROR' | 'FATAL' | 'PANIC' | (string & {});
+	readonly code: PgErrorCode;
+	readonly detail?: string | undefined;
+	readonly hint?: string | undefined;
+	readonly position: string;
+	readonly internalPosition?: string | undefined;
+	readonly internalQuery?: string | undefined;
+	readonly where?: string | undefined;
+	readonly schemaName?: string | undefined;
+	readonly tableName?: string | undefined;
+	readonly columnName?: string | undefined;
+	readonly dataTypeName?: string | undefined;
+	readonly constraintName?: string | undefined;
+	readonly file: string;
+	readonly line: string;
+	readonly routine: string;
 	readonly query?: TracedQuery | undefined;
 	readonly transaction?: TracedTransaction | undefined;
 
 	// Only do this for unique, FK and exclusion constraints
-  getConstraintColumnNames(): string[] {
-    if (!['23001', '23503', '23505', '23P01'].includes(this.code)) return [];
-    
-    let columns: string[] = [];
-    if (this.detail) {
-      // "Key (field_1, field_2)=(1, test@example.com) ..."
-      // Regex extracts the "field_1, field_2" part
-      columns = this.detail.match(/\((.*?)\)=/)?.[1]?.split(', ') ?? [];
-    }
-    if (this.columnName) {
-      columns = [this.columnName];
-    }
-    return columns;
-  }
+	getConstraintColumnNames(): string[] {
+		if (!['23001', '23503', '23505', '23P01'].includes(this.code)) return [];
 
-  constructor(cause: unknown, details: PgErrorDetails & { query?: TracedQuery, transaction?: TracedTransaction }) {
-    super(`PgError: ${details.message}`, { cause });
-    this.name = 'PgError';
-    this.severity = details.severity;
-    this.severityLocal = details.severityLocal;
-    this.code = details.code;
-    this.message = details.message;
-    this.detail = details.detail;
-    this.hint = details.hint;
-    this.position = details.position;
-    this.internalPosition = details.internalPosition;
-    this.internalQuery = details.internalQuery;
-    this.where = details.where;
-    this.schemaName = details.schemaName;
-    this.tableName = details.tableName;
-    this.columnName = details.columnName;
-    this.dataTypeName = details.dataTypeName;
-    this.constraintName = details.constraintName;
-    this.file = details.file;
-    this.line = details.line;
-    this.routine = details.routine;
+		let columns: string[] = [];
+		if (this.detail) {
+			// "Key (field_1, field_2)=(1, test@example.com) ..."
+			// Regex extracts the "field_1, field_2" part
+			columns = this.detail.match(/\((.*?)\)=/)?.[1]?.split(', ') ?? [];
+		}
+		if (this.columnName) {
+			columns = [this.columnName];
+		}
+		return columns;
+	}
+
+	constructor(cause: unknown, details: PgErrorDetails & { query?: TracedQuery; transaction?: TracedTransaction }) {
+		super(`PgError: ${details.message}`, { cause });
+		this.name = 'PgError';
+		this.severity = details.severity;
+		this.severityLocal = details.severityLocal;
+		this.code = details.code;
+		this.message = details.message;
+		this.detail = details.detail;
+		this.hint = details.hint;
+		this.position = details.position;
+		this.internalPosition = details.internalPosition;
+		this.internalQuery = details.internalQuery;
+		this.where = details.where;
+		this.schemaName = details.schemaName;
+		this.tableName = details.tableName;
+		this.columnName = details.columnName;
+		this.dataTypeName = details.dataTypeName;
+		this.constraintName = details.constraintName;
+		this.file = details.file;
+		this.line = details.line;
+		this.routine = details.routine;
 		this.query = details.query;
 		this.transaction = details.transaction;
-  }
+	}
 }
 
 export const ERROR = {
@@ -422,8 +422,10 @@ export const ERROR = {
 	},
 } as const;
 
-export type PgErrorCode = {
-  [K1 in keyof typeof ERROR]: {
-    [K2 in keyof typeof ERROR[K1]]: typeof ERROR[K1][K2]
-  }[keyof typeof ERROR[K1]]
-}[keyof typeof ERROR] | (string & {});
+export type PgErrorCode =
+	| {
+		[K1 in keyof typeof ERROR]: {
+			[K2 in keyof typeof ERROR[K1]]: typeof ERROR[K1][K2];
+		}[keyof typeof ERROR[K1]];
+	}[keyof typeof ERROR]
+	| (string & {});

@@ -41,6 +41,7 @@ import {
 	char,
 	cidr,
 	date,
+	ERROR,
 	except,
 	exceptAll,
 	foreignKey,
@@ -60,6 +61,7 @@ import {
 	numeric,
 	PgDialect,
 	pgEnum,
+	PgError,
 	pgMaterializedView,
 	PgPolicy,
 	pgPolicy,
@@ -78,8 +80,6 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	PgQueryError,
-	ERROR,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
@@ -5451,9 +5451,9 @@ export function tests() {
 		test('error handling', async (ctx) => {
 			const { db } = ctx.pg;
 			const q = db.execute(sql`selec 1`);
-			await expect(() => q).rejects.toThrow(PgQueryError);
-			
-			const caught = (await q.catch((e) => e)) as PgQueryError;
+			await expect(() => q).rejects.toThrow(PgError);
+
+			const caught = (await q.catch((e) => e)) as PgError;
 			expect(caught.severity).toBe('ERROR');
 			expect(caught.code).toBe(ERROR.SYNTAX_ERROR_OR_ACCESS_RULE_VIOLATION.SYNTAX_ERROR);
 			expect(caught.message).toBeTypeOf('string');
@@ -5477,9 +5477,9 @@ export function tests() {
 			await db.insert(users).values({ email: 'first@email.com' });
 
 			const q = db.insert(users).values({ email: 'first@email.com' });
-			await expect(() => q).rejects.toThrow(PgQueryError);
+			await expect(() => q).rejects.toThrow(PgError);
 
-			const caught = (await q.catch((e) => e)) as PgQueryError;
+			const caught = (await q.catch((e) => e)) as PgError;
 			expect(caught.severity).toBe('ERROR');
 			expect(caught.code).toBe(ERROR.INTEGRITY_CONSTRAINT_VIOLATION.UNIQUE_VIOLATION);
 			expect(caught.message).toBeTypeOf('string');
@@ -5503,13 +5503,15 @@ export function tests() {
 			]);
 
 			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`create table ${users} (id serial primary key, email1 text not null, email2 text not null, unique(email1, email2))`);
+			await db.execute(
+				sql`create table ${users} (id serial primary key, email1 text not null, email2 text not null, unique(email1, email2))`,
+			);
 			await db.insert(users).values({ email1: 'first@email.com', email2: 'second@email.com' });
 
 			const q = db.insert(users).values({ email1: 'first@email.com', email2: 'second@email.com' });
-			await expect(() => q).rejects.toThrow(PgQueryError);
+			await expect(() => q).rejects.toThrow(PgError);
 
-			const caught = (await q.catch((e) => e)) as PgQueryError;
+			const caught = (await q.catch((e) => e)) as PgError;
 			expect(caught.severity).toBe('ERROR');
 			expect(caught.code).toBe(ERROR.INTEGRITY_CONSTRAINT_VIOLATION.UNIQUE_VIOLATION);
 			expect(caught.message).toBeTypeOf('string');

@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 
-export interface LogQueryOptions  {
+export interface LogQueryOptions {
 	transaction?: {
 		name: string;
 		type: 'transaction' | 'savepoint';
@@ -9,7 +9,7 @@ export interface LogQueryOptions  {
 	failed?: boolean;
 }
 
-export interface LogTransactionEndOptions  {
+export interface LogTransactionEndOptions {
 	duration?: number | undefined;
 	status?: 'commit' | 'rollback' | 'error';
 }
@@ -62,7 +62,7 @@ export class DefaultLogger extends Logger {
 		const paramsStr = stringifiedParams.length ? ` -- params: [${stringifiedParams.join(', ')}]` : '';
 		const durationStr = duration ? ` [${Math.round(duration)}ms]` : '';
 		const openingStr = failed ? 'Failed query' : 'Query';
-		const transactionStr = transaction ? ` in ${transaction.type} ${transaction.name}` : ''
+		const transactionStr = transaction ? ` in ${transaction.type} ${transaction.name}` : '';
 		this.writer.write(`${openingStr}${transactionStr}${durationStr}: ${query}${paramsStr}`);
 	}
 

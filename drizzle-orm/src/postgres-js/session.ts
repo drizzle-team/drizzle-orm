@@ -1,4 +1,3 @@
-
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -9,11 +8,11 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { TransactionConfig } from '~/session.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 import { PostgresJsTracer } from './tracer.ts';
-import type { TransactionConfig } from '~/session.ts';
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'PostgresJsPreparedQuery';
@@ -46,7 +45,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 					query,
 					this.logger,
 					this.queryString,
-					params
+					params,
 				);
 
 				return tracer.startActiveSpan('drizzle.driver.execute', () => traced);
@@ -57,7 +56,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 				query,
 				this.logger,
 				this.queryString,
-				params
+				params,
 			);
 
 			const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
@@ -94,7 +93,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 				}),
 				this.logger,
 				this.queryString,
-				params
+				params,
 			);
 		});
 	}
@@ -152,7 +151,7 @@ export class PostgresJsSession<
 			this.client.unsafe(query, params as any[]).values(),
 			this.logger,
 			query,
-			params
+			params,
 		);
 	}
 
@@ -164,7 +163,7 @@ export class PostgresJsSession<
 			this.client.unsafe(query, params as any[]),
 			this.logger,
 			query,
-			params
+			params,
 		);
 	}
 
@@ -181,7 +180,7 @@ export class PostgresJsSession<
 				this.options,
 			);
 			session.logger.setTransactionDetails({ name, type: 'transaction' });
-			
+
 			const tx = new PostgresJsTransaction(this.dialect, session, this.schema);
 			if (config?.accessMode || config?.isolationLevel || config?.deferrable) {
 				await tx.setTransaction(config);
@@ -193,7 +192,7 @@ export class PostgresJsSession<
 			tx,
 			this.logger,
 			name,
-			'transaction'
+			'transaction',
 		);
 	}
 }
@@ -235,7 +234,7 @@ export class PostgresJsTransaction<
 			tx,
 			this.session.logger,
 			name,
-			'savepoint'
+			'savepoint',
 		);
 	}
 }

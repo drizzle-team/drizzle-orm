@@ -8,7 +8,12 @@ export abstract class DrizzleTracer {
 
 	static handleQueryError: (err: unknown, queryString: string, queryParams: any[], duration: number) => never;
 
-	static handleTransactionError: (err: unknown, transactionId: string, type: 'transaction' | 'savepoint', duration: number) => never;
+	static handleTransactionError: (
+		err: unknown,
+		transactionId: string,
+		type: 'transaction' | 'savepoint',
+		duration: number,
+	) => never;
 
 	static generateTransactionName(): string {
 		return Math.random().toString(16).substring(2, 6);
@@ -18,11 +23,11 @@ export abstract class DrizzleTracer {
 		query: Promise<T>,
 		logger: Logger,
 		queryString: string,
-		queryParams: any[]
+		queryParams: any[],
 	): Promise<T> {
 		const start = performance.now();
-    const transaction = logger.transaction;
-	
+		const transaction = logger.transaction;
+
 		try {
 			const result = await query;
 			const duration = performance.now() - start;
@@ -43,7 +48,7 @@ export abstract class DrizzleTracer {
 	): Promise<T> {
 		const start = performance.now();
 		logger.logTransactionBegin(transactionName, type);
-	
+
 		try {
 			const result = await transaction;
 			const duration = performance.now() - start;
@@ -51,7 +56,7 @@ export abstract class DrizzleTracer {
 			return result;
 		} catch (err) {
 			const duration = performance.now() - start;
-			const status = is(err, TransactionRollbackError) ? 'rollback' :  'error';
+			const status = is(err, TransactionRollbackError) ? 'rollback' : 'error';
 			logger.logTransactionEnd(transactionName, type, { duration, status });
 			throw this.handleTransactionError(err, transactionName, type, duration);
 		}
