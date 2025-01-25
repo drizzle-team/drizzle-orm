@@ -4224,7 +4224,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
-		test.only('mySchema :: insert many', async (ctx) => {
+		test('mySchema :: insert many', async (ctx) => {
 			const { db } = ctx.pg;
 
 			console.log('before');
