@@ -1220,12 +1220,27 @@ WHERE
 					const tableResponse = await getColumnsInfoQuery({ schema: tableSchema, table: tableName, db });
 
 					const tableConstraints = await db.query(
-						`SELECT c.column_name, c.data_type, constraint_type, constraint_name, constraint_schema
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_name)
-      JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema
-        AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
-      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}';`,
+						`SELECT 
+              att.attname AS column_name,
+              format_type(att.atttypid, att.atttypmod) AS data_type,
+              CASE 
+                  WHEN con.contype = 'p' THEN 'PRIMARY KEY'
+                  WHEN con.contype = 'u' THEN 'UNIQUE'
+                  WHEN con.contype = 'f' THEN 'FOREIGN KEY'
+                  WHEN con.contype = 'c' THEN 'CHECK'
+              END AS constraint_type,
+              con.conname AS constraint_name,
+              nsp.nspname AS constraint_schema
+           FROM pg_constraint con
+           JOIN pg_class rel ON rel.oid = con.conrelid
+           JOIN pg_namespace nsp ON nsp.oid = con.connamespace
+           JOIN pg_attribute att ON att.attrelid = rel.oid 
+              AND att.attnum = ANY(con.conkey)
+           WHERE rel.relname = '${tableName}'
+             AND nsp.nspname = '${tableSchema}'
+           ORDER BY 
+              con.conname, 
+              array_position(con.conkey, att.attnum);`,
 					);
 
 					const tableChecks = await db.query(`SELECT 

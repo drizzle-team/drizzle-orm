@@ -31,6 +31,7 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -887,6 +888,32 @@ test('multiple policies with roles from schema', async () => {
 		'multiple-policies-with-roles-from-schema',
 		['public'],
 		{ roles: { include: ['user_role'] } },
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect indexes', async () => {
+	const client = new PGlite();
+
+	const indexedTable = pgTable('indexed_table', {
+		id: uuid('id').primaryKey(),
+		column_a: text('column_a'),
+		column_b: text('column_b'),
+	}, (table) => [
+		// The order of these matters, previously the order was returned wrongly from interspection
+		unique().on(table.table_b, table.table_a)
+	]);
+
+	const schema = {
+		indexedTable
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-intexed-table',
 	);
 
 	expect(statements.length).toBe(0);
