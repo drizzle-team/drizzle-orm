@@ -679,6 +679,10 @@ export function isView(view: unknown): view is View {
 	return typeof view === 'object' && view !== null && IsDrizzleView in view;
 }
 
+export function getViewName<T extends View>(view: T): T['_']['name'] {
+	return view[ViewBaseConfig].name;
+}
+
 export type InferSelectViewModel<TView extends View> =
 	Equal<TView['_']['selectedFields'], { [x: string]: unknown }> extends true ? { [x: string]: unknown }
 		: SelectResult<
