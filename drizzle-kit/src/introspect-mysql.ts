@@ -13,7 +13,6 @@ import {
 	PrimaryKey,
 	UniqueConstraint,
 } from './serializer/mysqlSchema';
-import { indexName } from './serializer/mysqlSerializer';
 import { unescapeSingleQuotes } from './utils';
 
 const mysqlImportsList = new Set([
@@ -924,12 +923,9 @@ const createTableIndexes = (
 
 		idxKey = casing(idxKey);
 
-		const indexGeneratedName = indexName(tableName, it.columns);
-		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
-
-		statement += `\n\t`;
+		statement += `\t\t${idxKey}: `;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
-		statement += `${escapedIndexName})`;
+		statement += `"${it.name}")`;
 		statement += `.on(${
 			it.columns
 				.map((it) => `table.${casing(it)}`)
