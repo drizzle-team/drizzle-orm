@@ -1,6 +1,7 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 
+import { alias } from '~/alias.ts';
 import {
 	and,
 	arrayContained,
@@ -27,7 +28,6 @@ import {
 	notLike,
 	or,
 } from '~/expressions.ts';
-import { alias } from '~/pg-core/alias.ts';
 import {
 	boolean,
 	integer,

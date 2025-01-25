@@ -1,9 +1,9 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import { alias } from '~/alias.ts';
 import { eq, gt } from '~/expressions.ts';
 import { sql } from '~/sql/sql.ts';
 import {
-	alias,
 	blob,
 	check,
 	customType,
