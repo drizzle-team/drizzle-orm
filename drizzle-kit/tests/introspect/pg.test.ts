@@ -903,7 +903,7 @@ test('introspect indexes', async () => {
 		column_b: text('column_b'),
 	}, (table) => [
 		// The order of these matters, previously the order was returned wrongly from interspection
-		unique().on(table.table_b, table.table_a)
+		unique().on(table.column_b, table.column_a)
 	]);
 
 	const schema = {
@@ -913,7 +913,29 @@ test('introspect indexes', async () => {
 	const { statements, sqlStatements } = await introspectPgToFile(
 		client,
 		schema,
-		'introspect-intexed-table',
+		'introspect-indexed-table',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect indexes nulls not distinct', async () => {
+	const client = new PGlite();
+
+	const indexedTable = pgTable('indexed_table_2', {
+		id: uuid('id').primaryKey(),
+		column_a: text('column_a').unique(undefined, { nulls: 'not distinct' }),
+	});
+
+	const schema = {
+		indexedTable
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-indexed-table-nulls-not-distinct',
 	);
 
 	expect(statements.length).toBe(0);

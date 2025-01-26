@@ -1221,26 +1221,25 @@ WHERE
 
 					const tableConstraints = await db.query(
 						`SELECT 
-              att.attname AS column_name,
-              format_type(att.atttypid, att.atttypmod) AS data_type,
-              CASE 
-                  WHEN con.contype = 'p' THEN 'PRIMARY KEY'
-                  WHEN con.contype = 'u' THEN 'UNIQUE'
-                  WHEN con.contype = 'f' THEN 'FOREIGN KEY'
-                  WHEN con.contype = 'c' THEN 'CHECK'
-              END AS constraint_type,
-              con.conname AS constraint_name,
-              nsp.nspname AS constraint_schema
-           FROM pg_constraint con
-           JOIN pg_class rel ON rel.oid = con.conrelid
-           JOIN pg_namespace nsp ON nsp.oid = con.connamespace
-           JOIN pg_attribute att ON att.attrelid = rel.oid 
-              AND att.attnum = ANY(con.conkey)
-           WHERE rel.relname = '${tableName}'
-             AND nsp.nspname = '${tableSchema}'
-           ORDER BY 
-              con.conname, 
-              array_position(con.conkey, att.attnum);`,
+  att.attname AS column_name,
+  format_type(att.atttypid, att.atttypmod) AS data_type,
+  CASE 
+      WHEN con.contype = 'p' THEN 'PRIMARY KEY'
+      WHEN con.contype = 'u' THEN 'UNIQUE'
+      WHEN con.contype = 'f' THEN 'FOREIGN KEY'
+      WHEN con.contype = 'c' THEN 'CHECK'
+  END AS constraint_type,
+  con.conname AS constraint_name,
+  nsp.nspname AS constraint_schema,
+  idx.indnullsnotdistinct AS nulls_not_distinct
+FROM pg_constraint con
+JOIN pg_class rel ON rel.oid = con.conrelid
+JOIN pg_namespace nsp ON nsp.oid = con.connamespace
+JOIN pg_attribute att ON att.attrelid = rel.oid 
+  AND att.attnum = ANY(con.conkey)
+LEFT JOIN pg_index idx ON idx.indexrelid = con.conindid
+WHERE rel.relname = 'auth_user'
+ORDER BY con.conname, array_position(con.conkey, att.attnum);`,
 					);
 
 					const tableChecks = await db.query(`SELECT 
@@ -1354,13 +1353,14 @@ WHERE
 						// const tableFrom = fk.table_name;
 						const columnName: string = unqs.column_name;
 						const constraintName: string = unqs.constraint_name;
+						const nullsNotDistinct: boolean = unqs.nulls_not_distinct;
 
 						if (typeof uniqueConstrains[constraintName] !== 'undefined') {
 							uniqueConstrains[constraintName].columns.push(columnName);
 						} else {
 							uniqueConstrains[constraintName] = {
 								columns: [columnName],
-								nullsNotDistinct: false,
+								nullsNotDistinct: nullsNotDistinct,
 								name: constraintName,
 							};
 						}
