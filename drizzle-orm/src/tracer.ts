@@ -31,11 +31,11 @@ export abstract class DrizzleTracer {
 		try {
 			const result = await query;
 			const duration = performance.now() - start;
-			logger.logQuery(queryString, queryParams, { duration, transaction });
+			logger.logQuery(queryString, queryParams, duration, false, transaction);
 			return result;
 		} catch (err) {
 			const duration = performance.now() - start;
-			logger.logQuery(queryString, queryParams, { duration, transaction, failed: true });
+			logger.logQuery(queryString, queryParams, duration, true, transaction);
 			throw this.handleQueryError(err, queryString, queryParams, duration);
 		}
 	}
@@ -52,12 +52,12 @@ export abstract class DrizzleTracer {
 		try {
 			const result = await transaction;
 			const duration = performance.now() - start;
-			logger.logTransactionEnd(transactionName, type, { duration, status: 'commit' });
+			logger.logTransactionEnd(transactionName, type, 'commit', duration);
 			return result;
 		} catch (err) {
 			const duration = performance.now() - start;
 			const status = is(err, TransactionRollbackError) ? 'rollback' : 'error';
-			logger.logTransactionEnd(transactionName, type, { duration, status });
+			logger.logTransactionEnd(transactionName, type, status, duration);
 			throw this.handleTransactionError(err, transactionName, type, duration);
 		}
 	}
