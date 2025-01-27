@@ -659,13 +659,12 @@ const getPostgresInfo = (
 					tableRelations[tableTsName]?.some((rel) =>
 						rel.table === relation.table
 						&& rel.refTable === relation.refTable
-					) === true
+					)
 				) {
 					console.warn(
-						`You are providing a one-to-many relation from the '${relation.table}' table to the '${relation.refTable}' table,\n`
-							+ `while your '${relation.table}' table object already has foreign key constraint in the schema(from the '${relation.table}' table to the '${relation.refTable}' table).\n`
-							+ `You can specify either the foreign key constraint or the relation, but not both.\n`
-							+ `By default, one-to-many relation will be ignored to respect foreign key constraint.\n`,
+						`You are providing a one-to-many relation between the '${relation.refTable}' and '${relation.table}' tables,\n`
+							+ `while the '${relation.table}' table object already has foreign key constraint in the schema referencing '${relation.refTable}' table.\n`
+							+ `In this case, the foreign key constraint will be used.\n`,
 					);
 					continue;
 				}
@@ -1053,13 +1052,12 @@ const getMySqlInfo = (
 					tableRelations[tableTsName]?.some((rel) =>
 						rel.table === relation.table
 						&& rel.refTable === relation.refTable
-					) === true
+					)
 				) {
 					console.warn(
-						`You are providing a one-to-many relation from the '${relation.table}' table to the '${relation.refTable}' table,\n`
-							+ `while your '${relation.table}' table object already has foreign key constraint in the schema(from the '${relation.table}' table to the '${relation.refTable}' table).\n`
-							+ `You can specify either the foreign key constraint or the relation, but not both.\n`
-							+ `By default, one-to-many relation will be ignored to respect foreign key constraint.\n`,
+						`You are providing a one-to-many relation between the '${relation.refTable}' and '${relation.table}' tables,\n`
+							+ `while the '${relation.table}' table object already has foreign key constraint in the schema referencing '${relation.refTable}' table.\n`
+							+ `In this case, the foreign key constraint will be used.\n`,
 					);
 					continue;
 				}
@@ -1374,13 +1372,12 @@ const getSqliteInfo = (
 					tableRelations[tableTsName]?.some((rel) =>
 						rel.table === relation.table
 						&& rel.refTable === relation.refTable
-					) === true
+					)
 				) {
 					console.warn(
-						`You are providing a one-to-many relation from the '${relation.table}' table to the '${relation.refTable}' table,\n`
-							+ `while your '${relation.table}' table object already has foreign key constraint in the schema(from the '${relation.table}' table to the '${relation.refTable}' table).\n`
-							+ `You can specify either the foreign key constraint or the relation, but not both.\n`
-							+ `By default, one-to-many relation will be ignored to respect foreign key constraint.\n`,
+						`You are providing a one-to-many relation between the '${relation.refTable}' and '${relation.table}' tables,\n`
+							+ `while the '${relation.table}' table object already has foreign key constraint in the schema referencing '${relation.refTable}' table.\n`
+							+ `In this case, the foreign key constraint will be used.\n`,
 					);
 					continue;
 				}
