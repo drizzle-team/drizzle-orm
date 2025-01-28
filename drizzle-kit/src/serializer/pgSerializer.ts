@@ -2106,70 +2106,70 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 
 const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: string; db: DB }) => {
 	return db.query(
-		`SELECT
-			 a.attrelid::regclass::text AS table_name,  -- Table, view, or materialized view name
-			 a.attname AS column_name,   -- Column name
-			 CASE
-				 WHEN NOT a.attisdropped THEN
-					 CASE
-						 WHEN a.attnotnull THEN 'NO'
-						 ELSE 'YES'
-						 END
-				 ELSE NULL
-				 END AS is_nullable,  -- NULL or NOT NULL constraint
-			 a.attndims AS array_dimensions,  -- Array dimensions
-			 CASE
-				 WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[])
-					 AND EXISTS (
-						 SELECT FROM pg_attrdef ad
-						 WHERE ad.adrelid = a.attrelid
-						   AND ad.adnum = a.attnum
-						   AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval('''
-							 || pg_get_serial_sequence(a.attrelid::regclass::text, a.attname)::regclass || '''::regclass)'
-					 )
-					 THEN CASE a.atttypid
-							  WHEN 'int'::regtype THEN 'serial'
-							  WHEN 'int8'::regtype THEN 'bigserial'
-							  WHEN 'int2'::regtype THEN 'smallserial'
-					 END
-				 ELSE format_type(a.atttypid, a.atttypmod)
-				 END AS data_type,  -- Column data type
+		`SELECT 
+    a.attrelid::regclass::text AS table_name,  -- Table, view, or materialized view name
+    a.attname AS column_name,   -- Column name
+    CASE 
+        WHEN NOT a.attisdropped THEN 
+            CASE 
+                WHEN a.attnotnull THEN 'NO'
+                ELSE 'YES'
+            END 
+        ELSE NULL 
+    END AS is_nullable,  -- NULL or NOT NULL constraint
+    a.attndims AS array_dimensions,  -- Array dimensions
+    CASE 
+        WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[]) 
+        AND EXISTS (
+            SELECT FROM pg_attrdef ad
+            WHERE ad.adrelid = a.attrelid 
+            AND ad.adnum = a.attnum 
+            AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval(''' 
+                || pg_get_serial_sequence(a.attrelid::regclass::text, a.attname)::regclass || '''::regclass)'
+        )
+        THEN CASE a.atttypid
+            WHEN 'int'::regtype THEN 'serial'
+            WHEN 'int8'::regtype THEN 'bigserial'
+            WHEN 'int2'::regtype THEN 'smallserial'
+        END
+        ELSE format_type(a.atttypid, a.atttypmod)
+    END AS data_type,  -- Column data type
 --    ns.nspname AS type_schema,  -- Schema name
-			 pg_get_serial_sequence('"${schema}"."${table}"', a.attname)::regclass AS seq_name,  -- Serial sequence (if any)
-			 c.column_default,  -- Column default value
-			 c.data_type AS additional_dt,  -- Data type from information_schema
-			 c.udt_name AS enum_name,  -- Enum type (if applicable)
-			 c.is_generated,  -- Is it a generated column?
-			 c.generation_expression,  -- Generation expression (if generated)
-			 c.is_identity,  -- Is it an identity column?
-			 c.identity_generation,  -- Identity generation strategy (ALWAYS or BY DEFAULT)
-			 c.identity_start,  -- Start value of identity column
-			 c.identity_increment,  -- Increment for identity column
-			 c.identity_maximum,  -- Maximum value for identity column
-			 c.identity_minimum,  -- Minimum value for identity column
-			 c.identity_cycle,  -- Does the identity column cycle?
-			 enum_ns.nspname AS type_schema  -- Schema of the enum type
-		 FROM
-			 pg_attribute a
-				 JOIN
-			 pg_class cls ON cls.oid = a.attrelid  -- Join pg_class to get table/view/materialized view info
-				 JOIN
-			 pg_namespace ns ON ns.oid = cls.relnamespace  -- Join namespace to get schema info
-				 LEFT JOIN
-			 information_schema.columns c ON c.column_name = a.attname
-				 AND c.table_schema = ns.nspname
-				 AND c.table_name = cls.relname  -- Match schema and table/view name
-				 LEFT JOIN
-			 pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
-				 LEFT JOIN
-			 pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
-		 WHERE
-			 a.attnum > 0  -- Valid column numbers only
-		   AND NOT a.attisdropped  -- Skip dropped columns
-		   AND cls.relkind IN ('r', 'v', 'm')  -- Include regular tables ('r'), views ('v'), and materialized views ('m')
-		   AND ns.nspname = '${schema}'  -- Filter by schema
-		   AND cls.relname = '${table}'  -- Filter by table name
-		 ORDER BY
-			 a.attnum;  -- Order by column number`,
+    pg_get_serial_sequence('"${schema}"."${table}"', a.attname)::regclass AS seq_name,  -- Serial sequence (if any)
+    c.column_default,  -- Column default value
+    c.data_type AS additional_dt,  -- Data type from information_schema
+    c.udt_name AS enum_name,  -- Enum type (if applicable)
+    c.is_generated,  -- Is it a generated column?
+    c.generation_expression,  -- Generation expression (if generated)
+    c.is_identity,  -- Is it an identity column?
+    c.identity_generation,  -- Identity generation strategy (ALWAYS or BY DEFAULT)
+    c.identity_start,  -- Start value of identity column
+    c.identity_increment,  -- Increment for identity column
+    c.identity_maximum,  -- Maximum value for identity column
+    c.identity_minimum,  -- Minimum value for identity column
+    c.identity_cycle,  -- Does the identity column cycle?
+    enum_ns.nspname AS type_schema  -- Schema of the enum type
+FROM 
+    pg_attribute a
+JOIN 
+    pg_class cls ON cls.oid = a.attrelid  -- Join pg_class to get table/view/materialized view info
+JOIN 
+    pg_namespace ns ON ns.oid = cls.relnamespace  -- Join namespace to get schema info
+LEFT JOIN 
+    information_schema.columns c ON c.column_name = a.attname 
+        AND c.table_schema = ns.nspname 
+        AND c.table_name = cls.relname  -- Match schema and table/view name
+LEFT JOIN 
+    pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
+LEFT JOIN 
+    pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
+WHERE 
+    a.attnum > 0  -- Valid column numbers only
+    AND NOT a.attisdropped  -- Skip dropped columns
+    AND cls.relkind IN ('r', 'v', 'm')  -- Include regular tables ('r'), views ('v'), and materialized views ('m')
+    AND ns.nspname = '${schema}'  -- Filter by schema
+    AND cls.relname = '${table}'  -- Filter by table name
+ORDER BY 
+    a.attnum;  -- Order by column number`,
 	);
 };
