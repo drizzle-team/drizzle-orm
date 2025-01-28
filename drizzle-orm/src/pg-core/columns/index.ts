@@ -6,6 +6,7 @@ export * from './cidr.ts';
 export * from './common.ts';
 export * from './custom.ts';
 export * from './date.ts';
+export * from './domain.ts';
 export * from './double-precision.ts';
 export * from './enum.ts';
 export * from './inet.ts';

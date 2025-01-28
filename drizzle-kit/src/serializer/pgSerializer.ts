@@ -8,6 +8,8 @@ import {
 	IndexedColumn,
 	PgColumn,
 	PgDialect,
+	PgDomain,
+	PgDomainColumn,
 	PgEnum,
 	PgEnumColumn,
 	PgMaterializedView,
@@ -25,6 +27,7 @@ import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
 	CheckConstraint,
 	Column,
+	Domain,
 	Enum,
 	ForeignKey,
 	Index,
@@ -99,6 +102,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 
 export const generatePgSnapshot = (
 	tables: AnyPgTable[],
+	domains: PgDomain<any>[],
 	enums: PgEnum<any>[],
 	schemas: PgSchema[],
 	sequences: PgSequence[],
@@ -161,7 +165,10 @@ export const generatePgSnapshot = (
 			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
-
+			let domainSchema: string | undefined;
+			if (is(column, PgDomainColumn)) {
+				domainSchema = column.domain.schema;
+			}
 			const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
 			const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
 				?? (parseFloat(increment) < 0 ? minRangeForIdentityBasedOn(column.columnType) : '1');
@@ -175,6 +182,7 @@ export const generatePgSnapshot = (
 				name,
 				type: column.getSQLType(),
 				typeSchema: typeSchema,
+				domainSchema: domainSchema,
 				primaryKey,
 				notNull,
 				generated: generated
@@ -861,6 +869,31 @@ export const generatePgSnapshot = (
 		};
 	}
 
+	const domainsToReturn: Record<
+		string,
+		{ name: string; schema: string; notNull: boolean; baseType: string; defaultValue?: string; constraint?: string }
+	> = domains.reduce<{
+		[key: string]: {
+			name: string;
+			schema: string;
+			notNull: boolean;
+			baseType: string;
+			defaultValue?: string;
+			constraint?: string;
+		};
+	}>((map, obj) => {
+		const domainSchema = obj.schema;
+		const key = `${domainSchema ?? 'public'}.${obj.domainName}`;
+		map[key] = {
+			name: obj.domainName,
+			schema: domainSchema ?? 'public',
+			notNull: true, // You might need to adjust this depending on how you want to determine notNull
+			baseType: obj.domainType,
+			// You might need to adjust this depending on how you want to determine defaultValue and constraint
+		};
+		return map;
+	}, {});
+
 	const enumsToReturn: Record<string, Enum> = enums.reduce<{
 		[key: string]: Enum;
 	}>((map, obj) => {
@@ -890,6 +923,7 @@ export const generatePgSnapshot = (
 		version: '7',
 		dialect: 'postgresql',
 		tables: result,
+		domains: domainsToReturn,
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
@@ -1057,6 +1091,45 @@ WHERE
 			increment: incrementBy,
 			cycle,
 			cache: cacheSize,
+		};
+	}
+
+	const whereDomains = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
+
+	const allDomains = await db.query(
+		`select
+			 n.nspname AS domain_schema,
+			 t.typname AS domain_name,
+			 t.typbasetype::regtype AS base_type,
+			 t.typnotnull AS not_null,
+			 t.typdefault AS default_value,
+			 pg_get_constraintdef(c.oid) AS domain_constraint
+		 from
+			 pg_type t
+				 JOIN
+			 pg_namespace n ON t.typnamespace = n.oid
+				 LEFT JOIN
+			 pg_constraint c ON t.oid = c.contypid AND c.contype = 'c'
+		 where
+			 t.typtype = 'd'
+			 ${whereDomains === '' ? '' : ` AND ${whereDomains}`};
+		ORDER BY
+			 domain_schema, domain_name;`,
+	);
+
+	const domainsToReturn: Record<string, Domain> = {};
+
+	for (const domain of allDomains) {
+		const schemaName = domain.domain_schema || 'public';
+		const key = `${schemaName}.${domain.domain_name}`;
+
+		domainsToReturn[key] = {
+			name: domain.domain_name,
+			schema: schemaName,
+			baseType: domain.base_type,
+			notNull: domain.not_null,
+			defaultValue: domain.default_value,
+			constraint: domain.domain_constraint,
 		};
 	}
 
@@ -1482,14 +1555,21 @@ WHERE
 						columnToReturn[columnName] = {
 							name: columnName,
 							type:
-								// filter vectors, but in future we should filter any extension that was installed by user
-								columnAdditionalDT === 'USER-DEFINED'
-									&& !['vector', 'geometry'].includes(enumType)
+								// First, check if it's a domain
+								(columnAdditionalDT === 'DOMAIN'
+										&& domainsToReturn[`${typeSchema}.${enumType}`]?.name)
+									// filter vectors, but in future we should filter any extension that was installed by user
+									|| columnAdditionalDT === 'USER-DEFINED'
+										&& !['vector', 'geometry'].includes(enumType)
 									? enumType
 									: columnTypeMapped,
-							typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
-								? enumsToReturn[`${typeSchema}.${enumType}`].schema
-								: undefined,
+							typeSchema:
+								// Check if it's a domain first
+								domainsToReturn[`${typeSchema}.${enumType}`]?.schema
+									// If not, check for enums
+									|| enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
+									? enumsToReturn[`${typeSchema}.${enumType}`].schema
+									: undefined,
 							primaryKey: primaryKey.length === 1 && cprimaryKey.length < 2,
 							// default: isSerial ? undefined : defaultValue,
 							notNull: columnResponse.is_nullable === 'NO',
@@ -1918,6 +1998,7 @@ WHERE
 		version: '7',
 		dialect: 'postgresql',
 		tables: result,
+		domains: domainsToReturn,
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
@@ -2025,70 +2106,70 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 
 const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: string; db: DB }) => {
 	return db.query(
-		`SELECT 
-    a.attrelid::regclass::text AS table_name,  -- Table, view, or materialized view name
-    a.attname AS column_name,   -- Column name
-    CASE 
-        WHEN NOT a.attisdropped THEN 
-            CASE 
-                WHEN a.attnotnull THEN 'NO'
-                ELSE 'YES'
-            END 
-        ELSE NULL 
-    END AS is_nullable,  -- NULL or NOT NULL constraint
-    a.attndims AS array_dimensions,  -- Array dimensions
-    CASE 
-        WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[]) 
-        AND EXISTS (
-            SELECT FROM pg_attrdef ad
-            WHERE ad.adrelid = a.attrelid 
-            AND ad.adnum = a.attnum 
-            AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval(''' 
-                || pg_get_serial_sequence(a.attrelid::regclass::text, a.attname)::regclass || '''::regclass)'
-        )
-        THEN CASE a.atttypid
-            WHEN 'int'::regtype THEN 'serial'
-            WHEN 'int8'::regtype THEN 'bigserial'
-            WHEN 'int2'::regtype THEN 'smallserial'
-        END
-        ELSE format_type(a.atttypid, a.atttypmod)
-    END AS data_type,  -- Column data type
+		`SELECT
+			 a.attrelid::regclass::text AS table_name,  -- Table, view, or materialized view name
+			 a.attname AS column_name,   -- Column name
+			 CASE
+				 WHEN NOT a.attisdropped THEN
+					 CASE
+						 WHEN a.attnotnull THEN 'NO'
+						 ELSE 'YES'
+						 END
+				 ELSE NULL
+				 END AS is_nullable,  -- NULL or NOT NULL constraint
+			 a.attndims AS array_dimensions,  -- Array dimensions
+			 CASE
+				 WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[])
+					 AND EXISTS (
+						 SELECT FROM pg_attrdef ad
+						 WHERE ad.adrelid = a.attrelid
+						   AND ad.adnum = a.attnum
+						   AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval('''
+							 || pg_get_serial_sequence(a.attrelid::regclass::text, a.attname)::regclass || '''::regclass)'
+					 )
+					 THEN CASE a.atttypid
+							  WHEN 'int'::regtype THEN 'serial'
+							  WHEN 'int8'::regtype THEN 'bigserial'
+							  WHEN 'int2'::regtype THEN 'smallserial'
+					 END
+				 ELSE format_type(a.atttypid, a.atttypmod)
+				 END AS data_type,  -- Column data type
 --    ns.nspname AS type_schema,  -- Schema name
-    pg_get_serial_sequence('"${schema}"."${table}"', a.attname)::regclass AS seq_name,  -- Serial sequence (if any)
-    c.column_default,  -- Column default value
-    c.data_type AS additional_dt,  -- Data type from information_schema
-    c.udt_name AS enum_name,  -- Enum type (if applicable)
-    c.is_generated,  -- Is it a generated column?
-    c.generation_expression,  -- Generation expression (if generated)
-    c.is_identity,  -- Is it an identity column?
-    c.identity_generation,  -- Identity generation strategy (ALWAYS or BY DEFAULT)
-    c.identity_start,  -- Start value of identity column
-    c.identity_increment,  -- Increment for identity column
-    c.identity_maximum,  -- Maximum value for identity column
-    c.identity_minimum,  -- Minimum value for identity column
-    c.identity_cycle,  -- Does the identity column cycle?
-    enum_ns.nspname AS type_schema  -- Schema of the enum type
-FROM 
-    pg_attribute a
-JOIN 
-    pg_class cls ON cls.oid = a.attrelid  -- Join pg_class to get table/view/materialized view info
-JOIN 
-    pg_namespace ns ON ns.oid = cls.relnamespace  -- Join namespace to get schema info
-LEFT JOIN 
-    information_schema.columns c ON c.column_name = a.attname 
-        AND c.table_schema = ns.nspname 
-        AND c.table_name = cls.relname  -- Match schema and table/view name
-LEFT JOIN 
-    pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
-LEFT JOIN 
-    pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
-WHERE 
-    a.attnum > 0  -- Valid column numbers only
-    AND NOT a.attisdropped  -- Skip dropped columns
-    AND cls.relkind IN ('r', 'v', 'm')  -- Include regular tables ('r'), views ('v'), and materialized views ('m')
-    AND ns.nspname = '${schema}'  -- Filter by schema
-    AND cls.relname = '${table}'  -- Filter by table name
-ORDER BY 
-    a.attnum;  -- Order by column number`,
+			 pg_get_serial_sequence('"${schema}"."${table}"', a.attname)::regclass AS seq_name,  -- Serial sequence (if any)
+			 c.column_default,  -- Column default value
+			 c.data_type AS additional_dt,  -- Data type from information_schema
+			 c.udt_name AS enum_name,  -- Enum type (if applicable)
+			 c.is_generated,  -- Is it a generated column?
+			 c.generation_expression,  -- Generation expression (if generated)
+			 c.is_identity,  -- Is it an identity column?
+			 c.identity_generation,  -- Identity generation strategy (ALWAYS or BY DEFAULT)
+			 c.identity_start,  -- Start value of identity column
+			 c.identity_increment,  -- Increment for identity column
+			 c.identity_maximum,  -- Maximum value for identity column
+			 c.identity_minimum,  -- Minimum value for identity column
+			 c.identity_cycle,  -- Does the identity column cycle?
+			 enum_ns.nspname AS type_schema  -- Schema of the enum type
+		 FROM
+			 pg_attribute a
+				 JOIN
+			 pg_class cls ON cls.oid = a.attrelid  -- Join pg_class to get table/view/materialized view info
+				 JOIN
+			 pg_namespace ns ON ns.oid = cls.relnamespace  -- Join namespace to get schema info
+				 LEFT JOIN
+			 information_schema.columns c ON c.column_name = a.attname
+				 AND c.table_schema = ns.nspname
+				 AND c.table_name = cls.relname  -- Match schema and table/view name
+				 LEFT JOIN
+			 pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
+				 LEFT JOIN
+			 pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
+		 WHERE
+			 a.attnum > 0  -- Valid column numbers only
+		   AND NOT a.attisdropped  -- Skip dropped columns
+		   AND cls.relkind IN ('r', 'v', 'm')  -- Include regular tables ('r'), views ('v'), and materialized views ('m')
+		   AND ns.nspname = '${schema}'  -- Filter by schema
+		   AND cls.relname = '${table}'  -- Filter by table name
+		 ORDER BY
+			 a.attnum;  -- Order by column number`,
 	);
 };

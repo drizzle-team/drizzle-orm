@@ -57,6 +57,7 @@ export const generateDrizzleJson = (
 
 	const snapshot = generatePgSnapshot(
 		prepared.tables,
+		prepared.domains,
 		prepared.enums,
 		prepared.schemas,
 		prepared.sequences,

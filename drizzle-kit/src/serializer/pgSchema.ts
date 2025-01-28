@@ -28,6 +28,15 @@ const tableV2 = object({
 	indexes: record(string(), indexV2),
 }).strict();
 
+const domainSchema = object({
+	name: string(),
+	schema: string(),
+	baseType: string(),
+	notNull: boolean(),
+	defaultValue: string().optional(),
+	constraint: string().optional(),
+}).strict();
+
 const enumSchemaV1 = object({
 	name: string(),
 	values: record(string(), string()),
@@ -164,6 +173,7 @@ const columnV7 = object({
 	name: string(),
 	type: string(),
 	typeSchema: string().optional(),
+	domainSchema: string().optional(),
 	primaryKey: boolean(),
 	notNull: boolean(),
 	default: any().optional(),
@@ -176,6 +186,7 @@ const column = object({
 	name: string(),
 	type: string(),
 	typeSchema: string().optional(),
+	domainSchema: string().optional(),
 	primaryKey: boolean(),
 	notNull: boolean(),
 	default: any().optional(),
@@ -440,6 +451,7 @@ export const pgSchemaInternal = object({
 	tables: record(string(), table),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
+	domains: record(string(), domainSchema),
 	views: record(string(), view).default({}),
 	sequences: record(string(), sequenceSchema).default({}),
 	roles: record(string(), roleSchema).default({}),
@@ -509,6 +521,7 @@ export const pgSchemaV7 = pgSchemaInternalV7.merge(schemaHash);
 export const pgSchema = pgSchemaInternal.merge(schemaHash);
 
 export type Enum = TypeOf<typeof enumSchema>;
+export type Domain = TypeOf<typeof domainSchema>;
 export type Sequence = TypeOf<typeof sequenceSchema>;
 export type Role = TypeOf<typeof roleSchema>;
 export type Column = TypeOf<typeof column>;
