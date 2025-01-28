@@ -242,6 +242,15 @@ const alteredColumnSchema = object({
 	identity: makePatched(string()).optional(),
 }).strict();
 
+const domainSchema = object({
+	name: string(),
+	schema: string(),
+	baseType: string(),
+	notNull: boolean(),
+	defaultValue: string().optional(),
+	constraint: string().optional(),
+}).strict();
+
 const enumSchema = object({
 	name: string(),
 	schema: string(),
@@ -409,6 +418,7 @@ export const diffResultSchemeSQLite = object({
 
 export type Column = TypeOf<typeof columnSchema>;
 export type AlteredColumn = TypeOf<typeof alteredColumnSchema>;
+export type Domain = TypeOf<typeof domainSchema>;
 export type Enum = TypeOf<typeof enumSchema>;
 export type Sequence = TypeOf<typeof sequenceSquashed>;
 export type Table = TypeOf<typeof tableScheme>;
@@ -562,6 +572,9 @@ export const applyPgSnapshotsDiff = async (
 	schemasResolver: (
 		input: ResolverInput<Named>,
 	) => Promise<ResolverOutput<Named>>,
+	domainsResolver: (
+		input: ResolverInput<Domain>,
+	) => Promise<ResolverOutputWithMoved<Domain>>,
 	enumsResolver: (
 		input: ResolverInput<Enum>,
 	) => Promise<ResolverOutputWithMoved<Enum>>,
