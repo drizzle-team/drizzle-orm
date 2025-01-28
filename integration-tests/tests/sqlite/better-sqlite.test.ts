@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 
-const ENABLE_LOGGING = false;
+const ENABLE_LOGGING = true;
 
 let db: BetterSQLite3Database;
 let client: Database.Database;
