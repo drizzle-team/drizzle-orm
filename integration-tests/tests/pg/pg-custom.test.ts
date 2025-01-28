@@ -12,23 +12,17 @@ import { createDockerDB } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
+let connectionString: string;
 let db: NodePgDatabase;
 let client: Client;
 let container: Docker.Container | undefined;
 
-beforeAll(async () => {
-	let connectionString;
-	if (process.env['PG_CONNECTION_STRING']) {
-		connectionString = process.env['PG_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
-	client = await retry(async () => {
-		client = new Client(connectionString);
-		await client.connect();
-		return client;
+async function getClient(connString: string): Promise<Client> {
+	let thisClient: Client;
+	return retry(async () => {
+		thisClient = new Client(connString);
+		await thisClient.connect();
+		return thisClient;
 	}, {
 		retries: 20,
 		factor: 1,
@@ -36,9 +30,20 @@ beforeAll(async () => {
 		maxTimeout: 250,
 		randomize: false,
 		onRetry() {
-			client?.end();
+			thisClient?.end();
 		},
 	});
+}
+
+beforeAll(async () => {
+	if (process.env['PG_CONNECTION_STRING']) {
+		connectionString = process.env['PG_CONNECTION_STRING'];
+	} else {
+		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
+		container = contrainerObj;
+		connectionString = conStr;
+	}
+	client = await getClient(connectionString);
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 });
 
@@ -661,6 +666,36 @@ test('migrator : migrate with custom table and custom schema', async () => {
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
+});
+
+test('migrator : migrate without create schema permission', async () => {
+	const customSchema = randomString();
+	await db.execute(sql`create schema if not exists ${sql.identifier(customSchema)}`);
+	await db.execute(sql`drop role if exists "no_create_schema_user"`);
+	await db.execute(sql`create role "no_create_schema_user" with login password 'test'`);
+	const dbName = new URL(connectionString).pathname.slice(1);
+	await db.execute(sql`revoke create on database ${sql.identifier([dbName])} from "no_create_schema_user"`);
+	await db.execute(sql`grant create, usage on schema public to "no_create_schema_user"`);
+	await db.execute(sql`grant create, usage on schema ${sql.identifier(customSchema)} to "no_create_schema_user"`);
+
+	const restrictedConnectionString = connectionString
+	.replace(/\/\/([^:]+):([^@]+)@/, '//no_create_schema_user:test@');
+
+	const restrictedClient = await getClient(restrictedConnectionString);
+
+	const restrictedDb = drizzle(restrictedClient, { logger: ENABLE_LOGGING, schema: 'public' });
+
+	try {
+		await migrate(restrictedDb, {
+			migrationsFolder: './drizzle2/pg', 
+			migrationsSchema: customSchema,
+		});
+	} finally {
+		await restrictedClient.end();
+
+		await db.execute(sql`drop owned by "no_create_schema_user"`);
+		await db.execute(sql`drop role if exists "no_create_schema_user"`);
+	}
 });
 
 test('insert via db.execute + select via db.execute', async () => {
