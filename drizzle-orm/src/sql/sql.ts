@@ -181,7 +181,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 				const schemaName = chunk[Table.Symbol.Schema];
 				const tableName = chunk[Table.Symbol.Name];
 				return {
-					sql: schemaName === undefined
+					sql: schemaName === undefined || chunk[IsAlias]
 						? escapeName(tableName)
 						: escapeName(schemaName) + '.' + escapeName(tableName),
 					params: [],
@@ -208,7 +208,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 				const schemaName = chunk[ViewBaseConfig].schema;
 				const viewName = chunk[ViewBaseConfig].name;
 				return {
-					sql: schemaName === undefined
+					sql: schemaName === undefined || chunk[ViewBaseConfig].isAlias
 						? escapeName(viewName)
 						: escapeName(schemaName) + '.' + escapeName(viewName),
 					params: [],

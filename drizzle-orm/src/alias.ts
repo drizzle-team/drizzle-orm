@@ -1,9 +1,14 @@
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
+import type { AnyMySqlTable, BuildAliasTable as BuildAliasMySqlTable, MySqlView } from './mysql-core/index.ts';
+import type { AnyPgTable, BuildAliasTable as BuildAliasPgTable, PgView } from './pg-core/index.ts';
 import type { Relation } from './relations.ts';
 import type { View } from './sql/sql.ts';
 import { SQL, sql } from './sql/sql.ts';
+import type { BuildAliasTable as BuildAliasSQLiteTable } from './sqlite-core/index.ts';
+import type { AnySQLiteTable } from './sqlite-core/table.ts';
+import type { SQLiteView } from './sqlite-core/view.ts';
 import { Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
@@ -88,8 +93,15 @@ export class RelationTableAliasProxyHandler<T extends Relation> implements Proxy
 	}
 }
 
-export function aliasedTable<T extends Table>(table: T, tableAlias: string): T {
-	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false));
+export function aliasedTable<T extends Table | View, TAlias extends string>(
+	table: T,
+	tableAlias: TAlias,
+): T extends AnyPgTable | PgView ? BuildAliasPgTable<T, TAlias>
+	: T extends AnySQLiteTable | SQLiteView ? BuildAliasSQLiteTable<T, TAlias>
+	: T extends AnyMySqlTable | MySqlView ? BuildAliasMySqlTable<T, TAlias>
+	: never
+{
+	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false)) as any;
 }
 
 export function aliasedRelation<T extends Relation>(relation: T, tableAlias: string): T {

@@ -1,0 +1,229 @@
+import { type Equal, Expect } from 'type-tests/utils.ts';
+import { aliasedTable, eq } from '~/index.ts';
+import { drizzle as sqlited } from '~/libsql/index.ts';
+import { mysqlView } from '~/mysql-core/view.ts';
+import { drizzle as mysqld } from '~/mysql2/index.ts';
+import { pgView } from '~/pg-core/view.ts';
+import { drizzle as pgd } from '~/postgres-js/index.ts';
+import { sqliteView } from '~/sqlite-core/view.ts';
+import { users as mysqlUsers } from '../mysql/tables.ts';
+import { users as pgUsers } from '../pg/tables.ts';
+import { users as sqliteUsers } from '../sqlite/tables.ts';
+
+const pg = pgd.mock();
+const sqlite = sqlited.mock();
+const mysql = mysqld.mock();
+
+const pgvUsers = pgView('users_view').as((qb) => qb.select().from(pgUsers));
+const sqlitevUsers = sqliteView('users_view').as((qb) => qb.select().from(sqliteUsers));
+const mysqlvUsers = mysqlView('users_view').as((qb) => qb.select().from(mysqlUsers));
+
+const pgAlias = aliasedTable(pgUsers, 'usersAlias');
+const sqliteAlias = aliasedTable(sqliteUsers, 'usersAlias');
+const mysqlAlias = aliasedTable(mysqlUsers, 'usersAlias');
+
+const pgvAlias = aliasedTable(pgvUsers, 'usersvAlias');
+const sqlitevAlias = aliasedTable(sqlitevUsers, 'usersvAlias');
+const mysqlvAlias = aliasedTable(mysqlvUsers, 'usersvAlias');
+
+const pgRes = await pg.select().from(pgUsers).leftJoin(pgAlias, eq(pgAlias.id, pgUsers.id));
+const sqliteRes = await sqlite.select().from(sqliteUsers).leftJoin(sqliteAlias, eq(sqliteAlias.id, sqliteUsers.id));
+const mysqlRes = await mysql.select().from(mysqlUsers).leftJoin(mysqlAlias, eq(mysqlAlias.id, mysqlUsers.id));
+
+const pgvRes = await pg.select().from(pgUsers).leftJoin(pgvAlias, eq(pgvAlias.id, pgUsers.id));
+const sqlitevRes = await sqlite.select().from(sqliteUsers).leftJoin(sqlitevAlias, eq(sqlitevAlias.id, sqliteUsers.id));
+const mysqlvRes = await mysql.select().from(mysqlUsers).leftJoin(mysqlvAlias, eq(mysqlvAlias.id, mysqlUsers.id));
+
+Expect<
+	Equal<typeof pgRes, {
+		users_table: {
+			id: number;
+			uuid: string;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			text: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+			arrayCol: string[];
+		};
+		usersAlias: {
+			id: number;
+			uuid: string;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			text: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+			arrayCol: string[];
+		} | null;
+	}[]>
+>;
+
+Expect<
+	Equal<typeof sqliteRes, {
+		users_table: {
+			id: number;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number | null;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			name: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+		};
+		usersAlias: {
+			id: number;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number | null;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			name: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+		} | null;
+	}[]>
+>;
+
+Expect<
+	Equal<typeof mysqlRes, {
+		users_table: {
+			id: number;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			text: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+		};
+		usersAlias: {
+			id: number;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			text: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+		} | null;
+	}[]>
+>;
+
+Expect<
+	Equal<typeof pgvRes, {
+		users_table: {
+			id: number;
+			uuid: string;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			text: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+			arrayCol: string[];
+		};
+		usersvAlias: {
+			id: number;
+			uuid: string;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			text: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+			arrayCol: string[];
+		} | null;
+	}[]>
+>;
+
+Expect<
+	Equal<typeof sqlitevRes, {
+		users_table: {
+			id: number;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number | null;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			name: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+		};
+		usersvAlias: {
+			id: number;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number | null;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			name: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+		} | null;
+	}[]>
+>;
+
+Expect<
+	Equal<typeof mysqlvRes, {
+		users_table: {
+			id: number;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			text: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+		};
+		usersvAlias: {
+			id: number;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			text: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+		} | null;
+	}[]>
+>;
