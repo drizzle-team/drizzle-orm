@@ -1112,7 +1112,7 @@ WHERE
 			 pg_constraint c ON t.oid = c.contypid AND c.contype = 'c'
 		 where
 			 t.typtype = 'd'
-			 ${whereDomains === '' ? '' : ` AND ${whereDomains}`};
+			 ${whereDomains === '' ? '' : ` AND (${whereDomains})`}
 		ORDER BY
 			 domain_schema, domain_name;`,
 	);

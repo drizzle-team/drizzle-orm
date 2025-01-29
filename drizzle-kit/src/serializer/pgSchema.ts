@@ -504,10 +504,23 @@ export const pgSchemaSquashedV6 = object({
 	schemas: record(string(), string()),
 }).strict();
 
-export const pgSchemaSquashed = object({
+export const pgSchemaSquashedV7 = object({
 	version: literal('7'),
 	dialect: literal('postgresql'),
 	tables: record(string(), tableSquashed),
+	enums: record(string(), enumSchema),
+	schemas: record(string(), string()),
+	views: record(string(), view),
+	sequences: record(string(), sequenceSquashed),
+	roles: record(string(), roleSchema).default({}),
+	policies: record(string(), policySquashed).default({}),
+}).strict();
+
+export const pgSchemaSquashed = object({
+	version: literal('8'),
+	dialect: literal('postgresql'),
+	tables: record(string(), tableSquashed),
+	domains: record(string(), domainSchema),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
 	views: record(string(), view),
@@ -872,9 +885,10 @@ export const squashPgScheme = (
 	);
 
 	return {
-		version: '7',
+		version: '8',
 		dialect: json.dialect,
 		tables: mappedTables,
+		domains: json.domains,
 		enums: json.enums,
 		schemas: json.schemas,
 		views: json.views,
@@ -890,6 +904,7 @@ export const dryPg = pgSchema.parse({
 	id: originUUID,
 	prevId: '',
 	tables: {},
+	domains: {},
 	enums: {},
 	schemas: {},
 	policies: {},

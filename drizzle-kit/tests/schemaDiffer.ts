@@ -1115,7 +1115,7 @@ export const diffTestSchemasPush = async (
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
 
 	const sch1 = {
-		version: '7',
+		version: '8',
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1123,7 +1123,7 @@ export const diffTestSchemasPush = async (
 	} as const;
 
 	const sch2 = {
-		version: '7',
+		version: '8',
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1213,7 +1213,7 @@ export const applyPgDiffs = async (
 	casing: CasingType | undefined,
 ) => {
 	const dryRun = {
-		version: '7',
+		version: '8',
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1266,7 +1266,7 @@ export const applyPgDiffs = async (
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
 	const sch1 = {
-		version: '7',
+		version: '8',
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1369,7 +1369,7 @@ export const diffTestSchemas = async (
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
 
 	const sch1 = {
-		version: '7',
+		version: '8',
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1377,7 +1377,7 @@ export const diffTestSchemas = async (
 	} as const;
 
 	const sch2 = {
-		version: '7',
+		version: '8',
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -2424,7 +2424,7 @@ export const introspectPgToFile = async (
 	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
 
 	const initSch = {
-		version: '7',
+		version: '8',
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -2460,7 +2460,7 @@ export const introspectPgToFile = async (
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 
 	const sch2 = {
-		version: '7',
+		version: '8',
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
