@@ -141,6 +141,9 @@ export abstract class PgTransaction<
 		super(dialect, session, schema);
 	}
 
+	/**
+	 * @throws {TransactionRollbackError}
+	 */
 	rollback(): never {
 		throw new TransactionRollbackError();
 	}
