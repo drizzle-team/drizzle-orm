@@ -63,11 +63,13 @@ import {
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
 	prepareAlterCompositePrimaryKeySqlite,
+	prepareAlterDomainJson,
 	prepareAlterIndPolicyJson,
 	prepareAlterPolicyJson,
 	prepareAlterReferencesJson,
 	prepareAlterRoleJson,
 	prepareAlterSequenceJson,
+	prepareCreateDomainJson,
 	prepareCreateEnumJson,
 	prepareCreateIndexesJson,
 	prepareCreateIndPolicyJsons,
@@ -82,6 +84,7 @@ import {
 	prepareDeleteCompositePrimaryKeySqlite,
 	prepareDeleteSchemasJson as prepareDropSchemasJson,
 	prepareDeleteUniqueConstraintPg as prepareDeleteUniqueConstraint,
+	prepareDropDomainJson,
 	prepareDropEnumJson,
 	prepareDropEnumValues,
 	prepareDropIndexesJson,
@@ -94,6 +97,7 @@ import {
 	prepareDropViewJson,
 	prepareLibSQLCreateReferencesJson,
 	prepareLibSQLDropReferencesJson,
+	prepareMoveDomainJson,
 	prepareMoveEnumJson,
 	prepareMoveSequenceJson,
 	prepareMySqlAlterView,
@@ -109,6 +113,7 @@ import {
 	preparePgCreateTableJson,
 	preparePgCreateViewJson,
 	prepareRenameColumns,
+	prepareRenameDomainJson,
 	prepareRenameEnumJson,
 	prepareRenameIndPolicyJsons,
 	prepareRenamePolicyJsons,
@@ -249,6 +254,12 @@ const domainSchema = object({
 	notNull: boolean(),
 	defaultValue: string().optional(),
 	constraint: string().optional(),
+}).strict();
+
+const changedDomainSchema = object({
+	name: string(),
+	schema: string(),
+	baseType: string(),
 }).strict();
 
 const enumSchema = object({
@@ -392,6 +403,7 @@ const alteredMySqlViewSchema = alteredViewCommon.merge(
 
 export const diffResultScheme = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
+	alteredDomains: changedDomainSchema.array(),
 	alteredEnums: changedEnumSchema.array(),
 	alteredSequences: sequenceSquashed.array(),
 	alteredRoles: roleSchema.array(),
@@ -638,6 +650,18 @@ export const applyPgSnapshotsDiff = async (
 		const { key, schema } = schemaChangeFor(it, renamedSchemas);
 		it.schema = schema;
 		return [key, it];
+	});
+
+	const domainsDiff = diffSchemasOrTables(json1.domains, json2.domains);
+
+	const {
+		created: createdDomains,
+		deleted: deletedDomains,
+		renamed: renamedDomains,
+		moved: movedDomains,
+	} = await domainsResolver({
+		created: domainsDiff.added,
+		deleted: domainsDiff.deleted,
 	});
 
 	const enumsDiff = diffSchemasOrTables(schemasPatchedSnap1.enums, json2.enums);
@@ -1711,6 +1735,26 @@ export const applyPgSnapshotsDiff = async (
 	// - create table with generated
 	// - alter - should be not triggered, but should get warning
 
+	const createDomains = createdDomains.map((it) => {
+		return prepareCreateDomainJson(it.name, it.schema, it.baseType, it.notNull, it.defaultValue, it.constraint);
+	}) ?? [];
+
+	const dropDomains = deletedDomains.map((it) => {
+		return prepareDropDomainJson(it.name, it.schema);
+	});
+
+	const moveDomains = movedDomains.map((it) => {
+		return prepareMoveDomainJson(it.name, it.schemaFrom, it.schemaTo);
+	});
+
+	const renameDomains = renamedDomains.map((it) => {
+		return prepareRenameDomainJson(it.from.name, it.to.name, it.to.schema, []);
+	});
+
+	const alterDomains = typedResult.alteredDomains.map((it) => {
+		return prepareAlterDomainJson(it.name, it.schema, it.baseType, []);
+	});
+
 	const createEnums = createdEnums.map((it) => {
 		return prepareCreateEnumJson(it.name, it.schema, it.values);
 	}) ?? [];
@@ -1959,6 +2003,12 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
+
+	jsonStatements.push(...createDomains);
+	jsonStatements.push(...moveDomains);
+	jsonStatements.push(...renameDomains);
+	jsonStatements.push(...alterDomains);
+
 	jsonStatements.push(...createEnums);
 	jsonStatements.push(...moveEnums);
 	jsonStatements.push(...renameEnums);
@@ -2031,6 +2081,7 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);
+	jsonStatements.push(...dropDomains);
 
 	// generate filters
 	const filteredJsonStatements = jsonStatements.filter((st) => {

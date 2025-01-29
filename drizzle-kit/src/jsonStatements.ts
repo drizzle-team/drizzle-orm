@@ -96,6 +96,45 @@ export interface JsonRenameTableStatement {
 	tableNameTo: string;
 }
 
+export interface JsonCreateDomainStatement {
+	type: 'create_domain';
+	name: string;
+	schema: string;
+	baseType: string;
+	notNull?: boolean;
+	defaultValue?: string;
+	constraint?: string;
+}
+
+export interface JsonDropDomainStatement {
+	type: 'drop_domain';
+	name: string;
+	schema: string;
+}
+
+export interface JsonMoveDomainStatement {
+	type: 'move_domain';
+	name: string;
+	schemaFrom: string;
+	schemaTo: string;
+}
+
+export interface JsonRenameDomainStatement {
+	type: 'rename_type_domain';
+	nameFrom: string;
+	nameTo: string;
+	schema: string;
+	columnsWithDomain: { schema: string; table: string; column: string }[];
+}
+
+export interface JsonAlterDomainStatement {
+	type: 'alter_type_domain';
+	name: string;
+	schema: string;
+	baseType: string;
+	columnsWithDomain: { schema: string; table: string; column: string }[];
+}
+
 export interface JsonCreateEnumStatement {
 	type: 'create_type_enum';
 	name: string;
@@ -866,7 +905,12 @@ export type JsonStatement =
 	| JsonIndRenamePolicyStatement
 	| JsonDropIndPolicyStatement
 	| JsonCreateIndPolicyStatement
-	| JsonAlterIndPolicyStatement;
+	| JsonAlterIndPolicyStatement
+	| JsonCreateDomainStatement
+	| JsonDropDomainStatement
+	| JsonMoveDomainStatement
+	| JsonRenameDomainStatement
+	| JsonAlterDomainStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -1003,6 +1047,79 @@ export const prepareRenameTableJson = (
 		toSchema: tableTo.schema,
 		tableNameFrom: tableFrom.name,
 		tableNameTo: tableTo.name,
+	};
+};
+
+export const prepareCreateDomainJson = (
+	name: string,
+	schema: string,
+	baseType: string,
+	notNull: boolean,
+	defaultValue: string | undefined,
+	constraint: string | undefined,
+): JsonCreateDomainStatement => {
+	return {
+		type: 'create_domain',
+		name: name,
+		schema: schema,
+		baseType,
+		notNull,
+		defaultValue,
+		constraint,
+	};
+};
+
+export const prepareDropDomainJson = (
+	name: string,
+	schema: string,
+): JsonDropDomainStatement => {
+	return {
+		type: 'drop_domain',
+		name: name,
+		schema: schema,
+	};
+};
+
+export const prepareMoveDomainJson = (
+	name: string,
+	schemaFrom: string,
+	schemaTo: string,
+): JsonMoveDomainStatement => {
+	return {
+		type: 'move_domain',
+		name: name,
+		schemaFrom,
+		schemaTo,
+	};
+};
+
+export const prepareRenameDomainJson = (
+	nameFrom: string,
+	nameTo: string,
+	schema: string,
+	columnsWithDomain: { schema: string; table: string; column: string }[],
+): JsonRenameDomainStatement => {
+	return {
+		type: 'rename_type_domain',
+		nameFrom,
+		nameTo,
+		schema,
+		columnsWithDomain,
+	};
+};
+
+export const prepareAlterDomainJson = (
+	name: string,
+	schema: string,
+	baseType: string,
+	columnsWithDomain: { schema: string; table: string; column: string }[],
+): JsonAlterDomainStatement => {
+	return {
+		type: 'alter_type_domain',
+		name,
+		schema,
+		baseType,
+		columnsWithDomain,
 	};
 };
 

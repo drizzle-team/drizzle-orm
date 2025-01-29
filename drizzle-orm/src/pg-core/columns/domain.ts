@@ -1,25 +1,21 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	ColumnDataType,
-	MakeColumnConfig,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgDomainColumnBuilderInitial<TName extends string, TType extends ColumnDataType> = PgDomainColumnBuilder<{
+export type PgDomainColumnBuilderInitial<TName extends string, TType extends string> = PgDomainColumnBuilder<{
 	name: TName;
-	dataType: TType;
+	dataType: 'string';
 	columnType: 'PgDomainColumn';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
+	domainType: TType;
 }>;
 
 const isPgDomainSym = Symbol.for('drizzle:isPgDomain');
-export interface PgDomain<TType extends ColumnDataType> {
+export interface PgDomain<TType extends string> {
 	(): PgDomainColumnBuilderInitial<'', TType>;
 	<TName extends string>(name: TName): PgDomainColumnBuilderInitial<TName, TType>;
 	<TName extends string>(name?: TName): PgDomainColumnBuilderInitial<TName, TType>;
@@ -31,34 +27,44 @@ export interface PgDomain<TType extends ColumnDataType> {
 	[isPgDomainSym]: true;
 }
 
-export function isPgDomain(obj: unknown): obj is PgDomain<ColumnDataType> {
+export function isPgDomain(obj: unknown): obj is PgDomain<string> {
 	return !!obj && typeof obj === 'function' && isPgDomainSym in obj && obj[isPgDomainSym] === true;
 }
 
 export class PgDomainColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, 'PgDomainColumn'>,
-> extends PgColumnBuilder<T, { domain: PgDomain<T['dataType']> }> {
+	T extends ColumnBuilderBaseConfig<'string', 'PgDomainColumn'> & { domainType: string },
+> extends PgColumnBuilder<T, { domain: PgDomain<T['domainType']> }> {
 	static override readonly [entityKind]: string = 'PgDomainColumnBuilder';
 
-	constructor(name: T['name'], domainInstance: PgDomain<T['dataType']>) {
-		super(name, domainInstance.domainType, 'PgDomainColumn');
+	constructor(name: T['name'], domainInstance: PgDomain<T['domainType']>) {
+		super(name, 'string', 'PgDomainColumn');
 		this.config.domain = domainInstance;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgDomainColumn<MakeColumnConfig<T, TTableName>> {
-		return new PgDomainColumn<MakeColumnConfig<T, TTableName>>(
+	): PgDomainColumn<
+		MakeColumnConfig<
+			T & { domainType: T['domainType'] },
+			TTableName
+		> & { domainType: T['domainType'] }
+	> {
+		return new PgDomainColumn<
+			MakeColumnConfig<
+				T & { domainType: T['domainType'] },
+				TTableName
+			> & { domainType: T['domainType'] }
+		>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class PgDomainColumn<T extends ColumnBaseConfig<ColumnDataType, 'PgDomainColumn'>>
-	extends PgColumn<T, { domain: PgDomain<T['dataType']> }>
-{
+export class PgDomainColumn<
+	T extends ColumnBaseConfig<'string', 'PgDomainColumn'> & { domainType: string },
+> extends PgColumn<T, { domain: PgDomain<T['domainType']> }> {
 	static override readonly [entityKind]: string = 'PgDomainColumn';
 
 	readonly domain = this.config.domain;
@@ -77,7 +83,7 @@ export class PgDomainColumn<T extends ColumnBaseConfig<ColumnDataType, 'PgDomain
 	}
 }
 
-export function pgDomain<TType extends ColumnDataType>(
+export function pgDomain<TType extends string>(
 	domainName: string,
 	domainType: TType,
 ): PgDomain<TType> {
@@ -85,7 +91,7 @@ export function pgDomain<TType extends ColumnDataType>(
 }
 
 /** @internal */
-export function pgDomainWithSchema<TType extends ColumnDataType>(
+export function pgDomainWithSchema<TType extends string>(
 	domainName: string,
 	domainType: TType,
 	schema?: string,

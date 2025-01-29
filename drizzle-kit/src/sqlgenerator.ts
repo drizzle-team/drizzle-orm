@@ -36,6 +36,7 @@ import {
 	JsonAlterViewDropWithOptionStatement,
 	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
+	JsonCreateDomainStatement,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
 	JsonCreateIndPolicyStatement,
@@ -55,6 +56,7 @@ import {
 	JsonDeleteUniqueConstraint,
 	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
+	JsonDropDomainStatement,
 	JsonDropEnumStatement,
 	JsonDropIndexStatement,
 	JsonDropIndPolicyStatement,
@@ -1365,6 +1367,44 @@ class AlterPgSequenceConvertor extends Convertor {
 		}${maxValue ? ` MAXVALUE ${maxValue}` : ''}${startWith ? ` START WITH ${startWith}` : ''}${
 			cache ? ` CACHE ${cache}` : ''
 		}${cycle ? ` CYCLE` : ''};`;
+	}
+}
+
+class CreateDomainConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'create_domain';
+	}
+
+	convert(st: JsonCreateDomainStatement): string {
+		const { name, schema, baseType, notNull, defaultValue, constraint } = st;
+		const domainNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+		let statement = `CREATE DOMAIN ${domainNameWithSchema} AS ${baseType}`;
+
+		if (notNull) {
+			statement += ' NOT NULL';
+		}
+
+		if (defaultValue) {
+			statement += ` DEFAULT ${defaultValue}`;
+		}
+
+		if (constraint) {
+			statement += ` CONSTRAINT ${constraint}`;
+		}
+		statement += ';';
+		return statement;
+	}
+}
+
+class DropDomainConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'drop_domain';
+	}
+
+	convert(st: JsonDropDomainStatement): string {
+		const { name, schema } = st;
+		const domainNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+		return `DROP DOMAIN ${domainNameWithSchema};`;
 	}
 }
 
@@ -3900,6 +3940,8 @@ convertors.push(new MySqlAlterViewConvertor());
 convertors.push(new SqliteCreateViewConvertor());
 convertors.push(new SqliteDropViewConvertor());
 
+convertors.push(new CreateDomainConvertor());
+convertors.push(new DropDomainConvertor());
 convertors.push(new CreateTypeEnumConvertor());
 convertors.push(new DropTypeEnumConvertor());
 convertors.push(new AlterTypeAddValueConvertor());
