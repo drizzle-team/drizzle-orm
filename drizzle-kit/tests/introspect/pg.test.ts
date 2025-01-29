@@ -302,6 +302,7 @@ test('instrospect all column array types', async () => {
 			real: real('real').array().default([100, 200]),
 			json: json('json').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
+			jsonb_array: jsonb('jsonb_array').$type<{ attr: string }>().array().default(sql`array['{ "attr": "value1" }', '{ "attr": "value2" }']::jsonb[]`),
 			time: time('time').array().default(['00:00:00', '01:00:00']),
 			timestamp: timestamp('timestamp', { withTimezone: true, precision: 6 })
 				.array()
