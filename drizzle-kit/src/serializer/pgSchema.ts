@@ -436,7 +436,10 @@ export const pgSchemaInternalV7 = object({
 	tables: record(string(), tableV7),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
-	sequences: record(string(), sequenceSchema),
+	views: record(string(), view).default({}),
+	sequences: record(string(), sequenceSchema).default({}),
+	roles: record(string(), roleSchema).default({}),
+	policies: record(string(), policy).default({}),
 	_meta: object({
 		schemas: record(string(), string()),
 		tables: record(string(), string()),
@@ -446,7 +449,7 @@ export const pgSchemaInternalV7 = object({
 }).strict();
 
 export const pgSchemaInternal = object({
-	version: literal('7'),
+	version: literal('8'),
 	dialect: literal('postgresql'),
 	tables: record(string(), table),
 	enums: record(string(), enumSchema),
@@ -554,6 +557,7 @@ export type PgSchemaV3 = TypeOf<typeof pgSchemaV3>;
 export type PgSchemaV4 = TypeOf<typeof pgSchemaV4>;
 export type PgSchemaV5 = TypeOf<typeof pgSchemaV5>;
 export type PgSchemaV6 = TypeOf<typeof pgSchemaV6>;
+export type PgSchemaV7 = TypeOf<typeof pgSchemaV7>;
 
 export const backwardCompatiblePgSchema = union([
 	pgSchemaV5,
