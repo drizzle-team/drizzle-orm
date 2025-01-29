@@ -1,10 +1,13 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import { aliasedTable, eq } from '~/index.ts';
+import { eq } from '~/index.ts';
 import { drizzle as sqlited } from '~/libsql/index.ts';
+import { alias as mysqlAliasFn } from '~/mysql-core/alias.ts';
 import { mysqlView } from '~/mysql-core/view.ts';
 import { drizzle as mysqld } from '~/mysql2/index.ts';
+import { alias as pgAliasFn } from '~/pg-core/alias.ts';
 import { pgView } from '~/pg-core/view.ts';
 import { drizzle as pgd } from '~/postgres-js/index.ts';
+import { alias as sqliteAliasFn } from '~/sqlite-core/alias.ts';
 import { sqliteView } from '~/sqlite-core/view.ts';
 import { users as mysqlUsers } from '../mysql/tables.ts';
 import { users as pgUsers } from '../pg/tables.ts';
@@ -18,13 +21,13 @@ const pgvUsers = pgView('users_view').as((qb) => qb.select().from(pgUsers));
 const sqlitevUsers = sqliteView('users_view').as((qb) => qb.select().from(sqliteUsers));
 const mysqlvUsers = mysqlView('users_view').as((qb) => qb.select().from(mysqlUsers));
 
-const pgAlias = aliasedTable(pgUsers, 'usersAlias');
-const sqliteAlias = aliasedTable(sqliteUsers, 'usersAlias');
-const mysqlAlias = aliasedTable(mysqlUsers, 'usersAlias');
+const pgAlias = pgAliasFn(pgUsers, 'usersAlias');
+const sqliteAlias = sqliteAliasFn(sqliteUsers, 'usersAlias');
+const mysqlAlias = mysqlAliasFn(mysqlUsers, 'usersAlias');
 
-const pgvAlias = aliasedTable(pgvUsers, 'usersvAlias');
-const sqlitevAlias = aliasedTable(sqlitevUsers, 'usersvAlias');
-const mysqlvAlias = aliasedTable(mysqlvUsers, 'usersvAlias');
+const pgvAlias = pgAliasFn(pgvUsers, 'usersvAlias');
+const sqlitevAlias = sqliteAliasFn(sqlitevUsers, 'usersvAlias');
+const mysqlvAlias = mysqlAliasFn(mysqlvUsers, 'usersvAlias');
 
 const pgRes = await pg.select().from(pgUsers).leftJoin(pgAlias, eq(pgAlias.id, pgUsers.id));
 const sqliteRes = await sqlite.select().from(sqliteUsers).leftJoin(sqliteAlias, eq(sqliteAlias.id, sqliteUsers.id));
