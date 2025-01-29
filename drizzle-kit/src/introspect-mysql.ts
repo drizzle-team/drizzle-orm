@@ -915,7 +915,7 @@ const createTableIndexes = (
 
 		idxKey = casing(idxKey);
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `"${it.name}")`;
 		statement += `.on(${
