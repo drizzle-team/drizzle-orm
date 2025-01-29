@@ -25,7 +25,7 @@ import { SQLiteCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
-import type { WithBuilder, WithSubqueryWithSelection } from './subquery.ts';
+import type { WithBuilder } from './subquery.ts';
 import type { SQLiteViewBase } from './view-base.ts';
 
 export class BaseSQLiteDatabase<

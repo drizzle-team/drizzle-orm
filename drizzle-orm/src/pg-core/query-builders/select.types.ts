@@ -98,7 +98,7 @@ export type PgSelectJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends Table ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 					: never,
 				T['_']['selectMode']
 			>,
