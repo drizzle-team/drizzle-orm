@@ -109,11 +109,21 @@ export const identityColumnsTable = schema.table('identity_columns_table', {
 	name: text(),
 });
 
-export const user = schema.table(
-	'user',
+export const users = schema.table(
+	'users',
 	{
 		id: serial().primaryKey(),
 		name: text(),
-		invitedBy: integer().references((): AnyPgColumn => user.id),
+		invitedBy: integer().references((): AnyPgColumn => users.id),
+	},
+);
+
+export const posts = schema.table(
+	'posts',
+	{
+		id: serial().primaryKey(),
+		name: text(),
+		content: text(),
+		userId: integer().references(() => users.id),
 	},
 );
