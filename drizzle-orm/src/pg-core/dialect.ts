@@ -82,7 +82,12 @@ export class PgDialect {
 				created_at bigint
 			)
 		`;
-		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+		const schemaRows = await session.all(
+			sql`select 1 from information_schema.schemata where schema_name = ${migrationsSchema} limit 1`
+		);
+		if (schemaRows.length === 0) {
+			await session.execute(sql`CREATE SCHEMA ${sql.identifier(migrationsSchema)}`);
+		}
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
