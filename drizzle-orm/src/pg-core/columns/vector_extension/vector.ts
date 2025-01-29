@@ -1,7 +1,8 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
+import { Placeholder, SQL } from '~/sql/sql.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
@@ -52,7 +53,7 @@ export class PgVector<T extends ColumnBaseConfig<'array', 'PgVector'> & { dimens
 	}
 
 	override mapToDriverValue(value: unknown): unknown {
-		return JSON.stringify(value);
+		return is(value, SQL) || is(value, Placeholder) ? value : JSON.stringify(value);
 	}
 
 	override mapFromDriverValue(value: string): unknown {
