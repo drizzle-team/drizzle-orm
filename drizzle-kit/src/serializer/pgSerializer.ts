@@ -920,7 +920,7 @@ export const generatePgSnapshot = (
 	);
 
 	return {
-		version: '7',
+		version: '8',
 		dialect: 'postgresql',
 		tables: result,
 		domains: domainsToReturn,
@@ -1995,7 +1995,7 @@ WHERE
 	const schemasObject = Object.fromEntries([...schemas].map((it) => [it, it]));
 
 	return {
-		version: '7',
+		version: '8',
 		dialect: 'postgresql',
 		tables: result,
 		domains: domainsToReturn,
