@@ -208,7 +208,7 @@ export const migrate = command({
 
 const optionsFilters = {
 	tablesFilter: string().desc('Table name filters'),
-	schemaFilters: string().desc('Schema name filters'),
+	schemaFilter: string().desc('Schema name filters'),
 	extensionsFilters: string().desc(
 		'`Database extensions internal database filters',
 	),
@@ -264,7 +264,7 @@ export const push = command({
 				'database',
 				'ssl',
 				'authToken',
-				'schemaFilters',
+				'schemaFilter',
 				'extensionsFilters',
 				'tablesFilter',
 				'casing',
@@ -466,7 +466,7 @@ export const pull = command({
 				'casing',
 				'breakpoints',
 				'tablesFilter',
-				'schemaFilters',
+				'schemaFilter',
 				'extensionsFilters',
 			],
 		);
