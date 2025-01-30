@@ -118,7 +118,7 @@ export interface JsonAlterDomainStatement extends JsonDomainStatement {
 	defaultValue?: string;
 }
 
-export interface JsonDropDomainStatement extends JsonDomainStatement{
+export interface JsonDropDomainStatement extends JsonDomainStatement {
 	type: 'drop_domain';
 }
 
@@ -1035,37 +1035,40 @@ export const prepareRenameTableJson = (
 	};
 };
 
-export const prepareCreateDomainJson = (
-	name: string,
-	schema: string,
-	baseType: string,
-	notNull: boolean | undefined,
-	defaultValue: string | undefined,
-	constraint: string | undefined,
-	constraintName: string | undefined,
-): JsonCreateDomainStatement => {
-	return {
-		type: 'create_domain',
-		name: name,
-		schema: schema,
-		baseType,
-		notNull,
-		defaultValue,
-		constraint,
-		constraintName,
-	};
-};
+export const prepareCreateDomainJson = ({
+	name,
+	schema,
+	baseType,
+	notNull,
+	defaultValue,
+	constraint,
+	constraintName,
+}: {
+	name: string;
+	schema: string;
+	baseType: string;
+	notNull?: boolean;
+	defaultValue?: string;
+	constraint?: string;
+	constraintName?: string;
+}): JsonCreateDomainStatement => ({
+	type: 'create_domain',
+	name,
+	schema,
+	baseType,
+	notNull,
+	defaultValue,
+	constraint,
+	constraintName,
+});
 
 export const prepareDropDomainJson = (
-	name: string,
-	schema: string,
-): JsonDropDomainStatement => {
-	return {
-		type: 'drop_domain',
-		name: name,
-		schema: schema,
-	};
-};
+	{ name, schema }: { name: string; schema: string },
+): JsonDropDomainStatement => ({
+	type: 'drop_domain',
+	name,
+	schema,
+});
 
 export const prepareAlterDomainAddConstraintJson = (
 	name: string,

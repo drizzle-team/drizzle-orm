@@ -1749,80 +1749,51 @@ export const applyPgSnapshotsDiff = async (
 	// - create table with generated
 	// - alter - should be not triggered, but should get warning
 
-	const createDomains = createdDomains.map((it) => {
-		return prepareCreateDomainJson(
-			it.name,
-			it.schema,
-			it.baseType,
-			it.notNull,
-			it.defaultValue,
-			it.constraint,
-			it.constraintName,
-		);
-	}) ?? [];
+	const createDomains = createdDomains.map(prepareCreateDomainJson);
+	const dropDomains = deletedDomains.map(prepareDropDomainJson);
 
-	const dropDomains = deletedDomains.map((it) => {
-		return prepareDropDomainJson(it.name, it.schema);
-	});
-
-	const alterDomains = typedResult.alteredDomains.flatMap((it) => {
-		const oldDomain = json1.domains[`${it.schema}.${it.name}`];
-		const newDomain = json2.domains[`${it.schema}.${it.name}`];
+	const alterDomains = typedResult.alteredDomains.flatMap(({ schema, name }) => {
+		const oldDomain = json1.domains[`${schema}.${name}`];
+		const newDomain = json2.domains[`${schema}.${name}`];
 
 		const statements: JsonStatement[] = [];
 
 		// Handle constraint changes
-		if ((oldDomain?.constraint ?? null) !== (newDomain?.constraint ?? null)) {
-			if (oldDomain?.constraint && !newDomain?.constraint) {
-				// Dropping an existing constraint
-				statements.push(
-					prepareAlterDomainDropConstraintJson(it.name, it.schema, oldDomain.constraintName!),
-				);
-			} else if (!oldDomain?.constraint && newDomain?.constraint) {
-				// Adding a new constraint
-				statements.push(
-					prepareAlterDomainAddConstraintJson(it.name, it.schema, newDomain.constraint, newDomain.constraintName!),
-				);
-			} else if (oldDomain?.constraint && newDomain?.constraint) {
-				// Altering an existing constraint (drop and re-add)
-				statements.push(
-					prepareAlterDomainDropConstraintJson(it.name, it.schema, oldDomain.constraintName!),
-				);
-				statements.push(
-					prepareAlterDomainAddConstraintJson(it.name, it.schema, newDomain.constraint, newDomain.constraintName!),
-				);
+		const handleConstraintChange = () => {
+			const oldConstraint = oldDomain?.constraint ?? null;
+			const newConstraint = newDomain?.constraint ?? null;
+
+			if (oldConstraint === newConstraint) return;
+
+			if (oldConstraint) {
+				statements.push(prepareAlterDomainDropConstraintJson(name, schema, oldDomain!.constraintName!));
 			}
-		}
-
-		// Handle optional notNull using optional chaining and nullish coalescing
-		if ((oldDomain?.notNull ?? false) !== (newDomain?.notNull ?? false)) {
-			if (!newDomain?.notNull) {
-				statements.push(
-					prepareAlterDomainDropNotNullJson(it.name, it.schema),
-				);
-			} else {
-				statements.push(
-					prepareAlterDomainSetNotNullJson(it.name, it.schema),
-				);
+			if (newConstraint) {
+				statements.push(prepareAlterDomainAddConstraintJson(name, schema, newConstraint, newDomain!.constraintName!));
 			}
-		}
+		};
 
-		// Handle optional defaultValue using optional chaining and nullish coalescing
-		if ((oldDomain?.defaultValue ?? null) !== (newDomain?.defaultValue ?? null)) {
-			if (oldDomain?.defaultValue && !newDomain?.defaultValue) {
-				statements.push(
-					prepareAlterDomainDropDefaultJson(it.name, it.schema),
-				);
-			} else if (!oldDomain?.defaultValue && newDomain?.defaultValue) {
-				statements.push(
-					prepareAlterDomainSetDefaultJson(it.name, it.schema, newDomain.defaultValue),
-				);
-			}
-		}
+		// Handle optional nullable changes
+		const handleBooleanChange = (key: 'notNull', dropFn: Function, setFn: Function) => {
+			const oldValue = oldDomain?.[key] ?? false;
+			const newValue = newDomain?.[key] ?? false;
 
-		console.log('altered domains');
-		console.log(statements);
+			if (oldValue === newValue) return;
+			statements.push(newValue ? setFn(name, schema) : dropFn(name, schema));
+		};
 
+		// Handle optional value changes
+		const handleValueChange = (key: 'defaultValue', dropFn: Function, setFn: Function) => {
+			const oldValue = oldDomain?.[key] ?? null;
+			const newValue = newDomain?.[key] ?? null;
+
+			if (oldValue === newValue) return;
+			statements.push(newValue ? setFn(name, schema, newValue) : dropFn(name, schema));
+		};
+
+		handleConstraintChange();
+		handleBooleanChange('notNull', prepareAlterDomainDropNotNullJson, prepareAlterDomainSetNotNullJson);
+		handleValueChange('defaultValue', prepareAlterDomainDropDefaultJson, prepareAlterDomainSetDefaultJson);
 		return statements;
 	});
 
