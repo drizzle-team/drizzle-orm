@@ -864,7 +864,7 @@ WHERE
 	const checkConstraints: Record<string, CheckConstraint> = {};
 	const checks = await db.query<{ tableName: string; sql: string }>(`SELECT name as "tableName", sql as "sql"
 		FROM sqlite_master 
-		WHERE type = 'table' AND name != 'sqlite_sequence';`);
+		WHERE type = 'table' AND name != 'sqlite_sequence' and name != '_cf_KV';`);
 	for (const check of checks) {
 		if (!tablesFilter(check.tableName)) continue;
 
