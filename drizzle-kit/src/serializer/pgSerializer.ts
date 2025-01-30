@@ -24,6 +24,7 @@ import { CasingType } from 'src/cli/validations/common';
 import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
+import { snapshotVersion } from '../global';
 import type {
 	CheckConstraint,
 	Column,
@@ -931,7 +932,7 @@ export const generatePgSnapshot = (
 	);
 
 	return {
-		version: '8',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		tables: result,
 		domains: domainsToReturn,
@@ -2007,7 +2008,7 @@ WHERE
 	const schemasObject = Object.fromEntries([...schemas].map((it) => [it, it]));
 
 	return {
-		version: '8',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		tables: result,
 		domains: domainsToReturn,

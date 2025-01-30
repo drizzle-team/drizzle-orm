@@ -45,6 +45,7 @@ import { logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn } from 's
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { Entities } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
+import { snapshotVersion } from 'src/global';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
 import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
@@ -1115,7 +1116,7 @@ export const diffTestSchemasPush = async (
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
 
 	const sch1 = {
-		version: '8',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1123,7 +1124,7 @@ export const diffTestSchemasPush = async (
 	} as const;
 
 	const sch2 = {
-		version: '8',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1213,7 +1214,7 @@ export const applyPgDiffs = async (
 	casing: CasingType | undefined,
 ) => {
 	const dryRun = {
-		version: '8',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1266,7 +1267,7 @@ export const applyPgDiffs = async (
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
 	const sch1 = {
-		version: '8',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1369,7 +1370,7 @@ export const diffTestSchemas = async (
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
 
 	const sch1 = {
-		version: '8',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1377,7 +1378,7 @@ export const diffTestSchemas = async (
 	} as const;
 
 	const sch2 = {
-		version: '8',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -2424,7 +2425,7 @@ export const introspectPgToFile = async (
 	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
 
 	const initSch = {
-		version: '8',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -2460,7 +2461,7 @@ export const introspectPgToFile = async (
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 
 	const sch2 = {
-		version: '8',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',

@@ -450,7 +450,7 @@ export const pgSchemaInternalV7 = object({
 }).strict();
 
 export const pgSchemaInternal = object({
-	version: literal('8'),
+	version: literal(snapshotVersion),
 	dialect: literal('postgresql'),
 	tables: record(string(), table),
 	enums: record(string(), enumSchema),
@@ -518,7 +518,7 @@ export const pgSchemaSquashedV7 = object({
 }).strict();
 
 export const pgSchemaSquashed = object({
-	version: literal('8'),
+	version: literal(snapshotVersion),
 	dialect: literal('postgresql'),
 	tables: record(string(), tableSquashed),
 	domains: record(string(), domainSchema),
@@ -886,7 +886,7 @@ export const squashPgScheme = (
 	);
 
 	return {
-		version: '8',
+		version: snapshotVersion,
 		dialect: json.dialect,
 		tables: mappedTables,
 		domains: json.domains,

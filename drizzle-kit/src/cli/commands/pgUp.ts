@@ -73,7 +73,6 @@ export const updateUpToV6 = (json: Record<string, any>): PgSchemaV6 => {
 	};
 };
 
-// Changed index format stored in snapshot for PostgreSQL in 0.22.0
 export const updateUpToV7 = (json: Record<string, any>): PgSchemaV7 => {
 	const schema = pgSchemaV6.parse(json);
 	const tables = Object.fromEntries(
