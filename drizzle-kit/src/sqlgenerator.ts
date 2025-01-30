@@ -1007,7 +1007,7 @@ class PgAlterTableAlterColumnSetGenerated extends Convertor {
 	override convert(
 		statement: JsonAlterColumnSetIdentityStatement,
 	): string | string[] {
-		const { identity, tableName, columnName, schema } = statement;
+		const { identity, tableName, columnName, schema, changedSerialToIntegerIdentity } = statement;
 
 		const tableNameWithSchema = schema
 			? `"${schema}"."${tableName}"`
@@ -1042,6 +1042,17 @@ class PgAlterTableAlterColumnSetGenerated extends Convertor {
 				unsquashedIdentity.cycle ? ` CYCLE` : ''
 			})`
 			: '';
+
+		const statementSql = `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" ADD${identityStatement};`;
+
+		if (changedSerialToIntegerIdentity) {
+			const getSerialStatement = `pg_get_serial_sequence('${schema ? `${schema}.` : ''}${tableName}', '${columnName}')`;
+			const coalesceStatement = `coalesce(max("${columnName}"), 0) + 1`;
+			return [
+				statementSql,
+				`SELECT setval(${getSerialStatement}, ${coalesceStatement}, false) FROM ${tableNameWithSchema};`,
+			];
+		}
 
 		return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" ADD${identityStatement};`;
 	}
@@ -1878,11 +1889,25 @@ class PgAlterTableAlterColumnSetTypeConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterColumnTypeStatement) {
-		const { tableName, columnName, newDataType, schema } = statement;
+		const { tableName, columnName, newDataType, schema, oldDataType, identity } = statement;
 
 		const tableNameWithSchema = schema
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
+
+		// Switching from serial data type to using integer generated always as identity
+		if (oldDataType === 'serial' && newDataType === 'integer' && identity?.type === 'added') {
+			const unsquashedIdentity = PgSquasher.unsquashIdentity(identity.value);
+
+			const identityWithSchema = schema
+				? `"${schema}"."${unsquashedIdentity?.name}"`
+				: `"${unsquashedIdentity?.name}"`;
+
+			return [
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" DROP DEFAULT;`,
+				`DROP SEQUENCE ${identityWithSchema};`,
+			];
+		}
 
 		return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${newDataType};`;
 	}

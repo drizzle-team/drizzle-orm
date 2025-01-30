@@ -470,6 +470,17 @@ export interface JsonAlterColumnTypeStatement {
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
 	columnGenerated?: { as: string; type: 'stored' | 'virtual' };
+	identity?: {
+		type: 'added';
+		value: string;
+	} | {
+		type: 'deleted';
+		value: string;
+	} | {
+		type: 'changed';
+		old: string;
+		new: string;
+	} | undefined;
 }
 
 export interface JsonAlterColumnSetPrimaryKeyStatement {
@@ -558,6 +569,7 @@ export interface JsonAlterColumnSetIdentityStatement {
 	columnName: string;
 	schema: string;
 	identity: string;
+	changedSerialToIntegerIdentity: boolean;
 }
 
 export interface JsonAlterColumnDropIdentityStatement {
@@ -2100,6 +2112,7 @@ export const preparePgAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				identity: column.identity,
 			});
 		}
 
@@ -2219,6 +2232,8 @@ export const preparePgAlterColumns = (
 				columnName,
 				schema,
 				identity: column.identity.value,
+				changedSerialToIntegerIdentity: column.type?.type === 'changed' && column.type.old === 'serial'
+					&& column.type.new === 'integer' && column.identity.type === 'added',
 			});
 		}
 
