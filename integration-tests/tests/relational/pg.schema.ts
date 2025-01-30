@@ -1,4 +1,14 @@
-import { boolean, integer, type PgColumn, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+	boolean,
+	integer,
+	numeric,
+	type PgColumn,
+	pgTable,
+	primaryKey,
+	serial,
+	text,
+	timestamp,
+} from 'drizzle-orm/pg-core';
 
 import { relations } from 'drizzle-orm';
 
@@ -13,6 +23,7 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	invitee: one(usersTable, { fields: [usersTable.invitedBy], references: [usersTable.id] }),
 	usersToGroups: many(usersToGroupsTable),
 	posts: many(postsTable),
+	wallet: one(walletTable, { fields: [usersTable.id], references: [walletTable.userId] }),
 }));
 
 export const groupsTable = pgTable('groups', {
@@ -74,4 +85,14 @@ export const commentLikesTable = pgTable('comment_likes', {
 export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 	comment: one(commentsTable, { fields: [commentLikesTable.commentId], references: [commentsTable.id] }),
 	author: one(usersTable, { fields: [commentLikesTable.creator], references: [usersTable.id] }),
+}));
+
+export const walletTable = pgTable('wallet', {
+	id: serial('id').primaryKey(),
+	userId: integer('user_id').references(() => usersTable.id),
+	balance: numeric('balance', { precision: 10, scale: 2 }).notNull(),
+});
+
+export const walletConfig = relations(walletTable, ({ one }) => ({
+	user: one(usersTable, { fields: [walletTable.userId], references: [usersTable.id] }),
 }));
