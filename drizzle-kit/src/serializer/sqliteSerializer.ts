@@ -91,6 +91,8 @@ export const generateSqliteSnapshot = (
 				} else {
 					columnToSet.default = typeof column.default === 'string'
 						? `'${escapeSingleQuotes(column.default)}'`
+						: typeof column.default === 'bigint'
+						? column.default.toString()
 						: typeof column.default === 'object'
 								|| Array.isArray(column.default)
 						? `'${JSON.stringify(column.default)}'`
@@ -378,6 +380,8 @@ export const generateSqliteSnapshot = (
 					} else {
 						columnToSet.default = typeof column.default === 'string'
 							? `'${column.default}'`
+							: typeof column.default === 'bigint'
+							? column.default.toString()
 							: typeof column.default === 'object'
 									|| Array.isArray(column.default)
 							? `'${JSON.stringify(column.default)}'`

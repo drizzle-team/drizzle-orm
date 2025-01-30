@@ -167,6 +167,8 @@ export const generateMySqlSnapshot = (
 										.slice(0, 23)
 								}'`;
 							}
+						} else if (typeof column.default === 'bigint') {
+							columnToSet.default = column.default.toString();
 						} else {
 							columnToSet.default = column.default;
 						}
@@ -486,6 +488,8 @@ export const generateMySqlSnapshot = (
 					} else {
 						if (typeof column.default === 'string') {
 							columnToSet.default = `'${column.default}'`;
+						} else if (typeof column.default === 'bigint') {
+							columnToSet.default = column.default.toString();
 						} else {
 							if (sqlTypeLowered === 'json') {
 								columnToSet.default = `'${JSON.stringify(column.default)}'`;
