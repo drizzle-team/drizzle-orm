@@ -25,7 +25,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/sqliteSchema';
-import { escapeSingleQuotes, type SQLiteDB } from '../utils';
+import { escapeSingleQuotes, replaceQueryParams, type SQLiteDB } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const generateSqliteSnapshot = (
@@ -309,7 +309,7 @@ export const generateSqliteSnapshot = (
 
 			checkConstraintObject[checkName] = {
 				name: checkName,
-				value: dialect.sqlToQuery(check.value).sql,
+				value: replaceQueryParams('sqlite', dialect.sqlToQuery(check.value)),
 			};
 		});
 

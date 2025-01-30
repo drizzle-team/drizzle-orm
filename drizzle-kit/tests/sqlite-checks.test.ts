@@ -306,3 +306,33 @@ test('create checks with same names', async (t) => {
 
 	await expect(diffTestSchemasSqlite({}, to, [])).rejects.toThrowError();
 });
+
+test('check with param', async (t) => {
+	const from = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey(),
+			age: int('age'),
+		}),
+	};
+
+	const to = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey(),
+			age: int('age'),
+		}, (table) => [
+			check('name', sql`${table.age} > ${21}`),
+		]),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n\t`id` integer PRIMARY KEY NOT NULL,\n\t`age` integer,\n\tCONSTRAINT "name" CHECK("__new_users"."age" > 21)\n);\n',
+		'INSERT INTO `__new_users`("id", "age") SELECT "id", "age" FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
+});

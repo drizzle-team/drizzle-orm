@@ -39,7 +39,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/pgSchema';
-import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
+import { type DB, escapeSingleQuotes, isPgArrayType, replaceQueryParams } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
@@ -559,7 +559,7 @@ export const generatePgSnapshot = (
 
 			checksObject[checkName] = {
 				name: checkName,
-				value: dialect.sqlToQuery(check.value).sql,
+				value: replaceQueryParams('postgresql', dialect.sqlToQuery(check.value)),
 			};
 		});
 

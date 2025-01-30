@@ -26,7 +26,7 @@ import {
 	UniqueConstraint,
 	View,
 } from '../serializer/mysqlSchema';
-import { type DB, escapeSingleQuotes } from '../utils';
+import { type DB, escapeSingleQuotes, replaceQueryParams } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
@@ -399,7 +399,7 @@ export const generateMySqlSnapshot = (
 
 			checkConstraintObject[checkName] = {
 				name: checkName,
-				value: dialect.sqlToQuery(check.value).sql,
+				value: replaceQueryParams('mysql', dialect.sqlToQuery(check.value)),
 			};
 		});
 
