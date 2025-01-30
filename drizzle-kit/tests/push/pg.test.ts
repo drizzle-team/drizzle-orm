@@ -4339,3 +4339,41 @@ test('alter inherit in role', async (t) => {
 		await client.query(st);
 	}
 });
+
+test('switch serial to integer generated always as identity', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		table: pgTable('table', {
+			id: integer('id').generatedAlwaysAsIdentity().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" ALTER COLUMN "id" DROP DEFAULT;',
+		'DROP SEQUENCE "table_id_seq";',
+		'ALTER TABLE "table" ALTER COLUMN "id" ADD GENERATED ALWAYS AS IDENTITY (sequence name "table_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
+		'SELECT setval(pg_get_serial_sequence(\'table\', \'id\'), coalesce(max("id"), 0) + 1, false) FROM "table";',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
