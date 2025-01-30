@@ -998,8 +998,11 @@ JOIN
     pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 WHERE 
 	c.relkind IN ('r', 'v', 'm') 
-    ${where === '' ? '' : ` AND ${where}`};`,
-	);
+    ${where === '' ? '' : ` AND ${where}`}
+ORDER BY
+  table_schema ASC,
+  table_name ASC;
+`);
 
 	const schemas = new Set(allTables.map((it) => it.table_schema));
 	schemas.delete('public');
