@@ -108,6 +108,7 @@ export const prepareOutFolder = (out: string, dialect: Dialect) => {
 
 	const snapshots = readdirSync(meta)
 		.filter((it) => !it.startsWith('_'))
+		.filter((it) => it.endsWith('.json'))
 		.map((it) => join(meta, it));
 
 	snapshots.sort();
