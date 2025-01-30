@@ -93,6 +93,7 @@ import { escapeSingleQuotes } from './utils';
 
 const parseType = (schemaPrefix: string, type: string) => {
 	const pgNativeTypes = [
+		'bit',
 		'uuid',
 		'smallint',
 		'integer',

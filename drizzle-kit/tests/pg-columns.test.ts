@@ -1,4 +1,4 @@
-import { integer, pgTable, primaryKey, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
+import { bit, integer, pgTable, primaryKey, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
@@ -480,5 +480,23 @@ test('varchar and text default values escape single quotes', async (t) => {
 	);
 	expect(sqlStatements[1]).toStrictEqual(
 		'ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT \'escape\'\'s quotes\';',
+	);
+});
+
+test('bit type', async (t) => {
+	const schema1 = {};
+
+	const schema2 = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			bit: bit('bit', { dimensions: 10 }),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toStrictEqual(
+		'CREATE TABLE "table" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"bit" bit(10)\n);\n',
 	);
 });
