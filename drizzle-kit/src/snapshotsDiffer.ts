@@ -662,9 +662,6 @@ export const applyPgSnapshotsDiff = async (
 
 	const domainsDiff = diffSchemasOrTables(json1.domains, json2.domains);
 
-	console.log('domains diff');
-	console.log(domainsDiff);
-
 	const {
 		created: createdDomains,
 		deleted: deletedDomains,
@@ -674,9 +671,6 @@ export const applyPgSnapshotsDiff = async (
 		created: domainsDiff.added,
 		deleted: domainsDiff.deleted,
 	});
-
-	console.log('created domains');
-	console.log(createdDomains);
 
 	const enumsDiff = diffSchemasOrTables(schemasPatchedSnap1.enums, json2.enums);
 
@@ -2171,9 +2165,6 @@ export const applyPgSnapshotsDiff = async (
 	});
 
 	const sqlStatements = fromJson(filteredEnumsJsonStatements, 'postgresql', action);
-
-	console.log('sqlStatements');
-	console.log(sqlStatements);
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {
