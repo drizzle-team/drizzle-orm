@@ -871,7 +871,15 @@ export const generatePgSnapshot = (
 
 	const domainsToReturn: Record<
 		string,
-		{ name: string; schema: string; notNull: boolean; baseType: string; defaultValue?: string; constraint?: string, constraintName?: string }
+		{
+			name: string;
+			schema: string;
+			notNull: boolean;
+			baseType: string;
+			defaultValue?: string;
+			constraint?: string;
+			constraintName?: string;
+		}
 	> = domains.reduce<{
 		[key: string]: {
 			name: string;

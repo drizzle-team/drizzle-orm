@@ -19,7 +19,8 @@ import {
 	JsonAlterColumnSetOnUpdateStatement,
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
-	JsonAlterCompositePK, JsonAlterDomainStatement,
+	JsonAlterCompositePK,
+	JsonAlterDomainStatement,
 	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
@@ -1424,7 +1425,7 @@ class AlterDomainConvertor extends Convertor {
 				break;
 			case 'drop_constraint':
 				statement += ` DROP CONSTRAINT ${constraintName}`; // Use the explicit constraint name
-				console.log(`dropping constraint named ${constraintName}`)
+				console.log(`dropping constraint named ${constraintName}`);
 				break;
 			case 'set_not_null':
 				statement += ` SET NOT NULL`;
@@ -1446,7 +1447,6 @@ class AlterDomainConvertor extends Convertor {
 		return statement;
 	}
 }
-
 
 class CreateTypeEnumConvertor extends Convertor {
 	can(statement: JsonStatement): boolean {

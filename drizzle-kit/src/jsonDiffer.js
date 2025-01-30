@@ -271,7 +271,7 @@ export function applyJsonDiff(json1, json2) {
 			delete difference.tables[tableKey];
 		}
 	}
-	
+
 	const domainsEntries = Object.entries(difference.domains);
 	const alteredDomains = domainsEntries
 		.filter((it) => !(it[0].includes('__added') || it[0].includes('__deleted')))
@@ -284,8 +284,8 @@ export function applyJsonDiff(json1, json2) {
 			return { name, schema, baseType, notNull, defaultValue, constraint, constraintName };
 		}).filter(Boolean);
 
-	console.log('domain altered entries are')
-	console.log(alteredDomains)
+	console.log('domain altered entries are');
+	console.log(alteredDomains);
 
 	const enumsEntries = Object.entries(difference.enums);
 	const alteredEnums = enumsEntries

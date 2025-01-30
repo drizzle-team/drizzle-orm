@@ -64,9 +64,11 @@ import {
 	prepareAlterCompositePrimaryKeyPg,
 	prepareAlterCompositePrimaryKeySqlite,
 	prepareAlterDomainAddConstraintJson,
-	prepareAlterDomainDropConstraintJson, prepareAlterDomainDropDefaultJson,
+	prepareAlterDomainDropConstraintJson,
+	prepareAlterDomainDropDefaultJson,
 	prepareAlterDomainDropNotNullJson,
-	prepareAlterDomainSetDefaultJson, prepareAlterDomainSetNotNullJson,
+	prepareAlterDomainSetDefaultJson,
+	prepareAlterDomainSetNotNullJson,
 	prepareAlterIndPolicyJson,
 	prepareAlterPolicyJson,
 	prepareAlterReferencesJson,
@@ -1750,7 +1752,15 @@ export const applyPgSnapshotsDiff = async (
 	// - alter - should be not triggered, but should get warning
 
 	const createDomains = createdDomains.map((it) => {
-		return prepareCreateDomainJson(it.name, it.schema, it.baseType, it.notNull, it.defaultValue, it.constraint, it.constraintName);
+		return prepareCreateDomainJson(
+			it.name,
+			it.schema,
+			it.baseType,
+			it.notNull,
+			it.defaultValue,
+			it.constraint,
+			it.constraintName,
+		);
 	}) ?? [];
 
 	console.log('createDomains');
@@ -1774,9 +1784,9 @@ export const applyPgSnapshotsDiff = async (
 
 		const statements: JsonStatement[] = [];
 
-		console.log('about to do some sorting')
+		console.log('about to do some sorting');
 		console.log(it);
-		console.log('the jsons')
+		console.log('the jsons');
 		console.log(json1);
 		console.log(json2);
 

@@ -16,10 +16,10 @@ test('domains #1 create domain simple', async () => {
 	expect(sqlStatements[0]).toBe(`CREATE DOMAIN "public"."domain" AS text;`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: "create_domain",
-		name: "domain",
-		schema: "public",
-		baseType: "text",
+		type: 'create_domain',
+		name: 'domain',
+		schema: 'public',
+		baseType: 'text',
 		constraint: undefined,
 		constraintName: undefined,
 		defaultValue: undefined,
@@ -30,7 +30,7 @@ test('domains #1 create domain simple', async () => {
 test('domains #2 create domain not null', async () => {
 	const folder = pgSchema('folder');
 	const to = {
-		domain: folder.domain('domain', 'varchar', {notNull: true}),
+		domain: folder.domain('domain', 'varchar', { notNull: true }),
 	};
 	console.log('printing to folder domain');
 	console.log(to);
@@ -131,8 +131,8 @@ test('domains #6 alter domain to add constraint', async () => {
 		domain: pgDomain('domain', 'text', {
 			constraintName: 'custom_check',
 			constraint: `CHECK (VALUE ~ \'^[A-Za-z]+\$')`,
-	}),
-};
+		}),
+	};
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
@@ -148,7 +148,7 @@ test('domains #6 alter domain to add constraint', async () => {
 		action: 'add_constraint',
 		constraintName: 'custom_check',
 		constraint: `CHECK (VALUE ~ \'^[A-Za-z]+\$')`,
-});
+	});
 });
 
 test('domains #7 alter domain to drop constraint', async () => {
@@ -156,8 +156,8 @@ test('domains #7 alter domain to drop constraint', async () => {
 		domain: pgDomain('domain', 'text', {
 			constraintName: 'domain_check',
 			constraint: `CHECK (VALUE ~ \'^[A-Za-z]+\$')`,
-	}),
-};
+		}),
+	};
 
 	const to = {
 		domain: pgDomain('domain', 'text'),
