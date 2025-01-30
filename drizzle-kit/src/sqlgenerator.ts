@@ -1371,14 +1371,20 @@ class AlterPgSequenceConvertor extends Convertor {
 	}
 }
 
-class CreateDomainConvertor extends Convertor {
+abstract class DomainConvertor extends Convertor {
+	protected getDomainNameWithSchema(name: string, schema?: string): string {
+		return schema ? `"${schema}"."${name}"` : `"${name}"`;
+	}
+}
+
+class CreateDomainConvertor extends DomainConvertor {
 	can(statement: JsonStatement): boolean {
 		return statement.type === 'create_domain';
 	}
 
 	convert(st: JsonCreateDomainStatement): string {
 		const { name, schema, baseType, notNull, defaultValue, constraint } = st;
-		const domainNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+		const domainNameWithSchema = this.getDomainNameWithSchema(name, schema);
 		let statement = `CREATE DOMAIN ${domainNameWithSchema} AS ${baseType}`;
 
 		if (notNull) {
@@ -1390,33 +1396,21 @@ class CreateDomainConvertor extends Convertor {
 		}
 
 		if (constraint) {
-			statement += ` ${constraint}`; // Add constraint directly
+			statement += ` ${constraint}`;
 		}
 		statement += ';';
 		return statement;
 	}
 }
 
-class DropDomainConvertor extends Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'drop_domain';
-	}
-
-	convert(st: JsonDropDomainStatement): string {
-		const { name, schema } = st;
-		const domainNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
-		return `DROP DOMAIN ${domainNameWithSchema} CASCADE;`;
-	}
-}
-
-class AlterDomainConvertor extends Convertor {
+class AlterDomainConvertor extends DomainConvertor {
 	can(statement: JsonStatement): boolean {
 		return statement.type === 'alter_domain';
 	}
 
 	convert(st: JsonAlterDomainStatement): string {
 		const { name, schema, action, constraintName, constraint, defaultValue } = st;
-		const domainNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+		const domainNameWithSchema = this.getDomainNameWithSchema(name, schema);
 		let statement = `ALTER DOMAIN ${domainNameWithSchema}`;
 
 		switch (action) {
@@ -1424,8 +1418,7 @@ class AlterDomainConvertor extends Convertor {
 				statement += ` ADD CONSTRAINT ${constraintName} ${constraint}`;
 				break;
 			case 'drop_constraint':
-				statement += ` DROP CONSTRAINT ${constraintName}`; // Use the explicit constraint name
-				console.log(`dropping constraint named ${constraintName}`);
+				statement += ` DROP CONSTRAINT ${constraintName}`;
 				break;
 			case 'set_not_null':
 				statement += ` SET NOT NULL`;
@@ -1445,6 +1438,18 @@ class AlterDomainConvertor extends Convertor {
 
 		statement += ';';
 		return statement;
+	}
+}
+
+class DropDomainConvertor extends DomainConvertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'drop_domain';
+	}
+
+	convert(st: JsonDropDomainStatement): string {
+		const { name, schema } = st;
+		const domainNameWithSchema = this.getDomainNameWithSchema(name, schema);
+		return `DROP DOMAIN ${domainNameWithSchema} CASCADE;`;
 	}
 }
 

@@ -133,7 +133,7 @@ export interface JsonAlterDomainStatement {
 	name: string;
 	schema: string;
 	action: 'add_constraint' | 'drop_constraint' | 'set_not_null' | 'drop_not_null' | 'set_default' | 'drop_default';
-	constraintName?: string; // Add a field for the constraint
+	constraintName?: string;
 	constraint?: string;
 	defaultValue?: string;
 }
