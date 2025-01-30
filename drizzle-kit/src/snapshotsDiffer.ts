@@ -102,7 +102,6 @@ import {
 	prepareDropViewJson,
 	prepareLibSQLCreateReferencesJson,
 	prepareLibSQLDropReferencesJson,
-	prepareMoveDomainJson,
 	prepareMoveEnumJson,
 	prepareMoveSequenceJson,
 	prepareMySqlAlterView,
@@ -118,7 +117,6 @@ import {
 	preparePgCreateTableJson,
 	preparePgCreateViewJson,
 	prepareRenameColumns,
-	prepareRenameDomainJson,
 	prepareRenameEnumJson,
 	prepareRenameIndPolicyJsons,
 	prepareRenamePolicyJsons,
@@ -1763,19 +1761,8 @@ export const applyPgSnapshotsDiff = async (
 		);
 	}) ?? [];
 
-	console.log('createDomains');
-	console.log(createDomains);
-
 	const dropDomains = deletedDomains.map((it) => {
 		return prepareDropDomainJson(it.name, it.schema);
-	});
-
-	const moveDomains = movedDomains.map((it) => {
-		return prepareMoveDomainJson(it.name, it.schemaFrom, it.schemaTo);
-	});
-
-	const renameDomains = renamedDomains.map((it) => {
-		return prepareRenameDomainJson(it.from.name, it.to.name, it.to.schema, []);
 	});
 
 	const alterDomains = typedResult.alteredDomains.flatMap((it) => {
@@ -1783,12 +1770,6 @@ export const applyPgSnapshotsDiff = async (
 		const newDomain = json2.domains[`${it.schema}.${it.name}`];
 
 		const statements: JsonStatement[] = [];
-
-		console.log('about to do some sorting');
-		console.log(it);
-		console.log('the jsons');
-		console.log(json1);
-		console.log(json2);
 
 		// Handle constraint changes
 		if ((oldDomain?.constraint ?? null) !== (newDomain?.constraint ?? null)) {
@@ -2095,8 +2076,6 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...renameSchemas);
 
 	jsonStatements.push(...createDomains);
-	jsonStatements.push(...moveDomains);
-	jsonStatements.push(...renameDomains);
 	jsonStatements.push(...alterDomains);
 
 	jsonStatements.push(...createEnums);

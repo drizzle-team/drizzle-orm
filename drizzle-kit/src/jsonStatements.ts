@@ -96,10 +96,13 @@ export interface JsonRenameTableStatement {
 	tableNameTo: string;
 }
 
-export interface JsonCreateDomainStatement {
-	type: 'create_domain';
+interface JsonDomainStatement {
 	name: string;
 	schema: string;
+}
+
+export interface JsonCreateDomainStatement extends JsonDomainStatement {
+	type: 'create_domain';
 	baseType: string;
 	notNull?: boolean;
 	defaultValue?: string;
@@ -107,35 +110,16 @@ export interface JsonCreateDomainStatement {
 	constraintName?: string;
 }
 
-export interface JsonDropDomainStatement {
-	type: 'drop_domain';
-	name: string;
-	schema: string;
-}
-
-export interface JsonMoveDomainStatement {
-	type: 'move_domain';
-	name: string;
-	schemaFrom: string;
-	schemaTo: string;
-}
-
-export interface JsonRenameDomainStatement {
-	type: 'rename_type_domain';
-	nameFrom: string;
-	nameTo: string;
-	schema: string;
-	columnsWithDomain: { schema: string; table: string; column: string }[];
-}
-
-export interface JsonAlterDomainStatement {
+export interface JsonAlterDomainStatement extends JsonDomainStatement {
 	type: 'alter_domain';
-	name: string;
-	schema: string;
 	action: 'add_constraint' | 'drop_constraint' | 'set_not_null' | 'drop_not_null' | 'set_default' | 'drop_default';
 	constraintName?: string;
 	constraint?: string;
 	defaultValue?: string;
+}
+
+export interface JsonDropDomainStatement extends JsonDomainStatement{
+	type: 'drop_domain';
 }
 
 export interface JsonCreateEnumStatement {
@@ -911,8 +895,6 @@ export type JsonStatement =
 	| JsonAlterIndPolicyStatement
 	| JsonCreateDomainStatement
 	| JsonDropDomainStatement
-	| JsonMoveDomainStatement
-	| JsonRenameDomainStatement
 	| JsonAlterDomainStatement;
 
 export const preparePgCreateTableJson = (
@@ -1082,34 +1064,6 @@ export const prepareDropDomainJson = (
 		type: 'drop_domain',
 		name: name,
 		schema: schema,
-	};
-};
-
-export const prepareMoveDomainJson = (
-	name: string,
-	schemaFrom: string,
-	schemaTo: string,
-): JsonMoveDomainStatement => {
-	return {
-		type: 'move_domain',
-		name: name,
-		schemaFrom,
-		schemaTo,
-	};
-};
-
-export const prepareRenameDomainJson = (
-	nameFrom: string,
-	nameTo: string,
-	schema: string,
-	columnsWithDomain: { schema: string; table: string; column: string }[],
-): JsonRenameDomainStatement => {
-	return {
-		type: 'rename_type_domain',
-		nameFrom,
-		nameTo,
-		schema,
-		columnsWithDomain,
 	};
 };
 

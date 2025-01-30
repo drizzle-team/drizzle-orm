@@ -4150,11 +4150,6 @@ export function fromJson(
 				return '';
 			}
 
-			console.log('about to convert');
-			console.log(statement);
-			console.log(json2);
-			console.log(action);
-
 			return convertor.convert(statement, json2, action);
 		})
 		.filter((it) => it !== '');
