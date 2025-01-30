@@ -871,7 +871,7 @@ export const generatePgSnapshot = (
 
 	const domainsToReturn: Record<
 		string,
-		{ name: string; schema: string; notNull: boolean; baseType: string; defaultValue?: string; constraint?: string }
+		{ name: string; schema: string; notNull: boolean; baseType: string; defaultValue?: string; constraint?: string, constraintName?: string }
 	> = domains.reduce<{
 		[key: string]: {
 			name: string;
@@ -880,16 +880,19 @@ export const generatePgSnapshot = (
 			baseType: string;
 			defaultValue?: string;
 			constraint?: string;
+			constraintName?: string;
 		};
 	}>((map, obj) => {
-		const domainSchema = obj.schema;
-		const key = `${domainSchema ?? 'public'}.${obj.domainName}`;
+		const domainSchema = obj.schema || 'public';
+		const key = `${domainSchema}.${obj.domainName}`;
 		map[key] = {
 			name: obj.domainName,
-			schema: domainSchema ?? 'public',
-			notNull: true, // You might need to adjust this depending on how you want to determine notNull
+			schema: domainSchema,
+			notNull: obj.notNull,
 			baseType: obj.domainType,
-			// You might need to adjust this depending on how you want to determine defaultValue and constraint
+			defaultValue: obj.defaultValue,
+			constraint: obj.constraint,
+			constraintName: obj.constraintName,
 		};
 		return map;
 	}, {});
@@ -1130,6 +1133,7 @@ WHERE
 			notNull: domain.not_null,
 			defaultValue: domain.default_value,
 			constraint: domain.domain_constraint,
+			constraintName: domain.constraint_name,
 		};
 	}
 

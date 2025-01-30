@@ -23,6 +23,10 @@ export interface PgDomain<TType extends string> {
 	readonly domainName: string;
 	readonly domainType: TType;
 	readonly schema: string | undefined;
+	readonly notNull: boolean;
+	readonly defaultValue?: string;
+	readonly constraint?: string;
+	readonly constraintName?: string;
 	/** @internal */
 	[isPgDomainSym]: true;
 }
@@ -69,6 +73,10 @@ export class PgDomainColumn<
 
 	readonly domain = this.config.domain;
 	readonly domainType = this.config.domain.domainType;
+	override readonly notNull = this.config.domain.notNull;
+	readonly defaultValue = this.config.domain.defaultValue;
+	readonly constraint = this.config.domain.constraint;
+	readonly constraintName = this.config.domain.constraintName;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
@@ -79,15 +87,31 @@ export class PgDomainColumn<
 	}
 
 	getSQLType(): string {
-		return this.domain.domainName;
+		let sql = this.domain.domainName;
+		if (this.notNull) {
+			sql += ' NOT NULL';
+		}
+		if (this.defaultValue) {
+			sql += ` DEFAULT ${this.defaultValue}`;
+		}
+		if (this.constraint) {
+			sql += ` CONSTRAINT ${this.constraint}`;
+		}
+		return sql;
 	}
 }
 
 export function pgDomain<TType extends string>(
 	domainName: string,
 	domainType: TType,
+	options?: {
+		notNull?: boolean;
+		defaultValue?: string;
+		constraint?: string;
+		constraintName?: string;
+	},
 ): PgDomain<TType> {
-	return pgDomainWithSchema(domainName, domainType, undefined);
+	return pgDomainWithSchema(domainName, domainType, undefined, options);
 }
 
 /** @internal */
@@ -95,6 +119,12 @@ export function pgDomainWithSchema<TType extends string>(
 	domainName: string,
 	domainType: TType,
 	schema?: string,
+	options?: {
+		notNull?: boolean;
+		defaultValue?: string;
+		constraintName?: string;
+		constraint?: string;
+	},
 ): PgDomain<TType> {
 	const domainInstance: PgDomain<TType> = Object.assign(
 		<TName extends string>(name?: TName): PgDomainColumnBuilderInitial<TName, TType> =>
@@ -103,9 +133,16 @@ export function pgDomainWithSchema<TType extends string>(
 			domainName,
 			domainType,
 			schema,
+			notNull: options?.notNull ?? false,
+			defaultValue: options?.defaultValue,
+			constraint: options?.constraint,
+			constraintName: options?.constraintName,
 			[isPgDomainSym]: true,
 		} as const,
 	);
+
+	console.log('domain instance');
+	console.log(domainInstance);
 
 	return domainInstance;
 }

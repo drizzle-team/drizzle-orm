@@ -26,8 +26,8 @@ export class PgSchema<TName extends string = string> implements SQLWrapper {
 		return pgMaterializedViewWithSchema(name, columns, this.schemaName);
 	}) as typeof pgMaterializedView;
 
-	domain: typeof pgDomain = ((name, dataType) => {
-		return pgDomainWithSchema(name, dataType, this.schemaName);
+	domain: typeof pgDomain = ((name, dataType, options) => {
+		return pgDomainWithSchema(name, dataType, this.schemaName, options);
 	});
 
 	enum: typeof pgEnum = ((name, values) => {

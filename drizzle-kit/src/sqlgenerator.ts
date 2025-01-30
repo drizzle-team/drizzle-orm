@@ -19,7 +19,7 @@ import {
 	JsonAlterColumnSetOnUpdateStatement,
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
-	JsonAlterCompositePK,
+	JsonAlterCompositePK, JsonAlterDomainStatement,
 	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
@@ -1389,7 +1389,7 @@ class CreateDomainConvertor extends Convertor {
 		}
 
 		if (constraint) {
-			statement += ` CONSTRAINT ${constraint}`;
+			statement += ` ${constraint}`; // Add constraint directly
 		}
 		statement += ';';
 		return statement;
@@ -1404,9 +1404,49 @@ class DropDomainConvertor extends Convertor {
 	convert(st: JsonDropDomainStatement): string {
 		const { name, schema } = st;
 		const domainNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
-		return `DROP DOMAIN ${domainNameWithSchema};`;
+		return `DROP DOMAIN ${domainNameWithSchema} CASCADE;`;
 	}
 }
+
+class AlterDomainConvertor extends Convertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'alter_domain';
+	}
+
+	convert(st: JsonAlterDomainStatement): string {
+		const { name, schema, action, constraintName, constraint, defaultValue } = st;
+		const domainNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+		let statement = `ALTER DOMAIN ${domainNameWithSchema}`;
+
+		switch (action) {
+			case 'add_constraint':
+				statement += ` ADD CONSTRAINT ${constraintName} ${constraint}`;
+				break;
+			case 'drop_constraint':
+				statement += ` DROP CONSTRAINT ${constraintName}`; // Use the explicit constraint name
+				console.log(`dropping constraint named ${constraintName}`)
+				break;
+			case 'set_not_null':
+				statement += ` SET NOT NULL`;
+				break;
+			case 'drop_not_null':
+				statement += ` DROP NOT NULL`;
+				break;
+			case 'set_default':
+				statement += ` SET DEFAULT ${defaultValue}`;
+				break;
+			case 'drop_default':
+				statement += ` DROP DEFAULT`;
+				break;
+			default:
+				throw new Error(`Unknown alter domain action: ${action}`);
+		}
+
+		statement += ';';
+		return statement;
+	}
+}
+
 
 class CreateTypeEnumConvertor extends Convertor {
 	can(statement: JsonStatement): boolean {
@@ -3942,6 +3982,8 @@ convertors.push(new SqliteDropViewConvertor());
 
 convertors.push(new CreateDomainConvertor());
 convertors.push(new DropDomainConvertor());
+convertors.push(new AlterDomainConvertor());
+
 convertors.push(new CreateTypeEnumConvertor());
 convertors.push(new DropTypeEnumConvertor());
 convertors.push(new AlterTypeAddValueConvertor());
@@ -4102,6 +4144,11 @@ export function fromJson(
 			if (!convertor) {
 				return '';
 			}
+
+			console.log('about to convert');
+			console.log(statement);
+			console.log(json2);
+			console.log(action);
 
 			return convertor.convert(statement, json2, action);
 		})

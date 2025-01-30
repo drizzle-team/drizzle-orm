@@ -63,7 +63,10 @@ import {
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
 	prepareAlterCompositePrimaryKeySqlite,
-	prepareAlterDomainJson,
+	prepareAlterDomainAddConstraintJson,
+	prepareAlterDomainDropConstraintJson, prepareAlterDomainDropDefaultJson,
+	prepareAlterDomainDropNotNullJson,
+	prepareAlterDomainSetDefaultJson, prepareAlterDomainSetNotNullJson,
 	prepareAlterIndPolicyJson,
 	prepareAlterPolicyJson,
 	prepareAlterReferencesJson,
@@ -251,8 +254,9 @@ const domainSchema = object({
 	name: string(),
 	schema: string(),
 	baseType: string(),
-	notNull: boolean(),
+	notNull: boolean().optional(),
 	defaultValue: string().optional(),
+	constraintName: string().optional(),
 	constraint: string().optional(),
 }).strict();
 
@@ -260,6 +264,10 @@ const changedDomainSchema = object({
 	name: string(),
 	schema: string(),
 	baseType: string(),
+	notNull: boolean().optional(),
+	defaultValue: string().optional(),
+	constraintName: string().optional(),
+	constraint: string().optional(),
 }).strict();
 
 const enumSchema = object({
@@ -654,6 +662,9 @@ export const applyPgSnapshotsDiff = async (
 
 	const domainsDiff = diffSchemasOrTables(json1.domains, json2.domains);
 
+	console.log('domains diff');
+	console.log(domainsDiff);
+
 	const {
 		created: createdDomains,
 		deleted: deletedDomains,
@@ -663,6 +674,9 @@ export const applyPgSnapshotsDiff = async (
 		created: domainsDiff.added,
 		deleted: domainsDiff.deleted,
 	});
+
+	console.log('created domains');
+	console.log(createdDomains);
 
 	const enumsDiff = diffSchemasOrTables(schemasPatchedSnap1.enums, json2.enums);
 
@@ -1736,8 +1750,11 @@ export const applyPgSnapshotsDiff = async (
 	// - alter - should be not triggered, but should get warning
 
 	const createDomains = createdDomains.map((it) => {
-		return prepareCreateDomainJson(it.name, it.schema, it.baseType, it.notNull, it.defaultValue, it.constraint);
+		return prepareCreateDomainJson(it.name, it.schema, it.baseType, it.notNull, it.defaultValue, it.constraint, it.constraintName);
 	}) ?? [];
+
+	console.log('createDomains');
+	console.log(createDomains);
 
 	const dropDomains = deletedDomains.map((it) => {
 		return prepareDropDomainJson(it.name, it.schema);
@@ -1751,8 +1768,71 @@ export const applyPgSnapshotsDiff = async (
 		return prepareRenameDomainJson(it.from.name, it.to.name, it.to.schema, []);
 	});
 
-	const alterDomains = typedResult.alteredDomains.map((it) => {
-		return prepareAlterDomainJson(it.name, it.schema, it.baseType, []);
+	const alterDomains = typedResult.alteredDomains.flatMap((it) => {
+		const oldDomain = json1.domains[`${it.schema}.${it.name}`];
+		const newDomain = json2.domains[`${it.schema}.${it.name}`];
+
+		const statements: JsonStatement[] = [];
+
+		console.log('about to do some sorting')
+		console.log(it);
+		console.log('the jsons')
+		console.log(json1);
+		console.log(json2);
+
+		// Handle constraint changes
+		if ((oldDomain?.constraint ?? null) !== (newDomain?.constraint ?? null)) {
+			if (oldDomain?.constraint && !newDomain?.constraint) {
+				// Dropping an existing constraint
+				statements.push(
+					prepareAlterDomainDropConstraintJson(it.name, it.schema, oldDomain.constraintName!),
+				);
+			} else if (!oldDomain?.constraint && newDomain?.constraint) {
+				// Adding a new constraint
+				statements.push(
+					prepareAlterDomainAddConstraintJson(it.name, it.schema, newDomain.constraint, newDomain.constraintName!),
+				);
+			} else if (oldDomain?.constraint && newDomain?.constraint) {
+				// Altering an existing constraint (drop and re-add)
+				statements.push(
+					prepareAlterDomainDropConstraintJson(it.name, it.schema, oldDomain.constraintName!),
+				);
+				statements.push(
+					prepareAlterDomainAddConstraintJson(it.name, it.schema, newDomain.constraint, newDomain.constraintName!),
+				);
+			}
+		}
+
+		// Handle optional notNull using optional chaining and nullish coalescing
+		if ((oldDomain?.notNull ?? false) !== (newDomain?.notNull ?? false)) {
+			if (!newDomain?.notNull) {
+				statements.push(
+					prepareAlterDomainDropNotNullJson(it.name, it.schema),
+				);
+			} else {
+				statements.push(
+					prepareAlterDomainSetNotNullJson(it.name, it.schema),
+				);
+			}
+		}
+
+		// Handle optional defaultValue using optional chaining and nullish coalescing
+		if ((oldDomain?.defaultValue ?? null) !== (newDomain?.defaultValue ?? null)) {
+			if (oldDomain?.defaultValue && !newDomain?.defaultValue) {
+				statements.push(
+					prepareAlterDomainDropDefaultJson(it.name, it.schema),
+				);
+			} else if (!oldDomain?.defaultValue && newDomain?.defaultValue) {
+				statements.push(
+					prepareAlterDomainSetDefaultJson(it.name, it.schema, newDomain.defaultValue),
+				);
+			}
+		}
+
+		console.log('altered domains');
+		console.log(statements);
+
+		return statements;
 	});
 
 	const createEnums = createdEnums.map((it) => {
@@ -2131,6 +2211,9 @@ export const applyPgSnapshotsDiff = async (
 	});
 
 	const sqlStatements = fromJson(filteredEnumsJsonStatements, 'postgresql', action);
+
+	console.log('sqlStatements');
+	console.log(sqlStatements);
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {

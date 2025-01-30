@@ -32,9 +32,10 @@ const domainSchema = object({
 	name: string(),
 	schema: string(),
 	baseType: string(),
-	notNull: boolean(),
+	notNull: boolean().optional(),
 	defaultValue: string().optional(),
 	constraint: string().optional(),
+	constraintName: string().optional(),
 }).strict();
 
 const enumSchemaV1 = object({

@@ -104,6 +104,7 @@ export interface JsonCreateDomainStatement {
 	notNull?: boolean;
 	defaultValue?: string;
 	constraint?: string;
+	constraintName?: string;
 }
 
 export interface JsonDropDomainStatement {
@@ -128,11 +129,13 @@ export interface JsonRenameDomainStatement {
 }
 
 export interface JsonAlterDomainStatement {
-	type: 'alter_type_domain';
+	type: 'alter_domain';
 	name: string;
 	schema: string;
-	baseType: string;
-	columnsWithDomain: { schema: string; table: string; column: string }[];
+	action: 'add_constraint' | 'drop_constraint' | 'set_not_null' | 'drop_not_null' | 'set_default' | 'drop_default';
+	constraintName?: string; // Add a field for the constraint
+	constraint?: string;
+	defaultValue?: string;
 }
 
 export interface JsonCreateEnumStatement {
@@ -1054,9 +1057,10 @@ export const prepareCreateDomainJson = (
 	name: string,
 	schema: string,
 	baseType: string,
-	notNull: boolean,
+	notNull: boolean | undefined,
 	defaultValue: string | undefined,
 	constraint: string | undefined,
+	constraintName: string | undefined,
 ): JsonCreateDomainStatement => {
 	return {
 		type: 'create_domain',
@@ -1066,6 +1070,7 @@ export const prepareCreateDomainJson = (
 		notNull,
 		defaultValue,
 		constraint,
+		constraintName,
 	};
 };
 
@@ -1108,18 +1113,83 @@ export const prepareRenameDomainJson = (
 	};
 };
 
-export const prepareAlterDomainJson = (
+export const prepareAlterDomainAddConstraintJson = (
 	name: string,
 	schema: string,
-	baseType: string,
-	columnsWithDomain: { schema: string; table: string; column: string }[],
+	constraint: string,
+	constraintName: string,
 ): JsonAlterDomainStatement => {
 	return {
-		type: 'alter_type_domain',
+		type: 'alter_domain',
 		name,
 		schema,
-		baseType,
-		columnsWithDomain,
+		action: 'add_constraint',
+		constraint,
+		constraintName,
+	};
+};
+
+export const prepareAlterDomainDropConstraintJson = (
+	name: string,
+	schema: string,
+	constraintName: string,
+): JsonAlterDomainStatement => {
+	return {
+		type: 'alter_domain',
+		name,
+		schema,
+		action: 'drop_constraint',
+		constraintName,
+	};
+};
+
+export const prepareAlterDomainSetNotNullJson = (
+	name: string,
+	schema: string,
+): JsonAlterDomainStatement => {
+	return {
+		type: 'alter_domain',
+		name,
+		schema,
+		action: 'set_not_null',
+	};
+};
+
+export const prepareAlterDomainDropNotNullJson = (
+	name: string,
+	schema: string,
+): JsonAlterDomainStatement => {
+	return {
+		type: 'alter_domain',
+		name,
+		schema,
+		action: 'drop_not_null',
+	};
+};
+
+export const prepareAlterDomainSetDefaultJson = (
+	name: string,
+	schema: string,
+	defaultValue: string,
+): JsonAlterDomainStatement => {
+	return {
+		type: 'alter_domain',
+		name,
+		schema,
+		action: 'set_default',
+		defaultValue,
+	};
+};
+
+export const prepareAlterDomainDropDefaultJson = (
+	name: string,
+	schema: string,
+): JsonAlterDomainStatement => {
+	return {
+		type: 'alter_domain',
+		name,
+		schema,
+		action: 'drop_default',
 	};
 };
 

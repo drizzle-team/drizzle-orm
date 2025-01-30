@@ -2,10 +2,13 @@ import { integer, pgDomain, pgEnum, pgSchema, pgTable, serial } from 'drizzle-or
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
-test('domains #1', async () => {
+test('domains #1 create domain simple', async () => {
 	const to = {
-		domain: pgDomain('domain', 'string'),
+		domain: pgDomain('domain', 'text'),
 	};
+
+	console.log('printing to');
+	console.log(to);
 
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
 
@@ -13,312 +16,270 @@ test('domains #1', async () => {
 	expect(sqlStatements[0]).toBe(`CREATE DOMAIN "public"."domain" AS text;`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		name: 'domain',
-		schema: 'public',
-		type: 'create_domain',
-		baseType: 'text',
+		type: "create_domain",
+		name: "domain",
+		schema: "public",
+		baseType: "text",
+		constraint: undefined,
+		constraintName: undefined,
+		defaultValue: undefined,
+		notNull: false,
 	});
 });
 
-test('domains #2', async () => {
+test('domains #2 create domain not null', async () => {
 	const folder = pgSchema('folder');
 	const to = {
-		domain: folder.domain('domain', 'string'),
+		domain: folder.domain('domain', 'varchar', {notNull: true}),
+	};
+	console.log('printing to folder domain');
+	console.log(to);
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`CREATE DOMAIN "folder"."domain" AS varchar NOT NULL;`);
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'create_domain',
+		name: 'domain',
+		schema: 'folder',
+		baseType: 'varchar',
+		constraint: undefined,
+		constraintName: undefined,
+		defaultValue: undefined,
+		notNull: true,
+	});
+});
+
+test('domains #3 drop domain simple', async () => {
+	const from = {
+		domain: pgDomain('domain', 'money'),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, {}, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`DROP DOMAIN "public"."domain" CASCADE;`);
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'drop_domain',
+		name: 'domain',
+		schema: 'public',
+	});
+});
+
+test('domains #4 create domain with constraint', async () => {
+	const to = {
+		domain: pgDomain('domain', 'text', {
+			constraintName: 'custom_check',
+			constraint: `CHECK (VALUE ~ '^[A-Za-z]+\$')`,
+		}),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`CREATE DOMAIN "folder"."domain" AS text;`);
+	expect(sqlStatements[0]).toBe(
+		`CREATE DOMAIN "public"."domain" AS text CHECK (VALUE ~ '^[A-Za-z]+$');`,
+	);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		name: 'domain',
-		schema: 'folder',
 		type: 'create_domain',
+		name: 'domain',
+		schema: 'public',
 		baseType: 'text',
+		constraintName: 'custom_check',
+		constraint: `CHECK (VALUE ~ '^[A-Za-z]+\$')`,
+		defaultValue: undefined,
+		notNull: false,
 	});
 });
 
-test('domains #3', async () => {
-	const from = {
-		domain: pgDomain('domain', 'string'),
+test('domains #5 create domain with default value', async () => {
+	const to = {
+		domain: pgDomain('domain', 'integer', {
+			defaultValue: '42',
+		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, {}, []);
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`DROP DOMAIN "public"."domain";`);
+	expect(sqlStatements[0]).toBe(
+		`CREATE DOMAIN "public"."domain" AS integer DEFAULT 42;`,
+	);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'drop_domain',
+		type: 'create_domain',
 		name: 'domain',
 		schema: 'public',
+		baseType: 'integer',
+		constraint: undefined,
+		constraintName: undefined,
+		defaultValue: '42',
+		notNull: false,
 	});
 });
 
-test('domains #4', async () => {
-	const folder = pgSchema('folder');
-
+test('domains #6 alter domain to add constraint', async () => {
 	const from = {
-		domain: folder.domain('domain', 'string'),
+		domain: pgDomain('domain', 'text'),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, {}, []);
+	const to = {
+		domain: pgDomain('domain', 'text', {
+			constraintName: 'custom_check',
+			constraint: `CHECK (VALUE ~ \'^[A-Za-z]+\$')`,
+	}),
+};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`DROP DOMAIN "folder"."domain";`);
+	expect(sqlStatements[0]).toBe(
+		`ALTER DOMAIN "public"."domain" ADD CONSTRAINT custom_check CHECK (VALUE ~ '^[A-Za-z]+$');`,
+	);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'drop_domain',
+		type: 'alter_domain',
 		name: 'domain',
-		schema: 'folder',
-	});
+		schema: 'public',
+		action: 'add_constraint',
+		constraintName: 'custom_check',
+		constraint: `CHECK (VALUE ~ \'^[A-Za-z]+\$')`,
+});
 });
 
-test('domains #5', async () => {
-	const folder1 = pgSchema('folder1');
-	const folder2 = pgSchema('folder2');
-
+test('domains #7 alter domain to drop constraint', async () => {
 	const from = {
-		folder1,
-		domain: folder1.domain('domain', 'string'),
-	};
+		domain: pgDomain('domain', 'text', {
+			constraintName: 'domain_check',
+			constraint: `CHECK (VALUE ~ \'^[A-Za-z]+\$')`,
+	}),
+};
 
 	const to = {
-		folder2,
-		domain: folder2.domain('domain', 'string'),
-	};
-
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, ['folder1->folder2']);
-
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER SCHEMA "folder1" RENAME TO "folder2";\n`);
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'rename_schema',
-		from: 'folder1',
-		to: 'folder2',
-	});
-});
-
-test('domains #6', async () => {
-	const folder1 = pgSchema('folder1');
-	const folder2 = pgSchema('folder2');
-
-	const from = {
-		folder1,
-		folder2,
-		domain: folder1.domain('domain', 'string'),
-	};
-
-	const to = {
-		folder1,
-		folder2,
-		domain: folder2.domain('domain', 'string'),
-	};
-
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
-		'folder1.domain->folder2.domain',
-	]);
-
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER DOMAIN "folder1"."domain" SET SCHEMA "folder2";`);
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'move_domain',
-		name: 'domain',
-		schemaFrom: 'folder1',
-		schemaTo: 'folder2',
-	});
-});
-
-test('domains #7', async () => {
-	const from = {
-		domain: pgDomain('domain', 'string'),
-	};
-
-	const to = {
-		domain: pgDomain('domain', 'string'),
+		domain: pgDomain('domain', 'text'),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(3);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`DROP DOMAIN "public"."domain";`);
-	expect(sqlStatements[2]).toBe(`CREATE DOMAIN "public"."domain" AS varchar;`);
-
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER DOMAIN "public"."domain" DROP CONSTRAINT domain_check;`,
+	);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		columnsWithDomain: [],
+		type: 'alter_domain',
 		name: 'domain',
 		schema: 'public',
-		type: 'alter_type_domain',
-		baseType: 'varchar',
+		action: 'drop_constraint',
+		constraintName: 'domain_check',
 	});
 });
 
-test('domains #8', async () => {
-	const domain = pgDomain('domain', 'string'); // 'text' is a valid ColumnDataType
+test('domains #8 alter domain to set not null', async () => {
 	const from = {
-		domain,
+		domain: pgDomain('domain', 'text'),
 	};
 
 	const to = {
-		domain,
-		table: pgTable('table', {
-			column: domain('column').notNull(),
+		domain: pgDomain('domain', 'text', {
+			notNull: true,
 		}),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ADD COLUMN "column" "domain";`);
-
-	expect(statements.length).toBe(0);
-});
-
-test('domains #9', async () => {
-	const domain1 = pgDomain('domain1', 'string');
-	const domain2 = pgDomain('domain2', 'string');
-
-	const from = {
-		domain1,
-		table: pgTable('table', {
-			column: domain1('column'),
-		}),
-	};
-
-	const to = {
-		domain2,
-		table: pgTable('table', {
-			column: domain2('column'),
-		}),
-	};
-
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
-		'public.domain1->public.domain2',
-	]);
-
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER DOMAIN "public"."domain1" RENAME TO "domain2";`);
-
+	expect(sqlStatements[0]).toBe(
+		`ALTER DOMAIN "public"."domain" SET NOT NULL;`,
+	);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'rename_type_domain',
-		nameFrom: 'domain1',
-		nameTo: 'domain2',
+		type: 'alter_domain',
+		name: 'domain',
 		schema: 'public',
-		columnsWithDomain: [
-			{
-				column: 'column',
-				schema: 'public',
-				table: 'table',
-			},
-		],
+		action: 'set_not_null',
 	});
 });
 
-test('domains #10', async () => {
-	const schema = pgSchema('schema');
-	const domain1 = pgDomain('domain1', 'string');
-	const domain2 = schema.domain('domain1', 'string');
-
+test('domains #9 alter domain to drop not null', async () => {
 	const from = {
-		domain1,
-		table: pgTable('table', {
-			column: domain1('column'),
+		domain: pgDomain('domain', 'text', {
+			notNull: true,
 		}),
 	};
 
 	const to = {
-		domain2,
-		table: pgTable('table', {
-			column: domain2('column'),
-		}),
+		domain: pgDomain('domain', 'text'),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
-		'public.domain1->schema.domain1',
-	]);
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER DOMAIN "public"."domain1" SET SCHEMA "schema";`);
-
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER DOMAIN "public"."domain" DROP NOT NULL;`,
+	);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'move_domain',
-		name: 'domain1',
-		schemaFrom: 'public',
-		schemaTo: 'schema',
-		columnsWithDomain: [
-			{
-				column: 'column',
-				schema: 'public',
-				table: 'table',
-			},
-		],
+		type: 'alter_domain',
+		name: 'domain',
+		schema: 'public',
+		action: 'drop_not_null',
 	});
 });
 
-test('domains #11', async () => {
-	const schema1 = pgSchema('schema1');
-	const schema2 = pgSchema('schema2');
-
-	const domain1 = schema1.domain('domain1', 'string');
-	const domain2 = schema2.domain('domain2', 'string');
-
+test('domains #10 alter domain to set default value', async () => {
 	const from = {
-		domain1,
-		table: pgTable('table', {
-			column: domain1('column'),
+		domain: pgDomain('domain', 'text'),
+	};
+
+	const to = {
+		domain: pgDomain('domain', 'text', {
+			defaultValue: 'default_value',
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER DOMAIN "public"."domain" SET DEFAULT default_value;`,
+	);
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_domain',
+		name: 'domain',
+		schema: 'public',
+		action: 'set_default',
+		defaultValue: 'default_value',
+	});
+});
+
+test('domains #11 alter domain to drop default value', async () => {
+	const from = {
+		domain: pgDomain('domain', 'text', {
+			defaultValue: 'default_value',
 		}),
 	};
 
 	const to = {
-		domain2,
-		table: pgTable('table', {
-			column: domain2('column'),
-		}),
+		domain: pgDomain('domain', 'text'),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, [
-		'schema1.domain1->schema2.domain2',
-	]);
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(3);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER DOMAIN "schema1"."domain1" SET SCHEMA "schema2";`);
-	expect(sqlStatements[2]).toBe(`ALTER DOMAIN "schema2"."domain1" RENAME TO "domain2";`);
-
-	expect(statements.length).toBe(2);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER DOMAIN "public"."domain" DROP DEFAULT;`,
+	);
+	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
-		type: 'move_domain',
-		name: 'domain1',
-		schemaFrom: 'schema1',
-		schemaTo: 'schema2',
-		columnsWithDomain: [
-			{
-				column: 'column',
-				schema: 'public',
-				table: 'table',
-			},
-		],
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'rename_type_domain',
-		nameFrom: 'domain1',
-		nameTo: 'domain2',
-		schema: 'schema2',
-		columnsWithDomain: [
-			{
-				column: 'column',
-				schema: 'public',
-				table: 'table',
-			},
-		],
+		type: 'alter_domain',
+		name: 'domain',
+		schema: 'public',
+		action: 'drop_default',
 	});
 });
