@@ -1037,13 +1037,15 @@ test('text default values escape single quotes', async (t) => {
 		table: sqliteTable('table', {
 			id: integer('id').primaryKey(),
 			text: text('text').default("escape's quotes"),
+			text2: text('text2').default(''),
 		}),
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schem2, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toStrictEqual(
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements).toStrictEqual([
 		"ALTER TABLE `table` ADD `text` text DEFAULT 'escape''s quotes';",
-	);
+		"ALTER TABLE `table` ADD `text2` text DEFAULT '';",
+	]);
 });

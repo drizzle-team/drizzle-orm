@@ -619,21 +619,21 @@ test('varchar and text default values escape single quotes', async (t) => {
 			enum: mysqlEnum('enum', ["escape's quotes", "escape's quotes 2"]).default("escape's quotes"),
 			text: text('text').default("escape's quotes"),
 			varchar: varchar('varchar', { length: 255 }).default("escape's quotes"),
+			text2: text('text2').default(''),
+			varchar2: varchar('varchar2', { length: 255 }).default(''),
 		}),
 	};
 
 	const { sqlStatements } = await diffTestSchemasMysql(schema1, schem2, []);
 
-	expect(sqlStatements.length).toBe(3);
-	expect(sqlStatements[0]).toStrictEqual(
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements).toStrictEqual([
 		"ALTER TABLE `table` ADD `enum` enum('escape''s quotes','escape''s quotes 2') DEFAULT 'escape''s quotes';",
-	);
-	expect(sqlStatements[1]).toStrictEqual(
 		"ALTER TABLE `table` ADD `text` text DEFAULT ('escape''s quotes');",
-	);
-	expect(sqlStatements[2]).toStrictEqual(
 		"ALTER TABLE `table` ADD `varchar` varchar(255) DEFAULT 'escape''s quotes';",
-	);
+		"ALTER TABLE `table` ADD `text2` text DEFAULT ('');",
+		"ALTER TABLE `table` ADD `varchar2` varchar(255) DEFAULT '';",
+	]);
 });
 
 test('composite primary key', async () => {

@@ -469,18 +469,20 @@ test('varchar and text default values escape single quotes', async (t) => {
 			id: serial('id').primaryKey(),
 			text: text('text').default("escape's quotes"),
 			varchar: varchar('varchar').default("escape's quotes"),
+			text2: text('text2').default(''),
+			varchar2: varchar('varchar2', { length: 200 }).default(''),
 		}),
 	};
 
 	const { sqlStatements } = await diffTestSchemas(schema1, schem2, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toStrictEqual(
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "table" ADD COLUMN "text" text DEFAULT \'escape\'\'s quotes\';',
-	);
-	expect(sqlStatements[1]).toStrictEqual(
 		'ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT \'escape\'\'s quotes\';',
-	);
+		'ALTER TABLE "table" ADD COLUMN "text2" text DEFAULT \'\';',
+		'ALTER TABLE "table" ADD COLUMN "varchar2" varchar(200) DEFAULT \'\';',
+	]);
 });
 
 test('bit type', async (t) => {
