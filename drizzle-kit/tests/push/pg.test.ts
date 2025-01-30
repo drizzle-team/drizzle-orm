@@ -4362,7 +4362,7 @@ test('switch serial to integer generated always as identity', async (t) => {
 		[],
 		false,
 		['public'],
-		undefined
+		undefined,
 	);
 
 	expect(sqlStatements).toStrictEqual([
@@ -4377,3 +4377,32 @@ test('switch serial to integer generated always as identity', async (t) => {
 	}
 });
 
+test('bigint generated always as identity', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		table: pgTable('table', {
+			id: bigint('id', { mode: 'bigint' }).generatedAlwaysAsIdentity().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE "table" (\n\t"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "table_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1)\n);\n',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
