@@ -1956,6 +1956,7 @@ test('add identity to column - few params', async () => {
 
 	expect(statements).toStrictEqual([
 		{
+			changedSerialToIntegerIdentity: false,
 			columnName: 'id',
 			identity: 'custom_name;byDefault;1;2147483647;1;1;1;false',
 			schema: '',
@@ -1963,6 +1964,7 @@ test('add identity to column - few params', async () => {
 			type: 'alter_table_alter_column_set_identity',
 		},
 		{
+			changedSerialToIntegerIdentity: false,
 			columnName: 'id1',
 			identity: 'custom_name1;always;1;2147483647;4;1;1;false',
 			schema: '',
