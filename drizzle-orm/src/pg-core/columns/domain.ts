@@ -75,7 +75,6 @@ export class PgDomainColumn<
 	readonly domainType = this.config.domain.domainType;
 	override readonly notNull = this.config.domain.notNull;
 	readonly defaultValue = this.config.domain.defaultValue;
-	readonly checkConstraints = this.config.domain.checkConstraints;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
