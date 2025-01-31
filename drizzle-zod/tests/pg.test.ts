@@ -1,5 +1,6 @@
 import { type Equal, sql } from 'drizzle-orm';
 import {
+	check,
 	customType,
 	integer,
 	pgEnum,
@@ -19,6 +20,20 @@ import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
 const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
 const textSchema = z.string();
+
+test('table - columns with check constraints', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		firstName: text('first_name')
+			.notNull()
+			.checkConstraint(check('first_name_length', sql`length(first_name) BETWEEN 2 and 100`)),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = z.object({ id: integerSchema, firstName: textSchema.min(2).max(100) });
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
 
 test('table - select', (t) => {
 	const table = pgTable('test', {
