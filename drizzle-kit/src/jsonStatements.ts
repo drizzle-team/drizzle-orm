@@ -4,6 +4,7 @@ import { warning } from './cli/views';
 import { CommonSquashedSchema } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher, View as MySqlView } from './serializer/mysqlSchema';
 import {
+	CheckConstraint,
 	Index,
 	MatViewWithOption,
 	PgSchema,
@@ -21,7 +22,7 @@ import {
 	SQLiteSquasher,
 	View as SqliteView,
 } from './serializer/sqliteSchema';
-import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
+import { AlteredColumn, Column, Domain, Sequence, Table } from './snapshotsDiffer';
 
 export interface JsonSqliteCreateTableStatement {
 	type: 'sqlite_create_table';
@@ -96,30 +97,41 @@ export interface JsonRenameTableStatement {
 	tableNameTo: string;
 }
 
-interface JsonDomainStatement {
+// Types for Domain-related JSON statements
+export type JsonDomainStatement =
+	| JsonCreateDomainStatement
+	| JsonDropDomainStatement
+	| JsonAlterDomainStatement;
+
+export interface JsonCreateDomainStatement {
+	type: 'create_domain';
+	name: string;
+	schema: string;
+	notNull?: boolean;
+	defaultValue?: string;
+	baseType: string;
+	checkConstraints?: string[];
+}
+
+export interface JsonDropDomainStatement {
+	type: 'drop_domain';
 	name: string;
 	schema: string;
 }
 
-export interface JsonCreateDomainStatement extends JsonDomainStatement {
-	type: 'create_domain';
-	baseType: string;
-	notNull?: boolean;
-	defaultValue?: string;
-	constraint?: string;
-	constraintName?: string;
-}
-
-export interface JsonAlterDomainStatement extends JsonDomainStatement {
+export interface JsonAlterDomainStatement {
 	type: 'alter_domain';
-	action: 'add_constraint' | 'drop_constraint' | 'set_not_null' | 'drop_not_null' | 'set_default' | 'drop_default';
-	constraintName?: string;
-	constraint?: string;
+	action:
+		| 'add_constraint'
+		| 'drop_constraint'
+		| 'set_not_null'
+		| 'drop_not_null'
+		| 'set_default'
+		| 'drop_default';
+	name: string;
+	schema: string;
 	defaultValue?: string;
-}
-
-export interface JsonDropDomainStatement extends JsonDomainStatement {
-	type: 'drop_domain';
+	checkConstraints?: string[];
 }
 
 export interface JsonCreateEnumStatement {
@@ -1035,118 +1047,38 @@ export const prepareRenameTableJson = (
 	};
 };
 
-export const prepareCreateDomainJson = ({
-	name,
-	schema,
-	baseType,
-	notNull,
-	defaultValue,
-	constraint,
-	constraintName,
-}: {
-	name: string;
-	schema: string;
-	baseType: string;
-	notNull?: boolean;
-	defaultValue?: string;
-	constraint?: string;
-	constraintName?: string;
-}): JsonCreateDomainStatement => ({
-	type: 'create_domain',
-	name,
-	schema,
-	baseType,
-	notNull,
-	defaultValue,
-	constraint,
-	constraintName,
-});
+// Helper function to create domain statements
+export const prepareDomainJson = (
+	domain: Domain,
+	type: 'create' | 'alter' | 'drop',
+	action?: JsonAlterDomainStatement['action'],
+): JsonDomainStatement => {
+	if (type === 'create') {
+		return {
+			type: 'create_domain',
+			name: domain.name,
+			schema: domain.schema,
+			notNull: domain.notNull,
+			defaultValue: domain.defaultValue,
+			baseType: domain.baseType,
+			checkConstraints: Object.values(domain.checkConstraints),
+		};
+	} else if (type === 'drop') {
+		return {
+			type: 'drop_domain',
+			name: domain.name,
+			schema: domain.schema,
+		};
+	}
 
-export const prepareDropDomainJson = (
-	{ name, schema }: { name: string; schema: string },
-): JsonDropDomainStatement => ({
-	type: 'drop_domain',
-	name,
-	schema,
-});
-
-export const prepareAlterDomainAddConstraintJson = (
-	name: string,
-	schema: string,
-	constraint: string,
-	constraintName: string,
-): JsonAlterDomainStatement => {
+	// For alter actions
 	return {
 		type: 'alter_domain',
-		name,
-		schema,
-		action: 'add_constraint',
-		constraint,
-		constraintName,
-	};
-};
-
-export const prepareAlterDomainDropConstraintJson = (
-	name: string,
-	schema: string,
-	constraintName: string,
-): JsonAlterDomainStatement => {
-	return {
-		type: 'alter_domain',
-		name,
-		schema,
-		action: 'drop_constraint',
-		constraintName,
-	};
-};
-
-export const prepareAlterDomainSetNotNullJson = (
-	name: string,
-	schema: string,
-): JsonAlterDomainStatement => {
-	return {
-		type: 'alter_domain',
-		name,
-		schema,
-		action: 'set_not_null',
-	};
-};
-
-export const prepareAlterDomainDropNotNullJson = (
-	name: string,
-	schema: string,
-): JsonAlterDomainStatement => {
-	return {
-		type: 'alter_domain',
-		name,
-		schema,
-		action: 'drop_not_null',
-	};
-};
-
-export const prepareAlterDomainSetDefaultJson = (
-	name: string,
-	schema: string,
-	defaultValue: string,
-): JsonAlterDomainStatement => {
-	return {
-		type: 'alter_domain',
-		name,
-		schema,
-		action: 'set_default',
-		defaultValue,
-	};
-};
-
-export const prepareAlterDomainDropDefaultJson = (
-	name: string,
-	schema: string,
-): JsonAlterDomainStatement => {
-	return {
-		type: 'alter_domain',
-		name,
-		schema,
-		action: 'drop_default',
+		action: action!,
+		name: domain.name,
+		schema: domain.schema,
+		defaultValue: domain.defaultValue,
+		checkConstraints: Object.values(domain.checkConstraints),
 	};
 };
 

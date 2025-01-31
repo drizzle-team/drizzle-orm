@@ -278,8 +278,8 @@ export function applyJsonDiff(json1, json2) {
 		.map((it) => {
 			const domainEntry = json1.domains[it[0]];
 			if (!domainEntry) return;
-			const { name, schema, baseType, notNull, defaultValue, constraint, constraintName } = domainEntry;
-			return { name, schema, baseType, notNull, defaultValue, constraint, constraintName };
+			const { name, schema, baseType, notNull, defaultValue, checkConstraints } = domainEntry;
+			return { name, schema, baseType, notNull, defaultValue, checkConstraints };
 		}).filter(Boolean);
 
 	const enumsEntries = Object.entries(difference.enums);

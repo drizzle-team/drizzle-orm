@@ -1,6 +1,7 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
+import type { CheckBuilder } from '~/pg-core/checks.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
@@ -25,8 +26,7 @@ export interface PgDomain<TType extends string> {
 	readonly schema: string | undefined;
 	readonly notNull: boolean;
 	readonly defaultValue?: string;
-	readonly constraint?: string;
-	readonly constraintName?: string;
+	readonly checkConstraints?: CheckBuilder[];
 	/** @internal */
 	[isPgDomainSym]: true;
 }
@@ -75,8 +75,7 @@ export class PgDomainColumn<
 	readonly domainType = this.config.domain.domainType;
 	override readonly notNull = this.config.domain.notNull;
 	readonly defaultValue = this.config.domain.defaultValue;
-	readonly constraint = this.config.domain.constraint;
-	readonly constraintName = this.config.domain.constraintName;
+	readonly checkConstraints = this.config.domain.checkConstraints;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
@@ -94,9 +93,13 @@ export class PgDomainColumn<
 		if (this.defaultValue) {
 			sql += ` DEFAULT ${this.defaultValue}`;
 		}
-		if (this.constraint) {
-			sql += ` CONSTRAINT ${this.constraint}`;
+		if (this.checkConstraints) {
+			for (const [constraintName, checkBuilder] of Object.entries(this.checkConstraints)) {
+				const checkSQL = checkBuilder.value;
+				sql += ` CONSTRAINT "${constraintName}" CHECK (${checkSQL})`;
+			}
 		}
+
 		return sql;
 	}
 }
@@ -107,8 +110,7 @@ export function pgDomain<TType extends string>(
 	options?: {
 		notNull?: boolean;
 		defaultValue?: string;
-		constraint?: string;
-		constraintName?: string;
+		checkConstraints?: CheckBuilder[];
 	},
 ): PgDomain<TType> {
 	return pgDomainWithSchema(domainName, domainType, undefined, options);
@@ -122,8 +124,7 @@ export function pgDomainWithSchema<TType extends string>(
 	options?: {
 		notNull?: boolean;
 		defaultValue?: string;
-		constraintName?: string;
-		constraint?: string;
+		checkConstraints?: CheckBuilder[];
 	},
 ): PgDomain<TType> {
 	const domainInstance: PgDomain<TType> = Object.assign(
@@ -135,14 +136,10 @@ export function pgDomainWithSchema<TType extends string>(
 			schema,
 			notNull: options?.notNull ?? false,
 			defaultValue: options?.defaultValue,
-			constraint: options?.constraint,
-			constraintName: options?.constraintName,
+			checkConstraints: options?.checkConstraints,
 			[isPgDomainSym]: true,
 		} as const,
 	);
-
-	console.log('domain instance');
-	console.log(domainInstance);
 
 	return domainInstance;
 }

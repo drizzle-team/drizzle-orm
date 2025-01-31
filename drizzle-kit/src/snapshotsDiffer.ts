@@ -40,6 +40,7 @@ import {
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
 	JsonDisableRLSStatement,
+	JsonDomainStatement,
 	JsonDropColumnStatement,
 	JsonDropIndPolicyStatement,
 	JsonDropPolicyStatement,
@@ -63,18 +64,11 @@ import {
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
 	prepareAlterCompositePrimaryKeySqlite,
-	prepareAlterDomainAddConstraintJson,
-	prepareAlterDomainDropConstraintJson,
-	prepareAlterDomainDropDefaultJson,
-	prepareAlterDomainDropNotNullJson,
-	prepareAlterDomainSetDefaultJson,
-	prepareAlterDomainSetNotNullJson,
 	prepareAlterIndPolicyJson,
 	prepareAlterPolicyJson,
 	prepareAlterReferencesJson,
 	prepareAlterRoleJson,
 	prepareAlterSequenceJson,
-	prepareCreateDomainJson,
 	prepareCreateEnumJson,
 	prepareCreateIndexesJson,
 	prepareCreateIndPolicyJsons,
@@ -89,7 +83,7 @@ import {
 	prepareDeleteCompositePrimaryKeySqlite,
 	prepareDeleteSchemasJson as prepareDropSchemasJson,
 	prepareDeleteUniqueConstraintPg as prepareDeleteUniqueConstraint,
-	prepareDropDomainJson,
+	prepareDomainJson,
 	prepareDropEnumJson,
 	prepareDropEnumValues,
 	prepareDropIndexesJson,
@@ -256,8 +250,7 @@ const domainSchema = object({
 	baseType: string(),
 	notNull: boolean().optional(),
 	defaultValue: string().optional(),
-	constraintName: string().optional(),
-	constraint: string().optional(),
+	checkConstraints: record(string(), string()).default({}),
 }).strict();
 
 const changedDomainSchema = object({
@@ -266,8 +259,7 @@ const changedDomainSchema = object({
 	baseType: string(),
 	notNull: boolean().optional(),
 	defaultValue: string().optional(),
-	constraintName: string().optional(),
-	constraint: string().optional(),
+	checkConstraints: record(string(), string()).default({}),
 }).strict();
 
 const enumSchema = object({
@@ -671,6 +663,9 @@ export const applyPgSnapshotsDiff = async (
 		created: domainsDiff.added,
 		deleted: domainsDiff.deleted,
 	});
+
+	console.log('createdDomains');
+	console.log(createdDomains);
 
 	const enumsDiff = diffSchemasOrTables(schemasPatchedSnap1.enums, json2.enums);
 
@@ -1743,53 +1738,67 @@ export const applyPgSnapshotsDiff = async (
 	// - create table with generated
 	// - alter - should be not triggered, but should get warning
 
-	const createDomains = createdDomains.map(prepareCreateDomainJson);
-	const dropDomains = deletedDomains.map(prepareDropDomainJson);
+	const createDomains = createdDomains.map((domain) => prepareDomainJson(domain, 'create'));
+	const dropDomains = deletedDomains.map((domain) => prepareDomainJson(domain, 'drop'));
 
-	const alterDomains = typedResult.alteredDomains.flatMap(({ schema, name }) => {
-		const oldDomain = json1.domains[`${schema}.${name}`];
-		const newDomain = json2.domains[`${schema}.${name}`];
+	const alterDomains: JsonDomainStatement[] = [];
+	const commonDomains = Object.keys(json1.domains).filter((domainKey) => json2.domains[domainKey]);
 
-		const statements: JsonStatement[] = [];
+	for (const domainKey of commonDomains) {
+		const domain1 = json1.domains[domainKey];
+		const domain2 = json2.domains[domainKey];
 
-		// Handle constraint changes
-		const handleConstraintChange = () => {
-			const oldConstraint = oldDomain?.constraint ?? null;
-			const newConstraint = newDomain?.constraint ?? null;
+		if (!domain1 || !domain2) continue; // Should not happen, but for type safety
 
-			if (oldConstraint === newConstraint) return;
-
-			if (oldConstraint) {
-				statements.push(prepareAlterDomainDropConstraintJson(name, schema, oldDomain!.constraintName!));
+		if (domain1.defaultValue !== domain2.defaultValue) {
+			if (domain2.defaultValue !== undefined && domain2.defaultValue !== null) {
+				alterDomains.push(prepareDomainJson(domain2, 'alter', 'set_default'));
+			} else {
+				alterDomains.push(prepareDomainJson(domain2, 'alter', 'drop_default'));
 			}
-			if (newConstraint) {
-				statements.push(prepareAlterDomainAddConstraintJson(name, schema, newConstraint, newDomain!.constraintName!));
+		}
+
+		if (domain1.notNull !== domain2.notNull) {
+			if (domain2.notNull) {
+				alterDomains.push(prepareDomainJson(domain2, 'alter', 'set_not_null'));
+			} else {
+				alterDomains.push(prepareDomainJson(domain2, 'alter', 'drop_not_null'));
 			}
-		};
+		}
 
-		// Handle optional nullable changes
-		const handleBooleanChange = (key: 'notNull', dropFn: Function, setFn: Function) => {
-			const oldValue = oldDomain?.[key] ?? false;
-			const newValue = newDomain?.[key] ?? false;
+		if (domain1.baseType !== domain2.baseType) {
+			// THIS IS NOT ALLOWED
+			console.error('this is not allowed');
+		}
 
-			if (oldValue === newValue) return;
-			statements.push(newValue ? setFn(name, schema) : dropFn(name, schema));
-		};
+		// Simple check constraint diff (assuming names are consistent or we just want to add/drop)
+		const constraints1 = domain1.checkConstraints || {};
+		const constraints2 = domain2.checkConstraints || {};
 
-		// Handle optional value changes
-		const handleValueChange = (key: 'defaultValue', dropFn: Function, setFn: Function) => {
-			const oldValue = oldDomain?.[key] ?? null;
-			const newValue = newDomain?.[key] ?? null;
+		const deletedConstraints = Object.keys(constraints1).filter((name) => !constraints2[name]);
+		const createdConstraints = Object.keys(constraints2).filter((name) => !constraints1[name]);
+		// For simplicity, not handling constraint alteration, only add/drop
 
-			if (oldValue === newValue) return;
-			statements.push(newValue ? setFn(name, schema, newValue) : dropFn(name, schema));
-		};
+		for (const constraintName of deletedConstraints) {
+			alterDomains.push({
+				type: 'alter_domain',
+				action: 'drop_constraint',
+				name: domain1.name,
+				schema: domain1.schema,
+				checkConstraints: [constraints1[constraintName]],
+			});
+		}
 
-		handleConstraintChange();
-		handleBooleanChange('notNull', prepareAlterDomainDropNotNullJson, prepareAlterDomainSetNotNullJson);
-		handleValueChange('defaultValue', prepareAlterDomainDropDefaultJson, prepareAlterDomainSetDefaultJson);
-		return statements;
-	});
+		for (const constraintName of createdConstraints) {
+			alterDomains.push({
+				type: 'alter_domain',
+				action: 'add_constraint',
+				name: domain2.name,
+				schema: domain2.schema,
+				checkConstraints: [constraints2[constraintName]], // Pass the new constraint
+			});
+		}
+	}
 
 	const createEnums = createdEnums.map((it) => {
 		return prepareCreateEnumJson(it.name, it.schema, it.values);

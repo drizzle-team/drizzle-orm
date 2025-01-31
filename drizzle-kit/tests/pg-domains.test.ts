@@ -1,4 +1,5 @@
-import { integer, pgDomain, pgEnum, pgSchema, pgTable, serial } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { check, integer, pgDomain, pgEnum, pgSchema, pgTable, serial } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
@@ -20,10 +21,9 @@ test('domains #1 create domain simple', async () => {
 		name: 'domain',
 		schema: 'public',
 		baseType: 'text',
-		constraint: undefined,
-		constraintName: undefined,
-		defaultValue: undefined,
 		notNull: false,
+		defaultValue: undefined,
+		checkConstraints: [],
 	});
 });
 
@@ -45,10 +45,9 @@ test('domains #2 create domain not null', async () => {
 		name: 'domain',
 		schema: 'folder',
 		baseType: 'varchar',
-		constraint: undefined,
-		constraintName: undefined,
-		defaultValue: undefined,
 		notNull: true,
+		defaultValue: undefined,
+		checkConstraints: [],
 	});
 });
 
@@ -72,8 +71,7 @@ test('domains #3 drop domain simple', async () => {
 test('domains #4 create domain with constraint', async () => {
 	const to = {
 		domain: pgDomain('domain', 'text', {
-			constraintName: 'custom_check',
-			constraint: `CHECK (VALUE ~ '^[A-Za-z]+\$')`,
+			checkConstraints: [check('custom_check', sql`VALUE ~ '^[A-Za-z]+$'`)],
 		}),
 	};
 
@@ -81,7 +79,7 @@ test('domains #4 create domain with constraint', async () => {
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
-		`CREATE DOMAIN "public"."domain" AS text CHECK (VALUE ~ '^[A-Za-z]+$');`,
+		`CREATE DOMAIN "public"."domain" AS text CONSTRAINT custom_check CHECK (VALUE ~ '^[A-Za-z]+$');`,
 	);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
@@ -89,10 +87,11 @@ test('domains #4 create domain with constraint', async () => {
 		name: 'domain',
 		schema: 'public',
 		baseType: 'text',
-		constraintName: 'custom_check',
-		constraint: `CHECK (VALUE ~ '^[A-Za-z]+\$')`,
-		defaultValue: undefined,
 		notNull: false,
+		defaultValue: undefined,
+		checkConstraints: [
+			"custom_check;VALUE ~ '^[A-Za-z]+$'",
+		],
 	});
 });
 
@@ -115,10 +114,9 @@ test('domains #5 create domain with default value', async () => {
 		name: 'domain',
 		schema: 'public',
 		baseType: 'integer',
-		constraint: undefined,
-		constraintName: undefined,
-		defaultValue: '42',
 		notNull: false,
+		defaultValue: '42',
+		checkConstraints: [],
 	});
 });
 
@@ -129,8 +127,7 @@ test('domains #6 alter domain to add constraint', async () => {
 
 	const to = {
 		domain: pgDomain('domain', 'text', {
-			constraintName: 'custom_check',
-			constraint: `CHECK (VALUE ~ \'^[A-Za-z]+\$')`,
+			checkConstraints: [check('custom_check', sql`VALUE ~ '^[A-Za-z]+$'`)],
 		}),
 	};
 
@@ -146,16 +143,16 @@ test('domains #6 alter domain to add constraint', async () => {
 		name: 'domain',
 		schema: 'public',
 		action: 'add_constraint',
-		constraintName: 'custom_check',
-		constraint: `CHECK (VALUE ~ \'^[A-Za-z]+\$')`,
+		checkConstraints: [
+			"custom_check;VALUE ~ '^[A-Za-z]+$'",
+		],
 	});
 });
 
 test('domains #7 alter domain to drop constraint', async () => {
 	const from = {
 		domain: pgDomain('domain', 'text', {
-			constraintName: 'domain_check',
-			constraint: `CHECK (VALUE ~ \'^[A-Za-z]+\$')`,
+			checkConstraints: [check('domain_check', sql`VALUE ~ '^[A-Za-z]+$'`)],
 		}),
 	};
 
@@ -175,7 +172,9 @@ test('domains #7 alter domain to drop constraint', async () => {
 		name: 'domain',
 		schema: 'public',
 		action: 'drop_constraint',
-		constraintName: 'domain_check',
+		checkConstraints: [
+			"domain_check;VALUE ~ '^[A-Za-z]+$'",
+		],
 	});
 });
 
@@ -202,6 +201,8 @@ test('domains #8 alter domain to set not null', async () => {
 		name: 'domain',
 		schema: 'public',
 		action: 'set_not_null',
+		checkConstraints: [],
+		defaultValue: undefined,
 	});
 });
 
@@ -228,6 +229,8 @@ test('domains #9 alter domain to drop not null', async () => {
 		name: 'domain',
 		schema: 'public',
 		action: 'drop_not_null',
+		checkConstraints: [],
+		defaultValue: undefined,
 	});
 });
 
@@ -255,6 +258,7 @@ test('domains #10 alter domain to set default value', async () => {
 		schema: 'public',
 		action: 'set_default',
 		defaultValue: 'default_value',
+		checkConstraints: [],
 	});
 });
 
@@ -281,5 +285,7 @@ test('domains #11 alter domain to drop default value', async () => {
 		name: 'domain',
 		schema: 'public',
 		action: 'drop_default',
+		checkConstraints: [],
+		defaultValue: undefined,
 	});
 });

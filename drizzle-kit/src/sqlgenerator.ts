@@ -1383,7 +1383,7 @@ class CreateDomainConvertor extends DomainConvertor {
 	}
 
 	convert(st: JsonCreateDomainStatement): string {
-		const { name, schema, baseType, notNull, defaultValue, constraint } = st;
+		const { name, schema, baseType, notNull, defaultValue, checkConstraints } = st;
 		const domainNameWithSchema = this.getDomainNameWithSchema(name, schema);
 		let statement = `CREATE DOMAIN ${domainNameWithSchema} AS ${baseType}`;
 
@@ -1395,9 +1395,13 @@ class CreateDomainConvertor extends DomainConvertor {
 			statement += ` DEFAULT ${defaultValue}`;
 		}
 
-		if (constraint) {
-			statement += ` ${constraint}`;
+		if (checkConstraints && checkConstraints.length > 0) {
+			for (const checkConstraint of checkConstraints) {
+				const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
+				statement += ` CONSTRAINT ${unsquashedCheck.name} CHECK (${unsquashedCheck.value})`;
+			}
 		}
+
 		statement += ';';
 		return statement;
 	}
@@ -1409,16 +1413,28 @@ class AlterDomainConvertor extends DomainConvertor {
 	}
 
 	convert(st: JsonAlterDomainStatement): string {
-		const { name, schema, action, constraintName, constraint, defaultValue } = st;
+		const { name, schema, action, checkConstraints, defaultValue } = st;
 		const domainNameWithSchema = this.getDomainNameWithSchema(name, schema);
 		let statement = `ALTER DOMAIN ${domainNameWithSchema}`;
 
+		console.log(`performing action ${action}`);
+
 		switch (action) {
 			case 'add_constraint':
-				statement += ` ADD CONSTRAINT ${constraintName} ${constraint}`;
+				if (checkConstraints && checkConstraints.length > 0) {
+					for (const checkConstraint of checkConstraints) {
+						const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
+						statement += ` ADD CONSTRAINT ${unsquashedCheck.name} CHECK (${unsquashedCheck.value})`;
+					}
+				}
 				break;
 			case 'drop_constraint':
-				statement += ` DROP CONSTRAINT ${constraintName}`;
+				if (checkConstraints && checkConstraints.length > 0) {
+					for (const checkConstraint of checkConstraints) {
+						const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
+						statement += ` DROP CONSTRAINT ${unsquashedCheck.name}`;
+					}
+				}
 				break;
 			case 'set_not_null':
 				statement += ` SET NOT NULL`;

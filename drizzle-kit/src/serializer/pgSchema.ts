@@ -28,14 +28,18 @@ const tableV2 = object({
 	indexes: record(string(), indexV2),
 }).strict();
 
+const checkConstraint = object({
+	name: string(),
+	value: string(),
+}).strict();
+
 const domainSchema = object({
 	name: string(),
 	schema: string(),
 	baseType: string(),
 	notNull: boolean().optional(),
 	defaultValue: string().optional(),
-	constraint: string().optional(),
-	constraintName: string().optional(),
+	checkConstraints: record(string(), checkConstraint).default({}),
 }).strict();
 
 const enumSchemaV1 = object({
@@ -201,11 +205,6 @@ const column = object({
 	identity: sequenceSchema
 		.merge(object({ type: enumType(['always', 'byDefault']) }))
 		.optional(),
-}).strict();
-
-const checkConstraint = object({
-	name: string(),
-	value: string(),
 }).strict();
 
 const columnSquashed = object({
@@ -468,6 +467,15 @@ export const pgSchemaInternal = object({
 	internal: kitInternals,
 }).strict();
 
+const domainSquashed = object({
+	name: string(),
+	schema: string(),
+	baseType: string(),
+	notNull: boolean().optional(),
+	defaultValue: string().optional(),
+	checkConstraints: record(string(), string()),
+}).strict();
+
 const tableSquashed = object({
 	name: string(),
 	schema: string(),
@@ -521,7 +529,7 @@ export const pgSchemaSquashed = object({
 	version: literal(snapshotVersion),
 	dialect: literal('postgresql'),
 	tables: record(string(), tableSquashed),
-	domains: record(string(), domainSchema),
+	domains: record(string(), domainSquashed),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
 	views: record(string(), view),
@@ -885,11 +893,20 @@ export const squashPgScheme = (
 		}),
 	);
 
+	const mappedDomains = mapValues(json.domains, (domain) => {
+		const squashedDomainChecks = mapValues(
+			domain.checkConstraints,
+			(check) => PgSquasher.squashCheck(check),
+		);
+
+		return { ...domain, checkConstraints: squashedDomainChecks };
+	});
+
 	return {
 		version: snapshotVersion,
 		dialect: json.dialect,
 		tables: mappedTables,
-		domains: json.domains,
+		domains: mappedDomains,
 		enums: json.enums,
 		schemas: json.schemas,
 		views: json.views,

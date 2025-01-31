@@ -25,7 +25,7 @@ import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import { snapshotVersion } from '../global';
-import type {
+import {
 	CheckConstraint,
 	Column,
 	Domain,
@@ -35,6 +35,7 @@ import type {
 	IndexColumnType,
 	PgKitInternals,
 	PgSchemaInternal,
+	PgSquasher,
 	Policy,
 	PrimaryKey,
 	Role,
@@ -127,11 +128,11 @@ export const generatePgSnapshot = (
 
 	const indexesInSchema: Record<string, string[]> = {};
 
-	for (const table of tables) {
-		// This object stores unique names for checks and will be used to detect if you have the same names for checks
-		// within the same PostgreSQL table
-		const checksInTable: Record<string, string[]> = {};
+	// This object stores unique names for checks and will be used to detect if you have the same names for checks
+	// within the same PostgreSQL table
+	const checksInTable: Record<string, string[]> = {};
 
+	for (const table of tables) {
 		const {
 			name: tableName,
 			columns,
@@ -870,28 +871,41 @@ export const generatePgSnapshot = (
 		};
 	}
 
-	const domainsToReturn: Record<
-		string,
-		{
-			name: string;
-			schema: string;
-			notNull: boolean;
-			baseType: string;
-			defaultValue?: string;
-			constraint?: string;
-			constraintName?: string;
-		}
-	> = domains.reduce<{
-		[key: string]: {
-			name: string;
-			schema: string;
-			notNull: boolean;
-			baseType: string;
-			defaultValue?: string;
-			constraint?: string;
-			constraintName?: string;
-		};
-	}>((map, obj) => {
+	const domainsToReturn: Record<string, Domain> = domains.reduce<{ [key: string]: Domain }>((map, obj) => {
+		// Process check constraints similar to tables
+		const checksObject: Record<string, CheckConstraint> = {};
+
+		obj.checkConstraints?.forEach((checkConstraint) => {
+			const checkName = checkConstraint.name;
+
+			console.log(`before transform ${checkName}`);
+			console.log(checkConstraint.value.queryChunks);
+
+			const checkValue = dialect.sqlToQuery(checkConstraint.value).sql;
+
+			console.log('after transform');
+			console.log(checkValue);
+
+			// Validate unique constraint names within domain
+			const domainKey = `"${obj.schema ?? 'public'}"."${obj.domainName}"`;
+			if (checksInTable[domainKey]?.includes(checkName)) {
+				console.error(`Duplicate check constraint name ${checkName} in domain ${domainKey}`);
+				process.exit(1);
+			}
+
+			checksInTable[domainKey] = checksInTable[domainKey]
+				? [...checksInTable[domainKey], checkName]
+				: [checkName];
+
+			checksObject[checkName] = {
+				name: checkName,
+				value: checkValue,
+			};
+
+			console.log('printing individual entry');
+			console.log(checksObject[checkName]);
+		});
+
 		const domainSchema = obj.schema || 'public';
 		const key = `${domainSchema}.${obj.domainName}`;
 		map[key] = {
@@ -900,9 +914,9 @@ export const generatePgSnapshot = (
 			notNull: obj.notNull,
 			baseType: obj.domainType,
 			defaultValue: obj.defaultValue,
-			constraint: obj.constraint,
-			constraintName: obj.constraintName,
+			checkConstraints: checksObject,
 		};
+
 		return map;
 	}, {});
 
@@ -1109,23 +1123,22 @@ WHERE
 	const whereDomains = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
 
 	const allDomains = await db.query(
-		`select
+		`SELECT
 			 n.nspname AS domain_schema,
 			 t.typname AS domain_name,
 			 t.typbasetype::regtype AS base_type,
 			 t.typnotnull AS not_null,
 			 t.typdefault AS default_value,
+			 c.conname AS constraint_name,  -- Get constraint name
 			 pg_get_constraintdef(c.oid) AS domain_constraint
-		 from
+		 FROM
 			 pg_type t
-				 JOIN
-			 pg_namespace n ON t.typnamespace = n.oid
-				 LEFT JOIN
-			 pg_constraint c ON t.oid = c.contypid AND c.contype = 'c'
-		 where
+				 JOIN pg_namespace n ON t.typnamespace = n.oid
+				 LEFT JOIN pg_constraint c ON t.oid = c.contypid AND c.contype = 'c'
+		 WHERE
 			 t.typtype = 'd'
 			 ${whereDomains === '' ? '' : ` AND (${whereDomains})`}
-		ORDER BY
+		 ORDER BY
 			 domain_schema, domain_name;`,
 	);
 
@@ -1135,15 +1148,25 @@ WHERE
 		const schemaName = domain.domain_schema || 'public';
 		const key = `${schemaName}.${domain.domain_name}`;
 
-		domainsToReturn[key] = {
-			name: domain.domain_name,
-			schema: schemaName,
-			baseType: domain.base_type,
-			notNull: domain.not_null,
-			defaultValue: domain.default_value,
-			constraint: domain.domain_constraint,
-			constraintName: domain.constraint_name,
-		};
+		// Initialize the domain if it doesn't exist
+		if (!domainsToReturn[key]) {
+			domainsToReturn[key] = {
+				name: domain.domain_name,
+				schema: schemaName,
+				baseType: domain.base_type,
+				notNull: domain.not_null,
+				defaultValue: domain.default_value,
+				checkConstraints: {}, // Now using checkConstraints (plural) as a Record
+			};
+		}
+
+		// Add the check constraint if present in this row
+		if (domain.constraint_name && domain.domain_constraint) {
+			domainsToReturn[key].checkConstraints[domain.constraint_name] = {
+				name: domain.constraint_name,
+				value: domain.domain_constraint,
+			};
+		}
 	}
 
 	const whereEnums = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
