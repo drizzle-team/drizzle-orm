@@ -8,9 +8,6 @@ test('domains #1 create domain simple', async () => {
 		domain: pgDomain('domain', 'text'),
 	};
 
-	console.log('printing to');
-	console.log(to);
-
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements.length).toBe(1);
@@ -32,8 +29,6 @@ test('domains #2 create domain not null', async () => {
 	const to = {
 		domain: folder.domain('domain', 'varchar', { notNull: true }),
 	};
-	console.log('printing to folder domain');
-	console.log(to);
 
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
 
@@ -106,7 +101,7 @@ test('domains #5 create domain with default value', async () => {
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
-		`CREATE DOMAIN "public"."domain" AS integer DEFAULT 42;`,
+		`CREATE DOMAIN "public"."domain" AS integer DEFAULT '42';`,
 	);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({

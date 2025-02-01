@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
-	AnyPgColumn, check,
+	AnyPgColumn,
+	check,
 	foreignKey,
 	geometry,
 	index,
@@ -970,7 +971,7 @@ test('domain with not null and check constraints', async () => {
 
 	const to = {
 		domain: emailDomain,
-		table: users
+		table: users,
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
@@ -988,7 +989,6 @@ test('domain with not null and check constraints', async () => {
 	expect(sqlStatements[1]).toBe(createTableStatement);
 });
 
-
 test('domain with default value and check constraints', async () => {
 	const shortTextDomain = pgDomain('short_text', 'text', {
 		notNull: false,
@@ -1003,7 +1003,7 @@ test('domain with default value and check constraints', async () => {
 
 	const to = {
 		domain: shortTextDomain,
-		table: users
+		table: users,
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);

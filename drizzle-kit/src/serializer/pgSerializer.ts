@@ -877,14 +877,7 @@ export const generatePgSnapshot = (
 
 		obj.checkConstraints?.forEach((checkConstraint) => {
 			const checkName = checkConstraint.name;
-
-			console.log(`before transform ${checkName}`);
-			console.log(checkConstraint.value.queryChunks);
-
 			const checkValue = dialect.sqlToQuery(checkConstraint.value).sql;
-
-			console.log('after transform');
-			console.log(checkValue);
 
 			// Validate unique constraint names within domain
 			const domainKey = `"${obj.schema ?? 'public'}"."${obj.domainName}"`;
@@ -901,9 +894,6 @@ export const generatePgSnapshot = (
 				name: checkName,
 				value: checkValue,
 			};
-
-			console.log('printing individual entry');
-			console.log(checksObject[checkName]);
 		});
 
 		const domainSchema = obj.schema || 'public';

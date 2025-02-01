@@ -10,7 +10,7 @@ import type {
 	CreateSelectSchema,
 	CreateUpdateSchema,
 } from './schema.types.ts';
-import {isColumnType, isPgEnum} from './utils.ts';
+import { isColumnType, isPgEnum } from './utils.ts';
 
 function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
@@ -70,12 +70,11 @@ const selectConditions: Conditions = {
 	never: () => false,
 	optional: () => false,
 	nullable: (column) => {
-		if (isColumnType<PgDomainColumn<any>>(column, ['PgDomainColumn']))
-		{
+		if (isColumnType<PgDomainColumn<any>>(column, ['PgDomainColumn'])) {
 			return !column.notNull && !column.domain.notNull;
 		}
 
-		return !column.notNull
+		return !column.notNull;
 	},
 };
 

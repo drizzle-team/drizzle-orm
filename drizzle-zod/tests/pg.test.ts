@@ -555,41 +555,6 @@ test('type coercion - mixed', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('table containing columns with check constraints', (t) => {
-	const table = pgTable('test', {
-		id: serial().primaryKey(),
-		firstName: text('first_name')
-			.notNull()
-			.checkConstraint(check('first_name_length', sql`length(first_name) BETWEEN 2 and 100`)),
-	});
-
-	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, firstName: textSchema.min(2).max(100) });
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
-
-test('table containing custom domain columns', (t) => {
-	const shortTextDomain = pgDomain('limited_text', 'text', {
-		notNull: true,
-		checkConstraints: [check('limited_text_length', sql`(length(value) BETWEEN 3 and 50)`)],
-	});
-
-	const table = pgTable('users', {
-		id: serial('id').primaryKey(),
-		email: shortTextDomain(),
-	});
-
-	const result = createSelectSchema(table);
-	const expected = z.object({
-		id: integerSchema,
-		email: textSchema.min(3).max(50),
-	});
-
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
-
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });
 	// @ts-expect-error

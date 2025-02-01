@@ -664,9 +664,6 @@ export const applyPgSnapshotsDiff = async (
 		deleted: domainsDiff.deleted,
 	});
 
-	console.log('createdDomains');
-	console.log(createdDomains);
-
 	const enumsDiff = diffSchemasOrTables(schemasPatchedSnap1.enums, json2.enums);
 
 	const {

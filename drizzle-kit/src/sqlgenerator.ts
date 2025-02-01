@@ -1417,8 +1417,6 @@ class AlterDomainConvertor extends DomainConvertor {
 		const domainNameWithSchema = this.getDomainNameWithSchema(name, schema);
 		let statement = `ALTER DOMAIN ${domainNameWithSchema}`;
 
-		console.log(`performing action ${action}`);
-
 		switch (action) {
 			case 'add_constraint':
 				if (checkConstraints && checkConstraints.length > 0) {
