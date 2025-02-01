@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm';
 import {
-	AnyPgColumn,
+	AnyPgColumn, check,
 	foreignKey,
 	geometry,
 	index,
 	integer,
+	pgDomain,
 	pgEnum,
 	pgSchema,
 	pgSequence,
@@ -954,4 +955,34 @@ test('optional db aliases (camel case)', async () => {
 	const st7 = `CREATE INDEX "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+});
+
+test('domain used in table column', async () => {
+	const domain = pgDomain('email', 'text', {
+		checkConstraints: [check('valid_email', sql`VALUE ~ '^[^@]+@[^@]+\.[^@]+$'`)],
+	});
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		email: domain().notNull(),
+	});
+
+	const to = {
+		domain: domain,
+		table: users
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	expect(sqlStatements[0]).toContain(
+		`CREATE DOMAIN "public"."email" AS text CONSTRAINT valid_email CHECK (VALUE ~ '^[^@]+@[^@]+\.[^@]+$');`,
+	);
+
+	const createTableStatement = `CREATE TABLE "users" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"email" "email"
+);
+`;
+
+	expect(sqlStatements[1]).toBe(createTableStatement);
 });
