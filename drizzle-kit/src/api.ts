@@ -1,8 +1,9 @@
 import { randomUUID } from 'crypto';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
-import { PgDatabase } from 'drizzle-orm/pg-core';
+import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
+import type postgres from 'postgres';
 import {
 	columnsResolver,
 	enumsResolver,
@@ -108,7 +109,9 @@ export const generateMigration = async (
 
 export const pushSchema = async (
 	imports: Record<string, unknown>,
-	drizzleInstance: PgDatabase<any>,
+	drizzleInstance: PostgresJsDatabase<any> & {
+		$client: postgres.Sql<{}>;
+	},
 	schemaFilters?: string[],
 	tablesFilter?: string[],
 	extensionsFilters?: Config['extensionsFilters'],
@@ -121,8 +124,8 @@ export const pushSchema = async (
 
 	const db: DB = {
 		query: async (query: string, params?: any[]) => {
-			const res = await drizzleInstance.execute(sql.raw(query));
-			return res.rows;
+			const res = await drizzleInstance.$client.unsafe<any[]>(query, params);
+			return res;
 		},
 	};
 
