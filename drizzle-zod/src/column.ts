@@ -20,6 +20,7 @@ import type {
 	PgBigSerial53,
 	PgBinaryVector,
 	PgChar,
+	PgDomainColumn,
 	PgDoublePrecision,
 	PgGeometry,
 	PgGeometryObject,
@@ -72,6 +73,7 @@ type CheckConstraints = {
 	regex?: RegExp;
 };
 
+// TODO fix trim, caps, hardcoded, spaces, etc
 function parseCheckConstraints(sql: string, columnName: string): CheckConstraints | null {
 	const constraints: CheckConstraints = {};
 
@@ -227,11 +229,19 @@ export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptio
 		schema = z.any();
 	}
 
-	if (column.checkConstraints) {
-		for (const checkConstraint of column.checkConstraints) {
+	let checkConstraints = column.checkConstraints;
+	let columnName = column.name;
+	if (isColumnType<PgDomainColumn<any>>(column, ['PgDomainColumn']))
+	{
+		checkConstraints = column.domain.checkConstraints;
+		columnName = 'VALUE';
+	}
+
+	if (checkConstraints) {
+		for (const checkConstraint of checkConstraints) {
 			const dialect = new PgDialect();
 			const checkSql = dialect.sqlToQuery(checkConstraint.value).sql;
-			const constraints = parseCheckConstraints(checkSql, column.name);
+			const constraints = parseCheckConstraints(checkSql, columnName);
 
 			if (constraints) {
 				schema = applyConstraints(schema, constraints);

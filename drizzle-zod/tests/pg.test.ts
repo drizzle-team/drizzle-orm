@@ -3,6 +3,7 @@ import {
 	check,
 	customType,
 	integer,
+	pgDomain,
 	pgEnum,
 	pgMaterializedView,
 	pgSchema,
@@ -20,20 +21,6 @@ import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
 const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
 const textSchema = z.string();
-
-test('table - columns with check constraints', (t) => {
-	const table = pgTable('test', {
-		id: serial().primaryKey(),
-		firstName: text('first_name')
-			.notNull()
-			.checkConstraint(check('first_name_length', sql`length(first_name) BETWEEN 2 and 100`)),
-	});
-
-	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, firstName: textSchema.min(2).max(100) });
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
 
 test('table - select', (t) => {
 	const table = pgTable('test', {
@@ -564,6 +551,41 @@ test('type coercion - mixed', (t) => {
 		timestamp: z.coerce.date(),
 		integer: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
 	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('table containing columns with check constraints', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		firstName: text('first_name')
+			.notNull()
+			.checkConstraint(check('first_name_length', sql`length(first_name) BETWEEN 2 and 100`)),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = z.object({ id: integerSchema, firstName: textSchema.min(2).max(100) });
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('table containing custom domain columns', (t) => {
+	const shortTextDomain = pgDomain('limited_text', 'text', {
+		notNull: true,
+		checkConstraints: [check('limited_text_length', sql`(length(value) BETWEEN 3 and 50)`)],
+	});
+
+	const table = pgTable('users', {
+		id: serial('id').primaryKey(),
+		email: shortTextDomain(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		id: integerSchema,
+		email: textSchema.min(3).max(50),
+	});
+
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });

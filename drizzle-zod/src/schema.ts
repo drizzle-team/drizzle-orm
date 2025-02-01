@@ -1,6 +1,6 @@
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import type { Table, View } from 'drizzle-orm';
-import type { PgEnum } from 'drizzle-orm/pg-core';
+import type { PgDomainColumn, PgEnum } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { columnToSchema } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
@@ -10,7 +10,7 @@ import type {
 	CreateSelectSchema,
 	CreateUpdateSchema,
 } from './schema.types.ts';
-import { isPgEnum } from './utils.ts';
+import {isColumnType, isPgEnum} from './utils.ts';
 
 function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
@@ -69,7 +69,14 @@ function handleEnum(enum_: PgEnum<any>, factory?: CreateSchemaFactoryOptions) {
 const selectConditions: Conditions = {
 	never: () => false,
 	optional: () => false,
-	nullable: (column) => !column.notNull,
+	nullable: (column) => {
+		if (isColumnType<PgDomainColumn<any>>(column, ['PgDomainColumn']))
+		{
+			return !column.notNull && !column.domain.notNull;
+		}
+
+		return !column.notNull
+	},
 };
 
 const insertConditions: Conditions = {
