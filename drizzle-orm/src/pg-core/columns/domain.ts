@@ -72,9 +72,6 @@ export class PgDomainColumn<
 	static override readonly [entityKind]: string = 'PgDomainColumn';
 
 	readonly domain = this.config.domain;
-	readonly domainType = this.config.domain.domainType;
-	override readonly notNull = this.config.domain.notNull;
-	readonly defaultValue = this.config.domain.defaultValue;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
@@ -85,21 +82,7 @@ export class PgDomainColumn<
 	}
 
 	getSQLType(): string {
-		let sql = this.domain.domainName;
-		if (this.notNull) {
-			sql += ' NOT NULL';
-		}
-		if (this.defaultValue) {
-			sql += ` DEFAULT ${this.defaultValue}`;
-		}
-		if (this.checkConstraints) {
-			for (const [constraintName, checkBuilder] of Object.entries(this.checkConstraints)) {
-				const checkSQL = checkBuilder.value;
-				sql += ` CONSTRAINT "${constraintName}" CHECK (${checkSQL})`;
-			}
-		}
-
-		return sql;
+		return this.domain.domainName;
 	}
 }
 

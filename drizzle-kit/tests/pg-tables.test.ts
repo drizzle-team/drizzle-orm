@@ -957,30 +957,64 @@ test('optional db aliases (camel case)', async () => {
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
 
-test('domain used in table column', async () => {
-	const domain = pgDomain('email', 'text', {
+test('domain with not null and check constraints', async () => {
+	const emailDomain = pgDomain('email', 'text', {
+		notNull: true,
 		checkConstraints: [check('valid_email', sql`VALUE ~ '^[^@]+@[^@]+\.[^@]+$'`)],
 	});
 
 	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
-		email: domain().notNull(),
+		email: emailDomain(),
 	});
 
 	const to = {
-		domain: domain,
+		domain: emailDomain,
 		table: users
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements[0]).toContain(
-		`CREATE DOMAIN "public"."email" AS text CONSTRAINT valid_email CHECK (VALUE ~ '^[^@]+@[^@]+\.[^@]+$');`,
+		`CREATE DOMAIN "public"."email" AS text NOT NULL CONSTRAINT valid_email CHECK (VALUE ~ '^[^@]+@[^@]+\.[^@]+$');`,
 	);
 
 	const createTableStatement = `CREATE TABLE "users" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"email" "email"
+);
+`;
+
+	expect(sqlStatements[1]).toBe(createTableStatement);
+});
+
+
+test('domain with default value and check constraints', async () => {
+	const shortTextDomain = pgDomain('short_text', 'text', {
+		notNull: false,
+		defaultValue: 'placeholder',
+		checkConstraints: [check('text_check', sql`(LENGTH(value)) BETWEEN 3 and 30)`)],
+	});
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		first_name: shortTextDomain(),
+	});
+
+	const to = {
+		domain: shortTextDomain,
+		table: users
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	expect(sqlStatements[0]).toContain(
+		`CREATE DOMAIN "public"."short_text" AS text DEFAULT 'placeholder' CONSTRAINT text_check CHECK ((LENGTH(value)) BETWEEN 3 and 30));`,
+	);
+
+	const createTableStatement = `CREATE TABLE "users" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"first_name" "short_text"
 );
 `;
 

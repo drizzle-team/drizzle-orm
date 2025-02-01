@@ -1392,7 +1392,7 @@ class CreateDomainConvertor extends DomainConvertor {
 		}
 
 		if (defaultValue) {
-			statement += ` DEFAULT ${defaultValue}`;
+			statement += ` DEFAULT '${defaultValue}'`;
 		}
 
 		if (checkConstraints && checkConstraints.length > 0) {
