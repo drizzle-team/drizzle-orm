@@ -14,7 +14,7 @@ export function isWithEnum(column: Column): column is typeof column & { enumValu
 export const isPgEnum: (entity: any) => entity is PgEnum<[string, ...string[]]> = isWithEnum as any;
 
 type Literal = Static<typeof literalSchema>;
-export type Json = Literal | { [key: string]: Json } | Json[];
+export type Json = Literal | { [key: string]: any } | any[];
 export interface JsonSchema extends TSchema {
 	[Kind]: 'Union';
 	static: Json;
