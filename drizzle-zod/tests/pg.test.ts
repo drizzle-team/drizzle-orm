@@ -1,9 +1,7 @@
 import { type Equal, sql } from 'drizzle-orm';
 import {
-	check,
 	customType,
 	integer,
-	pgDomain,
 	pgEnum,
 	pgMaterializedView,
 	pgSchema,
