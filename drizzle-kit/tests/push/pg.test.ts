@@ -4408,3 +4408,39 @@ test('bigint generated always as identity', async (t) => {
 		await client.query(st);
 	}
 });
+
+test('identity doesn\'t change when table name has non-alphanumeric characters', async () => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		table1: pgTable('table-1', {
+			id: integer('id').generatedAlwaysAsIdentity().primaryKey(),
+		}),
+		table2: pgTable('table-2', {
+			id: integer('id').generatedByDefaultAsIdentity().primaryKey(),
+		}),
+	};
+
+	await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+	);
+	const { sqlStatements: sqlStatements2 } = await diffTestSchemasPush(
+		client,
+		schema2,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+	);
+
+	expect(sqlStatements2).toStrictEqual([]);
+});

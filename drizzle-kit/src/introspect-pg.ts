@@ -275,7 +275,9 @@ export const relationsToTypeScriptForStudio = (
 };
 
 function generateIdentityParams(identity: Column['identity']) {
-	let paramsObj = `{ name: "${identity!.name}"`;
+	let paramsObj = `{ name: ${
+		identity!.name.startsWith('"') && identity!.name.endsWith('"') ? identity!.name : `"${identity!.name}"`
+	}`;
 	if (identity?.startWith) {
 		paramsObj += `, startWith: ${identity.startWith}`;
 	}
