@@ -210,7 +210,7 @@ const optionsFilters = {
 	tablesFilter: string().desc('Table name filters'),
 	schemaFilters: string().desc('Schema name filters'),
 	extensionsFilters: string().desc(
-		'`Database extensions internal database filters',
+		'Database extensions internal database filters',
 	),
 } as const;
 
