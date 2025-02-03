@@ -4409,7 +4409,7 @@ test('bigint generated always as identity', async (t) => {
 	}
 });
 
-test('identity doesn\'t change when table name has non-alphanumeric characters', async () => {
+test("identity doesn't change when table name has non-alphanumeric characters", async () => {
 	const client = new PGlite();
 
 	const schema1 = {};
