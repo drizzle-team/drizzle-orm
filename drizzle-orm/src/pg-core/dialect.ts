@@ -308,15 +308,17 @@ export class PgDialect {
 	private buildFromTable(
 		table: SQL | Subquery | PgViewBase | PgTable | undefined,
 	): SQL | Subquery | PgViewBase | PgTable | undefined {
-		if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-			let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
-			if (table[Table.Symbol.Schema]) {
-				fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
+		if (is(table, Table)) {
+			let fullName = sql`${sql.identifier(table[Table.Symbol.Schema] || "public")}.${sql.identifier(table[Table.Symbol.OriginalName])}`;
+	  
+			if (table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+			  fullName = sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
-			return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
-		}
-
-		return table;
+	  
+			return fullName;
+		  }
+	  
+		  return table;	  
 	}
 
 	buildSelectQuery(
