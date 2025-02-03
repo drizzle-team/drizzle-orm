@@ -239,6 +239,11 @@ export const generatePgSnapshot = (
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
 					columnToSet.default = sqlToStr(column.default, casing);
+				} else if (sqlTypeLowered === 'geometry(point)') {
+					const def = Array.isArray(column.default)
+						? column.default
+						: [(column.default as any).x, (column.default as any).y];
+					columnToSet.default = `st_geomfromtext('point(${def[0]}, ${def[1]})'::text)`;
 				} else {
 					if (typeof column.default === 'string') {
 						columnToSet.default = `'${escapeSingleQuotes(column.default)}'`;
@@ -821,13 +826,18 @@ export const generatePgSnapshot = (
 				if (column.default !== undefined) {
 					if (is(column.default, SQL)) {
 						columnToSet.default = sqlToStr(column.default, casing);
+					} else if (sqlTypeLowered === 'geometry(point)') {
+						const def = Array.isArray(column.default)
+							? column.default
+							: [(column.default as any).x, (column.default as any).y];
+						columnToSet.default = `st_geomfromtext('point(${def[0]}, ${def[1]})'::text)`;
 					} else {
 						if (typeof column.default === 'string') {
 							columnToSet.default = `'${column.default}'`;
 						} else if (typeof column.default === 'bigint') {
 							columnToSet.default = column.default.toString();
 						} else {
-							if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
+							if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json' || sqlTypeLowered.startsWith('geometry')) {
 								columnToSet.default = `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`;
 							} else if (column.default instanceof Date) {
 								if (sqlTypeLowered === 'date') {
@@ -1485,6 +1495,9 @@ WHERE
 							.replace('character', 'char');
 
 						columnTypeMapped = trimChar(columnTypeMapped, '"');
+						columnTypeMapped = columnTypeMapped === 'geometry(Point)'
+							? columnTypeMapped.toLowerCase()
+							: columnTypeMapped;
 
 						columnToReturn[columnName] = {
 							name: columnName,

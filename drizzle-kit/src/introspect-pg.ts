@@ -820,8 +820,9 @@ const mapDefault = (
 		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 	}
 
-	if (lowered.startsWith('geometry')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	if (lowered === 'geometry(point)') {
+		const match = defaultValue?.match(/\d+/g) ?? [];
+		return typeof defaultValue !== 'undefined' ? `.default([${match[0]}, ${match[1]}])` : '';
 	}
 
 	if (lowered.startsWith('vector')) {
