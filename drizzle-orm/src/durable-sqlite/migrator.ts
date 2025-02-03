@@ -13,7 +13,8 @@ function readMigrationFiles({ journal, migrations }: MigrationConfig): Migration
 	const migrationQueries: MigrationMeta[] = [];
 
 	for (const journalEntry of journal.entries) {
-		const query = migrations[`m${journalEntry.idx.toString().padStart(4, '0')}`];
+		const key = journalEntry.tag;
+		const query = migrations[key];
 
 		if (!query) {
 			throw new Error(`Missing migration: ${journalEntry.tag}`);
