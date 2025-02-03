@@ -1391,7 +1391,8 @@ WHERE
 						const identityMaximum = columnResponse.identity_maximum;
 						const identityMinimum = columnResponse.identity_minimum;
 						const identityCycle = columnResponse.identity_cycle === 'YES';
-						const identityName = columnResponse.seq_name.startsWith('"') && columnResponse.seq_name.endsWith('"')
+						const identityName = columnResponse.seq_name && columnResponse.seq_name.startsWith('"')
+								&& columnResponse.seq_name.endsWith('"')
 							? columnResponse.seq_name.slice(1, -1)
 							: columnResponse.seq_name;
 
