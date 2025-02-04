@@ -977,7 +977,7 @@ AND
 		const tableName = checkConstraintRow['TABLE_NAME'];
 
 		const tableInResult = result[tableName];
-		// if (typeof tableInResult === 'undefined') continue;
+		if (typeof tableInResult === 'undefined') continue;
 
 		tableInResult.checkConstraint[constraintName] = {
 			name: constraintName,
