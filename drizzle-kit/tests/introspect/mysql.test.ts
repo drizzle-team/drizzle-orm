@@ -317,3 +317,22 @@ test('instrospect strings with single quotes', async () => {
 
 	await client.query(`drop table columns;`);
 });
+
+test('introspect strings with empty string as default', async () => {
+	const schema = {
+		columns: mysqlTable('columns', {
+			text: text('text').default(''),
+			varchar: varchar('varchar').default(''),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'introspect-strings-with-empty-string-as-default',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
