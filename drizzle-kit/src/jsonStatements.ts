@@ -1053,6 +1053,11 @@ export const prepareDomainJson = (
 	type: 'create' | 'alter' | 'drop',
 	action?: JsonAlterDomainStatement['action'],
 ): JsonDomainStatement => {
+	let checkConstraints;
+	if (domain.checkConstraints) {
+		checkConstraints = Object.values(domain.checkConstraints);
+	}
+
 	if (type === 'create') {
 		return {
 			type: 'create_domain',
@@ -1061,7 +1066,7 @@ export const prepareDomainJson = (
 			notNull: domain.notNull,
 			defaultValue: domain.defaultValue,
 			baseType: domain.baseType,
-			checkConstraints: Object.values(domain.checkConstraints),
+			checkConstraints,
 		};
 	} else if (type === 'drop') {
 		return {
@@ -1078,7 +1083,7 @@ export const prepareDomainJson = (
 		name: domain.name,
 		schema: domain.schema,
 		defaultValue: domain.defaultValue,
-		checkConstraints: Object.values(domain.checkConstraints),
+		checkConstraints,
 	};
 };
 

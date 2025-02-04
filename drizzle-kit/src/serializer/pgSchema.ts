@@ -29,7 +29,7 @@ const tableV2 = object({
 }).strict();
 
 const checkConstraint = object({
-	name: string(),
+	name: string().optional(),
 	value: string(),
 }).strict();
 
@@ -39,7 +39,7 @@ const domainSchema = object({
 	baseType: string(),
 	notNull: boolean().optional(),
 	defaultValue: string().optional(),
-	checkConstraints: record(string(), checkConstraint).default({}),
+	checkConstraints: record(string(), checkConstraint).optional(),
 }).strict();
 
 const enumSchemaV1 = object({
@@ -473,7 +473,7 @@ const domainSquashed = object({
 	baseType: string(),
 	notNull: boolean().optional(),
 	defaultValue: string().optional(),
-	checkConstraints: record(string(), string()),
+	checkConstraints: record(string(), string()).optional(),
 }).strict();
 
 const tableSquashed = object({
@@ -895,7 +895,7 @@ export const squashPgScheme = (
 
 	const mappedDomains = mapValues(json.domains, (domain) => {
 		const squashedDomainChecks = mapValues(
-			domain.checkConstraints,
+			domain.checkConstraints ?? {},
 			(check) => PgSquasher.squashCheck(check),
 		);
 

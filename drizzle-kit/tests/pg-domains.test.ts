@@ -284,3 +284,30 @@ test('domains #11 alter domain to drop default value', async () => {
 		defaultValue: undefined,
 	});
 });
+
+test('domains #12 create domain with unnamed constraint', async () => {
+	const to = {
+		domain: pgDomain('domain', 'text', {
+			checkConstraints: [check(sql`VALUE ~ '^[A-Za-z]+$'`)],
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`CREATE DOMAIN "public"."domain" AS text CHECK (VALUE ~ '^[A-Za-z]+$');`,
+	);
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'create_domain',
+		name: 'domain',
+		schema: 'public',
+		baseType: 'text',
+		notNull: false,
+		defaultValue: undefined,
+		checkConstraints: [
+			";VALUE ~ '^[A-Za-z]+$'",
+		],
+	});
+});

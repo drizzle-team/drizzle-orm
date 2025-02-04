@@ -1,10 +1,10 @@
-import {type Equal, sql} from 'drizzle-orm';
-import {check, integer, pgDomain, pgTable, serial, text,} from 'drizzle-orm/pg-core';
-import {test} from 'vitest';
-import {z} from 'zod';
-import {CONSTANTS} from '~/constants.ts';
-import {createSelectSchema} from '../src';
-import {Expect, expectSchemaShape} from './utils.ts';
+import { type Equal, sql } from 'drizzle-orm';
+import { check, integer, pgDomain, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { test } from 'vitest';
+import { z } from 'zod';
+import { CONSTANTS } from '~/constants.ts';
+import { createSelectSchema } from '../src';
+import { Expect, expectSchemaShape } from './utils.ts';
 
 // TODO think about what to do with the existing filters being added when check constraints are involved
 const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();

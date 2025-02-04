@@ -250,7 +250,7 @@ const domainSchema = object({
 	baseType: string(),
 	notNull: boolean().optional(),
 	defaultValue: string().optional(),
-	checkConstraints: record(string(), string()).default({}),
+	checkConstraints: record(string(), string()).optional(),
 }).strict();
 
 const changedDomainSchema = object({
@@ -259,7 +259,7 @@ const changedDomainSchema = object({
 	baseType: string(),
 	notNull: boolean().optional(),
 	defaultValue: string().optional(),
-	checkConstraints: record(string(), string()).default({}),
+	checkConstraints: record(string(), string()).optional(),
 }).strict();
 
 const enumSchema = object({

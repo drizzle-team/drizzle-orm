@@ -536,11 +536,18 @@ export const generatePgSnapshot = (
 			};
 		});
 
-		checks.forEach((check) => {
-			const checkName = check.name;
+		checks.forEach((check, index) => {
+			const tableKey = `"${schema ?? 'public'}"."${tableName}"`;
+
+			// you can have multiple unnamed checks per table (using the default above)
+			let defaultCheckName = `${tableName}_check`
+			let checkName = check.name ?? defaultCheckName;
+			if (checksInTable[tableKey]?.includes(checkName) && checkName == defaultCheckName) {
+				checkName += `_${index}`;
+			}
 
 			if (typeof checksInTable[`"${schema ?? 'public'}"."${tableName}"`] !== 'undefined') {
-				if (checksInTable[`"${schema ?? 'public'}"."${tableName}"`].includes(check.name)) {
+				if (checksInTable[`"${schema ?? 'public'}"."${tableName}"`].includes(checkName)) {
 					console.log(
 						`\n${
 							withStyle.errorWarning(
@@ -564,11 +571,11 @@ export const generatePgSnapshot = (
 				}
 				checksInTable[`"${schema ?? 'public'}"."${tableName}"`].push(checkName);
 			} else {
-				checksInTable[`"${schema ?? 'public'}"."${tableName}"`] = [check.name];
+				checksInTable[`"${schema ?? 'public'}"."${tableName}"`] = [checkName];
 			}
 
 			checksObject[checkName] = {
-				name: checkName,
+				name: check.name ?? '', // don't squash and include the default name
 				value: dialect.sqlToQuery(check.value).sql,
 			};
 		});
@@ -875,15 +882,15 @@ export const generatePgSnapshot = (
 		// Process check constraints similar to tables
 		const checksObject: Record<string, CheckConstraint> = {};
 
-		obj.checkConstraints?.forEach((checkConstraint) => {
-			const checkName = checkConstraint.name;
-			const checkValue = dialect.sqlToQuery(checkConstraint.value).sql;
-
+		obj.checkConstraints?.forEach((checkConstraint, index) => {
 			// Validate unique constraint names within domain
 			const domainKey = `"${obj.schema ?? 'public'}"."${obj.domainName}"`;
-			if (checksInTable[domainKey]?.includes(checkName)) {
-				console.error(`Duplicate check constraint name ${checkName} in domain ${domainKey}`);
-				process.exit(1);
+
+			// you can have multiple unnamed checks per domain (using the default above)
+			let defaultCheckName = `${obj.domainName}_check`
+			let checkName = checkConstraint.name ?? defaultCheckName;
+			if (checksInTable[domainKey]?.includes(checkName) && checkName == defaultCheckName) {
+				checkName += `_${index}`;
 			}
 
 			checksInTable[domainKey] = checksInTable[domainKey]
@@ -891,8 +898,8 @@ export const generatePgSnapshot = (
 				: [checkName];
 
 			checksObject[checkName] = {
-				name: checkName,
-				value: checkValue,
+				name: checkConstraint.name ?? '', // don't squash and include the default name
+				value: dialect.sqlToQuery(checkConstraint.value).sql,
 			};
 		});
 
@@ -1138,7 +1145,6 @@ WHERE
 		const schemaName = domain.domain_schema || 'public';
 		const key = `${schemaName}.${domain.domain_name}`;
 
-		// Initialize the domain if it doesn't exist
 		if (!domainsToReturn[key]) {
 			domainsToReturn[key] = {
 				name: domain.domain_name,
@@ -1146,12 +1152,15 @@ WHERE
 				baseType: domain.base_type,
 				notNull: domain.not_null,
 				defaultValue: domain.default_value,
-				checkConstraints: {}, // Now using checkConstraints (plural) as a Record
 			};
 		}
 
 		// Add the check constraint if present in this row
 		if (domain.constraint_name && domain.domain_constraint) {
+			if (!domainsToReturn[key].checkConstraints) {
+				domainsToReturn[key].checkConstraints = {};
+			}
+
 			domainsToReturn[key].checkConstraints[domain.constraint_name] = {
 				name: domain.constraint_name,
 				value: domain.domain_constraint,
@@ -1330,7 +1339,7 @@ WHERE
 					const tableChecks = await db.query(`SELECT 
 						tc.constraint_name,
 						tc.constraint_type,
-						pg_get_constraintdef(con.oid) AS constraint_definition
+						pg_get_expr(con.conbin, con.conrelid) AS check_expression
 					FROM 
 						information_schema.table_constraints AS tc
 						JOIN pg_constraint AS con 
@@ -1457,10 +1466,8 @@ WHERE
 					for (const checks of tableChecks) {
 						// CHECK (((email)::text <> 'test@gmail.com'::text))
 						// Where (email) is column in table
-						let checkValue: string = checks.constraint_definition;
+						const checkValue: string = checks.check_expression;
 						const constraintName: string = checks.constraint_name;
-
-						checkValue = checkValue.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
 
 						checkConstraints[constraintName] = {
 							name: constraintName,

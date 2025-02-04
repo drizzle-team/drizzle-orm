@@ -476,7 +476,12 @@ class PgCreateTableConvertor extends Convertor {
 			for (const checkConstraint of checkConstraints) {
 				statement += ',\n';
 				const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
-				statement += `\tCONSTRAINT "${unsquashedCheck.name}" CHECK (${unsquashedCheck.value})`;
+
+				if(unsquashedCheck.name) {
+					statement += `\tCONSTRAINT "${unsquashedCheck.name}" CHECK (${unsquashedCheck.value})`;
+				} else {
+					statement += `\tCHECK (${unsquashedCheck.value})`;
+				}
 			}
 		}
 
@@ -1398,7 +1403,12 @@ class CreateDomainConvertor extends DomainConvertor {
 		if (checkConstraints && checkConstraints.length > 0) {
 			for (const checkConstraint of checkConstraints) {
 				const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
-				statement += ` CONSTRAINT ${unsquashedCheck.name} CHECK (${unsquashedCheck.value})`;
+
+				if (unsquashedCheck.name) {
+					statement += ` CONSTRAINT ${unsquashedCheck.name} CHECK (${unsquashedCheck.value})`;
+				} else {
+					statement += ` CHECK (${unsquashedCheck.value})`;
+				}
 			}
 		}
 
@@ -1422,7 +1432,12 @@ class AlterDomainConvertor extends DomainConvertor {
 				if (checkConstraints && checkConstraints.length > 0) {
 					for (const checkConstraint of checkConstraints) {
 						const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
-						statement += ` ADD CONSTRAINT ${unsquashedCheck.name} CHECK (${unsquashedCheck.value})`;
+
+						if (unsquashedCheck.name) {
+							statement += ` ADD CONSTRAINT ${unsquashedCheck.name} CHECK (${unsquashedCheck.value})`;
+						} else {
+							statement += ` ADD CHECK (${unsquashedCheck.value})`;
+						}
 					}
 				}
 				break;
