@@ -1,10 +1,12 @@
 import { is } from 'drizzle-orm';
 import {
 	AnyPgTable,
+	isPgDomain,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
 	isPgView,
+	PgDomain,
 	PgEnum,
 	PgMaterializedView,
 	PgPolicy,
@@ -18,6 +20,7 @@ import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyPgTable[] = [];
+	const domains: PgDomain<any>[] = [];
 	const enums: PgEnum<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
@@ -61,11 +64,12 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 		}
 	});
 
-	return { tables, enums, schemas, sequences, views, matViews, roles, policies };
+	return { tables, domains, enums, schemas, sequences, views, matViews, roles, policies };
 };
 
 export const prepareFromPgImports = async (imports: string[]) => {
 	const tables: AnyPgTable[] = [];
+	const domains: PgDomain<any>[] = [];
 	const enums: PgEnum<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
@@ -82,6 +86,7 @@ export const prepareFromPgImports = async (imports: string[]) => {
 		const prepared = prepareFromExports(i0);
 
 		tables.push(...prepared.tables);
+		domains.push(...prepared.domains);
 		enums.push(...prepared.enums);
 		schemas.push(...prepared.schemas);
 		sequences.push(...prepared.sequences);
@@ -92,5 +97,5 @@ export const prepareFromPgImports = async (imports: string[]) => {
 	}
 	unregister();
 
-	return { tables: Array.from(new Set(tables)), enums, schemas, sequences, views, matViews, roles, policies };
+	return { tables: Array.from(new Set(tables)), domains, enums, schemas, sequences, views, matViews, roles, policies };
 };

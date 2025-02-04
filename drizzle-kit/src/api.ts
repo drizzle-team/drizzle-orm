@@ -5,6 +5,7 @@ import { PgDatabase } from 'drizzle-orm/pg-core';
 import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import {
 	columnsResolver,
+	domainsResolver,
 	enumsResolver,
 	indPolicyResolver,
 	mySqlViewsResolver,
@@ -57,6 +58,7 @@ export const generateDrizzleJson = (
 
 	const snapshot = generatePgSnapshot(
 		prepared.tables,
+		prepared.domains,
 		prepared.enums,
 		prepared.schemas,
 		prepared.sequences,
@@ -91,6 +93,7 @@ export const generateMigration = async (
 		squashedPrev,
 		squashedCur,
 		schemasResolver,
+		domainsResolver,
 		enumsResolver,
 		sequencesResolver,
 		policyResolver,
@@ -144,6 +147,7 @@ export const pushSchema = async (
 		squashedPrev,
 		squashedCur,
 		schemasResolver,
+		domainsResolver,
 		enumsResolver,
 		sequencesResolver,
 		policyResolver,

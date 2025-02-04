@@ -5,10 +5,12 @@ import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import {
 	getMaterializedViewConfig,
+	isPgDomain,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
 	isPgView,
+	PgDomain,
 	PgEnum,
 	PgMaterializedView,
 	PgPolicy,
@@ -25,6 +27,7 @@ import { Connection } from 'mysql2/promise';
 import { libSqlLogSuggestionsAndReturn } from 'src/cli/commands/libSqlPushUtils';
 import {
 	columnsResolver,
+	domainsResolver,
 	enumsResolver,
 	indPolicyResolver,
 	mySqlViewsResolver,
@@ -42,6 +45,7 @@ import { logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn } from 's
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { Entities } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
+import { snapshotVersion } from 'src/global';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
 import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
@@ -70,6 +74,7 @@ import {
 	Column,
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
+	Domain,
 	Enum,
 	PolicyResolverInput,
 	PolicyResolverOutput,
@@ -87,6 +92,7 @@ import {
 export type PostgresSchema = Record<
 	string,
 	| PgTable<any>
+	| PgDomain<any>
 	| PgEnum<any>
 	| PgSchema
 	| PgSequence
@@ -636,6 +642,82 @@ async (
 	}
 };
 
+export const testDomainsResolver = (renames: Set<string>) =>
+async (
+	input: ResolverInput<Domain>,
+): Promise<ResolverOutputWithMoved<Domain>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdDomains = [...input.created];
+		let deletedDomains = [...input.deleted];
+
+		const result: {
+			created: Domain[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: Domain; to: Domain }[];
+			deleted: Domain[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedDomains.findIndex((it) => {
+				return `${it.schema || 'public'}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdDomains.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === to;
+				});
+
+				const domainFrom = deletedDomains[idxFrom];
+				const domainTo = createdDomains[idxFrom];
+
+				if (domainFrom.schema !== domainTo.schema) {
+					result.moved.push({
+						name: domainFrom.name,
+						schemaFrom: domainFrom.schema,
+						schemaTo: domainTo.schema,
+					});
+				}
+
+				if (domainFrom.name !== domainTo.name) {
+					result.renamed.push({
+						from: deletedDomains[idxFrom],
+						to: createdDomains[idxTo],
+					});
+				}
+
+				delete createdDomains[idxTo];
+				delete deletedDomains[idxFrom];
+
+				createdDomains = createdDomains.filter(Boolean);
+				deletedDomains = deletedDomains.filter(Boolean);
+			}
+		}
+
+		result.created = createdDomains;
+		result.deleted = deletedDomains;
+
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
 export const testViewsResolver = (renames: Set<string>) =>
 async (
 	input: ResolverInput<View>,
@@ -1007,6 +1089,8 @@ export const diffTestSchemasPush = async (
 
 	const leftSequences = Object.values(right).filter((it) => isPgSequence(it)) as PgSequence[];
 
+	const leftDomains = Object.values(right).filter((it) => isPgDomain(it)) as PgDomain<any>[];
+
 	const leftRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
 
 	const leftPolicies = Object.values(right).filter((it) => is(it, PgPolicy)) as PgPolicy[];
@@ -1017,6 +1101,7 @@ export const diffTestSchemasPush = async (
 
 	const serialized2 = generatePgSnapshot(
 		leftTables,
+		leftDomains,
 		leftEnums,
 		leftSchemas,
 		leftSequences,
@@ -1031,7 +1116,7 @@ export const diffTestSchemasPush = async (
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
 
 	const sch1 = {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1039,7 +1124,7 @@ export const diffTestSchemasPush = async (
 	} as const;
 
 	const sch2 = {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1059,6 +1144,7 @@ export const diffTestSchemasPush = async (
 			sn1,
 			sn2,
 			testSchemasResolver(renames),
+			testDomainsResolver(renames),
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
 			testPolicyResolver(renames),
@@ -1106,6 +1192,7 @@ export const diffTestSchemasPush = async (
 			sn1,
 			sn2,
 			schemasResolver,
+			domainsResolver,
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
@@ -1127,11 +1214,12 @@ export const applyPgDiffs = async (
 	casing: CasingType | undefined,
 ) => {
 	const dryRun = {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
 		tables: {},
+		domains: {},
 		enums: {},
 		views: {},
 		schemas: {},
@@ -1149,6 +1237,8 @@ export const applyPgDiffs = async (
 
 	const schemas = Object.values(sn).filter((it) => is(it, PgSchema)) as PgSchema[];
 
+	const domains = Object.values(sn).filter((it) => isPgDomain(it)) as PgDomain<any>[];
+
 	const enums = Object.values(sn).filter((it) => isPgEnum(it)) as PgEnum<any>[];
 
 	const sequences = Object.values(sn).filter((it) => isPgSequence(it)) as PgSequence[];
@@ -1163,6 +1253,7 @@ export const applyPgDiffs = async (
 
 	const serialized1 = generatePgSnapshot(
 		tables,
+		domains,
 		enums,
 		schemas,
 		sequences,
@@ -1176,7 +1267,7 @@ export const applyPgDiffs = async (
 	const { version: v1, dialect: d1, ...rest1 } = serialized1;
 
 	const sch1 = {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1192,6 +1283,7 @@ export const applyPgDiffs = async (
 		dryRun,
 		sn1,
 		testSchemasResolver(new Set()),
+		testDomainsResolver(new Set()),
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testPolicyResolver(new Set()),
@@ -1229,6 +1321,10 @@ export const diffTestSchemas = async (
 
 	const rightSequences = Object.values(right).filter((it) => isPgSequence(it)) as PgSequence[];
 
+	const leftDomains = Object.values(left).filter((it) => isPgDomain(it)) as PgDomain<any>[];
+
+	const rightDomains = Object.values(right).filter((it) => isPgDomain(it)) as PgDomain<any>[];
+
 	const leftRoles = Object.values(left).filter((it) => is(it, PgRole)) as PgRole[];
 
 	const rightRoles = Object.values(right).filter((it) => is(it, PgRole)) as PgRole[];
@@ -1247,6 +1343,7 @@ export const diffTestSchemas = async (
 
 	const serialized1 = generatePgSnapshot(
 		leftTables,
+		leftDomains,
 		leftEnums,
 		leftSchemas,
 		leftSequences,
@@ -1258,6 +1355,7 @@ export const diffTestSchemas = async (
 	);
 	const serialized2 = generatePgSnapshot(
 		rightTables,
+		rightDomains,
 		rightEnums,
 		rightSchemas,
 		rightSequences,
@@ -1272,7 +1370,7 @@ export const diffTestSchemas = async (
 	const { version: v2, dialect: d2, ...rest2 } = serialized2;
 
 	const sch1 = {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1280,7 +1378,7 @@ export const diffTestSchemas = async (
 	} as const;
 
 	const sch2 = {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -1300,6 +1398,7 @@ export const diffTestSchemas = async (
 			sn1,
 			sn2,
 			testSchemasResolver(renames),
+			testDomainsResolver(renames),
 			testEnumsResolver(renames),
 			testSequencesResolver(renames),
 			testPolicyResolver(renames),
@@ -1317,6 +1416,7 @@ export const diffTestSchemas = async (
 			sn1,
 			sn2,
 			schemasResolver,
+			domainsResolver,
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
@@ -2325,7 +2425,7 @@ export const introspectPgToFile = async (
 	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
 
 	const initSch = {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -2347,6 +2447,7 @@ export const introspectPgToFile = async (
 
 	const afterFileImports = generatePgSnapshot(
 		response.tables,
+		response.domains,
 		response.enums,
 		response.schemas,
 		response.sequences,
@@ -2360,7 +2461,7 @@ export const introspectPgToFile = async (
 	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
 
 	const sch2 = {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		id: '0',
 		prevId: '0',
@@ -2377,6 +2478,7 @@ export const introspectPgToFile = async (
 		initSn,
 		sn2AfterIm,
 		testSchemasResolver(new Set()),
+		testDomainsResolver(new Set()),
 		testEnumsResolver(new Set()),
 		testSequencesResolver(new Set()),
 		testPolicyResolver(new Set()),

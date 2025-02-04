@@ -35,6 +35,7 @@ import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress } from '../views';
 import {
 	columnsResolver,
+	domainsResolver,
 	enumsResolver,
 	indPolicyResolver,
 	mySqlViewsResolver,
@@ -121,6 +122,7 @@ export const introspectPostgres = async (
 			squashPgScheme(dryPg),
 			squashPgScheme(schema),
 			schemasResolver,
+			domainsResolver,
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
@@ -485,7 +487,7 @@ export const introspectSqlite = async (
 			chalk.green(
 				'✓',
 			)
-		}] You relations file is ready ➜ ${
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)

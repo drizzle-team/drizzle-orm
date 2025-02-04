@@ -243,7 +243,7 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 	constructor(
 		private readonly base: T,
 		data: (RenamePropmtItem<T> | T)[],
-		private readonly entityType: 'table' | 'enum' | 'sequence' | 'view' | 'role',
+		private readonly entityType: 'table' | 'domain' | 'enum' | 'sequence' | 'view' | 'role',
 	) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));

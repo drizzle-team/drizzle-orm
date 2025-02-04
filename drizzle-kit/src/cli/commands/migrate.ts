@@ -28,6 +28,7 @@ import {
 	Column,
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
+	Domain,
 	Enum,
 	PolicyResolverInput,
 	PolicyResolverOutput,
@@ -260,6 +261,28 @@ export const indPolicyResolver = async (
 	};
 };
 
+export const domainsResolver = async (
+	input: ResolverInput<Domain>,
+): Promise<ResolverOutputWithMoved<Domain>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'domain',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
 export const enumsResolver = async (
 	input: ResolverInput<Enum>,
 ): Promise<ResolverOutputWithMoved<Enum>> => {
@@ -342,6 +365,7 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			squashedPrev,
 			squashedCur,
 			schemasResolver,
+			domainsResolver,
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
@@ -388,6 +412,7 @@ export const prepareAndExportPg = async (config: ExportConfig) => {
 			squashedPrev,
 			squashedCur,
 			schemasResolver,
+			domainsResolver,
 			enumsResolver,
 			sequencesResolver,
 			policyResolver,
@@ -420,6 +445,7 @@ export const preparePgPush = async (
 		squashedPrev,
 		squashedCur,
 		schemasResolver,
+		domainsResolver,
 		enumsResolver,
 		sequencesResolver,
 		policyResolver,
@@ -1205,7 +1231,7 @@ export const promptNamedConflict = async <T extends Named>(
 export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 	newItems: T[],
 	missingItems: T[],
-	entity: 'table' | 'enum' | 'sequence' | 'view',
+	entity: 'table' | 'domain' | 'enum' | 'sequence' | 'view',
 ): Promise<{
 	created: T[];
 	renamed: { from: T; to: T }[];
