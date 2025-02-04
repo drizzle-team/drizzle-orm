@@ -29,6 +29,7 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uniqueIndex,
 	uuid,
 	varchar,
@@ -4443,4 +4444,40 @@ test("identity doesn't change when table name has non-alphanumeric characters", 
 	);
 
 	expect(sqlStatements2).toStrictEqual([]);
+});
+
+test("shouldn't drop unique constraint", async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		table: pgTable('table', {
+			id: integer('id').primaryKey(),
+			u2: text('u2'),
+			u1: text('u1'),
+		}, (t) => [
+			unique('table_u1_u2_uni').on(t.u1, t.u2),
+		]),
+	};
+
+	const schema2 = {
+		table: pgTable('table', {
+			id: integer('id').primaryKey(),
+			u2: text('u2'),
+			u1: text('u1'),
+		}, (t) => [
+			unique('table_u1_u2_uni').on(t.u1, t.u2),
+		]),
+	};
+
+	const { sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
 });

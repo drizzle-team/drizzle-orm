@@ -1234,12 +1234,16 @@ WHERE
 					const tableResponse = await getColumnsInfoQuery({ schema: tableSchema, table: tableName, db });
 
 					const tableConstraints = await db.query(
-						`SELECT c.column_name, c.data_type, constraint_type, constraint_name, constraint_schema
+						`WITH constraints AS (
+			SELECT c.column_name, c.data_type, constraint_type, constraint_name, constraint_schema
       FROM information_schema.table_constraints tc
       JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_name)
       JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema
         AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
-      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}';`,
+      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}'
+			) SELECT DISTINCT ON (c.column_name, c.constraint_name, c.constraint_schema) c.*, kcu.ordinal_position as position FROM constraints as c
+			LEFT JOIN information_schema.key_column_usage AS kcu USING (constraint_schema, constraint_name, column_name)
+			ORDER BY c.column_name, c.constraint_name, c.constraint_schema, position;`,
 					);
 
 					const tableChecks = await db.query(`SELECT 
