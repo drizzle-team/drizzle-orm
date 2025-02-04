@@ -892,3 +892,30 @@ test('multiple policies with roles from schema', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('view with policy', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+		view: pgView('view', {
+			id: integer('id').primaryKey(),
+		}).with({
+			checkOption: 'cascaded',
+			securityBarrier: false,
+			securityInvoker: true,
+		}).as(sql`select * from "users"`),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'view-with-policy',
+		['public'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
