@@ -22,6 +22,7 @@ import { SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-cor
 import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { Connection } from 'mysql2/promise';
+import { Client as NodePgClient } from 'pg';
 import { libSqlLogSuggestionsAndReturn } from 'src/cli/commands/libSqlPushUtils';
 import {
 	columnsResolver,
@@ -2296,24 +2297,27 @@ export const diffTestSchemasLibSQL = async (
 // --- Introspect to file helpers ---
 
 export const introspectPgToFile = async (
-	client: PGlite,
+	client: PGlite | NodePgClient,
 	initSchema: PostgresSchema,
 	testName: string,
 	schemas: string[] = ['public'],
 	entities?: Entities,
 	casing?: CasingType | undefined,
+	ignoreTables?: string[] | undefined,
 ) => {
+	const execute: (sql: string, params?: any[]) => Promise<any> = (sql, params) => (client as any).query(sql, params);
+
 	// put in db
 	const { sqlStatements } = await applyPgDiffs(initSchema, casing);
 	for (const st of sqlStatements) {
-		await client.query(st);
+		await execute(st);
 	}
 
 	// introspect to schema
 	const introspectedSchema = await fromDatabase(
 		{
 			query: async (query: string, values?: any[] | undefined) => {
-				const res = await client.query(query, values);
+				const res = await execute(query, values);
 				return res.rows as any[];
 			},
 		},
@@ -2321,6 +2325,13 @@ export const introspectPgToFile = async (
 		schemas,
 		entities,
 	);
+
+	if (ignoreTables && ignoreTables.length > 0) {
+		for (const table of ignoreTables) {
+			delete introspectedSchema.tables[table];
+			delete introspectedSchema.views[table];
+		}
+	}
 
 	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
 

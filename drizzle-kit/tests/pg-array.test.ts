@@ -2,6 +2,7 @@ import {
 	bigint,
 	boolean,
 	date,
+	doublePrecision,
 	integer,
 	json,
 	pgEnum,
@@ -365,4 +366,25 @@ test('array #12: enum empty array default', async (t) => {
 			default: "'{}'",
 		},
 	});
+});
+
+test('array #13: double precision array', async (t) => {
+	const from = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const to = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			double: doublePrecision('double').array(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" ADD COLUMN "double" double precision[];',
+	]);
 });
