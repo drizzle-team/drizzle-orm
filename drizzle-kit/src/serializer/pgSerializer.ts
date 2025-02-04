@@ -1800,6 +1800,9 @@ WHERE
 							.replace('character', 'char');
 
 						columnTypeMapped = trimChar(columnTypeMapped, '"');
+						columnTypeMapped = columnTypeMapped === 'geometry(Point)'
+							? columnTypeMapped.toLowerCase()
+							: columnTypeMapped;
 
 						columnToReturn[columnName] = {
 							name: columnName,
