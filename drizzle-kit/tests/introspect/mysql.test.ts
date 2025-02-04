@@ -322,7 +322,7 @@ test('introspect strings with empty string as default', async () => {
 	const schema = {
 		columns: mysqlTable('columns', {
 			text: text('text').default(''),
-			varchar: varchar('varchar').default(''),
+			varchar: varchar('varchar', { length: 255 }).default(''),
 		}),
 	};
 
