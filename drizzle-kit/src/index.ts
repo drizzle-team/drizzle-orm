@@ -321,6 +321,6 @@ export type Config =
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#strict
  */
-export function defineConfig(config: Config) {
-	return config;
+export function defineConfig(config: Config | Promise<Config> | (() => Config | Promise<Config>)) {
+	return typeof config === 'function' ? config() : config;
 }
