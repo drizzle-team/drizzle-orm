@@ -61,6 +61,9 @@ export default defineConfig({
 			'tests/mysql/tidb-serverless.test.ts',
 			// waiting for json_array from singlestore team
 			'tests/relational/singlestore.test.ts',
+			'js-tests/driver-init/module/planetscale.test.mjs',
+			'js-tests/driver-init/module/planetscale.test.cjs',
+			'js-tests/driver-init/commonjs/planetscale.test.cjs',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
