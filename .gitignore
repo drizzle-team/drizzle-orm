@@ -13,3 +13,4 @@ rollup.config-*.mjs
 *.log
 .DS_Store
 drizzle-seed/src/dev
+.idea/

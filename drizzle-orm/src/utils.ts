@@ -185,7 +185,14 @@ export type Writable<T> = {
 };
 
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
-	return table[Table.Symbol.Columns];
+	const columns = table[Table.Symbol.Columns];
+	for (const [name, column] of Object.entries(columns)) {
+		if (column.isIgnored) {
+			delete columns[name];
+		}
+	}
+
+	return columns;
 }
 
 export function getViewSelectedFields<T extends View>(view: T): T['_']['selectedFields'] {

@@ -159,33 +159,34 @@ export type InferModelFromColumns<
 	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
 > = Simplify<
 	TInferMode extends 'insert' ?
-			& {
-				[
-					Key in keyof TColumns & string as RequiredKeyOnly<
-						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-						TColumns[Key]
-					>
-				]: GetColumnData<TColumns[Key], 'query'>;
-			}
-			& {
-				[
-					Key in keyof TColumns & string as OptionalKeyOnly<
-						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-						TColumns[Key],
-						TConfig['override']
-					>
-				]?: GetColumnData<TColumns[Key], 'query'> | undefined;
-			}
+		& {
+			[
+			Key in keyof TColumns & string as TColumns[Key]['_']['isIgnored'] extends true ? never : RequiredKeyOnly<
+				MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+				TColumns[Key]
+			>
+			]: GetColumnData<TColumns[Key], 'query'>;
+		}
+		& {
+		[
+		Key in keyof TColumns & string as TColumns[Key]['_']['isIgnored'] extends true ? never : OptionalKeyOnly<
+			MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+			TColumns[Key],
+			TConfig['override']
+		>
+		]?: GetColumnData<TColumns[Key], 'query'> | undefined;
+	}
 		: {
 			[
-				Key in keyof TColumns & string as MapColumnName<
-					Key,
-					TColumns[Key],
-					TConfig['dbColumnNames']
-				>
+			Key in keyof TColumns & string as TColumns[Key]['_']['isIgnored'] extends true ? never : MapColumnName<
+				Key,
+				TColumns[Key],
+				TConfig['dbColumnNames']
+			>
 			]: GetColumnData<TColumns[Key], 'query'>;
 		}
 >;
+
 
 /** @deprecated Use one of the alternatives: {@link InferSelectModel} / {@link InferInsertModel}, or `table.$inferSelect` / `table.$inferInsert`
  */

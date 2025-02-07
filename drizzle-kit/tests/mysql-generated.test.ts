@@ -1,7 +1,7 @@
 import { SQL, sql } from 'drizzle-orm';
 import { int, mysqlTable, text } from 'drizzle-orm/mysql-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemasMysql } from './schemaDiffer';
+import {diffTestSchemas, diffTestSchemasMysql} from './schemaDiffer';
 
 test('generated as callback: add column with generated constraint', async () => {
 	const from = {
@@ -272,6 +272,48 @@ test('generated as callback: drop generated constraint as virtual', async () => 
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',
 	]);
+});
+
+test('generated as sql: dont drop ignored column', async () => {
+	const from = {
+		users: mysqlTable('users', {
+			id: int('id').notNull(),
+			id2: int('id2'),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const to = {
+		users: mysqlTable('users', {
+			id: int('id').notNull(),
+			id2: int('id2').$ignore(),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('generated as sql: throws error if column is notNull and $ignored', async () => {
+	const from = {
+		users: mysqlTable('users', {
+			id: int('id').notNull(),
+			id2: int('id2'),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const to = {
+		users: mysqlTable('users', {
+			id: int('id').notNull(),
+			id2: int('id2'),
+			name: text('name').notNull().$ignore(),
+		}),
+	};
+
+	await expect(diffTestSchemas(from, to, [])).rejects.toThrowError();
 });
 
 test('generated as callback: change generated constraint type from virtual to stored', async () => {

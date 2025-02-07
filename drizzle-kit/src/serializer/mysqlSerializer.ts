@@ -111,6 +111,26 @@ export const generateMySqlSnapshot = (
 				};
 			}
 
+			if(column.isIgnored && column.notNull) {
+				// For notNull to false if a given column is ignored
+				console.log(
+					`\n${
+						withStyle.errorWarning(`There is a misconfigred ignored column in ${
+							chalk.underline.blue(
+								tableName,
+							)
+						} table. 
+          The ignored column ${
+							chalk.underline.blue(
+								name,
+							)
+						} column also is registered as .notNull(). Ignored columns must be nullable\n`)
+					}`,
+				);
+
+				process.exit(1);
+			}
+
 			if (column.isUnique) {
 				const existingUnique = uniqueConstraintObject[column.uniqueName!];
 				if (typeof existingUnique !== 'undefined') {
