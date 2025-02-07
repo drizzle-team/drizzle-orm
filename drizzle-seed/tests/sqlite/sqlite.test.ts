@@ -1,8 +1,8 @@
 import BetterSqlite3 from 'better-sqlite3';
-import { sql } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
 import { reset, seed } from '../../src/index.ts';
 import * as schema from './sqliteSchema.ts';
 
@@ -122,6 +122,29 @@ beforeAll(async () => {
 	\`postal_code\` text NOT NULL,
 	\`country\` text NOT NULL,
 	\`phone\` text NOT NULL
+);        
+    `),
+	);
+
+	db.run(
+		sql.raw(`
+    CREATE TABLE \`users\` (
+	\`id\` integer PRIMARY KEY,
+	\`name\` text,
+	\`invitedBy\` integer,
+	FOREIGN KEY (\`invitedBy\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+);        
+    `),
+	);
+
+	db.run(
+		sql.raw(`
+    CREATE TABLE \`posts\` (
+	\`id\` integer PRIMARY KEY,
+	\`name\` text,
+	\`content\` text,
+	\`userId\` integer,
+	FOREIGN KEY (\`userId\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
 );        
     `),
 	);
@@ -287,4 +310,29 @@ test("sequential using of 'with'", async () => {
 	expect(orders.length).toBe(8);
 	expect(products.length).toBe(11);
 	expect(suppliers.length).toBe(11);
+});
+
+test('overlapping a foreign key constraint with a one-to-many relation', async () => {
+	const postsRelation = relations(schema.posts, ({ one }) => ({
+		user: one(schema.users, { fields: [schema.posts.userId], references: [schema.users.id] }),
+	}));
+
+	const consoleMock = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+	await reset(db, { users: schema.users, posts: schema.posts, postsRelation });
+	await seed(db, { users: schema.users, posts: schema.posts, postsRelation });
+	// expecting to get a warning
+	expect(consoleMock).toBeCalled();
+	expect(consoleMock).toBeCalledWith(expect.stringMatching(/^You are providing a one-to-many relation.+/));
+
+	const users = await db.select().from(schema.users);
+	const posts = await db.select().from(schema.posts);
+
+	expect(users.length).toBe(10);
+	let predicate = users.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+
+	expect(posts.length).toBe(10);
+	predicate = posts.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
 });
