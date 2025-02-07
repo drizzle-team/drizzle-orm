@@ -152,10 +152,20 @@ export type GetSelectTableName<TTable extends TableLike> = TTable extends Table 
 	: TTable extends SQL ? undefined
 	: never;
 
-export type GetSelectTableSelection<TTable extends TableLike> = TTable extends Table ? TTable['_']['columns']
-	: TTable extends Subquery | View ? Assume<TTable['_']['selectedFields'], ColumnsSelection>
-	: TTable extends SQL ? {}
-	: never;
+export type GetSelectTableSelection<TTable extends TableLike> =
+	TTable extends Table
+		? {
+			[
+			Key in keyof TTable['_']['columns'] & string as TTable['_']['columns'][Key]['_']['isIgnored'] extends true
+				? never
+				: Key
+			]: TTable['_']['columns'][Key];
+		}
+		: TTable extends Subquery | View
+			? Assume<TTable['_']['selectedFields'], ColumnsSelection>
+			: TTable extends SQL
+				? {}
+				: never;
 
 export type SelectResultField<T, TDeep extends boolean = true> = T extends DrizzleTypeError<any> ? T
 	: T extends Table ? Equal<TDeep, true> extends true ? SelectResultField<T['_']['columns'], false> : never
