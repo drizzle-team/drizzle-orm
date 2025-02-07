@@ -37,12 +37,15 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	overridingSystemValue_?: boolean;
 }
 
+type InsertModel<TTable extends PgTable<TableConfig>, OverrideT extends boolean> =
+	InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>;
+
 export type PgInsertValue<TTable extends PgTable<TableConfig>, OverrideT extends boolean = false> =
 	& {
-		[Key in keyof InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>]:
-			| InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]
-			| SQL
-			| Placeholder;
+		[Key in keyof InsertModel<TTable, OverrideT>]:
+		| InsertModel<TTable, OverrideT>[Key]
+		| SQL
+		| Placeholder;
 	}
 	& {};
 
