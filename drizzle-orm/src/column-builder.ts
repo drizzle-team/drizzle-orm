@@ -149,7 +149,6 @@ export type HasRuntimeDefault<T extends ColumnBuilderBase> = T & {
 export type IsIgnored<T extends ColumnBuilderBase> = T & {
   _: {
     isIgnored: true;
-    notNull: false;
   };
 };
 
