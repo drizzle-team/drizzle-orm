@@ -1,3 +1,4 @@
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
@@ -7,7 +8,7 @@ import { tracer } from '~/tracing.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 import { PgDatabase } from './db.ts';
 import type { PgDialect } from './dialect.ts';
-import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type { SelectedFieldsOrdered, WithCacheConfig } from './query-builders/select.types.ts';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
@@ -16,7 +17,26 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
-	constructor(protected query: Query) {}
+	constructor(
+		protected query: Query,
+		// cache instance
+		private cache: Cache,
+		// per query related metadata
+		private queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		// config that was passed through $withCache
+		private cacheConfig?: WithCacheConfig,
+	) {
+		// it means that no $withCache options were passed and it should be just enabled
+		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
+			this.cacheConfig = { enable: true, autoInvalidate: true };
+		}
+		if (!this.cacheConfig?.enable) {
+			this.cacheConfig = undefined;
+		}
+	}
 
 	protected authToken?: NeonAuthToken;
 
@@ -38,6 +58,70 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
+
+	async hashQuery(sql: string, params?: any[]) {
+		const dataToHash = `${sql}-${JSON.stringify(params)}`;
+		const encoder = new TextEncoder();
+		const data = encoder.encode(dataToHash);
+		const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+		const hashArray = [...new Uint8Array(hashBuffer)];
+		const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+
+		return hashHex;
+	}
+
+	/** @internal */
+	protected async queryWithCache<T>(
+		queryString: string,
+		params: any[],
+		query: () => Promise<T>,
+	): Promise<T> {
+		if (this.cache === undefined || this.queryMetadata === undefined) {
+			return await query();
+		}
+
+		// don't do any mutations, if globally is false
+		if (this.cacheConfig && !this.cacheConfig.enable) {
+			return await query();
+		}
+
+		if (
+			(
+				this.queryMetadata.type === 'insert' || this.queryMetadata.type === 'update'
+				|| this.queryMetadata.type === 'delete'
+			) && this.queryMetadata.tables.length > 0
+		) {
+			await this.cache.onMutate({ tables: this.queryMetadata.tables });
+		}
+
+		// don't do any reads if globally disabled
+		if (!this.cacheConfig) {
+			return await query();
+		}
+
+		if (this.queryMetadata.type === 'select') {
+			const fromCache = await this.cache.get(
+				this.cacheConfig.tag ?? await this.hashQuery(queryString, params),
+			);
+			if (fromCache === undefined) {
+				console.log('Cache empty. Querying database', queryString);
+				const result = await query();
+				// put actual key
+				await this.cache.put(
+					this.cacheConfig.tag ?? await this.hashQuery(queryString, params),
+					result,
+					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
+					this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],
+					this.cacheConfig.config,
+				);
+				// put flag if we should invalidate or not
+				return result;
+			}
+
+			return fromCache as unknown as T;
+		}
+		return await query();
+	}
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 	/** @internal */
@@ -73,6 +157,11 @@ export abstract class PgSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T>;

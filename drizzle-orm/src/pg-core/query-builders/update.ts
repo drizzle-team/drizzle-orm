@@ -9,7 +9,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -28,23 +28,25 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import {
 	type Assume,
-	DrizzleTypeError,
-	Equal,
+	type DrizzleTypeError,
+	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
 	type NeonAuthToken,
 	orderSelectedFields,
-	Simplify,
+	type Simplify,
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type {
 	PgSelectJoinConfig,
 	SelectedFields,
 	SelectedFieldsOrdered,
 	TableLikeHasEmptySelection,
+	WithCacheConfig,
 } from './select.types.ts';
 
 export interface PgUpdateConfig {
@@ -340,6 +342,7 @@ export class PgUpdateBase<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TSelectedFields extends ColumnsSelection | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -360,6 +363,7 @@ export class PgUpdateBase<
 	private config: PgUpdateConfig;
 	private tableName: string | undefined;
 	private joinsNotNullableMap: Record<string, boolean>;
+	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -576,7 +580,10 @@ export class PgUpdateBase<
 	_prepare(name?: string): PgUpdatePrepare<this> {
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
+		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
+			type: 'insert',
+			tables: extractUsedTable(this.config.table),
+		}, this.cacheConfig);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query;
 	}

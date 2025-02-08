@@ -182,6 +182,7 @@
 		"@types/pg": "^8.10.1",
 		"@types/react": "^18.2.45",
 		"@types/sql.js": "^1.4.4",
+		"@upstash/redis": "^1.34.3",
 		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
 		"better-sqlite3": "^8.4.0",

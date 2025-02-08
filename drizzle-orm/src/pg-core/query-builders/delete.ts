@@ -19,7 +19,8 @@ import { getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import { extractUsedTable } from '../utils.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered, WithCacheConfig } from './select.types.ts';
 
 export type PgDeleteWithout<
 	T extends AnyPgDeleteBase,
@@ -150,6 +151,7 @@ export class PgDeleteBase<
 	static override readonly [entityKind]: string = 'PgDelete';
 
 	private config: PgDeleteConfig;
+	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -244,7 +246,10 @@ export class PgDeleteBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
+				type: 'delete',
+				tables: extractUsedTable(this.config.table),
+			}, this.cacheConfig);
 		});
 	}
 

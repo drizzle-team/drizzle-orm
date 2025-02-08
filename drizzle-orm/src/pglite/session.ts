@@ -3,7 +3,7 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type { SelectedFieldsOrdered, WithCacheConfig } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -11,6 +11,7 @@ import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 
 export type PgliteClient = PGlite;
 
@@ -25,12 +26,18 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
 			rowMode: 'object',
 			parsers: {
@@ -56,13 +63,17 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 		this.logger.logQuery(this.queryString, params);
 
-		const { fields, rawQueryConfig, client, queryConfig, joinsNotNullableMap, customResultMapper, queryString } = this;
+		const { fields, client, queryConfig, joinsNotNullableMap, customResultMapper, queryString, rawQueryConfig } = this;
 
 		if (!fields && !customResultMapper) {
-			return client.query<any[]>(queryString, params, rawQueryConfig);
+			return this.queryWithCache(queryString, params, async () => {
+				return await client.query<any[]>(queryString, params, rawQueryConfig);
+			});
 		}
 
-		const result = await client.query<any[][]>(queryString, params, queryConfig);
+		const result = await this.queryWithCache(queryString, params, async () => {
+			return await client.query<any[]>(queryString, params, queryConfig);
+		});
 
 		return customResultMapper
 			? customResultMapper(result.rows)
@@ -72,7 +83,9 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.queryString, params);
-		return this.client.query(this.queryString, params, this.rawQueryConfig).then((result) => result.rows);
+		return this.queryWithCache(this.queryString, params, async () => {
+			return await this.client.query<any[]>(this.queryString, params, this.rawQueryConfig);
+		}).then((result) => result.rows);
 	}
 
 	/** @internal */
@@ -83,6 +96,7 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 export interface PgliteSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class PgliteSession<
@@ -92,6 +106,7 @@ export class PgliteSession<
 	static override readonly [entityKind]: string = 'PgliteSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: PgliteClient | Transaction,
@@ -101,6 +116,7 @@ export class PgliteSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -109,12 +125,20 @@ export class PgliteSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
 		return new PglitePreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			name,
 			isResponseInArrayMode,

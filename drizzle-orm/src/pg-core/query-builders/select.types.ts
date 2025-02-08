@@ -1,3 +1,4 @@
+import type { CacheConfig } from '~/cache/core/types.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
@@ -26,6 +27,8 @@ import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
 import type { PgPreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { PgSelectBase, PgSelectQueryBuilderBase } from './select.ts';
+
+export type WithCacheConfig = { enable: boolean; config?: CacheConfig; tag?: string; autoInvalidate?: boolean };
 
 export interface PgSelectJoinConfig {
 	on: SQL | undefined;

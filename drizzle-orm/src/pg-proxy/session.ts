@@ -88,7 +88,7 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, {} as any, undefined, undefined);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {

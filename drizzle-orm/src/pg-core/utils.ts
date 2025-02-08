@@ -1,6 +1,8 @@
 import { is } from '~/entity.ts';
 import { PgTable } from '~/pg-core/table.ts';
-import { Table } from '~/table.ts';
+import { SQL } from '~/sql/sql.ts';
+import { Subquery } from '~/subquery.ts';
+import { Schema, Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
 import type { AnyPgColumn } from './columns/index.ts';
@@ -10,6 +12,7 @@ import { IndexBuilder } from './indexes.ts';
 import { PgPolicy } from './policies.ts';
 import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
+import type { PgViewBase } from './view-base.ts';
 import { PgViewConfig } from './view-common.ts';
 import { type PgMaterializedView, PgMaterializedViewConfig, type PgView } from './view.ts';
 
@@ -59,6 +62,19 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 		policies,
 		enableRLS,
 	};
+}
+
+export function extractUsedTable(table: PgTable | Subquery | PgViewBase | SQL): string[] {
+	if (is(table, PgTable)) {
+		return [`${table[Schema] ?? 'public'}.${table[Table.Symbol.BaseName]}`];
+	}
+	if (is(table, Subquery)) {
+		return table._.usedTables ?? [];
+	}
+	if (is(table, SQL)) {
+		return table.usedTables ?? [];
+	}
+	return [];
 }
 
 export function getViewConfig<

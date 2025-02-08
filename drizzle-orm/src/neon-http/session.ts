@@ -1,11 +1,12 @@
 import type { FullQueryResults, NeonQueryFunction, NeonQueryPromise } from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type { SelectedFieldsOrdered, WithCacheConfig } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery as PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -31,11 +32,17 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		private client: NeonHttpClient,
 		query: Query,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super(query);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined): Promise<T['execute']>;
@@ -53,28 +60,32 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		const { fields, client, query, customResultMapper } = this;
 
 		if (!fields && !customResultMapper) {
-			return client(
+			return this.queryWithCache(query.sql, params, async () => {
+				return client(
+					query.sql,
+					params,
+					token === undefined
+						? rawQueryConfig
+						: {
+							...rawQueryConfig,
+							authToken: token,
+						},
+				);
+			});
+		}
+
+		const result = this.queryWithCache(query.sql, params, async () => {
+			await client(
 				query.sql,
 				params,
 				token === undefined
-					? rawQueryConfig
+					? queryConfig
 					: {
-						...rawQueryConfig,
+						...queryConfig,
 						authToken: token,
 					},
 			);
-		}
-
-		const result = await client(
-			query.sql,
-			params,
-			token === undefined
-				? queryConfig
-				: {
-					...queryConfig,
-					authToken: token,
-				},
-		);
+		});
 
 		return this.mapResult(result);
 	}
@@ -126,6 +137,7 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 
 export interface NeonHttpSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NeonHttpSession<
@@ -135,6 +147,7 @@ export class NeonHttpSession<
 	static override readonly [entityKind]: string = 'NeonHttpSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: NeonHttpClient,
@@ -144,6 +157,7 @@ export class NeonHttpSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -152,11 +166,19 @@ export class NeonHttpSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
 		return new NeonHttpPreparedQuery(
 			this.client,
 			query,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			isResponseInArrayMode,
 			customResultMapper,

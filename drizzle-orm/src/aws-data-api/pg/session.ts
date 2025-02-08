@@ -5,6 +5,8 @@ import {
 	ExecuteStatementCommand,
 	RollbackTransactionCommand,
 } from '@aws-sdk/client-rds-data';
+import type { Cache } from '~/cache/core/cache.ts';
+import { NoopCache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import {
@@ -16,7 +18,7 @@ import {
 	type PgTransactionConfig,
 	type PreparedQueryConfig,
 } from '~/pg-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type { SelectedFieldsOrdered, WithCacheConfig } from '~/pg-core/query-builders/select.types.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
@@ -33,17 +35,23 @@ export class AwsDataApiPreparedQuery<
 
 	constructor(
 		private client: AwsDataApiClient,
-		queryString: string,
+		private queryString: string,
 		private params: unknown[],
 		private typings: QueryTypingsValue[],
 		private options: AwsDataApiSessionOptions,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		/** @internal */
 		readonly transactionId: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQuery = new ExecuteStatementCommand({
 			sql: queryString,
 			parameters: [],
@@ -108,7 +116,9 @@ export class AwsDataApiPreparedQuery<
 
 		this.options.logger?.logQuery(this.rawQuery.input.sql!, this.rawQuery.input.parameters);
 
-		const result = await this.client.send(this.rawQuery);
+		const result = await this.queryWithCache(this.queryString, params, async () => {
+			return await this.client.send(this.rawQuery);
+		});
 		const rows = result.records?.map((row) => {
 			return row.map((field) => getValueFromDataApi(field));
 		}) ?? [];
@@ -139,6 +149,7 @@ export class AwsDataApiPreparedQuery<
 
 export interface AwsDataApiSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -158,6 +169,7 @@ export class AwsDataApiSession<
 
 	/** @internal */
 	readonly rawQuery: AwsDataApiQueryBase;
+	private cache: Cache;
 
 	constructor(
 		/** @internal */
@@ -174,6 +186,7 @@ export class AwsDataApiSession<
 			resourceArn: options.resourceArn,
 			database: options.database,
 		};
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<
@@ -188,6 +201,8 @@ export class AwsDataApiSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: { type: 'select' | 'update' | 'delete' | 'insert'; tables: string[] },
+		cacheConfig?: WithCacheConfig,
 		transactionId?: string,
 	): AwsDataApiPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
@@ -196,6 +211,9 @@ export class AwsDataApiSession<
 			query.params,
 			query.typings ?? [],
 			this.options,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			transactionId ?? this.transactionId,
 			isResponseInArrayMode,
@@ -209,6 +227,8 @@ export class AwsDataApiSession<
 			undefined,
 			undefined,
 			false,
+			undefined,
+			undefined,
 			undefined,
 			this.transactionId,
 		).execute();

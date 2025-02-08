@@ -1,12 +1,13 @@
 /// <reference types="bun-types" />
 
 import type { SavepointSQL, SQL, TransactionSQL } from 'bun';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type { SelectedFieldsOrdered, WithCacheConfig } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -22,11 +23,17 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -90,6 +97,7 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 export interface BunSQLSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class BunSQLSession<
@@ -100,6 +108,7 @@ export class BunSQLSession<
 	static override readonly [entityKind]: string = 'BunSQLSession';
 
 	logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		public client: TSQL,
@@ -110,6 +119,7 @@ export class BunSQLSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -118,12 +128,20 @@ export class BunSQLSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
 		return new BunSQLPreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			isResponseInArrayMode,
 			customResultMapper,

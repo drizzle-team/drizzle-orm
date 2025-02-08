@@ -1,3 +1,4 @@
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
@@ -151,6 +152,8 @@ export class PgDatabase<
 	) {
 		return new PgCountBuilder({ source, filters, session: this.session });
 	}
+
+	$cache: { invalidate: Cache['onMutate'] } | undefined;
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.
