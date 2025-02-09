@@ -540,7 +540,7 @@ export const generatePgSnapshot = (
 			const tableKey = `"${schema ?? 'public'}"."${tableName}"`;
 
 			// you can have multiple unnamed checks per table (using the default above)
-			let defaultCheckName = `${tableName}_check`
+			let defaultCheckName = `${tableName}_check`;
 			let checkName = check.name ?? defaultCheckName;
 			if (checksInTable[tableKey]?.includes(checkName) && checkName == defaultCheckName) {
 				checkName += `_${index}`;
@@ -887,7 +887,7 @@ export const generatePgSnapshot = (
 			const domainKey = `"${obj.schema ?? 'public'}"."${obj.domainName}"`;
 
 			// you can have multiple unnamed checks per domain (using the default above)
-			let defaultCheckName = `${obj.domainName}_check`
+			let defaultCheckName = `${obj.domainName}_check`;
 			let checkName = checkConstraint.name ?? defaultCheckName;
 			if (checksInTable[domainKey]?.includes(checkName) && checkName == defaultCheckName) {
 				checkName += `_${index}`;

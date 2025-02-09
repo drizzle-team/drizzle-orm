@@ -477,7 +477,7 @@ class PgCreateTableConvertor extends Convertor {
 				statement += ',\n';
 				const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
 
-				if(unsquashedCheck.name) {
+				if (unsquashedCheck.name) {
 					statement += `\tCONSTRAINT "${unsquashedCheck.name}" CHECK (${unsquashedCheck.value})`;
 				} else {
 					statement += `\tCHECK (${unsquashedCheck.value})`;
