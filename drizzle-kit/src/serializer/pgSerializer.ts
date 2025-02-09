@@ -1975,8 +1975,10 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 						return value === 't' ? 'true' : 'false';
 					} else if (['json', 'jsonb'].includes(column.data_type.slice(0, -2))) {
 						return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
-					} else {
+					} else if (value) {
 						return `\"${value}\"`;
+					} else {
+            return ``; 
 					}
 				})
 				.join(',')
