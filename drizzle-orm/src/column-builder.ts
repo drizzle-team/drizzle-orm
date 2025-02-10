@@ -69,7 +69,7 @@ export type MakeColumnConfig<
 		: G extends undefined ? undefined
 		: G
 		: undefined;
-	checkConstraints: CheckBuilder[] | undefined;
+	checkConstraints: T extends { checkConstraints: CheckBuilder[] } ? CheckBuilder[] : undefined;
 } & {};
 
 export type ColumnBuilderTypeConfig<
@@ -89,7 +89,7 @@ export type ColumnBuilderTypeConfig<
 		enumValues: T['enumValues'];
 		identity: T extends { identity: infer U } ? U : unknown;
 		generated: T extends { generated: infer G } ? G extends undefined ? unknown : G : unknown;
-		checkConstraints: CheckBuilder[] | undefined;
+		checkConstraints: T extends { checkConstraints: CheckBuilder[] } ? CheckBuilder[] : unknown;
 	}
 	& TTypeConfig
 >;
