@@ -1,11 +1,12 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
+import type { TopLevelCondition } from 'json-rules-engine';
 
 const intSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
 const serialNumberModeSchema = z.number().min(0).max(Number.MAX_SAFE_INTEGER).int();
@@ -506,6 +507,18 @@ test('type coercion - mixed', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
+	const table = mysqlTable('test', {
+		json: json().$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		json: z.nullable(TopLevelCondition),
+	});
+	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = mysqlTable('test', { id: int() });

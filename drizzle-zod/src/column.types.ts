@@ -14,24 +14,27 @@ export type GetBaseColumn<TColumn extends Column> = TColumn['_'] extends { baseC
 export type GetZodType<
 	TData,
 	TDataType extends string,
+	TColumnType extends string,
 	TEnumValues extends [string, ...string[]] | undefined,
 	TBaseColumn extends Column | undefined,
 > = TBaseColumn extends Column ? z.ZodArray<
 		GetZodType<
 			TBaseColumn['_']['data'],
 			TBaseColumn['_']['dataType'],
+			TBaseColumn['_']['columnType'],
 			GetEnumValuesFromColumn<TBaseColumn>,
 			GetBaseColumn<TBaseColumn>
 		>
 	>
 	: ArrayHasAtLeastOneValue<TEnumValues> extends true ? z.ZodEnum<Assume<TEnumValues, [string, ...string[]]>>
 	: TData extends infer TTuple extends [any, ...any[]]
-		? z.ZodTuple<Assume<{ [K in keyof TTuple]: GetZodType<TTuple[K], string, undefined, undefined> }, [any, ...any[]]>>
+		? z.ZodTuple<Assume<{ [K in keyof TTuple]: GetZodType<TTuple[K], string, string, undefined, undefined> }, [any, ...any[]]>>
 	: TData extends Date ? z.ZodDate
 	: TData extends Buffer ? z.ZodType<Buffer>
-	: TDataType extends 'array' ? z.ZodArray<GetZodType<Assume<TData, any[]>[number], string, undefined, undefined>>
+	: TDataType extends 'array' ? z.ZodArray<GetZodType<Assume<TData, any[]>[number], string, string, undefined, undefined>>
 	: TData extends infer TDict extends Record<string, any>
-		? z.ZodObject<{ [K in keyof TDict]: GetZodType<TDict[K], string, undefined, undefined> }, 'strip'>
+		?	TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson' ? z.ZodType<TDict, z.ZodTypeDef, TDict>
+		: z.ZodObject<{ [K in keyof TDict]: GetZodType<TDict[K], string, string, undefined, undefined> }, 'strip'>
 	: TDataType extends 'json' ? z.ZodType<Json>
 	: TData extends number ? z.ZodNumber
 	: TData extends bigint ? z.ZodBigInt
@@ -66,6 +69,7 @@ export type HandleColumn<
 > = GetZodType<
 	TColumn['_']['data'],
 	TColumn['_']['dataType'],
+	TColumn['_']['columnType'],
 	GetEnumValuesFromColumn<TColumn>,
 	GetBaseColumn<TColumn>
 > extends infer TSchema extends z.ZodTypeAny ? TSchema extends z.ZodAny ? z.ZodAny

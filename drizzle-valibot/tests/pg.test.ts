@@ -2,6 +2,8 @@ import { type Equal, sql } from 'drizzle-orm';
 import {
 	customType,
 	integer,
+	json,
+	jsonb,
 	pgEnum,
 	pgMaterializedView,
 	pgSchema,
@@ -16,6 +18,7 @@ import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
+import type { TopLevelCondition } from 'json-rules-engine';
 
 const integerSchema = v.pipe(v.number(), v.minValue(CONSTANTS.INT32_MIN), v.maxValue(CONSTANTS.INT32_MAX), v.integer());
 const textSchema = v.string();
@@ -504,6 +507,20 @@ test('all data types', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: v.GenericSchema<TopLevelCondition> = v.custom<TopLevelCondition>(() => true);
+	const table = pgTable('test', {
+		json: json().$type<TopLevelCondition>().notNull(),
+		jsonb: jsonb().$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = v.object({
+		json: TopLevelCondition,
+		jsonb: v.nullable(TopLevelCondition),
+	});
+	Expect<Equal<v.InferOutput<typeof result>, v.InferOutput<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });

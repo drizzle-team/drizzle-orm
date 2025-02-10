@@ -1,10 +1,11 @@
-import { Type as t } from '@sinclair/typebox';
+import { type Static, Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER });
@@ -353,6 +354,20 @@ test('all data types', (tc) => {
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: GenericSchema<TopLevelCondition> = t.Any() as any;
+	const table = sqliteTable('test', {
+		json1: text({ mode: 'json' }).$type<TopLevelCondition>().notNull(),
+		json2: blob({ mode: 'json' }).$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = t.Object({
+		json1: TopLevelCondition,
+		json2: t.Union([TopLevelCondition, t.Null()]),
+	});
+	Expect<Equal<Static<typeof result>, Static<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = sqliteTable('test', { id: int() });

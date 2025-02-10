@@ -1,11 +1,12 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
+import type { TopLevelCondition } from 'json-rules-engine';
 
 const intSchema = z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int();
 const textSchema = z.string();
@@ -399,6 +400,20 @@ test('type coercion - mixed', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
+	const table = sqliteTable('test', {
+		json1: text({ mode: 'json' }).$type<TopLevelCondition>().notNull(),
+		json2: blob({ mode: 'json' }).$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		json1: TopLevelCondition,
+		json2: z.nullable(TopLevelCondition),
+	});
+	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = sqliteTable('test', { id: int() });
