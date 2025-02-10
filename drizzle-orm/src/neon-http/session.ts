@@ -74,8 +74,8 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 			});
 		}
 
-		const result = this.queryWithCache(query.sql, params, async () => {
-			await client(
+		const result = await this.queryWithCache(query.sql, params, async () => {
+			return await client(
 				query.sql,
 				params,
 				token === undefined

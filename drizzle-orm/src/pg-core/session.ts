@@ -1,5 +1,5 @@
-import type { Cache } from '~/cache/core/cache.ts';
-import { entityKind } from '~/entity.ts';
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import { entityKind, is } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
@@ -76,7 +76,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 		params: any[],
 		query: () => Promise<T>,
 	): Promise<T> {
-		if (this.cache === undefined || this.queryMetadata === undefined) {
+		if (this.cache === undefined || is(this.cache, NoopCache) || this.queryMetadata === undefined) {
 			return await query();
 		}
 
@@ -104,7 +104,6 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				this.cacheConfig.tag ?? await this.hashQuery(queryString, params),
 			);
 			if (fromCache === undefined) {
-				console.log('Cache empty. Querying database', queryString);
 				const result = await query();
 				// put actual key
 				await this.cache.put(

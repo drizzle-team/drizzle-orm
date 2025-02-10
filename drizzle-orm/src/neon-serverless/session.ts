@@ -103,7 +103,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 		const { fields, client, rawQueryConfig: rawQuery, queryConfig: query, joinsNotNullableMap, customResultMapper } =
 			this;
 		if (!fields && !customResultMapper) {
-			return this.queryWithCache(rawQuery.text, params, async () => {
+			return await this.queryWithCache(rawQuery.text, params, async () => {
 				return await client.query(rawQuery, params);
 			});
 		}

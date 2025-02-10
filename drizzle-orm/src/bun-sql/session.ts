@@ -49,18 +49,22 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper } = this;
 			if (!fields && !customResultMapper) {
-				return tracer.startActiveSpan('drizzle.driver.execute', () => {
-					return client.unsafe(query, params as any[]);
+				return tracer.startActiveSpan('drizzle.driver.execute', async () => {
+					return await this.queryWithCache(query, params, async () => {
+						return await client.unsafe(query, params as any[]);
+					});
 				});
 			}
 
-			const rows: any[] = await tracer.startActiveSpan('drizzle.driver.execute', () => {
+			const rows: any[] = await tracer.startActiveSpan('drizzle.driver.execute', async () => {
 				span?.setAttributes({
 					'drizzle.query.text': query,
 					'drizzle.query.params': JSON.stringify(params),
 				});
 
-				return client.unsafe(query, params as any[]).values();
+				return await this.queryWithCache(query, params, async () => {
+					return client.unsafe(query, params as any[]).values();
+				});
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
@@ -79,12 +83,14 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 				'drizzle.query.params': JSON.stringify(params),
 			});
 			this.logger.logQuery(this.queryString, params);
-			return tracer.startActiveSpan('drizzle.driver.execute', () => {
+			return tracer.startActiveSpan('drizzle.driver.execute', async () => {
 				span?.setAttributes({
 					'drizzle.query.text': this.queryString,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.client.unsafe(this.queryString, params as any[]);
+				return await this.queryWithCache(this.queryString, params, async () => {
+					return await this.client.unsafe(this.queryString, params as any[]);
+				});
 			});
 		});
 	}
