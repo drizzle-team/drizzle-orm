@@ -43,6 +43,7 @@ export class PgDomainColumnBuilder<
 	constructor(name: T['name'], domainInstance: PgDomain<T['domainType']>) {
 		super(name, 'string', 'PgDomainColumn');
 		this.config.domain = domainInstance;
+		this.config.notNull = domainInstance.notNull;
 	}
 
 	/** @internal */

@@ -71,7 +71,7 @@ const selectConditions: Conditions = {
 	optional: () => false,
 	nullable: (column) => {
 		if (isColumnType<PgDomainColumn<any>>(column, ['PgDomainColumn'])) {
-			return !column.notNull && !column.domain.notNull;
+			return !column.notNull || !column.domain.notNull;
 		}
 
 		return !column.notNull;

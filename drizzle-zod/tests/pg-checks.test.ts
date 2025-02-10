@@ -99,10 +99,7 @@ test('table containing column with string exclusive length constraints', (t) => 
 	const result = createSelectSchema(table);
 	// Because Zod has no built-in exclusive length, we add refinements.
 	const expected = z.object({
-		code: z
-			.string()
-			.refine((val) => val.length > 3, { message: 'Length must be greater than 3' })
-			.refine((val) => val.length < 10, { message: 'Length must be less than 10' }),
+		code: z.string().min(4).max(9),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -125,22 +122,6 @@ test('table containing column with LIKE pattern constraint', (t) => {
 	// You might need to run a sample against the schema to ensure it rejects values without an "@".
 	expectSchemaShape(t, expected).from(result);
 	// Type-level equality can be relaxed here if necessary.
-});
-
-test('table containing column with IN constraint', (t) => {
-	const table = pgTable('orders', {
-		status: text('status')
-			.notNull()
-			.checkConstraint(check('status_in', sql`status IN ('active','inactive','pending')`)),
-	});
-
-	const result = createSelectSchema(table);
-	// The constraint should yield a union of literals.
-	const expected = z.object({
-		status: z.union([z.literal('active'), z.literal('inactive'), z.literal('pending')]),
-	});
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('table containing column with PostgreSQL regex operator constraint', (t) => {
