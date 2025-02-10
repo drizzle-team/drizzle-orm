@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { existsSync } from 'fs';
 import { render } from 'hanji';
+import instagres from 'instagres';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
 import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
@@ -326,6 +327,10 @@ export const preparePushConfig = async (
 	tablesFilter.push(...getTablesFilterByExtensions(config));
 
 	if (config.dialect === 'postgresql') {
+		if (!config.url && !config.host && !config.database) {
+			const instagresUrl = await instagres({ source: 'drizzle-kit' });
+			if (instagresUrl) config.url = instagresUrl;
+		}
 		const parsed = postgresCredentials.safeParse(config);
 		if (!parsed.success) {
 			printIssuesPg(config);
@@ -502,6 +507,10 @@ export const preparePullConfig = async (
 		: [];
 
 	if (dialect === 'postgresql') {
+		if (!config.url && !config.host && !config.database) {
+			const instagresUrl = await instagres({ source: 'drizzle-kit' });
+			if (instagresUrl) config.url = instagresUrl;
+		}
 		const parsed = postgresCredentials.safeParse(config);
 		if (!parsed.success) {
 			printIssuesPg(config);
@@ -621,6 +630,10 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
+		if (!flattened.url && !flattened.host && !flattened.database) {
+			const instagresUrl = await instagres({ source: 'drizzle-kit' });
+			if (instagresUrl) flattened.url = instagresUrl;
+		}
 		const parsed = postgresCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printIssuesPg(flattened as Record<string, unknown>);
@@ -723,6 +736,10 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
+		if (!flattened.url && !flattened.host && !flattened.database) {
+			const instagresUrl = await instagres({ source: 'drizzle-kit' });
+			if (instagresUrl) flattened.url = instagresUrl;
+		}
 		const parsed = postgresCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printIssuesPg(flattened as Record<string, unknown>);
