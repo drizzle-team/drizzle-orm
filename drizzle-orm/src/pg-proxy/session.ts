@@ -123,7 +123,9 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', async () => {
-					const { rows } = await client(queryString, params as any[], 'execute', typings);
+					const { rows } = await this.queryWithCache(queryString, params, async () => {
+						return await client(queryString, params as any[], 'execute', typings);
+					});
 
 					return rows;
 				});
@@ -135,7 +137,9 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 					'drizzle.query.params': JSON.stringify(params),
 				});
 
-				const { rows } = await client(queryString, params as any[], 'all', typings);
+				const { rows } = await this.queryWithCache(queryString, params, async () => {
+					return await client(queryString, params as any[], 'all', typings);
+				});
 
 				return rows;
 			});

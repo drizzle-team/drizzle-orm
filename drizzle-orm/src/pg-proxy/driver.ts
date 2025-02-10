@@ -51,5 +51,11 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new PgRemoteSession(callback, dialect, schema, { logger, cache: config.cache });
-	return new PgRemoteDatabase(dialect, session, schema as any) as PgRemoteDatabase<TSchema>;
+	const db = new PgRemoteDatabase(dialect, session, schema as any) as PgRemoteDatabase<TSchema>;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
+
+	return db;
 }

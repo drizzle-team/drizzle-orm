@@ -5,7 +5,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
-import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache.test';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
 
