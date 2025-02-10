@@ -1,9 +1,10 @@
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type { SelectedFieldsOrdered, WithCacheConfig } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery as PreparedQueryBase, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -15,6 +16,7 @@ import type { RemoteCallback } from './driver.ts';
 
 export interface PgRemoteSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class PgRemoteSession<
@@ -24,6 +26,7 @@ export class PgRemoteSession<
 	static override readonly [entityKind]: string = 'PgRemoteSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: RemoteCallback,
@@ -33,6 +36,7 @@ export class PgRemoteSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig>(
@@ -41,6 +45,11 @@ export class PgRemoteSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PreparedQuery<T> {
 		return new PreparedQuery(
 			this.client,
@@ -48,6 +57,9 @@ export class PgRemoteSession<
 			query.params,
 			query.typings,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			isResponseInArrayMode,
 			customResultMapper,
@@ -84,11 +96,17 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 		private params: unknown[],
 		private typings: any[] | undefined,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params }, {} as any, undefined, undefined);
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
