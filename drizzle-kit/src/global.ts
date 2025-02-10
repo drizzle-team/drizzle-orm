@@ -1,5 +1,5 @@
 export const originUUID = '00000000-0000-0000-0000-000000000000';
-export const snapshotVersion = '7';
+export const snapshotVersion = '8';
 
 export function assertUnreachable(x: never | undefined): never {
 	throw new Error("Didn't expect to get here");

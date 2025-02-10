@@ -20,6 +20,7 @@ import type {
 	PgBigSerial53,
 	PgBinaryVector,
 	PgChar,
+	PgDomainColumn,
 	PgDoublePrecision,
 	PgGeometry,
 	PgGeometryObject,
@@ -37,6 +38,7 @@ import type {
 	PgVarchar,
 	PgVector,
 } from 'drizzle-orm/pg-core';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import type {
 	SingleStoreBigInt53,
 	SingleStoreChar,
@@ -53,8 +55,7 @@ import type {
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
-import { z } from 'zod';
-import { z as zod } from 'zod';
+import { z, z as zod } from 'zod';
 import { CONSTANTS } from './constants.ts';
 import type { CreateSchemaFactoryOptions } from './schema.types.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
@@ -63,6 +64,169 @@ import type { Json } from './utils.ts';
 export const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 export const jsonSchema: z.ZodType<Json> = z.union([literalSchema, z.record(z.any()), z.array(z.any())]);
 export const bufferSchema: z.ZodType<Buffer> = z.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+
+type CheckConstraints = {
+	min?: number;
+	max?: number;
+	minLength?: number;
+	maxLength?: number;
+	regex?: RegExp;
+};
+
+function parseCheckConstraints(sql: string, columnName: string): CheckConstraints | null {
+	const constraints: CheckConstraints = {};
+
+	// Helper to build a regex targeting either the bare column or a function call.
+	const createConstraintRegex = (fnPrefix: string, pattern: string) => {
+		const fnPart = fnPrefix
+			? `${fnPrefix}\\s*\\(\\s*"?${columnName}"?\\s*\\)`
+			: `"?${columnName}"?`;
+		return new RegExp(`${fnPart}\\s*${pattern}`, 'i');
+	};
+
+	// --- String Length Constraints via length(column) ---
+	// BETWEEN pattern (inclusive)
+	const lengthBetweenMatch = createConstraintRegex('length', '\\s+BETWEEN\\s+(\\d+)\\s+AND\\s+(\\d+)').exec(sql);
+	if (lengthBetweenMatch) {
+		constraints.minLength = Number(lengthBetweenMatch[1]);
+		constraints.maxLength = Number(lengthBetweenMatch[2]);
+	}
+
+	// Greater-than-or-equal and greater-than for length
+	const lengthGteMatch = createConstraintRegex('length', '\\s*>=\\s*(\\d+)').exec(sql);
+	if (lengthGteMatch) {
+		constraints.minLength = Number(lengthGteMatch[1]);
+	}
+	const lengthGtMatch = createConstraintRegex('length', '\\s*>\\s*(\\d+)').exec(sql);
+	if (lengthGtMatch) {
+		constraints.minLength = Number(lengthGtMatch[1]) + 1;
+	}
+	// Less-than-or-equal and less-than for length
+	const lengthLteMatch = createConstraintRegex('length', '\\s*<=\\s*(\\d+)').exec(sql);
+	if (lengthLteMatch) {
+		constraints.maxLength = Number(lengthLteMatch[1]);
+	}
+	const lengthLtMatch = createConstraintRegex('length', '\\s*<\\s*(\\d+)').exec(sql);
+	if (lengthLtMatch) {
+		constraints.maxLength = Number(lengthLtMatch[1]) - 1;
+	}
+
+	// --- Numeric Constraints on the column itself ---
+	// BETWEEN pattern (inclusive)
+	const numericBetweenMatch = createConstraintRegex('', '\\s+BETWEEN\\s+(\\d+)\\s+AND\\s+(\\d+)').exec(sql);
+	if (numericBetweenMatch) {
+		constraints.min = Number(numericBetweenMatch[1]);
+		constraints.max = Number(numericBetweenMatch[2]);
+	}
+	// Greater-than-or-equal and greater-than for numbers
+	const numGteMatch = createConstraintRegex('', '\\s*>=\\s*(\\d+)').exec(sql);
+	if (numGteMatch) {
+		constraints.min = Number(numGteMatch[1]);
+	}
+	const numGtMatch = createConstraintRegex('', '\\s*>\\s*(\\d+)').exec(sql);
+	if (numGtMatch) {
+		constraints.min = Number(numGtMatch[1]) + 1;
+	}
+	// Less-than-or-equal and less-than for numbers
+	const numLteMatch = createConstraintRegex('', '\\s*<=\\s*(\\d+)').exec(sql);
+	if (numLteMatch) {
+		constraints.max = Number(numLteMatch[1]);
+	}
+	const numLtMatch = createConstraintRegex('', '\\s*<\\s*(\\d+)').exec(sql);
+	if (numLtMatch) {
+		constraints.max = Number(numLtMatch[1]) - 1;
+	}
+
+	// --- Pattern constraints ---
+	// SQL LIKE pattern
+	const likeMatch = createConstraintRegex('', "\\s+LIKE\\s+'([^']+)'").exec(sql);
+	if (likeMatch && likeMatch[1]) {
+		const regex = likeToRegex(likeMatch[1]);
+		if (regex) constraints.regex = regex;
+	}
+
+	// PostgreSQL regex operator ~
+	const regexMatch = createConstraintRegex('', "\\s*~\\s+'([^']+)'").exec(sql);
+	if (regexMatch && regexMatch[1]) {
+		try {
+			constraints.regex = new RegExp(regexMatch[1], 'i');
+		} catch {
+			// ignore invalid regex
+		}
+	}
+
+	return Object.keys(constraints).length > 0 ? constraints : null;
+}
+
+function likeToRegex(likePattern: string): RegExp | undefined {
+	try {
+		let regexPattern = likePattern
+			.replace(/[$()*+.?[\\\]^{|}]/g, '\\$&') // Escape special regex characters
+			.replace(/%/g, '.*') // Replace SQL wildcard % with .*
+			.replace(/_/g, '.'); // Replace SQL wildcard _ with .
+
+		// Add anchors if not already present
+		if (!regexPattern.startsWith('.*')) {
+			regexPattern = `^${regexPattern}`;
+		}
+		if (!regexPattern.endsWith('.*')) {
+			regexPattern = `${regexPattern}$`;
+		}
+
+		return new RegExp(regexPattern, 'i');
+	} catch {
+		return undefined;
+	}
+}
+
+export function applyConstraints<T extends z.ZodTypeAny>(
+	schema: T,
+	constraints: CheckConstraints,
+): z.ZodTypeAny {
+	const typeName = schema._def.typeName;
+
+	// For string types.
+	if (typeName === 'ZodString') {
+		let newSchema = schema as unknown as z.ZodString;
+		if (constraints.minLength !== undefined) {
+			newSchema = newSchema.min(constraints.minLength);
+		}
+		if (constraints.maxLength !== undefined) {
+			newSchema = newSchema.max(constraints.maxLength);
+		}
+		// If we detected a regex, apply it.
+		if (constraints.regex !== undefined) {
+			newSchema = newSchema.regex(constraints.regex);
+		}
+		return newSchema;
+	}
+
+	// For number types.
+	if (typeName === 'ZodNumber') {
+		let newSchema = schema as unknown as z.ZodNumber;
+		if (constraints.min !== undefined) {
+			newSchema = newSchema.min(constraints.min);
+		}
+		if (constraints.max !== undefined) {
+			newSchema = newSchema.max(constraints.max);
+		}
+		return newSchema;
+	}
+
+	// For BigInt types.
+	if (typeName === 'ZodBigInt') {
+		let newSchema = schema as unknown as z.ZodBigInt;
+		if (constraints.min !== undefined) {
+			newSchema = newSchema.min(BigInt(constraints.min));
+		}
+		if (constraints.max !== undefined) {
+			newSchema = newSchema.max(BigInt(constraints.max));
+		}
+		return newSchema;
+	}
+
+	return schema;
+}
 
 export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptions | undefined): z.ZodTypeAny {
 	const z = factory?.zodInstance ?? zod;
@@ -119,6 +283,25 @@ export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptio
 
 	if (!schema) {
 		schema = z.any();
+	}
+
+	let checkConstraints = column.checkConstraints;
+	let columnName = column.name;
+	if (isColumnType<PgDomainColumn<any>>(column, ['PgDomainColumn'])) {
+		checkConstraints = column.domain.checkConstraints;
+		columnName = 'VALUE';
+	}
+
+	if (checkConstraints) {
+		for (const checkConstraint of checkConstraints) {
+			const dialect = new PgDialect();
+			const checkSql = dialect.sqlToQuery(checkConstraint.value).sql;
+			const constraints = parseCheckConstraints(checkSql, columnName);
+
+			if (constraints) {
+				schema = applyConstraints(schema, constraints);
+			}
+		}
 	}
 
 	return schema;

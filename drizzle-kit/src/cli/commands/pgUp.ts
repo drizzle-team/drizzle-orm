@@ -9,6 +9,7 @@ import {
 	pgSchemaV5,
 	PgSchemaV6,
 	pgSchemaV6,
+	PgSchemaV7,
 	Table,
 	TableV5,
 } from '../../serializer/pgSchema';
@@ -72,8 +73,7 @@ export const updateUpToV6 = (json: Record<string, any>): PgSchemaV6 => {
 	};
 };
 
-// Changed index format stored in snapshot for PostgreSQL in 0.22.0
-export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
+export const updateUpToV7 = (json: Record<string, any>): PgSchemaV7 => {
 	const schema = pgSchemaV6.parse(json);
 	const tables = Object.fromEntries(
 		Object.entries(schema.tables).map((it) => {
@@ -101,6 +101,44 @@ export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
 		...schema,
 		version: '7',
 		dialect: 'postgresql',
+		sequences: {},
+		tables: tables,
+		policies: {},
+		views: {},
+		roles: {},
+	};
+};
+
+// Changed index format stored in snapshot for PostgreSQL in 0.22.0
+export const updateUpToV8 = (json: Record<string, any>): PgSchema => {
+	const schema = pgSchemaV6.parse(json);
+	const tables = Object.fromEntries(
+		Object.entries(schema.tables).map((it) => {
+			const table = it[1];
+			const mappedIndexes = Object.fromEntries(
+				Object.entries(table.indexes).map((idx) => {
+					const { columns, ...rest } = idx[1];
+					const mappedColumns = columns.map<Index['columns'][number]>((it) => {
+						return {
+							expression: it,
+							isExpression: false,
+							asc: true,
+							nulls: 'last',
+							opClass: undefined,
+						};
+					});
+					return [idx[0], { columns: mappedColumns, with: {}, ...rest }];
+				}),
+			);
+			return [it[0], { ...table, indexes: mappedIndexes, policies: {}, isRLSEnabled: false, checkConstraints: {} }];
+		}),
+	);
+
+	return {
+		...schema,
+		version: '8',
+		dialect: 'postgresql',
+		domains: {},
 		sequences: {},
 		tables: tables,
 		policies: {},

@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
-import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
+import type { CheckBuilder, ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SingleStoreColumn } from './singlestore-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
@@ -69,6 +69,7 @@ export type MakeColumnConfig<
 		: G extends undefined ? undefined
 		: G
 		: undefined;
+	checkConstraints: T extends { checkConstraints: CheckBuilder[] } ? CheckBuilder[] : undefined;
 } & {};
 
 export type ColumnBuilderTypeConfig<
@@ -88,6 +89,7 @@ export type ColumnBuilderTypeConfig<
 		enumValues: T['enumValues'];
 		identity: T extends { identity: infer U } ? U : unknown;
 		generated: T extends { generated: infer G } ? G extends undefined ? unknown : G : unknown;
+		checkConstraints: T extends { checkConstraints: CheckBuilder[] } ? CheckBuilder[] : unknown;
 	}
 	& TTypeConfig
 >;
@@ -108,6 +110,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
 	generatedIdentity: GeneratedIdentityConfig | undefined;
+	checkConstraints: CheckBuilder[] | undefined;
 } & TRuntimeConfig;
 
 export interface ColumnBuilderExtraConfig {
@@ -167,6 +170,13 @@ export type IsIdentity<
 		identity: TType;
 	};
 };
+
+export type HasChecks<T extends ColumnBuilderBase> = T & {
+	_: {
+		checks: CheckBuilder[];
+	};
+};
+
 export interface ColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
@@ -201,6 +211,7 @@ export abstract class ColumnBuilder<
 			dataType,
 			columnType,
 			generated: undefined,
+			checkConstraints: undefined,
 		} as ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
 	}
 

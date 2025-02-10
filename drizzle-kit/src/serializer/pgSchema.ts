@@ -28,6 +28,20 @@ const tableV2 = object({
 	indexes: record(string(), indexV2),
 }).strict();
 
+const checkConstraint = object({
+	name: string().optional(),
+	value: string(),
+}).strict();
+
+const domainSchema = object({
+	name: string(),
+	schema: string(),
+	baseType: string(),
+	notNull: boolean().optional(),
+	defaultValue: string().optional(),
+	checkConstraints: record(string(), checkConstraint).optional(),
+}).strict();
+
 const enumSchemaV1 = object({
 	name: string(),
 	values: record(string(), string()),
@@ -164,6 +178,7 @@ const columnV7 = object({
 	name: string(),
 	type: string(),
 	typeSchema: string().optional(),
+	domainSchema: string().optional(),
 	primaryKey: boolean(),
 	notNull: boolean(),
 	default: any().optional(),
@@ -176,6 +191,7 @@ const column = object({
 	name: string(),
 	type: string(),
 	typeSchema: string().optional(),
+	domainSchema: string().optional(),
 	primaryKey: boolean(),
 	notNull: boolean(),
 	default: any().optional(),
@@ -189,11 +205,6 @@ const column = object({
 	identity: sequenceSchema
 		.merge(object({ type: enumType(['always', 'byDefault']) }))
 		.optional(),
-}).strict();
-
-const checkConstraint = object({
-	name: string(),
-	value: string(),
 }).strict();
 
 const columnSquashed = object({
@@ -425,21 +436,6 @@ export const pgSchemaInternalV7 = object({
 	tables: record(string(), tableV7),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
-	sequences: record(string(), sequenceSchema),
-	_meta: object({
-		schemas: record(string(), string()),
-		tables: record(string(), string()),
-		columns: record(string(), string()),
-	}),
-	internal: kitInternals,
-}).strict();
-
-export const pgSchemaInternal = object({
-	version: literal('7'),
-	dialect: literal('postgresql'),
-	tables: record(string(), table),
-	enums: record(string(), enumSchema),
-	schemas: record(string(), string()),
 	views: record(string(), view).default({}),
 	sequences: record(string(), sequenceSchema).default({}),
 	roles: record(string(), roleSchema).default({}),
@@ -450,6 +446,34 @@ export const pgSchemaInternal = object({
 		columns: record(string(), string()),
 	}),
 	internal: kitInternals,
+}).strict();
+
+export const pgSchemaInternal = object({
+	version: literal(snapshotVersion),
+	dialect: literal('postgresql'),
+	tables: record(string(), table),
+	enums: record(string(), enumSchema),
+	schemas: record(string(), string()),
+	domains: record(string(), domainSchema),
+	views: record(string(), view).default({}),
+	sequences: record(string(), sequenceSchema).default({}),
+	roles: record(string(), roleSchema).default({}),
+	policies: record(string(), policy).default({}),
+	_meta: object({
+		schemas: record(string(), string()),
+		tables: record(string(), string()),
+		columns: record(string(), string()),
+	}),
+	internal: kitInternals,
+}).strict();
+
+const domainSquashed = object({
+	name: string(),
+	schema: string(),
+	baseType: string(),
+	notNull: boolean().optional(),
+	defaultValue: string().optional(),
+	checkConstraints: record(string(), string()).optional(),
 }).strict();
 
 const tableSquashed = object({
@@ -489,10 +513,23 @@ export const pgSchemaSquashedV6 = object({
 	schemas: record(string(), string()),
 }).strict();
 
-export const pgSchemaSquashed = object({
+export const pgSchemaSquashedV7 = object({
 	version: literal('7'),
 	dialect: literal('postgresql'),
 	tables: record(string(), tableSquashed),
+	enums: record(string(), enumSchema),
+	schemas: record(string(), string()),
+	views: record(string(), view),
+	sequences: record(string(), sequenceSquashed),
+	roles: record(string(), roleSchema).default({}),
+	policies: record(string(), policySquashed).default({}),
+}).strict();
+
+export const pgSchemaSquashed = object({
+	version: literal(snapshotVersion),
+	dialect: literal('postgresql'),
+	tables: record(string(), tableSquashed),
+	domains: record(string(), domainSquashed),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
 	views: record(string(), view),
@@ -509,6 +546,7 @@ export const pgSchemaV7 = pgSchemaInternalV7.merge(schemaHash);
 export const pgSchema = pgSchemaInternal.merge(schemaHash);
 
 export type Enum = TypeOf<typeof enumSchema>;
+export type Domain = TypeOf<typeof domainSchema>;
 export type Sequence = TypeOf<typeof sequenceSchema>;
 export type Role = TypeOf<typeof roleSchema>;
 export type Column = TypeOf<typeof column>;
@@ -541,6 +579,7 @@ export type PgSchemaV3 = TypeOf<typeof pgSchemaV3>;
 export type PgSchemaV4 = TypeOf<typeof pgSchemaV4>;
 export type PgSchemaV5 = TypeOf<typeof pgSchemaV5>;
 export type PgSchemaV6 = TypeOf<typeof pgSchemaV6>;
+export type PgSchemaV7 = TypeOf<typeof pgSchemaV7>;
 
 export const backwardCompatiblePgSchema = union([
 	pgSchemaV5,
@@ -854,10 +893,20 @@ export const squashPgScheme = (
 		}),
 	);
 
+	const mappedDomains = mapValues(json.domains, (domain) => {
+		const squashedDomainChecks = mapValues(
+			domain.checkConstraints ?? {},
+			(check) => PgSquasher.squashCheck(check),
+		);
+
+		return { ...domain, checkConstraints: squashedDomainChecks };
+	});
+
 	return {
-		version: '7',
+		version: snapshotVersion,
 		dialect: json.dialect,
 		tables: mappedTables,
+		domains: mappedDomains,
 		enums: json.enums,
 		schemas: json.schemas,
 		views: json.views,
@@ -873,6 +922,7 @@ export const dryPg = pgSchema.parse({
 	id: originUUID,
 	prevId: '',
 	tables: {},
+	domains: {},
 	enums: {},
 	schemas: {},
 	policies: {},

@@ -280,3 +280,50 @@ test('create checks with same names', async (t) => {
 
 	await expect(diffTestSchemas({}, to, [])).rejects.toThrowError();
 });
+
+test('create unnamed checks', async (t) => {
+	const to = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			age: integer('age'),
+		}, (table) => ({
+			checkConstraint: check(sql`${table.age} > 21`),
+		})),
+	};
+
+	const { sqlStatements, statements } = await diffTestSchemas({}, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'create_table',
+		tableName: 'users',
+		schema: '',
+		columns: [
+			{
+				name: 'id',
+				type: 'serial',
+				notNull: true,
+				primaryKey: true,
+			},
+			{
+				name: 'age',
+				type: 'integer',
+				notNull: false,
+				primaryKey: false,
+			},
+		],
+		compositePKs: [],
+		checkConstraints: [';"users"."age" > 21'],
+		compositePkName: '',
+		uniqueConstraints: [],
+		isRLSEnabled: false,
+		policies: [],
+	} as JsonCreateTableStatement);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
+\t"id" serial PRIMARY KEY NOT NULL,
+\t"age" integer,
+\tCHECK ("users"."age" > 21)
+);\n`);
+});

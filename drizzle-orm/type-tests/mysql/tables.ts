@@ -108,6 +108,7 @@ Expect<
 					identity: undefined;
 					isAutoincrement: true;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				},
 				{},
 				{}
@@ -129,6 +130,7 @@ Expect<
 					identity: undefined;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				},
 				{},
 				{}
@@ -150,6 +152,7 @@ Expect<
 					identity: undefined;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				},
 				{},
 				{}
@@ -233,6 +236,7 @@ Expect<
 				isPrimaryKey: true;
 				isAutoincrement: true;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 			cityId: MySqlColumn<{
 				name: 'id';
@@ -250,6 +254,7 @@ Expect<
 				isPrimaryKey: true;
 				isAutoincrement: true;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 		}>,
 		typeof newYorkers
@@ -291,6 +296,7 @@ Expect<
 					isPrimaryKey: true;
 					isAutoincrement: true;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'id';
@@ -308,6 +314,7 @@ Expect<
 					isPrimaryKey: true;
 					isAutoincrement: true;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -347,6 +354,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -364,6 +372,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -403,6 +412,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -420,6 +430,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -452,6 +463,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -469,6 +481,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -501,6 +514,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -518,6 +532,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -553,6 +568,7 @@ Expect<
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			},
 			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>
 		>

@@ -8,6 +8,8 @@ import {
 	IndexedColumn,
 	PgColumn,
 	PgDialect,
+	PgDomain,
+	PgDomainColumn,
 	PgEnum,
 	PgEnumColumn,
 	PgMaterializedView,
@@ -22,15 +24,18 @@ import { CasingType } from 'src/cli/validations/common';
 import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
-import type {
+import { snapshotVersion } from '../global';
+import {
 	CheckConstraint,
 	Column,
+	Domain,
 	Enum,
 	ForeignKey,
 	Index,
 	IndexColumnType,
 	PgKitInternals,
 	PgSchemaInternal,
+	PgSquasher,
 	Policy,
 	PrimaryKey,
 	Role,
@@ -99,6 +104,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 
 export const generatePgSnapshot = (
 	tables: AnyPgTable[],
+	domains: PgDomain<any>[],
 	enums: PgEnum<any>[],
 	schemas: PgSchema[],
 	sequences: PgSequence[],
@@ -122,11 +128,11 @@ export const generatePgSnapshot = (
 
 	const indexesInSchema: Record<string, string[]> = {};
 
-	for (const table of tables) {
-		// This object stores unique names for checks and will be used to detect if you have the same names for checks
-		// within the same PostgreSQL table
-		const checksInTable: Record<string, string[]> = {};
+	// This object stores unique names for checks and will be used to detect if you have the same names for checks
+	// within the same PostgreSQL table
+	const checksInTable: Record<string, string[]> = {};
 
+	for (const table of tables) {
 		const {
 			name: tableName,
 			columns,
@@ -161,7 +167,10 @@ export const generatePgSnapshot = (
 			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
-
+			let domainSchema: string | undefined;
+			if (is(column, PgDomainColumn)) {
+				domainSchema = column.domain.schema;
+			}
 			const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
 			const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
 				?? (parseFloat(increment) < 0 ? minRangeForIdentityBasedOn(column.columnType) : '1');
@@ -175,6 +184,7 @@ export const generatePgSnapshot = (
 				name,
 				type: column.getSQLType(),
 				typeSchema: typeSchema,
+				domainSchema: domainSchema,
 				primaryKey,
 				notNull,
 				generated: generated
@@ -526,11 +536,18 @@ export const generatePgSnapshot = (
 			};
 		});
 
-		checks.forEach((check) => {
-			const checkName = check.name;
+		checks.forEach((check, index) => {
+			const tableKey = `"${schema ?? 'public'}"."${tableName}"`;
+
+			// you can have multiple unnamed checks per table (using the default above)
+			let defaultCheckName = `${tableName}_check`;
+			let checkName = check.name ?? defaultCheckName;
+			if (checksInTable[tableKey]?.includes(checkName) && checkName == defaultCheckName) {
+				checkName += `_${index}`;
+			}
 
 			if (typeof checksInTable[`"${schema ?? 'public'}"."${tableName}"`] !== 'undefined') {
-				if (checksInTable[`"${schema ?? 'public'}"."${tableName}"`].includes(check.name)) {
+				if (checksInTable[`"${schema ?? 'public'}"."${tableName}"`].includes(checkName)) {
 					console.log(
 						`\n${
 							withStyle.errorWarning(
@@ -554,11 +571,11 @@ export const generatePgSnapshot = (
 				}
 				checksInTable[`"${schema ?? 'public'}"."${tableName}"`].push(checkName);
 			} else {
-				checksInTable[`"${schema ?? 'public'}"."${tableName}"`] = [check.name];
+				checksInTable[`"${schema ?? 'public'}"."${tableName}"`] = [checkName];
 			}
 
 			checksObject[checkName] = {
-				name: checkName,
+				name: check.name ?? '', // don't squash and include the default name
 				value: dialect.sqlToQuery(check.value).sql,
 			};
 		});
@@ -861,6 +878,45 @@ export const generatePgSnapshot = (
 		};
 	}
 
+	const domainsToReturn: Record<string, Domain> = domains.reduce<{ [key: string]: Domain }>((map, obj) => {
+		// Process check constraints similar to tables
+		const checksObject: Record<string, CheckConstraint> = {};
+
+		obj.checkConstraints?.forEach((checkConstraint, index) => {
+			// Validate unique constraint names within domain
+			const domainKey = `"${obj.schema ?? 'public'}"."${obj.domainName}"`;
+
+			// you can have multiple unnamed checks per domain (using the default above)
+			let defaultCheckName = `${obj.domainName}_check`;
+			let checkName = checkConstraint.name ?? defaultCheckName;
+			if (checksInTable[domainKey]?.includes(checkName) && checkName == defaultCheckName) {
+				checkName += `_${index}`;
+			}
+
+			checksInTable[domainKey] = checksInTable[domainKey]
+				? [...checksInTable[domainKey], checkName]
+				: [checkName];
+
+			checksObject[checkName] = {
+				name: checkConstraint.name ?? '', // don't squash and include the default name
+				value: dialect.sqlToQuery(checkConstraint.value).sql,
+			};
+		});
+
+		const domainSchema = obj.schema || 'public';
+		const key = `${domainSchema}.${obj.domainName}`;
+		map[key] = {
+			name: obj.domainName,
+			schema: domainSchema,
+			notNull: obj.notNull,
+			baseType: obj.domainType,
+			defaultValue: obj.defaultValue,
+			checkConstraints: checksObject,
+		};
+
+		return map;
+	}, {});
+
 	const enumsToReturn: Record<string, Enum> = enums.reduce<{
 		[key: string]: Enum;
 	}>((map, obj) => {
@@ -887,9 +943,10 @@ export const generatePgSnapshot = (
 	);
 
 	return {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		tables: result,
+		domains: domainsToReturn,
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
@@ -1058,6 +1115,57 @@ WHERE
 			cycle,
 			cache: cacheSize,
 		};
+	}
+
+	const whereDomains = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
+
+	const allDomains = await db.query(
+		`SELECT
+			 n.nspname AS domain_schema,
+			 t.typname AS domain_name,
+			 t.typbasetype::regtype AS base_type,
+			 t.typnotnull AS not_null,
+			 t.typdefault AS default_value,
+			 c.conname AS constraint_name,  -- Get constraint name
+			 pg_get_constraintdef(c.oid) AS domain_constraint
+		 FROM
+			 pg_type t
+				 JOIN pg_namespace n ON t.typnamespace = n.oid
+				 LEFT JOIN pg_constraint c ON t.oid = c.contypid AND c.contype = 'c'
+		 WHERE
+			 t.typtype = 'd'
+			 ${whereDomains === '' ? '' : ` AND (${whereDomains})`}
+		 ORDER BY
+			 domain_schema, domain_name;`,
+	);
+
+	const domainsToReturn: Record<string, Domain> = {};
+
+	for (const domain of allDomains) {
+		const schemaName = domain.domain_schema || 'public';
+		const key = `${schemaName}.${domain.domain_name}`;
+
+		if (!domainsToReturn[key]) {
+			domainsToReturn[key] = {
+				name: domain.domain_name,
+				schema: schemaName,
+				baseType: domain.base_type,
+				notNull: domain.not_null,
+				defaultValue: domain.default_value,
+			};
+		}
+
+		// Add the check constraint if present in this row
+		if (domain.constraint_name && domain.domain_constraint) {
+			if (!domainsToReturn[key].checkConstraints) {
+				domainsToReturn[key].checkConstraints = {};
+			}
+
+			domainsToReturn[key].checkConstraints[domain.constraint_name] = {
+				name: domain.constraint_name,
+				value: domain.domain_constraint,
+			};
+		}
 	}
 
 	const whereEnums = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
@@ -1231,7 +1339,7 @@ WHERE
 					const tableChecks = await db.query(`SELECT 
 						tc.constraint_name,
 						tc.constraint_type,
-						pg_get_constraintdef(con.oid) AS constraint_definition
+						pg_get_expr(con.conbin, con.conrelid) AS check_expression
 					FROM 
 						information_schema.table_constraints AS tc
 						JOIN pg_constraint AS con 
@@ -1358,10 +1466,8 @@ WHERE
 					for (const checks of tableChecks) {
 						// CHECK (((email)::text <> 'test@gmail.com'::text))
 						// Where (email) is column in table
-						let checkValue: string = checks.constraint_definition;
+						const checkValue: string = checks.check_expression;
 						const constraintName: string = checks.constraint_name;
-
-						checkValue = checkValue.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
 
 						checkConstraints[constraintName] = {
 							name: constraintName,
@@ -1482,14 +1588,21 @@ WHERE
 						columnToReturn[columnName] = {
 							name: columnName,
 							type:
-								// filter vectors, but in future we should filter any extension that was installed by user
-								columnAdditionalDT === 'USER-DEFINED'
-									&& !['vector', 'geometry'].includes(enumType)
+								// First, check if it's a domain
+								(columnAdditionalDT === 'DOMAIN'
+										&& domainsToReturn[`${typeSchema}.${enumType}`]?.name)
+									// filter vectors, but in future we should filter any extension that was installed by user
+									|| columnAdditionalDT === 'USER-DEFINED'
+										&& !['vector', 'geometry'].includes(enumType)
 									? enumType
 									: columnTypeMapped,
-							typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
-								? enumsToReturn[`${typeSchema}.${enumType}`].schema
-								: undefined,
+							typeSchema:
+								// Check if it's a domain first
+								domainsToReturn[`${typeSchema}.${enumType}`]?.schema
+									// If not, check for enums
+									|| enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
+									? enumsToReturn[`${typeSchema}.${enumType}`].schema
+									: undefined,
 							primaryKey: primaryKey.length === 1 && cprimaryKey.length < 2,
 							// default: isSerial ? undefined : defaultValue,
 							notNull: columnResponse.is_nullable === 'NO',
@@ -1915,9 +2028,10 @@ WHERE
 	const schemasObject = Object.fromEntries([...schemas].map((it) => [it, it]));
 
 	return {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		tables: result,
+		domains: domainsToReturn,
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
