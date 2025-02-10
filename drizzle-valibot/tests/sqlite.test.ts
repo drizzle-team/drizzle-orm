@@ -1,12 +1,12 @@
 import { type Equal, sql } from 'drizzle-orm';
 import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
-import type { TopLevelCondition } from 'json-rules-engine';
 
 const intSchema = v.pipe(
 	v.number(),

@@ -1,12 +1,12 @@
 import { type Equal, sql } from 'drizzle-orm';
 import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
-import type { TopLevelCondition } from 'json-rules-engine';
 
 const intSchema = z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int();
 const textSchema = z.string();

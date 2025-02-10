@@ -27,13 +27,16 @@ export type GetZodType<
 		>
 	>
 	: ArrayHasAtLeastOneValue<TEnumValues> extends true ? z.ZodEnum<Assume<TEnumValues, [string, ...string[]]>>
-	: TData extends infer TTuple extends [any, ...any[]]
-		? z.ZodTuple<Assume<{ [K in keyof TTuple]: GetZodType<TTuple[K], string, string, undefined, undefined> }, [any, ...any[]]>>
+	: TData extends infer TTuple extends [any, ...any[]] ? z.ZodTuple<
+			Assume<{ [K in keyof TTuple]: GetZodType<TTuple[K], string, string, undefined, undefined> }, [any, ...any[]]>
+		>
 	: TData extends Date ? z.ZodDate
 	: TData extends Buffer ? z.ZodType<Buffer>
-	: TDataType extends 'array' ? z.ZodArray<GetZodType<Assume<TData, any[]>[number], string, string, undefined, undefined>>
+	: TDataType extends 'array'
+		? z.ZodArray<GetZodType<Assume<TData, any[]>[number], string, string, undefined, undefined>>
 	: TData extends infer TDict extends Record<string, any>
-		?	TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson' ? z.ZodType<TDict, z.ZodTypeDef, TDict>
+		? TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
+			? z.ZodType<TDict, z.ZodTypeDef, TDict>
 		: z.ZodObject<{ [K in keyof TDict]: GetZodType<TDict[K], string, string, undefined, undefined> }, 'strip'>
 	: TDataType extends 'json' ? z.ZodType<Json>
 	: TData extends number ? z.ZodNumber

@@ -12,13 +12,13 @@ import {
 	serial,
 	text,
 } from 'drizzle-orm/pg-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
-import type { TopLevelCondition } from 'json-rules-engine';
 
 const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
 const textSchema = z.string();
@@ -499,8 +499,8 @@ test('all data types', (t) => {
 		array2: z.array(z.array(integerSchema).length(2)),
 		array3: z.array(z.array(z.string().max(10)).length(2)),
 	});
-	result.shape.json
-	expected.shape.json
+	result.shape.json;
+	expected.shape.json;
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });

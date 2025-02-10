@@ -87,8 +87,9 @@ export type GetValibotType<
 			GetValibotType<Assume<TData, any[]>[number], string, string, undefined, undefined, { noPipe: true }>,
 			undefined
 		>
-	: TData extends infer TDict extends Record<string, any> 
-		?	TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson' ? v.GenericSchema<TDict>
+	: TData extends infer TDict extends Record<string, any>
+		? TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
+			? v.GenericSchema<TDict>
 		: v.ObjectSchema<
 			{ readonly [K in keyof TDict]: GetValibotType<TDict[K], string, string, undefined, undefined, { noPipe: true }> },
 			undefined

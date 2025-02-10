@@ -12,13 +12,13 @@ import {
 	serial,
 	text,
 } from 'drizzle-orm/pg-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
-import type { TopLevelCondition } from 'json-rules-engine';
 
 const integerSchema = v.pipe(v.number(), v.minValue(CONSTANTS.INT32_MIN), v.maxValue(CONSTANTS.INT32_MAX), v.integer());
 const textSchema = v.string();

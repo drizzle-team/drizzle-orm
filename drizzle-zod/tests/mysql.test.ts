@@ -1,12 +1,12 @@
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
-import type { TopLevelCondition } from 'json-rules-engine';
 
 const intSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
 const serialNumberModeSchema = z.number().min(0).max(Number.MAX_SAFE_INTEGER).int();
