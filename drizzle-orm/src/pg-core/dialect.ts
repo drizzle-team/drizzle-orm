@@ -582,9 +582,31 @@ export class PgDialect {
 			return 'date';
 		} else if (is(encoder, PgUUID)) {
 			return 'uuid';
-		} else {
-			return 'none';
+		} else if (is(encoder, PgColumn)) {
+			// Support custom types that extend PgColumn
+			const sqlType = encoder.getSQLType();
+
+			if (sqlType === 'json' || sqlType === 'jsonb') {
+				return 'json';
+			} else if (sqlType === 'uuid') {
+				return 'uuid';
+			} else if (sqlType === 'date') {
+				return 'date';
+			} else if (
+				/^numeric(\(\d+(,\s*\d+)?\))?$/.test(sqlType)
+			) {
+				return 'decimal';
+			} else if (
+				/^time(\s*\(\s*(\d+)\s*\))?(\s*(with|without)\s+time\s+zone)?$/.test(sqlType)
+			) {
+				return 'time';
+			} else if (
+				/^timestamp(\s*\(\s*(\d+)\s*\))?(\s*(with|without)\s+time\s+zone)?$/.test(sqlType)
+			) {
+				return 'timestamp';
+			}
 		}
+		return 'none';
 	}
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
