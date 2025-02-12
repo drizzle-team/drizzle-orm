@@ -480,7 +480,7 @@ test('insert via db.execute w/ query builder', async () => {
 });
 
 test('bulk insert via db.batch', async () => {
-	const result = await db.batch<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>([
+	const result = await db.$batch<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>([
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 		db.insert(usersTable).values({ name: 'Jane' }).returning({ id: usersTable.id, name: usersTable.name }),
 	]);

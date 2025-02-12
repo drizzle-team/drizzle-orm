@@ -609,7 +609,7 @@ export class PgDatabase<
 	protected authToken?: NeonAuthToken;
 
 
-	batch<T extends Record<string, unknown> = Record<string, unknown>>(
+	$batch<T extends Record<string, unknown> = Record<string, unknown>>(
 		queries: (SQLWrapper | string)[],
 		// TODO: support for returning types by generic
 	): PgRaw<PgQueryResultKind<TQueryResult, T>> {

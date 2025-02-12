@@ -104,7 +104,7 @@ export class NeonHttpDatabase<
 	/** @internal */
 	declare readonly session: NeonHttpSession<TSchema, ExtractTablesWithRelations<TSchema>>;
 
-	override async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
 	): Promise<BatchResponse<T>> {
 		return this.session.batch(batch) as Promise<BatchResponse<T>>;
