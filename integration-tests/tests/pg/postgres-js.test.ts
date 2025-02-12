@@ -478,3 +478,11 @@ test('insert via db.execute w/ query builder', async () => {
 	);
 	expect(Array.prototype.slice.call(result)).toEqual([{ id: 1, name: 'John' }]);
 });
+
+test('bulk insert via db.batch', async () => {
+	const result = await db.batch<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>([
+		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
+		db.insert(usersTable).values({ name: 'Jane' }).returning({ id: usersTable.id, name: usersTable.name }),
+	]);
+	expect(Array.prototype.slice.call(result)).toEqual([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+});

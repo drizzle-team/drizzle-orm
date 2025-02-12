@@ -608,6 +608,35 @@ export class PgDatabase<
 
 	protected authToken?: NeonAuthToken;
 
+
+	batch<T extends Record<string, unknown> = Record<string, unknown>>(
+		queries: (SQLWrapper | string)[],
+		// TODO: support for returning types by generic
+	): PgRaw<PgQueryResultKind<TQueryResult, T>> {
+		const sqlQueries = queries.map(q => 
+			typeof q === 'string' ? sql.raw(q) : q.getSQL()
+	);
+
+		const combinedSQL = sql.join(sqlQueries, sql`;`);
+		const builtQuery = this.dialect.sqlToQuery(combinedSQL);
+
+		const prepared = this.session.prepareQuery<
+			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, T> }
+		>(
+			builtQuery,
+			undefined,
+			undefined,
+			false,
+		);
+
+		return new PgRaw(
+			() => prepared.execute(undefined, this.authToken),
+			combinedSQL,
+			builtQuery,
+			(result) => prepared.mapResult(result, true),
+		);
+	}
+
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 	): PgRaw<PgQueryResultKind<TQueryResult, TRow>> {
