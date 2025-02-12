@@ -5146,7 +5146,7 @@ export function tests() {
 
 			expect(name).toBe('users_sync');
 			expect(schema).toBe('neon_auth');
-			expect(columns).toHaveLength(6);
+			expect(columns).toHaveLength(7);
 		});
 
 		test('Enable RLS function', () => {

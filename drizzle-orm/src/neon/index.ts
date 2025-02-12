@@ -1,2 +1,2 @@
-export * from './neon-identity.ts';
+export * from './neon-auth.ts';
 export * from './rls.ts';
