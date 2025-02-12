@@ -182,7 +182,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				const schemaName = chunk[Table.Symbol.Schema];
 				const tableName = chunk[Table.Symbol.Name];
 				return {
-					sql: schemaName === undefined || chunk[Table.Symbol.IsAlias]
+					sql: schemaName === undefined || chunk[IsAlias]
 						? escapeName(tableName)
 						: escapeName(schemaName) + '.' + escapeName(tableName),
 					params: [],
@@ -703,6 +703,10 @@ export abstract class View<
 
 export function isView(view: unknown): view is View {
 	return typeof view === 'object' && view !== null && IsDrizzleView in view;
+}
+
+export function getViewName<T extends View>(view: T): T['_']['name'] {
+	return view[ViewBaseConfig].name;
 }
 
 export type InferSelectViewModel<TView extends View> =

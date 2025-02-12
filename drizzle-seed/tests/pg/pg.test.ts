@@ -1,8 +1,8 @@
 import { PGlite } from '@electric-sql/pglite';
-import { sql } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
 import { reset, seed } from '../../src/index.ts';
 import * as schema from './pgSchema.ts';
 
@@ -193,14 +193,29 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
-			create table "seeder_lib_pg"."user"
+			create table "seeder_lib_pg"."users"
 			(
 			    id          serial
 			        primary key,
 			    name        text,
 			    "invitedBy" integer
-			        constraint "user_invitedBy_user_id_fk"
-			            references "seeder_lib_pg"."user"
+			        constraint "users_invitedBy_user_id_fk"
+			            references "seeder_lib_pg"."users"
+			);
+		`,
+	);
+
+	await db.execute(
+		sql`
+			create table "seeder_lib_pg"."posts"
+			(
+			    id          serial
+			        primary key,
+			    name        text,
+				content     text,
+			    "userId" integer
+			        constraint "users_userId_user_id_fk"
+			            references "seeder_lib_pg"."users"
 			);
 		`,
 	);
@@ -385,11 +400,36 @@ test('seeding with identity columns', async () => {
 });
 
 test('seeding with self relation', async () => {
-	await seed(db, { user: schema.user });
+	await seed(db, { users: schema.users });
 
-	const result = await db.select().from(schema.user);
+	const result = await db.select().from(schema.users);
 
 	expect(result.length).toBe(10);
 	const predicate = result.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('overlapping a foreign key constraint with a one-to-many relation', async () => {
+	const postsRelation = relations(schema.posts, ({ one }) => ({
+		user: one(schema.users, { fields: [schema.posts.userId], references: [schema.users.id] }),
+	}));
+
+	const consoleMock = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+	await reset(db, { users: schema.users, posts: schema.posts, postsRelation });
+	await seed(db, { users: schema.users, posts: schema.posts, postsRelation });
+	// expecting to get a warning
+	expect(consoleMock).toBeCalled();
+	expect(consoleMock).toBeCalledWith(expect.stringMatching(/^You are providing a one-to-many relation.+/));
+
+	const users = await db.select().from(schema.users);
+	const posts = await db.select().from(schema.posts);
+
+	expect(users.length).toBe(10);
+	let predicate = users.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+
+	expect(posts.length).toBe(10);
+	predicate = posts.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
 	expect(predicate).toBe(true);
 });

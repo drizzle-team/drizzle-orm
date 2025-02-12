@@ -166,7 +166,7 @@ export type SelectResultField<T, TDeep extends boolean = true> = T extends Drizz
 
 export type SelectResultFields<TSelectedFields, TDeep extends boolean = true> = Simplify<
 	{
-		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key], TDeep>;
+		[Key in keyof TSelectedFields]: SelectResultField<TSelectedFields[Key], TDeep>;
 	}
 >;
 

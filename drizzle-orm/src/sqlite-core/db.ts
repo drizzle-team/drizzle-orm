@@ -27,7 +27,7 @@ import { SQLiteCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
-import type { WithSubqueryWithSelection } from './subquery.ts';
+import type { WithBuilder } from './subquery.ts';
 import type { SQLiteViewBase } from './view-base.ts';
 
 export class BaseSQLiteDatabase<
@@ -164,23 +164,30 @@ export class BaseSQLiteDatabase<
 	 * const result = await db.with(sq).select({ name: sq.name }).from(sq);
 	 * ```
 	 */
-	$with<TAlias extends string>(alias: TAlias) {
+	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
 		const self = this;
-		return {
-			as<TSelection extends ColumnsSelection>(
-				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias> {
-				if (typeof qb === 'function') {
-					qb = qb(new QueryBuilder(self.dialect));
-				}
+		const as = (
+			qb:
+				| TypedQueryBuilder<ColumnsSelection | undefined>
+				| SQL
+				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
+		) => {
+			if (typeof qb === 'function') {
+				qb = qb(new QueryBuilder(self.dialect));
+			}
 
-				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
-					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubqueryWithSelection<TSelection, TAlias>;
-			},
+			return new Proxy(
+				new WithSubquery(
+					qb.getSQL(),
+					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
+					alias,
+					true,
+				),
+				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			);
 		};
-	}
+		return { as };
+	};
 
 	$count(
 		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,
@@ -654,6 +661,7 @@ export const withReplicas = <
 ): SQLiteWithReplicas<Q> => {
 	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
 	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
+	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);
 	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
@@ -678,6 +686,7 @@ export const withReplicas = <
 		$primary: primary,
 		select,
 		selectDistinct,
+		$count,
 		with: $with,
 		get _query() {
 			return getReplica(replicas)._query;
