@@ -3,12 +3,13 @@ import { entityKind, is } from '~/entity.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
+import { TableName } from '~/table.utils.ts';
 import { tracer } from '~/tracing.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
-import { IsAlias, Table } from '../table.ts';
+import { Columns, IsAlias, OriginalName, Schema, Table } from '../table.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -208,7 +209,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				const schemaName = chunk[ViewBaseConfig].schema;
 				const viewName = chunk[ViewBaseConfig].name;
 				return {
-					sql: schemaName === undefined
+					sql: schemaName === undefined || chunk[ViewBaseConfig].isAlias
 						? escapeName(viewName)
 						: escapeName(schemaName) + '.' + escapeName(viewName),
 					params: [],
@@ -648,6 +649,31 @@ export abstract class View<
 
 	/** @internal */
 	[IsDrizzleView] = true;
+
+	/** @internal */
+	public get [TableName]() {
+		return this[ViewBaseConfig].name;
+	}
+
+	/** @internal */
+	public get [Schema]() {
+		return this[ViewBaseConfig].schema;
+	}
+
+	/** @internal */
+	public get [IsAlias]() {
+		return this[ViewBaseConfig].isAlias;
+	}
+
+	/** @internal */
+	public get [OriginalName]() {
+		return this[ViewBaseConfig].originalName;
+	}
+
+	/** @internal */
+	public get [Columns]() {
+		return (this[ViewBaseConfig].selectedFields) as any as Record<string, unknown>;
+	}
 
 	declare readonly $inferSelect: InferSelectViewModel<View<Assume<TName, string>, TExisting, TSelection>>;
 

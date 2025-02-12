@@ -12,6 +12,7 @@ import {
 	type BuildRelationalQueryResult,
 	type ColumnWithTSName,
 	type DBQueryConfig,
+	getTableAsAliasSQL,
 	One,
 	type Relation,
 	relationExtrasToSQL,
@@ -22,8 +23,8 @@ import {
 	type TablesRelationalConfig,
 	type WithContainer,
 } from '~/relations.ts';
-import type { Name, Placeholder } from '~/sql/index.ts';
-import { and, eq } from '~/sql/index.ts';
+import type { Name, Placeholder, SQLWrapper, View } from '~/sql/index.ts';
+import { and, eq, isSQLWrapper } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type {
@@ -34,7 +35,7 @@ import type {
 } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
-import { Columns, getTableName, getTableUniqueName, IsAlias, OriginalName, Schema, Table } from '~/table.ts';
+import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
@@ -44,6 +45,7 @@ import type {
 } from './query-builders/select.types.ts';
 import type { SQLiteSession } from './session.ts';
 import { SQLiteViewBase } from './view-base.ts';
+import type { SQLiteView } from './view.ts';
 
 export interface SQLiteDialectConfig {
 	casing?: Casing;
@@ -801,33 +803,42 @@ export abstract class SQLiteDialect {
 			selection,
 		};
 	}
-	private unwrapAllColumns = (table: Table, selection: BuildRelationalQueryResult['selection']) => {
+
+	private nestedSelectionerror() {
+		throw new DrizzleError({
+			message: `Views with nested selections are not supported by the relational query builder`,
+		});
+	}
+
+	private buildRqbColumn(column: unknown, key: string) {
+		return sql`${
+			is(column, Column)
+				? sql.identifier(column.name)
+				: is(column, SQL.Aliased)
+				? sql.identifier(column.fieldAlias)
+				: isSQLWrapper(column)
+				? sql.identifier(key)
+				: this.nestedSelectionerror()
+		} as ${sql.identifier(key)}`;
+	}
+
+	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
 		return sql.join(
 			Object.entries(table[Columns]).map(([k, v]) => {
 				selection.push({
 					key: k,
-					field: v,
+					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
 				});
 
-				return sql`${v} as ${sql.identifier(k)}`;
+				return sql`${table}.${this.buildRqbColumn(v, k)}`;
 			}),
 			sql`, `,
 		);
 	};
 
-	private getSelectedTableColumns = (table: Table, columns?: Record<string, boolean | undefined>) => {
+	private getSelectedTableColumns = (table: Table | View, columns: Record<string, boolean | undefined>) => {
 		const selectedColumns: ColumnWithTSName[] = [];
-		if (!columns) {
-			for (const [k, v] of Object.entries(table[Columns])) {
-				selectedColumns.push({
-					column: v,
-					tsName: k,
-				});
-			}
-
-			return selectedColumns;
-		}
-
+		const columnContainer = table[Columns];
 		const entries = Object.entries(columns);
 
 		let colSelectionMode: boolean | undefined;
@@ -836,19 +847,21 @@ export abstract class SQLiteDialect {
 			colSelectionMode = colSelectionMode || v;
 
 			if (v) {
+				const column = columnContainer[k]!;
+
 				selectedColumns.push({
-					column: table[Columns][k]!,
+					column: column as Column | SQL | SQLWrapper | SQL.Aliased,
 					tsName: k,
 				});
 			}
 		}
 
 		if (colSelectionMode === false) {
-			for (const [k, v] of Object.entries(table[Columns])) {
+			for (const [k, v] of Object.entries(columnContainer)) {
 				if (columns[k] === false) continue;
 
 				selectedColumns.push({
-					column: v,
+					column: v as Column | SQL | SQLWrapper | SQL.Aliased | Table,
 					tsName: k,
 				});
 			}
@@ -858,7 +871,7 @@ export abstract class SQLiteDialect {
 	};
 
 	private buildColumns = (
-		table: SQLiteTable,
+		table: SQLiteTable | SQLiteView,
 		selection: BuildRelationalQueryResult['selection'],
 		params?: DBQueryConfig<'many'>,
 	) =>
@@ -868,11 +881,11 @@ export abstract class SQLiteDialect {
 
 				const selectedColumns = this.getSelectedTableColumns(table, params?.columns);
 
-				for (const column of selectedColumns) {
-					columnIdentifiers.push(sql`${column.column} as ${sql.identifier(column.tsName)}`);
+				for (const { column, tsName } of selectedColumns) {
+					columnIdentifiers.push(sql`${table}.${this.buildRqbColumn(column, tsName)}`);
 					selection.push({
-						key: column.tsName,
-						field: column.column,
+						key: tsName,
+						field: column,
 					});
 				}
 
@@ -897,10 +910,10 @@ export abstract class SQLiteDialect {
 			depth,
 			throughJoin,
 		}: {
-			tables: Record<string, SQLiteTable>;
+			tables: Record<string, SQLiteTable | SQLiteView>;
 			schema: TablesRelationalConfig;
 			tableNamesMap: Record<string, string>;
-			table: SQLiteTable;
+			table: SQLiteTable | SQLiteView;
 			tableConfig: TableRelationalConfig;
 			queryConfig?: DBQueryConfig<'many'> | true;
 			relationWhere?: SQL;
@@ -916,6 +929,7 @@ export abstract class SQLiteDialect {
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
+		if (!currentDepth) table = aliasedTable(table, `d${currentDepth}`);
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -969,13 +983,11 @@ export abstract class SQLiteDialect {
 						);
 
 						const throughJoin = throughTable
-							? sql` inner join ${sql`${sql.identifier(throughTable![Schema] ?? '')}.`.if(throughTable![Schema])}${
-								sql.identifier(throughTable![OriginalName])
-							} as ${throughTable!} on ${joinCondition!}`
+							? sql` inner join ${getTableAsAliasSQL(throughTable)} on ${joinCondition!}`
 							: undefined;
 
 						const innerQuery = this.buildRelationalQuery({
-							table: targetTable as SQLiteTable,
+							table: targetTable as SQLiteTable | SQLiteView,
 							mode: isSingle ? 'first' : 'many',
 							schema,
 							queryConfig: join as DBQueryConfig,
@@ -1032,15 +1044,11 @@ export abstract class SQLiteDialect {
 		}
 		const selectionSet = sql.join(selectionArr, sql`, `);
 
-		const query = sql`select ${selectionSet} from ${
-			table[IsAlias]
-				? sql`${sql`${sql.identifier(table[Schema] ?? '')}.`.if(table[Schema])}${
-					sql.identifier(table[OriginalName])
-				} as ${table}`
-				: table
-		}${throughJoin}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
-			sql` limit ${limit}`.if(limit !== undefined)
-		}${sql` offset ${offset}`.if(offset !== undefined)}`;
+		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
+			sql` where ${where}`.if(where)
+		}${sql` order by ${order}`.if(order)}${sql` limit ${limit}`.if(limit !== undefined)}${
+			sql` offset ${offset}`.if(offset !== undefined)
+		}`;
 
 		return {
 			sql: query,

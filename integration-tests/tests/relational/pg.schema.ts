@@ -1,10 +1,13 @@
+import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import {
+	alias,
 	boolean,
 	integer,
 	type PgColumn,
 	pgSchema,
 	pgTable,
+	pgView,
 	primaryKey,
 	serial,
 	text,
@@ -58,6 +61,21 @@ export const postsConfig = relations(postsTable, ({ one, many }) => ({
 	author: one(usersTable, { fields: [postsTable.ownerId], references: [usersTable.id] }),
 	comments: many(commentsTable),
 }));
+
+export const usersView = pgView('users_view').as((qb) =>
+	qb.select({
+		...getTableColumns(usersTable),
+		postContent: postsTable.content,
+		createdAt: postsTable.createdAt,
+		counter: sql<string>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+			ne(usersTable.id, 2)
+		})`
+			.mapWith((data) => {
+				return data === '0' || data === 0 ? null : Number(data);
+			}).as('count'),
+	})
+		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
+);
 
 export const commentsTable = pgTable('comments', {
 	id: serial('id').primaryKey(),
@@ -114,3 +132,18 @@ export const schemaUsersToGroups = rqbSchema.table('users_to_groups', {
 }, (t) => ({
 	pk: primaryKey(t.groupId, t.userId),
 }));
+
+export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
+	qb.select({
+		...getTableColumns(schemaUsers),
+		postContent: schemaPosts.content,
+		createdAt: schemaPosts.createdAt,
+		counter: sql<string>`(select count(*) from ${schemaUsers} as ${alias(schemaUsers, 'count_source')} where ${
+			ne(schemaUsers.id, 2)
+		})`
+			.mapWith((data) => {
+				return data === '0' || data === 0 ? null : Number(data);
+			}).as('count'),
+	})
+		.from(schemaUsers).leftJoin(schemaPosts, eq(schemaUsers.id, schemaPosts.ownerId))
+);

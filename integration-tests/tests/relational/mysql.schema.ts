@@ -1,15 +1,18 @@
 import {
+	alias,
 	type AnyMySqlColumn,
 	bigint,
 	boolean,
 	mysqlSchema,
 	mysqlTable,
+	mysqlView,
 	primaryKey,
 	serial,
 	text,
 	timestamp,
 } from 'drizzle-orm/mysql-core';
 
+import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 
 export const usersTable = mysqlTable('users', {
@@ -82,6 +85,21 @@ export const postsConfig = relations(postsTable, ({ one, many }) => ({
 	}),
 	comments: many(commentsTable),
 }));
+
+export const usersView = mysqlView('rqb_users_view').as((qb) =>
+	qb.select({
+		...getTableColumns(usersTable),
+		postContent: postsTable.content,
+		createdAt: postsTable.createdAt,
+		counter: sql<string>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+			ne(usersTable.id, 2)
+		})`
+			.mapWith((data) => {
+				return data === '0' || data === 0 ? null : Number(data);
+			}).as('count'),
+	})
+		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
+);
 
 export const commentsTable = mysqlTable('comments', {
 	id: serial('id').primaryKey(),
@@ -171,4 +189,19 @@ export const schemaUsersToGroups = rqbSchema.table(
 	(t) => ({
 		pk: primaryKey(t.userId, t.groupId),
 	}),
+);
+
+export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
+	qb.select({
+		...getTableColumns(schemaUsers),
+		postContent: schemaPosts.content,
+		createdAt: schemaPosts.createdAt,
+		counter: sql<string>`(select count(*) from ${schemaUsers} as ${alias(schemaUsers, 'count_source')} where ${
+			ne(schemaUsers.id, 2)
+		})`
+			.mapWith((data) => {
+				return data === '0' || data === 0 ? null : Number(data);
+			}).as('count'),
+	})
+		.from(schemaUsers).leftJoin(schemaPosts, eq(schemaUsers.id, schemaPosts.ownerId))
 );

@@ -30,6 +30,7 @@ import {
 	AggregatedField,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
+	getTableAsAliasSQL,
 	One,
 	type Relation,
 	relationExtrasToSQL,
@@ -40,7 +41,7 @@ import {
 	type TablesRelationalConfig,
 	type WithContainer,
 } from '~/relations.ts';
-import { and, eq, View } from '~/sql/index.ts';
+import { and, eq, isSQLWrapper, type SQLWrapper, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
 	type Name,
@@ -52,12 +53,12 @@ import {
 	type SQLChunk,
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Columns, getTableName, getTableUniqueName, IsAlias, OriginalName, Schema, Table } from '~/table.ts';
+import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
-import type { PgMaterializedView } from './view.ts';
+import type { PgMaterializedView, PgView } from './view.ts';
 
 export interface PgDialectConfig {
 	casing?: Casing;
@@ -898,28 +899,47 @@ export class PgDialect {
 		};
 	}
 
-	private unwrapAllColumns = (table: Table, selection: BuildRelationalQueryResult['selection']) => {
+	private nestedSelectionerror() {
+		throw new DrizzleError({
+			message: `Views with nested selections are not supported by the relational query builder`,
+		});
+	}
+
+	private buildRqbColumn(column: unknown, key: string) {
+		return sql`${
+			is(column, Column)
+				? sql.identifier(column.name)
+				: is(column, SQL.Aliased)
+				? sql.identifier(column.fieldAlias)
+				: isSQLWrapper(column)
+				? sql.identifier(key)
+				: this.nestedSelectionerror()
+		} as ${sql.identifier(key)}`;
+	}
+
+	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
 		return sql.join(
 			Object.entries(table[Columns]).map(([k, v]) => {
 				selection.push({
 					key: k,
-					field: v,
+					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
 				});
 
-				return sql`${v} as ${sql.identifier(k)}`;
+				return sql`${table}.${this.buildRqbColumn(v, k)}`;
 			}),
 			sql`, `,
 		);
 	};
 
 	private buildColumns = (
-		table: PgTable,
+		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
 		config?: DBQueryConfig<'many'>,
 	) =>
 		config?.columns
 			? (() => {
 				const entries = Object.entries(config.columns);
+				const columnContainer: Record<string, unknown> = table[Columns];
 
 				const columnIdentifiers: SQL[] = [];
 				let colSelectionMode: boolean | undefined;
@@ -928,25 +948,26 @@ export class PgDialect {
 					colSelectionMode = colSelectionMode || v;
 
 					if (v) {
+						const column = columnContainer[k];
 						columnIdentifiers.push(
-							sql`${(table[Columns][k]!)} as ${sql.identifier(k)}`,
+							sql`${table}.${this.buildRqbColumn(column, k)}`,
 						);
 
 						selection.push({
 							key: k,
-							field: table[Columns][k]!,
+							field: column as SQL | SQLWrapper | SQL.Aliased | Column,
 						});
 					}
 				}
 
 				if (colSelectionMode === false) {
-					for (const [k, v] of Object.entries(table[Columns])) {
+					for (const [k, v] of Object.entries(columnContainer)) {
 						if (config.columns[k] === false) continue;
+						columnIdentifiers.push(sql`${table}.${this.buildRqbColumn(v, k)}`);
 
-						columnIdentifiers.push(sql`${v} as ${sql.identifier(k)}`);
 						selection.push({
 							key: k,
-							field: v,
+							field: v as SQL | SQLWrapper | SQL.Aliased | Column,
 						});
 					}
 				}
@@ -970,10 +991,10 @@ export class PgDialect {
 		depth,
 		throughJoin,
 	}: {
-		tables: Record<string, PgTable>;
+		tables: Record<string, PgTable | PgView>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: PgTable;
+		table: PgTable | PgView;
 		tableConfig: TableRelationalConfig;
 		queryConfig?: DBQueryConfig<'many'> | true;
 		relationWhere?: SQL;
@@ -987,6 +1008,7 @@ export class PgDialect {
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
+		if (!currentDepth) table = aliasedTable(table, `d${currentDepth}`);
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -1034,7 +1056,7 @@ export class PgDialect {
 						const isSingle = is(relation, One);
 						const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
 						const throughTable = relation.throughTable
-							? aliasedTable(relation.throughTable, `tr${currentDepth}`)
+							? aliasedTable(relation.throughTable, `tr${currentDepth}`) as Table | View
 							: undefined;
 						const { filter, joinCondition } = relationToSQL(
 							relation,
@@ -1046,13 +1068,11 @@ export class PgDialect {
 						selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
 
 						const throughJoin = throughTable
-							? sql` inner join ${sql`${sql.identifier(throughTable![Schema] ?? '')}.`.if(throughTable![Schema])}${
-								sql.identifier(throughTable![OriginalName])
-							} as ${throughTable!} on ${joinCondition!}`
+							? sql` inner join ${getTableAsAliasSQL(throughTable)} on ${joinCondition!}`
 							: undefined;
 
 						const innerQuery = this.buildRelationalQuery({
-							table: targetTable as PgTable,
+							table: targetTable as PgTable | PgView,
 							mode: isSingle ? 'first' : 'many',
 							schema,
 							queryConfig: join as DBQueryConfig,
@@ -1094,14 +1114,9 @@ export class PgDialect {
 			});
 		}
 		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql`, `);
-
-		const query = sql`select ${selectionSet} from ${
-			table[IsAlias]
-				? sql`${sql`${sql.identifier(table[Schema] ?? '')}.`.if(table[Schema])}${
-					sql.identifier(table[OriginalName])
-				} as ${table}`
-				: table
-		}${throughJoin}${sql` ${joins}`.if(joins)}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
+		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
+			sql` ${joins}`.if(joins)
+		}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
 			sql` limit ${limit}`.if(limit !== undefined)
 		}${sql` offset ${offset}`.if(offset !== undefined)}`;
 

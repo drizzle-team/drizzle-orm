@@ -17,16 +17,17 @@ import type {
 } from '~/relations.ts';
 import {
 	AggregatedField,
+	getTableAsAliasSQL,
 	One,
 	relationExtrasToSQL,
 	relationsFilterToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
 } from '~/relations.ts';
-import { Param, SQL, sql, View } from '~/sql/sql.ts';
-import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
+import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
+import type { Name, Placeholder, QueryWithTypings, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Columns, getTableName, getTableUniqueName, IsAlias, OriginalName, Schema, Table } from '~/table.ts';
+import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
@@ -42,6 +43,7 @@ import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
+import type { MySqlView } from './view.ts';
 
 export interface MySqlDialectConfig {
 	casing?: Casing;
@@ -1154,33 +1156,41 @@ export class MySqlDialect {
 		};
 	}
 
-	private unwrapAllColumns = (table: Table, selection: BuildRelationalQueryResult['selection']) => {
+	private nestedSelectionerror() {
+		throw new DrizzleError({
+			message: `Views with nested selections are not supported by the relational query builder`,
+		});
+	}
+
+	private buildRqbColumn(column: unknown, key: string) {
+		return sql`${
+			is(column, Column)
+				? sql.identifier(column.name)
+				: is(column, SQL.Aliased)
+				? sql.identifier(column.fieldAlias)
+				: isSQLWrapper(column)
+				? sql.identifier(key)
+				: this.nestedSelectionerror()
+		} as ${sql.identifier(key)}`;
+	}
+
+	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
 		return sql.join(
 			Object.entries(table[Columns]).map(([k, v]) => {
 				selection.push({
 					key: k,
-					field: v,
+					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
 				});
 
-				return sql`${v} as ${sql.identifier(k)}`;
+				return sql`${table}.${this.buildRqbColumn(v, k)}`;
 			}),
 			sql`, `,
 		);
 	};
 
-	private getSelectedTableColumns = (table: Table, columns?: Record<string, boolean | undefined>) => {
+	private getSelectedTableColumns = (table: Table | View, columns: Record<string, boolean | undefined>) => {
 		const selectedColumns: ColumnWithTSName[] = [];
-		if (!columns) {
-			for (const [k, v] of Object.entries(table[Columns])) {
-				selectedColumns.push({
-					column: v,
-					tsName: k,
-				});
-			}
-
-			return selectedColumns;
-		}
-
+		const columnContainer = table[Columns];
 		const entries = Object.entries(columns);
 
 		let colSelectionMode: boolean | undefined;
@@ -1189,19 +1199,21 @@ export class MySqlDialect {
 			colSelectionMode = colSelectionMode || v;
 
 			if (v) {
+				const column = columnContainer[k]!;
+
 				selectedColumns.push({
-					column: table[Columns][k]!,
+					column: column as Column | SQL | SQLWrapper | SQL.Aliased,
 					tsName: k,
 				});
 			}
 		}
 
 		if (colSelectionMode === false) {
-			for (const [k, v] of Object.entries(table[Columns])) {
+			for (const [k, v] of Object.entries(columnContainer)) {
 				if (columns[k] === false) continue;
 
 				selectedColumns.push({
-					column: v,
+					column: v as Column | SQL | SQLWrapper | SQL.Aliased | Table,
 					tsName: k,
 				});
 			}
@@ -1211,7 +1223,7 @@ export class MySqlDialect {
 	};
 
 	private buildColumns = (
-		table: MySqlTable,
+		table: MySqlTable | MySqlView,
 		selection: BuildRelationalQueryResult['selection'],
 		params?: DBQueryConfig<'many'>,
 	) =>
@@ -1219,13 +1231,14 @@ export class MySqlDialect {
 			? (() => {
 				const columnIdentifiers: SQL[] = [];
 
-				const selectedColumns = this.getSelectedTableColumns(table, params?.columns);
+				const selectedColumns = this.getSelectedTableColumns(table, params.columns);
 
-				for (const column of selectedColumns) {
-					columnIdentifiers.push(sql`${column.column} as ${sql.identifier(column.tsName)}`);
+				for (const { column, tsName } of selectedColumns) {
+					columnIdentifiers.push(sql`${table}.${this.buildRqbColumn(column, tsName)}`);
+
 					selection.push({
-						key: column.tsName,
-						field: column.column,
+						key: tsName,
+						field: column,
 					});
 				}
 
@@ -1250,10 +1263,10 @@ export class MySqlDialect {
 			isNested,
 			throughJoin,
 		}: {
-			tables: Record<string, MySqlTable>;
+			tables: Record<string, MySqlTable | MySqlView>;
 			schema: TablesRelationalConfig;
 			tableNamesMap: Record<string, string>;
-			table: MySqlTable;
+			table: MySqlTable | MySqlView;
 			tableConfig: TableRelationalConfig;
 			queryConfig?: DBQueryConfig<'many'> | true;
 			relationWhere?: SQL;
@@ -1269,6 +1282,7 @@ export class MySqlDialect {
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
+		if (!currentDepth) table = aliasedTable(table, `d${currentDepth}`);
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -1325,9 +1339,7 @@ export class MySqlDialect {
 						);
 
 						const throughJoin = throughTable
-							? sql` inner join ${sql`${sql.identifier(throughTable![Schema] ?? '')}.`.if(throughTable![Schema])}${
-								sql.identifier(throughTable![OriginalName])
-							} as ${throughTable!} on ${joinCondition!}`
+							? sql` inner join ${getTableAsAliasSQL(throughTable)} on ${joinCondition!}`
 							: undefined;
 
 						const innerQuery = this.buildRelationalQuery({
@@ -1385,15 +1397,11 @@ export class MySqlDialect {
 		}
 		const selectionSet = sql.join(selectionArr, sql`, `);
 
-		const query = sql`select ${selectionSet} from ${
-			table[IsAlias]
-				? sql`${sql`${sql.identifier(table[Schema] ?? '')}.`.if(table[Schema])}${
-					sql.identifier(table[OriginalName])
-				} as ${table}`
-				: table
-		}${throughJoin}${sql`${joins}`.if(joins)}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
-			sql` limit ${limit}`.if(limit !== undefined)
-		}${sql` offset ${offset}`.if(offset !== undefined)}`;
+		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${sql`${joins}`.if(joins)}${
+			sql` where ${where}`.if(where)
+		}${sql` order by ${order}`.if(order)}${sql` limit ${limit}`.if(limit !== undefined)}${
+			sql` offset ${offset}`.if(offset !== undefined)
+		}`;
 
 		return {
 			sql: query,

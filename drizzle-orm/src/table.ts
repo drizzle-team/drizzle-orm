@@ -2,7 +2,7 @@ import type { Column, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
 import type { ExtraConfigColumn } from './pg-core/index.ts';
-import type { SQLWrapper } from './sql/sql.ts';
+import type { SQLWrapper, View } from './sql/sql.ts';
 import { TableName } from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
 
@@ -146,9 +146,11 @@ export function getTableName<T extends Table>(table: T): T['_']['name'] {
 }
 
 export function getTableUniqueName<
-	T extends Table,
-	TResult extends string = T['_']['schema'] extends undefined ? `public.${T['_']['name']}`
-		: `${T['_']['schema']}.${T['_']['name']}`,
+	T extends Table | View,
+	TResult extends string = T extends Table ? T['_']['schema'] extends undefined ? `public.${T['_']['name']}`
+		: `${T['_']['schema']}.${T['_']['name']}`
+		// Views don't have type-level schema names, to be added
+		: `${string}.${T['_']['name']}`,
 >(
 	table: T,
 ): TResult {
