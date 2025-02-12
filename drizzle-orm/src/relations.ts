@@ -64,7 +64,7 @@ export class Relations<
 
 export class One<
 	TTableName extends string = string,
-	TIsNullable extends boolean = boolean,
+	TIsNonNullable extends boolean = boolean,
 > extends Relation<TTableName> {
 	static override readonly [entityKind]: string = 'One';
 
@@ -80,7 +80,7 @@ export class One<
 				AnyColumn<{ tableName: TTableName }>[]
 			>
 			| undefined,
-		readonly isNullable: TIsNullable,
+		readonly isNonNullable: TIsNonNullable,
 	) {
 		super(sourceTable, referencedTable, config?.relationName);
 	}
@@ -90,7 +90,7 @@ export class One<
 			this.sourceTable,
 			this.referencedTable,
 			this.config,
-			this.isNullable,
+			this.isNonNullable,
 		);
 		relation.fieldName = fieldName;
 		return relation;
@@ -332,7 +332,7 @@ export type BuildRelationResult<
 			Assume<TInclude[K], true | Record<string, unknown>>
 		> extends infer TResult ? TRel extends One ?
 					| TResult
-					| (Equal<TRel['isNullable'], false> extends true ? null : never)
+					| (Equal<TRel['isNonNullable'], false> extends true ? null : never)
 			: TResult[]
 		: never
 		: never;
