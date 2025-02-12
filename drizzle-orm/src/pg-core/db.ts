@@ -722,5 +722,8 @@ export const withReplicas = <
 		get _query() {
 			return getReplica(replicas)._query;
 		},
+		get query() {
+			return getReplica(replicas).query;
+		},
 	};
 };

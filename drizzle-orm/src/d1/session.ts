@@ -245,7 +245,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 
 	override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
 		if (isFromBatch) {
-			rows = d1ToRawMapping((rows as D1Result).results);
+			rows = this.isRqbV2Query ? (rows as D1Result).results : d1ToRawMapping((rows as D1Result).results);
 		}
 
 		if (!this.fields && !this.customResultMapper) {
@@ -298,7 +298,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 
 	override mapGetResult(result: unknown, isFromBatch?: boolean): unknown {
 		if (isFromBatch) {
-			result = d1ToRawMapping((result as D1Result).results)[0];
+			result = this.isRqbV2Query ? (result as D1Result).results[0] : d1ToRawMapping((result as D1Result).results)[0];
 		}
 
 		if (!this.fields && !this.customResultMapper) {
