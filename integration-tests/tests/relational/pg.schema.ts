@@ -13,6 +13,34 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	invitee: one(usersTable, { fields: [usersTable.invitedBy], references: [usersTable.id] }),
 	usersToGroups: many(usersToGroupsTable),
 	posts: many(postsTable),
+	customerFirst: one(customersTable, {
+		relationName: 'customer_userFirst',
+	}),
+	customerSecond: one(customersTable, {
+		relationName: 'customer_userSecond',
+	}),
+}));
+
+export const customersTable = pgTable('customers', {
+	id: serial('id').primaryKey(),
+	userIdFirst: integer('user_id_first').unique().references(() => usersTable.id),
+	userIdSecond: integer('user_id_second').unique().references(() => usersTable.id),
+});
+
+export const customersConfig = relations(customersTable, ({ one }) => ({
+	userFirst: one(usersTable, {
+		fields: [customersTable.userIdFirst],
+		references: [usersTable.id],
+		relationName: 'customer_userFirst',
+	}),
+	userSecond: one(usersTable, {
+		fields: [customersTable.userIdSecond],
+		references: [usersTable.id],
+		relationName: 'customer_userSecond',
+	}),
+	brokenField: one(usersTable, {
+		relationName: 'does_not_exist',
+	}),
 }));
 
 export const groupsTable = pgTable('groups', {

@@ -27,6 +27,33 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	usersToGroups: many(usersToGroupsTable),
 	posts: many(postsTable),
 	comments: many(commentsTable),
+	customerFirst: one(customersTable, {
+		relationName: 'customer_userFirst',
+	}),
+	customerSecond: one(customersTable, {
+		relationName: 'customer_userSecond',
+	}),
+}));
+
+export const customersTable = mysqlTable('customers', {
+	id: serial('id').primaryKey(),
+	userIdFirst: bigint('user_id_first', { mode: 'number' }).unique().references(() => usersTable.id),
+	userIdSecond: bigint('user_id_second', { mode: 'number' }).unique().references(() => usersTable.id),
+});
+export const customersConfig = relations(customersTable, ({ one }) => ({
+	userFirst: one(usersTable, {
+		fields: [customersTable.userIdFirst],
+		references: [usersTable.id],
+		relationName: 'customer_userFirst',
+	}),
+	userSecond: one(usersTable, {
+		fields: [customersTable.userIdSecond],
+		references: [usersTable.id],
+		relationName: 'customer_userSecond',
+	}),
+	brokenField: one(usersTable, {
+		relationName: 'does_not_exist',
+	}),
 }));
 
 export const groupsTable = mysqlTable('groups', {

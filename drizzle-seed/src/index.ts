@@ -626,7 +626,7 @@ const getPostgresInfo = (
 				const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
 
 				const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable);
-				const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
+				const columns = drizzleRel.config?.fields?.map((field) => dbToTsColumnNamesMap[field.name] as string)
 					?? [];
 
 				const refTableConfig = getPgTableConfig(drizzleRel.referencedTable as PgTable);
@@ -636,7 +636,7 @@ const getPostgresInfo = (
 					?? refTableDbName;
 
 				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable);
-				const refColumns = drizzleRel.config?.references.map((ref) =>
+				const refColumns = drizzleRel.config?.references?.map((ref) =>
 					dbToTsColumnNamesMapForRefTable[ref.name] as string
 				)
 					?? [];
@@ -1019,7 +1019,7 @@ const getMySqlInfo = (
 				const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
 
 				const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as MySqlTable);
-				const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
+				const columns = drizzleRel.config?.fields?.map((field) => dbToTsColumnNamesMap[field.name] as string)
 					?? [];
 
 				const refTableConfig = getMysqlTableConfig(drizzleRel.referencedTable as MySqlTable);
@@ -1029,7 +1029,7 @@ const getMySqlInfo = (
 					?? refTableDbName;
 
 				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as MySqlTable);
-				const refColumns = drizzleRel.config?.references.map((ref) =>
+				const refColumns = drizzleRel.config?.references?.map((ref) =>
 					dbToTsColumnNamesMapForRefTable[ref.name] as string
 				)
 					?? [];
@@ -1340,7 +1340,7 @@ const getSqliteInfo = (
 				const tableTsName = schemaConfig.tableNamesMap[`public.${tableDbName}`] ?? tableDbName;
 
 				const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as SQLiteTable);
-				const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
+				const columns = drizzleRel.config?.fields?.map((field) => dbToTsColumnNamesMap[field.name] as string)
 					?? [];
 
 				const refTableConfig = getSqliteTableConfig(drizzleRel.referencedTable as SQLiteTable);
@@ -1349,7 +1349,7 @@ const getSqliteInfo = (
 					?? refTableDbName;
 
 				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as SQLiteTable);
-				const refColumns = drizzleRel.config?.references.map((ref) =>
+				const refColumns = drizzleRel.config?.references?.map((ref) =>
 					dbToTsColumnNamesMapForRefTable[ref.name] as string
 				)
 					?? [];

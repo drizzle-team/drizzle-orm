@@ -403,7 +403,7 @@ export type BuildQueryResult<
 		>
 	: never;
 
-export interface RelationConfig<
+interface RelationFieldsReferencesConfig<
 	TTableName extends string,
 	TForeignTableName extends string,
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
@@ -412,6 +412,17 @@ export interface RelationConfig<
 	fields: TColumns;
 	references: ColumnsWithTable<TTableName, TForeignTableName, TColumns>;
 }
+
+export type RelationConfig<
+	TTableName extends string,
+	TForeignTableName extends string,
+	TColumns extends AnyColumn<{ tableName: TTableName }>[],
+> =
+	& { relationName?: string }
+	& (
+		| RelationFieldsReferencesConfig<TTableName, TForeignTableName, TColumns>
+		| { fields?: undefined; references?: undefined }
+	);
 
 export function extractTablesRelationalConfig<
 	TTables extends TablesRelationalConfig,
@@ -536,7 +547,7 @@ export function createOne<TTableName extends string>(sourceTable: Table) {
 			sourceTable,
 			table,
 			config,
-			(config?.fields.reduce<boolean>((res, f) => res && f.notNull, true)
+			(config?.fields?.reduce<boolean>((res, f) => res && f.notNull, true)
 				?? false) as Equal<TColumns[number]['_']['notNull'], true>,
 		);
 	};
@@ -561,7 +572,7 @@ export function normalizeRelation(
 	tableNamesMap: Record<string, string>,
 	relation: Relation,
 ): NormalizedRelation {
-	if (is(relation, One) && relation.config) {
+	if (is(relation, One) && relation.config?.fields) {
 		return {
 			fields: relation.config.fields,
 			references: relation.config.references,
@@ -620,7 +631,7 @@ export function normalizeRelation(
 	if (
 		reverseRelations[0]
 		&& is(reverseRelations[0], One)
-		&& reverseRelations[0].config
+		&& reverseRelations[0].config?.fields
 	) {
 		return {
 			fields: reverseRelations[0].config.references,
