@@ -28,7 +28,7 @@ import {
 	or,
 } from './sql/expressions/index.ts';
 import { type Placeholder, SQL, sql } from './sql/sql.ts';
-import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
+import type { And, Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';
@@ -417,8 +417,9 @@ export type RelationConfig<
 	TTableName extends string,
 	TForeignTableName extends string,
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
+	TOptional extends boolean = boolean,
 > =
-	& { relationName?: string }
+	& { relationName?: string; optional?: TOptional }
 	& (
 		| RelationFieldsReferencesConfig<TTableName, TForeignTableName, TColumns>
 		| { fields?: undefined; references?: undefined }
@@ -536,19 +537,26 @@ export function createOne<TTableName extends string>(sourceTable: Table) {
 			AnyColumn<{ tableName: TTableName }>,
 			...AnyColumn<{ tableName: TTableName }>[],
 		],
+		TOptional extends boolean,
 	>(
 		table: TForeignTable,
-		config?: RelationConfig<TTableName, TForeignTable['_']['name'], TColumns>,
+		config?: RelationConfig<TTableName, TForeignTable['_']['name'], TColumns, TOptional>,
 	): One<
 		TForeignTable['_']['name'],
-		Equal<TColumns[number]['_']['notNull'], true>
+		And<
+			TOptional extends true ? false : true,
+			Equal<TColumns[number]['_']['notNull'], true>
+		>
 	> {
 		return new One(
 			sourceTable,
 			table,
 			config,
-			(config?.fields?.reduce<boolean>((res, f) => res && f.notNull, true)
-				?? false) as Equal<TColumns[number]['_']['notNull'], true>,
+			(!config?.optional
+				&& (config?.fields?.reduce<boolean>((res, f) => res && f.notNull, true) ?? false)) as And<
+					TOptional extends true ? false : true,
+					Equal<TColumns[number]['_']['notNull'], true>
+				>,
 		);
 	};
 }

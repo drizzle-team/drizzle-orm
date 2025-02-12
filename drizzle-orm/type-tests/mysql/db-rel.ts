@@ -40,6 +40,7 @@ const db = drizzle(pdb, { schema });
 									},
 								},
 							},
+							metadata: true,
 						},
 					},
 				},
@@ -72,6 +73,7 @@ const db = drizzle(pdb, { schema });
 							}[];
 						};
 					} | null;
+					metadata: { id: number; extra: string } | null;
 				}[];
 				author: {
 					id: number;
