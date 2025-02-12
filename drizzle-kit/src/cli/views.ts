@@ -543,9 +543,9 @@ export class MigrateProgress extends TaskView {
 	render(status: 'pending' | 'done'): string {
 		if (status === 'pending') {
 			const spin = this.spinner.value();
-			return `[${spin}] applying migrations...`;
+			return `[${spin}] applying migrations...\n`;
 		}
-		return `[${chalk.green('✓')}] migrations applied successfully!`;
+		return `[${chalk.green('✓')}] migrations applied successfully!\n`;
 	}
 }
 
