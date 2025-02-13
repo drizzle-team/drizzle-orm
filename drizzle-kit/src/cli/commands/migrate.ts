@@ -2,7 +2,6 @@ import fs from 'fs';
 import {
 	prepareMySqlDbPushSnapshot,
 	prepareMySqlMigrationSnapshot,
-	preparePgDbPushSnapshot,
 	preparePgMigrationSnapshot,
 	prepareSingleStoreDbPushSnapshot,
 	prepareSingleStoreMigrationSnapshot,
