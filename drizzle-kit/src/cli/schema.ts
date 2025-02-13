@@ -836,6 +836,13 @@ export const exportRaw = command({
 			await prepareAndExportLibSQL(opts);
 		} else if (dialect === 'singlestore') {
 			await prepareAndExportSinglestore(opts);
+		} else if (dialect === 'gel') {
+			console.log(
+				error(
+					`You can't use 'export' command with Gel dialect`,
+				),
+			);
+			process.exit(1);
 		} else {
 			assertUnreachable(dialect);
 		}
