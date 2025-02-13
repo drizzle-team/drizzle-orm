@@ -225,8 +225,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	await container?.stop();
-	await client?.close();
+	await client?.close().catch(console.error);
+	await container?.stop().catch(console.error);
 });
 
 beforeEach((ctx) => {
