@@ -8,6 +8,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest
 import { createDockerDB } from './createInstance';
 import 'zx/globals';
 
+$.quiet = true;
+
 const ENABLE_LOGGING = false;
 
 let db: GelJsDatabase;

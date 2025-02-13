@@ -38,7 +38,7 @@
 		"tsx": "^4.14.0",
 		"vite": "^5.2.13",
 		"vite-tsconfig-paths": "^4.3.2",
-		"zx": "^7.2.2"
+		"zx": "^8.3.2"
 	},
 	"dependencies": {
 		"@aws-sdk/client-rds-data": "^3.549.0",

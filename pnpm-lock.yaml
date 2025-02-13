@@ -813,8 +813,8 @@ importers:
         specifier: ^4.3.2
         version: 4.3.2(typescript@5.6.3)(vite@5.3.3(@types/node@20.12.12)(lightningcss@1.25.1)(terser@5.31.0))
       zx:
-        specifier: ^7.2.2
-        version: 7.2.2
+        specifier: ^8.3.2
+        version: 8.3.2
 
 packages:
 
@@ -10506,6 +10506,11 @@ packages:
 
   zx@8.2.2:
     resolution: {integrity: sha512-HSIdpU5P2ONI0nssnhsUZNCH9Sd/Z8LIFk9n8QTbu6JufzJx7qR7ajrMN21s06JqWSApcN012377iWsv8Vs5bg==}
+    engines: {node: '>= 12.17.0'}
+    hasBin: true
+
+  zx@8.3.2:
+    resolution: {integrity: sha512-qjTunv1NClO05jDaUjrNZfpqC9yvNCchge/bzOcQevsh1aM5qE3TG6MY24kuQKlOWx+7vNuhqO2wa9nQCIGvZA==}
     engines: {node: '>= 12.17.0'}
     hasBin: true
 
@@ -22673,6 +22678,11 @@ snapshots:
       yaml: 2.4.2
 
   zx@8.2.2:
+    optionalDependencies:
+      '@types/fs-extra': 11.0.4
+      '@types/node': 20.12.12
+
+  zx@8.3.2:
     optionalDependencies:
       '@types/fs-extra': 11.0.4
       '@types/node': 20.12.12
