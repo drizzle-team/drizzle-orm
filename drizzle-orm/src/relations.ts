@@ -36,7 +36,7 @@ import {
 	or,
 } from './sql/expressions/index.ts';
 import { type Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
-import type { Assume, Equal, Simplify, ValueOrArray, Writable } from './utils.ts';
+import type { Assume, DrizzleTypeError, Equal, Simplify, ValueOrArray, Writable } from './utils.ts';
 
 export type FieldValue =
 	| Column
@@ -63,6 +63,8 @@ export class Relations<
 		readonly config: TConfig,
 	) {
 		for (const [tsName, table] of Object.entries(tables)) {
+			if (config[tsName]?.$drizzleTypeError) continue;
+
 			const isTable = is(table, Table);
 			const isView = is(table, View);
 
@@ -76,7 +78,7 @@ export class Relations<
 				dbName: table[Table.Symbol.Name],
 				schema: table[Table.Symbol.Schema],
 				columns: table[Table.Symbol.Columns] as FieldSelection,
-				relations: config[tsName] || {},
+				relations: (config[tsName] || {}) as Record<string, RelationsBuilderEntry<TTables, string>>,
 			};
 		}
 
@@ -607,8 +609,8 @@ export type ExtractSelectionNonColumns<TSelection extends Record<string, unknown
 
 export type InferRelationalQueryTableResult<
 	TRawSelection extends Record<string, unknown>,
-	TSelectedFields extends Record<string, unknown> | undefined = undefined,
-	TFilteredSelection extends Record<string, unknown> = TSelectedFields extends undefined ? TRawSelection : {
+	TSelectedFields extends Record<string, unknown> | 'Full' = 'Full',
+	TFilteredSelection extends Record<string, unknown> = TSelectedFields extends 'Full' ? TRawSelection : {
 		[
 			K in Equal<
 				Exclude<
@@ -657,7 +659,7 @@ export type BuildQueryResult<
 	: TFullSelection extends Record<string, unknown> ? Simplify<
 			& (InferRelationalQueryTableResult<
 				TTableConfig['columns'],
-				TFullSelection['columns'] extends Record<string, unknown> ? TFullSelection['columns'] : undefined
+				TFullSelection['columns'] extends Record<string, unknown> ? TFullSelection['columns'] : 'Full'
 			>)
 			& (TFullSelection['extras'] extends
 				| Record<string, unknown>
@@ -1013,6 +1015,7 @@ export class RelationsHelperStatic<TTables extends Record<string, Table | View>>
 		[K in keyof TTables]: ManyFn<TTables, K & string>;
 	};
 
+	/** @internal - to be reworked */
 	aggs = {
 		count(): Count {
 			return new Count();
@@ -1022,27 +1025,32 @@ export class RelationsHelperStatic<TTables extends Record<string, Table | View>>
 
 export type RelationsBuilder<TSchema extends Record<string, Table | View>> =
 	& {
-		[TTableName in keyof TSchema & string]:
-			& {
-				[
-					TColumnName in keyof (TSchema[TTableName] extends Table ? TSchema[TTableName]['_']['columns']
-						: Assume<TSchema[TTableName], View>['_']['selectedFields'])
-				]: RelationsBuilderColumn<
-					TTableName,
-					(TSchema[TTableName] extends Table ? TSchema[TTableName]['_']['columns']
-						: Assume<Assume<TSchema[TTableName], View>['_']['selectedFields'], FieldSelection>)[TColumnName] extends
-						infer Field ? Field extends Column ? Field['_']['data']
-						: Field extends SQLWrapper<infer Data> | SQL<infer Data> | SQL.Aliased<infer Data> ? Data
-						: never
-						: never
-				>;
-			}
-			& RelationsBuilderTable<TTableName>;
+		[TTableName in keyof TSchema & string]: TSchema[TTableName] extends Table | View<string, boolean, FieldSelection>
+			? (
+				& {
+					[
+						TColumnName in keyof (TSchema[TTableName] extends Table ? TSchema[TTableName]['_']['columns']
+							: Assume<TSchema[TTableName], View>['_']['selectedFields'])
+					]: RelationsBuilderColumn<
+						TTableName,
+						(TSchema[TTableName] extends Table ? TSchema[TTableName]['_']['columns']
+							: Assume<Assume<TSchema[TTableName], View>['_']['selectedFields'], FieldSelection>)[TColumnName] extends
+							infer Field ? Field extends Column ? Field['_']['data']
+							: Field extends SQLWrapper<infer Data> | SQL<infer Data> | SQL.Aliased<infer Data> ? Data
+							: never
+							: never
+					>;
+				}
+				& RelationsBuilderTable<TTableName>
+			)
+			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 	}
 	& RelationsHelperStatic<TSchema>;
 
 export type RelationsBuilderConfig<TTables extends Record<string, Table | View>> = {
-	[TTableName in keyof TTables & string]?: Record<string, RelationsBuilderEntry<TTables, TTableName>>;
+	[TTableName in keyof TTables & string]?: TTables[TTableName] extends Table | View<string, boolean, FieldSelection>
+		? Record<string, RelationsBuilderEntry<TTables, TTableName>>
+		: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 };
 
 export type RelationsBuilderEntry<
