@@ -1,5 +1,5 @@
 import { type Client, type ConnectOptions, createClient } from 'edgedb';
-import type { Transaction } from 'edgedb/dist/transaction';
+import type { Transaction } from 'edgedb/dist/transaction.ts';
 import { entityKind } from '~/entity.ts';
 import { GelDatabase } from '~/gel-core/db.ts';
 import { GelDialect } from '~/gel-core/dialect.ts';
