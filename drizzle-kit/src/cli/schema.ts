@@ -18,6 +18,7 @@ import { upSqliteHandler } from './commands/sqliteUp';
 import {
 	prepareCheckParams,
 	prepareDropParams,
+	prepareExportConfig,
 	prepareGenerateConfig,
 	prepareMigrateConfig,
 	preparePullConfig,
@@ -793,6 +794,50 @@ export const studio = command({
 		} catch (e) {
 			console.error(e);
 			process.exit(0);
+		}
+	},
+});
+
+export const exportRaw = command({
+	name: 'export',
+	desc: 'Generate diff between current state and empty state in specified formats: sql',
+	options: {
+		sql: boolean('sql').default(true).desc('Generate as sql'),
+		config: optionConfig,
+		dialect: optionDialect,
+		schema: string().desc('Path to a schema file or folder'),
+	},
+	transform: async (opts) => {
+		const from = assertCollisions('export', opts, ['sql'], ['dialect', 'schema']);
+		return prepareExportConfig(opts, from);
+	},
+	handler: async (opts) => {
+		await assertOrmCoreVersion();
+		await assertPackages('drizzle-orm');
+
+		const {
+			prepareAndExportPg,
+			prepareAndExportMysql,
+			prepareAndExportSqlite,
+			prepareAndExportLibSQL,
+			prepareAndExportSinglestore,
+		} = await import(
+			'./commands/migrate'
+		);
+
+		const dialect = opts.dialect;
+		if (dialect === 'postgresql') {
+			await prepareAndExportPg(opts);
+		} else if (dialect === 'mysql') {
+			await prepareAndExportMysql(opts);
+		} else if (dialect === 'sqlite') {
+			await prepareAndExportSqlite(opts);
+		} else if (dialect === 'turso') {
+			await prepareAndExportLibSQL(opts);
+		} else if (dialect === 'singlestore') {
+			await prepareAndExportSinglestore(opts);
+		} else {
+			assertUnreachable(dialect);
 		}
 	},
 });

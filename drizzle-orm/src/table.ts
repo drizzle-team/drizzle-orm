@@ -173,7 +173,7 @@ export type InferModelFromColumns<
 						TColumns[Key],
 						TConfig['override']
 					>
-				]?: GetColumnData<TColumns[Key], 'query'>;
+				]?: GetColumnData<TColumns[Key], 'query'> | undefined;
 			}
 		: {
 			[

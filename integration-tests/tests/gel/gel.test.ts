@@ -2492,7 +2492,7 @@ describe('some', async () => {
 		).resolves.not.toThrowError();
 	});
 
-	test.only('transaction', async (ctx) => {
+	test('transaction', async (ctx) => {
 		const { db } = ctx.gel;
 
 		const users = gelTable('users_transactions', {
@@ -2532,7 +2532,7 @@ describe('some', async () => {
 		expect(result).toEqual([{ id1: 1, balance: 90 }]);
 	});
 
-	test.only('transaction rollback', async (ctx) => {
+	test('transaction rollback', async (ctx) => {
 		const { db } = ctx.gel;
 
 		const users = gelTable('users_transactions_rollback', {
