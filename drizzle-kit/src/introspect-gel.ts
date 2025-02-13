@@ -561,6 +561,10 @@ const mapDefault = (
 	const isArray = internals?.tables[tableName]?.columns[name]?.isArray ?? false;
 	const lowered = type.toLowerCase().replace('[]', '');
 
+	if (name === 'id') {
+		return `.default(sql\`uuid_generate_v4()\`)`;
+	}
+
 	if (isArray) {
 		return typeof defaultValue !== 'undefined' ? `.default(${buildArrayDefault(defaultValue, lowered)})` : '';
 	}
