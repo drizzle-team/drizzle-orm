@@ -229,6 +229,29 @@ export type Config =
 					url: string;
 				};
 		}
+		| {
+			dialect: Verify<Dialect, 'gel'>;
+			dbCredentials:
+				& {
+					tlsSecurity?:
+						| 'insecure'
+						| 'no_host_verification'
+						| 'strict'
+						| 'default';
+				}
+				& (
+					| {
+						url: string;
+					}
+					| ({
+						host: string;
+						port?: number;
+						user?: string;
+						password?: string;
+						database: string;
+					})
+				);
+		}
 	);
 
 /**
@@ -238,7 +261,7 @@ export type Config =
  * **Config** usage:
  *
  * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
- * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`
+ * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`, `gel`
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
  *

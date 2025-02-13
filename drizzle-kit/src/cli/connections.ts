@@ -1,6 +1,7 @@
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
+import { Client } from 'edgedb';
 import fetch from 'node-fetch';
 import ws from 'ws';
 import { assertUnreachable } from '../global';
@@ -15,6 +16,7 @@ import {
 	type SqliteProxy,
 } from '../utils';
 import { assertPackages, checkPackage } from './utils';
+import { GelCredentials } from './validations/gel';
 import { LibSQLCredentials } from './validations/libsql';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
@@ -412,6 +414,57 @@ export const preparePostgresDB = async (
 
 	console.error(
 		"To connect to Postgres database - please install either of 'pg', 'postgres', '@neondatabase/serverless' or '@vercel/postgres' drivers",
+	);
+	process.exit(1);
+};
+
+export const prepareGelDB = async (
+	credentials: GelCredentials,
+): Promise<
+	DB & {
+		proxy: Proxy;
+	}
+> => {
+	if (await checkPackage('edgedb')) {
+		const edgedb = await import('edgedb');
+
+		let client: Client;
+		if ('url' in credentials) {
+			'tlsSecurity' in credentials
+				? client = edgedb.createClient({ dsn: credentials.url, tlsSecurity: credentials.tlsSecurity, concurrency: 1 })
+				: client = edgedb.createClient({ dsn: credentials.url, concurrency: 1 });
+		} else {
+			edgedb.createClient({ ...credentials, concurrency: 1 });
+		}
+
+		const query = async (sql: string, params?: any[]) => {
+			const result = params?.length ? await client.querySQL(sql, params) : await client.querySQL(sql);
+			return result as any[];
+		};
+
+		const proxy: Proxy = async (params: ProxyParams) => {
+			const { method, mode, params: sqlParams, sql, typings } = params;
+
+			let result: any[];
+			switch (mode) {
+				case 'array':
+					result = sqlParams.length
+						? await client.withSQLRowMode('array').querySQL(sql, sqlParams)
+						: await client.querySQL(sql);
+					break;
+				case 'object':
+					result = sqlParams.length ? await client.querySQL(sql, sqlParams) : await client.querySQL(sql);
+					break;
+			}
+
+			return result;
+		};
+
+		return { query, proxy };
+	}
+
+	console.error(
+		"To connect to gel database - please install 'edgedb' driver",
 	);
 	process.exit(1);
 };
