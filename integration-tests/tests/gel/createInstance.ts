@@ -6,14 +6,12 @@ import 'zx/globals';
 export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
 	const docker = new Docker();
 	const port = await getPort({ port: 5656 });
-	console.log('gel: got port');
 	const image = 'edgedb/edgedb:nightly_7-dev9185_cv202402030000';
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
-	console.log('gel: docker pulled');
 
 	const gelContainer = await docker.createContainer({
 		Image: image,
@@ -31,10 +29,8 @@ export async function createDockerDB(): Promise<{ connectionString: string; cont
 			},
 		},
 	});
-	console.log('gel: container created');
 
 	await gelContainer.start();
-	console.log('gel: container started');
 
 	return { connectionString: `edgedb://edgedb:password@localhost:${port}/main`, container: gelContainer };
 }
