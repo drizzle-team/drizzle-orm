@@ -80,7 +80,7 @@ import { Expect } from '~/utils';
 import 'zx/globals';
 import { createDockerDB } from './createInstance';
 
-$.quiet = true;
+// $.quiet = true;
 
 const ENABLE_LOGGING = false;
 
