@@ -17,12 +17,13 @@ node_compat = true
 binding = "DB"
 database_name = "YOUR DB NAME"
 database_id = "YOUR DB ID"
+migrations_dir = "drizzle/migrations"
 ```
 
 To init local database and run server locally
 
 ```bash
-wrangler d1 execute <DATABASE_NAME> --local --file=./drizzle/0000_short_lockheed.sql
+wrangler d1 migrations apply <DATABASE_NAME> --local
 wrangler dev --local --persist
 ```
 
