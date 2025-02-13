@@ -1,7 +1,7 @@
 import type { Client } from 'edgedb';
 import type { Transaction } from 'edgedb/dist/transaction';
 import { entityKind } from '~/entity.ts';
-import type { GelDialect } from '~/gel-core/dialect';
+import type { GelDialect } from '~/gel-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/gel-core/query-builders/select.types.ts';
 import { GelPreparedQuery, GelSession, GelTransaction, type PreparedQueryConfig } from '~/gel-core/session.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
@@ -71,7 +71,6 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig> extends GelPrepar
 					'drizzle.query.text': this.queryString,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-
 				return this.client.withSQLRowMode('array').querySQL(this.queryString, params.length ? params : undefined).then((
 					result,
 				) => result);

@@ -1,5 +1,4 @@
 import { type Client, type ConnectOptions, createClient } from 'edgedb';
-import type { Transaction } from 'edgedb/dist/transaction.ts';
 import { entityKind } from '~/entity.ts';
 import { GelDatabase } from '~/gel-core/db.ts';
 import { GelDialect } from '~/gel-core/dialect.ts';
@@ -79,7 +78,7 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TClient extends GelClient = Client | Transaction,
+	TClient extends GelClient = Client,
 >(
 	...params:
 		| [TClient | string]

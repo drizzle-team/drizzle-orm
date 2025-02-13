@@ -80,7 +80,7 @@ import { Expect } from '~/utils';
 import 'zx/globals';
 import { createDockerDB } from './createInstance';
 
-// $.quiet = true;
+$.quiet = true;
 
 const ENABLE_LOGGING = false;
 
@@ -250,6 +250,7 @@ describe('some', async () => {
           SET default := datetime_of_statement();
       };
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
 		await $`edgedb query "CREATE TYPE default::users_with_cities {
     create property id1: int16 {
         create constraint exclusive;
@@ -257,12 +258,14 @@ describe('some', async () => {
     create required property name: str;
     create required property cityId: int32;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
 		await $`edgedb query "CREATE TYPE default::users_with_undefined {
         create property id1: int16 {
             create constraint exclusive;
         };
         create property name: str;
         };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
 		await $`edgedb query "CREATE TYPE default::users_insert_select {
             create property id1: int16 {
                 create constraint exclusive;
@@ -271,6 +274,7 @@ describe('some', async () => {
             };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
 		await $`edgedb query "CREATE MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
 		await $`edgedb query "CREATE TYPE mySchema::users {
             create property id1: int16;
             create required property name: str;
@@ -408,9 +412,11 @@ describe('some', async () => {
 		await $`edgedb query "CREATE TYPE default::internal_staff {
     create required property userId -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
 		await $`edgedb query "CREATE TYPE default::custom_user {
     create required property id1 -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
 		await $`edgedb query "CREATE TYPE default::ticket {
     create required property staffId -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
