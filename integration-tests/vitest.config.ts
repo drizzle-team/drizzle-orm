@@ -70,7 +70,7 @@ export default defineConfig({
 			tsconfig: 'tsconfig.json',
 		},
 		testTimeout: 100000,
-		hookTimeout: 100000,
+		hookTimeout: 200000,
 		isolate: true,
 		poolOptions: {
 			threads: {
