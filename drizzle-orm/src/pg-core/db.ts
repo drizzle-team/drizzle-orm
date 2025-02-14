@@ -624,6 +624,8 @@ export class PgDatabase<
 			undefined,
 			undefined,
 			false,
+			undefined,
+			true,
 		);
 
 		return new PgRaw(

@@ -23,6 +23,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private isSimple: boolean = false,
 	) {
 		super({ sql: queryString, params });
 	}
@@ -38,10 +39,14 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 
 			this.logger.logQuery(this.queryString, params);
 
-			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper } = this;
+			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper, isSimple } = this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', () => {
-					return client.unsafe(query, params as any[]);
+					const pendingQuery = client.unsafe(query, params as any[]);
+					if (isSimple) {
+						return pendingQuery.simple();
+					}
+					return pendingQuery;
 				});
 			}
 
@@ -51,7 +56,11 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 					'drizzle.query.params': JSON.stringify(params),
 				});
 
-				return client.unsafe(query, params as any[]).values();
+				const pendingQuery = client.unsafe(query, params as any[]);
+				if (isSimple) {
+					return pendingQuery.simple().values();
+				}
+				return pendingQuery.values();
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
@@ -75,7 +84,11 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 					'drizzle.query.text': this.queryString,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.client.unsafe(this.queryString, params as any[]);
+				const pendingQuery = this.client.unsafe(this.queryString, params as any[]);
+				if (this.isSimple) {
+					return pendingQuery.simple();
+				}
+				return pendingQuery;
 			});
 		});
 	}
@@ -116,6 +129,7 @@ export class PostgresJsSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		isSimple: boolean = false,
 	): PgPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
 			this.client,
@@ -125,6 +139,7 @@ export class PostgresJsSession<
 			fields,
 			isResponseInArrayMode,
 			customResultMapper,
+			isSimple,
 		);
 	}
 
