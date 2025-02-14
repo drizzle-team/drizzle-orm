@@ -83,7 +83,7 @@ export class PgDialect {
 			)
 		`;
 		const schemaRows = await session.all(
-			sql`select 1 from information_schema.schemata where schema_name = ${migrationsSchema} limit 1`
+			sql`select 1 from information_schema.schemata where schema_name = ${migrationsSchema} limit 1`,
 		);
 		if (schemaRows.length === 0) {
 			await session.execute(sql`CREATE SCHEMA ${sql.identifier(migrationsSchema)}`);

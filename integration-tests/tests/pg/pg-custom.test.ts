@@ -679,7 +679,7 @@ test('migrator : migrate without create schema permission', async () => {
 	await db.execute(sql`grant create, usage on schema ${sql.identifier(customSchema)} to "no_create_schema_user"`);
 
 	const restrictedConnectionString = connectionString
-	.replace(/\/\/([^:]+):([^@]+)@/, '//no_create_schema_user:test@');
+		.replace(/\/\/([^:]+):([^@]+)@/, '//no_create_schema_user:test@');
 
 	const restrictedClient = await getClient(restrictedConnectionString);
 
@@ -687,7 +687,7 @@ test('migrator : migrate without create schema permission', async () => {
 
 	try {
 		await migrate(restrictedDb, {
-			migrationsFolder: './drizzle2/pg', 
+			migrationsFolder: './drizzle2/pg',
 			migrationsSchema: customSchema,
 		});
 	} finally {
