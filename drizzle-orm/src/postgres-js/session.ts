@@ -129,6 +129,7 @@ export class PostgresJsSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		_transactionId?: string,
 		isSimple: boolean = false,
 	): PgPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
