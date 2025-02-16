@@ -144,6 +144,12 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 			const stream = driverQuery.stream();
 
 			for await (const row of stream) {
+				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
+					break;
+				} else if (row instanceof Error) { // eslint-disable-line no-instanceof/no-instanceof
+					throw row;
+				}
+
 				if (hasRowsMapper) {
 					if (customResultMapper) {
 						const mappedRow = customResultMapper([row as unknown[]]);
