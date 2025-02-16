@@ -136,12 +136,13 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		}).connection;
 
 		const { fields, query, rawQuery, joinsNotNullableMap, client, customResultMapper } = this;
-		const hasRowsMapper = Boolean(fields || customResultMapper);
-		const driverQuery = hasRowsMapper ? conn.query(query, params) : conn.query(rawQuery, params);
-
-		const stream = driverQuery.stream();
 
 		try {
+			const hasRowsMapper = Boolean(fields || customResultMapper);
+			const driverQuery = hasRowsMapper ? conn.query(query, params) : conn.query(rawQuery, params);
+
+			const stream = driverQuery.stream();
+
 			for await (const row of stream) {
 				if (hasRowsMapper) {
 					if (customResultMapper) {
