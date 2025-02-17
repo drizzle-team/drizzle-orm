@@ -145,6 +145,39 @@ export const preparePostgresDB = async (
 		assertUnreachable(driver);
 	}
 
+	if (await checkPackage('bun')) {
+		console.log(
+			withStyle.info(`Using 'bun' sql driver for database querying`),
+		);
+		const { SQL } = await import('bun');
+
+		const { drizzle } = await import('drizzle-orm/bun-sql');
+		const { migrate } = await import('drizzle-orm/bun-sql/migrator');
+
+		const client = 'url' in credentials
+			? SQL(credentials.url, { max: 1 })
+			: SQL({ ...credentials, max: 1 });
+
+		const db = drizzle(client);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query = async (sql: string, params?: any[]) => {
+			const result = await client.unsafe(sql, params ?? []);
+			return result as any[];
+		};
+
+		const proxy = async (params: ProxyParams) => {
+			if (params.mode === 'object') {
+				return await client.unsafe(params.sql, params.params);
+			}
+			return await client.unsafe(params.sql, params.params).values();
+		};
+
+		return { query, proxy, migrate: migrateFn };
+	}
+
 	if (await checkPackage('pg')) {
 		console.log(withStyle.info(`Using 'pg' driver for database querying`));
 		const { default: pg } = await import('pg');
