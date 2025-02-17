@@ -239,7 +239,7 @@ export function tests(driver?: string) {
 			await db.execute(
 				sql`
 					create table userstest (
-						id serial primary key,
+						id int auto_increment primary key,
 						name text not null,
 						verified boolean not null default false,
 						jsonb json,
@@ -250,19 +250,19 @@ export function tests(driver?: string) {
 
 			await db.execute(
 				sql`
-					create table users2 (
-						id serial primary key,
-						name text not null,
-						city_id int references cities(id)
+					create table cities (
+						id int auto_increment primary key,
+						name text not null
 					)
 				`,
 			);
 
 			await db.execute(
 				sql`
-					create table cities (
-						id serial primary key,
-						name text not null
+					create table users2 (
+						id int auto_increment primary key,
+						name text not null,
+						city_id int references cities(id)
 					)
 				`,
 			);
@@ -272,7 +272,7 @@ export function tests(driver?: string) {
 				await db.execute(
 					sql`
 						create table \`mySchema\`.\`userstest\` (
-							\`id\` serial primary key,
+							\`id\` int auto_increment primary key,
 							\`name\` text not null,
 							\`verified\` boolean not null default false,
 							\`jsonb\` json,
@@ -284,7 +284,7 @@ export function tests(driver?: string) {
 				await db.execute(
 					sql`
 						create table \`mySchema\`.\`cities\` (
-							\`id\` serial primary key,
+							\`id\` int auto_increment primary key,
 							\`name\` text not null
 						)
 					`,
@@ -293,7 +293,7 @@ export function tests(driver?: string) {
 				await db.execute(
 					sql`
 						create table \`mySchema\`.\`users2\` (
-							\`id\` serial primary key,
+							\`id\` int auto_increment primary key,
 							\`name\` text not null,
 							\`city_id\` int references \`mySchema\`.\`cities\`(\`id\`)
 						)
@@ -319,19 +319,18 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table if exists \`cities\``);
 			await db.execute(
 				sql`
+					create table \`cities\` (
+					    \`id\` serial primary key,
+					    \`name\` text not null
+					)
+				`,
+			);
+			await db.execute(
+				sql`
 					create table \`users2\` (
 					    \`id\` serial primary key,
 					    \`name\` text not null,
 					    \`city_id\` int references \`cities\`(\`id\`)
-					)
-				`,
-			);
-
-			await db.execute(
-				sql`
-					create table \`cities\` (
-					    \`id\` serial primary key,
-					    \`name\` text not null
 					)
 				`,
 			);
@@ -2175,6 +2174,49 @@ export function tests(driver?: string) {
 				await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id));
 				await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id));
 			}, { isolationLevel: 'serializable' });
+
+			const result = await db.select().from(users);
+
+			expect(result).toEqual([{ id: 1, balance: 90 }]);
+
+			await db.execute(sql`drop table ${users}`);
+			await db.execute(sql`drop table ${products}`);
+		});
+
+		test('transaction with options (set isolationLevel) w/ prepared queries', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const users = mysqlTable('users_transactions', {
+				id: serial('id').primaryKey(),
+				balance: int('balance').notNull(),
+			});
+			const products = mysqlTable('products_transactions', {
+				id: serial('id').primaryKey(),
+				price: int('price').notNull(),
+				stock: int('stock').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`drop table if exists ${products}`);
+
+			await db.execute(sql`create table users_transactions (id serial not null primary key, balance int not null)`);
+			await db.execute(
+				sql`create table products_transactions (id serial not null primary key, price int not null, stock int not null)`,
+			);
+
+			const [{ insertId: userId }] = await db.insert(users).values({ balance: 100 });
+			const user = await db.select().from(users).where(eq(users.id, userId)).then((rows) => rows[0]!);
+			const [{ insertId: productId }] = await db.insert(products).values({ price: 10, stock: 10 });
+			const product = await db.select().from(products).where(eq(products.id, productId)).then((rows) => rows[0]!);
+
+			await db.transaction(async (tx) => {
+				const q1 = tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id))
+					.prepare();
+				const q2 = tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id)).prepare();
+
+				await q1.execute();
+				await q2.execute();
+			}, { isolationLevel: 'read committed' });
 
 			const result = await db.select().from(users);
 
@@ -4131,6 +4173,16 @@ export function tests(driver?: string) {
 							.from(users2),
 					),
 		).toThrowError();
+	});
+
+	test('query with aliased column', async (ctx) => {
+		const { db } = ctx.mysql;
+		const query = db.select({ id: usersTable.id.as('user_id') }).from(usersTable);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'select \`id\` as \`user_id\` from \`userstest\`',
+			params: [],
+		});
 	});
 
 	test('MySqlTable :: select with `use index` hint', async (ctx) => {

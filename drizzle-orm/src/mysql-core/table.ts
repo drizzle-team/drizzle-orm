@@ -44,7 +44,7 @@ export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
-		| ((self: Record<string, MySqlColumn>) => MySqlTableExtraConfig)
+		| ((self: Record<string, MySqlColumn>) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
 		| undefined = undefined;
 }
 
@@ -66,9 +66,7 @@ export function mysqlTableWithSchema<
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: MySqlColumnBuilders) => TColumnsMap),
 	extraConfig:
-		| ((
-			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
-		) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
+		| ((self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
 		| undefined,
 	schema: TSchemaName,
 	baseName = name,
@@ -107,9 +105,7 @@ export function mysqlTableWithSchema<
 	>;
 
 	if (extraConfig) {
-		table[MySqlTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (
-			self: Record<string, MySqlColumn>,
-		) => MySqlTableExtraConfig;
+		table[MySqlTable.Symbol.ExtraConfigBuilder] = extraConfig as any;
 	}
 
 	return table;
@@ -138,7 +134,81 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	>(
 		name: TTableName,
 		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
+		) => MySqlTableExtraConfigValue[],
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+
+	/**
+	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+
+	/**
+	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
+		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
 	): MySqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
@@ -219,11 +289,11 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 }
 
 export const mysqlTable: MySqlTableFn = (name, columns, extraConfig) => {
-	return mysqlTableWithSchema(name, columns, extraConfig, undefined, name);
+	return mysqlTableWithSchema(name, columns, extraConfig as any, undefined, name);
 };
 
 export function mysqlTableCreator(customizeTableName: (name: string) => string): MySqlTableFn {
 	return (name, columns, extraConfig) => {
-		return mysqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return mysqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig as any, undefined, name);
 	};
 }

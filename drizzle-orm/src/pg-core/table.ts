@@ -46,8 +46,9 @@ export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
 	[EnableRLS]: boolean = false;
 
 	/** @internal */
-	override [Table.Symbol.ExtraConfigBuilder]: ((self: Record<string, PgColumn>) => PgTableExtraConfig) | undefined =
-		undefined;
+	override [Table.Symbol.ExtraConfigBuilder]:
+		| ((self: Record<string, PgColumn>) => PgTableExtraConfig | PgTableExtraConfigValue[])
+		| undefined = undefined;
 }
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<UpdateTableConfig<TableConfig, TPartial>>;
@@ -163,6 +164,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
 		dialect: 'pg';
 	}>;
+
 	/**
 	 * @deprecated The third parameter of pgTable is changing and will only accept an array instead of an object
 	 *

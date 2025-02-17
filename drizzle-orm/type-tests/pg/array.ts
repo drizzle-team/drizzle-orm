@@ -1,6 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import type { Column } from '~/column.ts';
-import { integer, pgTable } from '~/pg-core/index.ts';
+import { integer, json, pgTable } from '~/pg-core/index.ts';
 
 {
 	const table = pgTable('table', {
@@ -32,4 +32,12 @@ import { integer, pgTable } from '~/pg-core/index.ts';
 			typeof table['a']['_']['baseColumn']
 		>
 	>;
+}
+
+{
+	const table = pgTable('table', {
+		json: json('json').$type<{ name: string }>().array().notNull(),
+	});
+
+	Expect<Equal<typeof table.$inferSelect, { json: { name: string }[] }>>;
 }

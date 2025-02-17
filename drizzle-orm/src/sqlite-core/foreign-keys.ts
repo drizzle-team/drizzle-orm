@@ -1,3 +1,4 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
@@ -61,8 +62,8 @@ export class ForeignKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: SQLiteTable): ForeignKey {
-		return new ForeignKey(table, this);
+	build(table: SQLiteTable, casing?: CasingCache): ForeignKey {
+		return new ForeignKey(table, this, casing);
 	}
 }
 
@@ -73,7 +74,7 @@ export class ForeignKey {
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
-	constructor(readonly table: SQLiteTable, builder: ForeignKeyBuilder) {
+	constructor(readonly table: SQLiteTable, builder: ForeignKeyBuilder, private casing?: CasingCache) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
@@ -81,8 +82,12 @@ export class ForeignKey {
 
 	getName(): string {
 		const { name, columns, foreignColumns } = this.reference();
-		const columnNames = columns.map((column) => column.name);
-		const foreignColumnNames = foreignColumns.map((column) => column.name);
+		const columnNames = this.casing
+			? columns.map((column) => this.casing!.getColumnCasing(column))
+			: columns.map((column) => column.name);
+		const foreignColumnNames = this.casing
+			? foreignColumns.map((column) => this.casing!.getColumnCasing(column))
+			: foreignColumns.map((column) => column.name);
 		const chunks = [
 			this.table[TableName],
 			...columnNames,

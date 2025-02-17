@@ -1,3 +1,4 @@
+import { toCamelCase, toSnakeCase } from './casing.ts';
 import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderRuntimeConfig,
@@ -6,9 +7,12 @@ import type {
 	GeneratedIdentityConfig,
 } from './column-builder.ts';
 import { entityKind } from './entity.ts';
+import type { MySqlDatabase } from './mysql-core/db.ts';
+import type { PgDatabase } from './pg-core/db.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
+import type { BaseSQLiteDatabase } from './sqlite-core/db.ts';
 import type { Table } from './table.ts';
-import type { Update } from './utils.ts';
+import type { Casing, Update } from './utils.ts';
 
 export interface ColumnBaseConfig<
 	TDataType extends ColumnDataType,
@@ -120,9 +124,23 @@ export abstract class Column<
 		return value;
 	}
 
+	as(name: string): SQL.Aliased<GetColumnData<this, 'query'>> {
+		return this.getSQL().mapWith(this.mapFromDriverValue).as(name);
+	}
+
+	nameWithCasing(
+		casing: Casing | PgDatabase<any> | MySqlDatabase<any, any> | BaseSQLiteDatabase<'sync' | 'async', any>,
+	): string {
+		if (typeof casing === 'string') {
+			return casing === 'camelCase' ? toCamelCase(this.name) : toSnakeCase(this.name);
+		}
+		return casing.dialect.casing.getColumnCasing(this);
+	}
+
 	// ** @internal */
 	shouldDisableInsert(): boolean {
-		return this.config.generated !== undefined && this.config.generated.type !== 'byDefault';
+		return (this.config.generatedIdentity !== undefined && this.config.generatedIdentity.type !== 'byDefault')
+			|| (this.config.generated !== undefined && this.config.generated.type !== 'byDefault');
 	}
 }
 

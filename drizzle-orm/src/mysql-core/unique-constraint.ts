@@ -1,3 +1,4 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
 import type { MySqlColumn } from './columns/index.ts';
@@ -25,8 +26,8 @@ export class UniqueConstraintBuilder {
 	}
 
 	/** @internal */
-	build(table: MySqlTable): UniqueConstraint {
-		return new UniqueConstraint(table, this.columns, this.name);
+	build(table: MySqlTable, casing?: CasingCache): UniqueConstraint {
+		return new UniqueConstraint(table, this.columns, this.name, casing);
 	}
 }
 
@@ -54,9 +55,15 @@ export class UniqueConstraint {
 	readonly name?: string;
 	readonly nullsNotDistinct: boolean = false;
 
-	constructor(readonly table: MySqlTable, columns: MySqlColumn[], name?: string) {
+	constructor(readonly table: MySqlTable, columns: MySqlColumn[], name?: string, casing?: CasingCache) {
 		this.columns = columns;
-		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
+		this.name = name
+			?? uniqueKeyName(
+				this.table,
+				casing
+					? this.columns.map((column) => casing.getColumnCasing(column))
+					: this.columns.map((column) => column.name),
+			);
 	}
 
 	getName() {

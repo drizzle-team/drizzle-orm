@@ -225,15 +225,19 @@ const getCustomDefaults = <T extends AnyTable<{}>>(
 			let tableConfig: {
 				name: string;
 				columns: AnyColumn[];
-			};
+			} | undefined;
 			if (is(table, PgTable)) {
 				tableConfig = pgTableConfig(table);
 			} else if (is(table, MySqlTable)) {
 				tableConfig = mysqlTableConfig(table);
 			} else if (is(table, SQLiteTable)) {
 				tableConfig = sqliteTableConfig(table);
-			} else {
+			} else if (is(table, SingleStoreTable)) {
 				tableConfig = singlestoreTableConfig(table);
+			}
+
+			if (!tableConfig) {
+				throw new Error("Could not identify the table's dialect");
 			}
 
 			tableConfig.columns.map((column) => {

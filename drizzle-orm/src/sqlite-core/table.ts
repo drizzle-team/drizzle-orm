@@ -16,10 +16,7 @@ export type SQLiteTableExtraConfigValue =
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder;
 
-export type SQLiteTableExtraConfig = Record<
-	string,
-	SQLiteTableExtraConfigValue
->;
+export type SQLiteTableExtraConfig = Record<string, SQLiteTableExtraConfigValue>;
 
 export type TableConfig = TableConfigBase<SQLiteColumn<any>>;
 
@@ -42,7 +39,7 @@ export class SQLiteTable<T extends TableConfig = TableConfig> extends Table<T> {
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
-		| ((self: Record<string, SQLiteColumn>) => SQLiteTableExtraConfig)
+		| ((self: Record<string, SQLiteColumn>) => SQLiteTableExtraConfig | SQLiteTableExtraConfigValue[])
 		| undefined = undefined;
 }
 
@@ -86,6 +83,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
 	}>;
+
 	/**
 	 * @deprecated The third parameter of sqliteTable is changing and will only accept an array instead of an object
 	 *
@@ -208,20 +206,18 @@ function sqliteTableBase<
 	>;
 
 	if (extraConfig) {
-		table[SQLiteTable.Symbol.ExtraConfigBuilder] = extraConfig as (
-			self: Record<string, SQLiteColumn>,
-		) => SQLiteTableExtraConfig;
+		table[SQLiteTable.Symbol.ExtraConfigBuilder] = extraConfig as any;
 	}
 
 	return table;
 }
 
 export const sqliteTable: SQLiteTableFn = (name, columns, extraConfig) => {
-	return sqliteTableBase(name, columns, extraConfig);
+	return sqliteTableBase(name, columns, extraConfig as any);
 };
 
 export function sqliteTableCreator(customizeTableName: (name: string) => string): SQLiteTableFn {
 	return (name, columns, extraConfig) => {
-		return sqliteTableBase(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return sqliteTableBase(customizeTableName(name) as typeof name, columns, extraConfig as any, undefined, name);
 	};
 }

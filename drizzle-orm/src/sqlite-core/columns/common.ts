@@ -15,7 +15,8 @@ import type { SQL } from '~/sql/sql.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/sqlite-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/sqlite-core/foreign-keys.ts';
 import type { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table.ts';
-import type { Update } from '~/utils.ts';
+import type { Casing, Update } from '~/utils.ts';
+import type { BaseSQLiteDatabase } from '../db.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
 export interface ReferenceConfig {
@@ -116,6 +117,11 @@ export abstract class SQLiteColumn<
 		}
 		super(table, config);
 	}
+
+	override nameWithCasing: {
+		(casing: Casing): string;
+		(db: BaseSQLiteDatabase<any, any>): string;
+	} = super.nameWithCasing;
 }
 
 export type AnySQLiteColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = SQLiteColumn<

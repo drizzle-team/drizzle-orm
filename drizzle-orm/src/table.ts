@@ -4,7 +4,7 @@ import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
 import type { ExtraConfigColumn } from './pg-core/index.ts';
 import type { SQLWrapper } from './sql/sql.ts';
 import { TableName } from './table.utils.ts';
-import type { Simplify, Update } from './utils.ts';
+import type { Assume, Simplify, Update } from './utils.ts';
 
 export interface TableConfig<TColumn extends Column = Column<any>> {
 	name: string;
@@ -161,16 +161,16 @@ export type InferModelFromColumns<
 	TInferMode extends 'insert' ?
 			& {
 				[
-					Key in keyof TColumns & string as RequiredKeyOnly<
-						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+					Key in keyof TColumns as RequiredKeyOnly<
+						MapColumnName<Assume<Key, string>, TColumns[Key], TConfig['dbColumnNames']>,
 						TColumns[Key]
 					>
 				]: GetColumnData<TColumns[Key], 'query'>;
 			}
 			& {
 				[
-					Key in keyof TColumns & string as OptionalKeyOnly<
-						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+					Key in keyof TColumns as OptionalKeyOnly<
+						MapColumnName<Assume<Key, string>, TColumns[Key], TConfig['dbColumnNames']>,
 						TColumns[Key],
 						TConfig['override']
 					>
@@ -178,8 +178,8 @@ export type InferModelFromColumns<
 			}
 		: {
 			[
-				Key in keyof TColumns & string as MapColumnName<
-					Key,
+				Key in keyof TColumns as MapColumnName<
+					Assume<Key, string>,
 					TColumns[Key],
 					TConfig['dbColumnNames']
 				>

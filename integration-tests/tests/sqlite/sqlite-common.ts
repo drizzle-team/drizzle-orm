@@ -3610,6 +3610,16 @@ export function tests() {
 		await db.run(sql`drop table users`);
 	});
 
+	test('query with aliased column', async (ctx) => {
+		const { db } = ctx.sqlite;
+		const query = db.select({ id: usersTable.id.as('user_id') }).from(usersTable);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'select "id" as "user_id" from "users"',
+			params: [],
+		});
+	});
+
 	test('sql operator as cte', async (ctx) => {
 		const { db } = ctx.sqlite;
 

@@ -3521,6 +3521,16 @@ export function tests(driver?: string) {
 			expect(users.length).toBeGreaterThan(0);
 		});
 
+		test('query with aliased column', async (ctx) => {
+			const { db } = ctx.singlestore;
+			const query = db.select({ id: usersTable.id.as('user_id') }).from(usersTable);
+
+			expect(query.toSQL()).toEqual({
+				sql: 'select \`id\` as \`user_id\` from \`userstest\`',
+				params: [],
+			});
+		});
+
 		test('sql operator as cte', async (ctx) => {
 			const { db } = ctx.singlestore;
 
