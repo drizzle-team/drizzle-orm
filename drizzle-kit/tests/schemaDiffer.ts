@@ -38,6 +38,7 @@ import {
 	viewsResolver,
 } from 'src/cli/commands/migrate';
 import { pgSuggestions } from 'src/cli/commands/pgPushUtils';
+import { logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn } from 'src/cli/commands/singlestorePushUtils';
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { Entities } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
@@ -1624,11 +1625,35 @@ export const diffTestSchemasPushSingleStore = async (
 	schema: string,
 	cli: boolean = false,
 	casing?: CasingType | undefined,
+	sqlStatementsToRun: {
+		before?: string[];
+		after?: string[];
+		runApply?: boolean;
+	} = {
+		before: [],
+		after: [],
+		runApply: true,
+	},
 ) => {
-	const { sqlStatements } = await applySingleStoreDiffs(left, casing);
-	for (const st of sqlStatements) {
+	const shouldRunApply = sqlStatementsToRun.runApply === undefined
+		? true
+		: sqlStatementsToRun.runApply;
+
+	for (const st of sqlStatementsToRun.before ?? []) {
 		await client.query(st);
 	}
+
+	if (shouldRunApply) {
+		const res = await applySingleStoreDiffs(left, casing);
+		for (const st of res.sqlStatements) {
+			await client.query(st);
+		}
+	}
+
+	for (const st of sqlStatementsToRun.after ?? []) {
+		await client.query(st);
+	}
+
 	// do introspect into PgSchemaInternal
 	const introspectedSchema = await fromSingleStoreDatabase(
 		{
@@ -1688,7 +1713,35 @@ export const diffTestSchemasPushSingleStore = async (
 			validatedCur,
 			'push',
 		);
-		return { sqlStatements, statements };
+
+		const {
+			statementsToExecute,
+			columnsToRemove,
+			infoToPrint,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		} = await singleStoreLogSuggestionsAndReturn(
+			{
+				query: async <T>(sql: string, params?: any[]) => {
+					const res = await client.execute(sql, params);
+					return res[0] as T[];
+				},
+			},
+			statements,
+			sn1,
+			sn2,
+		);
+
+		return {
+			sqlStatements: statementsToExecute,
+			statements,
+			columnsToRemove,
+			infoToPrint,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		};
 	} else {
 		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
 			sn1,
