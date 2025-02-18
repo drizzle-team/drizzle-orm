@@ -1,10 +1,10 @@
-import { coerce, literal, object, string, TypeOf, undefined, union } from 'zod';
+import { coerce, literal, object, string, TypeOf, undefined as undefinedType, union } from 'zod';
 import { error } from '../views';
 import { wrapParam } from './common';
 
 export const gelCredentials = union([
 	object({
-		driver: undefined(),
+		driver: undefinedType(),
 		host: string().min(1),
 		port: coerce.number().min(1).optional(),
 		user: string().min(1).optional(),
@@ -21,7 +21,7 @@ export const gelCredentials = union([
 		return o as Omit<typeof o, 'driver'>;
 	}),
 	object({
-		driver: undefined(),
+		driver: undefinedType(),
 		url: string().min(1),
 		tlsSecurity: union([
 			literal('insecure'),
@@ -40,6 +40,11 @@ export const gelCredentials = union([
 		delete o.driver;
 		return o;
 	}),
+	object({
+		driver: undefinedType(),
+	}).transform<undefined>((o) => {
+		return undefined;
+	}),
 ]);
 
 export type GelCredentials = TypeOf<typeof gelCredentials>;
@@ -48,14 +53,14 @@ export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
 ) => {
 	if ('url' in options) {
-		let text = `Please provide required params for Postgres driver:\n`;
+		let text = `Please provide required params for Gel driver:\n`;
 		console.log(error(text));
 		console.log(wrapParam('url', options.url, false, 'url'));
 		process.exit(1);
 	}
 
 	if ('host' in options || 'database' in options) {
-		let text = `Please provide required params for Postgres driver:\n`;
+		let text = `Please provide required params for Gel driver:\n`;
 		console.log(error(text));
 		console.log(wrapParam('host', options.host));
 		console.log(wrapParam('port', options.port, true));
@@ -68,7 +73,7 @@ export const printConfigConnectionIssues = (
 
 	console.log(
 		error(
-			`Either connection "url" or "host", "database" are required for PostgreSQL database connection`,
+			`Either connection "url" or "host", "database" are required for Gel database connection`,
 		),
 	);
 	process.exit(1);

@@ -238,6 +238,8 @@ const optionsDatabaseCredentials = {
 	ssl: string().desc('ssl mode'),
 	// Turso
 	authToken: string('auth-token').desc('Database auth token [Turso]'),
+	// gel
+	tlsSecurity: string('tlsSecurity').desc('tls security mode'),
 	// specific cases
 	driver: optionDriver,
 } as const;
@@ -282,6 +284,7 @@ export const push = command({
 				'extensionsFilters',
 				'tablesFilter',
 				'casing',
+				'tlsSecurity',
 			],
 		);
 
@@ -498,6 +501,7 @@ export const pull = command({
 				'tablesFilter',
 				'schemaFilters',
 				'extensionsFilters',
+				'tlsSecurity',
 			],
 		);
 		return preparePullConfig(opts, from);

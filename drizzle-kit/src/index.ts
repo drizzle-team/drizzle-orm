@@ -231,7 +231,7 @@ export type Config =
 		}
 		| {
 			dialect: Verify<Dialect, 'gel'>;
-			dbCredentials:
+			dbCredentials?:
 				& {
 					tlsSecurity?:
 						| 'insecure'

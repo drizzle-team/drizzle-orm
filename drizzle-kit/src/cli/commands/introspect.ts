@@ -182,7 +182,7 @@ export const introspectGel = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
-	credentials: GelCredentials,
+	credentials: GelCredentials | undefined,
 	tablesFilter: string[],
 	schemasFilter: string[],
 	prefix: Prefix,

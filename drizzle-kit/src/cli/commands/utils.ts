@@ -476,7 +476,7 @@ export const preparePullConfig = async (
 		}
 		| {
 			dialect: 'gel';
-			credentials: GelCredentials;
+			credentials?: GelCredentials;
 		}
 	) & {
 		out: string;
