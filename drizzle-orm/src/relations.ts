@@ -8,8 +8,10 @@ import {
 	Table,
 } from '~/table.ts';
 import { Columns } from '~/table.ts';
+import { aliasedTable } from './alias.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
+import { DrizzleError } from './errors.ts';
 import {
 	and,
 	asc,
@@ -242,7 +244,7 @@ export abstract class Relation<
 	sourceColumns!: AnyColumn<{ tableName: TSourceTableName }>[];
 	targetColumns!: AnyColumn<{ tableName: TTargetTableName }>[];
 	alias: string | undefined;
-	where: RelationsFilter | undefined;
+	where: AnyTableFilter | undefined;
 	sourceTable!: AnyTable<{ name: TSourceTableName }> | View<TSourceTableName>;
 	through?: {
 		source: RelationsBuilderColumnBase[];
@@ -497,7 +499,7 @@ export type DBQueryConfig<
 				operators: SQLOperator,
 			) => Record<string, SQLWrapper>)
 			| undefined;
-		where?: RelationsFilter<TTableConfig['table']> | undefined;
+		where?: RelationsFilter<TTableConfig, TSchema> | undefined;
 		orderBy?:
 			| {
 				[K in keyof TTableConfig['columns']]?: 'asc' | 'desc' | undefined;
@@ -870,23 +872,72 @@ export type RelationsFieldFilter<T = unknown> =
 		unknown extends T ? never : T extends object ? never : T
 	);
 
+export type RelationsFilterCommons<
+	TTable extends TableRelationalConfig = TableRelationalConfig,
+	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+> = {
+	OR?: RelationsFilter<TTable, TSchema>[];
+	NOT?: RelationsFilter<TTable, TSchema>;
+	RAW?: (
+		table: TTable['table'],
+		operators: Operators,
+	) => SQL;
+};
+
 export type RelationsFilter<
+	TTable extends TableRelationalConfig,
+	TSchema extends TablesRelationalConfig,
+	TRelations extends Record<string, Relation> = TTable['relations'],
+	TColumns extends FieldSelection = TTable['columns'],
+> =
+	& {
+		[K in keyof TColumns as K extends keyof RelationsFilterCommons ? never : K]?: TColumns[K] extends Column
+			? RelationsFieldFilter<TColumns[K]['_']['data']>
+			: RelationsFieldFilter<unknown>;
+	}
+	& {
+		[K in keyof TRelations as K extends keyof TColumns | keyof RelationsFilterCommons ? never : K]?:
+			| boolean
+			| RelationsFilter<FindTableInRelationalConfig<TSchema, TRelations[K]['targetTable']>, TSchema>;
+	}
+	& RelationsFilterCommons<TTable, TSchema>;
+
+export type TableFilterCommons<
+	TTable extends Table | View = Table | View,
+	TColumns extends FieldSelection = TTable extends View ? Assume<TTable['_']['selectedFields'], FieldSelection>
+		: Assume<TTable, Table>['_']['columns'],
+> = {
+	OR?: TableFilter<TTable, TColumns>[];
+	NOT?: TableFilter<TTable, TColumns>;
+	RAW?: (
+		table: TTable,
+		operators: Operators,
+	) => SQL;
+};
+
+export type TableFilter<
 	TTable extends Table | View = Table | View,
 	TColumns extends FieldSelection = TTable extends View ? Assume<TTable['_']['selectedFields'], FieldSelection>
 		: Assume<TTable, Table>['_']['columns'],
 > =
 	& {
-		[K in keyof TColumns]?: TColumns[K] extends Column ? RelationsFieldFilter<TColumns[K]['_']['data']>
+		[K in keyof TColumns as K extends keyof TableFilterCommons ? never : K]?: TColumns[K] extends Column
+			? RelationsFieldFilter<TColumns[K]['_']['data']>
 			: RelationsFieldFilter<unknown>;
 	}
-	& {
-		OR?: RelationsFilter<TTable, TColumns>[];
-		NOT?: RelationsFilter<TTable, TColumns>;
-		RAW?: (
-			table: TTable,
-			operators: Operators,
-		) => SQL;
-	};
+	& TableFilterCommons<TTable, TColumns>;
+
+export type AnyRelationsFilter = RelationsFilter<
+	TableRelationalConfig,
+	TablesRelationalConfig,
+	Record<string, Relation>,
+	FieldSelection
+>;
+
+export type AnyTableFilter = TableFilter<
+	Table | View,
+	FieldSelection
+>;
 
 export interface OneConfig<
 	TSchema extends Record<string, Table | View>,
@@ -901,8 +952,8 @@ export interface OneConfig<
 		? { [K in keyof TSourceColumns]: RelationsBuilderColumnBase<TTargetTableName> }
 		: RelationsBuilderColumnBase<TTargetTableName>;
 	where?: TSourceColumns extends [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]
-		? RelationsFilter<TSchema[TSourceColumns[number]['_']['tableName']]>
-		: RelationsFilter<TSchema[Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']]>;
+		? TableFilter<TSchema[TSourceColumns[number]['_']['tableName']]>
+		: TableFilter<TSchema[Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']]>;
 	optional?: TOptional;
 	alias?: string;
 }
@@ -926,8 +977,8 @@ export interface ManyConfig<
 		? { [K in keyof TSourceColumns]: RelationsBuilderColumnBase<TTargetTableName> }
 		: RelationsBuilderColumnBase<TTargetTableName>;
 	where?: TSourceColumns extends [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]
-		? RelationsFilter<TSchema[TSourceColumns[number]['_']['tableName']]>
-		: RelationsFilter<TSchema[Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']]>;
+		? TableFilter<TSchema[TSourceColumns[number]['_']['tableName']]>
+		: TableFilter<TSchema[Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName']]>;
 	alias?: string;
 }
 
@@ -995,11 +1046,11 @@ export class RelationsHelperStatic<TTables extends Record<string, Table | View>>
 
 		for (const [tableName, table] of Object.entries(tables)) {
 			one[tableName] = (config) => {
-				return new One(tables, table, config as DBQueryConfig<'one'>);
+				return new One(tables, table, config as AnyOneConfig);
 			};
 
 			many[tableName] = (config) => {
-				return new Many(tables, table, config as DBQueryConfig<'many'>);
+				return new Many(tables, table, config as AnyManyConfig);
 			};
 		}
 
@@ -1056,9 +1107,7 @@ export type RelationsBuilderConfig<TTables extends Record<string, Table | View>>
 export type RelationsBuilderEntry<
 	TTables extends Record<string, Table | View> = Record<string, Table | View>,
 	TSourceTableName extends string = string,
-> =
-	| Relation<TSourceTableName, keyof TTables & string>
-	| AggregatedField<any>;
+> = Relation<TSourceTableName, keyof TTables & string>;
 
 export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = {
 	[K in keyof TSchema as TSchema[K] extends Table | View ? K : never]: TSchema[K] extends Table | View ? TSchema[K]
@@ -1166,7 +1215,7 @@ function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFil
 
 				parts.push(
 					or(
-						...(value as RelationsFilter<any>[]).map((subFilter) => relationsFieldFilterToSQL(column, subFilter)),
+						...(value as AnyRelationsFilter[]).map((subFilter) => relationsFieldFilterToSQL(column, subFilter)),
 					)!,
 				);
 
@@ -1214,7 +1263,11 @@ function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFil
 
 export function relationsFilterToSQL(
 	table: Table | View,
-	filter: RelationsFilter,
+	filter: AnyRelationsFilter | AnyTableFilter,
+	tableRelations: Record<string, Relation> = {},
+	tablesRelations: TablesRelationalConfig = {},
+	tableNamesMap: Record<string, string> = {},
+	depth: number = 0,
 ): SQL | undefined {
 	const entries = Object.entries(filter);
 	if (!entries.length) return undefined;
@@ -1234,11 +1287,11 @@ export function relationsFilterToSQL(
 				continue;
 			}
 			case 'OR': {
-				if (!(value as RelationsFilter[] | undefined)?.length) continue;
+				if (!(value as AnyRelationsFilter[] | undefined)?.length) continue;
 
 				parts.push(
 					or(
-						...(value as RelationsFilter[]).map((subFilter) => relationsFilterToSQL(table, subFilter)),
+						...(value as AnyRelationsFilter[]).map((subFilter) => relationsFilterToSQL(table, subFilter)),
 					)!,
 				);
 
@@ -1247,7 +1300,7 @@ export function relationsFilterToSQL(
 			case 'NOT': {
 				if (value === undefined) continue;
 
-				const built = relationsFilterToSQL(table, value as RelationsFilter);
+				const built = relationsFilterToSQL(table, value as AnyRelationsFilter);
 				if (!built) continue;
 
 				parts.push(not(built));
@@ -1255,15 +1308,53 @@ export function relationsFilterToSQL(
 				continue;
 			}
 			default: {
-				const column = fieldSelectionToSQL(table, target);
+				if (table[Columns][target]) {
+					const column = fieldSelectionToSQL(table, target);
 
-				const colFilter = relationsFieldFilterToSQL(
-					column,
-					value as RelationsFieldFilter,
+					const colFilter = relationsFieldFilterToSQL(
+						column,
+						value as RelationsFieldFilter,
+					);
+					if (colFilter) parts.push(colFilter);
+
+					continue;
+				}
+
+				const relation = tableRelations[target];
+				if (!relation) {
+					// Should never trigger unless the types've been violated
+					throw new DrizzleError({
+						message: `Unknown relational filter field: "${target}"`,
+					});
+				}
+
+				const targetTable = aliasedTable(relation.targetTable, `f${depth}`);
+				const throughTable = relation.throughTable ? aliasedTable(relation.throughTable, `ft${depth}`) : undefined;
+				const targetConfig = tablesRelations[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!;
+
+				const {
+					filter: relationFilter,
+					joinCondition,
+				} = relationToSQL(relation, table, targetTable, throughTable);
+				const subfilter = typeof value === 'boolean' ? undefined : relationsFilterToSQL(
+					targetTable,
+					value as AnyRelationsFilter,
+					targetConfig.relations,
+					tablesRelations,
+					tableNamesMap,
+					depth + 1,
 				);
-				if (colFilter) parts.push(colFilter);
+				const filter = and(
+					relationFilter,
+					subfilter,
+				);
 
-				continue;
+				const subquery = throughTable
+					? sql`(select * from ${getTableAsAliasSQL(targetTable)} left join ${
+						getTableAsAliasSQL(throughTable)
+					} on ${joinCondition}${sql` where ${filter}`.if(filter)} limit 1)`
+					: sql`(select * from ${getTableAsAliasSQL(targetTable)}${sql` where ${filter}`.if(filter)} limit 1)`;
+				if (filter) parts.push((value ? exists : notExists)(subquery));
 			}
 		}
 	}
@@ -1364,11 +1455,9 @@ export function relationToSQL(
 				relation.where
 					? relationsFilterToSQL(relation.isReversed ? targetTable : sourceTable, relation.where)
 					: undefined,
-			),
-			joinCondition: and(
 				...outerColumnWhere,
-				...innerColumnWhere,
 			),
+			joinCondition: and(...innerColumnWhere),
 		};
 	}
 

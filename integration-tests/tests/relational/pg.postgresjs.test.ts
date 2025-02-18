@@ -4257,7 +4257,9 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	});
 });
 
-test('Get user with posts and posts with comments and comments with owner where exists', async () => {
+test('Get user with posts and posts with comments and comments with owner where exists', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -10864,6 +10866,967 @@ test('Force optional on where on non-optional relation query', async (t) => {
 		invitedBy: 2,
 		inviteeRequired: null,
 	});
+});
+
+test('[Find Many] Get users + filter users by posts', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		orderBy: {
+			id: 'asc',
+		},
+		where: {
+			posts: {
+				content: {
+					like: '%2',
+				},
+			},
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	expect(usersWithPosts).toEqual([{
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+	}]);
+});
+
+test('[Find Many] Get users with posts + filter users by posts', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		with: {
+			posts: true,
+		},
+		orderBy: {
+			id: 'asc',
+		},
+		where: {
+			posts: {
+				content: {
+					like: '%2',
+				},
+			},
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
+	expect(usersWithPosts).toEqual([{
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: date2 }],
+	}]);
+});
+
+test('[Find Many] Get users filtered by existing posts', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		orderBy: {
+			id: 'asc',
+		},
+		where: {
+			posts: true,
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	expect(usersWithPosts).toEqual([{
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+	}]);
+});
+
+test('[Find Many] Get users with posts + filter users by existing posts', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		with: {
+			posts: true,
+		},
+		orderBy: {
+			id: 'asc',
+		},
+		where: {
+			posts: true,
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
+	expect(usersWithPosts).toEqual([{
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 1, ownerId: 2, content: 'Post2', createdAt: date2 }],
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 2, ownerId: 3, content: 'Post3', createdAt: date3 }],
+	}]);
+});
+
+test('[Find Many] Get users filtered by nonexisting posts', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		orderBy: {
+			id: 'asc',
+		},
+		where: {
+			posts: false,
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	expect(usersWithPosts).toEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+	}]);
+});
+
+test('[Find Many] Get users with posts + filter users by existing posts', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		with: {
+			posts: true,
+		},
+		orderBy: {
+			id: 'asc',
+		},
+		where: {
+			posts: false,
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
+	expect(usersWithPosts).toEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		posts: [],
+	}]);
+});
+
+test('[Find Many] Get users with posts + filter posts by author', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3U.1', createdAt: date3 },
+		{ ownerId: 3, content: 'Post3U.2', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		with: {
+			posts: {
+				where: {
+					author: {
+						id: 2,
+					},
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
+	expect(usersWithPosts).toEqual([
+		{
+			id: 1,
+			name: 'Dan',
+			verified: false,
+			invitedBy: null,
+			posts: [],
+		},
+		{
+			id: 2,
+			name: 'Andrew',
+			verified: false,
+			invitedBy: null,
+			posts: [{
+				id: 3,
+				ownerId: 2,
+				content: 'Post2U.1',
+				createdAt: date2,
+			}, {
+				id: 4,
+				ownerId: 2,
+				content: 'Post2U.2',
+				createdAt: date2,
+			}],
+		},
+		{
+			id: 3,
+			name: 'Alex',
+			verified: false,
+			invitedBy: null,
+			posts: [],
+		},
+	]);
+});
+
+test('[Find Many] Get users filtered by own columns and posts with filtered posts by own columns and author', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3U.1', createdAt: date3 },
+		{ ownerId: 3, content: 'Post3U.2', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		with: {
+			posts: {
+				where: {
+					content: {
+						like: '%2',
+					},
+					author: {
+						id: 2,
+					},
+				},
+			},
+		},
+		where: {
+			id: {
+				gt: 1,
+			},
+			posts: {
+				content: {
+					like: 'M%',
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
+	expect(usersWithPosts).toEqual([
+		{
+			id: 2,
+			name: 'Andrew',
+			verified: false,
+			invitedBy: null,
+			posts: [{
+				id: 6,
+				ownerId: 2,
+				content: 'Post2U.2',
+				createdAt: date2,
+			}, {
+				id: 8,
+				ownerId: 2,
+				content: 'MessageU.2',
+				createdAt: date2,
+			}],
+		},
+	]);
+});
+
+test('[Find Many .through] Get users filtered by groups', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 1 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		where: {
+			groups: {
+				name: 'Group2',
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response).toStrictEqual([{
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+	}]);
+});
+
+test('[Find Many .through] Get users filtered by existing groups', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 1 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		where: {
+			groups: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response).toStrictEqual([{
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+	}]);
+});
+
+test('[Find Many .through] Get users with existing groups', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 1 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			groups: true,
+		},
+		where: {
+			groups: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.groups.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		groups: [{
+			id: 1,
+			name: 'Group1',
+			description: null,
+		}, {
+			id: 3,
+			name: 'Group3',
+			description: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get users filtered by nonexisting groups', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 1 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		where: {
+			groups: false,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+	}]);
+});
+
+test('[Find Many .through] Get users with nonexisting groups', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 1 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			groups: true,
+		},
+		where: {
+			groups: false,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.groups.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		groups: [],
+	}]);
+});
+
+test('[Find Many .through] Get users filtered by groups with groups', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 1 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			groups: {
+				orderBy: {
+					id: 'asc',
+				},
+			},
+		},
+		where: {
+			groups: {
+				name: 'Group2',
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get users filtered by groups with groups filtered by users', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 1 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			groups: {
+				orderBy: {
+					id: 'asc',
+				},
+				where: {
+					users: {
+						id: 1,
+					},
+				},
+			},
+		},
+		where: {
+			groups: {
+				name: 'Group3',
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		groups: [{
+			id: 1,
+			name: 'Group1',
+			description: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get users filtered by users of groups with groups', async (ctx) => {
+	const { pgjsDbV2: db } = ctx;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 1 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			groups: {
+				orderBy: {
+					id: 'asc',
+				},
+			},
+		},
+		where: {
+			groups: {
+				users: {
+					id: 3,
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([
+		{
+			id: 1,
+			name: 'Dan',
+			verified: false,
+			invitedBy: null,
+			groups: [{
+				id: 1,
+				name: 'Group1',
+				description: null,
+			}],
+		},
+		{
+			id: 3,
+			name: 'Alex',
+			verified: false,
+			invitedBy: null,
+			groups: [{
+				id: 1,
+				name: 'Group1',
+				description: null,
+			}, {
+				id: 3,
+				name: 'Group3',
+				description: null,
+			}],
+		},
+	]);
 });
 
 test('.toSQL()', () => {

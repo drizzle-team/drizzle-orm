@@ -16,7 +16,7 @@ import type {
 	WithContainer,
 } from '~/relations.ts';
 import {
-	AggregatedField,
+	// AggregatedField,
 	getTableAsAliasSQL,
 	One,
 	relationExtrasToSQL,
@@ -1290,9 +1290,9 @@ export class MySqlDialect {
 		const columns = this.buildColumns(table, selection, params);
 
 		const where: SQL | undefined = (params?.where && relationWhere)
-			? and(relationsFilterToSQL(table, params.where), relationWhere)
+			? and(relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap), relationWhere)
 			: params?.where
-			? relationsFilterToSQL(table, params.where)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap)
 			: relationWhere;
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
@@ -1312,18 +1312,18 @@ export class MySqlDialect {
 					withEntries.map(([k, join]) => {
 						selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
 
-						if (is(tableConfig.relations[k]!, AggregatedField)) {
-							const relation = tableConfig.relations[k]!;
-							relation.onTable(table);
-							const query = relation.getSQL();
+						// if (is(tableConfig.relations[k]!, AggregatedField)) {
+						// 	const relation = tableConfig.relations[k]!;
+						// 	relation.onTable(table);
+						// 	const query = relation.getSQL();
 
-							selection.push({
-								key: k,
-								field: relation,
-							});
+						// 	selection.push({
+						// 		key: k,
+						// 		field: relation,
+						// 	});
 
-							return sql` left join lateral (${query}) as ${sql.identifier(k)} on true`;
-						}
+						// 	return sql` left join lateral (${query}) as ${sql.identifier(k)} on true`;
+						// }
 
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);

@@ -1,13 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import type { AnyColumn } from '~/column';
 import { date, integer, pgTable, text } from '~/pg-core';
-import {
-	type OrderBy,
-	type OrderByOperators,
-	type RelationsFilter,
-	relationsFilterToSQL,
-	relationsOrderToSQL,
-} from '~/relations';
+import { relationsFilterToSQL, relationsOrderToSQL } from '~/relations';
+import type { OrderBy, OrderByOperators, TableFilter } from '~/relations';
 import {
 	and,
 	asc,
@@ -42,8 +37,8 @@ const table = pgTable('test', {
 	}),
 });
 
-const buildFilter = <TTable extends Table>(table: TTable, filter: RelationsFilter<typeof table>) =>
-	relationsFilterToSQL(table, filter as RelationsFilter);
+const buildFilter = <TTable extends Table>(table: TTable, filter: TableFilter<typeof table>) =>
+	relationsFilterToSQL(table, filter as TableFilter);
 
 describe('Filters', () => {
 	test('No shortcuts for object-type data', () => {

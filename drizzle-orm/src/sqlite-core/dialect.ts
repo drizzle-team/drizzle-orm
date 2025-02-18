@@ -7,7 +7,7 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
-	AggregatedField,
+	// AggregatedField,
 	type AnyRelations,
 	type BuildRelationalQueryResult,
 	type ColumnWithTSName,
@@ -939,9 +939,9 @@ export abstract class SQLiteDialect {
 		const columns = this.buildColumns(table, selection, params);
 
 		const where: SQL | undefined = (params?.where && relationWhere)
-			? and(relationsFilterToSQL(table, params.where), relationWhere)
+			? and(relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap), relationWhere)
 			: params?.where
-			? relationsFilterToSQL(table, params.where)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap)
 			: relationWhere;
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
@@ -957,19 +957,19 @@ export abstract class SQLiteDialect {
 
 				return sql.join(
 					withEntries.map(([k, join]) => {
-						if (is(tableConfig.relations[k]!, AggregatedField)) {
-							const relation = tableConfig.relations[k]!;
+						// if (is(tableConfig.relations[k]!, AggregatedField)) {
+						// 	const relation = tableConfig.relations[k]!;
 
-							relation.onTable(table);
-							const query = relation.getSQL();
+						// 	relation.onTable(table);
+						// 	const query = relation.getSQL();
 
-							selection.push({
-								key: k,
-								field: relation,
-							});
+						// 	selection.push({
+						// 		key: k,
+						// 		field: relation,
+						// 	});
 
-							return sql`(${query}) as ${sql.identifier(k)}`;
-						}
+						// 	return sql`(${query}) as ${sql.identifier(k)}`;
+						// }
 
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);

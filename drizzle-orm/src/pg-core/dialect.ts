@@ -27,7 +27,7 @@ import type {
 import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import {
-	AggregatedField,
+	// AggregatedField,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	getTableAsAliasSQL,
@@ -1014,9 +1014,9 @@ export class PgDialect {
 		const offset = params?.offset;
 
 		const where: SQL | undefined = (params?.where && relationWhere)
-			? and(relationsFilterToSQL(table, params.where), relationWhere)
+			? and(relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap), relationWhere)
 			: params?.where
-			? relationsFilterToSQL(table, params.where)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap)
 			: relationWhere;
 
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
@@ -1036,21 +1036,21 @@ export class PgDialect {
 
 				return sql.join(
 					withEntries.map(([k, join]) => {
-						if (is(tableConfig.relations[k]!, AggregatedField)) {
-							const relation = tableConfig.relations[k]!;
+						// if (is(tableConfig.relations[k]!, AggregatedField)) {
+						// 	const relation = tableConfig.relations[k]!;
 
-							relation.onTable(table);
-							const query = relation.getSQL();
+						// 	relation.onTable(table);
+						// 	const query = relation.getSQL();
 
-							selection.push({
-								key: k,
-								field: relation,
-							});
+						// 	selection.push({
+						// 		key: k,
+						// 		field: relation,
+						// 	});
 
-							selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
+						// 	selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
 
-							return sql`left join lateral(${query}) as ${sql.identifier(k)} on true`;
-						}
+						// 	return sql`left join lateral(${query}) as ${sql.identifier(k)} on true`;
+						// }
 
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
