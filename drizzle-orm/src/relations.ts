@@ -9,6 +9,7 @@ import {
 } from '~/table.ts';
 import { Columns } from '~/table.ts';
 import { aliasedTable } from './alias.ts';
+import type { CasingCache } from './casing.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
@@ -1264,9 +1265,23 @@ function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFil
 export function relationsFilterToSQL(
 	table: Table | View,
 	filter: AnyRelationsFilter | AnyTableFilter,
+): SQL | undefined;
+export function relationsFilterToSQL(
+	table: Table | View,
+	filter: AnyRelationsFilter | AnyTableFilter,
+	tableRelations: Record<string, Relation>,
+	tablesRelations: TablesRelationalConfig,
+	tableNamesMap: Record<string, string>,
+	casing: CasingCache,
+	depth?: number,
+): SQL | undefined;
+export function relationsFilterToSQL(
+	table: Table | View,
+	filter: AnyRelationsFilter | AnyTableFilter,
 	tableRelations: Record<string, Relation> = {},
 	tablesRelations: TablesRelationalConfig = {},
 	tableNamesMap: Record<string, string> = {},
+	casing?: CasingCache,
 	depth: number = 0,
 ): SQL | undefined {
 	const entries = Object.entries(filter);
@@ -1291,7 +1306,9 @@ export function relationsFilterToSQL(
 
 				parts.push(
 					or(
-						...(value as AnyRelationsFilter[]).map((subFilter) => relationsFilterToSQL(table, subFilter)),
+						...(value as AnyRelationsFilter[]).map((subFilter) =>
+							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, tableNamesMap, casing!, depth)
+						),
 					)!,
 				);
 
@@ -1300,7 +1317,15 @@ export function relationsFilterToSQL(
 			case 'NOT': {
 				if (value === undefined) continue;
 
-				const built = relationsFilterToSQL(table, value as AnyRelationsFilter);
+				const built = relationsFilterToSQL(
+					table,
+					value as AnyRelationsFilter,
+					tableRelations,
+					tablesRelations,
+					tableNamesMap,
+					casing!,
+					depth,
+				);
 				if (!built) continue;
 
 				parts.push(not(built));
@@ -1335,13 +1360,14 @@ export function relationsFilterToSQL(
 				const {
 					filter: relationFilter,
 					joinCondition,
-				} = relationToSQL(relation, table, targetTable, throughTable);
+				} = relationToSQL(casing!, relation, table, targetTable, throughTable);
 				const subfilter = typeof value === 'boolean' ? undefined : relationsFilterToSQL(
 					targetTable,
 					value as AnyRelationsFilter,
 					targetConfig.relations,
 					tablesRelations,
 					tableNamesMap,
+					casing!,
 					depth + 1,
 				);
 				const filter = and(
@@ -1426,6 +1452,7 @@ export type BuiltRelationFilters = {
 };
 
 export function relationToSQL(
+	casing: CasingCache,
 	relation: Relation,
 	sourceTable: Table | View,
 	targetTable: Table | View,
@@ -1436,8 +1463,8 @@ export function relationToSQL(
 			const t = relation.through!.source[i]!;
 
 			return eq(
-				sql`${sourceTable}.${sql.identifier(s.name)}`,
-				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? t._.column.name : t._.key)}`,
+				sql`${sourceTable}.${sql.identifier(casing.getColumnCasing(s))}`,
+				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? casing.getColumnCasing(t._.column) : t._.key)}`,
 			);
 		});
 
@@ -1445,8 +1472,8 @@ export function relationToSQL(
 			const t = relation.through!.target[i]!;
 
 			return eq(
-				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? t._.column.name : t._.key)}`,
-				sql`${targetTable}.${sql.identifier(s.name)}`,
+				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? casing.getColumnCasing(t._.column) : t._.key)}`,
+				sql`${targetTable}.${sql.identifier(casing.getColumnCasing(s))}`,
 			);
 		});
 
@@ -1465,8 +1492,8 @@ export function relationToSQL(
 		const t = relation.targetColumns[i]!;
 
 		return eq(
-			sql`${sourceTable}.${sql.identifier(s.name)}`,
-			sql`${targetTable}.${sql.identifier(t.name)}`,
+			sql`${sourceTable}.${sql.identifier(casing.getColumnCasing(s))}`,
+			sql`${targetTable}.${sql.identifier(casing.getColumnCasing(t))}`,
 		);
 	});
 

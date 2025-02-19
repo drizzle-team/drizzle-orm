@@ -815,7 +815,7 @@ export abstract class SQLiteDialect {
 	private buildRqbColumn(column: unknown, key: string) {
 		return sql`${
 			is(column, Column)
-				? sql.identifier(column.name)
+				? sql.identifier(this.casing.getColumnCasing(column))
 				: is(column, SQL.Aliased)
 				? sql.identifier(column.fieldAlias)
 				: isSQLWrapper(column)
@@ -939,9 +939,12 @@ export abstract class SQLiteDialect {
 		const columns = this.buildColumns(table, selection, params);
 
 		const where: SQL | undefined = (params?.where && relationWhere)
-			? and(relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap), relationWhere)
+			? and(
+				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap, this.casing),
+				relationWhere,
+			)
 			: params?.where
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap, this.casing)
 			: relationWhere;
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
@@ -978,6 +981,7 @@ export abstract class SQLiteDialect {
 							? aliasedTable(relation.throughTable, `tr${currentDepth}`)
 							: undefined;
 						const { filter, joinCondition } = relationToSQL(
+							this.casing,
 							relation,
 							table,
 							targetTable,
