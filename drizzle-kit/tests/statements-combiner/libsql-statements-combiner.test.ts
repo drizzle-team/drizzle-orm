@@ -146,7 +146,7 @@ test(`rename table and drop index`, async (t) => {
 			schema: '',
 		},
 	];
-	expect(libSQLCombineStatements(statements, json2)).toStrictEqual(
+	expect(libSQLCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -359,6 +359,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 					autoincrement: true,
 				},
 			],
+			columnsToTransfer: ['id'],
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
@@ -376,6 +377,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id'],
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
@@ -394,7 +396,7 @@ test(`drop, set autoincrement. drop not null`, async (t) => {
 			columnPk: false,
 		},
 	];
-	expect(libSQLCombineStatements(statements, json2)).toStrictEqual(
+	expect(libSQLCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -662,6 +664,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id'],
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
@@ -679,6 +682,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id'],
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
@@ -694,7 +698,7 @@ test(`drop and set primary key. create reference`, async (t) => {
 			columnType: 'int',
 		},
 	];
-	expect(libSQLCombineStatements(statements, json2)).toStrictEqual(
+	expect(libSQLCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -945,6 +949,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['fk_id', 'fk_id1'],
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
@@ -969,6 +974,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['fk2_id', 'fk2_id1'],
 			compositePKs: [],
 			referenceData: [
 				{
@@ -985,7 +991,7 @@ test(`set and drop multiple columns reference`, async (t) => {
 			checkConstraints: [],
 		},
 	];
-	expect(libSQLCombineStatements(statements, json2)).toStrictEqual(
+	expect(libSQLCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -1207,6 +1213,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['pk'],
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
@@ -1239,7 +1246,7 @@ test(`set new type for primary key, unique and normal column`, async (t) => {
 			columnPk: false,
 		},
 	];
-	expect(libSQLCombineStatements(statements, json2)).toStrictEqual(
+	expect(libSQLCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -1444,7 +1451,7 @@ test(`add columns. set fk`, async (t) => {
 			columnType: 'integer',
 		},
 	];
-	expect(libSQLCombineStatements(statements, json2)).toStrictEqual(
+	expect(libSQLCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -1625,7 +1632,7 @@ test(`add column and fk`, async (t) => {
 			referenceData: 'ref_test1_user_new_age_fk;ref;test1;user;new_age;no action;no action',
 		},
 	];
-	expect(libSQLCombineStatements(statements, json2)).toStrictEqual(
+	expect(libSQLCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -1806,7 +1813,7 @@ test(`add column and fk`, async (t) => {
 			referenceData: 'ref_test1_user_new_age_fk;ref;test1;user;new_age;no action;no action',
 		},
 	];
-	expect(libSQLCombineStatements(statements, json2)).toStrictEqual(
+	expect(libSQLCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });

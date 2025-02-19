@@ -766,48 +766,6 @@ export const connectToSQLite = async (
 		}
 	}
 
-	if (await checkPackage('@libsql/client')) {
-		const { createClient } = await import('@libsql/client');
-		const { drizzle } = await import('drizzle-orm/libsql');
-		const { migrate } = await import('drizzle-orm/libsql/migrator');
-
-		const client = createClient({
-			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
-		});
-		const drzl = drizzle(client);
-		const migrateFn = async (config: MigrationConfig) => {
-			return migrate(drzl, config);
-		};
-
-		const db: SQLiteDB = {
-			query: async <T>(sql: string, params?: any[]) => {
-				const res = await client.execute({ sql, args: params || [] });
-				return res.rows as T[];
-			},
-			run: async (query: string) => {
-				await client.execute(query);
-			},
-		};
-
-		const proxy: SqliteProxy = {
-			proxy: async (params: ProxyParams) => {
-				const preparedParams = prepareSqliteParams(params.params);
-				const result = await client.execute({
-					sql: params.sql,
-					args: preparedParams,
-				});
-
-				if (params.mode === 'array') {
-					return result.rows.map((row) => Object.values(row));
-				} else {
-					return result.rows;
-				}
-			},
-		};
-
-		return { ...db, ...proxy, migrate: migrateFn };
-	}
-
 	if (await checkPackage('better-sqlite3')) {
 		const { default: Database } = await import('better-sqlite3');
 		const { drizzle } = await import('drizzle-orm/better-sqlite3');
@@ -847,6 +805,48 @@ export const connectToSQLite = async (
 				return sqlite.prepare(params.sql).run(preparedParams);
 			},
 		};
+		return { ...db, ...proxy, migrate: migrateFn };
+	}
+
+	if (await checkPackage('@libsql/client')) {
+		const { createClient } = await import('@libsql/client');
+		const { drizzle } = await import('drizzle-orm/libsql');
+		const { migrate } = await import('drizzle-orm/libsql/migrator');
+
+		const client = createClient({
+			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
+		});
+		const drzl = drizzle(client);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(drzl, config);
+		};
+
+		const db: SQLiteDB = {
+			query: async <T>(sql: string, params?: any[]) => {
+				const res = await client.execute({ sql, args: params || [] });
+				return res.rows as T[];
+			},
+			run: async (query: string) => {
+				await client.execute(query);
+			},
+		};
+
+		const proxy: SqliteProxy = {
+			proxy: async (params: ProxyParams) => {
+				const preparedParams = prepareSqliteParams(params.params);
+				const result = await client.execute({
+					sql: params.sql,
+					args: preparedParams,
+				});
+
+				if (params.mode === 'array') {
+					return result.rows.map((row) => Object.values(row));
+				} else {
+					return result.rows;
+				}
+			},
+		};
+
 		return { ...db, ...proxy, migrate: migrateFn };
 	}
 

@@ -4,9 +4,10 @@ import { getTableConfig, index, int, singlestoreTable, text } from 'drizzle-orm/
 import fs from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
+import { JsonStatement } from 'src/jsonStatements';
 import { diffTestSchemasPushSingleStore } from 'tests/schemaDiffer';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 let client: Connection;
 let singlestoreContainer: Docker.Container;
@@ -40,7 +41,7 @@ async function createDockerDB(): Promise<string> {
 }
 
 beforeAll(async () => {
-	const connectionString = process.env.MYSQL_CONNECTION_STRING ?? (await createDockerDB());
+	const connectionString = process.env.SINGLESTORE_CONNECTION_STRING ?? (await createDockerDB());
 
 	const sleep = 1000;
 	let timeLeft = 20000;
@@ -79,7 +80,7 @@ if (!fs.existsSync('tests/push/singlestore')) {
 	fs.mkdirSync('tests/push/singlestore');
 }
 
-test('db has checks. Push with same names', async () => {
+test('nothing changed', async () => {
 	const schema1 = {
 		test: singlestoreTable('test', {
 			id: int('id').primaryKey(),
@@ -492,9 +493,10 @@ test('drop not null, add not null', async (t) => {
 			'posts_id;id',
 		],
 		tableName: 'posts',
+		columnsToTransfer: ['id', 'name', 'user_id'],
 		type: 'singlestore_recreate_table',
 		uniqueConstraints: [],
-	});
+	} as JsonStatement);
 	expect(statements![1]).toStrictEqual({
 		columns: [
 			{
@@ -519,10 +521,11 @@ test('drop not null, add not null', async (t) => {
 		compositePKs: [
 			'users_id;id',
 		],
+		columnsToTransfer: ['id', 'name'],
 		tableName: 'users',
 		type: 'singlestore_recreate_table',
 		uniqueConstraints: [],
-	});
+	} as JsonStatement);
 	expect(sqlStatements!.length).toBe(8);
 	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_posts\` (
 \t\`id\` int NOT NULL,
@@ -643,8 +646,6 @@ test('change data type. db has indexes. table does not have values', async (t) =
 		}, (table) => [index('index').on(table.name)]),
 	};
 
-	const seedStatements = [`INSERT INTO users VALUES (1, 12)`];
-
 	const {
 		statements,
 		sqlStatements,
@@ -688,10 +689,11 @@ test('change data type. db has indexes. table does not have values', async (t) =
 		compositePKs: [
 			'users_id;id',
 		],
+		columnsToTransfer: ['id', 'name'],
 		tableName: 'users',
 		type: 'singlestore_recreate_table',
 		uniqueConstraints: [],
-	});
+	} as JsonStatement);
 	expect(statements![1]).toStrictEqual({
 		data: 'index;name;false;;;',
 		internal: undefined,
@@ -782,10 +784,11 @@ test('change data type. db has indexes. table has values', async (t) => {
 		compositePKs: [
 			'users_id;id',
 		],
+		columnsToTransfer: ['id', 'name'],
 		tableName: 'users',
 		type: 'singlestore_recreate_table',
 		uniqueConstraints: [],
-	});
+	} as JsonStatement);
 	expect(statements![1]).toStrictEqual({
 		data: 'index;name;false;;;',
 		internal: undefined,

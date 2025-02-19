@@ -153,6 +153,7 @@ abstract class Convertor {
 		statement: JsonStatement,
 		json2?: SQLiteSchemaSquashed,
 		action?: 'push',
+		dataLoss?: boolean, // needed for recreate statement. Skip data transfer if no data loss. Not sure if needed, can be always data transfer
 	): string | string[];
 }
 
@@ -1655,7 +1656,7 @@ class SQLiteAlterTableRenameColumnConvertor extends Convertor {
 
 	convert(statement: JsonRenameColumnStatement) {
 		const { tableName, oldColumnName, newColumnName } = statement;
-		return `ALTER TABLE \`${tableName}\` RENAME COLUMN "${oldColumnName}" TO "${newColumnName}";`;
+		return `ALTER TABLE \`${tableName}\` RENAME COLUMN \`${oldColumnName}\` TO \`${newColumnName}\`;`;
 	}
 }
 
@@ -2320,22 +2321,6 @@ export class LibSQLModifyColumn extends Convertor {
 
 		const sqlStatements: string[] = [];
 
-		// collect index info
-		const indexes: {
-			name: string;
-			tableName: string;
-			columns: string[];
-			isUnique: boolean;
-			where?: string | undefined;
-		}[] = [];
-		for (const table of Object.values(json2.tables)) {
-			for (const index of Object.values(table.indexes)) {
-				const unsquashed = SQLiteSquasher.unsquashIdx(index);
-				sqlStatements.push(`DROP INDEX "${unsquashed.name}";`);
-				indexes.push({ ...unsquashed, tableName: table.name });
-			}
-		}
-
 		switch (statement.type) {
 			case 'alter_table_alter_column_set_type':
 				columnType = ` ${statement.newDataType}`;
@@ -2387,19 +2372,8 @@ export class LibSQLModifyColumn extends Convertor {
 			: columnDefault;
 
 		sqlStatements.push(
-			`ALTER TABLE \`${tableName}\` ALTER COLUMN "${columnName}" TO "${columnName}"${columnType}${columnNotNull}${columnDefault};`,
+			`ALTER TABLE \`${tableName}\` ALTER COLUMN \`${columnName}\` TO \`${columnName}\`${columnType}${columnNotNull}${columnDefault};`,
 		);
-
-		for (const index of indexes) {
-			const indexPart = index.isUnique ? 'UNIQUE INDEX' : 'INDEX';
-			const whereStatement = index.where ? ` WHERE ${index.where}` : '';
-			const uniqueString = index.columns.map((it) => `\`${it}\``).join(',');
-			const tableName = index.tableName;
-
-			sqlStatements.push(
-				`CREATE ${indexPart} \`${index.name}\` ON \`${tableName}\` (${uniqueString})${whereStatement};`,
-			);
-		}
 
 		return sqlStatements;
 	}
@@ -3319,7 +3293,7 @@ class LibSQLCreateForeignKeyConvertor extends Convertor {
 		const columnFrom = columnsFrom[0];
 		const columnTo = columnsTo[0];
 
-		return `ALTER TABLE \`${tableFrom}\` ALTER COLUMN "${columnFrom}" TO "${columnFrom}"${columnTypeValue}${columnNotNullValue}${columnsDefaultValue} REFERENCES ${tableTo}(${columnTo})${onDeleteStatement}${onUpdateStatement};`;
+		return `ALTER TABLE \`${tableFrom}\` ALTER COLUMN \`${columnFrom}\` TO \`${columnFrom}\`${columnTypeValue}${columnNotNullValue}${columnsDefaultValue} REFERENCES ${tableTo}(${columnTo})${onDeleteStatement}${onUpdateStatement};`;
 	}
 }
 
@@ -3685,22 +3659,29 @@ class SingleStoreDropIndexConvertor extends Convertor {
 	}
 }
 
-class SQLiteRecreateTableConvertor extends Convertor {
+export class SQLiteRecreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'recreate_table' && dialect === 'sqlite'
 		);
 	}
 
-	convert(statement: JsonRecreateTableStatement): string | string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+	convert(
+		statement: JsonRecreateTableStatement,
+		json2?: SQLiteSchemaSquashed,
+		action?: 'push',
+		dataLoss?: boolean,
+	): string | string[] {
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, columnsToTransfer } = statement;
 
-		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
+		const columnNames = columnsToTransfer.map((it) => `\`${it}\``).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
 
-		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
+		if (action !== 'push') {
+			sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
+		}
 
 		// map all possible variants
 		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
@@ -3721,9 +3702,11 @@ class SQLiteRecreateTableConvertor extends Convertor {
 		);
 
 		// migrate data
-		sqlStatements.push(
-			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
-		);
+		if (!dataLoss) {
+			sqlStatements.push(
+				`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
+			);
+		}
 
 		// drop table
 		sqlStatements.push(
@@ -3745,13 +3728,14 @@ class SQLiteRecreateTableConvertor extends Convertor {
 			}),
 		);
 
-		sqlStatements.push(`PRAGMA foreign_keys=ON;`);
-
+		if (action !== 'push') {
+			sqlStatements.push(`PRAGMA foreign_keys=ON;`);
+		}
 		return sqlStatements;
 	}
 }
 
-class LibSQLRecreateTableConvertor extends Convertor {
+export class LibSQLRecreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'recreate_table'
@@ -3759,10 +3743,15 @@ class LibSQLRecreateTableConvertor extends Convertor {
 		);
 	}
 
-	convert(statement: JsonRecreateTableStatement): string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+	convert(
+		statement: JsonRecreateTableStatement,
+		json2?: SQLiteSchemaSquashed,
+		action?: 'push',
+		dataLoss?: boolean,
+	): string[] {
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, columnsToTransfer } = statement;
 
-		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
+		const columnNames = columnsToTransfer.map((it) => `\`${it}\``).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
@@ -3772,7 +3761,7 @@ class LibSQLRecreateTableConvertor extends Convertor {
 				.replaceAll(`${tableName}.`, `${newTableName}.`).replaceAll(`'${tableName}'.`, `\`${newTableName}\`.`)
 		);
 
-		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
+		if (action !== 'push') sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
 
 		// create new table
 		sqlStatements.push(
@@ -3786,10 +3775,12 @@ class LibSQLRecreateTableConvertor extends Convertor {
 			}),
 		);
 
-		// migrate data
-		sqlStatements.push(
-			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
-		);
+		if (!dataLoss) {
+			// migrate data
+			sqlStatements.push(
+				`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
+			);
+		}
 
 		// drop table
 		sqlStatements.push(
@@ -3811,13 +3802,13 @@ class LibSQLRecreateTableConvertor extends Convertor {
 			}),
 		);
 
-		sqlStatements.push(`PRAGMA foreign_keys=ON;`);
+		if (action !== 'push') sqlStatements.push(`PRAGMA foreign_keys=ON;`);
 
 		return sqlStatements;
 	}
 }
 
-class SingleStoreRecreateTableConvertor extends Convertor {
+export class SingleStoreRecreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'singlestore_recreate_table'
@@ -3825,10 +3816,15 @@ class SingleStoreRecreateTableConvertor extends Convertor {
 		);
 	}
 
-	convert(statement: JsonRecreateSingleStoreTableStatement): string[] {
-		const { tableName, columns, compositePKs, uniqueConstraints } = statement;
+	convert(
+		statement: JsonRecreateSingleStoreTableStatement,
+		json2?: unknown,
+		action?: 'push',
+		dataLoss?: boolean,
+	): string[] {
+		const { tableName, columns, compositePKs, uniqueConstraints, columnsToTransfer } = statement;
 
-		const columnNames = columns.map((it) => `\`${it.name}\``).join(', ');
+		const columnNames = columnsToTransfer.map((it) => `\`${it}\``).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
@@ -3845,10 +3841,12 @@ class SingleStoreRecreateTableConvertor extends Convertor {
 			}),
 		);
 
-		// migrate data
-		sqlStatements.push(
-			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
-		);
+		if (!dataLoss) {
+			// migrate data
+			sqlStatements.push(
+				`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
+			);
+		}
 
 		// drop table
 		sqlStatements.push(
