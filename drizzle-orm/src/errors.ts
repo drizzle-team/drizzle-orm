@@ -17,3 +17,12 @@ export class TransactionRollbackError extends DrizzleError {
 		super({ message: 'Rollback' });
 	}
 }
+
+export async function wrapPromiseCaptureStacktrace<R>(promise: PromiseLike<R>): Promise<R> {
+	try {
+		return await promise;
+	} catch (e) {
+		Error.captureStackTrace(e as any, wrapPromiseCaptureStacktrace);
+		throw e;
+	}
+}

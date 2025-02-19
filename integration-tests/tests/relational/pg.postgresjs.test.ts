@@ -6263,6 +6263,41 @@ test('Get groups with users + custom', async (t) => {
 	});
 });
 
+test('Postgres errors contain useful stack traces', async (t) => {
+	const { pgjsDb: db } = t;
+
+	// @ts-ignore
+	const insertPromise = db.insert(usersTable).values({ id: 'foobar' });
+	await expect(insertPromise).rejects.toThrowError(expect.objectContaining({
+		stack: expect.stringContaining(__filename),
+	}));
+});
+
+test('Postgres errors in transactions contain useful stack traces', async (t) => {
+	const { pgjsDb: db } = t;
+
+	const txPromise = db.transaction(async (tx) => {
+		// @ts-ignore
+		await tx.insert(usersTable).values({ id: 'foobar' });
+	});
+
+	await expect(txPromise).rejects.toThrowError(expect.objectContaining({
+		stack: expect.stringContaining(__filename),
+	}));
+});
+
+test('Other errors in transactions contain useful stack traces', async (t) => {
+	const { pgjsDb: db } = t;
+
+	const txPromise = db.transaction(async () => {
+		throw new Error('test error');
+	});
+
+	await expect(txPromise).rejects.toThrowError(expect.objectContaining({
+		stack: expect.stringContaining(__filename),
+	}));
+});
+
 test('.toSQL()', () => {
 	const query = db.query.usersTable.findFirst().toSQL();
 
