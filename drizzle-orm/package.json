@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.39.1",
+	"version": "0.39.3",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -58,7 +58,6 @@
 		"@tidbcloud/serverless": "*",
 		"@types/better-sqlite3": "*",
 		"@types/pg": "*",
-		"@types/react": ">=18",
 		"@types/sql.js": "*",
 		"@vercel/postgres": ">=0.8.0",
 		"@xata.io/client": "*",
@@ -70,7 +69,6 @@
 		"mysql2": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
-		"react": ">=18",
 		"sql.js": ">=1",
 		"sqlite3": ">=5"
 	},
@@ -142,12 +140,6 @@
 			"optional": true
 		},
 		"@op-engineering/op-sqlite": {
-			"optional": true
-		},
-		"react": {
-			"optional": true
-		},
-		"@types/react": {
 			"optional": true
 		},
 		"@electric-sql/pglite": {
