@@ -615,47 +615,62 @@ const getPostgresInfo = (
 		const schemaConfig = extractTablesRelationalConfig(schema, createTableRelationsHelpers);
 		const relations: RelationWithReferences[] = [];
 		for (const table of Object.values(schemaConfig.tables)) {
-			if (table.relations !== undefined) {
-				for (const drizzleRel of Object.values(table.relations)) {
-					if (is(drizzleRel, One)) {
-						const tableConfig = getPgTableConfig(drizzleRel.sourceTable as PgTable);
-						const tableDbSchema = tableConfig.schema ?? 'public';
-						const tableDbName = tableConfig.name;
-						const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
+			if (table.relations === undefined) continue;
 
-						const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable);
-						const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
-							?? [];
+			for (const drizzleRel of Object.values(table.relations)) {
+				if (!is(drizzleRel, One)) continue;
 
-						const refTableConfig = getPgTableConfig(drizzleRel.referencedTable as PgTable);
-						const refTableDbSchema = refTableConfig.schema ?? 'public';
-						const refTableDbName = refTableConfig.name;
-						const refTableTsName = schemaConfig.tableNamesMap[`${refTableDbSchema}.${refTableDbName}`]
-							?? refTableDbName;
+				const tableConfig = getPgTableConfig(drizzleRel.sourceTable as PgTable);
+				const tableDbSchema = tableConfig.schema ?? 'public';
+				const tableDbName = tableConfig.name;
+				const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
 
-						const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable);
-						const refColumns = drizzleRel.config?.references.map((ref) =>
-							dbToTsColumnNamesMapForRefTable[ref.name] as string
-						)
-							?? [];
+				const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable);
+				const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
+					?? [];
 
-						if (tableRelations[refTableTsName] === undefined) {
-							tableRelations[refTableTsName] = [];
-						}
+				const refTableConfig = getPgTableConfig(drizzleRel.referencedTable as PgTable);
+				const refTableDbSchema = refTableConfig.schema ?? 'public';
+				const refTableDbName = refTableConfig.name;
+				const refTableTsName = schemaConfig.tableNamesMap[`${refTableDbSchema}.${refTableDbName}`]
+					?? refTableDbName;
 
-						const relation: RelationWithReferences = {
-							table: tableTsName,
-							columns,
-							refTable: refTableTsName,
-							refColumns,
-							refTableRels: tableRelations[refTableTsName],
-							type: 'one',
-						};
+				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable);
+				const refColumns = drizzleRel.config?.references.map((ref) =>
+					dbToTsColumnNamesMapForRefTable[ref.name] as string
+				)
+					?? [];
 
-						relations.push(relation);
-						tableRelations[tableTsName]!.push(relation);
-					}
+				if (tableRelations[refTableTsName] === undefined) {
+					tableRelations[refTableTsName] = [];
 				}
+
+				const relation: RelationWithReferences = {
+					table: tableTsName,
+					columns,
+					refTable: refTableTsName,
+					refColumns,
+					refTableRels: tableRelations[refTableTsName],
+					type: 'one',
+				};
+
+				// do not add duplicate relation
+				if (
+					tableRelations[tableTsName]?.some((rel) =>
+						rel.table === relation.table
+						&& rel.refTable === relation.refTable
+					)
+				) {
+					console.warn(
+						`You are providing a one-to-many relation between the '${relation.refTable}' and '${relation.table}' tables,\n`
+							+ `while the '${relation.table}' table object already has foreign key constraint in the schema referencing '${relation.refTable}' table.\n`
+							+ `In this case, the foreign key constraint will be used.\n`,
+					);
+					continue;
+				}
+
+				relations.push(relation);
+				tableRelations[tableTsName]!.push(relation);
 			}
 		}
 		return relations;
@@ -993,47 +1008,62 @@ const getMySqlInfo = (
 		const schemaConfig = extractTablesRelationalConfig(schema, createTableRelationsHelpers);
 		const relations: RelationWithReferences[] = [];
 		for (const table of Object.values(schemaConfig.tables)) {
-			if (table.relations !== undefined) {
-				for (const drizzleRel of Object.values(table.relations)) {
-					if (is(drizzleRel, One)) {
-						const tableConfig = getMysqlTableConfig(drizzleRel.sourceTable as MySqlTable);
-						const tableDbSchema = tableConfig.schema ?? 'public';
-						const tableDbName = tableConfig.name;
-						const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
+			if (table.relations === undefined) continue;
 
-						const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as MySqlTable);
-						const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
-							?? [];
+			for (const drizzleRel of Object.values(table.relations)) {
+				if (!is(drizzleRel, One)) continue;
 
-						const refTableConfig = getMysqlTableConfig(drizzleRel.referencedTable as MySqlTable);
-						const refTableDbSchema = refTableConfig.schema ?? 'public';
-						const refTableDbName = refTableConfig.name;
-						const refTableTsName = schemaConfig.tableNamesMap[`${refTableDbSchema}.${refTableDbName}`]
-							?? refTableDbName;
+				const tableConfig = getMysqlTableConfig(drizzleRel.sourceTable as MySqlTable);
+				const tableDbSchema = tableConfig.schema ?? 'public';
+				const tableDbName = tableConfig.name;
+				const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
 
-						const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as MySqlTable);
-						const refColumns = drizzleRel.config?.references.map((ref) =>
-							dbToTsColumnNamesMapForRefTable[ref.name] as string
-						)
-							?? [];
+				const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as MySqlTable);
+				const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
+					?? [];
 
-						if (tableRelations[refTableTsName] === undefined) {
-							tableRelations[refTableTsName] = [];
-						}
+				const refTableConfig = getMysqlTableConfig(drizzleRel.referencedTable as MySqlTable);
+				const refTableDbSchema = refTableConfig.schema ?? 'public';
+				const refTableDbName = refTableConfig.name;
+				const refTableTsName = schemaConfig.tableNamesMap[`${refTableDbSchema}.${refTableDbName}`]
+					?? refTableDbName;
 
-						const relation: RelationWithReferences = {
-							table: tableTsName,
-							columns,
-							refTable: refTableTsName,
-							refColumns,
-							refTableRels: tableRelations[refTableTsName],
-							type: 'one',
-						};
+				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as MySqlTable);
+				const refColumns = drizzleRel.config?.references.map((ref) =>
+					dbToTsColumnNamesMapForRefTable[ref.name] as string
+				)
+					?? [];
 
-						relations.push(relation);
-						tableRelations[tableTsName]!.push(relation);
-					}
+				if (tableRelations[refTableTsName] === undefined) {
+					tableRelations[refTableTsName] = [];
 				}
+
+				const relation: RelationWithReferences = {
+					table: tableTsName,
+					columns,
+					refTable: refTableTsName,
+					refColumns,
+					refTableRels: tableRelations[refTableTsName],
+					type: 'one',
+				};
+
+				// do not add duplicate relation
+				if (
+					tableRelations[tableTsName]?.some((rel) =>
+						rel.table === relation.table
+						&& rel.refTable === relation.refTable
+					)
+				) {
+					console.warn(
+						`You are providing a one-to-many relation between the '${relation.refTable}' and '${relation.table}' tables,\n`
+							+ `while the '${relation.table}' table object already has foreign key constraint in the schema referencing '${relation.refTable}' table.\n`
+							+ `In this case, the foreign key constraint will be used.\n`,
+					);
+					continue;
+				}
+
+				relations.push(relation);
+				tableRelations[tableTsName]!.push(relation);
 			}
 		}
 		return relations;
@@ -1299,46 +1329,61 @@ const getSqliteInfo = (
 		const schemaConfig = extractTablesRelationalConfig(schema, createTableRelationsHelpers);
 		const relations: RelationWithReferences[] = [];
 		for (const table of Object.values(schemaConfig.tables)) {
-			if (table.relations !== undefined) {
-				for (const drizzleRel of Object.values(table.relations)) {
-					if (is(drizzleRel, One)) {
-						const tableConfig = getSqliteTableConfig(drizzleRel.sourceTable as SQLiteTable);
-						const tableDbName = tableConfig.name;
-						// TODO: tableNamesMap: have {public.customer: 'customer'} structure in sqlite
-						const tableTsName = schemaConfig.tableNamesMap[`public.${tableDbName}`] ?? tableDbName;
+			if (table.relations === undefined) continue;
 
-						const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as SQLiteTable);
-						const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
-							?? [];
+			for (const drizzleRel of Object.values(table.relations)) {
+				if (!is(drizzleRel, One)) continue;
 
-						const refTableConfig = getSqliteTableConfig(drizzleRel.referencedTable as SQLiteTable);
-						const refTableDbName = refTableConfig.name;
-						const refTableTsName = schemaConfig.tableNamesMap[`public.${refTableDbName}`]
-							?? refTableDbName;
+				const tableConfig = getSqliteTableConfig(drizzleRel.sourceTable as SQLiteTable);
+				const tableDbName = tableConfig.name;
+				// TODO: tableNamesMap: have {public.customer: 'customer'} structure in sqlite
+				const tableTsName = schemaConfig.tableNamesMap[`public.${tableDbName}`] ?? tableDbName;
 
-						const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as SQLiteTable);
-						const refColumns = drizzleRel.config?.references.map((ref) =>
-							dbToTsColumnNamesMapForRefTable[ref.name] as string
-						)
-							?? [];
+				const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as SQLiteTable);
+				const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
+					?? [];
 
-						if (tableRelations[refTableTsName] === undefined) {
-							tableRelations[refTableTsName] = [];
-						}
+				const refTableConfig = getSqliteTableConfig(drizzleRel.referencedTable as SQLiteTable);
+				const refTableDbName = refTableConfig.name;
+				const refTableTsName = schemaConfig.tableNamesMap[`public.${refTableDbName}`]
+					?? refTableDbName;
 
-						const relation: RelationWithReferences = {
-							table: tableTsName,
-							columns,
-							refTable: refTableTsName,
-							refColumns,
-							refTableRels: tableRelations[refTableTsName],
-							type: 'one',
-						};
+				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as SQLiteTable);
+				const refColumns = drizzleRel.config?.references.map((ref) =>
+					dbToTsColumnNamesMapForRefTable[ref.name] as string
+				)
+					?? [];
 
-						relations.push(relation);
-						tableRelations[tableTsName]!.push(relation);
-					}
+				if (tableRelations[refTableTsName] === undefined) {
+					tableRelations[refTableTsName] = [];
 				}
+
+				const relation: RelationWithReferences = {
+					table: tableTsName,
+					columns,
+					refTable: refTableTsName,
+					refColumns,
+					refTableRels: tableRelations[refTableTsName],
+					type: 'one',
+				};
+
+				// do not add duplicate relation
+				if (
+					tableRelations[tableTsName]?.some((rel) =>
+						rel.table === relation.table
+						&& rel.refTable === relation.refTable
+					)
+				) {
+					console.warn(
+						`You are providing a one-to-many relation between the '${relation.refTable}' and '${relation.table}' tables,\n`
+							+ `while the '${relation.table}' table object already has foreign key constraint in the schema referencing '${relation.refTable}' table.\n`
+							+ `In this case, the foreign key constraint will be used.\n`,
+					);
+					continue;
+				}
+
+				relations.push(relation);
+				tableRelations[tableTsName]!.push(relation);
 			}
 		}
 		return relations;
