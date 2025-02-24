@@ -436,7 +436,7 @@ export const prepareGelDB = async (
 				if (error instanceof gel.ClientConnectionError) {
 					console.error(
 						`It looks like you forgot to link the Gel project or provide the database credentials.
-To link your project, please refer https://docs.edgedb.com/cli/edgedb_instance/edgedb_instance_link, or add the dbCredentials to your configuration file.`,
+To link your project, please refer https://docs.geldata.com/reference/cli/gel_instance/gel_instance_link, or add the dbCredentials to your configuration file.`,
 					);
 					process.exit(1);
 				}
