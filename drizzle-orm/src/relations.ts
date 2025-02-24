@@ -865,6 +865,7 @@ export type RelationFieldsFilterInternals<T> = {
 	isNotNull?: true;
 	NOT?: RelationsFieldFilter<T>;
 	OR?: RelationsFieldFilter<T>[];
+	AND?: RelationsFieldFilter<T>[];
 };
 
 export type RelationsFieldFilter<T = unknown> =
@@ -879,10 +880,13 @@ export type RelationsFilterCommons<
 > = {
 	OR?: RelationsFilter<TTable, TSchema>[];
 	NOT?: RelationsFilter<TTable, TSchema>;
-	RAW?: (
-		table: TTable['table'],
-		operators: Operators,
-	) => SQL;
+	AND?: RelationsFilter<TTable, TSchema>[];
+	RAW?:
+		| SQLWrapper
+		| ((
+			table: TTable['table'],
+			operators: Operators,
+		) => SQL);
 };
 
 export type RelationsFilter<
@@ -910,10 +914,13 @@ export type TableFilterCommons<
 > = {
 	OR?: TableFilter<TTable, TColumns>[];
 	NOT?: TableFilter<TTable, TColumns>;
-	RAW?: (
-		table: TTable,
-		operators: Operators,
-	) => SQL;
+	AND?: TableFilter<TTable, TColumns>[];
+	RAW?:
+		| SQLWrapper
+		| ((
+			table: TTable,
+			operators: Operators,
+		) => SQL);
 };
 
 export type TableFilter<
@@ -1223,6 +1230,18 @@ function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFil
 				continue;
 			}
 
+			case 'AND': {
+				if (!(value as RelationsFieldFilter<unknown>[]).length) continue;
+
+				parts.push(
+					and(
+						...(value as AnyRelationsFilter[]).map((subFilter) => relationsFieldFilterToSQL(column, subFilter)),
+					)!,
+				);
+
+				continue;
+			}
+
 			case 'isNotNull':
 			case 'isNull': {
 				if (!value) continue;
@@ -1293,11 +1312,11 @@ export function relationsFilterToSQL(
 
 		switch (target) {
 			case 'RAW': {
-				if (value) {
-					parts.push(
-						(value as (table: FieldSelection, operators: Operators) => SQL)(table as any, operators),
-					);
-				}
+				const processed = typeof value === 'function'
+					? (value as unknown as (table: FieldSelection, operators: Operators) => SQL)(table as any, operators)
+					: (value as SQLWrapper).getSQL();
+
+				parts.push(processed);
 
 				continue;
 			}
@@ -1306,6 +1325,19 @@ export function relationsFilterToSQL(
 
 				parts.push(
 					or(
+						...(value as AnyRelationsFilter[]).map((subFilter) =>
+							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, tableNamesMap, casing!, depth)
+						),
+					)!,
+				);
+
+				continue;
+			}
+			case 'AND': {
+				if (!(value as AnyRelationsFilter[] | undefined)?.length) continue;
+
+				parts.push(
+					and(
 						...(value as AnyRelationsFilter[]).map((subFilter) =>
 							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, tableNamesMap, casing!, depth)
 						),
