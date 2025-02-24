@@ -85,13 +85,16 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 			return await query();
 		}
 
+		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 		if (
 			(
 				this.queryMetadata.type === 'insert' || this.queryMetadata.type === 'update'
 				|| this.queryMetadata.type === 'delete'
 			) && this.queryMetadata.tables.length > 0
 		) {
+			const result = await query();
 			await this.cache.onMutate({ tables: this.queryMetadata.tables });
+			return result;
 		}
 
 		// don't do any reads if globally disabled
