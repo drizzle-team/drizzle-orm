@@ -1,4 +1,4 @@
-import type { LocalDateTime } from 'edgedb';
+import type { LocalDateTime } from 'gel';
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';

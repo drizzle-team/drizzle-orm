@@ -1,4 +1,4 @@
-import type { RelativeDuration } from 'edgedb';
+import type { RelativeDuration } from 'gel';
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';

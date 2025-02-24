@@ -1,7 +1,6 @@
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
-import { Client, ClientConnectionError } from 'edgedb';
 import fetch from 'node-fetch';
 import ws from 'ws';
 import { assertUnreachable } from '../global';
@@ -425,16 +424,16 @@ export const prepareGelDB = async (
 		proxy: Proxy;
 	}
 > => {
-	if (await checkPackage('edgedb')) {
-		const edgedb = await import('edgedb');
+	if (await checkPackage('gel')) {
+		const gel = await import('gel');
 
-		let client: Client;
+		let client: any;
 		if (!credentials) {
-			client = edgedb.createClient();
+			client = gel.createClient();
 			try {
 				await client.querySQL(`select 1;`);
 			} catch (error: any) {
-				if (error instanceof ClientConnectionError) {
+				if (error instanceof gel.ClientConnectionError) {
 					console.error(
 						`It looks like you forgot to link the Gel project or provide the database credentials.
 To link your project, please refer https://docs.edgedb.com/cli/edgedb_instance/edgedb_instance_link, or add the dbCredentials to your configuration file.`,
@@ -446,10 +445,10 @@ To link your project, please refer https://docs.edgedb.com/cli/edgedb_instance/e
 			}
 		} else if ('url' in credentials) {
 			'tlsSecurity' in credentials
-				? client = edgedb.createClient({ dsn: credentials.url, tlsSecurity: credentials.tlsSecurity, concurrency: 1 })
-				: client = edgedb.createClient({ dsn: credentials.url, concurrency: 1 });
+				? client = gel.createClient({ dsn: credentials.url, tlsSecurity: credentials.tlsSecurity, concurrency: 1 })
+				: client = gel.createClient({ dsn: credentials.url, concurrency: 1 });
 		} else {
-			edgedb.createClient({ ...credentials, concurrency: 1 });
+			gel.createClient({ ...credentials, concurrency: 1 });
 		}
 
 		const query = async (sql: string, params?: any[]) => {

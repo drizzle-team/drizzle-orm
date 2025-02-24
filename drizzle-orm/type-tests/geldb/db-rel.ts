@@ -1,10 +1,10 @@
-import * as edgedb from 'edgedb';
+import * as gel from 'gel';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import { drizzle } from '~/gel/index.ts';
 import { sql } from '~/sql/sql.ts';
 import * as schema from './tables-rel.ts';
 
-const db = drizzle(edgedb.createClient(), { schema });
+const db = drizzle(gel.createClient(), { schema });
 
 {
 	const result = await db.query.users.findMany({

@@ -73,7 +73,7 @@ import createClient, {
 	LocalDateTime,
 	LocalTime,
 	RelativeDuration,
-} from 'edgedb';
+} from 'gel';
 import { v4 as uuidV4 } from 'uuid';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { Expect } from '~/utils';
@@ -237,7 +237,7 @@ beforeEach((ctx) => {
 
 describe('some', async () => {
 	beforeAll(async () => {
-		await $`edgedb query "CREATE TYPE default::users {
+		await $`gel query "CREATE TYPE default::users {
             create property id1: int16 {
                 create constraint exclusive;
             };
@@ -251,7 +251,7 @@ describe('some', async () => {
       };
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users_with_cities {
+		await $`gel query "CREATE TYPE default::users_with_cities {
     create property id1: int16 {
         create constraint exclusive;
     };
@@ -259,23 +259,23 @@ describe('some', async () => {
     create required property cityId: int32;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users_with_undefined {
+		await $`gel query "CREATE TYPE default::users_with_undefined {
         create property id1: int16 {
             create constraint exclusive;
         };
         create property name: str;
         };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users_insert_select {
+		await $`gel query "CREATE TYPE default::users_insert_select {
             create property id1: int16 {
                 create constraint exclusive;
             };
             create property name: str;
             };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "CREATE MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE mySchema::users {
+		await $`gel query "CREATE TYPE mySchema::users {
             create property id1: int16;
             create required property name: str;
       create required property verified: bool {
@@ -287,7 +287,7 @@ describe('some', async () => {
       };
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::orders {
+		await $`gel query "CREATE TYPE default::orders {
     CREATE PROPERTY id1 -> int16;
     CREATE REQUIRED PROPERTY region -> str;
     CREATE REQUIRED PROPERTY product -> str;
@@ -296,51 +296,51 @@ describe('some', async () => {
     };
     " --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users_distinct {
+		await $`gel query "CREATE TYPE default::users_distinct {
     create required property id1 -> int16;
     create required property name -> str;
     create required property age -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users3 {
+		await $`gel query "CREATE TYPE default::users3 {
     create property id1 -> int16;
     create required property name -> str;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::cities {
+		await $`gel query "CREATE TYPE default::cities {
     create required property id1 -> int16;
     create required property name -> str;
     create property state -> str;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::courses {
+		await $`gel query "CREATE TYPE default::courses {
     create required property id1 -> int16;
     create required property name -> str;
     create property categoryId -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::course_categories {
+		await $`gel query "CREATE TYPE default::course_categories {
     create required property id1 -> int16;
     create required property name -> str;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::jsontest {
+		await $`gel query "CREATE TYPE default::jsontest {
     create property id1 -> int16;
     create required property json -> json;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::sal_emp {
+		await $`gel query "CREATE TYPE default::sal_emp {
     create property name -> str;
     create property pay_by_quarter -> array<int16>;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::some_new_users {
+		await $`gel query "CREATE TYPE default::some_new_users {
     create required property id1 -> int16;
     create required property name -> str;
     create property cityId -> int32;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::aggregate_table {
+		await $`gel query "CREATE TYPE default::aggregate_table {
     create property id1: int16;
     create required property name: str;
     create property a: int16;
@@ -349,12 +349,12 @@ describe('some', async () => {
     create PROPERTY nullOnly: int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::prefixed_users {
+		await $`gel query "CREATE TYPE default::prefixed_users {
     CREATE PROPERTY id1 -> int16;
     CREATE REQUIRED PROPERTY name -> str;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::empty_insert_single {
+		await $`gel query "CREATE TYPE default::empty_insert_single {
     CREATE PROPERTY id1 -> int16;
     CREATE REQUIRED PROPERTY name -> str {
     SET default := 'Dan';
@@ -362,7 +362,7 @@ describe('some', async () => {
     CREATE PROPERTY state -> str;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::empty_insert_multiple {
+		await $`gel query "CREATE TYPE default::empty_insert_multiple {
     CREATE PROPERTY id1 -> int16;
     CREATE REQUIRED PROPERTY name -> str {
     SET default := 'Dan';
@@ -370,7 +370,7 @@ describe('some', async () => {
     CREATE PROPERTY state -> str;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::products {
+		await $`gel query "CREATE TYPE default::products {
     CREATE PROPERTY id1 -> int16;
     CREATE REQUIRED PROPERTY price -> decimal;
     CREATE REQUIRED PROPERTY cheap -> bool {
@@ -378,55 +378,55 @@ describe('some', async () => {
     };
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::myprefix_test_prefixed_table_with_unique_name {
+		await $`gel query "CREATE TYPE default::myprefix_test_prefixed_table_with_unique_name {
     create property id1 -> int16;
     create required property name -> str;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::metric_entry {
+		await $`gel query "CREATE TYPE default::metric_entry {
     create required property id1 -> uuid;
     create required property createdAt -> datetime;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users_transactions {
+		await $`gel query "CREATE TYPE default::users_transactions {
     create required property id1 -> int16;
     create required property balance -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::products_transactions {
+		await $`gel query "CREATE TYPE default::products_transactions {
     create required property id1 -> int16;
     create required property price -> int16;
     create required property stock -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users_transactions_rollback {
+		await $`gel query "CREATE TYPE default::users_transactions_rollback {
     create required property id1 -> int16;
     create required property balance -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users_nested_transactions {
+		await $`gel query "CREATE TYPE default::users_nested_transactions {
     create required property id1 -> int16;
     create required property balance -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::internal_staff {
+		await $`gel query "CREATE TYPE default::internal_staff {
     create required property userId -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::custom_user {
+		await $`gel query "CREATE TYPE default::custom_user {
     create required property id1 -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::ticket {
+		await $`gel query "CREATE TYPE default::ticket {
     create required property staffId -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::posts {
+		await $`gel query "CREATE TYPE default::posts {
     create required property id1 -> int16;
     create property tags -> array<str>;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE dates_column {
+		await $`gel query "CREATE TYPE dates_column {
     create property datetimeColumn -> datetime;
     create property local_datetimeColumn -> cal::local_datetime;
     create property local_dateColumn -> cal::local_date;
@@ -437,17 +437,17 @@ describe('some', async () => {
     create property dateDurationColumn -> cal::date_duration;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE users_with_insert {
+		await $`gel query "CREATE TYPE users_with_insert {
     create required property username -> str;
     create required property admin -> bool;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE users_test_with_and_without_timezone {
+		await $`gel query "CREATE TYPE users_test_with_and_without_timezone {
     create required property username -> str;
     create required property admin -> bool;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::arrays_tests {
+		await $`gel query "CREATE TYPE default::arrays_tests {
     create property id1: int16 {
         create constraint exclusive;
     };
@@ -455,7 +455,7 @@ describe('some', async () => {
     create required property numbers: array<int32>;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users_on_update {
+		await $`gel query "CREATE TYPE default::users_on_update {
     create required property id1 -> int16;
     create required property name -> str;
     create property update_counter -> int16 {
@@ -465,45 +465,45 @@ describe('some', async () => {
     create property updated_at -> datetime;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::json_table {
+		await $`gel query "CREATE TYPE default::json_table {
     create PROPERTY json: json;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::notifications {
+		await $`gel query "CREATE TYPE default::notifications {
     create required property id1 -> int16;
      create required property  sentAt: datetime {
           SET default := datetime_of_statement();
       };
     create property message -> str;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "CREATE TYPE default::user_notifications {
+		await $`gel query "CREATE TYPE default::user_notifications {
     create required property userId -> int16;
     create required property notificationId -> int16;
     create property categoryId -> int16;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users1 {
+		await $`gel query "CREATE TYPE default::users1 {
     create required property id1: int16;
     create required property name: str;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "CREATE TYPE default::users2 {
-    create required property id1: int16;
-    create required property name: str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`edgedb query "CREATE TYPE default::count_test {
+		await $`gel query "CREATE TYPE default::users2 {
     create required property id1: int16;
     create required property name: str;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users_with_names {
+		await $`gel query "CREATE TYPE default::count_test {
+    create required property id1: int16;
+    create required property name: str;
+    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+		await $`gel query "CREATE TYPE default::users_with_names {
     create required property id1: int16;
     create required property firstName: str;
     create required property lastName: str;
     create required property admin: bool;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-		await $`edgedb query "CREATE TYPE default::users_with_age {
+		await $`gel query "CREATE TYPE default::users_with_age {
         create required property id1: int16;
         create required property name: str;
         create required property age: int32;
@@ -512,64 +512,64 @@ describe('some', async () => {
 	});
 
 	afterEach(async () => {
-		await $`edgedb query "DELETE default::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE default::prefixed_users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE default::some_new_users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE default::orders;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE default::cities;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE default::users_on_update;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE default::aggregate_table;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE mySchema::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE default::count_test;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE default::users1;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE default::users2;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DELETE default::jsontest;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::prefixed_users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::some_new_users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::orders;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::cities;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::users_on_update;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::aggregate_table;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE mySchema::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::count_test;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::users1;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::users2;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::jsontest;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	afterAll(async () => {
-		await $`edgedb query "DROP TYPE default::users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users_with_cities" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users_with_undefined " --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users_insert_select" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE mySchema::users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::orders" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users_distinct" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users3" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::cities" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::courses" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::course_categories" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::jsontest" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::sal_emp" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::some_new_users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::aggregate_table" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::prefixed_users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::empty_insert_single" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::empty_insert_multiple" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::products" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::myprefix_test_prefixed_table_with_unique_name" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::metric_entry" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users_transactions" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::products_transactions" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users_transactions_rollback" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users_nested_transactions" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::internal_staff" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::custom_user" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::ticket" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::posts" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE dates_column" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE users_with_insert" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE users_test_with_and_without_timezone" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::arrays_tests" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users_on_update" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::json_table" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::notifications" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::user_notifications" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users1" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users2" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::count_test" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE default::users_with_names" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`edgedb query "DROP TYPE users_with_age;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users_with_cities" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users_with_undefined " --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users_insert_select" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE mySchema::users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::orders" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users_distinct" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users3" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::cities" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::courses" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::course_categories" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::jsontest" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::sal_emp" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::some_new_users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::aggregate_table" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::prefixed_users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::empty_insert_single" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::empty_insert_multiple" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::products" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::myprefix_test_prefixed_table_with_unique_name" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::metric_entry" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users_transactions" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::products_transactions" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users_transactions_rollback" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users_nested_transactions" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::internal_staff" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::custom_user" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::ticket" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::posts" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE dates_column" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE users_with_insert" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE users_test_with_and_without_timezone" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::arrays_tests" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users_on_update" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::json_table" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::notifications" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::user_notifications" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users1" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users2" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::count_test" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users_with_names" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE users_with_age;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	async function setupSetOperationTest(db: GelJsDatabase) {

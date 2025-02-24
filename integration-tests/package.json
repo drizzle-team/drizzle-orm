@@ -58,11 +58,12 @@
 		"dockerode": "^3.3.4",
 		"dotenv": "^16.1.4",
 		"drizzle-prisma-generator": "^0.1.2",
+		"drizzle-seed": "workspace:../drizzle-seed/dist",
 		"drizzle-typebox": "workspace:../drizzle-typebox/dist",
 		"drizzle-valibot": "workspace:../drizzle-valibot/dist",
 		"drizzle-zod": "workspace:../drizzle-zod/dist",
-		"drizzle-seed": "workspace:../drizzle-seed/dist",
 		"express": "^4.18.2",
+		"gel": "^2.0.0",
 		"get-port": "^7.0.0",
 		"mysql2": "^3.3.3",
 		"pg": "^8.11.0",
@@ -76,7 +77,6 @@
 		"uvu": "^0.5.6",
 		"vitest": "^2.1.2",
 		"ws": "^8.16.0",
-		"zod": "^3.20.2",
-		"edgedb": "1.6.0-canary.20250213T024824"
+		"zod": "^3.20.2"
 	}
 }

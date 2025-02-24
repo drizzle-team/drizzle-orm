@@ -1,4 +1,4 @@
-import { type Client, type ConnectOptions, createClient } from 'edgedb';
+import { type Client, type ConnectOptions, createClient } from 'gel';
 import { entityKind } from '~/entity.ts';
 import { GelDatabase } from '~/gel-core/db.ts';
 import { GelDialect } from '~/gel-core/dialect.ts';

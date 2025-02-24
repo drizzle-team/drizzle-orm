@@ -1,4 +1,4 @@
-import { DateDuration, Duration, LocalDate, LocalDateTime, RelativeDuration } from 'edgedb';
+import { DateDuration, Duration, LocalDate, LocalDateTime, RelativeDuration } from 'gel';
 import crypto from 'node:crypto';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';

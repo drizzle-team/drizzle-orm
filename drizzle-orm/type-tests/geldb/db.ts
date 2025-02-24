@@ -1,4 +1,4 @@
-import * as edgedb from 'edgedb';
+import * as gel from 'gel';
 import { drizzle } from '~/gel/index.ts';
 
-export const db = drizzle(edgedb.createClient());
+export const db = drizzle(gel.createClient());

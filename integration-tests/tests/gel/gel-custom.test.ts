@@ -3,7 +3,7 @@ import type Docker from 'dockerode';
 import { asc, eq, sql } from 'drizzle-orm';
 import { drizzle, type GelJsDatabase } from 'drizzle-orm/gel';
 import { alias, customType, gelTable, gelTableCreator } from 'drizzle-orm/gel-core';
-import * as edgedb from 'edgedb';
+import * as gel from 'gel';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createDockerDB } from './createInstance';
 import 'zx/globals';
@@ -13,7 +13,7 @@ $.quiet = true;
 const ENABLE_LOGGING = false;
 
 let db: GelJsDatabase;
-let client: edgedb.Client;
+let client: gel.Client;
 let container: Docker.Container | undefined;
 
 let dsn: string;
@@ -34,7 +34,7 @@ beforeAll(async () => {
 	}
 	await sleep(15 * 1000);
 	client = await retry(async () => {
-		client = edgedb.createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
+		client = gel.createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
 		return client;
 	}, {
 		retries: 20,
@@ -49,7 +49,7 @@ beforeAll(async () => {
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 
 	dsn = connectionString;
-	await $`edgedb query "CREATE TYPE default::users_custom {
+	await $`gel query "CREATE TYPE default::users_custom {
 		create property id1: int16 {
 			create constraint exclusive;
 		};
@@ -60,7 +60,7 @@ beforeAll(async () => {
 		create property json: json;
 	};" ${tlsSecurity} --dsn=${dsn}`;
 
-	await $`edgedb query "CREATE TYPE default::prefixed_users_custom {
+	await $`gel query "CREATE TYPE default::prefixed_users_custom {
 		create property id1: int16 {
 			create constraint exclusive;
 		};
@@ -69,8 +69,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	await $`edgedb query "DROP TYPE default::users_custom;" ${tlsSecurity} --dsn=${dsn}`;
-	await $`edgedb query "DROP TYPE default::prefixed_users_custom;" ${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE default::users_custom;" ${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE default::prefixed_users_custom;" ${tlsSecurity} --dsn=${dsn}`;
 
 	await client?.close();
 	await container?.stop().catch(console.error);
@@ -83,8 +83,8 @@ beforeEach((ctx) => {
 });
 
 afterEach(async () => {
-	await $`edgedb query "DELETE default::users_custom;" ${tlsSecurity} --dsn=${dsn}`;
-	await $`edgedb query "DELETE default::prefixed_users_custom;" ${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE default::users_custom;" ${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE default::prefixed_users_custom;" ${tlsSecurity} --dsn=${dsn}`;
 });
 
 const customInteger = customType<{ data: number; notNull: false; default: false }>({
