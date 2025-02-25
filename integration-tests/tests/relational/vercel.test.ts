@@ -8,7 +8,7 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import * as schema from './pg.schema.ts';
 
-const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
+const { usersTable, customersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
 const ENABLE_LOGGING = false;
 
@@ -110,6 +110,15 @@ beforeEach(async (ctx) => {
 				"name" text NOT NULL,
 				"verified" boolean DEFAULT false NOT NULL,
 				"invited_by" int REFERENCES "users"("id")
+			);
+		`,
+	);
+	await ctx.vpgDb.execute(
+		sql`
+			CREATE TABLE "customers" (
+				"id" serial PRIMARY KEY NOT NULL,
+				"user_id_first" int UNIQUE REFERENCES "users"("id"),
+				"user_id_second" int UNIQUE REFERENCES "users"("id")
 			);
 		`,
 	);
@@ -6169,6 +6178,132 @@ test('Get groups with users + custom', async (t) => {
 			},
 		}],
 	});
+});
+
+test('Multiple one-to-one relations with relation name to disambiguate', async (t) => {
+	const { vpgDb: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const firstUserRecord = { id: 1, name: 'Dan' };
+	const secondUserRecord = { id: 2, name: 'Andrew' };
+	const thirdUserRecord = { id: 3, name: 'Alex' };
+	const firstCustomerRecord = { id: 1, userIdFirst: 1, userIdSecond: 2 };
+	const secondCustomerRecord = { id: 2, userIdFirst: 2, userIdSecond: 3 };
+
+	await db.insert(customersTable).values([
+		firstCustomerRecord,
+		secondCustomerRecord,
+	]);
+
+	const usersWithCustomers = await db.query.usersTable.findMany({
+		columns: {
+			id: true,
+			name: true,
+		},
+		with: {
+			customerFirst: true,
+			customerSecond: true,
+		},
+	});
+
+	expectTypeOf(usersWithCustomers).toEqualTypeOf<{
+		id: number;
+		name: string;
+		customerFirst: {
+			id: number;
+			userIdFirst: number | null;
+			userIdSecond: number | null;
+		} | null;
+		customerSecond: {
+			id: number;
+			userIdFirst: number | null;
+			userIdSecond: number | null;
+		} | null;
+	}[]>();
+
+	usersWithCustomers.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	expect(usersWithCustomers.length).eq(3);
+
+	expect(usersWithCustomers[0]).toEqual({
+		...firstUserRecord,
+		customerFirst: firstCustomerRecord,
+		customerSecond: null,
+	});
+	expect(usersWithCustomers[1]).toEqual({
+		...secondUserRecord,
+		customerFirst: secondCustomerRecord,
+		customerSecond: firstCustomerRecord,
+	});
+	expect(usersWithCustomers[2]).toEqual({
+		...thirdUserRecord,
+		customerFirst: null,
+		customerSecond: secondCustomerRecord,
+	});
+
+	const customersWithUsers = await db.query.customersTable.findMany({
+		with: {
+			userFirst: {
+				columns: {
+					id: true,
+					name: true,
+				},
+			},
+			userSecond: {
+				columns: {
+					id: true,
+					name: true,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(customersWithUsers).toEqualTypeOf<{
+		id: number;
+		userIdFirst: number | null;
+		userIdSecond: number | null;
+		userFirst: {
+			id: number;
+			name: string;
+		} | null;
+		userSecond: {
+			id: number;
+			name: string;
+		} | null;
+	}[]>();
+
+	customersWithUsers.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	expect(customersWithUsers.length).eq(2);
+
+	expect(customersWithUsers[0]).toEqual({
+		...firstCustomerRecord,
+		userFirst: firstUserRecord,
+		userSecond: secondUserRecord,
+	});
+	expect(customersWithUsers[1]).toEqual({
+		...secondCustomerRecord,
+		userFirst: secondUserRecord,
+		userSecond: thirdUserRecord,
+	});
+});
+
+test('Invalid relation name throws descriptive error', async (t) => {
+	const { vpgDb: db } = t;
+
+	const findPromise = db.query.customersTable.findFirst({
+		with: {
+			brokenField: true,
+		},
+	});
+
+	// TODO: why do I have to wrap in another lambda?
+	await expect(async () => {
+		await findPromise;
+	}).rejects.toThrowError('There is not enough information to infer relation "customersTable.brokenField"');
 });
 
 test('.toSQL()', () => {

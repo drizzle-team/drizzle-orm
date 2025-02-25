@@ -39,9 +39,14 @@ export const comments = mysqlTable('comments', {
 	authorId: int('author_id').references(() => users.id),
 	text: text('text').notNull(),
 });
+export const commentMetadata = mysqlTable('comments_metadata', {
+	id: int('id').primaryKey(),
+	extra: text('extra').notNull(),
+});
 export const commentsConfig = relations(comments, ({ one }) => ({
 	post: one(posts, { fields: [comments.postId], references: [posts.id] }),
 	author: one(users, { fields: [comments.authorId], references: [users.id] }),
+	metadata: one(commentMetadata, { fields: [comments.id], references: [commentMetadata.id], optional: true }),
 }));
 
 export const books = mysqlTable('books', {

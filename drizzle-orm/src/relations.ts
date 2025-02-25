@@ -28,7 +28,7 @@ import {
 	or,
 } from './sql/expressions/index.ts';
 import { type Placeholder, SQL, sql } from './sql/sql.ts';
-import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
+import type { And, Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';
@@ -64,7 +64,7 @@ export class Relations<
 
 export class One<
 	TTableName extends string = string,
-	TIsNullable extends boolean = boolean,
+	TIsNonNullable extends boolean = boolean,
 > extends Relation<TTableName> {
 	static override readonly [entityKind]: string = 'One';
 
@@ -80,7 +80,7 @@ export class One<
 				AnyColumn<{ tableName: TTableName }>[]
 			>
 			| undefined,
-		readonly isNullable: TIsNullable,
+		readonly isNonNullable: TIsNonNullable,
 	) {
 		super(sourceTable, referencedTable, config?.relationName);
 	}
@@ -90,7 +90,7 @@ export class One<
 			this.sourceTable,
 			this.referencedTable,
 			this.config,
-			this.isNullable,
+			this.isNonNullable,
 		);
 		relation.fieldName = fieldName;
 		return relation;
@@ -332,7 +332,7 @@ export type BuildRelationResult<
 			Assume<TInclude[K], true | Record<string, unknown>>
 		> extends infer TResult ? TRel extends One ?
 					| TResult
-					| (Equal<TRel['isNullable'], false> extends true ? null : never)
+					| (Equal<TRel['isNonNullable'], false> extends true ? null : never)
 			: TResult[]
 		: never
 		: never;
@@ -403,7 +403,7 @@ export type BuildQueryResult<
 		>
 	: never;
 
-export interface RelationConfig<
+interface RelationFieldsReferencesConfig<
 	TTableName extends string,
 	TForeignTableName extends string,
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
@@ -412,6 +412,18 @@ export interface RelationConfig<
 	fields: TColumns;
 	references: ColumnsWithTable<TTableName, TForeignTableName, TColumns>;
 }
+
+export type RelationConfig<
+	TTableName extends string,
+	TForeignTableName extends string,
+	TColumns extends AnyColumn<{ tableName: TTableName }>[],
+	TOptional extends boolean = boolean,
+> =
+	& { relationName?: string; optional?: TOptional }
+	& (
+		| RelationFieldsReferencesConfig<TTableName, TForeignTableName, TColumns>
+		| { fields?: undefined; references?: undefined }
+	);
 
 export function extractTablesRelationalConfig<
 	TTables extends TablesRelationalConfig,
@@ -525,19 +537,26 @@ export function createOne<TTableName extends string>(sourceTable: Table) {
 			AnyColumn<{ tableName: TTableName }>,
 			...AnyColumn<{ tableName: TTableName }>[],
 		],
+		TOptional extends boolean,
 	>(
 		table: TForeignTable,
-		config?: RelationConfig<TTableName, TForeignTable['_']['name'], TColumns>,
+		config?: RelationConfig<TTableName, TForeignTable['_']['name'], TColumns, TOptional>,
 	): One<
 		TForeignTable['_']['name'],
-		Equal<TColumns[number]['_']['notNull'], true>
+		And<
+			TOptional extends true ? false : true,
+			Equal<TColumns[number]['_']['notNull'], true>
+		>
 	> {
 		return new One(
 			sourceTable,
 			table,
 			config,
-			(config?.fields.reduce<boolean>((res, f) => res && f.notNull, true)
-				?? false) as Equal<TColumns[number]['_']['notNull'], true>,
+			(!config?.optional
+				&& (config?.fields?.reduce<boolean>((res, f) => res && f.notNull, true) ?? false)) as And<
+					TOptional extends true ? false : true,
+					Equal<TColumns[number]['_']['notNull'], true>
+				>,
 		);
 	};
 }
@@ -561,7 +580,7 @@ export function normalizeRelation(
 	tableNamesMap: Record<string, string>,
 	relation: Relation,
 ): NormalizedRelation {
-	if (is(relation, One) && relation.config) {
+	if (is(relation, One) && relation.config?.fields) {
 		return {
 			fields: relation.config.fields,
 			references: relation.config.references,
@@ -620,7 +639,7 @@ export function normalizeRelation(
 	if (
 		reverseRelations[0]
 		&& is(reverseRelations[0], One)
-		&& reverseRelations[0].config
+		&& reverseRelations[0].config?.fields
 	) {
 		return {
 			fields: reverseRelations[0].config.references,
