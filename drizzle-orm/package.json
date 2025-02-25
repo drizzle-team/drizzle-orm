@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.39.3",
+	"version": "0.40.0",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -70,7 +70,8 @@
 		"pg": ">=8",
 		"postgres": ">=3",
 		"sql.js": ">=1",
-		"sqlite3": ">=5"
+		"sqlite3": ">=5",
+		"gel": ">=2"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -139,6 +140,9 @@
 		"expo-sqlite": {
 			"optional": true
 		},
+		"gel": {
+			"optional": true
+		},
 		"@op-engineering/op-sqlite": {
 			"optional": true
 		},
@@ -180,6 +184,7 @@
 		"bun-types": "^1.2.0",
 		"cpy": "^10.1.0",
 		"expo-sqlite": "^14.0.0",
+		"gel": "^2.0.0",
 		"knex": "^2.4.2",
 		"kysely": "^0.25.0",
 		"mysql2": "^3.3.3",
