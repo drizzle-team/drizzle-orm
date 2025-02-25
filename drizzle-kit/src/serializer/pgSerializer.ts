@@ -1563,7 +1563,7 @@ WHERE
             ON i.indrelid = a.attrelid AND k.attnum = a.attnum
           JOIN pg_namespace c on c.oid = t.relnamespace
         LEFT JOIN pg_am AS am ON ic.relam = am.oid
-        JOIN pg_opclass opc ON opc.oid = ANY(i.indclass)
+        JOIN pg_opclass opc ON opc.oid = i.indclass[k.i-1]
       WHERE
       c.nspname = '${tableSchema}' AND
       t.relname = '${tableName}';`,
