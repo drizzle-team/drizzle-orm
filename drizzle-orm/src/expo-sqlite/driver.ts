@@ -1,27 +1,27 @@
 import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite';
+import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ExpoSQLiteSession } from './session.ts';
 
-export class ExpoSQLiteDatabase<TSchema extends Record<string, unknown> = Record<string, never>>
-	extends BaseSQLiteDatabase<'sync', SQLiteRunResult, TSchema>
-{
+export class ExpoSQLiteDatabase<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+> extends BaseSQLiteDatabase<'sync', SQLiteRunResult, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'ExpoSQLiteDatabase';
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
 	client: SQLiteDatabase,
-	config: DrizzleConfig<TSchema> = {},
-): ExpoSQLiteDatabase<TSchema> & {
+	config: DrizzleConfig<TSchema, TRelations> = {},
+): ExpoSQLiteDatabase<TSchema, TRelations> & {
 	$client: SQLiteDatabase;
 } {
 	const dialect = new SQLiteSyncDialect({ casing: config.casing });
@@ -32,11 +32,11 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
+		const tablesConfig = V1.extractTablesRelationalConfig(
 			config.schema,
-			createTableRelationsHelpers,
+			V1.createTableRelationsHelpers,
 		);
 		schema = {
 			fullSchema: config.schema,
@@ -45,8 +45,15 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new ExpoSQLiteSession(client, dialect, schema, { logger });
-	const db = new ExpoSQLiteDatabase('sync', dialect, session, schema) as ExpoSQLiteDatabase<TSchema>;
+	const relations = config.relations;
+	const session = new ExpoSQLiteSession(client, dialect, relations, schema, { logger });
+	const db = new ExpoSQLiteDatabase(
+		'sync',
+		dialect,
+		session as ExpoSQLiteDatabase<any, any>['session'],
+		relations,
+		schema,
+	) as ExpoSQLiteDatabase<TSchema, TRelations>;
 	(<any> db).$client = client;
 
 	return db as any;

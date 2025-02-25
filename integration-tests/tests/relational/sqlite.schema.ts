@@ -1,6 +1,15 @@
-import { type AnySQLiteColumn, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import {
+	alias,
+	type AnySQLiteColumn,
+	integer,
+	primaryKey,
+	sqliteTable,
+	sqliteView,
+	text,
+} from 'drizzle-orm/sqlite-core';
 
-import { relations, sql } from 'drizzle-orm';
+import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 
 export const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
@@ -68,6 +77,21 @@ export const postsConfig = relations(postsTable, ({ one, many }) => ({
 	}),
 	comments: many(commentsTable),
 }));
+
+export const usersView = sqliteView('users_view').as((qb) =>
+	qb.select({
+		...getTableColumns(usersTable),
+		postContent: postsTable.content,
+		createdAt: postsTable.createdAt,
+		counter: sql<string>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+			ne(usersTable.id, 2)
+		})`
+			.mapWith((data) => {
+				return data === '0' || data === 0 ? null : Number(data);
+			}).as('count'),
+	})
+		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
+);
 
 export const commentsTable = sqliteTable('comments', {
 	id: integer('id').primaryKey({ autoIncrement: true }),

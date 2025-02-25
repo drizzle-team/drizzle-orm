@@ -1,4 +1,5 @@
 import type { MigrationMeta } from '~/migrator.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';
 
@@ -40,8 +41,9 @@ function readMigrationFiles({ journal, migrations }: MigrationConfig): Migration
 
 export async function migrate<
 	TSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations,
 >(
-	db: DrizzleSqliteDODatabase<TSchema>,
+	db: DrizzleSqliteDODatabase<TSchema, TRelations>,
 	config: MigrationConfig,
 ): Promise<void> {
 	const migrations = readMigrationFiles(config);

@@ -101,7 +101,7 @@ const users = mysqlTable(
 {
 	const db = drizzle({} as any, { schema: { users }, mode: 'default' });
 
-	const dbUser = await db.query.users.findFirst();
+	const dbUser = await db._query.users.findFirst();
 
 	Expect<
 		Equal<
@@ -121,7 +121,7 @@ const users = mysqlTable(
 {
 	const db = drizzle({} as any, { schema: { users }, mode: 'default' });
 
-	const dbUser = await db.query.users.findMany();
+	const dbUser = await db._query.users.findMany();
 
 	Expect<
 		Equal<

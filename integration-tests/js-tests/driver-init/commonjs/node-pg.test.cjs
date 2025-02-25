@@ -28,7 +28,7 @@ describe('node-pg', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: string, ...config})', async () => {
@@ -40,7 +40,7 @@ describe('node-pg', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: params, ...config})', async () => {
@@ -54,7 +54,7 @@ describe('node-pg', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle(client)', async () => {
@@ -79,7 +79,7 @@ describe('node-pg', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -94,7 +94,7 @@ describe('node-pg', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });
 
@@ -127,7 +127,7 @@ describe('node-pg:Client', async (it) => {
 
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -145,7 +145,7 @@ describe('node-pg:Client', async (it) => {
 
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });
 
@@ -178,7 +178,7 @@ describe('node-pg:PoolClient', async (it) => {
 
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -196,6 +196,6 @@ describe('node-pg:PoolClient', async (it) => {
 
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });

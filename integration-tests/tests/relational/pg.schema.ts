@@ -1,6 +1,18 @@
-import { boolean, integer, type PgColumn, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
-
-import { relations } from 'drizzle-orm';
+import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
+import {
+	alias,
+	boolean,
+	integer,
+	type PgColumn,
+	pgSchema,
+	pgTable,
+	pgView,
+	primaryKey,
+	serial,
+	text,
+	timestamp,
+} from 'drizzle-orm/pg-core';
 
 export const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -50,6 +62,21 @@ export const postsConfig = relations(postsTable, ({ one, many }) => ({
 	comments: many(commentsTable),
 }));
 
+export const usersView = pgView('users_view').as((qb) =>
+	qb.select({
+		...getTableColumns(usersTable),
+		postContent: postsTable.content,
+		createdAt: postsTable.createdAt,
+		counter: sql<string>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+			ne(usersTable.id, 2)
+		})`
+			.mapWith((data) => {
+				return data === '0' || data === 0 ? null : Number(data);
+			}).as('count'),
+	})
+		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
+);
+
 export const commentsTable = pgTable('comments', {
 	id: serial('id').primaryKey(),
 	content: text('content').notNull(),
@@ -75,3 +102,48 @@ export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 	comment: one(commentsTable, { fields: [commentLikesTable.commentId], references: [commentsTable.id] }),
 	author: one(usersTable, { fields: [commentLikesTable.creator], references: [usersTable.id] }),
 }));
+
+export const rqbSchema = pgSchema('rqb_test_schema');
+
+export const schemaUsers = rqbSchema.table('users', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: integer('invited_by').references((): PgColumn => schemaUsers.id),
+});
+
+export const schemaPosts = rqbSchema.table('posts', {
+	id: serial('id').primaryKey(),
+	content: text('content').notNull(),
+	ownerId: integer('owner_id').references(() => schemaUsers.id),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const schemaGroups = rqbSchema.table('groups', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	description: text('description'),
+});
+
+export const schemaUsersToGroups = rqbSchema.table('users_to_groups', {
+	id: serial('id').primaryKey(),
+	userId: integer('user_id').notNull().references(() => schemaUsers.id),
+	groupId: integer('group_id').notNull().references(() => schemaGroups.id),
+}, (t) => ({
+	pk: primaryKey(t.groupId, t.userId),
+}));
+
+export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
+	qb.select({
+		...getTableColumns(schemaUsers),
+		postContent: schemaPosts.content,
+		createdAt: schemaPosts.createdAt,
+		counter: sql<string>`(select count(*) from ${schemaUsers} as ${alias(schemaUsers, 'count_source')} where ${
+			ne(schemaUsers.id, 2)
+		})`
+			.mapWith((data) => {
+				return data === '0' || data === 0 ? null : Number(data);
+			}).as('count'),
+	})
+		.from(schemaUsers).leftJoin(schemaPosts, eq(schemaUsers.id, schemaPosts.ownerId))
+);

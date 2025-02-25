@@ -15,7 +15,7 @@ export class PrismaPgDatabase extends PgDatabase<PrismaPgQueryResultHKT, Record<
 
 	constructor(client: PrismaClient, logger: Logger | undefined) {
 		const dialect = new PgDialect();
-		super(dialect, new PrismaPgSession(dialect, client, { logger }), undefined);
+		super(dialect, new PrismaPgSession(dialect, client, { logger }), undefined, undefined);
 	}
 }
 

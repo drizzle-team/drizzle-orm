@@ -17,7 +17,7 @@ export class PrismaMySqlDatabase
 
 	constructor(client: PrismaClient, logger: Logger | undefined) {
 		const dialect = new MySqlDialect();
-		super(dialect, new PrismaMySqlSession(dialect, client, { logger }), undefined, 'default');
+		super(dialect, new PrismaMySqlSession(dialect, client, { logger }), undefined, undefined, 'default');
 	}
 }
 

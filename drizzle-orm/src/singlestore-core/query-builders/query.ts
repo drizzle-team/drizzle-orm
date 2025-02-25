@@ -1,13 +1,6 @@
+import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	mapRelationalRow,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
 import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { SingleStoreDialect } from '../dialect.ts';
@@ -21,8 +14,8 @@ import type { SingleStoreTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TSchema extends TablesRelationalConfig,
-	TFields extends TableRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+	TFields extends V1.TableRelationalConfig,
 > {
 	static readonly [entityKind]: string = 'SingleStoreRelationalQueryBuilder';
 
@@ -31,14 +24,14 @@ export class RelationalQueryBuilder<
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
 		private table: SingleStoreTable,
-		private tableConfig: TableRelationalConfig,
+		private tableConfig: V1.TableRelationalConfig,
 		private dialect: SingleStoreDialect,
 		private session: SingleStoreSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
-	): SingleStoreRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
+	findMany<TConfig extends V1.DBQueryConfig<'many', true, TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, V1.DBQueryConfig<'many', true, TSchema, TFields>>,
+	): SingleStoreRelationalQuery<TPreparedQueryHKT, V1.BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new SingleStoreRelationalQuery(
 			this.fullSchema,
 			this.schema,
@@ -47,14 +40,14 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : {},
+			config ? (config as V1.DBQueryConfig<'many', true>) : {},
 			'many',
 		);
 	}
 
-	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
-		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
-	): SingleStoreRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
+	findFirst<TSelection extends Omit<V1.DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
+		config?: KnownKeysOnly<TSelection, Omit<V1.DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
+	): SingleStoreRelationalQuery<TPreparedQueryHKT, V1.BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new SingleStoreRelationalQuery(
 			this.fullSchema,
 			this.schema,
@@ -63,7 +56,7 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
+			config ? { ...(config as V1.DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
 			'first',
 		);
 	}
@@ -79,13 +72,13 @@ export class SingleStoreRelationalQuery<
 
 	constructor(
 		private fullSchema: Record<string, unknown>,
-		private schema: TablesRelationalConfig,
+		private schema: V1.TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
 		private table: SingleStoreTable,
-		private tableConfig: TableRelationalConfig,
+		private tableConfig: V1.TableRelationalConfig,
 		private dialect: SingleStoreDialect,
 		private session: SingleStoreSession,
-		private config: DBQueryConfig<'many', true> | true,
+		private config: V1.DBQueryConfig<'many', true> | true,
 		private queryMode: 'many' | 'first',
 	) {
 		super();
@@ -97,7 +90,7 @@ export class SingleStoreRelationalQuery<
 			builtQuery,
 			undefined,
 			(rawRows) => {
-				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
+				const rows = rawRows.map((row) => V1.mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
 				if (this.queryMode === 'first') {
 					return rows[0] as TResult;
 				}
@@ -118,7 +111,7 @@ export class SingleStoreRelationalQuery<
 		});
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _toSQL(): { query: V1.BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
