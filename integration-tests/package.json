@@ -38,7 +38,7 @@
 		"tsx": "^4.14.0",
 		"vite": "^5.2.13",
 		"vite-tsconfig-paths": "^4.3.2",
-		"zx": "^7.2.2"
+		"zx": "^8.3.2"
 	},
 	"dependencies": {
 		"@aws-sdk/client-rds-data": "^3.549.0",
@@ -58,11 +58,12 @@
 		"dockerode": "^3.3.4",
 		"dotenv": "^16.1.4",
 		"drizzle-prisma-generator": "^0.1.2",
+		"drizzle-seed": "workspace:../drizzle-seed/dist",
 		"drizzle-typebox": "workspace:../drizzle-typebox/dist",
 		"drizzle-valibot": "workspace:../drizzle-valibot/dist",
 		"drizzle-zod": "workspace:../drizzle-zod/dist",
-		"drizzle-seed": "workspace:../drizzle-seed/dist",
 		"express": "^4.18.2",
+		"gel": "^2.0.0",
 		"get-port": "^7.0.0",
 		"mysql2": "^3.3.3",
 		"pg": "^8.11.0",
