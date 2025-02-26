@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "dprint.dprint",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "vercel.turbo-vsc"
+    ]
+}
