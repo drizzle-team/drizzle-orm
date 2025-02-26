@@ -280,3 +280,28 @@ test('create checks with same names', async (t) => {
 
 	await expect(diffTestSchemas({}, to, [])).rejects.toThrowError();
 });
+
+test('check with param', async (t) => {
+	const from = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			age: integer('age'),
+		}),
+	};
+
+	const to = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			age: integer('age'),
+		}, (table) => [
+			check('name', sql`${table.age} > ${21}`),
+		]),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "users" ADD CONSTRAINT "name" CHECK ("users"."age" > 21);`,
+	);
+});

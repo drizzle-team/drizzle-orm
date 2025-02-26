@@ -289,3 +289,28 @@ test('create checks with same names', async (t) => {
 
 	await expect(diffTestSchemasMysql({}, to, [])).rejects.toThrowError();
 });
+
+test('check with param', async (t) => {
+	const from = {
+		users: mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			age: int('age'),
+		}),
+	};
+
+	const to = {
+		users: mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			age: int('age'),
+		}, (table) => [
+			check('name', sql`${table.age} > ${21}`),
+		]),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE \`users\` ADD CONSTRAINT \`name\` CHECK (\`users\`.\`age\` > 21);`,
+	);
+});

@@ -129,6 +129,8 @@ export const generateSingleStoreSnapshot = (
 				} else {
 					if (typeof column.default === 'string') {
 						columnToSet.default = `'${column.default}'`;
+					} else if (typeof column.default === 'bigint') {
+						columnToSet.default = column.default.toString();
 					} else {
 						if (sqlTypeLowered === 'json' || Array.isArray(column.default)) {
 							columnToSet.default = `'${JSON.stringify(column.default)}'`;
@@ -359,6 +361,8 @@ export const generateSingleStoreSnapshot = (
 					} else {
 						if (typeof column.default === 'string') {
 							columnToSet.default = `'${column.default}'`;
+						} else if (typeof column.default === 'bigint') {
+							columnToSet.default = column.default.toString();
 						} else {
 							if (sqlTypeLowered === 'json') {
 								columnToSet.default = `'${JSON.stringify(column.default)}'`;

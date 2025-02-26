@@ -422,7 +422,7 @@ test('introspect enum with similar name to native type', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('instrospect strings with single quotes', async () => {
+test('introspect strings with single quotes', async () => {
 	const client = new PGlite();
 
 	const myEnum = pgEnum('my_enum', ['escape\'s quotes " ']);
@@ -439,6 +439,26 @@ test('instrospect strings with single quotes', async () => {
 		client,
 		schema,
 		'introspect-strings-with-single-quotes',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect strings with empty string as default', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		columns: pgTable('columns', {
+			text: text('text').default(''),
+			varchar: varchar('varchar').default(''),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-strings-with-empty-string-as-default',
 	);
 
 	expect(statements.length).toBe(0);
@@ -887,6 +907,33 @@ test('multiple policies with roles from schema', async () => {
 		'multiple-policies-with-roles-from-schema',
 		['public'],
 		{ roles: { include: ['user_role'] } },
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('view with policy', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+		view: pgView('view', {
+			id: integer('id').primaryKey(),
+		}).with({
+			checkOption: 'cascaded',
+			securityBarrier: false,
+			securityInvoker: true,
+		}).as(sql`select * from "users"`),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'view-with-policy',
+		['public'],
 	);
 
 	expect(statements.length).toBe(0);

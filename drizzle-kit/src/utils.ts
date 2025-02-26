@@ -1,5 +1,6 @@
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
+import type { Query } from 'drizzle-orm';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';
@@ -108,6 +109,7 @@ export const prepareOutFolder = (out: string, dialect: Dialect) => {
 
 	const snapshots = readdirSync(meta)
 		.filter((it) => !it.startsWith('_'))
+		.filter((it) => it.endsWith('.json'))
 		.map((it) => join(meta, it));
 
 	snapshots.sort();
@@ -368,6 +370,30 @@ export function escapeSingleQuotes(str: string) {
 }
 
 export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolean) {
+	if (str === "''") return str;
 	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
 	return str.replace(/''/g, "'").replace(regex, "\\'");
+}
+
+export function replaceQueryParams(dialect: Dialect, query: Query): string {
+	let str = query.sql;
+	const params = query.params.map((p) => {
+		try {
+			return JSON.stringify(p);
+		} catch {
+			return String(p);
+		}
+	});
+
+	if (dialect === 'postgresql') {
+		for (let i = 0; i < params.length; i++) {
+			str = str.replace(`$${i + 1}`, params[i]);
+		}
+		return str;
+	}
+
+	for (const param of params) {
+		str = str.replace('?', param);
+	}
+	return str;
 }

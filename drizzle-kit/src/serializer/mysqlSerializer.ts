@@ -26,7 +26,7 @@ import {
 	UniqueConstraint,
 	View,
 } from '../serializer/mysqlSchema';
-import { type DB, escapeSingleQuotes } from '../utils';
+import { type DB, escapeSingleQuotes, replaceQueryParams } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
@@ -167,6 +167,8 @@ export const generateMySqlSnapshot = (
 										.slice(0, 23)
 								}'`;
 							}
+						} else if (typeof column.default === 'bigint') {
+							columnToSet.default = column.default.toString();
 						} else {
 							columnToSet.default = column.default;
 						}
@@ -399,7 +401,7 @@ export const generateMySqlSnapshot = (
 
 			checkConstraintObject[checkName] = {
 				name: checkName,
-				value: dialect.sqlToQuery(check.value).sql,
+				value: replaceQueryParams('mysql', dialect.sqlToQuery(check.value)),
 			};
 		});
 
@@ -486,6 +488,8 @@ export const generateMySqlSnapshot = (
 					} else {
 						if (typeof column.default === 'string') {
 							columnToSet.default = `'${column.default}'`;
+						} else if (typeof column.default === 'bigint') {
+							columnToSet.default = column.default.toString();
 						} else {
 							if (sqlTypeLowered === 'json') {
 								columnToSet.default = `'${JSON.stringify(column.default)}'`;
@@ -973,7 +977,7 @@ AND
 		const tableName = checkConstraintRow['TABLE_NAME'];
 
 		const tableInResult = result[tableName];
-		// if (typeof tableInResult === 'undefined') continue;
+		if (typeof tableInResult === 'undefined') continue;
 
 		tableInResult.checkConstraint[constraintName] = {
 			name: constraintName,
