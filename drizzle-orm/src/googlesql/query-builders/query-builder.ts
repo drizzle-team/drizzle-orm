@@ -1,7 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
-import type { MySqlDialectConfig } from '~/mysql-core/dialect.ts';
-import { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { WithBuilder } from '~/mysql-core/subquery.ts';
+import type { MySqlDialectConfig } from '~/googlesql/dialect.ts';
+import { MySqlDialect } from '~/googlesql/dialect.ts';
+import type { WithBuilder } from '~/googlesql/subquery.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';

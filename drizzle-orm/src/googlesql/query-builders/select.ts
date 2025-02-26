@@ -1,9 +1,9 @@
 import { entityKind, is } from '~/entity.ts';
-import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
-import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
-import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
-import { MySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlColumn } from '~/googlesql/columns/index.ts';
+import type { MySqlDialect } from '~/googlesql/dialect.ts';
+import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase } from '~/googlesql/session.ts';
+import type { SubqueryWithSelection } from '~/googlesql/subquery.ts';
+import { MySqlTable } from '~/googlesql/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,

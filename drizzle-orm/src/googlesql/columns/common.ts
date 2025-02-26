@@ -13,9 +13,9 @@ import type {
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys.ts';
-import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys.ts';
-import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
+import type { ForeignKey, UpdateDeleteAction } from '~/googlesql/foreign-keys.ts';
+import { ForeignKeyBuilder } from '~/googlesql/foreign-keys.ts';
+import type { AnyMySqlTable, MySqlTable } from '~/googlesql/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';

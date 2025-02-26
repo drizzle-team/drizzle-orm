@@ -1,5 +1,5 @@
-import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
-import type { MySqlTable, MySqlTableWithColumns } from '~/mysql-core/table.ts';
+import type { MySqlColumn } from '~/googlesql/columns/index.ts';
+import type { MySqlTable, MySqlTableWithColumns } from '~/googlesql/table.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,

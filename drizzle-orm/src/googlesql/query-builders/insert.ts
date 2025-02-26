@@ -1,5 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
-import type { MySqlDialect } from '~/mysql-core/dialect.ts';
+import type { MySqlDialect } from '~/googlesql/dialect.ts';
 import type {
 	AnyMySqlQueryResultHKT,
 	MySqlPreparedQueryConfig,
@@ -8,8 +8,8 @@ import type {
 	MySqlSession,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
-} from '~/mysql-core/session.ts';
-import type { MySqlTable } from '~/mysql-core/table.ts';
+} from '~/googlesql/session.ts';
+import type { MySqlTable } from '~/googlesql/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';

@@ -1,6 +1,6 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { MySqlDialect } from '~/mysql-core/dialect.ts';
+import type { MySqlDialect } from '~/googlesql/dialect.ts';
 import type {
 	AnyMySqlQueryResultHKT,
 	MySqlPreparedQueryConfig,
@@ -9,8 +9,8 @@ import type {
 	MySqlSession,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
-} from '~/mysql-core/session.ts';
-import type { MySqlTable } from '~/mysql-core/table.ts';
+} from '~/googlesql/session.ts';
+import type { MySqlTable } from '~/googlesql/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
