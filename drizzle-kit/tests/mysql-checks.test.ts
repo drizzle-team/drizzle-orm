@@ -50,7 +50,7 @@ test('create table with check', async (t) => {
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`CREATE TABLE \`users\` (
-\t\`id\` serial AUTO_INCREMENT NOT NULL,
+\t\`id\` serial NOT NULL,
 \t\`age\` int,
 \tCONSTRAINT \`users_id\` PRIMARY KEY(\`id\`),
 \tCONSTRAINT \`some_check_name\` CHECK(\`users\`.\`age\` > 21)
