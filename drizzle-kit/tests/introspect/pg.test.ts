@@ -9,6 +9,7 @@ import {
 	cidr,
 	date,
 	doublePrecision,
+	foreignKey,
 	inet,
 	integer,
 	interval,
@@ -31,6 +32,7 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -887,6 +889,49 @@ test('multiple policies with roles from schema', async () => {
 		'multiple-policies-with-roles-from-schema',
 		['public'],
 		{ roles: { include: ['user_role'] } },
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+
+
+test('introspect foreign keys', async () => {
+	const client = new PGlite();
+
+	const userProfileImages = pgTable('user_profile_images', {
+		id: uuid('id').primaryKey(),
+		ownerId: uuid('owner_id').notNull(),
+		image_blob: text('image_blob').notNull(), // whatever
+	}, (table) => [
+		// Ensures (id, ownerId) is also unique for the composite fk to work
+		unique().on(table.id, table.ownerId)
+	]);
+
+	const userProfileCoverImages = pgTable('user_profile_cover_images', {
+		id: uuid('id').primaryKey(),
+		ownerId: uuid('owner_id').notNull(),
+		profileImageId: uuid('profile_image_id')
+			.notNull(),
+	}, (table) => [
+		// Guarantees each cover image matches the correct profile + owner
+		foreignKey({
+			columns: [table.ownerId, table.profileImageId],
+			foreignColumns: [userProfileImages.ownerId, userProfileImages.id],
+			name: 'user_profile_cover_images_ownerId_profileImageId_fk'
+		}).onDelete('cascade')
+	]);
+
+	const schema = {
+		userProfileImages,
+		userProfileCoverImages,
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-foreign-keys',
 	);
 
 	expect(statements.length).toBe(0);
