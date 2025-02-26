@@ -15,39 +15,39 @@ import { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/googlesql/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/googlesql/foreign-keys.ts';
-import type { AnyMySqlTable, MySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable, GoogleSqlTable } from '~/googlesql/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
 export interface ReferenceConfig {
-	ref: () => MySqlColumn;
+	ref: () => GoogleSqlColumn;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
 	};
 }
 
-export interface MySqlColumnBuilderBase<
+export interface GoogleSqlColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
-> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'mysql' }> {}
+> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'googlesql' }> {}
 
-export interface MySqlGeneratedColumnConfig {
+export interface GoogleSqlGeneratedColumnConfig {
 	mode?: 'virtual' | 'stored';
 }
 
-export abstract class MySqlColumnBuilder<
+export abstract class GoogleSqlColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
 		data: any;
 	},
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }, TExtraConfig>
-	implements MySqlColumnBuilderBase<T, TTypeConfig>
+> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'googlesql' }, TExtraConfig>
+	implements GoogleSqlColumnBuilderBase<T, TTypeConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlColumnBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
@@ -62,7 +62,7 @@ export abstract class MySqlColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: MySqlGeneratedColumnConfig): HasGenerated<this, {
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: GoogleSqlGeneratedColumnConfig): HasGenerated<this, {
 		type: 'always';
 	}> {
 		this.config.generated = {
@@ -74,7 +74,7 @@ export abstract class MySqlColumnBuilder<
 	}
 
 	/** @internal */
-	buildForeignKeys(column: MySqlColumn, table: MySqlTable): ForeignKey[] {
+	buildForeignKeys(column: GoogleSqlColumn, table: GoogleSqlTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
 			return ((ref, actions) => {
 				const builder = new ForeignKeyBuilder(() => {
@@ -94,20 +94,20 @@ export abstract class MySqlColumnBuilder<
 
 	/** @internal */
 	abstract build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlColumn<MakeColumnConfig<T, TTableName>>;
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlColumn<MakeColumnConfig<T, TTableName>>;
 }
 
-// To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.
-export abstract class MySqlColumn<
+// To understand how to use `GoogleSqlColumn` and `AnyGoogleSqlColumn`, see `Column` and `AnyColumn` documentation.
+export abstract class GoogleSqlColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},
 	TTypeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }> {
-	static override readonly [entityKind]: string = 'MySqlColumn';
+> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'googlesql' }> {
+	static override readonly [entityKind]: string = 'GoogleSqlColumn';
 
 	constructor(
-		override readonly table: MySqlTable,
+		override readonly table: GoogleSqlTable,
 		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
 		if (!config.uniqueName) {
@@ -117,20 +117,20 @@ export abstract class MySqlColumn<
 	}
 }
 
-export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = MySqlColumn<
+export type AnyGoogleSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = GoogleSqlColumn<
 	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
 >;
 
-export interface MySqlColumnWithAutoIncrementConfig {
+export interface GoogleSqlColumnWithAutoIncrementConfig {
 	autoIncrement: boolean;
 }
 
-export abstract class MySqlColumnBuilderWithAutoIncrement<
+export abstract class GoogleSqlColumnBuilderWithAutoIncrement<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlColumnWithAutoIncrementConfig, TExtraConfig> {
-	static override readonly [entityKind]: string = 'MySqlColumnBuilderWithAutoIncrement';
+> extends GoogleSqlColumnBuilder<T, TRuntimeConfig & GoogleSqlColumnWithAutoIncrementConfig, TExtraConfig> {
+	static override readonly [entityKind]: string = 'GoogleSqlColumnBuilderWithAutoIncrement';
 
 	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
 		super(name, dataType, columnType);
@@ -144,11 +144,11 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 	}
 }
 
-export abstract class MySqlColumnWithAutoIncrement<
+export abstract class GoogleSqlColumnWithAutoIncrement<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-> extends MySqlColumn<T, MySqlColumnWithAutoIncrementConfig & TRuntimeConfig> {
-	static override readonly [entityKind]: string = 'MySqlColumnWithAutoIncrement';
+> extends GoogleSqlColumn<T, GoogleSqlColumnWithAutoIncrementConfig & TRuntimeConfig> {
+	static override readonly [entityKind]: string = 'GoogleSqlColumnWithAutoIncrement';
 
 	readonly autoIncrement: boolean = this.config.autoIncrement;
 }

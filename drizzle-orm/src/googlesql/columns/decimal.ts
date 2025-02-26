@@ -1,26 +1,26 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { GoogleSqlColumnBuilderWithAutoIncrement, GoogleSqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<{
+export type GoogleSqlDecimalBuilderInitial<TName extends string> = GoogleSqlDecimalBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlDecimal';
+	columnType: 'GoogleSqlDecimal';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
 }>;
 
-export class MySqlDecimalBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'MySqlDecimal'>,
-> extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
-	static override readonly [entityKind]: string = 'MySqlDecimalBuilder';
+export class GoogleSqlDecimalBuilder<
+	T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlDecimal'>,
+> extends GoogleSqlColumnBuilderWithAutoIncrement<T, GoogleSqlDecimalConfig> {
+	static override readonly [entityKind]: string = 'GoogleSqlDecimalBuilder';
 
-	constructor(name: T['name'], config: MySqlDecimalConfig | undefined) {
-		super(name, 'string', 'MySqlDecimal');
+	constructor(name: T['name'], config: GoogleSqlDecimalConfig | undefined) {
+		super(name, 'string', 'GoogleSqlDecimal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -28,19 +28,19 @@ export class MySqlDecimalBuilder<
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDecimal<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDecimal<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlDecimal<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlDecimal<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlDecimal<T extends ColumnBaseConfig<'string', 'MySqlDecimal'>>
-	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
+export class GoogleSqlDecimal<T extends ColumnBaseConfig<'string', 'GoogleSqlDecimal'>>
+	extends GoogleSqlColumnWithAutoIncrement<T, GoogleSqlDecimalConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlDecimal';
+	static override readonly [entityKind]: string = 'GoogleSqlDecimal';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
@@ -60,21 +60,21 @@ export class MySqlDecimal<T extends ColumnBaseConfig<'string', 'MySqlDecimal'>>
 	}
 }
 
-export interface MySqlDecimalConfig {
+export interface GoogleSqlDecimalConfig {
 	precision?: number;
 	scale?: number;
 	unsigned?: boolean;
 }
 
-export function decimal(): MySqlDecimalBuilderInitial<''>;
+export function decimal(): GoogleSqlDecimalBuilderInitial<''>;
 export function decimal(
-	config: MySqlDecimalConfig,
-): MySqlDecimalBuilderInitial<''>;
+	config: GoogleSqlDecimalConfig,
+): GoogleSqlDecimalBuilderInitial<''>;
 export function decimal<TName extends string>(
 	name: TName,
-	config?: MySqlDecimalConfig,
-): MySqlDecimalBuilderInitial<TName>;
-export function decimal(a?: string | MySqlDecimalConfig, b: MySqlDecimalConfig = {}) {
-	const { name, config } = getColumnNameAndConfig<MySqlDecimalConfig>(a, b);
-	return new MySqlDecimalBuilder(name, config);
+	config?: GoogleSqlDecimalConfig,
+): GoogleSqlDecimalBuilderInitial<TName>;
+export function decimal(a?: string | GoogleSqlDecimalConfig, b: GoogleSqlDecimalConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlDecimalConfig>(a, b);
+	return new GoogleSqlDecimalBuilder(name, config);
 }

@@ -1,41 +1,41 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { GoogleSqlColumnBuilderWithAutoIncrement, GoogleSqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
+export type GoogleSqlIntBuilderInitial<TName extends string> = GoogleSqlIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlInt';
+	columnType: 'GoogleSqlInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 }>;
 
-export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
+export class GoogleSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlInt'>>
+	extends GoogleSqlColumnBuilderWithAutoIncrement<T, GoogleSqlIntConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlIntBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlIntBuilder';
 
-	constructor(name: T['name'], config?: MySqlIntConfig) {
-		super(name, 'number', 'MySqlInt');
+	constructor(name: T['name'], config?: GoogleSqlIntConfig) {
+		super(name, 'number', 'GoogleSqlInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlInt<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>>
-	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
+export class GoogleSqlInt<T extends ColumnBaseConfig<'number', 'GoogleSqlInt'>>
+	extends GoogleSqlColumnWithAutoIncrement<T, GoogleSqlIntConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlInt';
+	static override readonly [entityKind]: string = 'GoogleSqlInt';
 
 	getSQLType(): string {
 		return `int${this.config.unsigned ? ' unsigned' : ''}`;
@@ -49,19 +49,19 @@ export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>>
 	}
 }
 
-export interface MySqlIntConfig {
+export interface GoogleSqlIntConfig {
 	unsigned?: boolean;
 }
 
-export function int(): MySqlIntBuilderInitial<''>;
+export function int(): GoogleSqlIntBuilderInitial<''>;
 export function int(
-	config?: MySqlIntConfig,
-): MySqlIntBuilderInitial<''>;
+	config?: GoogleSqlIntConfig,
+): GoogleSqlIntBuilderInitial<''>;
 export function int<TName extends string>(
 	name: TName,
-	config?: MySqlIntConfig,
-): MySqlIntBuilderInitial<TName>;
-export function int(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
-	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
-	return new MySqlIntBuilder(name, config);
+	config?: GoogleSqlIntConfig,
+): GoogleSqlIntBuilderInitial<TName>;
+export function int(a?: string | GoogleSqlIntConfig, b?: GoogleSqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlIntConfig>(a, b);
+	return new GoogleSqlIntBuilder(name, config);
 }

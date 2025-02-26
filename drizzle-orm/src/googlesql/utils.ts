@@ -10,26 +10,26 @@ import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { IndexForHint } from './query-builders/select.ts';
-import { MySqlTable } from './table.ts';
+import { GoogleSqlTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
-import { MySqlViewConfig } from './view-common.ts';
-import type { MySqlView } from './view.ts';
+import { GoogleSqlViewConfig } from './view-common.ts';
+import type { GoogleSqlView } from './view.ts';
 
-export function getTableConfig(table: MySqlTable) {
-	const columns = Object.values(table[MySqlTable.Symbol.Columns]);
+export function getTableConfig(table: GoogleSqlTable) {
+	const columns = Object.values(table[GoogleSqlTable.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
 	const uniqueConstraints: UniqueConstraint[] = [];
-	const foreignKeys: ForeignKey[] = Object.values(table[MySqlTable.Symbol.InlineForeignKeys]);
+	const foreignKeys: ForeignKey[] = Object.values(table[GoogleSqlTable.Symbol.InlineForeignKeys]);
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 	const baseName = table[Table.Symbol.BaseName];
 
-	const extraConfigBuilder = table[MySqlTable.Symbol.ExtraConfigBuilder];
+	const extraConfigBuilder = table[GoogleSqlTable.Symbol.ExtraConfigBuilder];
 
 	if (extraConfigBuilder !== undefined) {
-		const extraConfig = extraConfigBuilder(table[MySqlTable.Symbol.Columns]);
+		const extraConfig = extraConfigBuilder(table[GoogleSqlTable.Symbol.Columns]);
 		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
 		for (const builder of Object.values(extraValues)) {
 			if (is(builder, IndexBuilder)) {
@@ -62,10 +62,10 @@ export function getTableConfig(table: MySqlTable) {
 export function getViewConfig<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
->(view: MySqlView<TName, TExisting>) {
+>(view: GoogleSqlView<TName, TExisting>) {
 	return {
 		...view[ViewBaseConfig],
-		...view[MySqlViewConfig],
+		...view[GoogleSqlViewConfig],
 	};
 }
 

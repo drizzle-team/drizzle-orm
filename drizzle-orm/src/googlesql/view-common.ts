@@ -1,1 +1,1 @@
-export const MySqlViewConfig = Symbol.for('drizzle:MySqlViewConfig');
+export const GoogleSqlViewConfig = Symbol.for('drizzle:GoogleSqlViewConfig');

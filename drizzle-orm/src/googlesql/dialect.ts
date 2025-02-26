@@ -23,37 +23,37 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { MySqlColumn } from './columns/common.ts';
-import type { MySqlDeleteConfig } from './query-builders/delete.ts';
-import type { MySqlInsertConfig } from './query-builders/insert.ts';
+import { GoogleSqlColumn } from './columns/common.ts';
+import type { GoogleSqlDeleteConfig } from './query-builders/delete.ts';
+import type { GoogleSqlInsertConfig } from './query-builders/insert.ts';
 import type {
-	AnyMySqlSelectQueryBuilder,
-	MySqlSelectConfig,
-	MySqlSelectJoinConfig,
+	AnyGoogleSqlSelectQueryBuilder,
+	GoogleSqlSelectConfig,
+	GoogleSqlSelectJoinConfig,
 	SelectedFieldsOrdered,
 } from './query-builders/select.types.ts';
-import type { MySqlUpdateConfig } from './query-builders/update.ts';
-import type { MySqlSession } from './session.ts';
-import { MySqlTable } from './table.ts';
-import { MySqlViewBase } from './view-base.ts';
+import type { GoogleSqlUpdateConfig } from './query-builders/update.ts';
+import type { GoogleSqlSession } from './session.ts';
+import { GoogleSqlTable } from './table.ts';
+import { GoogleSqlViewBase } from './view-base.ts';
 
-export interface MySqlDialectConfig {
+export interface GoogleSqlDialectConfig {
 	casing?: Casing;
 }
 
-export class MySqlDialect {
-	static readonly [entityKind]: string = 'MySqlDialect';
+export class GoogleSqlDialect {
+	static readonly [entityKind]: string = 'GoogleSqlDialect';
 
 	/** @internal */
 	readonly casing: CasingCache;
 
-	constructor(config?: MySqlDialectConfig) {
+	constructor(config?: GoogleSqlDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
 	}
 
 	async migrate(
 		migrations: MigrationMeta[],
-		session: MySqlSession,
+		session: GoogleSqlSession,
 		config: Omit<MigrationConfig, 'migrationsSchema'>,
 	): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
@@ -117,7 +117,7 @@ export class MySqlDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: MySqlDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: GoogleSqlDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -133,7 +133,7 @@ export class MySqlDialect {
 		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
+	buildUpdateSet(table: GoogleSqlTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
 		const columnNames = Object.keys(tableColumns).filter((colName) =>
@@ -154,7 +154,7 @@ export class MySqlDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: MySqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: GoogleSqlUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
@@ -202,7 +202,7 @@ export class MySqlDialect {
 						chunk.push(
 							new SQL(
 								query.queryChunks.map((c) => {
-									if (is(c, MySqlColumn)) {
+									if (is(c, GoogleSqlColumn)) {
 										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
@@ -240,7 +240,7 @@ export class MySqlDialect {
 			: undefined;
 	}
 
-	private buildOrderBy(orderBy: (MySqlColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
+	private buildOrderBy(orderBy: (GoogleSqlColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
 		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
 	}
 
@@ -275,16 +275,16 @@ export class MySqlDialect {
 			useIndex,
 			forceIndex,
 			ignoreIndex,
-		}: MySqlSelectConfig,
+		}: GoogleSqlSelectConfig,
 	): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<GoogleSqlColumn>(fields);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
 				&& getTableName(f.field.table)
 					!== (is(table, Subquery)
 						? table._.alias
-						: is(table, MySqlViewBase)
+						: is(table, GoogleSqlViewBase)
 						? table[ViewBaseConfig].name
 						: is(table, SQL)
 						? undefined
@@ -329,10 +329,10 @@ export class MySqlDialect {
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
 
-				if (is(table, MySqlTable)) {
-					const tableName = table[MySqlTable.Symbol.Name];
-					const tableSchema = table[MySqlTable.Symbol.Schema];
-					const origTableName = table[MySqlTable.Symbol.OriginalName];
+				if (is(table, GoogleSqlTable)) {
+					const tableName = table[GoogleSqlTable.Symbol.Name];
+					const tableSchema = table[GoogleSqlTable.Symbol.Schema];
+					const origTableName = table[GoogleSqlTable.Symbol.OriginalName];
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
 					const useIndexSql = this.buildIndex({ indexes: joinMeta.useIndex, indexFor: 'USE' });
 					const forceIndexSql = this.buildIndex({ indexes: joinMeta.forceIndex, indexFor: 'FORCE' });
@@ -406,7 +406,7 @@ export class MySqlDialect {
 		return finalQuery;
 	}
 
-	buildSetOperations(leftSelect: SQL, setOperators: MySqlSelectConfig['setOperators']): SQL {
+	buildSetOperations(leftSelect: SQL, setOperators: GoogleSqlSelectConfig['setOperators']): SQL {
 		const [setOperator, ...rest] = setOperators;
 
 		if (!setOperator) {
@@ -427,7 +427,7 @@ export class MySqlDialect {
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
-	}: { leftSelect: SQL; setOperator: MySqlSelectConfig['setOperators'][number] }): SQL {
+	}: { leftSelect: SQL; setOperator: GoogleSqlSelectConfig['setOperators'][number] }): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
@@ -436,15 +436,15 @@ export class MySqlDialect {
 			const orderByValues: (SQL<unknown> | Name)[] = [];
 
 			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
-			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
+			// which is invalid GoogleSql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const orderByUnit of orderBy) {
-				if (is(orderByUnit, MySqlColumn)) {
+				if (is(orderByUnit, GoogleSqlColumn)) {
 					orderByValues.push(sql.identifier(this.casing.getColumnCasing(orderByUnit)));
 				} else if (is(orderByUnit, SQL)) {
 					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
 						const chunk = orderByUnit.queryChunks[i];
 
-						if (is(chunk, MySqlColumn)) {
+						if (is(chunk, GoogleSqlColumn)) {
 							orderByUnit.queryChunks[i] = sql.identifier(this.casing.getColumnCasing(chunk));
 						}
 					}
@@ -470,12 +470,12 @@ export class MySqlDialect {
 	}
 
 	buildInsertQuery(
-		{ table, values: valuesOrSelect, ignore, onConflict, select }: MySqlInsertConfig,
+		{ table, values: valuesOrSelect, ignore, onConflict, select }: GoogleSqlInsertConfig,
 	): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
-		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MySqlColumn][] = Object.entries(columns).filter(([_, col]) =>
+		const columns: Record<string, GoogleSqlColumn> = table[Table.Symbol.Columns];
+		const colEntries: [string, GoogleSqlColumn][] = Object.entries(columns).filter(([_, col]) =>
 			!col.shouldDisableInsert()
 		);
 
@@ -483,7 +483,7 @@ export class MySqlDialect {
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
 		if (select) {
-			const select = valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL;
+			const select = valuesOrSelect as AnyGoogleSqlSelectQueryBuilder | SQL;
 
 			if (is(select, SQL)) {
 				valuesSqlList.push(select);
@@ -567,16 +567,16 @@ export class MySqlDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: MySqlTable;
+		table: GoogleSqlTable;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
-		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
-		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where;
-		const joins: MySqlSelectJoinConfig[] = [];
+	}): BuildRelationalQueryResult<GoogleSqlTable, GoogleSqlColumn> {
+		let selection: BuildRelationalQueryResult<GoogleSqlTable, GoogleSqlColumn>['selection'] = [];
+		let limit, offset, orderBy: GoogleSqlSelectConfig['orderBy'], where;
+		const joins: GoogleSqlSelectJoinConfig[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -585,7 +585,7 @@ export class MySqlDialect {
 			) => ({
 				dbKey: value.name,
 				tsKey: key,
-				field: aliasedTableColumn(value as MySqlColumn, tableAlias),
+				field: aliasedTableColumn(value as GoogleSqlColumn, tableAlias),
 				relationTableTsKey: undefined,
 				isJson: false,
 				selection: [],
@@ -602,7 +602,7 @@ export class MySqlDialect {
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: MySqlColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: { tsKey: string; value: GoogleSqlColumn | SQL.Aliased }[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -633,7 +633,7 @@ export class MySqlDialect {
 			}
 
 			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as MySqlColumn;
+				const column = tableConfig.columns[field]! as GoogleSqlColumn;
 				fieldsSelection.push({ tsKey: field, value: column });
 			}
 
@@ -686,7 +686,7 @@ export class MySqlDialect {
 			}
 			orderBy = orderByOrig.map((orderByValue) => {
 				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as MySqlColumn;
+					return aliasedTableColumn(orderByValue, tableAlias) as GoogleSqlColumn;
 				}
 				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
 			});
@@ -718,7 +718,7 @@ export class MySqlDialect {
 					fullSchema,
 					schema,
 					tableNamesMap,
-					table: fullSchema[relationTableTsName] as MySqlTable,
+					table: fullSchema[relationTableTsName] as GoogleSqlTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
 						? (selectedRelationConfigValue === true
@@ -814,7 +814,7 @@ export class MySqlDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, MySqlTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, GoogleSqlTable) ? result : new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],
@@ -865,15 +865,15 @@ export class MySqlDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: MySqlTable;
+		table: GoogleSqlTable;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
-		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
-		let limit, offset, orderBy: MySqlSelectConfig['orderBy'] = [], where;
+	}): BuildRelationalQueryResult<GoogleSqlTable, GoogleSqlColumn> {
+		let selection: BuildRelationalQueryResult<GoogleSqlTable, GoogleSqlColumn>['selection'] = [];
+		let limit, offset, orderBy: GoogleSqlSelectConfig['orderBy'] = [], where;
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -882,7 +882,7 @@ export class MySqlDialect {
 			) => ({
 				dbKey: value.name,
 				tsKey: key,
-				field: aliasedTableColumn(value as MySqlColumn, tableAlias),
+				field: aliasedTableColumn(value as GoogleSqlColumn, tableAlias),
 				relationTableTsKey: undefined,
 				isJson: false,
 				selection: [],
@@ -899,7 +899,7 @@ export class MySqlDialect {
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: MySqlColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: { tsKey: string; value: GoogleSqlColumn | SQL.Aliased }[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -930,7 +930,7 @@ export class MySqlDialect {
 			}
 
 			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as MySqlColumn;
+				const column = tableConfig.columns[field]! as GoogleSqlColumn;
 				fieldsSelection.push({ tsKey: field, value: column });
 			}
 
@@ -983,7 +983,7 @@ export class MySqlDialect {
 			}
 			orderBy = orderByOrig.map((orderByValue) => {
 				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as MySqlColumn;
+					return aliasedTableColumn(orderByValue, tableAlias) as GoogleSqlColumn;
 				}
 				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
 			});
@@ -1015,7 +1015,7 @@ export class MySqlDialect {
 					fullSchema,
 					schema,
 					tableNamesMap,
-					table: fullSchema[relationTableTsName] as MySqlTable,
+					table: fullSchema[relationTableTsName] as GoogleSqlTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
 						? (selectedRelationConfigValue === true
@@ -1057,7 +1057,7 @@ export class MySqlDialect {
 			let field = sql`json_array(${
 				sql.join(
 					selection.map(({ field }) =>
-						is(field, MySqlColumn)
+						is(field, GoogleSqlColumn)
 							? sql.identifier(this.casing.getColumnCasing(field))
 							: is(field, SQL.Aliased)
 							? field.sql
@@ -1111,7 +1111,7 @@ export class MySqlDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, MySqlTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, GoogleSqlTable) ? result : new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],

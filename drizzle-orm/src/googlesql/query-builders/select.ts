@@ -1,9 +1,9 @@
 import { entityKind, is } from '~/entity.ts';
-import type { MySqlColumn } from '~/googlesql/columns/index.ts';
-import type { MySqlDialect } from '~/googlesql/dialect.ts';
-import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase } from '~/googlesql/session.ts';
+import type { GoogleSqlColumn } from '~/googlesql/columns/index.ts';
+import type { GoogleSqlDialect } from '~/googlesql/dialect.ts';
+import type { GoogleSqlPreparedQueryConfig, GoogleSqlSession, PreparedQueryHKTBase } from '~/googlesql/session.ts';
 import type { SubqueryWithSelection } from '~/googlesql/subquery.ts';
-import { MySqlTable } from '~/googlesql/table.ts';
+import { GoogleSqlTable } from '~/googlesql/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -26,23 +26,23 @@ import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, orderSele
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { IndexBuilder } from '../indexes.ts';
 import { convertIndexToString, toArray } from '../utils.ts';
-import { MySqlViewBase } from '../view-base.ts';
+import { GoogleSqlViewBase } from '../view-base.ts';
 import type {
-	AnyMySqlSelect,
-	CreateMySqlSelectFromBuilderMode,
-	GetMySqlSetOperators,
+	AnyGoogleSqlSelect,
+	CreateGoogleSqlSelectFromBuilderMode,
+	GetGoogleSqlSetOperators,
 	LockConfig,
 	LockStrength,
-	MySqlCreateSetOperatorFn,
-	MySqlJoinFn,
-	MySqlSelectConfig,
-	MySqlSelectDynamic,
-	MySqlSelectHKT,
-	MySqlSelectHKTBase,
-	MySqlSelectPrepare,
-	MySqlSelectWithout,
-	MySqlSetOperatorExcludedMethods,
-	MySqlSetOperatorWithResult,
+	GoogleSqlCreateSetOperatorFn,
+	GoogleSqlJoinFn,
+	GoogleSqlSelectConfig,
+	GoogleSqlSelectDynamic,
+	GoogleSqlSelectHKT,
+	GoogleSqlSelectHKTBase,
+	GoogleSqlSelectPrepare,
+	GoogleSqlSelectWithout,
+	GoogleSqlSetOperatorExcludedMethods,
+	GoogleSqlSetOperatorWithResult,
 	SelectedFields,
 	SetOperatorRightSelect,
 } from './select.types.ts';
@@ -55,24 +55,24 @@ export type IndexConfig = {
 	ignoreIndex?: IndexForHint | IndexForHint[];
 };
 
-export class MySqlSelectBuilder<
+export class GoogleSqlSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
-	static readonly [entityKind]: string = 'MySqlSelectBuilder';
+	static readonly [entityKind]: string = 'GoogleSqlSelectBuilder';
 
 	private fields: TSelection;
-	private session: MySqlSession | undefined;
-	private dialect: MySqlDialect;
+	private session: GoogleSqlSession | undefined;
+	private dialect: GoogleSqlDialect;
 	private withList: Subquery[] = [];
 	private distinct: boolean | undefined;
 
 	constructor(
 		config: {
 			fields: TSelection;
-			session: MySqlSession | undefined;
-			dialect: MySqlDialect;
+			session: GoogleSqlSession | undefined;
+			dialect: GoogleSqlDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
 		},
@@ -86,11 +86,11 @@ export class MySqlSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
+	from<TFrom extends GoogleSqlTable | Subquery | GoogleSqlViewBase | SQL>(
 		source: TFrom,
-		onIndex?: TFrom extends MySqlTable ? IndexConfig
-			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
-	): CreateMySqlSelectFromBuilderMode<
+		onIndex?: TFrom extends GoogleSqlTable ? IndexConfig
+			: 'Index hint configuration is allowed only for GoogleSqlTable and not for subqueries or views',
+	): CreateGoogleSqlSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
 		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
@@ -109,18 +109,18 @@ export class MySqlSelectBuilder<
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
-		} else if (is(source, MySqlViewBase)) {
+		} else if (is(source, GoogleSqlViewBase)) {
 			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
 		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
-			fields = getTableColumns<MySqlTable>(source);
+			fields = getTableColumns<GoogleSqlTable>(source);
 		}
 
 		let useIndex: string[] = [];
 		let forceIndex: string[] = [];
 		let ignoreIndex: string[] = [];
-		if (is(source, MySqlTable) && onIndex && typeof onIndex !== 'string') {
+		if (is(source, GoogleSqlTable) && onIndex && typeof onIndex !== 'string') {
 			if (onIndex.useIndex) {
 				useIndex = convertIndexToString(toArray(onIndex.useIndex));
 			}
@@ -132,7 +132,7 @@ export class MySqlSelectBuilder<
 			}
 		}
 
-		return new MySqlSelectBase(
+		return new GoogleSqlSelectBase(
 			{
 				table: source,
 				fields,
@@ -149,8 +149,8 @@ export class MySqlSelectBuilder<
 	}
 }
 
-export abstract class MySqlSelectQueryBuilderBase<
-	THKT extends MySqlSelectHKTBase,
+export abstract class GoogleSqlSelectQueryBuilderBase<
+	THKT extends GoogleSqlSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -162,7 +162,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static override readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlSelectQueryBuilder';
 
 	override readonly _: {
 		readonly hkt: THKT;
@@ -177,21 +177,21 @@ export abstract class MySqlSelectQueryBuilderBase<
 		readonly selectedFields: TSelectedFields;
 	};
 
-	protected config: MySqlSelectConfig;
+	protected config: GoogleSqlSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;
 	/** @internal */
-	readonly session: MySqlSession | undefined;
-	protected dialect: MySqlDialect;
+	readonly session: GoogleSqlSession | undefined;
+	protected dialect: GoogleSqlDialect;
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct, useIndex, forceIndex, ignoreIndex }: {
-			table: MySqlSelectConfig['table'];
-			fields: MySqlSelectConfig['fields'];
+			table: GoogleSqlSelectConfig['table'];
+			fields: GoogleSqlSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: MySqlSession | undefined;
-			dialect: MySqlDialect;
+			session: GoogleSqlSession | undefined;
+			dialect: GoogleSqlDialect;
 			withList: Subquery[];
 			distinct: boolean | undefined;
 			useIndex?: string[];
@@ -222,14 +222,14 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): MySqlJoinFn<this, TDynamic, TJoinType> {
+	): GoogleSqlJoinFn<this, TDynamic, TJoinType> {
 		return <
-			TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+			TJoinedTable extends GoogleSqlTable | Subquery | GoogleSqlViewBase | SQL,
 		>(
-			table: MySqlTable | Subquery | MySqlViewBase | SQL,
+			table: GoogleSqlTable | Subquery | GoogleSqlViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
-			onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
-				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
+			onIndex?: TJoinedTable extends GoogleSqlTable ? IndexConfig
+				: 'Index hint configuration is allowed only for GoogleSqlTable and not for subqueries or views',
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
@@ -271,7 +271,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 			let useIndex: string[] = [];
 			let forceIndex: string[] = [];
 			let ignoreIndex: string[] = [];
-			if (is(table, MySqlTable) && onIndex && typeof onIndex !== 'string') {
+			if (is(table, GoogleSqlTable) && onIndex && typeof onIndex !== 'string') {
 				if (onIndex.useIndex) {
 					useIndex = convertIndexToString(toArray(onIndex.useIndex));
 				}
@@ -475,19 +475,19 @@ export abstract class MySqlSelectQueryBuilderBase<
 	private createSetOperator(
 		type: SetOperator,
 		isAll: boolean,
-	): <TValue extends MySqlSetOperatorWithResult<TResult>>(
+	): <TValue extends GoogleSqlSetOperatorWithResult<TResult>>(
 		rightSelection:
-			| ((setOperators: GetMySqlSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| ((setOperators: GetGoogleSqlSetOperators) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
-	) => MySqlSelectWithout<
+	) => GoogleSqlSelectWithout<
 		this,
 		TDynamic,
-		MySqlSetOperatorExcludedMethods,
+		GoogleSqlSetOperatorExcludedMethods,
 		true
 	> {
 		return (rightSelection) => {
 			const rightSelect = (typeof rightSelection === 'function'
-				? rightSelection(getMySqlSetOperators())
+				? rightSelection(getGoogleSqlSetOperators())
 				: rightSelection) as TypedQueryBuilder<
 					any,
 					TResult
@@ -521,7 +521,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *     db.select({ name: customers.name }).from(customers)
 	 *   );
 	 * // or
-	 * import { union } from 'drizzle-orm/mysql-core'
+	 * import { union } from 'drizzle-orm/googlesql'
 	 *
 	 * await union(
 	 *   db.select({ name: users.name }).from(users),
@@ -548,7 +548,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *     db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
 	 *   );
 	 * // or
-	 * import { unionAll } from 'drizzle-orm/mysql-core'
+	 * import { unionAll } from 'drizzle-orm/googlesql'
 	 *
 	 * await unionAll(
 	 *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
@@ -575,7 +575,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *     db.select({ courseName: depB.courseName }).from(depB)
 	 *   );
 	 * // or
-	 * import { intersect } from 'drizzle-orm/mysql-core'
+	 * import { intersect } from 'drizzle-orm/googlesql'
 	 *
 	 * await intersect(
 	 *   db.select({ courseName: depA.courseName }).from(depA),
@@ -609,7 +609,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   .from(vipCustomerOrders)
 	 * );
 	 * // or
-	 * import { intersectAll } from 'drizzle-orm/mysql-core'
+	 * import { intersectAll } from 'drizzle-orm/googlesql'
 	 *
 	 * await intersectAll(
 	 *   db.select({
@@ -644,7 +644,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *     db.select({ courseName: depB.courseName }).from(depB)
 	 *   );
 	 * // or
-	 * import { except } from 'drizzle-orm/mysql-core'
+	 * import { except } from 'drizzle-orm/googlesql'
 	 *
 	 * await except(
 	 *   db.select({ courseName: depA.courseName }).from(depA),
@@ -678,7 +678,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   .from(vipCustomerOrders)
 	 * );
 	 * // or
-	 * import { exceptAll } from 'drizzle-orm/mysql-core'
+	 * import { exceptAll } from 'drizzle-orm/googlesql'
 	 *
 	 * await exceptAll(
 	 *   db.select({
@@ -697,10 +697,10 @@ export abstract class MySqlSelectQueryBuilderBase<
 	exceptAll = this.createSetOperator('except', true);
 
 	/** @internal */
-	addSetOperators(setOperators: MySqlSelectConfig['setOperators']): MySqlSelectWithout<
+	addSetOperators(setOperators: GoogleSqlSelectConfig['setOperators']): GoogleSqlSelectWithout<
 		this,
 		TDynamic,
-		MySqlSetOperatorExcludedMethods,
+		GoogleSqlSetOperatorExcludedMethods,
 		true
 	> {
 		this.config.setOperators.push(...setOperators);
@@ -738,7 +738,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 */
 	where(
 		where: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
-	): MySqlSelectWithout<this, TDynamic, 'where'> {
+	): GoogleSqlSelectWithout<this, TDynamic, 'where'> {
 		if (typeof where === 'function') {
 			where = where(
 				new Proxy(
@@ -775,7 +775,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 */
 	having(
 		having: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
-	): MySqlSelectWithout<this, TDynamic, 'having'> {
+	): GoogleSqlSelectWithout<this, TDynamic, 'having'> {
 		if (typeof having === 'function') {
 			having = having(
 				new Proxy(
@@ -808,14 +808,14 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * ```
 	 */
 	groupBy(
-		builder: (aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
-	): MySqlSelectWithout<this, TDynamic, 'groupBy'>;
-	groupBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): MySqlSelectWithout<this, TDynamic, 'groupBy'>;
+		builder: (aliases: this['_']['selection']) => ValueOrArray<GoogleSqlColumn | SQL | SQL.Aliased>,
+	): GoogleSqlSelectWithout<this, TDynamic, 'groupBy'>;
+	groupBy(...columns: (GoogleSqlColumn | SQL | SQL.Aliased)[]): GoogleSqlSelectWithout<this, TDynamic, 'groupBy'>;
 	groupBy(
 		...columns:
-			| [(aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
-			| (MySqlColumn | SQL | SQL.Aliased)[]
-	): MySqlSelectWithout<this, TDynamic, 'groupBy'> {
+			| [(aliases: this['_']['selection']) => ValueOrArray<GoogleSqlColumn | SQL | SQL.Aliased>]
+			| (GoogleSqlColumn | SQL | SQL.Aliased)[]
+	): GoogleSqlSelectWithout<this, TDynamic, 'groupBy'> {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
 				new Proxy(
@@ -825,7 +825,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 			);
 			this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
 		} else {
-			this.config.groupBy = columns as (MySqlColumn | SQL | SQL.Aliased)[];
+			this.config.groupBy = columns as (GoogleSqlColumn | SQL | SQL.Aliased)[];
 		}
 		return this as any;
 	}
@@ -855,14 +855,14 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * ```
 	 */
 	orderBy(
-		builder: (aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
-	): MySqlSelectWithout<this, TDynamic, 'orderBy'>;
-	orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): MySqlSelectWithout<this, TDynamic, 'orderBy'>;
+		builder: (aliases: this['_']['selection']) => ValueOrArray<GoogleSqlColumn | SQL | SQL.Aliased>,
+	): GoogleSqlSelectWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (GoogleSqlColumn | SQL | SQL.Aliased)[]): GoogleSqlSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
-			| [(aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
-			| (MySqlColumn | SQL | SQL.Aliased)[]
-	): MySqlSelectWithout<this, TDynamic, 'orderBy'> {
+			| [(aliases: this['_']['selection']) => ValueOrArray<GoogleSqlColumn | SQL | SQL.Aliased>]
+			| (GoogleSqlColumn | SQL | SQL.Aliased)[]
+	): GoogleSqlSelectWithout<this, TDynamic, 'orderBy'> {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -879,7 +879,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 				this.config.orderBy = orderByArray;
 			}
 		} else {
-			const orderByArray = columns as (MySqlColumn | SQL | SQL.Aliased)[];
+			const orderByArray = columns as (GoogleSqlColumn | SQL | SQL.Aliased)[];
 
 			if (this.config.setOperators.length > 0) {
 				this.config.setOperators.at(-1)!.orderBy = orderByArray;
@@ -906,7 +906,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * await db.select().from(people).limit(10);
 	 * ```
 	 */
-	limit(limit: number | Placeholder): MySqlSelectWithout<this, TDynamic, 'limit'> {
+	limit(limit: number | Placeholder): GoogleSqlSelectWithout<this, TDynamic, 'limit'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.limit = limit;
 		} else {
@@ -931,7 +931,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * await db.select().from(people).offset(10).limit(10);
 	 * ```
 	 */
-	offset(offset: number | Placeholder): MySqlSelectWithout<this, TDynamic, 'offset'> {
+	offset(offset: number | Placeholder): GoogleSqlSelectWithout<this, TDynamic, 'offset'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
 		} else {
@@ -950,7 +950,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * @param strength the lock strength.
 	 * @param config the lock configuration.
 	 */
-	for(strength: LockStrength, config: LockConfig = {}): MySqlSelectWithout<this, TDynamic, 'for'> {
+	for(strength: LockStrength, config: LockConfig = {}): GoogleSqlSelectWithout<this, TDynamic, 'for'> {
 		this.config.lockingClause = { strength, config };
 		return this as any;
 	}
@@ -982,12 +982,12 @@ export abstract class MySqlSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
-	$dynamic(): MySqlSelectDynamic<this> {
+	$dynamic(): GoogleSqlSelectDynamic<this> {
 		return this as any;
 	}
 }
 
-export interface MySqlSelectBase<
+export interface GoogleSqlSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -999,8 +999,8 @@ export interface MySqlSelectBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
-	MySqlSelectQueryBuilderBase<
-		MySqlSelectHKT,
+	GoogleSqlSelectQueryBuilderBase<
+		GoogleSqlSelectHKT,
 		TTableName,
 		TSelection,
 		TSelectMode,
@@ -1014,7 +1014,7 @@ export interface MySqlSelectBase<
 	QueryPromise<TResult>
 {}
 
-export class MySqlSelectBase<
+export class GoogleSqlSelectBase<
 	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends SelectMode,
@@ -1025,8 +1025,8 @@ export class MySqlSelectBase<
 	TExcludedMethods extends string = never,
 	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends MySqlSelectQueryBuilderBase<
-	MySqlSelectHKT,
+> extends GoogleSqlSelectQueryBuilderBase<
+	GoogleSqlSelectHKT,
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -1037,19 +1037,19 @@ export class MySqlSelectBase<
 	TResult,
 	TSelectedFields
 > {
-	static override readonly [entityKind]: string = 'MySqlSelect';
+	static override readonly [entityKind]: string = 'GoogleSqlSelect';
 
-	prepare(): MySqlSelectPrepare<this> {
+	prepare(): GoogleSqlSelectPrepare<this> {
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
+		const fieldsList = orderSelectedFields<GoogleSqlColumn>(this.config.fields);
 		const query = this.session.prepareQuery<
-			MySqlPreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
+			GoogleSqlPreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
 		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query as MySqlSelectPrepare<this>;
+		return query as GoogleSqlSelectPrepare<this>;
 	}
 
 	execute = ((placeholderValues) => {
@@ -1066,14 +1066,14 @@ export class MySqlSelectBase<
 	iterator = this.createIterator();
 }
 
-applyMixins(MySqlSelectBase, [QueryPromise]);
+applyMixins(GoogleSqlSelectBase, [QueryPromise]);
 
-function createSetOperator(type: SetOperator, isAll: boolean): MySqlCreateSetOperatorFn {
+function createSetOperator(type: SetOperator, isAll: boolean): GoogleSqlCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {
 		const setOperators = [rightSelect, ...restSelects].map((select) => ({
 			type,
 			isAll,
-			rightSelect: select as AnyMySqlSelect,
+			rightSelect: select as AnyGoogleSqlSelect,
 		}));
 
 		for (const setOperator of setOperators) {
@@ -1084,11 +1084,11 @@ function createSetOperator(type: SetOperator, isAll: boolean): MySqlCreateSetOpe
 			}
 		}
 
-		return (leftSelect as AnyMySqlSelect).addSetOperators(setOperators) as any;
+		return (leftSelect as AnyGoogleSqlSelect).addSetOperators(setOperators) as any;
 	};
 }
 
-const getMySqlSetOperators = () => ({
+const getGoogleSqlSetOperators = () => ({
 	union,
 	unionAll,
 	intersect,
@@ -1108,7 +1108,7 @@ const getMySqlSetOperators = () => ({
  *
  * ```ts
  * // Select all unique names from customers and users tables
- * import { union } from 'drizzle-orm/mysql-core'
+ * import { union } from 'drizzle-orm/googlesql'
  *
  * await union(
  *   db.select({ name: users.name }).from(users),
@@ -1135,7 +1135,7 @@ export const union = createSetOperator('union', false);
  *
  * ```ts
  * // Select all transaction ids from both online and in-store sales
- * import { unionAll } from 'drizzle-orm/mysql-core'
+ * import { unionAll } from 'drizzle-orm/googlesql'
  *
  * await unionAll(
  *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
@@ -1162,7 +1162,7 @@ export const unionAll = createSetOperator('union', true);
  *
  * ```ts
  * // Select course names that are offered in both departments A and B
- * import { intersect } from 'drizzle-orm/mysql-core'
+ * import { intersect } from 'drizzle-orm/googlesql'
  *
  * await intersect(
  *   db.select({ courseName: depA.courseName }).from(depA),
@@ -1189,7 +1189,7 @@ export const intersect = createSetOperator('intersect', false);
  *
  * ```ts
  * // Select all products and quantities that are ordered by both regular and VIP customers
- * import { intersectAll } from 'drizzle-orm/mysql-core'
+ * import { intersectAll } from 'drizzle-orm/googlesql'
  *
  * await intersectAll(
  *   db.select({
@@ -1231,7 +1231,7 @@ export const intersectAll = createSetOperator('intersect', true);
  *
  * ```ts
  * // Select all courses offered in department A but not in department B
- * import { except } from 'drizzle-orm/mysql-core'
+ * import { except } from 'drizzle-orm/googlesql'
  *
  * await except(
  *   db.select({ courseName: depA.courseName }).from(depA),
@@ -1258,7 +1258,7 @@ export const except = createSetOperator('except', false);
  *
  * ```ts
  * // Select all products that are ordered by regular customers but not by VIP customers
- * import { exceptAll } from 'drizzle-orm/mysql-core'
+ * import { exceptAll } from 'drizzle-orm/googlesql'
  *
  * await exceptAll(
  *   db.select({

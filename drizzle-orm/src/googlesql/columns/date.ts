@@ -1,40 +1,40 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
-export type MySqlDateBuilderInitial<TName extends string> = MySqlDateBuilder<{
+export type GoogleSqlDateBuilderInitial<TName extends string> = GoogleSqlDateBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'MySqlDate';
+	columnType: 'GoogleSqlDate';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
 }>;
 
-export class MySqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDate'>> extends MySqlColumnBuilder<T> {
-	static override readonly [entityKind]: string = 'MySqlDateBuilder';
+export class GoogleSqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'GoogleSqlDate'>> extends GoogleSqlColumnBuilder<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlDateBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'date', 'MySqlDate');
+		super(name, 'date', 'GoogleSqlDate');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDate<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDate<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlDate<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlDate<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlDate<T extends ColumnBaseConfig<'date', 'MySqlDate'>> extends MySqlColumn<T> {
-	static override readonly [entityKind]: string = 'MySqlDate';
+export class GoogleSqlDate<T extends ColumnBaseConfig<'date', 'GoogleSqlDate'>> extends GoogleSqlColumn<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlDate';
 
 	constructor(
-		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateBuilder<T>['config'],
+		table: AnyGoogleSqlTable<{ name: T['tableName'] }>,
+		config: GoogleSqlDateBuilder<T>['config'],
 	) {
 		super(table, config);
 	}
@@ -48,41 +48,41 @@ export class MySqlDate<T extends ColumnBaseConfig<'date', 'MySqlDate'>> extends 
 	}
 }
 
-export type MySqlDateStringBuilderInitial<TName extends string> = MySqlDateStringBuilder<{
+export type GoogleSqlDateStringBuilderInitial<TName extends string> = GoogleSqlDateStringBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlDateString';
+	columnType: 'GoogleSqlDateString';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
 }>;
 
-export class MySqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlDateString'>>
-	extends MySqlColumnBuilder<T>
+export class GoogleSqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlDateString'>>
+	extends GoogleSqlColumnBuilder<T>
 {
-	static override readonly [entityKind]: string = 'MySqlDateStringBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlDateStringBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'string', 'MySqlDateString');
+		super(name, 'string', 'GoogleSqlDateString');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDateString<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDateString<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlDateString<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlDateString<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlDateString<T extends ColumnBaseConfig<'string', 'MySqlDateString'>> extends MySqlColumn<T> {
-	static override readonly [entityKind]: string = 'MySqlDateString';
+export class GoogleSqlDateString<T extends ColumnBaseConfig<'string', 'GoogleSqlDateString'>> extends GoogleSqlColumn<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlDateString';
 
 	constructor(
-		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateStringBuilder<T>['config'],
+		table: AnyGoogleSqlTable<{ name: T['tableName'] }>,
+		config: GoogleSqlDateStringBuilder<T>['config'],
 	) {
 		super(table, config);
 	}
@@ -92,22 +92,22 @@ export class MySqlDateString<T extends ColumnBaseConfig<'string', 'MySqlDateStri
 	}
 }
 
-export interface MySqlDateConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {
+export interface GoogleSqlDateConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {
 	mode?: TMode;
 }
 
-export function date(): MySqlDateBuilderInitial<''>;
-export function date<TMode extends MySqlDateConfig['mode'] & {}>(
-	config?: MySqlDateConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<''> : MySqlDateBuilderInitial<''>;
-export function date<TName extends string, TMode extends MySqlDateConfig['mode'] & {}>(
+export function date(): GoogleSqlDateBuilderInitial<''>;
+export function date<TMode extends GoogleSqlDateConfig['mode'] & {}>(
+	config?: GoogleSqlDateConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? GoogleSqlDateStringBuilderInitial<''> : GoogleSqlDateBuilderInitial<''>;
+export function date<TName extends string, TMode extends GoogleSqlDateConfig['mode'] & {}>(
 	name: TName,
-	config?: MySqlDateConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<TName> : MySqlDateBuilderInitial<TName>;
-export function date(a?: string | MySqlDateConfig, b?: MySqlDateConfig) {
-	const { name, config } = getColumnNameAndConfig<MySqlDateConfig | undefined>(a, b);
+	config?: GoogleSqlDateConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? GoogleSqlDateStringBuilderInitial<TName> : GoogleSqlDateBuilderInitial<TName>;
+export function date(a?: string | GoogleSqlDateConfig, b?: GoogleSqlDateConfig) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlDateConfig | undefined>(a, b);
 	if (config?.mode === 'string') {
-		return new MySqlDateStringBuilder(name);
+		return new GoogleSqlDateStringBuilder(name);
 	}
-	return new MySqlDateBuilder(name);
+	return new GoogleSqlDateBuilder(name);
 }

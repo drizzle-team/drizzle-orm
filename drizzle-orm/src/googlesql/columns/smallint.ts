@@ -1,45 +1,45 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
-import type { MySqlIntConfig } from './int.ts';
+import { GoogleSqlColumnBuilderWithAutoIncrement, GoogleSqlColumnWithAutoIncrement } from './common.ts';
+import type { GoogleSqlIntConfig } from './int.ts';
 
-export type MySqlSmallIntBuilderInitial<TName extends string> = MySqlSmallIntBuilder<{
+export type GoogleSqlSmallIntBuilderInitial<TName extends string> = GoogleSqlSmallIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlSmallInt';
+	columnType: 'GoogleSqlSmallInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 }>;
 
-export class MySqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSmallInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
+export class GoogleSqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlSmallInt'>>
+	extends GoogleSqlColumnBuilderWithAutoIncrement<T, GoogleSqlIntConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlSmallIntBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlSmallIntBuilder';
 
-	constructor(name: T['name'], config?: MySqlIntConfig) {
-		super(name, 'number', 'MySqlSmallInt');
+	constructor(name: T['name'], config?: GoogleSqlIntConfig) {
+		super(name, 'number', 'GoogleSqlSmallInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlSmallInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlSmallInt<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlSmallInt<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlSmallInt<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlSmallInt<T extends ColumnBaseConfig<'number', 'MySqlSmallInt'>>
-	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
+export class GoogleSqlSmallInt<T extends ColumnBaseConfig<'number', 'GoogleSqlSmallInt'>>
+	extends GoogleSqlColumnWithAutoIncrement<T, GoogleSqlIntConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlSmallInt';
+	static override readonly [entityKind]: string = 'GoogleSqlSmallInt';
 
 	getSQLType(): string {
 		return `smallint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -53,15 +53,15 @@ export class MySqlSmallInt<T extends ColumnBaseConfig<'number', 'MySqlSmallInt'>
 	}
 }
 
-export function smallint(): MySqlSmallIntBuilderInitial<''>;
+export function smallint(): GoogleSqlSmallIntBuilderInitial<''>;
 export function smallint(
-	config?: MySqlIntConfig,
-): MySqlSmallIntBuilderInitial<''>;
+	config?: GoogleSqlIntConfig,
+): GoogleSqlSmallIntBuilderInitial<''>;
 export function smallint<TName extends string>(
 	name: TName,
-	config?: MySqlIntConfig,
-): MySqlSmallIntBuilderInitial<TName>;
-export function smallint(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
-	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
-	return new MySqlSmallIntBuilder(name, config);
+	config?: GoogleSqlIntConfig,
+): GoogleSqlSmallIntBuilderInitial<TName>;
+export function smallint(a?: string | GoogleSqlIntConfig, b?: GoogleSqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlIntConfig>(a, b);
+	return new GoogleSqlSmallIntBuilder(name, config);
 }

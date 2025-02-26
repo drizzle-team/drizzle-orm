@@ -1,23 +1,23 @@
 import { entityKind, is } from '~/entity.ts';
-import type { MySqlDialectConfig } from '~/googlesql/dialect.ts';
-import { MySqlDialect } from '~/googlesql/dialect.ts';
+import type { GoogleSqlDialectConfig } from '~/googlesql/dialect.ts';
+import { GoogleSqlDialect } from '~/googlesql/dialect.ts';
 import type { WithBuilder } from '~/googlesql/subquery.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import { MySqlSelectBuilder } from './select.ts';
+import { GoogleSqlSelectBuilder } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
-	static readonly [entityKind]: string = 'MySqlQueryBuilder';
+	static readonly [entityKind]: string = 'GoogleSqlQueryBuilder';
 
-	private dialect: MySqlDialect | undefined;
-	private dialectConfig: MySqlDialectConfig | undefined;
+	private dialect: GoogleSqlDialect | undefined;
+	private dialectConfig: GoogleSqlDialectConfig | undefined;
 
-	constructor(dialect?: MySqlDialect | MySqlDialectConfig) {
-		this.dialect = is(dialect, MySqlDialect) ? dialect : undefined;
-		this.dialectConfig = is(dialect, MySqlDialect) ? undefined : dialect;
+	constructor(dialect?: GoogleSqlDialect | GoogleSqlDialectConfig) {
+		this.dialect = is(dialect, GoogleSqlDialect) ? dialect : undefined;
+		this.dialectConfig = is(dialect, GoogleSqlDialect) ? undefined : dialect;
 	}
 
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
@@ -48,14 +48,14 @@ export class QueryBuilder {
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
-		function select(): MySqlSelectBuilder<undefined, never, 'qb'>;
+		function select(): GoogleSqlSelectBuilder<undefined, never, 'qb'>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, never, 'qb'>;
+		): GoogleSqlSelectBuilder<TSelection, never, 'qb'>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
-			return new MySqlSelectBuilder({
+		): GoogleSqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+			return new GoogleSqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: undefined,
 				dialect: self.getDialect(),
@@ -63,14 +63,14 @@ export class QueryBuilder {
 			});
 		}
 
-		function selectDistinct(): MySqlSelectBuilder<undefined, never, 'qb'>;
+		function selectDistinct(): GoogleSqlSelectBuilder<undefined, never, 'qb'>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, never, 'qb'>;
+		): GoogleSqlSelectBuilder<TSelection, never, 'qb'>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
-			return new MySqlSelectBuilder({
+		): GoogleSqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+			return new GoogleSqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: undefined,
 				dialect: self.getDialect(),
@@ -82,22 +82,22 @@ export class QueryBuilder {
 		return { select, selectDistinct };
 	}
 
-	select(): MySqlSelectBuilder<undefined, never, 'qb'>;
-	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, never, 'qb'>;
+	select(): GoogleSqlSelectBuilder<undefined, never, 'qb'>;
+	select<TSelection extends SelectedFields>(fields: TSelection): GoogleSqlSelectBuilder<TSelection, never, 'qb'>;
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
-	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
-		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: undefined, dialect: this.getDialect() });
+	): GoogleSqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+		return new GoogleSqlSelectBuilder({ fields: fields ?? undefined, session: undefined, dialect: this.getDialect() });
 	}
 
-	selectDistinct(): MySqlSelectBuilder<undefined, never, 'qb'>;
+	selectDistinct(): GoogleSqlSelectBuilder<undefined, never, 'qb'>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): MySqlSelectBuilder<TSelection, never, 'qb'>;
+	): GoogleSqlSelectBuilder<TSelection, never, 'qb'>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields?: TSelection,
-	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
-		return new MySqlSelectBuilder({
+	): GoogleSqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+		return new GoogleSqlSelectBuilder({
 			fields: fields ?? undefined,
 			session: undefined,
 			dialect: this.getDialect(),
@@ -108,7 +108,7 @@ export class QueryBuilder {
 	// Lazy load dialect to avoid circular dependency
 	private getDialect() {
 		if (!this.dialect) {
-			this.dialect = new MySqlDialect(this.dialectConfig);
+			this.dialect = new GoogleSqlDialect(this.dialectConfig);
 		}
 
 		return this.dialect;

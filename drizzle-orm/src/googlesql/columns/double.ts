@@ -1,26 +1,26 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { GoogleSqlColumnBuilderWithAutoIncrement, GoogleSqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder<{
+export type GoogleSqlDoubleBuilderInitial<TName extends string> = GoogleSqlDoubleBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlDouble';
+	columnType: 'GoogleSqlDouble';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 }>;
 
-export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlDouble'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDoubleConfig>
+export class GoogleSqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlDouble'>>
+	extends GoogleSqlColumnBuilderWithAutoIncrement<T, GoogleSqlDoubleConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlDoubleBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlDoubleBuilder';
 
-	constructor(name: T['name'], config: MySqlDoubleConfig | undefined) {
-		super(name, 'number', 'MySqlDouble');
+	constructor(name: T['name'], config: GoogleSqlDoubleConfig | undefined) {
+		super(name, 'number', 'GoogleSqlDouble');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -28,16 +28,16 @@ export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDouble<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDouble<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlDouble<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlDouble<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlDouble<T extends ColumnBaseConfig<'number', 'MySqlDouble'>>
-	extends MySqlColumnWithAutoIncrement<T, MySqlDoubleConfig>
+export class GoogleSqlDouble<T extends ColumnBaseConfig<'number', 'GoogleSqlDouble'>>
+	extends GoogleSqlColumnWithAutoIncrement<T, GoogleSqlDoubleConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlDouble';
+	static override readonly [entityKind]: string = 'GoogleSqlDouble';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
@@ -56,21 +56,21 @@ export class MySqlDouble<T extends ColumnBaseConfig<'number', 'MySqlDouble'>>
 	}
 }
 
-export interface MySqlDoubleConfig {
+export interface GoogleSqlDoubleConfig {
 	precision?: number;
 	scale?: number;
 	unsigned?: boolean;
 }
 
-export function double(): MySqlDoubleBuilderInitial<''>;
+export function double(): GoogleSqlDoubleBuilderInitial<''>;
 export function double(
-	config?: MySqlDoubleConfig,
-): MySqlDoubleBuilderInitial<''>;
+	config?: GoogleSqlDoubleConfig,
+): GoogleSqlDoubleBuilderInitial<''>;
 export function double<TName extends string>(
 	name: TName,
-	config?: MySqlDoubleConfig,
-): MySqlDoubleBuilderInitial<TName>;
-export function double(a?: string | MySqlDoubleConfig, b?: MySqlDoubleConfig) {
-	const { name, config } = getColumnNameAndConfig<MySqlDoubleConfig>(a, b);
-	return new MySqlDoubleBuilder(name, config);
+	config?: GoogleSqlDoubleConfig,
+): GoogleSqlDoubleBuilderInitial<TName>;
+export function double(a?: string | GoogleSqlDoubleConfig, b?: GoogleSqlDoubleConfig) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlDoubleConfig>(a, b);
+	return new GoogleSqlDoubleBuilder(name, config);
 }

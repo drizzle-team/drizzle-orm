@@ -1,5 +1,5 @@
-import type { MySqlColumn } from '~/googlesql/columns/index.ts';
-import type { MySqlTable, MySqlTableWithColumns } from '~/googlesql/table.ts';
+import type { GoogleSqlColumn } from '~/googlesql/columns/index.ts';
+import type { GoogleSqlTable, GoogleSqlTableWithColumns } from '~/googlesql/table.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
@@ -22,14 +22,14 @@ import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
-import type { MySqlPreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
-import type { MySqlViewBase } from '../view-base.ts';
-import type { MySqlViewWithSelection } from '../view.ts';
-import type { IndexConfig, MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
+import type { GoogleSqlPreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
+import type { GoogleSqlViewBase } from '../view-base.ts';
+import type { GoogleSqlViewWithSelection } from '../view.ts';
+import type { IndexConfig, GoogleSqlSelectBase, GoogleSqlSelectQueryBuilderBase } from './select.ts';
 
-export interface MySqlSelectJoinConfig {
+export interface GoogleSqlSelectJoinConfig {
 	on: SQL | undefined;
-	table: MySqlTable | Subquery | MySqlViewBase | SQL;
+	table: GoogleSqlTable | Subquery | GoogleSqlViewBase | SQL;
 	alias: string | undefined;
 	joinType: JoinType;
 	lateral?: boolean;
@@ -38,32 +38,32 @@ export interface MySqlSelectJoinConfig {
 	ignoreIndex?: string[];
 }
 
-export type BuildAliasTable<TTable extends MySqlTable | View, TAlias extends string> = TTable extends Table
-	? MySqlTableWithColumns<
+export type BuildAliasTable<TTable extends GoogleSqlTable | View, TAlias extends string> = TTable extends Table
+	? GoogleSqlTableWithColumns<
 		UpdateTableConfig<TTable['_']['config'], {
 			name: TAlias;
-			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'mysql'>;
+			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'googlesql'>;
 		}>
 	>
-	: TTable extends View ? MySqlViewWithSelection<
+	: TTable extends View ? GoogleSqlViewWithSelection<
 			TAlias,
 			TTable['_']['existing'],
-			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'mysql'>
+			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'googlesql'>
 		>
 	: never;
 
-export interface MySqlSelectConfig {
+export interface GoogleSqlSelectConfig {
 	withList?: Subquery[];
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
-	table: MySqlTable | Subquery | MySqlViewBase | SQL;
+	table: GoogleSqlTable | Subquery | GoogleSqlViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
-	joins?: MySqlSelectJoinConfig[];
-	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
-	groupBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+	joins?: GoogleSqlSelectJoinConfig[];
+	orderBy?: (GoogleSqlColumn | SQL | SQL.Aliased)[];
+	groupBy?: (GoogleSqlColumn | SQL | SQL.Aliased)[];
 	lockingClause?: {
 		strength: LockStrength;
 		config: LockConfig;
@@ -73,7 +73,7 @@ export interface MySqlSelectConfig {
 		rightSelect: TypedQueryBuilder<any, any>;
 		type: SetOperator;
 		isAll: boolean;
-		orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+		orderBy?: (GoogleSqlColumn | SQL | SQL.Aliased)[];
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
@@ -82,21 +82,21 @@ export interface MySqlSelectConfig {
 	ignoreIndex?: string[];
 }
 
-export type MySqlJoin<
-	T extends AnyMySqlSelectQueryBuilder,
+export type GoogleSqlJoin<
+	T extends AnyGoogleSqlSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
-	TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+	TJoinedTable extends GoogleSqlTable | Subquery | GoogleSqlViewBase | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
-> = T extends any ? MySqlSelectWithout<
-		MySqlSelectKind<
+> = T extends any ? GoogleSqlSelectWithout<
+		GoogleSqlSelectKind<
 			T['_']['hkt'],
 			T['_']['tableName'],
 			AppendToResult<
 				T['_']['tableName'],
 				T['_']['selection'],
 				TJoinedName,
-				TJoinedTable extends MySqlTable ? TJoinedTable['_']['columns']
+				TJoinedTable extends GoogleSqlTable ? TJoinedTable['_']['columns']
 					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 					: never,
 				T['_']['selectMode']
@@ -112,25 +112,25 @@ export type MySqlJoin<
 	>
 	: never;
 
-export type MySqlJoinFn<
-	T extends AnyMySqlSelectQueryBuilder,
+export type GoogleSqlJoinFn<
+	T extends AnyGoogleSqlSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 > = <
-	TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+	TJoinedTable extends GoogleSqlTable | Subquery | GoogleSqlViewBase | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-	onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
-		: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
-) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+	onIndex?: TJoinedTable extends GoogleSqlTable ? IndexConfig
+		: 'Index hint configuration is allowed only for GoogleSqlTable and not for subqueries or views',
+) => GoogleSqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
-export type SelectedFieldsFlat = SelectedFieldsFlatBase<MySqlColumn>;
+export type SelectedFieldsFlat = SelectedFieldsFlatBase<GoogleSqlColumn>;
 
-export type SelectedFields = SelectedFieldsBase<MySqlColumn, MySqlTable>;
+export type SelectedFields = SelectedFieldsBase<GoogleSqlColumn, GoogleSqlTable>;
 
-export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<MySqlColumn>;
+export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<GoogleSqlColumn>;
 
 export type LockStrength = 'update' | 'share';
 
@@ -145,7 +145,7 @@ export type LockConfig = {
 	skipLocked?: undefined;
 };
 
-export interface MySqlSelectHKTBase {
+export interface GoogleSqlSelectHKTBase {
 	tableName: string | undefined;
 	selection: unknown;
 	selectMode: SelectMode;
@@ -158,8 +158,8 @@ export interface MySqlSelectHKTBase {
 	_type: unknown;
 }
 
-export type MySqlSelectKind<
-	T extends MySqlSelectHKTBase,
+export type GoogleSqlSelectKind<
+	T extends GoogleSqlSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -181,9 +181,9 @@ export type MySqlSelectKind<
 	selectedFields: TSelectedFields;
 })['_type'];
 
-export interface MySqlSelectQueryBuilderHKT extends MySqlSelectHKTBase {
-	_type: MySqlSelectQueryBuilderBase<
-		MySqlSelectQueryBuilderHKT,
+export interface GoogleSqlSelectQueryBuilderHKT extends GoogleSqlSelectHKTBase {
+	_type: GoogleSqlSelectQueryBuilderBase<
+		GoogleSqlSelectQueryBuilderHKT,
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
@@ -196,8 +196,8 @@ export interface MySqlSelectQueryBuilderHKT extends MySqlSelectHKTBase {
 	>;
 }
 
-export interface MySqlSelectHKT extends MySqlSelectHKTBase {
-	_type: MySqlSelectBase<
+export interface GoogleSqlSelectHKT extends GoogleSqlSelectHKTBase {
+	_type: GoogleSqlSelectBase<
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
@@ -210,7 +210,7 @@ export interface MySqlSelectHKT extends MySqlSelectHKTBase {
 	>;
 }
 
-export type MySqlSetOperatorExcludedMethods =
+export type GoogleSqlSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
@@ -221,13 +221,13 @@ export type MySqlSetOperatorExcludedMethods =
 	| 'fullJoin'
 	| 'for';
 
-export type MySqlSelectWithout<
-	T extends AnyMySqlSelectQueryBuilder,
+export type GoogleSqlSelectWithout<
+	T extends AnyGoogleSqlSelectQueryBuilder,
 	TDynamic extends boolean,
 	K extends keyof T & string,
 	TResetExcluded extends boolean = false,
 > = TDynamic extends true ? T : Omit<
-	MySqlSelectKind<
+	GoogleSqlSelectKind<
 		T['_']['hkt'],
 		T['_']['tableName'],
 		T['_']['selection'],
@@ -242,16 +242,16 @@ export type MySqlSelectWithout<
 	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
 >;
 
-export type MySqlSelectPrepare<T extends AnyMySqlSelect> = PreparedQueryKind<
+export type GoogleSqlSelectPrepare<T extends AnyGoogleSqlSelect> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
-	MySqlPreparedQueryConfig & {
+	GoogleSqlPreparedQueryConfig & {
 		execute: T['_']['result'];
 		iterator: T['_']['result'][number];
 	},
 	true
 >;
 
-export type MySqlSelectDynamic<T extends AnyMySqlSelectQueryBuilder> = MySqlSelectKind<
+export type GoogleSqlSelectDynamic<T extends AnyGoogleSqlSelectQueryBuilder> = GoogleSqlSelectKind<
 	T['_']['hkt'],
 	T['_']['tableName'],
 	T['_']['selection'],
@@ -264,17 +264,17 @@ export type MySqlSelectDynamic<T extends AnyMySqlSelectQueryBuilder> = MySqlSele
 	T['_']['selectedFields']
 >;
 
-export type CreateMySqlSelectFromBuilderMode<
+export type CreateGoogleSqlSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-> = TBuilderMode extends 'db' ? MySqlSelectBase<TTableName, TSelection, TSelectMode, TPreparedQueryHKT>
-	: MySqlSelectQueryBuilderBase<MySqlSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode, TPreparedQueryHKT>;
+> = TBuilderMode extends 'db' ? GoogleSqlSelectBase<TTableName, TSelection, TSelectMode, TPreparedQueryHKT>
+	: GoogleSqlSelectQueryBuilderBase<GoogleSqlSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode, TPreparedQueryHKT>;
 
-export type MySqlSelectQueryBuilder<
-	THKT extends MySqlSelectHKTBase = MySqlSelectQueryBuilderHKT,
+export type GoogleSqlSelectQueryBuilder<
+	THKT extends GoogleSqlSelectHKTBase = GoogleSqlSelectQueryBuilderHKT,
 	TTableName extends string | undefined = string | undefined,
 	TSelection extends ColumnsSelection = ColumnsSelection,
 	TSelectMode extends SelectMode = SelectMode,
@@ -282,7 +282,7 @@ export type MySqlSelectQueryBuilder<
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
 	TResult extends any[] = unknown[],
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> = MySqlSelectQueryBuilderBase<
+> = GoogleSqlSelectQueryBuilderBase<
 	THKT,
 	TTableName,
 	TSelection,
@@ -295,11 +295,11 @@ export type MySqlSelectQueryBuilder<
 	TSelectedFields
 >;
 
-export type AnyMySqlSelectQueryBuilder = MySqlSelectQueryBuilderBase<any, any, any, any, any, any, any, any, any>;
+export type AnyGoogleSqlSelectQueryBuilder = GoogleSqlSelectQueryBuilderBase<any, any, any, any, any, any, any, any, any>;
 
-export type AnyMySqlSetOperatorInterface = MySqlSetOperatorInterface<any, any, any, any, any, any, any, any, any>;
+export type AnyGoogleSqlSetOperatorInterface = GoogleSqlSetOperatorInterface<any, any, any, any, any, any, any, any, any>;
 
-export interface MySqlSetOperatorInterface<
+export interface GoogleSqlSetOperatorInterface<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -312,7 +312,7 @@ export interface MySqlSetOperatorInterface<
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > {
 	_: {
-		readonly hkt: MySqlSelectHKT;
+		readonly hkt: GoogleSqlSelectHKT;
 		readonly tableName: TTableName;
 		readonly selection: TSelection;
 		readonly selectMode: TSelectMode;
@@ -325,7 +325,7 @@ export interface MySqlSetOperatorInterface<
 	};
 }
 
-export type MySqlSetOperatorWithResult<TResult extends any[]> = MySqlSetOperatorInterface<
+export type GoogleSqlSetOperatorWithResult<TResult extends any[]> = GoogleSqlSetOperatorInterface<
 	any,
 	any,
 	any,
@@ -337,35 +337,35 @@ export type MySqlSetOperatorWithResult<TResult extends any[]> = MySqlSetOperator
 	any
 >;
 
-export type MySqlSelect<
+export type GoogleSqlSelect<
 	TTableName extends string | undefined = string | undefined,
 	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = MySqlSelectBase<TTableName, TSelection, TSelectMode, PreparedQueryHKTBase, TNullabilityMap, true, never>;
+> = GoogleSqlSelectBase<TTableName, TSelection, TSelectMode, PreparedQueryHKTBase, TNullabilityMap, true, never>;
 
-export type AnyMySqlSelect = MySqlSelectBase<any, any, any, any, any, any, any, any>;
+export type AnyGoogleSqlSelect = GoogleSqlSelectBase<any, any, any, any, any, any, any, any>;
 
-export type MySqlSetOperator<
+export type GoogleSqlSetOperator<
 	TTableName extends string | undefined = string | undefined,
 	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = MySqlSelectBase<
+> = GoogleSqlSelectBase<
 	TTableName,
 	TSelection,
 	TSelectMode,
 	TPreparedQueryHKT,
 	TNullabilityMap,
 	true,
-	MySqlSetOperatorExcludedMethods
+	GoogleSqlSetOperatorExcludedMethods
 >;
 
 export type SetOperatorRightSelect<
-	TValue extends MySqlSetOperatorWithResult<TResult>,
+	TValue extends GoogleSqlSetOperatorWithResult<TResult>,
 	TResult extends any[],
-> = TValue extends MySqlSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
+> = TValue extends GoogleSqlSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
 	? ValidateShape<
 		TValueResult[number],
 		TResult[number],
@@ -374,11 +374,11 @@ export type SetOperatorRightSelect<
 	: TValue;
 
 export type SetOperatorRestSelect<
-	TValue extends readonly MySqlSetOperatorWithResult<TResult>[],
+	TValue extends readonly GoogleSqlSetOperatorWithResult<TResult>[],
 	TResult extends any[],
 > = TValue extends [infer First, ...infer Rest]
-	? First extends MySqlSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
-		? Rest extends AnyMySqlSetOperatorInterface[] ? [
+	? First extends GoogleSqlSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
+		? Rest extends AnyGoogleSqlSetOperatorInterface[] ? [
 				ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>>,
 				...SetOperatorRestSelect<Rest, TResult>,
 			]
@@ -386,12 +386,12 @@ export type SetOperatorRestSelect<
 	: never
 	: TValue;
 
-export type MySqlCreateSetOperatorFn = <
+export type GoogleSqlCreateSetOperatorFn = <
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
-	TValue extends MySqlSetOperatorWithResult<TResult>,
-	TRest extends MySqlSetOperatorWithResult<TResult>[],
+	TValue extends GoogleSqlSetOperatorWithResult<TResult>,
+	TRest extends GoogleSqlSetOperatorWithResult<TResult>[],
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
@@ -400,7 +400,7 @@ export type MySqlCreateSetOperatorFn = <
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 >(
-	leftSelect: MySqlSetOperatorInterface<
+	leftSelect: GoogleSqlSetOperatorInterface<
 		TTableName,
 		TSelection,
 		TSelectMode,
@@ -413,8 +413,8 @@ export type MySqlCreateSetOperatorFn = <
 	>,
 	rightSelect: SetOperatorRightSelect<TValue, TResult>,
 	...restSelects: SetOperatorRestSelect<TRest, TResult>
-) => MySqlSelectWithout<
-	MySqlSelectBase<
+) => GoogleSqlSelectWithout<
+	GoogleSqlSelectBase<
 		TTableName,
 		TSelection,
 		TSelectMode,
@@ -426,15 +426,15 @@ export type MySqlCreateSetOperatorFn = <
 		TSelectedFields
 	>,
 	false,
-	MySqlSetOperatorExcludedMethods,
+	GoogleSqlSetOperatorExcludedMethods,
 	true
 >;
 
-export type GetMySqlSetOperators = {
-	union: MySqlCreateSetOperatorFn;
-	intersect: MySqlCreateSetOperatorFn;
-	except: MySqlCreateSetOperatorFn;
-	unionAll: MySqlCreateSetOperatorFn;
-	intersectAll: MySqlCreateSetOperatorFn;
-	exceptAll: MySqlCreateSetOperatorFn;
+export type GetGoogleSqlSetOperators = {
+	union: GoogleSqlCreateSetOperatorFn;
+	intersect: GoogleSqlCreateSetOperatorFn;
+	except: GoogleSqlCreateSetOperatorFn;
+	unionAll: GoogleSqlCreateSetOperatorFn;
+	intersectAll: GoogleSqlCreateSetOperatorFn;
+	exceptAll: GoogleSqlCreateSetOperatorFn;
 };

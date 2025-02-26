@@ -1,26 +1,26 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { GoogleSqlColumnBuilderWithAutoIncrement, GoogleSqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
+export type GoogleSqlFloatBuilderInitial<TName extends string> = GoogleSqlFloatBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlFloat';
+	columnType: 'GoogleSqlFloat';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 }>;
 
-export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlFloat'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlFloatConfig>
+export class GoogleSqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlFloat'>>
+	extends GoogleSqlColumnBuilderWithAutoIncrement<T, GoogleSqlFloatConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlFloatBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlFloatBuilder';
 
-	constructor(name: T['name'], config: MySqlFloatConfig | undefined) {
-		super(name, 'number', 'MySqlFloat');
+	constructor(name: T['name'], config: GoogleSqlFloatConfig | undefined) {
+		super(name, 'number', 'GoogleSqlFloat');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -28,16 +28,16 @@ export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySq
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlFloat<MakeColumnConfig<T, TTableName>> {
-		return new MySqlFloat<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlFloat<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlFloat<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>>
-	extends MySqlColumnWithAutoIncrement<T, MySqlFloatConfig>
+export class GoogleSqlFloat<T extends ColumnBaseConfig<'number', 'GoogleSqlFloat'>>
+	extends GoogleSqlColumnWithAutoIncrement<T, GoogleSqlFloatConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlFloat';
+	static override readonly [entityKind]: string = 'GoogleSqlFloat';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
@@ -56,21 +56,21 @@ export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>>
 	}
 }
 
-export interface MySqlFloatConfig {
+export interface GoogleSqlFloatConfig {
 	precision?: number;
 	scale?: number;
 	unsigned?: boolean;
 }
 
-export function float(): MySqlFloatBuilderInitial<''>;
+export function float(): GoogleSqlFloatBuilderInitial<''>;
 export function float(
-	config?: MySqlFloatConfig,
-): MySqlFloatBuilderInitial<''>;
+	config?: GoogleSqlFloatConfig,
+): GoogleSqlFloatBuilderInitial<''>;
 export function float<TName extends string>(
 	name: TName,
-	config?: MySqlFloatConfig,
-): MySqlFloatBuilderInitial<TName>;
-export function float(a?: string | MySqlFloatConfig, b?: MySqlFloatConfig) {
-	const { name, config } = getColumnNameAndConfig<MySqlFloatConfig>(a, b);
-	return new MySqlFloatBuilder(name, config);
+	config?: GoogleSqlFloatConfig,
+): GoogleSqlFloatBuilderInitial<TName>;
+export function float(a?: string | GoogleSqlFloatConfig, b?: GoogleSqlFloatConfig) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlFloatConfig>(a, b);
+	return new GoogleSqlFloatBuilder(name, config);
 }

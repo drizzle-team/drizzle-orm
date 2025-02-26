@@ -1,37 +1,37 @@
 import { entityKind } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
-import type { MySqlColumn } from './columns/index.ts';
-import type { MySqlTable } from './table.ts';
+import type { GoogleSqlColumn } from './columns/index.ts';
+import type { GoogleSqlTable } from './table.ts';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);
 }
 
-export function uniqueKeyName(table: MySqlTable, columns: string[]) {
+export function uniqueKeyName(table: GoogleSqlTable, columns: string[]) {
 	return `${table[TableName]}_${columns.join('_')}_unique`;
 }
 
 export class UniqueConstraintBuilder {
-	static readonly [entityKind]: string = 'MySqlUniqueConstraintBuilder';
+	static readonly [entityKind]: string = 'GoogleSqlUniqueConstraintBuilder';
 
 	/** @internal */
-	columns: MySqlColumn[];
+	columns: GoogleSqlColumn[];
 
 	constructor(
-		columns: MySqlColumn[],
+		columns: GoogleSqlColumn[],
 		private name?: string,
 	) {
 		this.columns = columns;
 	}
 
 	/** @internal */
-	build(table: MySqlTable): UniqueConstraint {
+	build(table: GoogleSqlTable): UniqueConstraint {
 		return new UniqueConstraint(table, this.columns, this.name);
 	}
 }
 
 export class UniqueOnConstraintBuilder {
-	static readonly [entityKind]: string = 'MySqlUniqueOnConstraintBuilder';
+	static readonly [entityKind]: string = 'GoogleSqlUniqueOnConstraintBuilder';
 
 	/** @internal */
 	name?: string;
@@ -42,19 +42,19 @@ export class UniqueOnConstraintBuilder {
 		this.name = name;
 	}
 
-	on(...columns: [MySqlColumn, ...MySqlColumn[]]) {
+	on(...columns: [GoogleSqlColumn, ...GoogleSqlColumn[]]) {
 		return new UniqueConstraintBuilder(columns, this.name);
 	}
 }
 
 export class UniqueConstraint {
-	static readonly [entityKind]: string = 'MySqlUniqueConstraint';
+	static readonly [entityKind]: string = 'GoogleSqlUniqueConstraint';
 
-	readonly columns: MySqlColumn[];
+	readonly columns: GoogleSqlColumn[];
 	readonly name?: string;
 	readonly nullsNotDistinct: boolean = false;
 
-	constructor(readonly table: MySqlTable, columns: MySqlColumn[], name?: string) {
+	constructor(readonly table: GoogleSqlTable, columns: GoogleSqlColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 	}

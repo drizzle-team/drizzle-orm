@@ -1,28 +1,28 @@
 import { entityKind } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
-import type { MySqlSession } from '../session.ts';
-import type { MySqlTable } from '../table.ts';
-import type { MySqlViewBase } from '../view-base.ts';
+import type { GoogleSqlSession } from '../session.ts';
+import type { GoogleSqlTable } from '../table.ts';
+import type { GoogleSqlViewBase } from '../view-base.ts';
 
-export class MySqlCountBuilder<
-	TSession extends MySqlSession<any, any, any>,
+export class GoogleSqlCountBuilder<
+	TSession extends GoogleSqlSession<any, any, any>,
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
 
-	static override readonly [entityKind] = 'MySqlCountBuilder';
-	[Symbol.toStringTag] = 'MySqlCountBuilder';
+	static override readonly [entityKind] = 'GoogleSqlCountBuilder';
+	[Symbol.toStringTag] = 'GoogleSqlCountBuilder';
 
 	private session: TSession;
 
 	private static buildEmbeddedCount(
-		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
+		source: GoogleSqlTable | GoogleSqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
 	}
 
 	private static buildCount(
-		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
+		source: GoogleSqlTable | GoogleSqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`select count(*) as count from ${source}${sql.raw(' where ').if(filters)}${filters}`;
@@ -30,18 +30,18 @@ export class MySqlCountBuilder<
 
 	constructor(
 		readonly params: {
-			source: MySqlTable | MySqlViewBase | SQL | SQLWrapper;
+			source: GoogleSqlTable | GoogleSqlViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			session: TSession;
 		},
 	) {
-		super(MySqlCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+		super(GoogleSqlCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
 
 		this.mapWith(Number);
 
 		this.session = params.session;
 
-		this.sql = MySqlCountBuilder.buildCount(
+		this.sql = GoogleSqlCountBuilder.buildCount(
 			params.source,
 			params.filters,
 		);

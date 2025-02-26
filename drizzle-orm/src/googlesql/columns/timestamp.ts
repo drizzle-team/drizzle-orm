@@ -1,44 +1,44 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
+import { GoogleSqlDateBaseColumn, GoogleSqlDateColumnBaseBuilder } from './date.common.ts';
 
-export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampBuilder<{
+export type GoogleSqlTimestampBuilderInitial<TName extends string> = GoogleSqlTimestampBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'MySqlTimestamp';
+	columnType: 'GoogleSqlTimestamp';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
 }>;
 
-export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlTimestamp'>>
-	extends MySqlDateColumnBaseBuilder<T, MySqlTimestampConfig>
+export class GoogleSqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'GoogleSqlTimestamp'>>
+	extends GoogleSqlDateColumnBaseBuilder<T, GoogleSqlTimestampConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlTimestampBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlTimestampBuilder';
 
-	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
-		super(name, 'date', 'MySqlTimestamp');
+	constructor(name: T['name'], config: GoogleSqlTimestampConfig | undefined) {
+		super(name, 'date', 'GoogleSqlTimestamp');
 		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTimestamp<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTimestamp<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlTimestamp<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlTimestamp<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlTimestamp<T extends ColumnBaseConfig<'date', 'MySqlTimestamp'>>
-	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
+export class GoogleSqlTimestamp<T extends ColumnBaseConfig<'date', 'GoogleSqlTimestamp'>>
+	extends GoogleSqlDateBaseColumn<T, GoogleSqlTimestampConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlTimestamp';
+	static override readonly [entityKind]: string = 'GoogleSqlTimestamp';
 
 	readonly fsp: number | undefined = this.config.fsp;
 
@@ -56,40 +56,40 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'date', 'MySqlTimestamp'>
 	}
 }
 
-export type MySqlTimestampStringBuilderInitial<TName extends string> = MySqlTimestampStringBuilder<{
+export type GoogleSqlTimestampStringBuilderInitial<TName extends string> = GoogleSqlTimestampStringBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlTimestampString';
+	columnType: 'GoogleSqlTimestampString';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
 }>;
 
-export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTimestampString'>>
-	extends MySqlDateColumnBaseBuilder<T, MySqlTimestampConfig>
+export class GoogleSqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlTimestampString'>>
+	extends GoogleSqlDateColumnBaseBuilder<T, GoogleSqlTimestampConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlTimestampStringBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlTimestampStringBuilder';
 
-	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
-		super(name, 'string', 'MySqlTimestampString');
+	constructor(name: T['name'], config: GoogleSqlTimestampConfig | undefined) {
+		super(name, 'string', 'GoogleSqlTimestampString');
 		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTimestampString<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTimestampString<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlTimestampString<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlTimestampString<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlTimestampString<T extends ColumnBaseConfig<'string', 'MySqlTimestampString'>>
-	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
+export class GoogleSqlTimestampString<T extends ColumnBaseConfig<'string', 'GoogleSqlTimestampString'>>
+	extends GoogleSqlDateBaseColumn<T, GoogleSqlTimestampConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlTimestampString';
+	static override readonly [entityKind]: string = 'GoogleSqlTimestampString';
 
 	readonly fsp: number | undefined = this.config.fsp;
 
@@ -101,25 +101,25 @@ export class MySqlTimestampString<T extends ColumnBaseConfig<'string', 'MySqlTim
 
 export type TimestampFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export interface MySqlTimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> {
+export interface GoogleSqlTimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> {
 	mode?: TMode;
 	fsp?: TimestampFsp;
 }
 
-export function timestamp(): MySqlTimestampBuilderInitial<''>;
-export function timestamp<TMode extends MySqlTimestampConfig['mode'] & {}>(
-	config?: MySqlTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilderInitial<''>
-	: MySqlTimestampBuilderInitial<''>;
-export function timestamp<TName extends string, TMode extends MySqlTimestampConfig['mode'] & {}>(
+export function timestamp(): GoogleSqlTimestampBuilderInitial<''>;
+export function timestamp<TMode extends GoogleSqlTimestampConfig['mode'] & {}>(
+	config?: GoogleSqlTimestampConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? GoogleSqlTimestampStringBuilderInitial<''>
+	: GoogleSqlTimestampBuilderInitial<''>;
+export function timestamp<TName extends string, TMode extends GoogleSqlTimestampConfig['mode'] & {}>(
 	name: TName,
-	config?: MySqlTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilderInitial<TName>
-	: MySqlTimestampBuilderInitial<TName>;
-export function timestamp(a?: string | MySqlTimestampConfig, b: MySqlTimestampConfig = {}) {
-	const { name, config } = getColumnNameAndConfig<MySqlTimestampConfig | undefined>(a, b);
+	config?: GoogleSqlTimestampConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? GoogleSqlTimestampStringBuilderInitial<TName>
+	: GoogleSqlTimestampBuilderInitial<TName>;
+export function timestamp(a?: string | GoogleSqlTimestampConfig, b: GoogleSqlTimestampConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlTimestampConfig | undefined>(a, b);
 	if (config?.mode === 'string') {
-		return new MySqlTimestampStringBuilder(name, config);
+		return new GoogleSqlTimestampStringBuilder(name, config);
 	}
-	return new MySqlTimestampBuilder(name, config);
+	return new GoogleSqlTimestampBuilder(name, config);
 }

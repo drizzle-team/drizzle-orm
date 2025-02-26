@@ -1,16 +1,16 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
 	& {
 		name: TName;
 		dataType: 'custom';
-		columnType: 'MySqlCustomColumn';
+		columnType: 'GoogleSqlCustomColumn';
 		data: T['data'];
 		driverParam: T['driverData'];
 		enumValues: undefined;
@@ -18,55 +18,55 @@ export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTy
 	& (T['notNull'] extends true ? { notNull: true } : {})
 	& (T['default'] extends true ? { hasDefault: true } : {});
 
-export interface MySqlCustomColumnInnerConfig {
+export interface GoogleSqlCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'MySqlCustomColumn'>>
-	extends MySqlColumnBuilder<
+export class GoogleSqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'GoogleSqlCustomColumn'>>
+	extends GoogleSqlColumnBuilder<
 		T,
 		{
 			fieldConfig: CustomTypeValues['config'];
 			customTypeParams: CustomTypeParams<any>;
 		},
 		{
-			mysqlColumnBuilderBrand: 'MySqlCustomColumnBuilderBrand';
+			googlesqlColumnBuilderBrand: 'GoogleSqlCustomColumnBuilderBrand';
 		}
 	>
 {
-	static override readonly [entityKind]: string = 'MySqlCustomColumnBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlCustomColumnBuilder';
 
 	constructor(
 		name: T['name'],
 		fieldConfig: CustomTypeValues['config'],
 		customTypeParams: CustomTypeParams<any>,
 	) {
-		super(name, 'custom', 'MySqlCustomColumn');
+		super(name, 'custom', 'GoogleSqlCustomColumn');
 		this.config.fieldConfig = fieldConfig;
 		this.config.customTypeParams = customTypeParams;
 	}
 
 	/** @internal */
 	build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlCustomColumn<MakeColumnConfig<T, TTableName>> {
-		return new MySqlCustomColumn<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlCustomColumn<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlCustomColumn<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustomColumn'>> extends MySqlColumn<T> {
-	static override readonly [entityKind]: string = 'MySqlCustomColumn';
+export class GoogleSqlCustomColumn<T extends ColumnBaseConfig<'custom', 'GoogleSqlCustomColumn'>> extends GoogleSqlColumn<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
 
 	constructor(
-		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlCustomColumnBuilder<T>['config'],
+		table: AnyGoogleSqlTable<{ name: T['tableName'] }>,
+		config: GoogleSqlCustomColumnBuilder<T>['config'],
 	) {
 		super(table, config);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
@@ -198,35 +198,35 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 }
 
 /**
- * Custom mysql database data type generator
+ * Custom googlesql database data type generator
  */
 export function customType<T extends CustomTypeValues = CustomTypeValues>(
 	customTypeParams: CustomTypeParams<T>,
 ): Equal<T['configRequired'], true> extends true ? {
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig: TConfig,
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		): GoogleSqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
 		<TName extends string>(
 			dbName: TName,
 			fieldConfig: T['config'],
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+		): GoogleSqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
 	}
 	: {
-		(): MySqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		(): GoogleSqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig?: TConfig,
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		): GoogleSqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
 		<TName extends string>(
 			dbName: TName,
 			fieldConfig?: T['config'],
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+		): GoogleSqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
 	}
 {
 	return <TName extends string>(
 		a?: TName | T['config'],
 		b?: T['config'],
-	): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
+	): GoogleSqlCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
 		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
-		return new MySqlCustomColumnBuilder(name as ConvertCustomConfig<TName, T>['name'], config, customTypeParams);
+		return new GoogleSqlCustomColumnBuilder(name as ConvertCustomConfig<TName, T>['name'], config, customTypeParams);
 	};
 }

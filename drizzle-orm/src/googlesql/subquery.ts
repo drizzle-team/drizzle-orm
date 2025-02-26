@@ -8,15 +8,15 @@ export type SubqueryWithSelection<
 	TSelection extends ColumnsSelection,
 	TAlias extends string,
 > =
-	& Subquery<TAlias, AddAliasToSelection<TSelection, TAlias, 'mysql'>>
-	& AddAliasToSelection<TSelection, TAlias, 'mysql'>;
+	& Subquery<TAlias, AddAliasToSelection<TSelection, TAlias, 'googlesql'>>
+	& AddAliasToSelection<TSelection, TAlias, 'googlesql'>;
 
 export type WithSubqueryWithSelection<
 	TSelection extends ColumnsSelection,
 	TAlias extends string,
 > =
-	& WithSubquery<TAlias, AddAliasToSelection<TSelection, TAlias, 'mysql'>>
-	& AddAliasToSelection<TSelection, TAlias, 'mysql'>;
+	& WithSubquery<TAlias, AddAliasToSelection<TSelection, TAlias, 'googlesql'>>
+	& AddAliasToSelection<TSelection, TAlias, 'googlesql'>;
 
 export interface WithBuilder {
 	<TAlias extends string>(alias: TAlias): {

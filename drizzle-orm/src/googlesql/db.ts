@@ -6,37 +6,37 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
-import type { MySqlDialect } from './dialect.ts';
-import { MySqlCountBuilder } from './query-builders/count.ts';
+import type { GoogleSqlDialect } from './dialect.ts';
+import { GoogleSqlCountBuilder } from './query-builders/count.ts';
 import {
-	MySqlDeleteBase,
-	MySqlInsertBuilder,
-	MySqlSelectBuilder,
-	MySqlUpdateBuilder,
+	GoogleSqlDeleteBase,
+	GoogleSqlInsertBuilder,
+	GoogleSqlSelectBuilder,
+	GoogleSqlUpdateBuilder,
 	QueryBuilder,
 } from './query-builders/index.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
 	Mode,
-	MySqlQueryResultHKT,
-	MySqlQueryResultKind,
-	MySqlSession,
-	MySqlTransaction,
-	MySqlTransactionConfig,
+	GoogleSqlQueryResultHKT,
+	GoogleSqlQueryResultKind,
+	GoogleSqlSession,
+	GoogleSqlTransaction,
+	GoogleSqlTransactionConfig,
 	PreparedQueryHKTBase,
 } from './session.ts';
 import type { WithBuilder } from './subquery.ts';
-import type { MySqlTable } from './table.ts';
-import type { MySqlViewBase } from './view-base.ts';
+import type { GoogleSqlTable } from './table.ts';
+import type { GoogleSqlViewBase } from './view-base.ts';
 
-export class MySqlDatabase<
-	TQueryResult extends MySqlQueryResultHKT,
+export class GoogleSqlDatabase<
+	TQueryResult extends GoogleSqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = {},
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
-	static readonly [entityKind]: string = 'MySqlDatabase';
+	static readonly [entityKind]: string = 'GoogleSqlDatabase';
 
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
@@ -52,9 +52,9 @@ export class MySqlDatabase<
 
 	constructor(
 		/** @internal */
-		readonly dialect: MySqlDialect,
+		readonly dialect: GoogleSqlDialect,
 		/** @internal */
-		readonly session: MySqlSession<any, any, any, any>,
+		readonly session: GoogleSqlSession<any, any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly mode: Mode,
 	) {
@@ -72,12 +72,12 @@ export class MySqlDatabase<
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this.query as MySqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
+				(this.query as GoogleSqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
 					new RelationalQueryBuilder(
 						schema!.fullSchema,
 						this._.schema,
 						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as MySqlTable,
+						schema!.fullSchema[tableName] as GoogleSqlTable,
 						columns,
 						dialect,
 						session,
@@ -145,10 +145,10 @@ export class MySqlDatabase<
 	};
 
 	$count(
-		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
+		source: GoogleSqlTable | GoogleSqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	) {
-		return new MySqlCountBuilder({ source, filters, session: this.session });
+		return new GoogleSqlCountBuilder({ source, filters, session: this.session });
 	}
 
 	/**
@@ -209,12 +209,12 @@ export class MySqlDatabase<
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+		function select(): GoogleSqlSelectBuilder<undefined, TPreparedQueryHKT>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-			return new MySqlSelectBuilder({
+		): GoogleSqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+		function select(fields?: SelectedFields): GoogleSqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+			return new GoogleSqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
@@ -246,14 +246,14 @@ export class MySqlDatabase<
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+		function selectDistinct(): GoogleSqlSelectBuilder<undefined, TPreparedQueryHKT>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+		): GoogleSqlSelectBuilder<TSelection, TPreparedQueryHKT>;
 		function selectDistinct(
 			fields?: SelectedFields,
-		): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-			return new MySqlSelectBuilder({
+		): GoogleSqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+			return new GoogleSqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
@@ -283,10 +283,10 @@ export class MySqlDatabase<
 		 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
 		 * ```
 		 */
-		function update<TTable extends MySqlTable>(
+		function update<TTable extends GoogleSqlTable>(
 			table: TTable,
-		): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
-			return new MySqlUpdateBuilder(table, self.session, self.dialect, queries);
+		): GoogleSqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+			return new GoogleSqlUpdateBuilder(table, self.session, self.dialect, queries);
 		}
 
 		/**
@@ -308,10 +308,10 @@ export class MySqlDatabase<
 		 * await db.delete(cars).where(eq(cars.color, 'green'));
 		 * ```
 		 */
-		function delete_<TTable extends MySqlTable>(
+		function delete_<TTable extends GoogleSqlTable>(
 			table: TTable,
-		): MySqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
-			return new MySqlDeleteBase(table, self.session, self.dialect, queries);
+		): GoogleSqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
+			return new GoogleSqlDeleteBase(table, self.session, self.dialect, queries);
 		}
 
 		return { select, selectDistinct, update, delete: delete_ };
@@ -353,10 +353,10 @@ export class MySqlDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
-	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
+	select(): GoogleSqlSelectBuilder<undefined, TPreparedQueryHKT>;
+	select<TSelection extends SelectedFields>(fields: TSelection): GoogleSqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+	select(fields?: SelectedFields): GoogleSqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+		return new GoogleSqlSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
 	}
 
 	/**
@@ -383,12 +383,12 @@ export class MySqlDatabase<
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+	selectDistinct(): GoogleSqlSelectBuilder<undefined, TPreparedQueryHKT>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-	selectDistinct(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-		return new MySqlSelectBuilder({
+	): GoogleSqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+	selectDistinct(fields?: SelectedFields): GoogleSqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+		return new GoogleSqlSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
@@ -417,8 +417,8 @@ export class MySqlDatabase<
 	 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
 	 * ```
 	 */
-	update<TTable extends MySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MySqlUpdateBuilder(table, this.session, this.dialect);
+	update<TTable extends GoogleSqlTable>(table: TTable): GoogleSqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+		return new GoogleSqlUpdateBuilder(table, this.session, this.dialect);
 	}
 
 	/**
@@ -440,8 +440,8 @@ export class MySqlDatabase<
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 * ```
 	 */
-	insert<TTable extends MySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MySqlInsertBuilder(table, this.session, this.dialect);
+	insert<TTable extends GoogleSqlTable>(table: TTable): GoogleSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+		return new GoogleSqlInsertBuilder(table, this.session, this.dialect);
 	}
 
 	/**
@@ -463,22 +463,22 @@ export class MySqlDatabase<
 	 * await db.delete(cars).where(eq(cars.color, 'green'));
 	 * ```
 	 */
-	delete<TTable extends MySqlTable>(table: TTable): MySqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MySqlDeleteBase(table, this.session, this.dialect);
+	delete<TTable extends GoogleSqlTable>(table: TTable): GoogleSqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
+		return new GoogleSqlDeleteBase(table, this.session, this.dialect);
 	}
 
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
 		query: SQLWrapper | string,
-	): Promise<MySqlQueryResultKind<TQueryResult, T>> {
+	): Promise<GoogleSqlQueryResultKind<TQueryResult, T>> {
 		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
 	}
 
 	transaction<T>(
 		transaction: (
-			tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>,
-			config?: MySqlTransactionConfig,
+			tx: GoogleSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>,
+			config?: GoogleSqlTransactionConfig,
 		) => Promise<T>,
-		config?: MySqlTransactionConfig,
+		config?: GoogleSqlTransactionConfig,
 	): Promise<T> {
 		return this.session.transaction(transaction, config);
 	}
@@ -487,11 +487,11 @@ export class MySqlDatabase<
 export type MySQLWithReplicas<Q> = Q & { $primary: Q };
 
 export const withReplicas = <
-	HKT extends MySqlQueryResultHKT,
+	HKT extends GoogleSqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-	Q extends MySqlDatabase<
+	Q extends GoogleSqlDatabase<
 		HKT,
 		TPreparedQueryHKT,
 		TFullSchema,

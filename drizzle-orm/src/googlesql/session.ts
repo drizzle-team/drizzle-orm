@@ -3,47 +3,47 @@ import { TransactionRollbackError } from '~/errors.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
-import { MySqlDatabase } from './db.ts';
-import type { MySqlDialect } from './dialect.ts';
+import { GoogleSqlDatabase } from './db.ts';
+import type { GoogleSqlDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export type Mode = 'default' | 'planetscale';
 
-export interface MySqlQueryResultHKT {
-	readonly $brand: 'MySqlQueryResultHKT';
+export interface GoogleSqlQueryResultHKT {
+	readonly $brand: 'GoogleSqlQueryResultHKT';
 	readonly row: unknown;
 	readonly type: unknown;
 }
 
-export interface AnyMySqlQueryResultHKT extends MySqlQueryResultHKT {
+export interface AnyGoogleSqlQueryResultHKT extends GoogleSqlQueryResultHKT {
 	readonly type: any;
 }
 
-export type MySqlQueryResultKind<TKind extends MySqlQueryResultHKT, TRow> = (TKind & {
+export type GoogleSqlQueryResultKind<TKind extends GoogleSqlQueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];
 
-export interface MySqlPreparedQueryConfig {
+export interface GoogleSqlPreparedQueryConfig {
 	execute: unknown;
 	iterator: unknown;
 }
 
-export interface MySqlPreparedQueryHKT {
-	readonly $brand: 'MySqlPreparedQueryHKT';
+export interface GoogleSqlPreparedQueryHKT {
+	readonly $brand: 'GoogleSqlPreparedQueryHKT';
 	readonly config: unknown;
 	readonly type: unknown;
 }
 
 export type PreparedQueryKind<
-	TKind extends MySqlPreparedQueryHKT,
-	TConfig extends MySqlPreparedQueryConfig,
+	TKind extends GoogleSqlPreparedQueryHKT,
+	TConfig extends GoogleSqlPreparedQueryConfig,
 	TAssume extends boolean = false,
 > = Equal<TAssume, true> extends true
-	? Assume<(TKind & { readonly config: TConfig })['type'], MySqlPreparedQuery<TConfig>>
+	? Assume<(TKind & { readonly config: TConfig })['type'], GoogleSqlPreparedQuery<TConfig>>
 	: (TKind & { readonly config: TConfig })['type'];
 
-export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
-	static readonly [entityKind]: string = 'MySqlPreparedQuery';
+export abstract class GoogleSqlPreparedQuery<T extends GoogleSqlPreparedQueryConfig> {
+	static readonly [entityKind]: string = 'GoogleSqlPreparedQuery';
 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
@@ -53,23 +53,23 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 	abstract iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']>;
 }
 
-export interface MySqlTransactionConfig {
+export interface GoogleSqlTransactionConfig {
 	withConsistentSnapshot?: boolean;
 	accessMode?: 'read only' | 'read write';
 	isolationLevel: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
 }
 
-export abstract class MySqlSession<
-	TQueryResult extends MySqlQueryResultHKT = MySqlQueryResultHKT,
+export abstract class GoogleSqlSession<
+	TQueryResult extends GoogleSqlQueryResultHKT = GoogleSqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > {
-	static readonly [entityKind]: string = 'MySqlSession';
+	static readonly [entityKind]: string = 'GoogleSqlSession';
 
-	constructor(protected dialect: MySqlDialect) {}
+	constructor(protected dialect: GoogleSqlDialect) {}
 
-	abstract prepareQuery<T extends MySqlPreparedQueryConfig, TPreparedQueryHKT extends MySqlPreparedQueryHKT>(
+	abstract prepareQuery<T extends GoogleSqlPreparedQueryConfig, TPreparedQueryHKT extends GoogleSqlPreparedQueryHKT>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
@@ -78,7 +78,7 @@ export abstract class MySqlSession<
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T }, PreparedQueryHKTBase>(
+		return this.prepareQuery<GoogleSqlPreparedQueryConfig & { execute: T }, PreparedQueryHKTBase>(
 			this.dialect.sqlToQuery(query),
 			undefined,
 		).execute();
@@ -95,11 +95,11 @@ export abstract class MySqlSession<
 	}
 
 	abstract transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
-		config?: MySqlTransactionConfig,
+		transaction: (tx: GoogleSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
+		config?: GoogleSqlTransactionConfig,
 	): Promise<T>;
 
-	protected getSetTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
+	protected getSetTransactionSQL(config: GoogleSqlTransactionConfig): SQL | undefined {
 		const parts: string[] = [];
 
 		if (config.isolationLevel) {
@@ -109,7 +109,7 @@ export abstract class MySqlSession<
 		return parts.length ? sql`set transaction ${sql.raw(parts.join(' '))}` : undefined;
 	}
 
-	protected getStartTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
+	protected getStartTransactionSQL(config: GoogleSqlTransactionConfig): SQL | undefined {
 		const parts: string[] = [];
 
 		if (config.withConsistentSnapshot) {
@@ -124,17 +124,17 @@ export abstract class MySqlSession<
 	}
 }
 
-export abstract class MySqlTransaction<
-	TQueryResult extends MySqlQueryResultHKT,
+export abstract class GoogleSqlTransaction<
+	TQueryResult extends GoogleSqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
-> extends MySqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
-	static override readonly [entityKind]: string = 'MySqlTransaction';
+> extends GoogleSqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
+	static override readonly [entityKind]: string = 'GoogleSqlTransaction';
 
 	constructor(
-		dialect: MySqlDialect,
-		session: MySqlSession,
+		dialect: GoogleSqlDialect,
+		session: GoogleSqlSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
 		mode: Mode,
@@ -148,10 +148,10 @@ export abstract class MySqlTransaction<
 
 	/** Nested transactions (aka savepoints) only work with InnoDB engine. */
 	abstract override transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: GoogleSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T>;
 }
 
-export interface PreparedQueryHKTBase extends MySqlPreparedQueryHKT {
-	type: MySqlPreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
+export interface PreparedQueryHKTBase extends GoogleSqlPreparedQueryHKT {
+	type: GoogleSqlPreparedQuery<Assume<this['config'], GoogleSqlPreparedQueryConfig>>;
 }

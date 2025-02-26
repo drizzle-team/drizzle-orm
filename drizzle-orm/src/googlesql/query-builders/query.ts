@@ -10,38 +10,38 @@ import {
 } from '~/relations.ts';
 import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
-import type { MySqlDialect } from '../dialect.ts';
+import type { GoogleSqlDialect } from '../dialect.ts';
 import type {
 	Mode,
-	MySqlPreparedQueryConfig,
-	MySqlSession,
+	GoogleSqlPreparedQueryConfig,
+	GoogleSqlSession,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
 } from '../session.ts';
-import type { MySqlTable } from '../table.ts';
+import type { GoogleSqlTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
 > {
-	static readonly [entityKind]: string = 'MySqlRelationalQueryBuilder';
+	static readonly [entityKind]: string = 'GoogleSqlRelationalQueryBuilder';
 
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
-		private table: MySqlTable,
+		private table: GoogleSqlTable,
 		private tableConfig: TableRelationalConfig,
-		private dialect: MySqlDialect,
-		private session: MySqlSession,
+		private dialect: GoogleSqlDialect,
+		private session: GoogleSqlSession,
 		private mode: Mode,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
-	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
-		return new MySqlRelationalQuery(
+	): GoogleSqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
+		return new GoogleSqlRelationalQuery(
 			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
@@ -57,8 +57,8 @@ export class RelationalQueryBuilder<
 
 	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
 		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
-	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
-		return new MySqlRelationalQuery(
+	): GoogleSqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
+		return new GoogleSqlRelationalQuery(
 			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
@@ -73,22 +73,22 @@ export class RelationalQueryBuilder<
 	}
 }
 
-export class MySqlRelationalQuery<
+export class GoogleSqlRelationalQuery<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TResult,
 > extends QueryPromise<TResult> {
-	static override readonly [entityKind]: string = 'MySqlRelationalQuery';
+	static override readonly [entityKind]: string = 'GoogleSqlRelationalQuery';
 
-	declare protected $brand: 'MySqlRelationalQuery';
+	declare protected $brand: 'GoogleSqlRelationalQuery';
 
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
-		private table: MySqlTable,
+		private table: GoogleSqlTable,
 		private tableConfig: TableRelationalConfig,
-		private dialect: MySqlDialect,
-		private session: MySqlSession,
+		private dialect: GoogleSqlDialect,
+		private session: GoogleSqlSession,
 		private config: DBQueryConfig<'many', true> | true,
 		private queryMode: 'many' | 'first',
 		private mode?: Mode,
@@ -108,7 +108,7 @@ export class MySqlRelationalQuery<
 				}
 				return rows as TResult;
 			},
-		) as PreparedQueryKind<TPreparedQueryHKT, MySqlPreparedQueryConfig & { execute: TResult }, true>;
+		) as PreparedQueryKind<TPreparedQueryHKT, GoogleSqlPreparedQueryConfig & { execute: TResult }, true>;
 	}
 
 	private _getQuery() {

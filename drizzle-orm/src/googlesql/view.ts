@@ -5,11 +5,11 @@ import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import type { MySqlColumn, MySqlColumnBuilderBase } from './columns/index.ts';
+import type { GoogleSqlColumn, GoogleSqlColumnBuilderBase } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
-import { mysqlTable } from './table.ts';
-import { MySqlViewBase } from './view-base.ts';
-import { MySqlViewConfig } from './view-common.ts';
+import { googlesqlTable } from './table.ts';
+import { GoogleSqlViewBase } from './view-base.ts';
+import { GoogleSqlViewConfig } from './view-common.ts';
 
 export interface ViewBuilderConfig {
 	algorithm?: 'undefined' | 'merge' | 'temptable';
@@ -18,7 +18,7 @@ export interface ViewBuilderConfig {
 }
 
 export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
-	static readonly [entityKind]: string = 'MySqlViewBuilder';
+	static readonly [entityKind]: string = 'GoogleSqlViewBuilder';
 
 	declare readonly _: {
 		readonly name: TConfig['name'];
@@ -55,11 +55,11 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
-	static override readonly [entityKind]: string = 'MySqlViewBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlViewBuilder';
 
 	as<TSelectedFields extends ColumnsSelection>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
-	): MySqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'mysql'>> {
+	): GoogleSqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'googlesql'>> {
 		if (typeof qb === 'function') {
 			qb = qb(new QueryBuilder());
 		}
@@ -71,8 +71,8 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 		});
 		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
 		return new Proxy(
-			new MySqlView({
-				mysqlConfig: this.config,
+			new GoogleSqlView({
+				googlesqlConfig: this.config,
 				config: {
 					name: this.name,
 					schema: this.schema,
@@ -81,17 +81,17 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 				},
 			}),
 			selectionProxy as any,
-		) as MySqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'mysql'>>;
+		) as GoogleSqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'googlesql'>>;
 	}
 }
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, MySqlColumnBuilderBase> = Record<string, MySqlColumnBuilderBase>,
+	TColumns extends Record<string, GoogleSqlColumnBuilderBase> = Record<string, GoogleSqlColumnBuilderBase>,
 > extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
-	static override readonly [entityKind]: string = 'MySqlManualViewBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlManualViewBuilder';
 
-	private columns: Record<string, MySqlColumn>;
+	private columns: Record<string, GoogleSqlColumn>;
 
 	constructor(
 		name: TName,
@@ -99,13 +99,13 @@ export class ManualViewBuilder<
 		schema: string | undefined,
 	) {
 		super(name, schema);
-		this.columns = getTableColumns(mysqlTable(name, columns)) as BuildColumns<TName, TColumns, 'mysql'>;
+		this.columns = getTableColumns(googlesqlTable(name, columns)) as BuildColumns<TName, TColumns, 'googlesql'>;
 	}
 
-	existing(): MySqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mysql'>> {
+	existing(): GoogleSqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'googlesql'>> {
 		return new Proxy(
-			new MySqlView({
-				mysqlConfig: undefined,
+			new GoogleSqlView({
+				googlesqlConfig: undefined,
 				config: {
 					name: this.name,
 					schema: this.schema,
@@ -119,13 +119,13 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as MySqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mysql'>>;
+		) as GoogleSqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'googlesql'>>;
 	}
 
-	as(query: SQL): MySqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'mysql'>> {
+	as(query: SQL): GoogleSqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'googlesql'>> {
 		return new Proxy(
-			new MySqlView({
-				mysqlConfig: this.config,
+			new GoogleSqlView({
+				googlesqlConfig: this.config,
 				config: {
 					name: this.name,
 					schema: this.schema,
@@ -139,23 +139,23 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as MySqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'mysql'>>;
+		) as GoogleSqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'googlesql'>>;
 	}
 }
 
-export class MySqlView<
+export class GoogleSqlView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> extends MySqlViewBase<TName, TExisting, TSelectedFields> {
-	static override readonly [entityKind]: string = 'MySqlView';
+> extends GoogleSqlViewBase<TName, TExisting, TSelectedFields> {
+	static override readonly [entityKind]: string = 'GoogleSqlView';
 
-	declare protected $MySqlViewBrand: 'MySqlView';
+	declare protected $GoogleSqlViewBrand: 'GoogleSqlView';
 
-	[MySqlViewConfig]: ViewBuilderConfig | undefined;
+	[GoogleSqlViewConfig]: ViewBuilderConfig | undefined;
 
-	constructor({ mysqlConfig, config }: {
-		mysqlConfig: ViewBuilderConfig | undefined;
+	constructor({ googlesqlConfig, config }: {
+		googlesqlConfig: ViewBuilderConfig | undefined;
 		config: {
 			name: TName;
 			schema: string | undefined;
@@ -164,20 +164,20 @@ export class MySqlView<
 		};
 	}) {
 		super(config);
-		this[MySqlViewConfig] = mysqlConfig;
+		this[GoogleSqlViewConfig] = googlesqlConfig;
 	}
 }
 
-export type MySqlViewWithSelection<
+export type GoogleSqlViewWithSelection<
 	TName extends string,
 	TExisting extends boolean,
 	TSelectedFields extends ColumnsSelection,
-> = MySqlView<TName, TExisting, TSelectedFields> & TSelectedFields;
+> = GoogleSqlView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
 /** @internal */
-export function mysqlViewWithSchema(
+export function googlesqlViewWithSchema(
 	name: string,
-	selection: Record<string, MySqlColumnBuilderBase> | undefined,
+	selection: Record<string, GoogleSqlColumnBuilderBase> | undefined,
 	schema: string | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
@@ -186,14 +186,14 @@ export function mysqlViewWithSchema(
 	return new ViewBuilder(name, schema);
 }
 
-export function mysqlView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function mysqlView<TName extends string, TColumns extends Record<string, MySqlColumnBuilderBase>>(
+export function googlesqlView<TName extends string>(name: TName): ViewBuilder<TName>;
+export function googlesqlView<TName extends string, TColumns extends Record<string, GoogleSqlColumnBuilderBase>>(
 	name: TName,
 	columns: TColumns,
 ): ManualViewBuilder<TName, TColumns>;
-export function mysqlView(
+export function googlesqlView(
 	name: string,
-	selection?: Record<string, MySqlColumnBuilderBase>,
+	selection?: Record<string, GoogleSqlColumnBuilderBase>,
 ): ViewBuilder | ManualViewBuilder {
-	return mysqlViewWithSchema(name, selection, undefined);
+	return googlesqlViewWithSchema(name, selection, undefined);
 }

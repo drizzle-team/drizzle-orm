@@ -1,19 +1,19 @@
 import { entityKind } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
-import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
-import type { MySqlTable } from './table.ts';
+import type { AnyGoogleSqlColumn, GoogleSqlColumn } from './columns/index.ts';
+import type { GoogleSqlTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
 	readonly name?: string;
-	readonly columns: MySqlColumn[];
-	readonly foreignTable: MySqlTable;
-	readonly foreignColumns: MySqlColumn[];
+	readonly columns: GoogleSqlColumn[];
+	readonly foreignTable: GoogleSqlTable;
+	readonly foreignColumns: GoogleSqlColumn[];
 };
 
 export class ForeignKeyBuilder {
-	static readonly [entityKind]: string = 'MySqlForeignKeyBuilder';
+	static readonly [entityKind]: string = 'GoogleSqlForeignKeyBuilder';
 
 	/** @internal */
 	reference: Reference;
@@ -27,8 +27,8 @@ export class ForeignKeyBuilder {
 	constructor(
 		config: () => {
 			name?: string;
-			columns: MySqlColumn[];
-			foreignColumns: MySqlColumn[];
+			columns: GoogleSqlColumn[];
+			foreignColumns: GoogleSqlColumn[];
 		},
 		actions?: {
 			onUpdate?: UpdateDeleteAction;
@@ -37,7 +37,7 @@ export class ForeignKeyBuilder {
 	) {
 		this.reference = () => {
 			const { name, columns, foreignColumns } = config();
-			return { name, columns, foreignTable: foreignColumns[0]!.table as MySqlTable, foreignColumns };
+			return { name, columns, foreignTable: foreignColumns[0]!.table as GoogleSqlTable, foreignColumns };
 		};
 		if (actions) {
 			this._onUpdate = actions.onUpdate;
@@ -56,7 +56,7 @@ export class ForeignKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: MySqlTable): ForeignKey {
+	build(table: GoogleSqlTable): ForeignKey {
 		return new ForeignKey(table, this);
 	}
 }
@@ -64,13 +64,13 @@ export class ForeignKeyBuilder {
 export type AnyForeignKeyBuilder = ForeignKeyBuilder;
 
 export class ForeignKey {
-	static readonly [entityKind]: string = 'MySqlForeignKey';
+	static readonly [entityKind]: string = 'GoogleSqlForeignKey';
 
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
-	constructor(readonly table: MySqlTable, builder: ForeignKeyBuilder) {
+	constructor(readonly table: GoogleSqlTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
@@ -92,20 +92,20 @@ export class ForeignKey {
 
 type ColumnsWithTable<
 	TTableName extends string,
-	TColumns extends MySqlColumn[],
-> = { [Key in keyof TColumns]: AnyMySqlColumn<{ tableName: TTableName }> };
+	TColumns extends GoogleSqlColumn[],
+> = { [Key in keyof TColumns]: AnyGoogleSqlColumn<{ tableName: TTableName }> };
 
-export type GetColumnsTable<TColumns extends MySqlColumn | MySqlColumn[]> = (
-	TColumns extends MySqlColumn ? TColumns
-		: TColumns extends MySqlColumn[] ? TColumns[number]
+export type GetColumnsTable<TColumns extends GoogleSqlColumn | GoogleSqlColumn[]> = (
+	TColumns extends GoogleSqlColumn ? TColumns
+		: TColumns extends GoogleSqlColumn[] ? TColumns[number]
 		: never
-) extends AnyMySqlColumn<{ tableName: infer TTableName extends string }> ? TTableName
+) extends AnyGoogleSqlColumn<{ tableName: infer TTableName extends string }> ? TTableName
 	: never;
 
 export function foreignKey<
 	TTableName extends string,
 	TForeignTableName extends string,
-	TColumns extends [AnyMySqlColumn<{ tableName: TTableName }>, ...AnyMySqlColumn<{ tableName: TTableName }>[]],
+	TColumns extends [AnyGoogleSqlColumn<{ tableName: TTableName }>, ...AnyGoogleSqlColumn<{ tableName: TTableName }>[]],
 >(
 	config: {
 		name?: string;

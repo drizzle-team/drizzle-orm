@@ -1,46 +1,46 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { GoogleSqlColumnBuilderWithAutoIncrement, GoogleSqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<{
+export type GoogleSqlRealBuilderInitial<TName extends string> = GoogleSqlRealBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlReal';
+	columnType: 'GoogleSqlReal';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 }>;
 
-export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlReal'>>
-	extends MySqlColumnBuilderWithAutoIncrement<
+export class GoogleSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlReal'>>
+	extends GoogleSqlColumnBuilderWithAutoIncrement<
 		T,
-		MySqlRealConfig
+		GoogleSqlRealConfig
 	>
 {
-	static override readonly [entityKind]: string = 'MySqlRealBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlRealBuilder';
 
-	constructor(name: T['name'], config: MySqlRealConfig | undefined) {
-		super(name, 'number', 'MySqlReal');
+	constructor(name: T['name'], config: GoogleSqlRealConfig | undefined) {
+		super(name, 'number', 'GoogleSqlReal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlReal<MakeColumnConfig<T, TTableName>> {
-		return new MySqlReal<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlReal<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlReal<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlReal<T extends ColumnBaseConfig<'number', 'MySqlReal'>> extends MySqlColumnWithAutoIncrement<
+export class GoogleSqlReal<T extends ColumnBaseConfig<'number', 'GoogleSqlReal'>> extends GoogleSqlColumnWithAutoIncrement<
 	T,
-	MySqlRealConfig
+	GoogleSqlRealConfig
 > {
-	static override readonly [entityKind]: string = 'MySqlReal';
+	static override readonly [entityKind]: string = 'GoogleSqlReal';
 
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;
@@ -56,20 +56,20 @@ export class MySqlReal<T extends ColumnBaseConfig<'number', 'MySqlReal'>> extend
 	}
 }
 
-export interface MySqlRealConfig {
+export interface GoogleSqlRealConfig {
 	precision?: number;
 	scale?: number;
 }
 
-export function real(): MySqlRealBuilderInitial<''>;
+export function real(): GoogleSqlRealBuilderInitial<''>;
 export function real(
-	config?: MySqlRealConfig,
-): MySqlRealBuilderInitial<''>;
+	config?: GoogleSqlRealConfig,
+): GoogleSqlRealBuilderInitial<''>;
 export function real<TName extends string>(
 	name: TName,
-	config?: MySqlRealConfig,
-): MySqlRealBuilderInitial<TName>;
-export function real(a?: string | MySqlRealConfig, b: MySqlRealConfig = {}) {
-	const { name, config } = getColumnNameAndConfig<MySqlRealConfig>(a, b);
-	return new MySqlRealBuilder(name, config);
+	config?: GoogleSqlRealConfig,
+): GoogleSqlRealBuilderInitial<TName>;
+export function real(a?: string | GoogleSqlRealConfig, b: GoogleSqlRealConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlRealConfig>(a, b);
+	return new GoogleSqlRealBuilder(name, config);
 }

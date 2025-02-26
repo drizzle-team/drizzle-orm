@@ -1,45 +1,45 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
-export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
+export type GoogleSqlYearBuilderInitial<TName extends string> = GoogleSqlYearBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlYear';
+	columnType: 'GoogleSqlYear';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
 }>;
 
-export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlYear'>> extends MySqlColumnBuilder<T> {
-	static override readonly [entityKind]: string = 'MySqlYearBuilder';
+export class GoogleSqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlYear'>> extends GoogleSqlColumnBuilder<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlYearBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'number', 'MySqlYear');
+		super(name, 'number', 'GoogleSqlYear');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlYear<MakeColumnConfig<T, TTableName>> {
-		return new MySqlYear<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlYear<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlYear<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlYear<
-	T extends ColumnBaseConfig<'number', 'MySqlYear'>,
-> extends MySqlColumn<T> {
-	static override readonly [entityKind]: string = 'MySqlYear';
+export class GoogleSqlYear<
+	T extends ColumnBaseConfig<'number', 'GoogleSqlYear'>,
+> extends GoogleSqlColumn<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlYear';
 
 	getSQLType(): string {
 		return `year`;
 	}
 }
 
-export function year(): MySqlYearBuilderInitial<''>;
-export function year<TName extends string>(name: TName): MySqlYearBuilderInitial<TName>;
+export function year(): GoogleSqlYearBuilderInitial<''>;
+export function year<TName extends string>(name: TName): GoogleSqlYearBuilderInitial<TName>;
 export function year(name?: string) {
-	return new MySqlYearBuilder(name ?? '');
+	return new GoogleSqlYearBuilder(name ?? '');
 }

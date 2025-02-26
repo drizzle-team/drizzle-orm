@@ -9,17 +9,17 @@ import type {
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
+import { GoogleSqlColumnBuilderWithAutoIncrement, GoogleSqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
+export type GoogleSqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
 	IsPrimaryKey<
 		NotNull<
 			HasDefault<
-				MySqlSerialBuilder<{
+				GoogleSqlSerialBuilder<{
 					name: TName;
 					dataType: 'number';
-					columnType: 'MySqlSerial';
+					columnType: 'GoogleSqlSerial';
 					data: number;
 					driverParam: number;
 					enumValues: undefined;
@@ -29,29 +29,29 @@ export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
 	>
 >;
 
-export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSerial'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T>
+export class GoogleSqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlSerial'>>
+	extends GoogleSqlColumnBuilderWithAutoIncrement<T>
 {
-	static override readonly [entityKind]: string = 'MySqlSerialBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlSerialBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'number', 'MySqlSerial');
+		super(name, 'number', 'GoogleSqlSerial');
 		this.config.hasDefault = true;
 		this.config.autoIncrement = true;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlSerial<MakeColumnConfig<T, TTableName>> {
-		return new MySqlSerial<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlSerial<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlSerial<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlSerial<
-	T extends ColumnBaseConfig<'number', 'MySqlSerial'>,
-> extends MySqlColumnWithAutoIncrement<T> {
-	static override readonly [entityKind]: string = 'MySqlSerial';
+export class GoogleSqlSerial<
+	T extends ColumnBaseConfig<'number', 'GoogleSqlSerial'>,
+> extends GoogleSqlColumnWithAutoIncrement<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlSerial';
 
 	getSQLType(): string {
 		return 'serial';
@@ -65,8 +65,8 @@ export class MySqlSerial<
 	}
 }
 
-export function serial(): MySqlSerialBuilderInitial<''>;
-export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName>;
+export function serial(): GoogleSqlSerialBuilderInitial<''>;
+export function serial<TName extends string>(name: TName): GoogleSqlSerialBuilderInitial<TName>;
 export function serial(name?: string) {
-	return new MySqlSerialBuilder(name ?? '');
+	return new GoogleSqlSerialBuilder(name ?? '');
 }

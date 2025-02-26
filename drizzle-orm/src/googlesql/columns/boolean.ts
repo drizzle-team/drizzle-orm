@@ -1,40 +1,40 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
-export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuilder<{
+export type GoogleSqlBooleanBuilderInitial<TName extends string> = GoogleSqlBooleanBuilder<{
 	name: TName;
 	dataType: 'boolean';
-	columnType: 'MySqlBoolean';
+	columnType: 'GoogleSqlBoolean';
 	data: boolean;
 	driverParam: number | boolean;
 	enumValues: undefined;
 }>;
 
-export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MySqlBoolean'>>
-	extends MySqlColumnBuilder<T>
+export class GoogleSqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'GoogleSqlBoolean'>>
+	extends GoogleSqlColumnBuilder<T>
 {
-	static override readonly [entityKind]: string = 'MySqlBooleanBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlBooleanBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'boolean', 'MySqlBoolean');
+		super(name, 'boolean', 'GoogleSqlBoolean');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBoolean<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBoolean<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlBoolean<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlBoolean<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlBoolean<T extends ColumnBaseConfig<'boolean', 'MySqlBoolean'>> extends MySqlColumn<T> {
-	static override readonly [entityKind]: string = 'MySqlBoolean';
+export class GoogleSqlBoolean<T extends ColumnBaseConfig<'boolean', 'GoogleSqlBoolean'>> extends GoogleSqlColumn<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlBoolean';
 
 	getSQLType(): string {
 		return 'boolean';
@@ -48,8 +48,8 @@ export class MySqlBoolean<T extends ColumnBaseConfig<'boolean', 'MySqlBoolean'>>
 	}
 }
 
-export function boolean(): MySqlBooleanBuilderInitial<''>;
-export function boolean<TName extends string>(name: TName): MySqlBooleanBuilderInitial<TName>;
+export function boolean(): GoogleSqlBooleanBuilderInitial<''>;
+export function boolean<TName extends string>(name: TName): GoogleSqlBooleanBuilderInitial<TName>;
 export function boolean(name?: string) {
-	return new MySqlBooleanBuilder(name ?? '');
+	return new GoogleSqlBooleanBuilder(name ?? '');
 }

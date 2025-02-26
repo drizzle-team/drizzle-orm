@@ -7,18 +7,18 @@ import type {
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
-export interface MySqlDateColumnBaseConfig {
+export interface GoogleSqlDateColumnBaseConfig {
 	hasOnUpdateNow: boolean;
 }
 
-export abstract class MySqlDateColumnBaseBuilder<
+export abstract class GoogleSqlDateColumnBaseBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlDateColumnBaseConfig, TExtraConfig> {
-	static override readonly [entityKind]: string = 'MySqlDateColumnBuilder';
+> extends GoogleSqlColumnBuilder<T, TRuntimeConfig & GoogleSqlDateColumnBaseConfig, TExtraConfig> {
+	static override readonly [entityKind]: string = 'GoogleSqlDateColumnBuilder';
 
 	defaultNow() {
 		return this.default(sql`(now())`);
@@ -32,11 +32,11 @@ export abstract class MySqlDateColumnBaseBuilder<
 	}
 }
 
-export abstract class MySqlDateBaseColumn<
+export abstract class GoogleSqlDateBaseColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-> extends MySqlColumn<T, MySqlDateColumnBaseConfig & TRuntimeConfig> {
-	static override readonly [entityKind]: string = 'MySqlDateColumn';
+> extends GoogleSqlColumn<T, GoogleSqlDateColumnBaseConfig & TRuntimeConfig> {
+	static override readonly [entityKind]: string = 'GoogleSqlDateColumn';
 
 	readonly hasOnUpdateNow: boolean = this.config.hasOnUpdateNow;
 }

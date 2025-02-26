@@ -1,36 +1,36 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { MySqlDialect } from '~/googlesql/dialect.ts';
+import type { GoogleSqlDialect } from '~/googlesql/dialect.ts';
 import type {
-	AnyMySqlQueryResultHKT,
-	MySqlPreparedQueryConfig,
-	MySqlQueryResultHKT,
-	MySqlQueryResultKind,
-	MySqlSession,
+	AnyGoogleSqlQueryResultHKT,
+	GoogleSqlPreparedQueryConfig,
+	GoogleSqlQueryResultHKT,
+	GoogleSqlQueryResultKind,
+	GoogleSqlSession,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
 } from '~/googlesql/session.ts';
-import type { MySqlTable } from '~/googlesql/table.ts';
+import type { GoogleSqlTable } from '~/googlesql/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
-import type { MySqlColumn } from '../columns/common.ts';
+import type { GoogleSqlColumn } from '../columns/common.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
-export interface MySqlUpdateConfig {
+export interface GoogleSqlUpdateConfig {
 	where?: SQL | undefined;
 	limit?: number | Placeholder;
-	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+	orderBy?: (GoogleSqlColumn | SQL | SQL.Aliased)[];
 	set: UpdateSet;
-	table: MySqlTable;
+	table: GoogleSqlTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 }
 
-export type MySqlUpdateSetSource<TTable extends MySqlTable> =
+export type GoogleSqlUpdateSetSource<TTable extends GoogleSqlTable> =
 	& {
 		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
@@ -39,12 +39,12 @@ export type MySqlUpdateSetSource<TTable extends MySqlTable> =
 	}
 	& {};
 
-export class MySqlUpdateBuilder<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export class GoogleSqlUpdateBuilder<
+	TTable extends GoogleSqlTable,
+	TQueryResult extends GoogleSqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
-	static readonly [entityKind]: string = 'MySqlUpdateBuilder';
+	static readonly [entityKind]: string = 'GoogleSqlUpdateBuilder';
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -52,22 +52,22 @@ export class MySqlUpdateBuilder<
 
 	constructor(
 		private table: TTable,
-		private session: MySqlSession,
-		private dialect: MySqlDialect,
+		private session: GoogleSqlSession,
+		private dialect: GoogleSqlDialect,
 		private withList?: Subquery[],
 	) {}
 
-	set(values: MySqlUpdateSetSource<TTable>): MySqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MySqlUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect, this.withList);
+	set(values: GoogleSqlUpdateSetSource<TTable>): GoogleSqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
+		return new GoogleSqlUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect, this.withList);
 	}
 }
 
-export type MySqlUpdateWithout<
-	T extends AnyMySqlUpdateBase,
+export type GoogleSqlUpdateWithout<
+	T extends AnyGoogleSqlUpdateBase,
 	TDynamic extends boolean,
 	K extends keyof T & string,
 > = TDynamic extends true ? T : Omit<
-	MySqlUpdateBase<
+	GoogleSqlUpdateBase<
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['preparedQueryHKT'],
@@ -77,36 +77,36 @@ export type MySqlUpdateWithout<
 	T['_']['excludedMethods'] | K
 >;
 
-export type MySqlUpdatePrepare<T extends AnyMySqlUpdateBase> = PreparedQueryKind<
+export type GoogleSqlUpdatePrepare<T extends AnyGoogleSqlUpdateBase> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
-	MySqlPreparedQueryConfig & {
-		execute: MySqlQueryResultKind<T['_']['queryResult'], never>;
+	GoogleSqlPreparedQueryConfig & {
+		execute: GoogleSqlQueryResultKind<T['_']['queryResult'], never>;
 		iterator: never;
 	},
 	true
 >;
 
-export type MySqlUpdateDynamic<T extends AnyMySqlUpdateBase> = MySqlUpdate<
+export type GoogleSqlUpdateDynamic<T extends AnyGoogleSqlUpdateBase> = GoogleSqlUpdate<
 	T['_']['table'],
 	T['_']['queryResult'],
 	T['_']['preparedQueryHKT']
 >;
 
-export type MySqlUpdate<
-	TTable extends MySqlTable = MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT = AnyMySqlQueryResultHKT,
+export type GoogleSqlUpdate<
+	TTable extends GoogleSqlTable = GoogleSqlTable,
+	TQueryResult extends GoogleSqlQueryResultHKT = AnyGoogleSqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-> = MySqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
+> = GoogleSqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
 
-export type AnyMySqlUpdateBase = MySqlUpdateBase<any, any, any, any, any>;
+export type AnyGoogleSqlUpdateBase = GoogleSqlUpdateBase<any, any, any, any, any>;
 
-export interface MySqlUpdateBase<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export interface GoogleSqlUpdateBase<
+	TTable extends GoogleSqlTable,
+	TQueryResult extends GoogleSqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>>, SQLWrapper {
+> extends QueryPromise<GoogleSqlQueryResultKind<TQueryResult, never>>, SQLWrapper {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
@@ -116,25 +116,25 @@ export interface MySqlUpdateBase<
 	};
 }
 
-export class MySqlUpdateBase<
-	TTable extends MySqlTable,
-	TQueryResult extends MySqlQueryResultHKT,
+export class GoogleSqlUpdateBase<
+	TTable extends GoogleSqlTable,
+	TQueryResult extends GoogleSqlQueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> implements SQLWrapper {
-	static override readonly [entityKind]: string = 'MySqlUpdate';
+> extends QueryPromise<GoogleSqlQueryResultKind<TQueryResult, never>> implements SQLWrapper {
+	static override readonly [entityKind]: string = 'GoogleSqlUpdate';
 
-	private config: MySqlUpdateConfig;
+	private config: GoogleSqlUpdateConfig;
 
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: MySqlSession,
-		private dialect: MySqlDialect,
+		private session: GoogleSqlSession,
+		private dialect: GoogleSqlDialect,
 		withList?: Subquery[],
 	) {
 		super();
@@ -174,20 +174,20 @@ export class MySqlUpdateBase<
 	 *   .where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	 */
-	where(where: SQL | undefined): MySqlUpdateWithout<this, TDynamic, 'where'> {
+	where(where: SQL | undefined): GoogleSqlUpdateWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
 		return this as any;
 	}
 
 	orderBy(
-		builder: (updateTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
-	): MySqlUpdateWithout<this, TDynamic, 'orderBy'>;
-	orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): MySqlUpdateWithout<this, TDynamic, 'orderBy'>;
+		builder: (updateTable: TTable) => ValueOrArray<GoogleSqlColumn | SQL | SQL.Aliased>,
+	): GoogleSqlUpdateWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (GoogleSqlColumn | SQL | SQL.Aliased)[]): GoogleSqlUpdateWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
-			| [(updateTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
-			| (MySqlColumn | SQL | SQL.Aliased)[]
-	): MySqlUpdateWithout<this, TDynamic, 'orderBy'> {
+			| [(updateTable: TTable) => ValueOrArray<GoogleSqlColumn | SQL | SQL.Aliased>]
+			| (GoogleSqlColumn | SQL | SQL.Aliased)[]
+	): GoogleSqlUpdateWithout<this, TDynamic, 'orderBy'> {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -199,13 +199,13 @@ export class MySqlUpdateBase<
 			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
 			this.config.orderBy = orderByArray;
 		} else {
-			const orderByArray = columns as (MySqlColumn | SQL | SQL.Aliased)[];
+			const orderByArray = columns as (GoogleSqlColumn | SQL | SQL.Aliased)[];
 			this.config.orderBy = orderByArray;
 		}
 		return this as any;
 	}
 
-	limit(limit: number | Placeholder): MySqlUpdateWithout<this, TDynamic, 'limit'> {
+	limit(limit: number | Placeholder): GoogleSqlUpdateWithout<this, TDynamic, 'limit'> {
 		this.config.limit = limit;
 		return this as any;
 	}
@@ -220,11 +220,11 @@ export class MySqlUpdateBase<
 		return rest;
 	}
 
-	prepare(): MySqlUpdatePrepare<this> {
+	prepare(): GoogleSqlUpdatePrepare<this> {
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
-		) as MySqlUpdatePrepare<this>;
+		) as GoogleSqlUpdatePrepare<this>;
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
@@ -240,7 +240,7 @@ export class MySqlUpdateBase<
 
 	iterator = this.createIterator();
 
-	$dynamic(): MySqlUpdateDynamic<this> {
+	$dynamic(): GoogleSqlUpdateDynamic<this> {
 		return this as any;
 	}
 }

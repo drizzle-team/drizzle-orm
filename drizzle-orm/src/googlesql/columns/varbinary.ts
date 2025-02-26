@@ -1,45 +1,45 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
-export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
+export type GoogleSqlVarBinaryBuilderInitial<TName extends string> = GoogleSqlVarBinaryBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlVarBinary';
+	columnType: 'GoogleSqlVarBinary';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
 }>;
 
-export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarBinary'>>
-	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>
+export class GoogleSqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlVarBinary'>>
+	extends GoogleSqlColumnBuilder<T, GoogleSqlVarbinaryOptions>
 {
-	static override readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlVarBinaryBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: MySqlVarbinaryOptions) {
-		super(name, 'string', 'MySqlVarBinary');
+	constructor(name: T['name'], config: GoogleSqlVarbinaryOptions) {
+		super(name, 'string', 'GoogleSqlVarBinary');
 		this.config.length = config?.length;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlVarBinary<MakeColumnConfig<T, TTableName>> {
-		return new MySqlVarBinary<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlVarBinary<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlVarBinary<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlVarBinary<
-	T extends ColumnBaseConfig<'string', 'MySqlVarBinary'>,
-> extends MySqlColumn<T, MySqlVarbinaryOptions> {
-	static override readonly [entityKind]: string = 'MySqlVarBinary';
+export class GoogleSqlVarBinary<
+	T extends ColumnBaseConfig<'string', 'GoogleSqlVarBinary'>,
+> extends GoogleSqlColumn<T, GoogleSqlVarbinaryOptions> {
+	static override readonly [entityKind]: string = 'GoogleSqlVarBinary';
 
 	length: number | undefined = this.config.length;
 
@@ -48,18 +48,18 @@ export class MySqlVarBinary<
 	}
 }
 
-export interface MySqlVarbinaryOptions {
+export interface GoogleSqlVarbinaryOptions {
 	length: number;
 }
 
 export function varbinary(
-	config: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<''>;
+	config: GoogleSqlVarbinaryOptions,
+): GoogleSqlVarBinaryBuilderInitial<''>;
 export function varbinary<TName extends string>(
 	name: TName,
-	config: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<TName>;
-export function varbinary(a?: string | MySqlVarbinaryOptions, b?: MySqlVarbinaryOptions) {
-	const { name, config } = getColumnNameAndConfig<MySqlVarbinaryOptions>(a, b);
-	return new MySqlVarBinaryBuilder(name, config);
+	config: GoogleSqlVarbinaryOptions,
+): GoogleSqlVarBinaryBuilderInitial<TName>;
+export function varbinary(a?: string | GoogleSqlVarbinaryOptions, b?: GoogleSqlVarbinaryOptions) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlVarbinaryOptions>(a, b);
+	return new GoogleSqlVarBinaryBuilder(name, config);
 }

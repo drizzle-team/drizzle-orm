@@ -2,32 +2,32 @@ import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts'
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
-import { getMySqlColumnBuilders, type MySqlColumnBuilders } from './columns/all.ts';
-import type { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderBase } from './columns/common.ts';
+import { getGoogleSqlColumnBuilders, type GoogleSqlColumnBuilders } from './columns/all.ts';
+import type { GoogleSqlColumn, GoogleSqlColumnBuilder, GoogleSqlColumnBuilderBase } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
-export type MySqlTableExtraConfigValue =
+export type GoogleSqlTableExtraConfigValue =
 	| AnyIndexBuilder
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder;
 
-export type MySqlTableExtraConfig = Record<
+export type GoogleSqlTableExtraConfig = Record<
 	string,
-	MySqlTableExtraConfigValue
+	GoogleSqlTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<MySqlColumn>;
+export type TableConfig = TableConfigBase<GoogleSqlColumn>;
 
 /** @internal */
-export const InlineForeignKeys = Symbol.for('drizzle:MySqlInlineForeignKeys');
+export const InlineForeignKeys = Symbol.for('drizzle:GoogleSqlInlineForeignKeys');
 
-export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
-	static override readonly [entityKind]: string = 'MySqlTable';
+export class GoogleSqlTable<T extends TableConfig = TableConfig> extends Table<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlTable';
 
 	declare protected $columns: T['columns'];
 
@@ -44,58 +44,58 @@ export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
-		| ((self: Record<string, MySqlColumn>) => MySqlTableExtraConfig)
+		| ((self: Record<string, GoogleSqlColumn>) => GoogleSqlTableExtraConfig)
 		| undefined = undefined;
 }
 
-export type AnyMySqlTable<TPartial extends Partial<TableConfig> = {}> = MySqlTable<
+export type AnyGoogleSqlTable<TPartial extends Partial<TableConfig> = {}> = GoogleSqlTable<
 	UpdateTableConfig<TableConfig, TPartial>
 >;
 
-export type MySqlTableWithColumns<T extends TableConfig> =
-	& MySqlTable<T>
+export type GoogleSqlTableWithColumns<T extends TableConfig> =
+	& GoogleSqlTable<T>
 	& {
 		[Key in keyof T['columns']]: T['columns'][Key];
 	};
 
-export function mysqlTableWithSchema<
+export function googlesqlTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	TColumnsMap extends Record<string, GoogleSqlColumnBuilderBase>,
 >(
 	name: TTableName,
-	columns: TColumnsMap | ((columnTypes: MySqlColumnBuilders) => TColumnsMap),
+	columns: TColumnsMap | ((columnTypes: GoogleSqlColumnBuilders) => TColumnsMap),
 	extraConfig:
 		| ((
-			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
-		) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
+			self: BuildColumns<TTableName, TColumnsMap, 'googlesql'>,
+		) => GoogleSqlTableExtraConfig | GoogleSqlTableExtraConfigValue[])
 		| undefined,
 	schema: TSchemaName,
 	baseName = name,
-): MySqlTableWithColumns<{
+): GoogleSqlTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
-	columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
-	dialect: 'mysql';
+	columns: BuildColumns<TTableName, TColumnsMap, 'googlesql'>;
+	dialect: 'googlesql';
 }> {
-	const rawTable = new MySqlTable<{
+	const rawTable = new GoogleSqlTable<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
-		dialect: 'mysql';
+		columns: BuildColumns<TTableName, TColumnsMap, 'googlesql'>;
+		dialect: 'googlesql';
 	}>(name, schema, baseName);
 
-	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getMySqlColumnBuilders()) : columns;
+	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getGoogleSqlColumnBuilders()) : columns;
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
-			const colBuilder = colBuilderBase as MySqlColumnBuilder;
+			const colBuilder = colBuilderBase as GoogleSqlColumnBuilder;
 			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
-	) as unknown as BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+	) as unknown as BuildColumns<TTableName, TColumnsMap, 'googlesql'>;
 
 	const table = Object.assign(rawTable, builtColumns);
 
@@ -103,55 +103,55 @@ export function mysqlTableWithSchema<
 	table[Table.Symbol.ExtraConfigColumns] = builtColumns as unknown as BuildExtraConfigColumns<
 		TTableName,
 		TColumnsMap,
-		'mysql'
+		'googlesql'
 	>;
 
 	if (extraConfig) {
-		table[MySqlTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (
-			self: Record<string, MySqlColumn>,
-		) => MySqlTableExtraConfig;
+		table[GoogleSqlTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (
+			self: Record<string, GoogleSqlColumn>,
+		) => GoogleSqlTableExtraConfig;
 	}
 
 	return table;
 }
 
-export interface MySqlTableFn<TSchemaName extends string | undefined = undefined> {
+export interface GoogleSqlTableFn<TSchemaName extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+		TColumnsMap extends Record<string, GoogleSqlColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
 		extraConfig?: (
-			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
-		) => MySqlTableExtraConfigValue[],
-	): MySqlTableWithColumns<{
+			self: BuildColumns<TTableName, TColumnsMap, 'googlesql'>,
+		) => GoogleSqlTableExtraConfigValue[],
+	): GoogleSqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
-		dialect: 'mysql';
+		columns: BuildColumns<TTableName, TColumnsMap, 'googlesql'>;
+		dialect: 'googlesql';
 	}>;
 
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+		TColumnsMap extends Record<string, GoogleSqlColumnBuilderBase>,
 	>(
 		name: TTableName,
-		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfigValue[],
-	): MySqlTableWithColumns<{
+		columns: (columnTypes: GoogleSqlColumnBuilders) => TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'googlesql'>) => GoogleSqlTableExtraConfigValue[],
+	): GoogleSqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
-		dialect: 'mysql';
+		columns: BuildColumns<TTableName, TColumnsMap, 'googlesql'>;
+		dialect: 'googlesql';
 	}>;
 	/**
-	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
+	 * @deprecated The third parameter of googlesqlTable is changing and will only accept an array instead of an object
 	 *
 	 * @example
 	 * Deprecated version:
 	 * ```ts
-	 * export const users = mysqlTable("users", {
+	 * export const users = googlesqlTable("users", {
 	 * 	id: int(),
 	 * }, (t) => ({
 	 * 	idx: index('custom_name').on(t.id)
@@ -160,7 +160,7 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	 *
 	 * New API:
 	 * ```ts
-	 * export const users = mysqlTable("users", {
+	 * export const users = googlesqlTable("users", {
 	 * 	id: int(),
 	 * }, (t) => [
 	 * 	index('custom_name').on(t.id)
@@ -169,25 +169,25 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+		TColumnsMap extends Record<string, GoogleSqlColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
-	): MySqlTableWithColumns<{
+		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'googlesql'>) => GoogleSqlTableExtraConfig,
+	): GoogleSqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
-		dialect: 'mysql';
+		columns: BuildColumns<TTableName, TColumnsMap, 'googlesql'>;
+		dialect: 'googlesql';
 	}>;
 
 	/**
-	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
+	 * @deprecated The third parameter of googlesqlTable is changing and will only accept an array instead of an object
 	 *
 	 * @example
 	 * Deprecated version:
 	 * ```ts
-	 * export const users = mysqlTable("users", {
+	 * export const users = googlesqlTable("users", {
 	 * 	id: int(),
 	 * }, (t) => ({
 	 * 	idx: index('custom_name').on(t.id)
@@ -196,7 +196,7 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	 *
 	 * New API:
 	 * ```ts
-	 * export const users = mysqlTable("users", {
+	 * export const users = googlesqlTable("users", {
 	 * 	id: int(),
 	 * }, (t) => [
 	 * 	index('custom_name').on(t.id)
@@ -205,25 +205,25 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+		TColumnsMap extends Record<string, GoogleSqlColumnBuilderBase>,
 	>(
 		name: TTableName,
-		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
-		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
-	): MySqlTableWithColumns<{
+		columns: (columnTypes: GoogleSqlColumnBuilders) => TColumnsMap,
+		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'googlesql'>) => GoogleSqlTableExtraConfig,
+	): GoogleSqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
-		dialect: 'mysql';
+		columns: BuildColumns<TTableName, TColumnsMap, 'googlesql'>;
+		dialect: 'googlesql';
 	}>;
 }
 
-export const mysqlTable: MySqlTableFn = (name, columns, extraConfig) => {
-	return mysqlTableWithSchema(name, columns, extraConfig, undefined, name);
+export const googlesqlTable: GoogleSqlTableFn = (name, columns, extraConfig) => {
+	return googlesqlTableWithSchema(name, columns, extraConfig, undefined, name);
 };
 
-export function mysqlTableCreator(customizeTableName: (name: string) => string): MySqlTableFn {
+export function googlesqlTableCreator(customizeTableName: (name: string) => string): GoogleSqlTableFn {
 	return (name, columns, extraConfig) => {
-		return mysqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return googlesqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
 	};
 }

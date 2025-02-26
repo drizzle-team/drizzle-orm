@@ -1,45 +1,45 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
-export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
+export type GoogleSqlTimeBuilderInitial<TName extends string> = GoogleSqlTimeBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlTime';
+	columnType: 'GoogleSqlTime';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
 }>;
 
-export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTime'>> extends MySqlColumnBuilder<
+export class GoogleSqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlTime'>> extends GoogleSqlColumnBuilder<
 	T,
 	TimeConfig
 > {
-	static override readonly [entityKind]: string = 'MySqlTimeBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlTimeBuilder';
 
 	constructor(
 		name: T['name'],
 		config: TimeConfig | undefined,
 	) {
-		super(name, 'string', 'MySqlTime');
+		super(name, 'string', 'GoogleSqlTime');
 		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTime<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTime<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlTime<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlTime<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlTime<
-	T extends ColumnBaseConfig<'string', 'MySqlTime'>,
-> extends MySqlColumn<T, TimeConfig> {
-	static override readonly [entityKind]: string = 'MySqlTime';
+export class GoogleSqlTime<
+	T extends ColumnBaseConfig<'string', 'GoogleSqlTime'>,
+> extends GoogleSqlColumn<T, TimeConfig> {
+	static override readonly [entityKind]: string = 'GoogleSqlTime';
 
 	readonly fsp: number | undefined = this.config.fsp;
 
@@ -53,15 +53,15 @@ export type TimeConfig = {
 	fsp?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
 };
 
-export function time(): MySqlTimeBuilderInitial<''>;
+export function time(): GoogleSqlTimeBuilderInitial<''>;
 export function time(
 	config?: TimeConfig,
-): MySqlTimeBuilderInitial<''>;
+): GoogleSqlTimeBuilderInitial<''>;
 export function time<TName extends string>(
 	name: TName,
 	config?: TimeConfig,
-): MySqlTimeBuilderInitial<TName>;
+): GoogleSqlTimeBuilderInitial<TName>;
 export function time(a?: string | TimeConfig, b?: TimeConfig) {
 	const { name, config } = getColumnNameAndConfig<TimeConfig>(a, b);
-	return new MySqlTimeBuilder(name, config);
+	return new GoogleSqlTimeBuilder(name, config);
 }

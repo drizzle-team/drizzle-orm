@@ -1,35 +1,35 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
-export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
+export type GoogleSqlJsonBuilderInitial<TName extends string> = GoogleSqlJsonBuilder<{
 	name: TName;
 	dataType: 'json';
-	columnType: 'MySqlJson';
+	columnType: 'GoogleSqlJson';
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;
 }>;
 
-export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlJson'>> extends MySqlColumnBuilder<T> {
-	static override readonly [entityKind]: string = 'MySqlJsonBuilder';
+export class GoogleSqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'GoogleSqlJson'>> extends GoogleSqlColumnBuilder<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlJsonBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'json', 'MySqlJson');
+		super(name, 'json', 'GoogleSqlJson');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlJson<MakeColumnConfig<T, TTableName>> {
-		return new MySqlJson<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlJson<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlJson<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends MySqlColumn<T> {
-	static override readonly [entityKind]: string = 'MySqlJson';
+export class GoogleSqlJson<T extends ColumnBaseConfig<'json', 'GoogleSqlJson'>> extends GoogleSqlColumn<T> {
+	static override readonly [entityKind]: string = 'GoogleSqlJson';
 
 	getSQLType(): string {
 		return 'json';
@@ -40,8 +40,8 @@ export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends 
 	}
 }
 
-export function json(): MySqlJsonBuilderInitial<''>;
-export function json<TName extends string>(name: TName): MySqlJsonBuilderInitial<TName>;
+export function json(): GoogleSqlJsonBuilderInitial<''>;
+export function json<TName extends string>(name: TName): GoogleSqlJsonBuilderInitial<TName>;
 export function json(name?: string) {
-	return new MySqlJsonBuilder(name ?? '');
+	return new GoogleSqlJsonBuilder(name ?? '');
 }

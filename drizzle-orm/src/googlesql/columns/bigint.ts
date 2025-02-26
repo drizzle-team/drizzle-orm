@@ -1,44 +1,44 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { GoogleSqlColumnBuilderWithAutoIncrement, GoogleSqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Builder<{
+export type GoogleSqlBigInt53BuilderInitial<TName extends string> = GoogleSqlBigInt53Builder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlBigInt53';
+	columnType: 'GoogleSqlBigInt53';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 }>;
 
-export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'MySqlBigInt53'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
+export class GoogleSqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlBigInt53'>>
+	extends GoogleSqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static override readonly [entityKind]: string = 'MySqlBigInt53Builder';
+	static override readonly [entityKind]: string = 'GoogleSqlBigInt53Builder';
 
 	constructor(name: T['name'], unsigned: boolean = false) {
-		super(name, 'number', 'MySqlBigInt53');
+		super(name, 'number', 'GoogleSqlBigInt53');
 		this.config.unsigned = unsigned;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBigInt53<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBigInt53<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlBigInt53<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlBigInt53<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlBigInt53<T extends ColumnBaseConfig<'number', 'MySqlBigInt53'>>
-	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
+export class GoogleSqlBigInt53<T extends ColumnBaseConfig<'number', 'GoogleSqlBigInt53'>>
+	extends GoogleSqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static override readonly [entityKind]: string = 'MySqlBigInt53';
+	static override readonly [entityKind]: string = 'GoogleSqlBigInt53';
 
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -52,40 +52,40 @@ export class MySqlBigInt53<T extends ColumnBaseConfig<'number', 'MySqlBigInt53'>
 	}
 }
 
-export type MySqlBigInt64BuilderInitial<TName extends string> = MySqlBigInt64Builder<{
+export type GoogleSqlBigInt64BuilderInitial<TName extends string> = GoogleSqlBigInt64Builder<{
 	name: TName;
 	dataType: 'bigint';
-	columnType: 'MySqlBigInt64';
+	columnType: 'GoogleSqlBigInt64';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;
 }>;
 
-export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'MySqlBigInt64'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
+export class GoogleSqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'GoogleSqlBigInt64'>>
+	extends GoogleSqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static override readonly [entityKind]: string = 'MySqlBigInt64Builder';
+	static override readonly [entityKind]: string = 'GoogleSqlBigInt64Builder';
 
 	constructor(name: T['name'], unsigned: boolean = false) {
-		super(name, 'bigint', 'MySqlBigInt64');
+		super(name, 'bigint', 'GoogleSqlBigInt64');
 		this.config.unsigned = unsigned;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBigInt64<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBigInt64<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlBigInt64<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlBigInt64<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MySqlBigInt64'>>
-	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
+export class GoogleSqlBigInt64<T extends ColumnBaseConfig<'bigint', 'GoogleSqlBigInt64'>>
+	extends GoogleSqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
-	static override readonly [entityKind]: string = 'MySqlBigInt64';
+	static override readonly [entityKind]: string = 'GoogleSqlBigInt64';
 
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -97,22 +97,22 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MySqlBigInt64'>
 	}
 }
 
-export interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export interface GoogleSqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
 	mode: T;
 	unsigned?: boolean;
 }
 
-export function bigint<TMode extends MySqlBigIntConfig['mode']>(
-	config: MySqlBigIntConfig<TMode>,
-): TMode extends 'number' ? MySqlBigInt53BuilderInitial<''> : MySqlBigInt64BuilderInitial<''>;
-export function bigint<TName extends string, TMode extends MySqlBigIntConfig['mode']>(
+export function bigint<TMode extends GoogleSqlBigIntConfig['mode']>(
+	config: GoogleSqlBigIntConfig<TMode>,
+): TMode extends 'number' ? GoogleSqlBigInt53BuilderInitial<''> : GoogleSqlBigInt64BuilderInitial<''>;
+export function bigint<TName extends string, TMode extends GoogleSqlBigIntConfig['mode']>(
 	name: TName,
-	config: MySqlBigIntConfig<TMode>,
-): TMode extends 'number' ? MySqlBigInt53BuilderInitial<TName> : MySqlBigInt64BuilderInitial<TName>;
-export function bigint(a?: string | MySqlBigIntConfig, b?: MySqlBigIntConfig) {
-	const { name, config } = getColumnNameAndConfig<MySqlBigIntConfig>(a, b);
+	config: GoogleSqlBigIntConfig<TMode>,
+): TMode extends 'number' ? GoogleSqlBigInt53BuilderInitial<TName> : GoogleSqlBigInt64BuilderInitial<TName>;
+export function bigint(a?: string | GoogleSqlBigIntConfig, b?: GoogleSqlBigIntConfig) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlBigIntConfig>(a, b);
 	if (config.mode === 'number') {
-		return new MySqlBigInt53Builder(name, config.unsigned);
+		return new GoogleSqlBigInt53Builder(name, config.unsigned);
 	}
-	return new MySqlBigInt64Builder(name, config.unsigned);
+	return new GoogleSqlBigInt64Builder(name, config.unsigned);
 }

@@ -7,7 +7,7 @@ import { date } from './date.ts';
 import { datetime } from './datetime.ts';
 import { decimal } from './decimal.ts';
 import { double } from './double.ts';
-import { mysqlEnum } from './enum.ts';
+import { googlesqlEnum } from './enum.ts';
 import { float } from './float.ts';
 import { int } from './int.ts';
 import { json } from './json.ts';
@@ -23,7 +23,7 @@ import { varbinary } from './varbinary.ts';
 import { varchar } from './varchar.ts';
 import { year } from './year.ts';
 
-export function getMySqlColumnBuilders() {
+export function getGoogleSqlColumnBuilders() {
 	return {
 		bigint,
 		binary,
@@ -34,7 +34,7 @@ export function getMySqlColumnBuilders() {
 		datetime,
 		decimal,
 		double,
-		mysqlEnum,
+		googlesqlEnum,
 		float,
 		int,
 		json,
@@ -55,4 +55,4 @@ export function getMySqlColumnBuilders() {
 	};
 }
 
-export type MySqlColumnBuilders = ReturnType<typeof getMySqlColumnBuilders>;
+export type GoogleSqlColumnBuilders = ReturnType<typeof getGoogleSqlColumnBuilders>;

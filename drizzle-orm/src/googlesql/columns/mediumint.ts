@@ -1,45 +1,45 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/googlesql/table.ts';
+import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
-import type { MySqlIntConfig } from './int.ts';
+import { GoogleSqlColumnBuilderWithAutoIncrement, GoogleSqlColumnWithAutoIncrement } from './common.ts';
+import type { GoogleSqlIntConfig } from './int.ts';
 
-export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntBuilder<{
+export type GoogleSqlMediumIntBuilderInitial<TName extends string> = GoogleSqlMediumIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlMediumInt';
+	columnType: 'GoogleSqlMediumInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 }>;
 
-export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlMediumInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
+export class GoogleSqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlMediumInt'>>
+	extends GoogleSqlColumnBuilderWithAutoIncrement<T, GoogleSqlIntConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlMediumIntBuilder';
+	static override readonly [entityKind]: string = 'GoogleSqlMediumIntBuilder';
 
-	constructor(name: T['name'], config?: MySqlIntConfig) {
-		super(name, 'number', 'MySqlMediumInt');
+	constructor(name: T['name'], config?: GoogleSqlIntConfig) {
+		super(name, 'number', 'GoogleSqlMediumInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlMediumInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlMediumInt<MakeColumnConfig<T, TTableName>>(
+		table: AnyGoogleSqlTable<{ name: TTableName }>,
+	): GoogleSqlMediumInt<MakeColumnConfig<T, TTableName>> {
+		return new GoogleSqlMediumInt<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt'>>
-	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
+export class GoogleSqlMediumInt<T extends ColumnBaseConfig<'number', 'GoogleSqlMediumInt'>>
+	extends GoogleSqlColumnWithAutoIncrement<T, GoogleSqlIntConfig>
 {
-	static override readonly [entityKind]: string = 'MySqlMediumInt';
+	static override readonly [entityKind]: string = 'GoogleSqlMediumInt';
 
 	getSQLType(): string {
 		return `mediumint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -53,15 +53,15 @@ export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt
 	}
 }
 
-export function mediumint(): MySqlMediumIntBuilderInitial<''>;
+export function mediumint(): GoogleSqlMediumIntBuilderInitial<''>;
 export function mediumint(
-	config?: MySqlIntConfig,
-): MySqlMediumIntBuilderInitial<''>;
+	config?: GoogleSqlIntConfig,
+): GoogleSqlMediumIntBuilderInitial<''>;
 export function mediumint<TName extends string>(
 	name: TName,
-	config?: MySqlIntConfig,
-): MySqlMediumIntBuilderInitial<TName>;
-export function mediumint(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
-	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
-	return new MySqlMediumIntBuilder(name, config);
+	config?: GoogleSqlIntConfig,
+): GoogleSqlMediumIntBuilderInitial<TName>;
+export function mediumint(a?: string | GoogleSqlIntConfig, b?: GoogleSqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<GoogleSqlIntConfig>(a, b);
+	return new GoogleSqlMediumIntBuilder(name, config);
 }

@@ -1,40 +1,40 @@
 import { entityKind, is } from '~/entity.ts';
-import { type MySqlTableFn, mysqlTableWithSchema } from './table.ts';
-import { type mysqlView, mysqlViewWithSchema } from './view.ts';
+import { type GoogleSqlTableFn, googlesqlTableWithSchema } from './table.ts';
+import { type googlesqlView, googlesqlViewWithSchema } from './view.ts';
 
-export class MySqlSchema<TName extends string = string> {
-	static readonly [entityKind]: string = 'MySqlSchema';
+export class GoogleSqlSchema<TName extends string = string> {
+	static readonly [entityKind]: string = 'GoogleSqlSchema';
 
 	constructor(
 		public readonly schemaName: TName,
 	) {}
 
-	table: MySqlTableFn<TName> = (name, columns, extraConfig) => {
-		return mysqlTableWithSchema(name, columns, extraConfig, this.schemaName);
+	table: GoogleSqlTableFn<TName> = (name, columns, extraConfig) => {
+		return googlesqlTableWithSchema(name, columns, extraConfig, this.schemaName);
 	};
 
 	view = ((name, columns) => {
-		return mysqlViewWithSchema(name, columns, this.schemaName);
-	}) as typeof mysqlView;
+		return googlesqlViewWithSchema(name, columns, this.schemaName);
+	}) as typeof googlesqlView;
 }
 
-/** @deprecated - use `instanceof MySqlSchema` */
-export function isMySqlSchema(obj: unknown): obj is MySqlSchema {
-	return is(obj, MySqlSchema);
+/** @deprecated - use `instanceof GoogleSqlSchema` */
+export function isGoogleSqlSchema(obj: unknown): obj is GoogleSqlSchema {
+	return is(obj, GoogleSqlSchema);
 }
 
 /**
  * Create a MySQL schema.
  * https://dev.mysql.com/doc/refman/8.0/en/create-database.html
  *
- * @param name mysql use schema name
+ * @param name googlesql use schema name
  * @returns MySQL schema
  */
-export function mysqlDatabase<TName extends string>(name: TName) {
-	return new MySqlSchema(name);
+export function googlesqlDatabase<TName extends string>(name: TName) {
+	return new GoogleSqlSchema(name);
 }
 
 /**
- * @see mysqlDatabase
+ * @see googlesqlDatabase
  */
-export const mysqlSchema = mysqlDatabase;
+export const googlesqlSchema = googlesqlDatabase;
