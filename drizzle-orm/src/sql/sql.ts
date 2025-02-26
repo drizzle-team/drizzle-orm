@@ -686,7 +686,9 @@ export function getViewName<T extends View>(view: T): T['_']['name'] {
 export type InferSelectViewModel<TView extends View> =
 	Equal<TView['_']['selectedFields'], { [x: string]: unknown }> extends true ? { [x: string]: unknown }
 		: SelectResult<
-			TView['_']['selectedFields'],
+			{
+				[K in keyof TView['_']['selectedFields'] as TView['_']['selectedFields'][K] extends { isIgnored: true } ? never : K]: TView['_']['selectedFields'][K]
+			},
 			'single',
 			Record<TView['_']['name'], 'not-null'>
 		>;

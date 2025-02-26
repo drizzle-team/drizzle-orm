@@ -172,6 +172,7 @@ export const usersMigratorTable = pgTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
+	test: text('test').$ignore(),
 });
 
 // To test aggregate functions

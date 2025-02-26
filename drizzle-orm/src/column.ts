@@ -18,6 +18,7 @@ export interface ColumnBaseConfig<
 	notNull: boolean;
 	hasDefault: boolean;
 	isPrimaryKey: boolean;
+	isIgnored: boolean;
 	isAutoincrement: boolean;
 	hasRuntimeDefault: boolean;
 }
@@ -32,6 +33,7 @@ export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>,
 	driverParam: T['driverParam'];
 	notNull: T['notNull'];
 	hasDefault: T['hasDefault'];
+	isIgnored: T["isIgnored"];
 	isPrimaryKey: T['isPrimaryKey'];
 	isAutoincrement: T['isAutoincrement'];
 	hasRuntimeDefault: T['hasRuntimeDefault'];
@@ -78,6 +80,7 @@ export abstract class Column<
 	readonly onUpdateFn: (() => T['data'] | SQL) | undefined;
 	readonly hasDefault: boolean;
 	readonly isUnique: boolean;
+	readonly isIgnored: boolean;
 	readonly uniqueName: string | undefined;
 	readonly uniqueType: string | undefined;
 	readonly dataType: T['dataType'];
@@ -102,6 +105,7 @@ export abstract class Column<
 		this.hasDefault = config.hasDefault;
 		this.primary = config.primaryKey;
 		this.isUnique = config.isUnique;
+		this.isIgnored = config.isIgnored;
 		this.uniqueName = config.uniqueName;
 		this.uniqueType = config.uniqueType;
 		this.dataType = config.dataType as T['dataType'];

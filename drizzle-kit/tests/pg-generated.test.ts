@@ -266,6 +266,48 @@ test('generated as sql: add generated constraint to an exisiting column', async 
 	]);
 });
 
+test('generated as sql: dont drop ignored column', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: integer('id').notNull(),
+			id2: integer('id2'),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const to = {
+		users: pgTable('users', {
+			id: integer('id').notNull(),
+			id2: integer('id2').$ignore(),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('generated as sql: throws error if column is notNull and $ignored', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: integer('id').notNull(),
+			id2: integer('id2'),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const to = {
+		users: pgTable('users', {
+			id: integer('id').notNull(),
+			id2: integer('id2'),
+			name: text('name').notNull().$ignore(),
+		}),
+	};
+
+	await expect(diffTestSchemas(from, to, [])).rejects.toThrowError();
+});
+
 test('generated as sql: drop generated constraint', async () => {
 	const from = {
 		users: pgTable('users', {

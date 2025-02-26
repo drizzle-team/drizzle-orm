@@ -66,6 +66,7 @@ export type MakeColumnConfig<
 	notNull: T extends { notNull: true } ? true : false;
 	hasDefault: T extends { hasDefault: true } ? true : false;
 	isPrimaryKey: T extends { isPrimaryKey: true } ? true : false;
+	isIgnored: T extends { isIgnored: true } ? true : false;
 	isAutoincrement: T extends { isAutoincrement: true } ? true : false;
 	hasRuntimeDefault: T extends { hasRuntimeDefault: true } ? true : false;
 	enumValues: T['enumValues'];
@@ -109,6 +110,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	hasDefault: boolean;
 	primaryKey: boolean;
 	isUnique: boolean;
+	isIgnored: boolean;
 	uniqueName: string | undefined;
 	uniqueType: string | undefined;
 	dataType: string;
@@ -149,6 +151,12 @@ export type HasRuntimeDefault<T extends ColumnBuilderBase> = T & {
 	_: {
 		hasRuntimeDefault: true;
 	};
+};
+
+export type IsIgnored<T extends ColumnBuilderBase> = T & {
+  _: {
+    isIgnored: true;
+  };
 };
 
 export type $Type<T extends ColumnBuilderBase, TType> = T & {
@@ -203,6 +211,7 @@ export abstract class ColumnBuilder<
 			hasDefault: false,
 			primaryKey: false,
 			isUnique: false,
+			isIgnored: false,
 			uniqueName: undefined,
 			uniqueType: undefined,
 			dataType,
@@ -261,6 +270,15 @@ export abstract class ColumnBuilder<
 		this.config.defaultFn = fn;
 		this.config.hasDefault = true;
 		return this as HasRuntimeDefault<HasDefault<this>>;
+	}
+
+	/**
+	 * Ignores this column from being selected in queries.
+	 * Cannot be combined with notNull().
+	 */
+	$ignore(): IsIgnored<this> {
+		this.config.isIgnored = true;
+		return this as IsIgnored<this>;
 	}
 
 	/**
