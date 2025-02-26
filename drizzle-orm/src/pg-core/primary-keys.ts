@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import { PrimaryKeyBuilder as BasePrimaryKeyBuilder } from '~/primary-key.ts';
 import type { AnyPgColumn, PgColumn } from './columns/index.ts';
 import { PgTable } from './table.ts';
 
@@ -22,7 +23,7 @@ export function primaryKey(...config: any) {
 	return new PrimaryKeyBuilder(config);
 }
 
-export class PrimaryKeyBuilder {
+export class PrimaryKeyBuilder extends BasePrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'PgPrimaryKeyBuilder';
 
 	/** @internal */
@@ -35,6 +36,7 @@ export class PrimaryKeyBuilder {
 		columns: PgColumn[],
 		name?: string,
 	) {
+		super();
 		this.columns = columns;
 		this.name = name;
 	}

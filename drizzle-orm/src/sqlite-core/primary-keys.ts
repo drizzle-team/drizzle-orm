@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import { PrimaryKeyBuilder as BasePrimaryKeyBuilder } from '~/primary-key.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
 import { SQLiteTable } from './table.ts';
 
@@ -21,7 +22,7 @@ export function primaryKey(...config: any) {
 	}
 	return new PrimaryKeyBuilder(config);
 }
-export class PrimaryKeyBuilder {
+export class PrimaryKeyBuilder extends BasePrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'SQLitePrimaryKeyBuilder';
 
 	declare _: {
@@ -38,6 +39,7 @@ export class PrimaryKeyBuilder {
 		columns: SQLiteColumn[],
 		name?: string,
 	) {
+		super();
 		this.columns = columns;
 		this.name = name;
 	}
