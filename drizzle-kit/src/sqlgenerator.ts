@@ -3874,6 +3874,8 @@ class SingleStoreRecreateTableConvertor extends Convertor {
 	}
 }
 
+// TODO: SPANNER - add googlesql/spanner classes
+
 const convertors: Convertor[] = [];
 convertors.push(new PgCreateTableConvertor());
 convertors.push(new MySqlCreateTableConvertor());

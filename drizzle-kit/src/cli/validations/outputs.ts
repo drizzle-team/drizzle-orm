@@ -26,7 +26,7 @@ export const outputs = {
 			),
 		noDialect: () =>
 			withStyle.error(
-				`Please specify 'dialect' param in config, either of 'postgresql', 'mysql', 'sqlite', turso or singlestore`,
+				`Please specify 'dialect' param in config, either of 'postgresql', 'mysql', 'sqlite', 'googlesql', turso or singlestore`,
 			),
 	},
 	common: {
@@ -85,6 +85,15 @@ export const outputs = {
 			required: () =>
 				withStyle.error(
 					`Either "url" or "host", "database" are required for database connection`,
+				),
+		},
+	},
+	googlesql: {
+		connection: {
+			driver: () => withStyle.error(`Only "spanner" is available options for "--driver"`),
+			required: () =>
+				withStyle.error(
+					`Either "url" or "host", "database" are required for database connection`, // TODO: SPANNER - write proper error message
 				),
 		},
 	},

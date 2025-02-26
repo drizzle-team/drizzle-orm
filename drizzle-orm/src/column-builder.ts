@@ -1,6 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
+import type { GoogleSqlColumn } from './googlesql/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SingleStoreColumn } from './singlestore-core/index.ts';
@@ -25,7 +26,7 @@ export type ColumnDataType =
 	| 'localDate'
 	| 'localDateTime';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common' | 'gel';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common' | 'gel' | 'googlesql';
 
 export type GeneratedStorageMode = 'virtual' | 'stored';
 
@@ -325,6 +326,20 @@ export type BuildColumn<
 		{},
 		Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
 	>
+	: TDialect extends 'googlesql' ? GoogleSqlColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<
+				Omit<
+					TBuilder['_'],
+					| keyof MakeColumnConfig<TBuilder['_'], TTableName>
+					| 'brand'
+					| 'dialect'
+					| 'primaryKeyHasDefault'
+					| 'googlesqlColumnBuilderBrand'
+				>
+			>
+		>
 	: TDialect extends 'mysql' ? MySqlColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
@@ -410,6 +425,7 @@ export type BuildExtraConfigColumns<
 export type ChangeColumnTableName<TColumn extends Column, TAlias extends string, TDialect extends Dialect> =
 	TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'googlesql' ? GoogleSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias>>

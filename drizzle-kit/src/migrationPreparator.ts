@@ -168,6 +168,15 @@ export const prepareSqliteMigrationSnapshot = async (
 	return { prev: prevSnapshot, cur: result, custom };
 };
 
+// TODO: SPANNER - implement
+export const prepareGoogleSqlMigrationSnapshot = async (
+	migrationFolders: string[],
+	schemaPath: string | string[],
+	casing: CasingType | undefined,
+): Promise<{ prev: MySqlSchema; cur: MySqlSchema; custom: MySqlSchema }> => {
+	throw new Error('Not implemented');
+};
+
 export const fillPgSnapshot = ({
 	serialized,
 	id,
