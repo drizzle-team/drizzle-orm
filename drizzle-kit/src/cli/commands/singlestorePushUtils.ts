@@ -1,9 +1,9 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import { fromJson } from 'src/sqlgenerator';
+import { fromJson, SingleStoreRecreateTableConvertor } from 'src/sqlgenerator';
 import { TypeOf } from 'zod';
 import { JsonAlterColumnTypeStatement, JsonStatement } from '../../jsonStatements';
-import { Column, SingleStoreSchemaSquashed, SingleStoreSquasher } from '../../serializer/singlestoreSchema';
+import { Column, SingleStoreSquasher } from '../../serializer/singlestoreSchema';
 import { singlestoreSchema } from '../../serializer/singlestoreSchema';
 import { type DB, findAddedAndRemoved } from '../../utils';
 import { Select } from '../selector-ui';
@@ -362,6 +362,8 @@ export const logSuggestionsAndReturn = async (
 		} else if (statement.type === 'singlestore_recreate_table') {
 			const tableName = statement.tableName;
 
+			let dataLoss = false;
+
 			const prevColumns = json1.tables[tableName].columns;
 			const currentColumns = json2.tables[tableName].columns;
 			const { removedColumns, addedColumns } = findAddedAndRemoved(
@@ -400,6 +402,7 @@ export const logSuggestionsAndReturn = async (
 
 					const count = Number(res.count);
 					if (count > 0 && columnConf.notNull && !columnConf.default) {
+						dataLoss = true;
 						infoToPrint.push(
 							`· You're about to add not-null ${
 								chalk.underline(
@@ -436,6 +439,12 @@ export const logSuggestionsAndReturn = async (
 					statementsToExecute.push(`TRUNCATE TABLE \`${tableName}\`;`);
 				}
 			}
+
+			statementsToExecute.push(
+				...new SingleStoreRecreateTableConvertor().convert(statement, undefined, 'push', dataLoss),
+			);
+
+			continue;
 		}
 
 		const stmnt = fromJson([statement], 'singlestore', 'push');
@@ -445,9 +454,9 @@ export const logSuggestionsAndReturn = async (
 	}
 
 	return {
-		statementsToExecute,
+		statementsToExecute: [...new Set(statementsToExecute)],
 		shouldAskForApprove,
-		infoToPrint,
+		infoToPrint: [...new Set(infoToPrint)],
 		columnsToRemove: [...new Set(columnsToRemove)],
 		schemasToRemove: [...new Set(schemasToRemove)],
 		tablesToTruncate: [...new Set(tablesToTruncate)],

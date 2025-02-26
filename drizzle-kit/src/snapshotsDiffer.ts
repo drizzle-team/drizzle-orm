@@ -3176,7 +3176,7 @@ export const applySingleStoreSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
-	const combinedJsonStatements = singleStoreCombineStatements(jsonStatements, json2);
+	const combinedJsonStatements = singleStoreCombineStatements(jsonStatements, json2, columnsPatchedSnap1);
 	const sqlStatements = fromJson(combinedJsonStatements, 'singlestore');
 
 	const uniqueSqlStatements: string[] = [];
@@ -3731,7 +3731,7 @@ export const applySqliteSnapshotsDiff = async (
 	jsonStatements.push(...dropViews);
 	jsonStatements.push(...createViews);
 
-	const combinedJsonStatements = sqliteCombineStatements(jsonStatements, json2, action);
+	const combinedJsonStatements = sqliteCombineStatements(jsonStatements, json2, columnsPatchedSnap1, action);
 	const sqlStatements = fromJson(combinedJsonStatements, 'sqlite');
 
 	const uniqueSqlStatements: string[] = [];
@@ -4267,7 +4267,7 @@ export const applyLibSQLSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
-	const combinedJsonStatements = libSQLCombineStatements(jsonStatements, json2, action);
+	const combinedJsonStatements = libSQLCombineStatements(jsonStatements, json2, columnsPatchedSnap1, action);
 
 	const sqlStatements = fromJson(
 		combinedJsonStatements,

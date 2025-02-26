@@ -209,7 +209,6 @@ let db: BunSQLDatabase;
 let client: BunSQL;
 
 beforeAll(async () => {
-	console.log('here');
 	const connectionString = process.env['PG_CONNECTION_STRING'];
 	client = await retry(async () => {
 		// @ts-expect-error
