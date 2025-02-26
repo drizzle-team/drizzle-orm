@@ -30,7 +30,10 @@ export class GoogleSqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlDouble<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlDouble<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlDouble<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 

@@ -12,9 +12,9 @@ import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { GoogleSqlDialect } from '../dialect.ts';
 import type {
-	Mode,
 	GoogleSqlPreparedQueryConfig,
 	GoogleSqlSession,
+	Mode,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
 } from '../session.ts';

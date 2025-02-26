@@ -18,12 +18,12 @@ import {
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
-	Mode,
 	GoogleSqlQueryResultHKT,
 	GoogleSqlQueryResultKind,
 	GoogleSqlSession,
 	GoogleSqlTransaction,
 	GoogleSqlTransactionConfig,
+	Mode,
 	PreparedQueryHKTBase,
 } from './session.ts';
 import type { WithBuilder } from './subquery.ts';
@@ -417,7 +417,9 @@ export class GoogleSqlDatabase<
 	 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
 	 * ```
 	 */
-	update<TTable extends GoogleSqlTable>(table: TTable): GoogleSqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+	update<TTable extends GoogleSqlTable>(
+		table: TTable,
+	): GoogleSqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new GoogleSqlUpdateBuilder(table, this.session, this.dialect);
 	}
 
@@ -440,7 +442,9 @@ export class GoogleSqlDatabase<
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 * ```
 	 */
-	insert<TTable extends GoogleSqlTable>(table: TTable): GoogleSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+	insert<TTable extends GoogleSqlTable>(
+		table: TTable,
+	): GoogleSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new GoogleSqlInsertBuilder(table, this.session, this.dialect);
 	}
 

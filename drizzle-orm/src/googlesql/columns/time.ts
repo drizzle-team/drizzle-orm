@@ -14,10 +14,12 @@ export type GoogleSqlTimeBuilderInitial<TName extends string> = GoogleSqlTimeBui
 	enumValues: undefined;
 }>;
 
-export class GoogleSqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlTime'>> extends GoogleSqlColumnBuilder<
-	T,
-	TimeConfig
-> {
+export class GoogleSqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlTime'>>
+	extends GoogleSqlColumnBuilder<
+		T,
+		TimeConfig
+	>
+{
 	static override readonly [entityKind]: string = 'GoogleSqlTimeBuilder';
 
 	constructor(
@@ -32,7 +34,10 @@ export class GoogleSqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'G
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlTime<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlTime<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlTime<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 

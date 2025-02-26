@@ -57,7 +57,9 @@ export class GoogleSqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'cus
 	}
 }
 
-export class GoogleSqlCustomColumn<T extends ColumnBaseConfig<'custom', 'GoogleSqlCustomColumn'>> extends GoogleSqlColumn<T> {
+export class GoogleSqlCustomColumn<T extends ColumnBaseConfig<'custom', 'GoogleSqlCustomColumn'>>
+	extends GoogleSqlColumn<T>
+{
 	static override readonly [entityKind]: string = 'GoogleSqlCustomColumn';
 
 	private sqlName: string;

@@ -14,10 +14,12 @@ export type GoogleSqlBinaryBuilderInitial<TName extends string> = GoogleSqlBinar
 	enumValues: undefined;
 }>;
 
-export class GoogleSqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlBinary'>> extends GoogleSqlColumnBuilder<
-	T,
-	GoogleSqlBinaryConfig
-> {
+export class GoogleSqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlBinary'>>
+	extends GoogleSqlColumnBuilder<
+		T,
+		GoogleSqlBinaryConfig
+	>
+{
 	static override readonly [entityKind]: string = 'GoogleSqlBinaryBuilder';
 
 	constructor(name: T['name'], length: number | undefined) {
@@ -29,7 +31,10 @@ export class GoogleSqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlBinary<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlBinary<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlBinary<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 

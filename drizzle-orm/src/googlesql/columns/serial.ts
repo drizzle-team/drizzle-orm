@@ -44,7 +44,10 @@ export class GoogleSqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlSerial<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlSerial<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlSerial<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 

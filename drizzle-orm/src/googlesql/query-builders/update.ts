@@ -58,7 +58,13 @@ export class GoogleSqlUpdateBuilder<
 	) {}
 
 	set(values: GoogleSqlUpdateSetSource<TTable>): GoogleSqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new GoogleSqlUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect, this.withList);
+		return new GoogleSqlUpdateBase(
+			this.table,
+			mapUpdateSet(this.table, values),
+			this.session,
+			this.dialect,
+			this.withList,
+		);
 	}
 }
 

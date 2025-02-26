@@ -14,7 +14,9 @@ export type GoogleSqlDateBuilderInitial<TName extends string> = GoogleSqlDateBui
 	enumValues: undefined;
 }>;
 
-export class GoogleSqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'GoogleSqlDate'>> extends GoogleSqlColumnBuilder<T> {
+export class GoogleSqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'GoogleSqlDate'>>
+	extends GoogleSqlColumnBuilder<T>
+{
 	static override readonly [entityKind]: string = 'GoogleSqlDateBuilder';
 
 	constructor(name: T['name']) {
@@ -25,7 +27,10 @@ export class GoogleSqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'Goo
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlDate<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlDate<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlDate<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
@@ -77,7 +82,9 @@ export class GoogleSqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'strin
 	}
 }
 
-export class GoogleSqlDateString<T extends ColumnBaseConfig<'string', 'GoogleSqlDateString'>> extends GoogleSqlColumn<T> {
+export class GoogleSqlDateString<T extends ColumnBaseConfig<'string', 'GoogleSqlDateString'>>
+	extends GoogleSqlColumn<T>
+{
 	static override readonly [entityKind]: string = 'GoogleSqlDateString';
 
 	constructor(

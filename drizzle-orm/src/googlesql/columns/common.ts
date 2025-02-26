@@ -117,9 +117,10 @@ export abstract class GoogleSqlColumn<
 	}
 }
 
-export type AnyGoogleSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = GoogleSqlColumn<
-	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
->;
+export type AnyGoogleSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> =
+	GoogleSqlColumn<
+		Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
+	>;
 
 export interface GoogleSqlColumnWithAutoIncrementConfig {
 	autoIncrement: boolean;

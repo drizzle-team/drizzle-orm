@@ -13,7 +13,9 @@ export type GoogleSqlJsonBuilderInitial<TName extends string> = GoogleSqlJsonBui
 	enumValues: undefined;
 }>;
 
-export class GoogleSqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'GoogleSqlJson'>> extends GoogleSqlColumnBuilder<T> {
+export class GoogleSqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'GoogleSqlJson'>>
+	extends GoogleSqlColumnBuilder<T>
+{
 	static override readonly [entityKind]: string = 'GoogleSqlJsonBuilder';
 
 	constructor(name: T['name']) {
@@ -24,7 +26,10 @@ export class GoogleSqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'Goo
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlJson<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlJson<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlJson<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 

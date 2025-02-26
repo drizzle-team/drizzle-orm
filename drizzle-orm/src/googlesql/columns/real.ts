@@ -32,14 +32,19 @@ export class GoogleSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'G
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlReal<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlReal<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlReal<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class GoogleSqlReal<T extends ColumnBaseConfig<'number', 'GoogleSqlReal'>> extends GoogleSqlColumnWithAutoIncrement<
-	T,
-	GoogleSqlRealConfig
-> {
+export class GoogleSqlReal<T extends ColumnBaseConfig<'number', 'GoogleSqlReal'>>
+	extends GoogleSqlColumnWithAutoIncrement<
+		T,
+		GoogleSqlRealConfig
+	>
+{
 	static override readonly [entityKind]: string = 'GoogleSqlReal';
 
 	precision: number | undefined = this.config.precision;

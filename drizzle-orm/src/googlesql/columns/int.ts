@@ -28,7 +28,10 @@ export class GoogleSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'Go
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlInt<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlInt<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 

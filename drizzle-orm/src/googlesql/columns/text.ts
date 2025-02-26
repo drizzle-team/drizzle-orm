@@ -7,19 +7,22 @@ import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
 export type GoogleSqlTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'longtext';
 
-export type GoogleSqlTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = GoogleSqlTextBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'GoogleSqlText';
-	data: TEnum[number];
-	driverParam: string;
-	enumValues: TEnum;
-}>;
+export type GoogleSqlTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> =
+	GoogleSqlTextBuilder<{
+		name: TName;
+		dataType: 'string';
+		columnType: 'GoogleSqlText';
+		data: TEnum[number];
+		driverParam: string;
+		enumValues: TEnum;
+	}>;
 
-export class GoogleSqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlText'>> extends GoogleSqlColumnBuilder<
-	T,
-	{ textType: GoogleSqlTextColumnType; enumValues: T['enumValues'] }
-> {
+export class GoogleSqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlText'>>
+	extends GoogleSqlColumnBuilder<
+		T,
+		{ textType: GoogleSqlTextColumnType; enumValues: T['enumValues'] }
+	>
+{
 	static override readonly [entityKind]: string = 'GoogleSqlTextBuilder';
 
 	constructor(name: T['name'], textType: GoogleSqlTextColumnType, config: GoogleSqlTextConfig<T['enumValues']>) {
@@ -32,7 +35,10 @@ export class GoogleSqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'G
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlText<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlText<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlText<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 

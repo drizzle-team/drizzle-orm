@@ -30,7 +30,10 @@ export class GoogleSqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', '
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlFloat<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlFloat<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlFloat<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 

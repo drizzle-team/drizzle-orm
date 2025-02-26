@@ -91,7 +91,9 @@ export class GoogleSqlInsertBuilder<
 	): GoogleSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): GoogleSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	select(selectQuery: SQL): GoogleSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
-	select(selectQuery: GoogleSqlInsertSelectQueryBuilder<TTable>): GoogleSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	select(
+		selectQuery: GoogleSqlInsertSelectQueryBuilder<TTable>,
+	): GoogleSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	select(
 		selectQuery:
 			| SQL
@@ -180,7 +182,10 @@ export interface GoogleSqlInsertBase<
 	TExcludedMethods extends string = never,
 > extends
 	QueryPromise<TReturning extends undefined ? GoogleSqlQueryResultKind<TQueryResult, never> : TReturning[]>,
-	RunnableQuery<TReturning extends undefined ? GoogleSqlQueryResultKind<TQueryResult, never> : TReturning[], 'googlesql'>,
+	RunnableQuery<
+		TReturning extends undefined ? GoogleSqlQueryResultKind<TQueryResult, never> : TReturning[],
+		'googlesql'
+	>,
 	SQLWrapper
 {
 	readonly _: {
@@ -220,7 +225,10 @@ export class GoogleSqlInsertBase<
 	TExcludedMethods extends string = never,
 > extends QueryPromise<TReturning extends undefined ? GoogleSqlQueryResultKind<TQueryResult, never> : TReturning[]>
 	implements
-		RunnableQuery<TReturning extends undefined ? GoogleSqlQueryResultKind<TQueryResult, never> : TReturning[], 'googlesql'>,
+		RunnableQuery<
+			TReturning extends undefined ? GoogleSqlQueryResultKind<TQueryResult, never> : TReturning[],
+			'googlesql'
+		>,
 		SQLWrapper
 {
 	static override readonly [entityKind]: string = 'GoogleSqlInsert';

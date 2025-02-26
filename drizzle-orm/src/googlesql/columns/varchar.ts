@@ -44,9 +44,9 @@ export class GoogleSqlVarCharBuilder<
 	}
 }
 
-export class GoogleSqlVarChar<T extends ColumnBaseConfig<'string', 'GoogleSqlVarChar'> & { length?: number | undefined }>
-	extends GoogleSqlColumn<T, GoogleSqlVarCharConfig<T['enumValues'], T['length']>, { length: T['length'] }>
-{
+export class GoogleSqlVarChar<
+	T extends ColumnBaseConfig<'string', 'GoogleSqlVarChar'> & { length?: number | undefined },
+> extends GoogleSqlColumn<T, GoogleSqlVarCharConfig<T['enumValues'], T['length']>, { length: T['length'] }> {
 	static override readonly [entityKind]: string = 'GoogleSqlVarChar';
 
 	readonly length: number | undefined = this.config.length;

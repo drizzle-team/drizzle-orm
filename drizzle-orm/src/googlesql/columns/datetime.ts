@@ -92,7 +92,9 @@ export class GoogleSqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'s
 	}
 }
 
-export class GoogleSqlDateTimeString<T extends ColumnBaseConfig<'string', 'GoogleSqlDateTimeString'>> extends GoogleSqlColumn<T> {
+export class GoogleSqlDateTimeString<T extends ColumnBaseConfig<'string', 'GoogleSqlDateTimeString'>>
+	extends GoogleSqlColumn<T>
+{
 	static override readonly [entityKind]: string = 'GoogleSqlDateTimeString';
 
 	readonly fsp: number | undefined;
@@ -121,11 +123,13 @@ export interface GoogleSqlDatetimeConfig<TMode extends 'date' | 'string' = 'date
 export function datetime(): GoogleSqlDateTimeBuilderInitial<''>;
 export function datetime<TMode extends GoogleSqlDatetimeConfig['mode'] & {}>(
 	config?: GoogleSqlDatetimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? GoogleSqlDateTimeStringBuilderInitial<''> : GoogleSqlDateTimeBuilderInitial<''>;
+): Equal<TMode, 'string'> extends true ? GoogleSqlDateTimeStringBuilderInitial<''>
+	: GoogleSqlDateTimeBuilderInitial<''>;
 export function datetime<TName extends string, TMode extends GoogleSqlDatetimeConfig['mode'] & {}>(
 	name: TName,
 	config?: GoogleSqlDatetimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? GoogleSqlDateTimeStringBuilderInitial<TName> : GoogleSqlDateTimeBuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? GoogleSqlDateTimeStringBuilderInitial<TName>
+	: GoogleSqlDateTimeBuilderInitial<TName>;
 export function datetime(a?: string | GoogleSqlDatetimeConfig, b?: GoogleSqlDatetimeConfig) {
 	const { name, config } = getColumnNameAndConfig<GoogleSqlDatetimeConfig | undefined>(a, b);
 	if (config?.mode === 'string') {

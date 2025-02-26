@@ -25,7 +25,7 @@ import type { Assume, ValidateShape } from '~/utils.ts';
 import type { GoogleSqlPreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { GoogleSqlViewBase } from '../view-base.ts';
 import type { GoogleSqlViewWithSelection } from '../view.ts';
-import type { IndexConfig, GoogleSqlSelectBase, GoogleSqlSelectQueryBuilderBase } from './select.ts';
+import type { GoogleSqlSelectBase, GoogleSqlSelectQueryBuilderBase, IndexConfig } from './select.ts';
 
 export interface GoogleSqlSelectJoinConfig {
 	on: SQL | undefined;
@@ -271,7 +271,13 @@ export type CreateGoogleSqlSelectFromBuilderMode<
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > = TBuilderMode extends 'db' ? GoogleSqlSelectBase<TTableName, TSelection, TSelectMode, TPreparedQueryHKT>
-	: GoogleSqlSelectQueryBuilderBase<GoogleSqlSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode, TPreparedQueryHKT>;
+	: GoogleSqlSelectQueryBuilderBase<
+		GoogleSqlSelectQueryBuilderHKT,
+		TTableName,
+		TSelection,
+		TSelectMode,
+		TPreparedQueryHKT
+	>;
 
 export type GoogleSqlSelectQueryBuilder<
 	THKT extends GoogleSqlSelectHKTBase = GoogleSqlSelectQueryBuilderHKT,
@@ -295,9 +301,29 @@ export type GoogleSqlSelectQueryBuilder<
 	TSelectedFields
 >;
 
-export type AnyGoogleSqlSelectQueryBuilder = GoogleSqlSelectQueryBuilderBase<any, any, any, any, any, any, any, any, any>;
+export type AnyGoogleSqlSelectQueryBuilder = GoogleSqlSelectQueryBuilderBase<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any
+>;
 
-export type AnyGoogleSqlSetOperatorInterface = GoogleSqlSetOperatorInterface<any, any, any, any, any, any, any, any, any>;
+export type AnyGoogleSqlSetOperatorInterface = GoogleSqlSetOperatorInterface<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any
+>;
 
 export interface GoogleSqlSetOperatorInterface<
 	TTableName extends string | undefined,

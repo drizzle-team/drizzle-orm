@@ -13,7 +13,9 @@ export type GoogleSqlYearBuilderInitial<TName extends string> = GoogleSqlYearBui
 	enumValues: undefined;
 }>;
 
-export class GoogleSqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlYear'>> extends GoogleSqlColumnBuilder<T> {
+export class GoogleSqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'GoogleSqlYear'>>
+	extends GoogleSqlColumnBuilder<T>
+{
 	static override readonly [entityKind]: string = 'GoogleSqlYearBuilder';
 
 	constructor(name: T['name']) {
@@ -24,7 +26,10 @@ export class GoogleSqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'G
 	override build<TTableName extends string>(
 		table: AnyGoogleSqlTable<{ name: TTableName }>,
 	): GoogleSqlYear<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlYear<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GoogleSqlYear<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 

@@ -31,8 +31,6 @@ import type {
 	AnyGoogleSqlSelect,
 	CreateGoogleSqlSelectFromBuilderMode,
 	GetGoogleSqlSetOperators,
-	LockConfig,
-	LockStrength,
 	GoogleSqlCreateSetOperatorFn,
 	GoogleSqlJoinFn,
 	GoogleSqlSelectConfig,
@@ -43,6 +41,8 @@ import type {
 	GoogleSqlSelectWithout,
 	GoogleSqlSetOperatorExcludedMethods,
 	GoogleSqlSetOperatorWithResult,
+	LockConfig,
+	LockStrength,
 	SelectedFields,
 	SetOperatorRightSelect,
 } from './select.types.ts';
