@@ -21,6 +21,7 @@ import {
 import { SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
+import { type Client as GelClient } from 'gel';
 import { Connection } from 'mysql2/promise';
 import { libSqlLogSuggestionsAndReturn } from 'src/cli/commands/libSqlPushUtils';
 import {
@@ -38,13 +39,16 @@ import {
 	viewsResolver,
 } from 'src/cli/commands/migrate';
 import { pgSuggestions } from 'src/cli/commands/pgPushUtils';
+import { logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn } from 'src/cli/commands/singlestorePushUtils';
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { Entities } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
+import { schemaToTypeScript as schemaToTypeScriptGel } from 'src/introspect-gel';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
 import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
 import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/introspect-sqlite';
+import { fromDatabase as fromGelDatabase } from 'src/serializer/gelSerializer';
 import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
 import { mysqlSchema, squashMysqlScheme, ViewSquashed } from 'src/serializer/mysqlSchema';
 import { fromDatabase as fromMySqlDatabase, generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
@@ -1624,11 +1628,35 @@ export const diffTestSchemasPushSingleStore = async (
 	schema: string,
 	cli: boolean = false,
 	casing?: CasingType | undefined,
+	sqlStatementsToRun: {
+		before?: string[];
+		after?: string[];
+		runApply?: boolean;
+	} = {
+		before: [],
+		after: [],
+		runApply: true,
+	},
 ) => {
-	const { sqlStatements } = await applySingleStoreDiffs(left, casing);
-	for (const st of sqlStatements) {
+	const shouldRunApply = sqlStatementsToRun.runApply === undefined
+		? true
+		: sqlStatementsToRun.runApply;
+
+	for (const st of sqlStatementsToRun.before ?? []) {
 		await client.query(st);
 	}
+
+	if (shouldRunApply) {
+		const res = await applySingleStoreDiffs(left, casing);
+		for (const st of res.sqlStatements) {
+			await client.query(st);
+		}
+	}
+
+	for (const st of sqlStatementsToRun.after ?? []) {
+		await client.query(st);
+	}
+
 	// do introspect into PgSchemaInternal
 	const introspectedSchema = await fromSingleStoreDatabase(
 		{
@@ -1688,7 +1716,35 @@ export const diffTestSchemasPushSingleStore = async (
 			validatedCur,
 			'push',
 		);
-		return { sqlStatements, statements };
+
+		const {
+			statementsToExecute,
+			columnsToRemove,
+			infoToPrint,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		} = await singleStoreLogSuggestionsAndReturn(
+			{
+				query: async <T>(sql: string, params?: any[]) => {
+					const res = await client.execute(sql, params);
+					return res[0] as T[];
+				},
+			},
+			statements,
+			sn1,
+			sn2,
+		);
+
+		return {
+			sqlStatements: statementsToExecute,
+			statements,
+			columnsToRemove,
+			infoToPrint,
+			shouldAskForApprove,
+			tablesToRemove,
+			tablesToTruncate,
+		};
 	} else {
 		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
 			sn1,
@@ -2342,6 +2398,35 @@ export const introspectPgToFile = async (
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	};
+};
+
+export const introspectGelToFile = async (
+	client: GelClient,
+	testName: string,
+	schemas: string[] = ['public'],
+	entities?: Entities,
+	casing?: CasingType | undefined,
+) => {
+	// introspect to schema
+	const introspectedSchema = await fromGelDatabase(
+		{
+			query: async (query: string, values?: any[] | undefined) => {
+				const res = await client.querySQL(query, values);
+				return res as any[];
+			},
+		},
+		undefined,
+		schemas,
+		entities,
+	);
+
+	// write to ts file
+	const file = schemaToTypeScriptGel(introspectedSchema, 'camel');
+
+	const path = `tests/introspect/gel/${testName}.ts`;
+	fs.writeFileSync(path, file.file);
+
+	return path;
 };
 
 export const introspectMySQLToFile = async (

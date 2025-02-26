@@ -73,6 +73,14 @@ export interface JsonRecreateTableStatement {
 	checkConstraints: string[];
 }
 
+export interface JsonRecreateSingleStoreTableStatement {
+	type: 'singlestore_recreate_table';
+	tableName: string;
+	columns: Column[];
+	compositePKs: string[];
+	uniqueConstraints?: string[];
+}
+
 export interface JsonDropTableStatement {
 	type: 'drop_table';
 	tableName: string;
@@ -794,6 +802,7 @@ export type JsonAlterColumnStatement =
 	| JsonAlterColumnDropIdentityStatement;
 
 export type JsonStatement =
+	| JsonRecreateSingleStoreTableStatement
 	| JsonRecreateTableStatement
 	| JsonAlterColumnStatement
 	| JsonCreateTableStatement
