@@ -569,7 +569,7 @@ test('add table with indexes', async () => {
 	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE \`users\` (\n\t\`id\` serial AUTO_INCREMENT NOT NULL,\n\t\`name\` text,\n\t\`email\` text,\n\tCONSTRAINT \`users_id\` PRIMARY KEY(\`id\`),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)
+		`CREATE TABLE \`users\` (\n\t\`id\` serial NOT NULL,\n\t\`name\` text,\n\t\`email\` text,\n\tCONSTRAINT \`users_id\` PRIMARY KEY(\`id\`),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)
 );
 `,
 		'CREATE INDEX `indexExpr` ON `users` ((lower(`email`)));',

@@ -595,7 +595,7 @@ test('add table with indexes', async () => {
 	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE \`users\` (\n\t\`id\` serial AUTO_INCREMENT NOT NULL,\n\t\`name\` text,\n\t\`email\` text,\n\tCONSTRAINT \`users_id\` PRIMARY KEY(\`id\`),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)
+		`CREATE TABLE \`users\` (\n\t\`id\` serial NOT NULL,\n\t\`name\` text,\n\t\`email\` text,\n\tCONSTRAINT \`users_id\` PRIMARY KEY(\`id\`),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)
 );
 `,
 		'CREATE INDEX `indexExpr` ON `users` ((lower(`email`)));',
@@ -748,7 +748,7 @@ test('optional db aliases (snake case)', async () => {
 `;
 
 	const st2 = `CREATE TABLE \`t2\` (
-	\`t2_id\` serial AUTO_INCREMENT NOT NULL,
+	\`t2_id\` serial NOT NULL,
 	CONSTRAINT \`t2_t2_id\` PRIMARY KEY(\`t2_id\`)
 );
 `;
@@ -839,7 +839,7 @@ test('optional db aliases (camel case)', async () => {
 `;
 
 	const st2 = `CREATE TABLE \`t2\` (
-	\`t2Id\` serial AUTO_INCREMENT NOT NULL,
+	\`t2Id\` serial NOT NULL,
 	CONSTRAINT \`t2_t2Id\` PRIMARY KEY(\`t2Id\`)
 );
 `;
