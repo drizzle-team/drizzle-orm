@@ -26,6 +26,7 @@ const queryConfig = {
 
 export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'NeonHttpPreparedQuery';
+	private clientQuery: (sql: string, params: any[], opts: Record<string, any>) => NeonQueryPromise<any, any>;
 
 	constructor(
 		private client: NeonHttpClient,
@@ -36,6 +37,7 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super(query);
+		this.clientQuery = (client as any).query ?? client as any;  // client.query() for v1.0.0 up, client() for v0.10.x and below
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined): Promise<T['execute']>;
@@ -50,10 +52,10 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 
 		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, client, query, customResultMapper } = this;
+		const { fields, clientQuery, query, customResultMapper } = this;
 
 		if (!fields && !customResultMapper) {
-			return client(
+			return clientQuery(
 				query.sql,
 				params,
 				token === undefined
@@ -65,7 +67,7 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 			);
 		}
 
-		const result = await client(
+		const result = await clientQuery(
 			query.sql,
 			params,
 			token === undefined
@@ -96,7 +98,7 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
-		return this.client(
+		return this.clientQuery(
 			this.query.sql,
 			params,
 			this.authToken === undefined ? rawQueryConfig : {
@@ -113,7 +115,7 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 	values(placeholderValues: Record<string, unknown> | undefined = {}, token?: NeonAuthToken): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
-		return this.client(this.query.sql, params, { arrayMode: true, fullResults: true, authToken: token }).then((
+		return this.clientQuery(this.query.sql, params, { arrayMode: true, fullResults: true, authToken: token }).then((
 			result,
 		) => result.rows);
 	}
@@ -134,6 +136,7 @@ export class NeonHttpSession<
 > extends PgSession<NeonHttpQueryResultHKT, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'NeonHttpSession';
 
+	private clientQuery: (sql: string, params: any[], opts: Record<string, any>) => NeonQueryPromise<any, any>;
 	private logger: Logger;
 
 	constructor(
@@ -143,6 +146,7 @@ export class NeonHttpSession<
 		private options: NeonHttpSessionOptions = {},
 	) {
 		super(dialect);
+		this.clientQuery = (client as any).query ?? client as any;  // client.query() for v1.0.0 up, client() for v0.10.x and below
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -168,13 +172,12 @@ export class NeonHttpSession<
 	) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: NeonQueryPromise<any, true>[] = [];
-
 		for (const query of queries) {
 			const preparedQuery = query._prepare();
 			const builtQuery = preparedQuery.getQuery();
 			preparedQueries.push(preparedQuery);
 			builtQueries.push(
-				this.client(builtQuery.sql, builtQuery.params, {
+				this.clientQuery(builtQuery.sql, builtQuery.params, {
 					fullResults: true,
 					arrayMode: preparedQuery.isResponseInArrayMode(),
 				}),
@@ -189,7 +192,7 @@ export class NeonHttpSession<
 	// change return type to QueryRows<true>
 	async query(query: string, params: unknown[]): Promise<FullQueryResults<true>> {
 		this.logger.logQuery(query, params);
-		const result = await this.client(query, params, { arrayMode: true, fullResults: true });
+		const result = await this.clientQuery(query, params, { arrayMode: true, fullResults: true });
 		return result;
 	}
 
@@ -198,7 +201,7 @@ export class NeonHttpSession<
 		query: string,
 		params: unknown[],
 	): Promise<FullQueryResults<false>> {
-		return this.client(query, params, { arrayMode: false, fullResults: true });
+		return this.clientQuery(query, params, { arrayMode: false, fullResults: true });
 	}
 
 	override async count(sql: SQL): Promise<number>;
