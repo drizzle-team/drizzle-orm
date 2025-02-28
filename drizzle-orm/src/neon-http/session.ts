@@ -38,8 +38,8 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 	) {
 		super(query);
 		// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
-    // root query function `client` is only usable as a template function;
-    // `client` is a fallback for earlier versions
+		// root query function `client` is only usable as a template function;
+		// `client` is a fallback for earlier versions
 		this.clientQuery = (client as any).query ?? client as any;
 	}
 
@@ -150,8 +150,8 @@ export class NeonHttpSession<
 	) {
 		super(dialect);
 		// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
-    // root query function `client` is only usable as a template function;
-    // `client` is a fallback for earlier versions
+		// root query function `client` is only usable as a template function;
+		// `client` is a fallback for earlier versions
 		this.clientQuery = (client as any).query ?? client as any;
 		this.logger = options.logger ?? new NoopLogger();
 	}
