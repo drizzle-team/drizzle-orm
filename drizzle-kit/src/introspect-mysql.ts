@@ -178,10 +178,10 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('double(') ? 'double' : patched;
 					patched = patched.startsWith('float(') ? 'float' : patched;
 					patched = patched.startsWith('int unsigned') ? 'int' : patched;
-					patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
-					patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
-					patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
-					patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
+					patched = (patched.startsWith('tinyint unsigned') || patched.startsWith('tinyint(')) ? 'tinyint' : patched;
+					patched = (patched.startsWith('smallint unsigned') || patched.startsWith('smallint(')) ? 'smallint' : patched;
+					patched = (patched.startsWith('mediumint unsigned') || patched.startsWith('mediumint(')) ? 'mediumint' : patched;
+					patched = (patched.startsWith('bigint unsigned') || patched.startsWith('bigint(')) ? 'bigint' : patched;
 					return patched;
 				})
 				.filter((type) => {
@@ -212,11 +212,11 @@ export const schemaToTypeScript = (
 				patched = patched.startsWith('double(') ? 'double' : patched;
 				patched = patched.startsWith('float(') ? 'float' : patched;
 				patched = patched.startsWith('int unsigned') ? 'int' : patched;
-				patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
-				patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
-				patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
-				patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
-				return patched;
+				patched = (patched.startsWith('tinyint unsigned') || patched.startsWith('tinyint(')) ? 'tinyint' : patched;
+				patched = (patched.startsWith('smallint unsigned') || patched.startsWith('smallint(')) ? 'smallint' : patched;
+				patched = (patched.startsWith('mediumint unsigned') || patched.startsWith('mediumint(')) ? 'mediumint' : patched;
+				patched = (patched.startsWith('bigint unsigned') || patched.startsWith('bigint(')) ? 'bigint' : patched;
+			return patched;
 			})
 			.filter((type) => {
 				return mysqlImportsList.has(type);
