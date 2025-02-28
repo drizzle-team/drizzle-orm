@@ -96,8 +96,7 @@ export const dryJournal = (dialect: Dialect): Journal => {
 // };
 
 export const prepareOutFolder = (out: string, dialect: Dialect) => {
-	const absOut = path.resolve(
-	const meta = join(out, 'meta');
+	const meta = join(path.resolve(out), 'meta');
 	const journalPath = join(meta, '_journal.json');
 
 	if (!existsSync(join(out, 'meta'))) {
