@@ -37,7 +37,10 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super(query);
-		this.clientQuery = (client as any).query ?? client as any;  // client.query() for v1.0.0 up, client() for v0.10.x and below
+		// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
+    // root query function `client` is only usable as a template function;
+    // `client` is a fallback for earlier versions
+		this.clientQuery = (client as any).query ?? client as any;
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined): Promise<T['execute']>;
@@ -146,7 +149,10 @@ export class NeonHttpSession<
 		private options: NeonHttpSessionOptions = {},
 	) {
 		super(dialect);
-		this.clientQuery = (client as any).query ?? client as any;  // client.query() for v1.0.0 up, client() for v0.10.x and below
+		// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
+    // root query function `client` is only usable as a template function;
+    // `client` is a fallback for earlier versions
+		this.clientQuery = (client as any).query ?? client as any;
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
