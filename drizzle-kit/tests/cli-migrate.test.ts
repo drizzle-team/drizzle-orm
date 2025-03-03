@@ -2,6 +2,8 @@ import { test as brotest } from '@drizzle-team/brocli';
 import { assert, expect, test } from 'vitest';
 import { migrate } from '../src/cli/schema';
 
+// TODO: SPANNER - add tests
+
 // good:
 // #1 drizzle-kit generate
 // #2 drizzle-kit generate --config=turso.config.ts

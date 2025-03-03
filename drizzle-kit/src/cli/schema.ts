@@ -106,6 +106,8 @@ export const generate = command({
 				),
 			);
 			process.exit(1);
+		} else if (dialect === 'googlesql') {
+			throw new Error('Not implemented'); // TODO: SPANNER
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -208,6 +210,8 @@ export const migrate = command({
 					),
 				);
 				process.exit(1);
+			} else if (dialect === 'googlesql') {
+				throw new Error('Not implemented'); // TODO: SPANNER
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -393,6 +397,13 @@ export const push = command({
 					),
 				);
 				process.exit(1);
+			} else if (dialect === 'googlesql') {
+				console.log(
+					error(
+						`You can't use 'push' command with GoogleSql dialect`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -463,6 +474,10 @@ export const up = command({
 				),
 			);
 			process.exit(1);
+		}
+
+		if (dialect === 'googlesql') {
+			throw new Error('Not implemented'); // TODO: SPANNER
 		}
 	},
 });
@@ -620,6 +635,13 @@ export const pull = command({
 					prefix,
 					entities,
 				);
+			} else if (dialect === 'googlesql') {
+				console.log(
+					error(
+						`You can't use 'pull' command with GoogleSql dialect`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -745,6 +767,13 @@ export const studio = command({
 					),
 				);
 				process.exit(1);
+			} else if (dialect === 'googlesql') {
+				console.log(
+					error(
+						`You can't use 'studio' command with GoogleSql dialect`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -847,6 +876,8 @@ export const exportRaw = command({
 				),
 			);
 			process.exit(1);
+		} else if (dialect === 'googlesql') {
+			throw new Error('Not implemented'); // TODO: SPANNER - probably not a priority
 		} else {
 			assertUnreachable(dialect);
 		}

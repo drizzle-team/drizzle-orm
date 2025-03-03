@@ -444,6 +444,8 @@ export const preparePushConfig = async (
 			),
 		);
 		process.exit(1);
+	} else if (config.dialect === 'googlesql') {
+		throw new Error('Not implemented'); // TODO: SPANNER
 	}
 
 	assertUnreachable(config.dialect);
@@ -643,6 +645,8 @@ export const preparePullConfig = async (
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
 		};
+	} else if (dialect === 'googlesql') {
+		throw new Error('Not implemented'); // TODO: SPANNER
 	}
 
 	assertUnreachable(dialect);
@@ -754,6 +758,15 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			),
 		);
 		process.exit(1);
+	} else if (dialect === 'googlesql') {
+		throw new Error('Not implemented'); // TODO: SPANNER - not a priority
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials: null as any,
+		};
 	}
 
 	assertUnreachable(dialect);
@@ -864,6 +877,17 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			),
 		);
 		process.exit(1);
+	}
+
+	if (dialect === 'googlesql') {
+		throw new Error('Not implemented'); // TODO: SPANNER
+		return {
+			dialect,
+			out,
+			credentials: null as any,
+			schema,
+			table,
+		};
 	}
 
 	assertUnreachable(dialect);

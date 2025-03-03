@@ -4,7 +4,7 @@ import { pgSchema, pgSchemaSquashed } from './serializer/pgSchema';
 import { singlestoreSchema, singlestoreSchemaSquashed } from './serializer/singlestoreSchema';
 import { sqliteSchema, SQLiteSchemaSquashed } from './serializer/sqliteSchema';
 
-export const dialects = ['postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'gel'] as const;
+export const dialects = ['postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'gel', 'googlesql'] as const;
 export const dialect = enumType(dialects);
 
 export type Dialect = (typeof dialects)[number];
@@ -17,6 +17,7 @@ const commonSquashedSchema = union([
 	singlestoreSchemaSquashed,
 ]);
 
+// TODO: SPANNER SCHEMA?
 const commonSchema = union([pgSchema, mysqlSchema, sqliteSchema, singlestoreSchema]);
 
 export type CommonSquashedSchema = TypeOf<typeof commonSquashedSchema>;

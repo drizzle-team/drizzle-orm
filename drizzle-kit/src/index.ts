@@ -252,6 +252,7 @@ export type Config =
 					})
 				);
 		}
+		// TODO: SPANNER - add googlesql/spanner config
 	);
 
 /**
@@ -261,7 +262,7 @@ export type Config =
  * **Config** usage:
  *
  * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
- * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`, `gel`
+ * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`, `gel`, `googlesql`
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
  *

@@ -128,6 +128,8 @@ const validatorForDialect = (dialect: Dialect) => {
 			return { validator: backwardCompatibleSingleStoreSchema, version: 1 };
 		case 'gel':
 			return { validator: backwardCompatibleGelSchema, version: 1 };
+		case 'googlesql':
+			throw new Error('Not implemented'); // TODO: SPANNER
 	}
 };
 
