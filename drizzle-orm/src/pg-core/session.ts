@@ -105,6 +105,8 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 		if (this.queryMetadata.type === 'select') {
 			const fromCache = await this.cache.get(
 				this.cacheConfig.tag ?? await this.hashQuery(queryString, params),
+				this.queryMetadata.tables,
+				this.cacheConfig.tag !== undefined,
 			);
 			if (fromCache === undefined) {
 				const result = await query();
@@ -114,6 +116,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 					result,
 					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
 					this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],
+					this.cacheConfig.tag !== undefined,
 					this.cacheConfig.config,
 				);
 				// put flag if we should invalidate or not

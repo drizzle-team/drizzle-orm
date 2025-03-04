@@ -32,12 +32,12 @@ export class UpstashCache extends Cache {
 			: undefined;
 	}
 
-	override async get(key: string) {
+	override async get(key: string, _tables: string[], _isTag: boolean) {
 		const res = await this.redis.get<any[]>(key) ?? undefined;
 		return res;
 	}
 
-	override async put(key: string, response: any, tables: string[], config?: CacheConfig) {
+	override async put(key: string, response: any, tables: string[], isTag: boolean, config?: CacheConfig) {
 		await this.redis.set(key, response, config ? this.toInternalConfig(config) : this.internalConfig);
 		for (const table of tables) {
 			await this.redis.sadd(table, key);

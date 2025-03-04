@@ -14,6 +14,8 @@ export abstract class Cache {
 	 */
 	abstract get(
 		key: string,
+		tables: string[],
+		isTag: boolean,
 	): Promise<any[] | undefined>;
 
 	/**
@@ -25,6 +27,7 @@ export abstract class Cache {
 		hashedQuery: string,
 		response: any,
 		tables: string[],
+		isTag: boolean,
 		config?: CacheConfig,
 	): Promise<void>;
 
