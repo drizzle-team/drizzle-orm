@@ -21,6 +21,7 @@ import {
 	SingleStoreSchemaInternal,
 	Table,
 	UniqueConstraint,
+	VectorIndex,
 } from './singlestoreSchema';
 import { sqlToStr } from './utils';
 
@@ -44,12 +45,14 @@ export const generateSingleStoreSnapshot = (
 			name: tableName,
 			columns,
 			indexes,
+			vectorIndexes,
 			schema,
 			primaryKeys,
 			uniqueConstraints,
 		} = getTableConfig(table);
 		const columnsObject: Record<string, Column> = {};
 		const indexesObject: Record<string, Index> = {};
+		const vectorIndexesObject: Record<string, VectorIndex> = {};
 		const primaryKeysObject: Record<string, PrimaryKey> = {};
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
 
@@ -279,12 +282,57 @@ export const generateSingleStoreSnapshot = (
 			};
 		});
 
+		vectorIndexes.forEach((value) => {
+			const column = value.config.column;
+			const name = value.config.name;
+
+			let indexColumn;
+			if (is(column, SQL)) {
+				const sql = dialect.sqlToQuery(column, 'indexes').sql;
+				if (typeof internal!.indexes![name] === 'undefined') {
+					internal!.indexes![name] = {
+						columns: {
+							[sql]: {
+								isExpression: true,
+							},
+						},
+					};
+				} else {
+					if (typeof internal!.indexes![name]?.columns[sql] === 'undefined') {
+						internal!.indexes![name]!.columns[sql] = {
+							isExpression: true,
+						};
+					} else {
+						internal!.indexes![name]!.columns[sql]!.isExpression = true;
+					}
+				}
+				indexColumn = sql;
+			} else {
+				indexColumn = column.name;
+			}
+
+			vectorIndexesObject[name] = {
+				name,
+				column: indexColumn,
+				indexType: value.config.indexType,
+				metricType: value.config.metricType,
+				nlist: value.config.nlist,
+				nprobe: value.config.nprobe,
+				nbits: value.config.nbits,
+				m: value.config.m,
+				M: value.config.M,
+				ef: value.config.ef,
+				efConstruction: value.config.efConstruction,
+			};
+		});
+
 		// only handle tables without schemas
 		if (!schema) {
 			result[tableName] = {
 				name: tableName,
 				columns: columnsObject,
 				indexes: indexesObject,
+				vectorIndexes: vectorIndexesObject,
 				compositePrimaryKeys: primaryKeysObject,
 				uniqueConstraints: uniqueConstraintObject,
 			};
@@ -618,6 +666,7 @@ export const fromDatabase = async (
 				},
 				compositePrimaryKeys: {},
 				indexes: {},
+				vectorIndexes: {},
 				uniqueConstraints: {},
 			};
 		} else {

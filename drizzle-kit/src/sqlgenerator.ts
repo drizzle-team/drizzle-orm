@@ -79,6 +79,7 @@ import {
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
 	JsonRenameViewStatement,
+	JsonSingleStoreCreateIndexStatement,
 	JsonSqliteAddColumnStatement,
 	JsonSqliteCreateTableStatement,
 	JsonStatement,
@@ -3502,27 +3503,47 @@ class CreateMySqlIndexConvertor extends Convertor {
 
 export class CreateSingleStoreIndexConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'create_index' && dialect === 'singlestore';
+		return (statement.type === 'create_index' || statement.type === 'create_vector_index') && dialect === 'singlestore';
 	}
 
-	convert(statement: JsonCreateIndexStatement): string {
+	convert(statement: JsonSingleStoreCreateIndexStatement): string {
 		// should be changed
-		const { name, columns, isUnique } = SingleStoreSquasher.unsquashIdx(
-			statement.data,
-		);
-		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
+		if (statement.type === 'create_index') {
+			const { name, columns, isUnique } = SingleStoreSquasher.unsquashIdx(
+				statement.data,
+			);
+			const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
 
-		const uniqueString = columns
-			.map((it) => {
-				return statement.internal?.indexes
-					? statement.internal?.indexes[name]?.columns[it]?.isExpression
-						? it
-						: `\`${it}\``
-					: `\`${it}\``;
-			})
-			.join(',');
+			const uniqueString = columns
+				.map((it) => {
+					return statement.internal?.indexes
+						? statement.internal?.indexes[name]?.columns[it]?.isExpression
+							? it
+							: `\`${it}\``
+						: `\`${it}\``;
+				})
+				.join(',');
 
-		return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString});`;
+			return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString});`;
+		} else {
+			const { name, column, indexType, ...restIndexOptions } = SingleStoreSquasher.unsquashVectorIdx(statement.data);
+
+			const columnString = statement.internal?.indexes
+				? statement.internal?.indexes[name]?.columns[column]?.isExpression
+					? column
+					: `\`${column}\``
+				: `\`${column}\``;
+
+			const indexOptions: Record<string, string | number> = {
+				index_type: indexType,
+			};
+			for (const [key, value] of Object.entries(restIndexOptions)) {
+				indexOptions[key] = value;
+			}
+			const indexOptionsString = JSON.stringify(indexOptions);
+
+			return `ALTER TABLE \`${statement.tableName}\` ADD VECTOR INDEX \`${name}\` (${columnString}) '${indexOptionsString}';`;
+		}
 	}
 }
 

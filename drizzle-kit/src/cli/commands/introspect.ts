@@ -469,7 +469,7 @@ export const introspectSingleStore = async (
 	writeFileSync(schemaFile, ts.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
+	const { snapshots, journal } = prepareOutFolder(out, 'singlestore');
 
 	if (snapshots.length === 0) {
 		const { sqlStatements, _meta } = await applySingleStoreSnapshotsDiff(

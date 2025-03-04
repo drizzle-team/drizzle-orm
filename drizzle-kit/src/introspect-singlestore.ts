@@ -10,6 +10,7 @@ import {
 	SingleStoreSchema,
 	SingleStoreSchemaInternal,
 	UniqueConstraint,
+	VectorIndex,
 } from './serializer/singlestoreSchema';
 import { indexName } from './serializer/singlestoreSerializer';
 
@@ -254,6 +255,11 @@ export const schemaToTypeScript = (
 			statement += createTableIndexes(
 				table.name,
 				Object.values(table.indexes),
+				withCasing,
+			);
+			statement += createTableVectorIndexes(
+				table.name,
+				Object.values(table.vectorIndexes),
 				withCasing,
 			);
 			statement += createTablePKs(
@@ -907,6 +913,28 @@ const createTablePKs = (
 				.join(', ')
 		}]${it.name ? `, name: "${it.name}"` : ''}}`;
 		statement += '),';
+	});
+
+	return statement;
+};
+
+const createTableVectorIndexes = (tableName: string, idxs: VectorIndex[], casing: (value: string) => string) => {
+	let statement = '';
+
+	idxs.forEach((it) => {
+		let idxKey = it.name.startsWith(tableName) && it.name !== tableName
+			? it.name.slice(tableName.length + 1)
+			: it.name;
+		idxKey = idxKey.endsWith('_index')
+			? idxKey.slice(0, -'_index'.length) + '_idx'
+			: idxKey;
+
+		const indexGeneratedName = indexName(tableName, [it.column]);
+		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
+
+		statement += `\n\t`;
+		statement += `vectorIndex(${escapedIndexName},"${it.indexType}")`;
+		statement += `.on(table.${casing(it.column)})`;
 	});
 
 	return statement;

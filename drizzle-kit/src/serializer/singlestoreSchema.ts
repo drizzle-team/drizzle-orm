@@ -1,4 +1,4 @@
-import { any, boolean, enum as enumType, literal, object, record, string, TypeOf, union } from 'zod';
+import { any, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
 import { mapValues, originUUID, snapshotVersion } from '../global';
 
 // ------- V3 --------
@@ -10,6 +10,20 @@ const index = object({
 	algorithm: enumType(['default', 'inplace', 'copy']).optional(),
 	lock: enumType(['default', 'none', 'shared', 'exclusive']).optional(),
 }).strict();
+
+const vectorIndex = object({
+	name: string(),
+	column: string(),
+	indexType: enumType(['AUTO', 'FLAT', 'IVF_FLAT', 'IVF_PQ', 'IVF_PQFS', 'HNSW_FLAT', 'HNSW_PQ']),
+	metricType: enumType(['EUCLIDEAN_DISTANCE', 'DOT_PRODUCT']).optional(),
+	nlist: number().optional(),
+	nprobe: number().optional(),
+	nbits: number().optional(),
+	m: number().optional(),
+	M: number().optional(),
+	ef: number().optional(),
+	efConstruction: number().optional(),
+});
 
 const column = object({
 	name: string(),
@@ -39,6 +53,7 @@ const table = object({
 	name: string(),
 	columns: record(string(), column),
 	indexes: record(string(), index),
+	vectorIndexes: record(string(), vectorIndex),
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
 }).strict();
@@ -104,6 +119,7 @@ const tableSquashed = object({
 	name: string(),
 	columns: record(string(), column),
 	indexes: record(string(), string()),
+	vectorIndexes: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()).default({}),
 }).strict();
@@ -129,6 +145,7 @@ export type SingleStoreSchemaInternal = TypeOf<typeof schemaInternal>;
 export type SingleStoreKitInternals = TypeOf<typeof kitInternals>;
 export type SingleStoreSchemaSquashed = TypeOf<typeof schemaSquashed>;
 export type Index = TypeOf<typeof index>;
+export type VectorIndex = TypeOf<typeof vectorIndex>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
 /* export type View = TypeOf<typeof view>; */
@@ -152,6 +169,29 @@ export const SingleStoreSquasher = {
 			lock: lock ? lock : undefined,
 		};
 		return index.parse(destructed);
+	},
+	squashVectorIdx: (idx: VectorIndex) => {
+		vectorIndex.parse(idx);
+		return `${idx.name};${idx.column};${idx.indexType};${idx.metricType ?? ''};${idx.nlist ?? ''};${idx.nprobe ?? ''};${
+			idx.nbits ?? ''
+		};${idx.m ?? ''};${idx.M ?? ''};${idx.ef ?? ''};${idx.efConstruction ?? ''}`;
+	},
+	unsquashVectorIdx: (input: string) => {
+		const [name, column, indexType, metricType, nlist, nprobe, nbits, m, M, ef, efConstruction] = input.split(';');
+		const deconstructed = {
+			name,
+			column,
+			indexType,
+			metricType: metricType ? metricType : undefined,
+			nlist: nlist ? nlist : undefined,
+			nprobe: nprobe ? nprobe : undefined,
+			nbits: nbits ? nbits : undefined,
+			m: m ? m : undefined,
+			M: M ? M : undefined,
+			ef: ef ? ef : undefined,
+			efConstruction: efConstruction ? efConstruction : undefined,
+		};
+		return vectorIndex.parse(deconstructed);
 	},
 	squashPK: (pk: PrimaryKey) => {
 		return `${pk.name};${pk.columns.join(',')}`;
@@ -189,6 +229,10 @@ export const squashSingleStoreScheme = (json: SingleStoreSchema): SingleStoreSch
 				return SingleStoreSquasher.squashIdx(index);
 			});
 
+			const squashedVectorIndexes = mapValues(it[1].vectorIndexes, (index) => {
+				return SingleStoreSquasher.squashVectorIdx(index);
+			});
+
 			const squashedPKs = mapValues(it[1].compositePrimaryKeys, (pk) => {
 				return SingleStoreSquasher.squashPK(pk);
 			});
@@ -206,6 +250,7 @@ export const squashSingleStoreScheme = (json: SingleStoreSchema): SingleStoreSch
 					name: it[1].name,
 					columns: it[1].columns,
 					indexes: squashedIndexes,
+					vectorIndexes: squashedVectorIndexes,
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
 				},

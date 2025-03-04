@@ -1,5 +1,6 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
+import { AnyVectorIndexBuilder, VectorIndexType } from '~/singlestore-core/indexes/vector.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import { getSingleStoreColumnBuilders, type SingleStoreColumnBuilders } from './columns/all.ts';
 import type { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreColumnBuilderBase } from './columns/common.ts';
@@ -9,6 +10,7 @@ import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
 export type SingleStoreTableExtraConfigValue =
 	| AnyIndexBuilder
+	| AnyVectorIndexBuilder<VectorIndexType>
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder;
 

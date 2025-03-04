@@ -117,6 +117,7 @@ import {
 	prepareRenameSequenceJson,
 	prepareRenameTableJson,
 	prepareRenameViewJson,
+	prepareSingleStoreCreateIndexesJson,
 	prepareSingleStoreCreateTableJson,
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
@@ -2884,7 +2885,7 @@ export const applySingleStoreSnapshotsDiff = async (
 
 	const jsonCreateIndexesForCreatedTables = createdTables
 		.map((it) => {
-			return prepareCreateIndexesJson(
+			return prepareSingleStoreCreateIndexesJson(
 				it.name,
 				it.schema,
 				it.indexes,

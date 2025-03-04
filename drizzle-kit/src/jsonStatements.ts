@@ -318,6 +318,14 @@ export interface JsonCreateIndexStatement {
 	internal?: MySqlKitInternals | SQLiteKitInternals | SingleStoreKitInternals;
 }
 
+export interface JsonSingleStoreCreateIndexStatement {
+	type: 'create_index' | 'create_vector_index';
+	tableName: string;
+	data: string;
+	schema: string;
+	internal?: SingleStoreKitInternals;
+}
+
 export interface JsonPgCreateIndexStatement {
 	type: 'create_index_pg';
 	tableName: string;
@@ -816,6 +824,7 @@ export type JsonStatement =
 	| JsonDropColumnStatement
 	| JsonAddColumnStatement
 	| JsonCreateIndexStatement
+	| JsonSingleStoreCreateIndexStatement
 	| JsonCreateReferenceStatement
 	| JsonAlterReferenceStatement
 	| JsonDeleteReferenceStatement
@@ -2869,6 +2878,31 @@ export const prepareCreateIndexesJson = (
 	return Object.values(indexes).map((indexData) => {
 		return {
 			type: 'create_index',
+			tableName,
+			data: indexData,
+			schema,
+			internal,
+		};
+	});
+};
+
+export const prepareSingleStoreCreateIndexesJson = (
+	tableName: string,
+	schema: string,
+	indexes: Record<string, string>,
+	internal: SingleStoreKitInternals,
+): JsonSingleStoreCreateIndexStatement[] => {
+	return Object.values(indexes).map((indexData) => {
+		let type: JsonSingleStoreCreateIndexStatement['type'];
+		try {
+			// if we don't get an error here, we have a vector index, otherwise we have a normal one
+			const _unsquashed = SingleStoreSquasher.unsquashVectorIdx(indexData);
+			type = 'create_vector_index';
+		} catch {
+			type = 'create_index';
+		}
+		return {
+			type,
 			tableName,
 			data: indexData,
 			schema,
