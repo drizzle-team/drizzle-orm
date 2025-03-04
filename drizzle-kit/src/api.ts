@@ -477,6 +477,7 @@ export const pushSingleStoreSchema = async (
 		db,
 		statements,
 		validatedCur,
+		validatedPrev,
 	);
 
 	return {

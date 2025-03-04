@@ -61,8 +61,8 @@ import type { Json } from './utils.ts';
 export const literalSchema = v.union([v.string(), v.number(), v.boolean(), v.null()]);
 export const jsonSchema: v.GenericSchema<Json> = v.union([
 	literalSchema,
-	v.array(v.lazy(() => jsonSchema)),
-	v.record(v.string(), v.lazy(() => jsonSchema)),
+	v.array(v.any()),
+	v.record(v.string(), v.any()),
 ]);
 export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 

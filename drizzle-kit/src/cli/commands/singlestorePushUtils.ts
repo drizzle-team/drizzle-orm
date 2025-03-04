@@ -1,9 +1,11 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { fromJson } from 'src/sqlgenerator';
 import { TypeOf } from 'zod';
 import { JsonAlterColumnTypeStatement, JsonStatement } from '../../jsonStatements';
-import { singlestoreSchema, SingleStoreSquasher } from '../../serializer/singlestoreSchema';
-import type { DB } from '../../utils';
+import { Column, SingleStoreSchemaSquashed, SingleStoreSquasher } from '../../serializer/singlestoreSchema';
+import { singlestoreSchema } from '../../serializer/singlestoreSchema';
+import { type DB, findAddedAndRemoved } from '../../utils';
 import { Select } from '../selector-ui';
 import { withStyle } from '../validations/outputs';
 
@@ -104,10 +106,30 @@ export const filterStatements = (
 	});
 };
 
+export function findColumnTypeAlternations(
+	columns1: Record<string, Column>,
+	columns2: Record<string, Column>,
+): string[] {
+	const changes: string[] = [];
+
+	for (const key in columns1) {
+		if (columns1.hasOwnProperty(key) && columns2.hasOwnProperty(key)) {
+			const col1 = columns1[key];
+			const col2 = columns2[key];
+			if (col1.type !== col2.type) {
+				changes.push(col2.name);
+			}
+		}
+	}
+
+	return changes;
+}
+
 export const logSuggestionsAndReturn = async (
 	db: DB,
 	statements: JsonStatement[],
 	json2: TypeOf<typeof singlestoreSchema>,
+	json1: TypeOf<typeof singlestoreSchema>,
 ) => {
 	let shouldAskForApprove = false;
 	const statementsToExecute: string[] = [];
@@ -337,6 +359,88 @@ export const logSuggestionsAndReturn = async (
 					shouldAskForApprove = true;
 				}
 			}
+		} else if (statement.type === 'singlestore_recreate_table') {
+			const tableName = statement.tableName;
+
+			const prevColumns = json1.tables[tableName].columns;
+			const currentColumns = json2.tables[tableName].columns;
+			const { removedColumns, addedColumns } = findAddedAndRemoved(
+				Object.keys(prevColumns),
+				Object.keys(currentColumns),
+			);
+
+			if (removedColumns.length) {
+				for (const removedColumn of removedColumns) {
+					const res = await db.query<{ count: string }>(
+						`select count(\`${tableName}\`.\`${removedColumn}\`) as count from \`${tableName}\``,
+					);
+
+					const count = Number(res[0].count);
+					if (count > 0) {
+						infoToPrint.push(
+							`· You're about to delete ${
+								chalk.underline(
+									removedColumn,
+								)
+							} column in ${tableName} table with ${count} items`,
+						);
+						columnsToRemove.push(removedColumn);
+						shouldAskForApprove = true;
+					}
+				}
+			}
+
+			if (addedColumns.length) {
+				for (const addedColumn of addedColumns) {
+					const [res] = await db.query<{ count: string }>(
+						`select count(*) as count from \`${tableName}\``,
+					);
+
+					const columnConf = json2.tables[tableName].columns[addedColumn];
+
+					const count = Number(res.count);
+					if (count > 0 && columnConf.notNull && !columnConf.default) {
+						infoToPrint.push(
+							`· You're about to add not-null ${
+								chalk.underline(
+									addedColumn,
+								)
+							} column without default value to table, which contains ${count} items`,
+						);
+						shouldAskForApprove = true;
+						tablesToTruncate.push(tableName);
+
+						statementsToExecute.push(`TRUNCATE TABLE \`${tableName}\`;`);
+					}
+				}
+			}
+
+			const columnWithChangedType = findColumnTypeAlternations(prevColumns, currentColumns);
+			for (const column of columnWithChangedType) {
+				const [res] = await db.query<{ count: string }>(
+					`select count(*) as count from \`${tableName}\` WHERE \`${tableName}\`.\`${column}\` IS NOT NULL;`,
+				);
+
+				const count = Number(res.count);
+				if (count > 0) {
+					infoToPrint.push(
+						`· You're about recreate ${chalk.underline(tableName)} table with data type changing for ${
+							chalk.underline(
+								column,
+							)
+						} column, which contains ${count} items`,
+					);
+					shouldAskForApprove = true;
+					tablesToTruncate.push(tableName);
+
+					statementsToExecute.push(`TRUNCATE TABLE \`${tableName}\`;`);
+				}
+			}
+		}
+
+		const stmnt = fromJson([statement], 'singlestore', 'push');
+		if (typeof stmnt !== 'undefined') {
+			statementsToExecute.push(...stmnt);
 		}
 	}
 
