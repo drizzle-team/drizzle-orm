@@ -646,125 +646,242 @@ export const relationsToTypeScript = (
 		string,
 		{
 			name: string;
-			type: 'one' | 'many';
+			type: 'one' | 'many' | 'through';
 			tableFrom: string;
 			schemaFrom?: string;
-			columnFrom: string;
+			columnsFrom: string[];
 			tableTo: string;
 			schemaTo?: string;
-			columnTo: string;
+			columnsTo: string[];
 			relationName?: string;
+			tableThrough?: string;
+			columnsThroughFrom?: string[];
+			columnsThroughTo?: string[];
 		}[]
 	> = {};
 
+	// Process all foreign keys as before.
 	Object.values(schema.tables).forEach((table) => {
-		Object.values(table.foreignKeys).forEach((fk) => {
-			const tableNameFrom = paramNameFor(fk.tableFrom, table.schema);
-			const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
-			const tableFrom = withCasing(tableNameFrom, casing);
-			const tableTo = withCasing(tableNameTo, casing);
-			const columnFrom = withCasing(fk.columnsFrom[0], casing);
-			const columnTo = withCasing(fk.columnsTo[0], casing);
+		const fks = Object.values(table.foreignKeys);
 
-			imports.push(tableTo, tableFrom);
+		// if table has 2 from fk's(one) from different tables
+		//   - do not include this table in one
+		//   - include many and one of them include through
 
-			// const keyFrom = `${schemaFrom}.${tableFrom}`;
-			const keyFrom = tableFrom;
+		// if more - just one to many
 
-			if (!tableRelations[keyFrom]) {
-				tableRelations[keyFrom] = [];
+		if (fks.length === 2) {
+			const [fk1, fk2] = fks;
+			// reference to different tables, means it can be through many-many
+			const toTable1 = withCasing(paramNameFor(fk1.tableTo, fk1.schemaTo), casing);
+			const columnsTo1 = fk1.columnsTo.map((it) => withCasing(it, casing));
+
+			const toTable2 = withCasing(paramNameFor(fk2.tableTo, fk2.schemaTo), casing);
+			const columnsTo2 = fk2.columnsTo.map((it) => withCasing(it, casing));
+
+			const tableThrough = withCasing(paramNameFor(fk1.tableFrom, table.schema), casing);
+			const tableFrom2 = withCasing(paramNameFor(fk2.tableFrom, table.schema), casing);
+			const columnsThroughFrom = fk1.columnsFrom.map((it) => withCasing(it, casing));
+			const columnsThroughTo = fk2.columnsFrom.map((it) => withCasing(it, casing));
+
+			if (
+				toTable1 !== toTable2
+			) {
+				if (!tableRelations[toTable1]) {
+					tableRelations[toTable1] = [];
+				}
+
+				tableRelations[toTable1].push({
+					name: plural(toTable2),
+					type: 'through',
+					tableFrom: toTable1,
+					columnsFrom: columnsTo1,
+					tableTo: toTable2,
+					columnsTo: columnsTo2,
+					tableThrough,
+					columnsThroughFrom,
+					columnsThroughTo,
+				});
+
+				if (!tableRelations[toTable2]) {
+					tableRelations[toTable2] = [];
+				}
+
+				tableRelations[toTable2].push({
+					name: plural(toTable1),
+					type: 'many',
+					tableFrom: tableFrom2,
+					columnsFrom: fk2.columnsFrom,
+					tableTo: toTable2,
+					columnsTo: columnsTo2,
+				});
 			}
+		} else {
+			fks.forEach((fk) => {
+				const tableNameFrom = paramNameFor(fk.tableFrom, table.schema);
+				const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
+				const tableFrom = withCasing(tableNameFrom, casing);
+				const tableTo = withCasing(tableNameTo, casing);
+				const columnsFrom = fk.columnsFrom.map((it) => withCasing(it, casing));
+				const columnsTo = fk.columnsTo.map((it) => withCasing(it, casing));
 
-			tableRelations[keyFrom].push({
-				name: singular(tableTo),
-				type: 'one',
-				tableFrom,
-				columnFrom,
-				tableTo,
-				columnTo,
+				imports.push(tableTo, tableFrom);
+
+				const keyFrom = tableFrom;
+				if (!tableRelations[keyFrom]) {
+					tableRelations[keyFrom] = [];
+				}
+
+				tableRelations[keyFrom].push({
+					name: singular(tableTo),
+					type: 'one',
+					tableFrom,
+					columnsFrom,
+					tableTo,
+					columnsTo,
+				});
+
+				const keyTo = tableTo;
+				if (!tableRelations[keyTo]) {
+					tableRelations[keyTo] = [];
+				}
+
+				tableRelations[keyTo].push({
+					name: plural(tableFrom),
+					type: 'many',
+					tableFrom: tableTo,
+					columnsFrom: columnsTo,
+					tableTo: tableFrom,
+					columnsTo: columnsFrom,
+				});
 			});
-
-			// const keyTo = `${schemaTo}.${tableTo}`;
-			const keyTo = tableTo;
-
-			if (!tableRelations[keyTo]) {
-				tableRelations[keyTo] = [];
-			}
-
-			tableRelations[keyTo].push({
-				name: plural(tableFrom),
-				type: 'many',
-				tableFrom: tableTo,
-				columnFrom: columnTo,
-				tableTo: tableFrom,
-				columnTo: columnFrom,
-			});
-		});
+		}
 	});
 
-	const uniqueImports = [...new Set(imports)];
+	const importsTs = `import { defineRelations } from "drizzle-orm";\nimport * as schema from "./schema";\n\n`;
 
-	const importsTs = `import { relations } from "drizzle-orm/_relations";\nimport { ${
-		uniqueImports.join(
-			', ',
-		)
-	} } from "./schema";\n\n`;
+	let relationString = `export const relations = defineRelations(schema, (r) => ({`;
 
-	const relationStatements = Object.entries(tableRelations).map(
-		([table, relations]) => {
-			const hasOne = relations.some((it) => it.type === 'one');
-			const hasMany = relations.some((it) => it.type === 'many');
-
-			// * change relation names if they are duplicated or if there are multiple relations between two tables
-			const preparedRelations = relations.map(
-				(relation, relationIndex, originArray) => {
-					let name = relation.name;
-					let relationName;
-					const hasMultipleRelations = originArray.some(
-						(it, originIndex) => relationIndex !== originIndex && it.tableTo === relation.tableTo,
-					);
-					if (hasMultipleRelations) {
-						relationName = relation.type === 'one'
-							? `${relation.tableFrom}_${relation.columnFrom}_${relation.tableTo}_${relation.columnTo}`
-							: `${relation.tableTo}_${relation.columnTo}_${relation.tableFrom}_${relation.columnFrom}`;
-					}
-					const hasDuplicatedRelation = originArray.some(
-						(it, originIndex) => relationIndex !== originIndex && it.name === relation.name,
-					);
-					if (hasDuplicatedRelation) {
-						name = `${relation.name}_${relation.type === 'one' ? relation.columnFrom : relation.columnTo}`;
-					}
-					return {
-						...relation,
-						name,
-						relationName,
-					};
-				},
-			);
-
-			const fields = preparedRelations.map((relation) => {
-				if (relation.type === 'one') {
-					return `\t${relation.name}: one(${relation.tableTo}, {\n\t\tfields: [${relation.tableFrom}.${relation.columnFrom}],\n\t\treferences: [${relation.tableTo}.${relation.columnTo}]${
-						relation.relationName
-							? `,\n\t\trelationName: "${relation.relationName}"`
-							: ''
-					}\n\t}),`;
-				} else {
-					return `\t${relation.name}: many(${relation.tableTo}${
-						relation.relationName
-							? `, {\n\t\trelationName: "${relation.relationName}"\n\t}`
-							: ''
-					}),`;
+	Object.entries(tableRelations).forEach(([table, relations]) => {
+		// Adjust duplicate names if needed.
+		const preparedRelations = relations.map(
+			(relation, relationIndex, originArray) => {
+				let name = relation.name;
+				let relationName;
+				const hasMultipleRelations = originArray.some(
+					(it, originIndex) => relationIndex !== originIndex && it.tableTo === relation.tableTo,
+				);
+				if (hasMultipleRelations) {
+					relationName = relation.type === 'one'
+						? `${relation.tableFrom}_${relation.columnsFrom.join('_')}_${relation.tableTo}_${
+							relation.columnsTo.join('_')
+						}`
+						: `${relation.tableTo}_${relation.columnsTo.join('_')}_${relation.tableFrom}_${
+							relation.columnsFrom.join('_')
+						}`;
 				}
-			});
+				const hasDuplicatedRelation = originArray.some(
+					(it, originIndex) => relationIndex !== originIndex && it.name === relation.name,
+				);
+				if (hasDuplicatedRelation) {
+					name = `${relation.name}_${
+						relation.type === 'one'
+							? relation.columnsFrom.join('_')
+							: relation.columnsTo.join('_')
+					}`;
+				}
+				return {
+					...relation,
+					name,
+					relationName,
+				};
+			},
+		);
 
-			return `export const ${table}Relations = relations(${table}, ({${hasOne ? 'one' : ''}${
-				hasOne && hasMany ? ', ' : ''
-			}${hasMany ? 'many' : ''}}) => ({\n${fields.join('\n')}\n}));`;
-		},
-	);
+		relationString += `\n\t${table}: {`;
+		preparedRelations.forEach((relation) => {
+			if (relation.type === 'one') {
+				const from = relation.columnsFrom.length === 1
+					? `r.${relation.tableFrom}.${relation.columnsFrom[0]}`
+					: `[${
+						relation.columnsFrom
+							.map((it) => `r.${relation.tableFrom}.${it}`)
+							.join(', ')
+					}]`;
+				const to = relation.columnsTo.length === 1
+					? `r.${relation.tableTo}.${relation.columnsTo[0]}`
+					: `[${
+						relation.columnsTo
+							.map((it) => `r.${relation.tableTo}.${it}`)
+							.join(', ')
+					}]`;
+
+				relationString += `\n\t\t${relation.name}: r.one.${relation.tableTo}({\n\t\t\tfrom: ${from},\n\t\t\tto: ${to}`
+					+ (relation.relationName ? `,\n\t\t\talias: "${relation.relationName}"` : '')
+					+ `\n\t\t}),`;
+			} else if (relation.type === 'many') {
+				relationString += `\n\t\t${relation.name}: r.many.${relation.tableTo}(`
+					+ (relation.relationName ? `{\n\t\t\talias: "${relation.relationName}"\n\t\t}` : '')
+					+ `),`;
+
+				// // For many-to-many relations using .through().
+				// if (relation.hasThrough) {
+				// 	const from = relation.columnsFrom.length === 1
+				// 		? `r.${relation.tableFrom}.${
+				// 			relation.columnsFrom[0]
+				// 		}.through(r.${relation.tableFrom}.${relation.tableFrom})`
+				// 		: `[${
+				// 			relation.columnsFrom
+				// 				.map((it) => `r.${relation.tableFrom}.${it}.through(r.${relation.tableFrom}.${relation.tableFrom})`)
+				// 				.join(', ')
+				// 		}]`;
+				// 	const to = relation.columnsTo.length === 1
+				// 		? `r.${relation.tableTo}.${relation.columnsTo[0]}.through(r.${relation.tableTo}.${relation.tableTo})`
+				// 		: `[${
+				// 			relation.columnsTo
+				// 				.map((it) => `r.${relation.tableTo}.${it}.through(r.${relation.tableTo}.${relation.tableTo})`)
+				// 				.join(', ')
+				// 		}]`;
+				// 	relationString +=
+				// 		`\n\t\t${relation.name}: r.many.${relation.tableTo}({\n\t\t\tfrom: ${from},\n\t\t\tto: ${to}`
+				// 		+ (relation.relationName ? `,\n\t\t\talias: "${relation.relationName}"` : '')
+				// 		+ `\n\t\t}),`;
+				// } else {
+				// 	relationString += `\n\t\t${relation.name}: r.many.${relation.tableTo}({`
+				// 		+ (relation.relationName ? `\n\t\t\talias: "${relation.relationName}"` : '')
+				// 		+ `\n\t\t}),`;
+				// }
+			} else {
+				const from = relation.columnsThroughFrom!.length === 1
+					? `r.${relation.tableFrom}.${relation.columnsFrom[0]}.through(r.${relation.tableThrough}.${
+						relation.columnsThroughFrom![0]
+					})`
+					: `[${
+						relation.columnsThroughFrom!
+							.map((it) => `r.${relation.tableFrom}.${it}.through(${relation.tableThrough}.${it})`)
+							.join(', ')
+					}]`;
+				const to = relation.columnsThroughTo!.length === 1
+					? `r.${relation.tableTo}.${relation.columnsThroughTo![0]}.through(r.${relation.tableThrough}.${
+						relation.columnsThroughTo![0]
+					})`
+					: `[${
+						relation.columnsThroughTo!
+							.map((it) => `r.${relation.tableTo}.${it}.through(${relation.tableThrough}.${it})`)
+							.join(', ')
+					}]`;
+
+				relationString += `\n\t\t${relation.name}: r.many.${relation.tableTo}({\n\t\t\tfrom: ${from},\n\t\t\tto: ${to}`
+					+ (relation.relationName ? `,\n\t\t\talias: "${relation.relationName}"` : '')
+					+ `\n\t\t}),`;
+			}
+		});
+		relationString += `\n\t},`;
+	});
+
+	relationString += `\n}))`;
 
 	return {
-		file: importsTs + relationStatements.join('\n\n'),
+		file: importsTs + relationString,
 	};
 };
