@@ -20,6 +20,7 @@ import {
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
+	JsonAlterGoogleSqlViewStatement,
 	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
@@ -37,6 +38,7 @@ import {
 	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
+	JsonCreateGoogleSqlViewStatement,
 	JsonCreateIndexStatement,
 	JsonCreateIndPolicyStatement,
 	JsonCreateMySqlViewStatement,
@@ -84,6 +86,7 @@ import {
 	JsonStatement,
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
+import { GoogleSqlSquasher } from './serializer/googlesqlSchema';
 import { MySqlSquasher } from './serializer/mysqlSchema';
 import { PgSquasher, policy } from './serializer/pgSchema';
 import { SingleStoreSquasher } from './serializer/singlestoreSchema';
@@ -575,6 +578,94 @@ class MySqlCreateTableConvertor extends Convertor {
 		return statement;
 	}
 }
+
+// TODO: SPANNER - verify
+class GoogleSqlCreateTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_table' && dialect === 'googlesql';
+	}
+
+	convert(st: JsonCreateTableStatement) {
+		const {
+			tableName,
+			columns,
+			schema,
+			checkConstraints,
+			compositePKs,
+			uniqueConstraints,
+			internals,
+		} = st;
+
+		let statement = '';
+		statement += `CREATE TABLE \`${tableName}\` (\n`;
+		for (let i = 0; i < columns.length; i++) {
+			const column = columns[i];
+
+			const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
+			const notNullStatement = column.notNull ? ' NOT NULL' : '';
+			const defaultStatement = column.default !== undefined ? ` DEFAULT ${column.default}` : '';
+
+			const onUpdateStatement = column.onUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+
+			const autoincrementStatement = column.autoincrement
+				? ' AUTO_INCREMENT'
+				: '';
+
+			const generatedStatement = column.generated
+				? ` GENERATED ALWAYS AS (${column.generated?.as}) ${column.generated?.type.toUpperCase()}`
+				: '';
+
+			statement += '\t'
+				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}`;
+			statement += i === columns.length - 1 ? '' : ',\n';
+		}
+
+		if (typeof compositePKs !== 'undefined' && compositePKs.length > 0) {
+			statement += ',\n';
+			const compositePK = GoogleSqlSquasher.unsquashPK(compositePKs[0]);
+			statement += `\tCONSTRAINT \`${st.compositePkName}\` PRIMARY KEY(\`${compositePK.columns.join(`\`,\``)}\`)`;
+		}
+
+		if (
+			typeof uniqueConstraints !== 'undefined'
+			&& uniqueConstraints.length > 0
+		) {
+			for (const uniqueConstraint of uniqueConstraints) {
+				statement += ',\n';
+				const unsquashedUnique = GoogleSqlSquasher.unsquashUnique(uniqueConstraint);
+
+				const uniqueString = unsquashedUnique.columns
+					.map((it) => {
+						return internals?.indexes
+							? internals?.indexes[unsquashedUnique.name]?.columns[it]
+									?.isExpression
+								? it
+								: `\`${it}\``
+							: `\`${it}\``;
+					})
+					.join(',');
+
+				statement += `\tCONSTRAINT \`${unsquashedUnique.name}\` UNIQUE(${uniqueString})`;
+			}
+		}
+
+		if (typeof checkConstraints !== 'undefined' && checkConstraints.length > 0) {
+			for (const checkConstraint of checkConstraints) {
+				statement += ',\n';
+				const unsquashedCheck = GoogleSqlSquasher.unsquashCheck(checkConstraint);
+
+				statement += `\tCONSTRAINT \`${unsquashedCheck.name}\` CHECK(${unsquashedCheck.value})`;
+			}
+		}
+
+		statement += `\n);`;
+		statement += `\n`;
+		return statement;
+	}
+}
+
 export class SingleStoreCreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_table' && dialect === 'singlestore';
@@ -808,6 +899,28 @@ class MySqlCreateViewConvertor extends Convertor {
 	}
 }
 
+// TODO: SPANNER - verify
+class GoogleSqlCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'googlesql_create_view' && dialect === 'googlesql';
+	}
+
+	convert(st: JsonCreateGoogleSqlViewStatement) {
+		const { definition, name, algorithm, sqlSecurity, withCheckOption, replace } = st;
+
+		let statement = `CREATE `;
+		statement += replace ? `OR REPLACE ` : '';
+		statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
+		statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
+		statement += `VIEW \`${name}\` AS (${definition})`;
+		statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';
+
+		statement += ';';
+
+		return statement;
+	}
+}
+
 class SqliteCreateViewConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'sqlite_create_view' && (dialect === 'sqlite' || dialect === 'turso');
@@ -837,6 +950,19 @@ class PgDropViewConvertor extends Convertor {
 class MySqlDropViewConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name } = st;
+
+		return `DROP VIEW \`${name}\`;`;
+	}
+}
+
+// TODO: SPANNER - verify
+class GoogleSqlDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && dialect === 'googlesql';
 	}
 
 	convert(st: JsonDropViewStatement) {
@@ -878,6 +1004,26 @@ class MySqlAlterViewConvertor extends Convertor {
 	}
 }
 
+class GoogleSqlAlterViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_googlesql_view' && dialect === 'googlesql';
+	}
+
+	convert(st: JsonAlterGoogleSqlViewStatement) {
+		const { name, algorithm, definition, sqlSecurity, withCheckOption } = st;
+
+		let statement = `ALTER `;
+		statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
+		statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
+		statement += `VIEW \`${name}\` AS ${definition}`;
+		statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';
+
+		statement += ';';
+
+		return statement;
+	}
+}
+
 class PgRenameViewConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_view' && dialect === 'postgresql';
@@ -895,6 +1041,19 @@ class PgRenameViewConvertor extends Convertor {
 class MySqlRenameViewConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_view' && dialect === 'mysql';
+	}
+
+	convert(st: JsonRenameViewStatement) {
+		const { nameFrom: from, nameTo: to } = st;
+
+		return `RENAME TABLE \`${from}\` TO \`${to}\`;`;
+	}
+}
+
+// TODO: SPANNER - verify
+class GoogleSqlRenameViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_view' && dialect === 'googlesql';
 	}
 
 	convert(st: JsonRenameViewStatement) {
@@ -1218,6 +1377,20 @@ class MySQLAlterTableAddUniqueConstraintConvertor extends Convertor {
 	}
 }
 
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableAddUniqueConstraintConvertor extends Convertor {
+	can(statement: JsonCreateUniqueConstraint, dialect: Dialect): boolean {
+		return statement.type === 'create_unique_constraint' && dialect === 'googlesql';
+	}
+	convert(statement: JsonCreateUniqueConstraint): string {
+		const unsquashed = GoogleSqlSquasher.unsquashUnique(statement.data);
+
+		return `ALTER TABLE \`${statement.tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` UNIQUE(\`${
+			unsquashed.columns.join('`,`')
+		}\`);`;
+	}
+}
+
 class MySQLAlterTableDropUniqueConstraintConvertor extends Convertor {
 	can(statement: JsonDeleteUniqueConstraint, dialect: Dialect): boolean {
 		return statement.type === 'delete_unique_constraint' && dialect === 'mysql';
@@ -1229,6 +1402,19 @@ class MySQLAlterTableDropUniqueConstraintConvertor extends Convertor {
 	}
 }
 
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableDropUniqueConstraintConvertor extends Convertor {
+	can(statement: JsonDeleteUniqueConstraint, dialect: Dialect): boolean {
+		return statement.type === 'delete_unique_constraint' && dialect === 'googlesql';
+	}
+	convert(statement: JsonDeleteUniqueConstraint): string {
+		const unsquashed = GoogleSqlSquasher.unsquashUnique(statement.data);
+
+		return `ALTER TABLE \`${statement.tableName}\` DROP INDEX \`${unsquashed.name}\`;`;
+	}
+}
+
+
 class MySqlAlterTableAddCheckConstraintConvertor extends Convertor {
 	can(statement: JsonCreateCheckConstraint, dialect: Dialect): boolean {
 		return (
@@ -1237,6 +1423,21 @@ class MySqlAlterTableAddCheckConstraintConvertor extends Convertor {
 	}
 	convert(statement: JsonCreateCheckConstraint): string {
 		const unsquashed = MySqlSquasher.unsquashCheck(statement.data);
+		const { tableName } = statement;
+
+		return `ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` CHECK (${unsquashed.value});`;
+	}
+}
+
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableAddCheckConstraintConvertor extends Convertor {
+	can(statement: JsonCreateCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'create_check_constraint' && dialect === 'googlesql'
+		);
+	}
+	convert(statement: JsonCreateCheckConstraint): string {
+		const unsquashed = GoogleSqlSquasher.unsquashCheck(statement.data);
 		const { tableName } = statement;
 
 		return `ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` CHECK (${unsquashed.value});`;
@@ -1270,6 +1471,20 @@ class MySqlAlterTableDeleteCheckConstraintConvertor extends Convertor {
 	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
 		return (
 			statement.type === 'delete_check_constraint' && dialect === 'mysql'
+		);
+	}
+	convert(statement: JsonDeleteCheckConstraint): string {
+		const { tableName } = statement;
+
+		return `ALTER TABLE \`${tableName}\` DROP CONSTRAINT \`${statement.constraintName}\`;`;
+	}
+}
+
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableDeleteCheckConstraintConvertor extends Convertor {
+	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'delete_check_constraint' && dialect === 'googlesql'
 		);
 	}
 	convert(statement: JsonDeleteCheckConstraint): string {
@@ -1532,6 +1747,18 @@ class MySQLDropTableConvertor extends Convertor {
 	}
 }
 
+// TODO: SPANNER - verify
+class GoogleSQLDropTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_table' && dialect === 'googlesql';
+	}
+
+	convert(statement: JsonDropTableStatement) {
+		const { tableName } = statement;
+		return `DROP TABLE \`${tableName}\`;`;
+	}
+}
+
 export class SingleStoreDropTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_table' && dialect === 'singlestore';
@@ -1591,6 +1818,18 @@ class MySqlRenameTableConvertor extends Convertor {
 	}
 }
 
+// TODO: SPANNER - verify
+class GoogleSqlRenameTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_table' && dialect === 'googlesql';
+	}
+
+	convert(statement: JsonRenameTableStatement) {
+		const { tableNameFrom, tableNameTo } = statement;
+		return `RENAME TABLE \`${tableNameFrom}\` TO \`${tableNameTo}\`;`;
+	}
+}
+
 export class SingleStoreRenameTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_table' && dialect === 'singlestore';
@@ -1624,6 +1863,20 @@ class MySqlAlterTableRenameColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_rename_column' && dialect === 'mysql'
+		);
+	}
+
+	convert(statement: JsonRenameColumnStatement) {
+		const { tableName, oldColumnName, newColumnName } = statement;
+		return `ALTER TABLE \`${tableName}\` RENAME COLUMN \`${oldColumnName}\` TO \`${newColumnName}\`;`;
+	}
+}
+
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableRenameColumnConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_rename_column' && dialect === 'googlesql'
 		);
 	}
 
@@ -1680,6 +1933,18 @@ class PgAlterTableDropColumnConvertor extends Convertor {
 class MySqlAlterTableDropColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_table_drop_column' && dialect === 'mysql';
+	}
+
+	convert(statement: JsonDropColumnStatement) {
+		const { tableName, columnName } = statement;
+		return `ALTER TABLE \`${tableName}\` DROP COLUMN \`${columnName}\`;`;
+	}
+}
+
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableDropColumnConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_drop_column' && dialect === 'googlesql';
 	}
 
 	convert(statement: JsonDropColumnStatement) {
@@ -1778,6 +2043,38 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 class MySqlAlterTableAddColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_table_add_column' && dialect === 'mysql';
+	}
+
+	convert(statement: JsonAddColumnStatement) {
+		const { tableName, column } = statement;
+		const {
+			name,
+			type,
+			notNull,
+			primaryKey,
+			autoincrement,
+			onUpdate,
+			generated,
+		} = column;
+
+		const defaultStatement = `${column.default !== undefined ? ` DEFAULT ${column.default}` : ''}`;
+		const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
+		const primaryKeyStatement = `${primaryKey ? ' PRIMARY KEY' : ''}`;
+		const autoincrementStatement = `${autoincrement ? ' AUTO_INCREMENT' : ''}`;
+		const onUpdateStatement = `${onUpdate ? ' ON UPDATE CURRENT_TIMESTAMP' : ''}`;
+
+		const generatedStatement = generated
+			? ` GENERATED ALWAYS AS (${generated?.as}) ${generated?.type.toUpperCase()}`
+			: '';
+
+		return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
+	}
+}
+
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableAddColumnConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_add_column' && dialect === 'googlesql';
 	}
 
 	convert(statement: JsonAddColumnStatement) {
@@ -2238,6 +2535,55 @@ class MySqlAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor {
 	}
 }
 
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableAlterColumnAlterGeneratedConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_alter_generated'
+			&& dialect === 'googlesql'
+		);
+	}
+
+	convert(statement: JsonAlterColumnAlterGeneratedStatement) {
+		const {
+			tableName,
+			columnName,
+			schema,
+			columnNotNull: notNull,
+			columnDefault,
+			columnOnUpdate,
+			columnAutoIncrement,
+			columnPk,
+			columnGenerated,
+		} = statement;
+
+		const tableNameWithSchema = schema
+			? `\`${schema}\`.\`${tableName}\``
+			: `\`${tableName}\``;
+
+		const addColumnStatement = new GoogleSqlAlterTableAddColumnConvertor().convert({
+			schema,
+			tableName,
+			column: {
+				name: columnName,
+				type: statement.newDataType,
+				notNull,
+				default: columnDefault,
+				onUpdate: columnOnUpdate,
+				autoincrement: columnAutoIncrement,
+				primaryKey: columnPk,
+				generated: columnGenerated,
+			},
+			type: 'alter_table_add_column',
+		});
+
+		return [
+			`ALTER TABLE ${tableNameWithSchema} drop column \`${columnName}\`;`,
+			addColumnStatement,
+		];
+	}
+}
+
 class MySqlAlterTableAlterColumnSetDefaultConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
@@ -2278,11 +2624,37 @@ class MySqlAlterTableAddPk extends Convertor {
 	}
 }
 
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableAddPk extends Convertor {
+	can(statement: JsonStatement, dialect: string): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_set_pk'
+			&& dialect === 'googlesql'
+		);
+	}
+	convert(statement: JsonAlterColumnSetPrimaryKeyStatement): string {
+		return `ALTER TABLE \`${statement.tableName}\` ADD PRIMARY KEY (\`${statement.columnName}\`);`;
+	}
+}
+
 class MySqlAlterTableDropPk extends Convertor {
 	can(statement: JsonStatement, dialect: string): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_pk'
 			&& dialect === 'mysql'
+		);
+	}
+	convert(statement: JsonAlterColumnDropPrimaryKeyStatement): string {
+		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY`;
+	}
+}
+
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableDropPk extends Convertor {
+	can(statement: JsonStatement, dialect: string): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_drop_pk'
+			&& dialect === 'googlesql'
 		);
 	}
 	convert(statement: JsonAlterColumnDropPrimaryKeyStatement): string {
@@ -2639,6 +3011,244 @@ class MySqlModifyColumn extends Convertor {
 		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnGenerated}${columnNotNull}${columnDefault}${columnOnUpdate};`;
 	}
 }
+
+type GoogleSqlModifyColumnStatement =
+	| JsonAlterColumnDropNotNullStatement
+	| JsonAlterColumnSetNotNullStatement
+	| JsonAlterColumnTypeStatement
+	| JsonAlterColumnDropOnUpdateStatement
+	| JsonAlterColumnSetOnUpdateStatement
+	| JsonAlterColumnDropAutoincrementStatement
+	| JsonAlterColumnSetAutoincrementStatement
+	| JsonAlterColumnSetDefaultStatement
+	| JsonAlterColumnDropDefaultStatement
+	| JsonAlterColumnSetGeneratedStatement
+	| JsonAlterColumnDropGeneratedStatement;
+
+// TODO: SPANNER: possibly remove it as spanner doesn't support much alter column
+// TODO: SPANNER - verify
+class GoogleSqlModifyColumn extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			(statement.type === 'alter_table_alter_column_set_type'
+				|| statement.type === 'alter_table_alter_column_set_notnull'
+				|| statement.type === 'alter_table_alter_column_drop_notnull'
+				|| statement.type === 'alter_table_alter_column_drop_on_update'
+				|| statement.type === 'alter_table_alter_column_set_on_update'
+				|| statement.type === 'alter_table_alter_column_set_autoincrement'
+				|| statement.type === 'alter_table_alter_column_drop_autoincrement'
+				|| statement.type === 'alter_table_alter_column_set_default'
+				|| statement.type === 'alter_table_alter_column_drop_default'
+				|| statement.type === 'alter_table_alter_column_set_generated'
+				|| statement.type === 'alter_table_alter_column_drop_generated')
+			&& dialect === 'googlesql'
+		);
+	}
+
+	convert(statement: GoogleSqlModifyColumnStatement) {
+		const { tableName, columnName } = statement;
+		let columnType = ``;
+		let columnDefault: any = '';
+		let columnNotNull = '';
+		let columnOnUpdate = '';
+		let columnAutoincrement = '';
+		let primaryKey = statement.columnPk ? ' PRIMARY KEY' : '';
+		let columnGenerated = '';
+
+		if (statement.type === 'alter_table_alter_column_drop_notnull') {
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_set_notnull') {
+			columnNotNull = ` NOT NULL`;
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_drop_on_update') {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnOnUpdate = '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_set_on_update') {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = ` ON UPDATE CURRENT_TIMESTAMP`;
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (
+			statement.type === 'alter_table_alter_column_set_autoincrement'
+		) {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = ' AUTO_INCREMENT';
+		} else if (
+			statement.type === 'alter_table_alter_column_drop_autoincrement'
+		) {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = '';
+		} else if (statement.type === 'alter_table_alter_column_set_default') {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = ` DEFAULT ${statement.newDefaultValue}`;
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_drop_default') {
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_set_generated') {
+			columnType = ` ${statement.newDataType}`;
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+
+			if (statement.columnGenerated?.type === 'virtual') {
+				return [
+					new GoogleSqlAlterTableDropColumnConvertor().convert({
+						type: 'alter_table_drop_column',
+						tableName: statement.tableName,
+						columnName: statement.columnName,
+						schema: statement.schema,
+					}),
+					new GoogleSqlAlterTableAddColumnConvertor().convert({
+						tableName,
+						column: {
+							name: columnName,
+							type: statement.newDataType,
+							notNull: statement.columnNotNull,
+							default: statement.columnDefault,
+							onUpdate: statement.columnOnUpdate,
+							autoincrement: statement.columnAutoIncrement,
+							primaryKey: statement.columnPk,
+							generated: statement.columnGenerated,
+						},
+						schema: statement.schema,
+						type: 'alter_table_add_column',
+					}),
+				];
+			} else {
+				columnGenerated = statement.columnGenerated
+					? ` GENERATED ALWAYS AS (${statement.columnGenerated?.as}) ${statement.columnGenerated?.type.toUpperCase()}`
+					: '';
+			}
+		} else if (statement.type === 'alter_table_alter_column_drop_generated') {
+			columnType = ` ${statement.newDataType}`;
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+
+			if (statement.oldColumn?.generated?.type === 'virtual') {
+				return [
+					new GoogleSqlAlterTableDropColumnConvertor().convert({
+						type: 'alter_table_drop_column',
+						tableName: statement.tableName,
+						columnName: statement.columnName,
+						schema: statement.schema,
+					}),
+					new GoogleSqlAlterTableAddColumnConvertor().convert({
+						tableName,
+						column: {
+							name: columnName,
+							type: statement.newDataType,
+							notNull: statement.columnNotNull,
+							default: statement.columnDefault,
+							onUpdate: statement.columnOnUpdate,
+							autoincrement: statement.columnAutoIncrement,
+							primaryKey: statement.columnPk,
+							generated: statement.columnGenerated,
+						},
+						schema: statement.schema,
+						type: 'alter_table_add_column',
+					}),
+				];
+			}
+		} else {
+			columnType = ` ${statement.newDataType}`;
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+			columnGenerated = statement.columnGenerated
+				? ` GENERATED ALWAYS AS (${statement.columnGenerated?.as}) ${statement.columnGenerated?.type.toUpperCase()}`
+				: '';
+		}
+
+		// Seems like getting value from simple json2 shanpshot makes dates be dates
+		columnDefault = columnDefault instanceof Date
+			? columnDefault.toISOString()
+			: columnDefault;
+
+		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnGenerated}${columnNotNull}${columnDefault}${columnOnUpdate};`;
+	}
+}
+
 
 class SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
@@ -3059,6 +3669,18 @@ class MySqlAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 	}
 }
 
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_composite_pk' && dialect === 'googlesql';
+	}
+
+	convert(statement: JsonCreateCompositePK) {
+		const { name, columns } = GoogleSqlSquasher.unsquashPK(statement.data);
+		return `ALTER TABLE \`${statement.tableName}\` ADD PRIMARY KEY(\`${columns.join('`,`')}\`);`;
+	}
+}
+
 class MySqlAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'delete_composite_pk' && dialect === 'mysql';
@@ -3066,6 +3688,17 @@ class MySqlAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
 
 	convert(statement: JsonDeleteCompositePK) {
 		const { name, columns } = MySqlSquasher.unsquashPK(statement.data);
+		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY;`;
+	}
+}
+
+class GoogleSqlAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'delete_composite_pk' && dialect === 'googlesql';
+	}
+
+	convert(statement: JsonDeleteCompositePK) {
+		const { name, columns } = GoogleSqlSquasher.unsquashPK(statement.data);
 		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY;`;
 	}
 }
@@ -3078,6 +3711,21 @@ class MySqlAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 	convert(statement: JsonAlterCompositePK) {
 		const { name, columns } = MySqlSquasher.unsquashPK(statement.old);
 		const { name: newName, columns: newColumns } = MySqlSquasher.unsquashPK(
+			statement.new,
+		);
+		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY, ADD PRIMARY KEY(\`${newColumns.join('`,`')}\`);`;
+	}
+}
+
+// TODO: SPANNER - verify
+class GoogleSqlAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_composite_pk' && dialect === 'googlesql';
+	}
+
+	convert(statement: JsonAlterCompositePK) {
+		const { name, columns } = GoogleSqlSquasher.unsquashPK(statement.old);
+		const { name: newName, columns: newColumns } = GoogleSqlSquasher.unsquashPK(
 			statement.new,
 		);
 		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY, ADD PRIMARY KEY(\`${newColumns.join('`,`')}\`);`;
@@ -3347,6 +3995,31 @@ class MySqlCreateForeignKeyConvertor extends Convertor {
 	}
 }
 
+// TODO: SPANNER - verify
+class GoogleSqlCreateForeignKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_reference' && dialect === 'googlesql';
+	}
+
+	convert(statement: JsonCreateReferenceStatement): string {
+		const {
+			name,
+			tableFrom,
+			tableTo,
+			columnsFrom,
+			columnsTo,
+			onDelete,
+			onUpdate,
+		} = GoogleSqlSquasher.unsquashFK(statement.data);
+		const onDeleteStatement = onDelete ? ` ON DELETE ${onDelete}` : '';
+		const onUpdateStatement = onUpdate ? ` ON UPDATE ${onUpdate}` : '';
+		const fromColumnsString = columnsFrom.map((it) => `\`${it}\``).join(',');
+		const toColumnsString = columnsTo.map((it) => `\`${it}\``).join(',');
+
+		return `ALTER TABLE \`${tableFrom}\` ADD CONSTRAINT \`${name}\` FOREIGN KEY (${fromColumnsString}) REFERENCES \`${tableTo}\`(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
+	}
+}
+
 class PgAlterForeignKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_reference' && dialect === 'postgresql';
@@ -3419,6 +4092,19 @@ class MySqlDeleteForeignKeyConvertor extends Convertor {
 	}
 }
 
+// TODO: SPANNER - verify
+class GoogleSqlDeleteForeignKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'delete_reference' && dialect === 'googlesql';
+	}
+
+	convert(statement: JsonDeleteReferenceStatement): string {
+		const tableFrom = statement.tableName; // delete fk from renamed table case
+		const { name } = GoogleSqlSquasher.unsquashFK(statement.data);
+		return `ALTER TABLE \`${tableFrom}\` DROP FOREIGN KEY \`${name}\`;\n`;
+	}
+}
+
 class CreatePgIndexConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_index_pg' && dialect === 'postgresql';
@@ -3482,6 +4168,33 @@ class CreateMySqlIndexConvertor extends Convertor {
 	convert(statement: JsonCreateIndexStatement): string {
 		// should be changed
 		const { name, columns, isUnique } = MySqlSquasher.unsquashIdx(
+			statement.data,
+		);
+		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
+
+		const uniqueString = columns
+			.map((it) => {
+				return statement.internal?.indexes
+					? statement.internal?.indexes[name]?.columns[it]?.isExpression
+						? it
+						: `\`${it}\``
+					: `\`${it}\``;
+			})
+			.join(',');
+
+		return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString});`;
+	}
+}
+
+// TODO: SPANNER - verify
+class CreateGoogleSqlIndexConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_index' && dialect === 'googlesql';
+	}
+
+	convert(statement: JsonCreateIndexStatement): string {
+		// should be changed
+		const { name, columns, isUnique } = GoogleSqlSquasher.unsquashIdx(
 			statement.data,
 		);
 		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
@@ -3670,6 +4383,18 @@ class MySqlDropIndexConvertor extends Convertor {
 
 	convert(statement: JsonDropIndexStatement): string {
 		const { name } = MySqlSquasher.unsquashIdx(statement.data);
+		return `DROP INDEX \`${name}\` ON \`${statement.tableName}\`;`;
+	}
+}
+
+// TODO: SPANNER - verify
+class GoogleSqlDropIndexConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_index' && dialect === 'googlesql';
+	}
+
+	convert(statement: JsonDropIndexStatement): string {
+		const { name } = GoogleSqlSquasher.unsquashIdx(statement.data);
 		return `DROP INDEX \`${name}\` ON \`${statement.tableName}\`;`;
 	}
 }
@@ -3879,6 +4604,7 @@ class SingleStoreRecreateTableConvertor extends Convertor {
 const convertors: Convertor[] = [];
 convertors.push(new PgCreateTableConvertor());
 convertors.push(new MySqlCreateTableConvertor());
+convertors.push(new GoogleSqlCreateTableConvertor());
 convertors.push(new SingleStoreCreateTableConvertor());
 convertors.push(new SingleStoreRecreateTableConvertor());
 convertors.push(new SQLiteCreateTableConvertor());
@@ -3895,9 +4621,13 @@ convertors.push(new PgAlterViewAlterTablespaceConvertor());
 convertors.push(new PgAlterViewAlterUsingConvertor());
 
 convertors.push(new MySqlCreateViewConvertor());
+convertors.push(new GoogleSqlCreateViewConvertor());
 convertors.push(new MySqlDropViewConvertor());
+convertors.push(new GoogleSqlDropViewConvertor());
 convertors.push(new MySqlRenameViewConvertor());
+convertors.push(new GoogleSqlRenameViewConvertor());
 convertors.push(new MySqlAlterViewConvertor());
+convertors.push(new GoogleSqlAlterViewConvertor());
 
 convertors.push(new SqliteCreateViewConvertor());
 convertors.push(new SqliteDropViewConvertor());
@@ -3922,21 +4652,25 @@ convertors.push(new SQLiteDropTableConvertor());
 
 convertors.push(new PgRenameTableConvertor());
 convertors.push(new MySqlRenameTableConvertor());
+convertors.push(new GoogleSqlRenameTableConvertor());
 convertors.push(new SingleStoreRenameTableConvertor());
 convertors.push(new SqliteRenameTableConvertor());
 
 convertors.push(new PgAlterTableRenameColumnConvertor());
 convertors.push(new MySqlAlterTableRenameColumnConvertor());
+convertors.push(new GoogleSqlAlterTableRenameColumnConvertor());
 convertors.push(new SingleStoreAlterTableRenameColumnConvertor());
 convertors.push(new SQLiteAlterTableRenameColumnConvertor());
 
 convertors.push(new PgAlterTableDropColumnConvertor());
 convertors.push(new MySqlAlterTableDropColumnConvertor());
+convertors.push(new GoogleSqlAlterTableDropColumnConvertor());
 convertors.push(new SingleStoreAlterTableDropColumnConvertor());
 convertors.push(new SQLiteAlterTableDropColumnConvertor());
 
 convertors.push(new PgAlterTableAddColumnConvertor());
 convertors.push(new MySqlAlterTableAddColumnConvertor());
+convertors.push(new GoogleSqlAlterTableAddColumnConvertor());
 convertors.push(new SingleStoreAlterTableAddColumnConvertor());
 convertors.push(new SQLiteAlterTableAddColumnConvertor());
 
@@ -3948,22 +4682,28 @@ convertors.push(new PgAlterTableDropUniqueConstraintConvertor());
 convertors.push(new PgAlterTableAddCheckConstraintConvertor());
 convertors.push(new PgAlterTableDeleteCheckConstraintConvertor());
 convertors.push(new MySqlAlterTableAddCheckConstraintConvertor());
+convertors.push(new GoogleSqlAlterTableAddCheckConstraintConvertor());
 convertors.push(new MySqlAlterTableDeleteCheckConstraintConvertor());
+convertors.push(new GoogleSqlAlterTableDeleteCheckConstraintConvertor());
 
 convertors.push(new MySQLAlterTableAddUniqueConstraintConvertor());
+convertors.push(new GoogleSqlAlterTableAddUniqueConstraintConvertor());
 convertors.push(new MySQLAlterTableDropUniqueConstraintConvertor());
+convertors.push(new GoogleSqlAlterTableDropUniqueConstraintConvertor());
 
 convertors.push(new SingleStoreAlterTableAddUniqueConstraintConvertor());
 convertors.push(new SingleStoreAlterTableDropUniqueConstraintConvertor());
 
 convertors.push(new CreatePgIndexConvertor());
 convertors.push(new CreateMySqlIndexConvertor());
+convertors.push(new CreateGoogleSqlIndexConvertor());
 convertors.push(new CreateSingleStoreIndexConvertor());
 convertors.push(new CreateSqliteIndexConvertor());
 
 convertors.push(new PgDropIndexConvertor());
 convertors.push(new SqliteDropIndexConvertor());
 convertors.push(new MySqlDropIndexConvertor());
+convertors.push(new GoogleSqlDropIndexConvertor());
 convertors.push(new SingleStoreDropIndexConvertor());
 
 convertors.push(new PgAlterTableAlterColumnSetPrimaryKeyConvertor());
@@ -3997,6 +4737,7 @@ convertors.push(new PgAlterTableAlterColumnDropGeneratedConvertor());
 convertors.push(new PgAlterTableAlterColumnAlterrGeneratedConvertor());
 
 convertors.push(new MySqlAlterTableAlterColumnAlterrGeneratedConvertor());
+convertors.push(new GoogleSqlAlterTableAlterColumnAlterGeneratedConvertor());
 
 convertors.push(new SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor());
 
@@ -4005,6 +4746,7 @@ convertors.push(new SqliteAlterTableAlterColumnAlterGeneratedConvertor());
 convertors.push(new SqliteAlterTableAlterColumnSetExpressionConvertor());
 
 convertors.push(new MySqlModifyColumn());
+convertors.push(new GoogleSqlModifyColumn());
 convertors.push(new LibSQLModifyColumn());
 // convertors.push(new MySqlAlterTableAlterColumnSetDefaultConvertor());
 // convertors.push(new MySqlAlterTableAlterColumnDropDefaultConvertor());
@@ -4013,11 +4755,13 @@ convertors.push(new SingleStoreModifyColumn());
 
 convertors.push(new PgCreateForeignKeyConvertor());
 convertors.push(new MySqlCreateForeignKeyConvertor());
+convertors.push(new GoogleSqlCreateForeignKeyConvertor());
 
 convertors.push(new PgAlterForeignKeyConvertor());
 
 convertors.push(new PgDeleteForeignKeyConvertor());
 convertors.push(new MySqlDeleteForeignKeyConvertor());
+convertors.push(new GoogleSqlDeleteForeignKeyConvertor());
 
 convertors.push(new PgCreateSchemaConvertor());
 convertors.push(new PgRenameSchemaConvertor());
@@ -4037,10 +4781,15 @@ convertors.push(new PgAlterTableDeleteCompositePrimaryKeyConvertor());
 convertors.push(new PgAlterTableAlterCompositePrimaryKeyConvertor());
 
 convertors.push(new MySqlAlterTableDeleteCompositePrimaryKeyConvertor());
+convertors.push(new GoogleSqlAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new MySqlAlterTableDropPk());
+convertors.push(new GoogleSqlAlterTableDropPk());
 convertors.push(new MySqlAlterTableCreateCompositePrimaryKeyConvertor());
+convertors.push(new GoogleSqlAlterTableDeleteCompositePrimaryKeyConvertor());
 convertors.push(new MySqlAlterTableAddPk());
+convertors.push(new GoogleSqlAlterTableAddPk());
 convertors.push(new MySqlAlterTableAlterCompositePrimaryKeyConvertor());
+convertors.push(new GoogleSqlAlterTableAlterCompositePrimaryKeyConvertor());
 
 convertors.push(new SingleStoreAlterTableDropPk());
 convertors.push(new SingleStoreAlterTableAddPk());

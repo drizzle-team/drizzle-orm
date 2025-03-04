@@ -22,6 +22,7 @@ import {
 	View as SqliteView,
 } from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
+import { GoogleSqlKitInternals, GoogleSqlSchema, GoogleSqlSquasher, View as GoogleSqlView  } from './serializer/googlesqlSchema';
 
 export interface JsonSqliteCreateTableStatement {
 	type: 'sqlite_create_table';
@@ -682,6 +683,12 @@ export type JsonCreateMySqlViewStatement = {
 	replace: boolean;
 } & Omit<MySqlView, 'columns' | 'isExisting'>;
 
+
+export type JsonCreateGoogleSqlViewStatement = {
+	type: 'googlesql_create_view';
+	replace: boolean;
+} & Omit<GoogleSqlView, 'columns' | 'isExisting'>;
+
 /* export type JsonCreateSingleStoreViewStatement = {
 	type: 'singlestore_create_view';
 	replace: boolean;
@@ -769,6 +776,10 @@ export interface JsonAlterViewAlterUsingStatement {
 export type JsonAlterMySqlViewStatement = {
 	type: 'alter_mysql_view';
 } & Omit<MySqlView, 'isExisting'>;
+
+export type JsonAlterGoogleSqlViewStatement = {
+	type: 'alter_googlesql_view';
+} & Omit<GoogleSqlView, 'isExisting'>;
 
 /* export type JsonAlterSingleStoreViewStatement = {
 	type: 'alter_singlestore_view';
@@ -866,7 +877,9 @@ export type JsonStatement =
 	| JsonIndRenamePolicyStatement
 	| JsonDropIndPolicyStatement
 	| JsonCreateIndPolicyStatement
-	| JsonAlterIndPolicyStatement;
+	| JsonAlterIndPolicyStatement
+	| JsonCreateGoogleSqlViewStatement
+	| JsonAlterGoogleSqlViewStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -926,6 +939,37 @@ export const prepareMySqlCreateTableJson = (
 		checkConstraints: Object.values(checkConstraints),
 	};
 };
+
+// TODO: SPANNER - verify
+export const prepareGoogleSqlCreateTableJson = (
+	table: Table,
+	// TODO: remove?
+	json2: GoogleSqlSchema,
+	// we need it to know if some of the indexes(and in future other parts) are expressions or columns
+	// didn't change mysqlserialaizer, because it will break snapshots and diffs and it's hard to detect
+	// if previously it was an expression or column
+	internals: GoogleSqlKitInternals,
+): JsonCreateTableStatement => {
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
+
+	return {
+		type: 'create_table',
+		tableName: name,
+		schema,
+		columns: Object.values(columns),
+		compositePKs: Object.values(compositePrimaryKeys),
+		compositePkName: Object.values(compositePrimaryKeys).length > 0
+			? json2.tables[name].compositePrimaryKeys[
+				GoogleSqlSquasher.unsquashPK(Object.values(compositePrimaryKeys)[0])
+					.name
+			].name
+			: '',
+		uniqueConstraints: Object.values(uniqueConstraints),
+		internals,
+		checkConstraints: Object.values(checkConstraints),
+	};
+};
+
 
 export const prepareSingleStoreCreateTableJson = (
 	table: Table,
@@ -1332,6 +1376,363 @@ export const _prepareSqliteAddColumns = (
 };
 
 export const prepareAlterColumnsMysql = (
+	tableName: string,
+	schema: string,
+	columns: AlteredColumn[],
+	// TODO: remove?
+	json1: CommonSquashedSchema,
+	json2: CommonSquashedSchema,
+	action?: 'push' | undefined,
+): JsonAlterColumnStatement[] => {
+	let statements: JsonAlterColumnStatement[] = [];
+	let dropPkStatements: JsonAlterColumnDropPrimaryKeyStatement[] = [];
+	let setPkStatements: JsonAlterColumnSetPrimaryKeyStatement[] = [];
+
+	for (const column of columns) {
+		const columnName = typeof column.name !== 'string' ? column.name.new : column.name;
+
+		const table = json2.tables[tableName];
+		const snapshotColumn = table.columns[columnName];
+
+		const columnType = snapshotColumn.type;
+		const columnDefault = snapshotColumn.default;
+		const columnOnUpdate = 'onUpdate' in snapshotColumn ? snapshotColumn.onUpdate : undefined;
+		const columnNotNull = table.columns[columnName].notNull;
+
+		const columnAutoIncrement = 'autoincrement' in snapshotColumn
+			? snapshotColumn.autoincrement ?? false
+			: false;
+
+		const columnPk = table.columns[columnName].primaryKey;
+
+		if (column.autoincrement?.type === 'added') {
+			statements.push({
+				type: 'alter_table_alter_column_set_autoincrement',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.autoincrement?.type === 'changed') {
+			const type = column.autoincrement.new
+				? 'alter_table_alter_column_set_autoincrement'
+				: 'alter_table_alter_column_drop_autoincrement';
+
+			statements.push({
+				type,
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.autoincrement?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_autoincrement',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+	}
+
+	for (const column of columns) {
+		const columnName = typeof column.name !== 'string' ? column.name.new : column.name;
+
+		// I used any, because those fields are available only for mysql dialect
+		// For other dialects it will become undefined, that is fine for json statements
+		const columnType = json2.tables[tableName].columns[columnName].type;
+		const columnDefault = json2.tables[tableName].columns[columnName].default;
+		const columnGenerated = json2.tables[tableName].columns[columnName].generated;
+		const columnOnUpdate = (json2.tables[tableName].columns[columnName] as any)
+			.onUpdate;
+		const columnNotNull = json2.tables[tableName].columns[columnName].notNull;
+		const columnAutoIncrement = (
+			json2.tables[tableName].columns[columnName] as any
+		).autoincrement;
+		const columnPk = (json2.tables[tableName].columns[columnName] as any)
+			.primaryKey;
+
+		const compositePk = json2.tables[tableName].compositePrimaryKeys[
+			`${tableName}_${columnName}`
+		];
+
+		if (typeof column.name !== 'string') {
+			statements.push({
+				type: 'alter_table_rename_column',
+				tableName,
+				oldColumnName: column.name.old,
+				newColumnName: column.name.new,
+				schema,
+			});
+		}
+
+		if (column.type?.type === 'changed') {
+			statements.push({
+				type: 'alter_table_alter_column_set_type',
+				tableName,
+				columnName,
+				newDataType: column.type.new,
+				oldDataType: column.type.old,
+				schema,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+				columnGenerated,
+			});
+		}
+
+		if (
+			column.primaryKey?.type === 'deleted'
+			|| (column.primaryKey?.type === 'changed'
+				&& !column.primaryKey.new
+				&& typeof compositePk === 'undefined')
+		) {
+			dropPkStatements.push({
+				////
+				type: 'alter_table_alter_column_drop_pk',
+				tableName,
+				columnName,
+				schema,
+			});
+		}
+
+		if (column.default?.type === 'added') {
+			statements.push({
+				type: 'alter_table_alter_column_set_default',
+				tableName,
+				columnName,
+				newDefaultValue: column.default.value,
+				schema,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				newDataType: columnType,
+				columnPk,
+			});
+		}
+
+		if (column.default?.type === 'changed') {
+			statements.push({
+				type: 'alter_table_alter_column_set_default',
+				tableName,
+				columnName,
+				newDefaultValue: column.default.new,
+				oldDefaultValue: column.default.old,
+				schema,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				newDataType: columnType,
+				columnPk,
+			});
+		}
+
+		if (column.default?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_default',
+				tableName,
+				columnName,
+				schema,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				newDataType: columnType,
+				columnPk,
+			});
+		}
+
+		if (column.notNull?.type === 'added') {
+			statements.push({
+				type: 'alter_table_alter_column_set_notnull',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.notNull?.type === 'changed') {
+			const type = column.notNull.new
+				? 'alter_table_alter_column_set_notnull'
+				: 'alter_table_alter_column_drop_notnull';
+			statements.push({
+				type: type,
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.notNull?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_notnull',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.generated?.type === 'added') {
+			if (columnGenerated?.type === 'virtual') {
+				warning(
+					`You are trying to add virtual generated constraint to ${
+						chalk.blue(
+							columnName,
+						)
+					} column. As MySQL docs mention: "Nongenerated columns can be altered to stored but not virtual generated columns". We will drop an existing column and add it with a virtual generated statement. This means that the data previously stored in this column will be wiped, and new data will be generated on each read for this column\n`,
+				);
+			}
+			statements.push({
+				type: 'alter_table_alter_column_set_generated',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+				columnGenerated,
+			});
+		}
+
+		if (column.generated?.type === 'changed' && action !== 'push') {
+			statements.push({
+				type: 'alter_table_alter_column_alter_generated',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+				columnGenerated,
+			});
+		}
+
+		if (column.generated?.type === 'deleted') {
+			if (columnGenerated?.type === 'virtual') {
+				warning(
+					`You are trying to remove virtual generated constraint from ${
+						chalk.blue(
+							columnName,
+						)
+					} column. As MySQL docs mention: "Stored but not virtual generated columns can be altered to nongenerated columns. The stored generated values become the values of the nongenerated column". We will drop an existing column and add it without a virtual generated statement. This means that this column will have no data after migration\n`,
+				);
+			}
+			statements.push({
+				type: 'alter_table_alter_column_drop_generated',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+				columnGenerated,
+				oldColumn: json1.tables[tableName].columns[columnName],
+			});
+		}
+
+		if (
+			column.primaryKey?.type === 'added'
+			|| (column.primaryKey?.type === 'changed' && column.primaryKey.new)
+		) {
+			const wasAutoincrement = statements.filter(
+				(it) => it.type === 'alter_table_alter_column_set_autoincrement',
+			);
+			if (wasAutoincrement.length === 0) {
+				setPkStatements.push({
+					type: 'alter_table_alter_column_set_pk',
+					tableName,
+					schema,
+					columnName,
+				});
+			}
+		}
+
+		if (column.onUpdate?.type === 'added') {
+			statements.push({
+				type: 'alter_table_alter_column_set_on_update',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.onUpdate?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_on_update',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+	}
+
+	return [...dropPkStatements, ...setPkStatements, ...statements];
+};
+
+
+// TODO - SPANNER - verify
+export const prepareAlterColumnsGooglesql = (
 	tableName: string,
 	schema: string,
 	columns: AlteredColumn[],
@@ -3317,6 +3718,74 @@ export const prepareAlterCompositePrimaryKeyMySql = (
 	});
 };
 
+// TODO - SPANNER - verify
+export const prepareAddCompositePrimaryKeyGoogleSql = (
+	tableName: string,
+	pks: Record<string, string>,
+	// TODO: remove?
+	json1: GoogleSqlSchema,
+	json2: GoogleSqlSchema,
+): JsonCreateCompositePK[] => {
+	const res: JsonCreateCompositePK[] = [];
+	for (const it of Object.values(pks)) {
+		const unsquashed = GoogleSqlSquasher.unsquashPK(it);
+
+		if (
+			unsquashed.columns.length === 1
+			&& json1.tables[tableName]?.columns[unsquashed.columns[0]]?.primaryKey
+		) {
+			continue;
+		}
+
+		res.push({
+			type: 'create_composite_pk',
+			tableName,
+			data: it,
+			constraintName: unsquashed.name,
+		} as JsonCreateCompositePK);
+	}
+	return res;
+};
+
+export const prepareDeleteCompositePrimaryKeyGoogleSql = (
+	tableName: string,
+	pks: Record<string, string>,
+	// TODO: remove?
+	json1: GoogleSqlSchema,
+): JsonDeleteCompositePK[] => {
+	return Object.values(pks).map((it) => {
+		const unsquashed = GoogleSqlSquasher.unsquashPK(it);
+		return {
+			type: 'delete_composite_pk',
+			tableName,
+			data: it,
+		} as JsonDeleteCompositePK;
+	});
+};
+
+export const prepareAlterCompositePrimaryKeyGoogleSql = (
+	tableName: string,
+	pks: Record<string, { __old: string; __new: string }>,
+	// TODO: remove?
+	json1: GoogleSqlSchema,
+	json2: GoogleSqlSchema,
+): JsonAlterCompositePK[] => {
+	return Object.values(pks).map((it) => {
+		return {
+			type: 'alter_composite_pk',
+			tableName,
+			old: it.__old,
+			new: it.__new,
+			oldConstraintName: json1.tables[tableName].compositePrimaryKeys[
+				MySqlSquasher.unsquashPK(it.__old).name
+			].name,
+			newConstraintName: json2.tables[tableName].compositePrimaryKeys[
+				MySqlSquasher.unsquashPK(it.__new).name
+			].name,
+		} as JsonAlterCompositePK;
+	});
+};
+
 export const preparePgCreateViewJson = (
 	name: string,
 	schema: string,
@@ -3349,6 +3818,25 @@ export const prepareMySqlCreateViewJson = (
 	const { algorithm, sqlSecurity, withCheckOption } = MySqlSquasher.unsquashView(meta);
 	return {
 		type: 'mysql_create_view',
+		name: name,
+		definition: definition,
+		algorithm,
+		sqlSecurity,
+		withCheckOption,
+		replace,
+	};
+};
+
+// TODO - SPANNER - verify
+export const prepareGoogleSqlCreateViewJson = (
+	name: string,
+	definition: string,
+	meta: string,
+	replace: boolean = false,
+): JsonCreateGoogleSqlViewStatement => {
+	const { algorithm, sqlSecurity, withCheckOption } = GoogleSqlSquasher.unsquashView(meta);
+	return {
+		type: 'googlesql_create_view',
 		name: name,
 		definition: definition,
 		algorithm,
@@ -3500,6 +3988,13 @@ export const prepareMySqlAlterView = (
 	view: Omit<MySqlView, 'isExisting'>,
 ): JsonAlterMySqlViewStatement => {
 	return { type: 'alter_mysql_view', ...view };
+};
+
+// TODO - SPANNER - verify
+export const prepareGoogleSqlAlterView = (
+	view: Omit<GoogleSqlView, 'isExisting'>,
+): JsonAlterGoogleSqlViewStatement => {
+	return { type: 'alter_googlesql_view', ...view };
 };
 
 /* export const prepareSingleStoreAlterView = (

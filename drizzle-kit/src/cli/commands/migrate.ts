@@ -147,6 +147,29 @@ export const mySqlViewsResolver = async (
 	}
 };
 
+// TODO: SPANNER - verify
+export const googleSqlViewsResolver = async (
+	input: ResolverInput<ViewSquashed & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
 /* export const singleStoreViewsResolver = async (
 	input: ResolverInput<SingleStoreViewSquashed & { schema: '' }>,
 ): Promise<ResolverOutputWithMoved<SingleStoreViewSquashed>> => {
