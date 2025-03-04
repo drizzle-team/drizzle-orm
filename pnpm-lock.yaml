@@ -25,7 +25,7 @@ importers:
         version: 6.7.3(eslint@8.50.0)(typescript@5.6.3)
       bun-types:
         specifier: ^1.2.0
-        version: 1.2.0
+        version: 1.2.2
       concurrently:
         specifier: ^8.2.1
         version: 8.2.1
@@ -40,7 +40,7 @@ importers:
         version: link:drizzle-orm/dist
       drizzle-orm-old:
         specifier: npm:drizzle-orm@^0.27.2
-        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241112.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.3)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@types/better-sqlite3@7.6.12)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.8.1)(bun-types@1.2.0)(knex@2.5.1(better-sqlite3@11.8.1)(mysql2@3.11.0)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.11.0)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7)
+        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241112.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.3)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@types/better-sqlite3@7.6.12)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.8.1)(bun-types@1.2.2)(knex@2.5.1(better-sqlite3@11.8.1)(mysql2@3.11.0)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.11.0)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7)
       eslint:
         specifier: ^8.50.0
         version: 8.50.0
@@ -98,6 +98,9 @@ importers:
       esbuild-register:
         specifier: ^3.5.0
         version: 3.5.0(esbuild@0.19.12)
+      gel:
+        specifier: ^2.0.0
+        version: 2.0.0
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: ^0.15.3
@@ -295,8 +298,8 @@ importers:
         specifier: ^3.20.2
         version: 3.23.7
       zx:
-        specifier: ^7.2.2
-        version: 7.2.2
+        specifier: ^8.3.2
+        version: 8.3.2
 
   drizzle-orm:
     devDependencies:
@@ -356,7 +359,7 @@ importers:
         version: 1.4.9
       '@upstash/redis':
         specifier: ^1.34.3
-        version: 1.34.3
+        version: 1.34.4
       '@vercel/postgres':
         specifier: ^0.8.0
         version: 0.8.0
@@ -368,13 +371,16 @@ importers:
         version: 11.8.1
       bun-types:
         specifier: ^1.2.0
-        version: 1.2.0
+        version: 1.2.2
       cpy:
         specifier: ^10.1.0
         version: 10.1.0
       expo-sqlite:
         specifier: ^14.0.0
         version: 14.0.6(expo@51.0.8(@babel/core@7.24.6)(@babel/preset-env@7.24.6(@babel/core@7.24.6))(bufferutil@4.0.8)(encoding@0.1.13))
+      gel:
+        specifier: ^2.0.0
+        version: 2.0.0
       knex:
         specifier: ^2.4.2
         version: 2.5.1(better-sqlite3@11.8.1)(mysql2@3.3.3)(pg@8.11.5)(sqlite3@5.1.7)
@@ -636,7 +642,7 @@ importers:
         version: 3.583.0
       '@aws-sdk/credential-providers':
         specifier: ^3.549.0
-        version: 3.569.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))
+        version: 3.569.0(@aws-sdk/client-sso-oidc@3.583.0)
       '@electric-sql/pglite':
         specifier: 0.2.12
         version: 0.2.12
@@ -694,6 +700,9 @@ importers:
       express:
         specifier: ^4.18.2
         version: 4.19.2
+      gel:
+        specifier: ^2.0.0
+        version: 2.0.0
       get-port:
         specifier: ^7.0.0
         version: 7.1.0
@@ -781,7 +790,7 @@ importers:
         version: 8.5.11
       '@upstash/redis':
         specifier: ^1.34.3
-        version: 1.34.3
+        version: 1.34.4
       '@vitest/ui':
         specifier: ^1.6.0
         version: 1.6.0(vitest@2.1.2)
@@ -799,7 +808,7 @@ importers:
         version: 7.0.3
       keyv:
         specifier: ^5.2.3
-        version: 5.2.3
+        version: 5.3.1
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@20.12.12)(typescript@5.6.3)
@@ -813,8 +822,8 @@ importers:
         specifier: ^4.3.2
         version: 4.3.2(typescript@5.6.3)(vite@5.3.3(@types/node@20.12.12)(lightningcss@1.25.1)(terser@5.31.0))
       zx:
-        specifier: ^7.2.2
-        version: 7.2.2
+        specifier: ^8.3.2
+        version: 8.3.2
 
 packages:
 
@@ -3203,8 +3212,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
-  '@keyv/serialize@1.0.2':
-    resolution: {integrity: sha512-+E/LyaAeuABniD/RvUezWVXKpeuvwLEA9//nE9952zBaOdBd2mQ3pPoM8cUe2X6IcMByfuSLzmYqnYshG60+HQ==}
+  '@keyv/serialize@1.0.3':
+    resolution: {integrity: sha512-qnEovoOp5Np2JDGonIDL6Ayihw0RhnRh6vxPuHo4RDn1UOzwEo4AeIfpL6UGIrsceWrCMiVPgwRjbHu4vYFc3g==}
 
   '@libsql/client-wasm@0.10.0':
     resolution: {integrity: sha512-xSlpGdBGEr4mRtjCnDejTqtDpct2ng8cqHUQs+S4xG1yv0h+hLdzOtQJSY9JV9T/2MWWDfdCiEntPs2SdErSJA==}
@@ -3375,6 +3384,9 @@ packages:
 
   '@paralleldrive/cuid2@2.2.2':
     resolution: {integrity: sha512-ZOBkgDwEdoYVlSeRbYYXs0S9MejQofiVYoTbKzy/6GQa39/q5tQU2IX46+shYnUkpEl3wc+J6wRlar7r2EK2xA==}
+
+  '@petamoriken/float16@3.9.1':
+    resolution: {integrity: sha512-j+ejhYwY6PeB+v1kn7lZFACUIG97u90WxMuGosILFsl9d4Ovi0sjk0GlPfoEcx+FzvXZDAfioD+NGnnPamXgMA==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -4525,8 +4537,8 @@ packages:
   '@ungap/structured-clone@1.2.0':
     resolution: {integrity: sha512-zuVdFrMJiuCDQUMCzQaD6KL28MjnqqN8XnAqiEq9PNm/hCPTSGfrXCOfwj1ow4LFb/tNymJPwsNbVePc1xFqrQ==}
 
-  '@upstash/redis@1.34.3':
-    resolution: {integrity: sha512-VT25TyODGy/8ljl7GADnJoMmtmJ1F8d84UXfGonRRF8fWYJz7+2J6GzW+a6ETGtk4OyuRTt7FRSvFG5GvrfSdQ==}
+  '@upstash/redis@1.34.4':
+    resolution: {integrity: sha512-AZx2iD5s1Pu/KCrRA7KVCffu3NSoaYnNY7N9YI7aLAYhcJfsriQKTe+8OxQWJqGqFbrvm17Lyr9HFnDLvqNpfA==}
 
   '@urql/core@2.3.6':
     resolution: {integrity: sha512-PUxhtBh7/8167HJK6WqBv6Z0piuiaZHQGYbhwpNL9aIQmLROPEdaUYkY4wh45wPQXcTpnd11l0q3Pw+TI11pdw==}
@@ -5007,8 +5019,8 @@ packages:
   bun-types@0.6.14:
     resolution: {integrity: sha512-sRdvu+t59+H/TVOe7FSGFWYITbqkhiCx9NxVUHt2+JOXM9gUOe5uMPvVvcr/hGngnh+/yb5a7uPE4JaS6uxujg==}
 
-  bun-types@1.2.0:
-    resolution: {integrity: sha512-KEaJxyZfbV/c4eyG0vyehDpYmBGreNiQbZIqvVHJwZ4BmeuWlNZ7EAzMN2Zcd7ailmS/tGVW0BgYbGf+lGEpWw==}
+  bun-types@1.2.2:
+    resolution: {integrity: sha512-RCbMH5elr9gjgDGDhkTTugA21XtJAy/9jkKe/G3WR2q17VPGhcquf9Sir6uay9iW+7P/BV0CAHA1XlHXMAVKHg==}
 
   bundle-require@4.0.2:
     resolution: {integrity: sha512-jwzPOChofl67PSTW2SGubV9HBQAhhR2i6nskiOThauo9dzwDUgOWQScFVaJkjEfYX+UXiD+LEx8EblQMc2wIag==}
@@ -6558,6 +6570,11 @@ packages:
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
     deprecated: This package is no longer supported.
 
+  gel@2.0.0:
+    resolution: {integrity: sha512-Oq3Fjay71s00xzDc0BF/mpcLmnA+uRqMEJK8p5K4PaZjUEsxaeo+kR9OHBVAf289/qPd+0OcLOLUN0UhqiUCog==}
+    engines: {node: '>= 18.0.0'}
+    hasBin: true
+
   generate-function@2.3.1:
     resolution: {integrity: sha512-eeB5GfMNeevm/GRYq20ShmsaGcmI81kIX2K9XQx5miC8KdHaC6Jm0qQ8ZNeGOi7wYB8OsdxKs+Y2oVuTFuVwKQ==}
 
@@ -7159,6 +7176,10 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
+  isexe@3.1.1:
+    resolution: {integrity: sha512-LpB/54B+/2J5hqQ7imZHfdU31OlgQqx7ZicVlkm9kzg9/w8GKLEcFfJl/t7DCEDueOyBAD6zCCwTO6Fzs0NoEQ==}
+    engines: {node: '>=16'}
+
   isobject@3.0.1:
     resolution: {integrity: sha512-WhB9zCku7EGTj/HQQRz5aUQEUeoQZH2bWcltRErOpymJ4boYE6wL9Tbr23krRPSZ+C5zqNSrSw+Cc7sZZ4b7vg==}
     engines: {node: '>=0.10.0'}
@@ -7329,8 +7350,8 @@ packages:
   keyv@4.5.3:
     resolution: {integrity: sha512-QCiSav9WaX1PgETJ+SpNnx2PRRapJ/oRSXM4VO5OGYGSjrxbKPVFVhB3l2OCbLCk329N8qyAtsJjSjvVBWzEug==}
 
-  keyv@5.2.3:
-    resolution: {integrity: sha512-AGKecUfzrowabUv0bH1RIR5Vf7w+l4S3xtQAypKaUpTdIR1EbrAcTxHCrpo9Q+IWeUlFE2palRtgIQcgm+PQJw==}
+  keyv@5.3.1:
+    resolution: {integrity: sha512-13hQT2q2VIwOoaJdJa7nY3J8UVbYtMTJFHnwm9LI+SaQRfUiM6Em9KZeOVTCKbMnGcRIL3NSUFpAdjZCq24nLQ==}
 
   kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
@@ -10285,6 +10306,11 @@ packages:
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
     hasBin: true
 
+  which@4.0.0:
+    resolution: {integrity: sha512-GlaYyEb07DPxYCKhKzplCWBJtvxZcZMrL+4UkrTSJHHPyZU4mYYTv3qaOe77H7EODLSSopAUFAc6W8U4yqvscg==}
+    engines: {node: ^16.13.0 || >=18.0.0}
+    hasBin: true
+
   why-is-node-running@2.2.2:
     resolution: {integrity: sha512-6tSwToZxTOcotxHeA+qGCq1mVzKR3CwcJGmVcY+QE8SHy6TnpFnh8PAvPNHYr7EcuVeG0QSMxtYCuO1ta/G/oA==}
     engines: {node: '>=8'}
@@ -10501,6 +10527,11 @@ packages:
 
   zx@8.2.2:
     resolution: {integrity: sha512-HSIdpU5P2ONI0nssnhsUZNCH9Sd/Z8LIFk9n8QTbu6JufzJx7qR7ajrMN21s06JqWSApcN012377iWsv8Vs5bg==}
+    engines: {node: '>= 12.17.0'}
+    hasBin: true
+
+  zx@8.3.2:
+    resolution: {integrity: sha512-qjTunv1NClO05jDaUjrNZfpqC9yvNCchge/bzOcQevsh1aM5qE3TG6MY24kuQKlOWx+7vNuhqO2wa9nQCIGvZA==}
     engines: {node: '>= 12.17.0'}
     hasBin: true
 
@@ -11272,12 +11303,12 @@ snapshots:
       - '@aws-sdk/client-sso-oidc'
       - aws-crt
 
-  '@aws-sdk/credential-provider-ini@3.568.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))':
+  '@aws-sdk/credential-provider-ini@3.568.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))':
     dependencies:
       '@aws-sdk/client-sts': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)
       '@aws-sdk/credential-provider-env': 3.568.0
       '@aws-sdk/credential-provider-process': 3.568.0
-      '@aws-sdk/credential-provider-sso': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))
+      '@aws-sdk/credential-provider-sso': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0)
       '@aws-sdk/credential-provider-web-identity': 3.568.0(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))
       '@aws-sdk/types': 3.567.0
       '@smithy/credential-provider-imds': 2.3.0
@@ -11360,13 +11391,13 @@ snapshots:
       - '@aws-sdk/client-sts'
       - aws-crt
 
-  '@aws-sdk/credential-provider-node@3.569.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))':
+  '@aws-sdk/credential-provider-node@3.569.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))':
     dependencies:
       '@aws-sdk/credential-provider-env': 3.568.0
       '@aws-sdk/credential-provider-http': 3.568.0
-      '@aws-sdk/credential-provider-ini': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))
+      '@aws-sdk/credential-provider-ini': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))
       '@aws-sdk/credential-provider-process': 3.568.0
-      '@aws-sdk/credential-provider-sso': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))
+      '@aws-sdk/credential-provider-sso': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0)
       '@aws-sdk/credential-provider-web-identity': 3.568.0(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))
       '@aws-sdk/types': 3.567.0
       '@smithy/credential-provider-imds': 2.3.0
@@ -11447,10 +11478,10 @@ snapshots:
       - '@aws-sdk/client-sso-oidc'
       - aws-crt
 
-  '@aws-sdk/credential-provider-sso@3.568.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))':
+  '@aws-sdk/credential-provider-sso@3.568.0(@aws-sdk/client-sso-oidc@3.583.0)':
     dependencies:
       '@aws-sdk/client-sso': 3.568.0
-      '@aws-sdk/token-providers': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))
+      '@aws-sdk/token-providers': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0)
       '@aws-sdk/types': 3.567.0
       '@smithy/property-provider': 2.2.0
       '@smithy/shared-ini-file-loader': 2.4.0
@@ -11504,7 +11535,7 @@ snapshots:
       '@smithy/types': 3.0.0
       tslib: 2.8.1
 
-  '@aws-sdk/credential-providers@3.569.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))':
+  '@aws-sdk/credential-providers@3.569.0(@aws-sdk/client-sso-oidc@3.583.0)':
     dependencies:
       '@aws-sdk/client-cognito-identity': 3.569.0
       '@aws-sdk/client-sso': 3.568.0
@@ -11512,10 +11543,10 @@ snapshots:
       '@aws-sdk/credential-provider-cognito-identity': 3.569.0
       '@aws-sdk/credential-provider-env': 3.568.0
       '@aws-sdk/credential-provider-http': 3.568.0
-      '@aws-sdk/credential-provider-ini': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))
-      '@aws-sdk/credential-provider-node': 3.569.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))
+      '@aws-sdk/credential-provider-ini': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))
+      '@aws-sdk/credential-provider-node': 3.569.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))
       '@aws-sdk/credential-provider-process': 3.568.0
-      '@aws-sdk/credential-provider-sso': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))
+      '@aws-sdk/credential-provider-sso': 3.568.0(@aws-sdk/client-sso-oidc@3.583.0)
       '@aws-sdk/credential-provider-web-identity': 3.568.0(@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0))
       '@aws-sdk/types': 3.567.0
       '@smithy/credential-provider-imds': 2.3.0
@@ -11697,7 +11728,7 @@ snapshots:
       '@smithy/types': 2.12.0
       tslib: 2.8.1
 
-  '@aws-sdk/token-providers@3.568.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))':
+  '@aws-sdk/token-providers@3.568.0(@aws-sdk/client-sso-oidc@3.583.0)':
     dependencies:
       '@aws-sdk/client-sso-oidc': 3.583.0(@aws-sdk/client-sts@3.583.0)
       '@aws-sdk/types': 3.567.0
@@ -13817,7 +13848,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.4.15
 
-  '@keyv/serialize@1.0.2':
+  '@keyv/serialize@1.0.3':
     dependencies:
       buffer: 6.0.3
 
@@ -13999,6 +14030,8 @@ snapshots:
   '@paralleldrive/cuid2@2.2.2':
     dependencies:
       '@noble/hashes': 1.4.0
+
+  '@petamoriken/float16@3.9.1': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -15451,7 +15484,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 5.62.0
       '@typescript-eslint/visitor-keys': 5.62.0
-      debug: 4.3.4
+      debug: 4.3.7
       globby: 11.1.0
       is-glob: 4.0.3
       semver: 7.6.2
@@ -15591,7 +15624,7 @@ snapshots:
 
   '@ungap/structured-clone@1.2.0': {}
 
-  '@upstash/redis@1.34.3':
+  '@upstash/redis@1.34.4':
     dependencies:
       crypto-js: 4.2.0
 
@@ -15750,7 +15783,7 @@ snapshots:
 
   agent-base@6.0.2:
     dependencies:
-      debug: 4.3.4
+      debug: 4.3.7
     transitivePeerDependencies:
       - supports-color
 
@@ -16208,7 +16241,7 @@ snapshots:
 
   bun-types@0.6.14: {}
 
-  bun-types@1.2.0:
+  bun-types@1.2.2:
     dependencies:
       '@types/node': 20.12.12
       '@types/ws': 8.5.11
@@ -16309,7 +16342,7 @@ snapshots:
 
   capnp-ts@0.7.0:
     dependencies:
-      debug: 4.3.4
+      debug: 4.3.7
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
@@ -16965,7 +16998,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241112.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.3)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@types/better-sqlite3@7.6.12)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.8.1)(bun-types@1.2.0)(knex@2.5.1(better-sqlite3@11.8.1)(mysql2@3.11.0)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.11.0)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7):
+  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241112.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.3)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@types/better-sqlite3@7.6.12)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.8.1)(bun-types@1.2.2)(knex@2.5.1(better-sqlite3@11.8.1)(mysql2@3.11.0)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.11.0)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.583.0
       '@cloudflare/workers-types': 4.20241112.0
@@ -16978,7 +17011,7 @@ snapshots:
       '@types/sql.js': 1.4.9
       '@vercel/postgres': 0.8.0
       better-sqlite3: 11.8.1
-      bun-types: 1.2.0
+      bun-types: 1.2.2
       knex: 2.5.1(better-sqlite3@11.8.1)(mysql2@3.11.0)(pg@8.13.1)(sqlite3@5.1.7)
       kysely: 0.25.0
       mysql2: 3.11.0
@@ -18183,6 +18216,17 @@ snapshots:
       wide-align: 1.1.5
     optional: true
 
+  gel@2.0.0:
+    dependencies:
+      '@petamoriken/float16': 3.9.1
+      debug: 4.3.7
+      env-paths: 3.0.0
+      semver: 7.6.2
+      shell-quote: 1.8.1
+      which: 4.0.0
+    transitivePeerDependencies:
+      - supports-color
+
   generate-function@2.3.1:
     dependencies:
       is-property: 1.0.2
@@ -18460,7 +18504,7 @@ snapshots:
     dependencies:
       '@tootallnate/once': 1.1.2
       agent-base: 6.0.2
-      debug: 4.3.4
+      debug: 4.3.7
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -18468,7 +18512,7 @@ snapshots:
   https-proxy-agent@5.0.1:
     dependencies:
       agent-base: 6.0.2
-      debug: 4.3.4
+      debug: 4.3.7
     transitivePeerDependencies:
       - supports-color
 
@@ -18746,6 +18790,8 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  isexe@3.1.1: {}
+
   isobject@3.0.1: {}
 
   jackspeak@2.3.6:
@@ -18951,9 +18997,9 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
-  keyv@5.2.3:
+  keyv@5.3.1:
     dependencies:
-      '@keyv/serialize': 1.0.2
+      '@keyv/serialize': 1.0.3
 
   kind-of@6.0.3: {}
 
@@ -21030,7 +21076,7 @@ snapshots:
   socks-proxy-agent@6.2.1:
     dependencies:
       agent-base: 6.0.2
-      debug: 4.3.4
+      debug: 4.3.7
       socks: 2.8.3
     transitivePeerDependencies:
       - supports-color
@@ -22423,6 +22469,10 @@ snapshots:
     dependencies:
       isexe: 2.0.0
 
+  which@4.0.0:
+    dependencies:
+      isexe: 3.1.1
+
   why-is-node-running@2.2.2:
     dependencies:
       siginfo: 2.0.0
@@ -22642,6 +22692,11 @@ snapshots:
       yaml: 2.4.2
 
   zx@8.2.2:
+    optionalDependencies:
+      '@types/fs-extra': 11.0.4
+      '@types/node': 20.12.12
+
+  zx@8.3.2:
     optionalDependencies:
       '@types/fs-extra': 11.0.4
       '@types/node': 20.12.12
