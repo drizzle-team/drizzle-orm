@@ -3025,7 +3025,7 @@ export const applySingleStoreSnapshotsDiff = async (
 
 	const jsonCreateIndexesForAllAlteredTables = alteredTables
 		.map((it) => {
-			return prepareCreateIndexesJson(
+			return prepareSingleStoreCreateIndexesJson(
 				it.name,
 				it.schema,
 				it.addedIndexes || {},
@@ -3061,7 +3061,7 @@ export const applySingleStoreSnapshotsDiff = async (
 		);
 
 		jsonCreateIndexesForAllAlteredTables.push(
-			...prepareCreateIndexesJson(it.name, it.schema, createdIndexes || {}),
+			...prepareSingleStoreCreateIndexesJson(it.name, it.schema, createdIndexes || {}),
 		);
 		jsonDropIndexesForAllAlteredTables.push(
 			...prepareDropIndexesJson(it.name, it.schema, droppedIndexes || {}),

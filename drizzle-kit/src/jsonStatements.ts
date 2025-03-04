@@ -2890,7 +2890,7 @@ export const prepareSingleStoreCreateIndexesJson = (
 	tableName: string,
 	schema: string,
 	indexes: Record<string, string>,
-	internal: SingleStoreKitInternals,
+	internal?: SingleStoreKitInternals,
 ): JsonSingleStoreCreateIndexStatement[] => {
 	return Object.values(indexes).map((indexData) => {
 		let type: JsonSingleStoreCreateIndexStatement['type'];

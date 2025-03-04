@@ -3701,7 +3701,8 @@ class SingleStoreDropIndexConvertor extends Convertor {
 	}
 
 	convert(statement: JsonDropIndexStatement): string {
-		const { name } = SingleStoreSquasher.unsquashIdx(statement.data);
+		// we have two different index types, but `name` is always the first element in the squashed data
+		const name = statement.data.split(';')[0];
 		return `DROP INDEX \`${name}\` ON \`${statement.tableName}\`;`;
 	}
 }
