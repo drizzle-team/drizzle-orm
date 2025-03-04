@@ -3542,7 +3542,7 @@ export class CreateSingleStoreIndexConvertor extends Convertor {
 			}
 			const indexOptionsString = JSON.stringify(indexOptions);
 
-			return `ALTER TABLE \`${statement.tableName}\` ADD VECTOR INDEX \`${name}\` (${columnString}) '${indexOptionsString}';`;
+			return `ALTER TABLE \`${statement.tableName}\` ADD VECTOR INDEX \`${name}\` (${columnString}) INDEX_OPTIONS '${indexOptionsString}';`;
 		}
 	}
 }

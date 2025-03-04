@@ -119,7 +119,6 @@ const tableSquashed = object({
 	name: string(),
 	columns: record(string(), column),
 	indexes: record(string(), string()),
-	vectorIndexes: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()).default({}),
 }).strict();
@@ -249,8 +248,7 @@ export const squashSingleStoreScheme = (json: SingleStoreSchema): SingleStoreSch
 				{
 					name: it[1].name,
 					columns: it[1].columns,
-					indexes: squashedIndexes,
-					vectorIndexes: squashedVectorIndexes,
+					indexes: { ...squashedIndexes, ...squashedVectorIndexes },
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
 				},
