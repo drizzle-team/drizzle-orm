@@ -3,7 +3,7 @@ import { IndexColumn } from '~/singlestore-core/indexes.ts';
 import { SingleStoreTable } from '~/singlestore-core/table.ts';
 
 export type VectorIndexType = 'AUTO' | 'FLAT' | 'IVF_FLAT' | 'IVF_PQ' | 'IVF_PQFS' | 'HNSW_FLAT' | 'HNSW_PQ';
-type VectorMetricType = 'EUCLIDEAN_DISTANCE' | 'DOT_PRODUCT';
+export type VectorMetricType = 'EUCLIDEAN_DISTANCE' | 'DOT_PRODUCT';
 
 // type VectorIndexConfigExtensions<T extends VectorIndexType> = T extends 'IVF_FLAT' ? { nlist?: number; nprobe?: number }
 // 	: T extends 'IVF_PQ' ? { nlist?: number; m?: number; nbits?: number; nprobe?: number }

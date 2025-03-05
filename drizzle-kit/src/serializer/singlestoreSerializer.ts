@@ -11,6 +11,7 @@ import { RowDataPacket } from 'mysql2/promise';
 import { withStyle } from '../cli/validations/outputs';
 import { IntrospectStage, IntrospectStatus } from '../cli/views';
 
+import { VectorIndexType, VectorMetricType } from 'drizzle-orm/singlestore-core/indexes/vector';
 import { CasingType } from 'src/cli/validations/common';
 import type { DB } from '../utils';
 import {
@@ -728,6 +729,8 @@ export const fromDatabase = async (
 		const constraintName = idxRow['INDEX_NAME'];
 		const columnName: string = idxRow['COLUMN_NAME'];
 		const isUnique = idxRow['NON_UNIQUE'] === 0;
+		const idxType = idxRow['INDEX_TYPE'];
+		const idxOptions = idxRow['INDEX_OPTIONS'];
 
 		const tableInResult = result[tableName];
 		if (typeof tableInResult === 'undefined') continue;
@@ -751,6 +754,22 @@ export const fromDatabase = async (
 					name: constraintName,
 					columns: [columnName],
 				};
+			}
+		} else {
+			if (idxType === 'VECTOR') {
+				const { index_type: indexType, metric_type: metricType, ...restOpts } = JSON.parse(idxOptions) as
+					& Omit<VectorIndex, 'name' | 'column' | 'indexType' | 'metricType'>
+					& { index_type: VectorIndexType; metric_type: VectorMetricType };
+				const vIdx: VectorIndex = {
+					name: constraintName,
+					column: columnName,
+					indexType,
+					metricType,
+					...restOpts,
+				};
+				tableInResult.vectorIndexes[constraintName] = vIdx;
+			} else {
+				// TODO non-vector indexes
 			}
 		}
 	}

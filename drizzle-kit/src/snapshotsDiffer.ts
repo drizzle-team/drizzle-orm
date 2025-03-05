@@ -2724,13 +2724,19 @@ export const applySingleStoreSnapshotsDiff = async (
 	for (const tableName in json1.tables) {
 		const table = json1.tables[tableName];
 		for (const indexName in table.indexes) {
-			const index = SingleStoreSquasher.unsquashIdx(table.indexes[indexName]);
-			if (index.isUnique) {
-				table.uniqueConstraints[indexName] = SingleStoreSquasher.squashUnique({
-					name: index.name,
-					columns: index.columns,
-				});
-				delete json1.tables[tableName].indexes[index.name];
+			try {
+				// skip vector indexes
+				SingleStoreSquasher.unsquashVectorIdx(table.indexes[indexName]);
+				continue;
+			} catch {
+				const index = SingleStoreSquasher.unsquashIdx(table.indexes[indexName]);
+				if (index.isUnique) {
+					table.uniqueConstraints[indexName] = SingleStoreSquasher.squashUnique({
+						name: index.name,
+						columns: index.columns,
+					});
+					delete json1.tables[tableName].indexes[index.name];
+				}
 			}
 		}
 	}
@@ -2738,13 +2744,19 @@ export const applySingleStoreSnapshotsDiff = async (
 	for (const tableName in json2.tables) {
 		const table = json2.tables[tableName];
 		for (const indexName in table.indexes) {
-			const index = SingleStoreSquasher.unsquashIdx(table.indexes[indexName]);
-			if (index.isUnique) {
-				table.uniqueConstraints[indexName] = SingleStoreSquasher.squashUnique({
-					name: index.name,
-					columns: index.columns,
-				});
-				delete json2.tables[tableName].indexes[index.name];
+			try {
+				// skip vector indexes
+				SingleStoreSquasher.unsquashVectorIdx(table.indexes[indexName]);
+				continue;
+			} catch {
+				const index = SingleStoreSquasher.unsquashIdx(table.indexes[indexName]);
+				if (index.isUnique) {
+					table.uniqueConstraints[indexName] = SingleStoreSquasher.squashUnique({
+						name: index.name,
+						columns: index.columns,
+					});
+					delete json2.tables[tableName].indexes[index.name];
+				}
 			}
 		}
 	}

@@ -23,7 +23,7 @@ const vectorIndex = object({
 	M: number().optional(),
 	ef: number().optional(),
 	efConstruction: number().optional(),
-});
+}).strict();
 
 const column = object({
 	name: string(),
@@ -182,13 +182,13 @@ export const SingleStoreSquasher = {
 			column,
 			indexType,
 			metricType: metricType ? metricType : undefined,
-			nlist: nlist ? nlist : undefined,
-			nprobe: nprobe ? nprobe : undefined,
-			nbits: nbits ? nbits : undefined,
-			m: m ? m : undefined,
-			M: M ? M : undefined,
-			ef: ef ? ef : undefined,
-			efConstruction: efConstruction ? efConstruction : undefined,
+			nlist: nlist ? parseInt(nlist) : undefined,
+			nprobe: nprobe ? parseInt(nprobe) : undefined,
+			nbits: nbits ? parseInt(nbits) : undefined,
+			m: m ? parseInt(m) : undefined,
+			M: M ? parseInt(M) : undefined,
+			ef: ef ? parseInt(ef) : undefined,
+			efConstruction: efConstruction ? parseInt(efConstruction) : undefined,
 		};
 		return vectorIndex.parse(deconstructed);
 	},

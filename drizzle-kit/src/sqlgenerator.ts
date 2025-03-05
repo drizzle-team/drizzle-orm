@@ -3526,7 +3526,9 @@ export class CreateSingleStoreIndexConvertor extends Convertor {
 
 			return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString});`;
 		} else {
-			const { name, column, indexType, ...restIndexOptions } = SingleStoreSquasher.unsquashVectorIdx(statement.data);
+			const { name, column, indexType, metricType, ...restIndexOptions } = SingleStoreSquasher.unsquashVectorIdx(
+				statement.data,
+			);
 
 			const columnString = statement.internal?.indexes
 				? statement.internal?.indexes[name]?.columns[column]?.isExpression
@@ -3537,6 +3539,9 @@ export class CreateSingleStoreIndexConvertor extends Convertor {
 			const indexOptions: Record<string, string | number> = {
 				index_type: indexType,
 			};
+			if (metricType) {
+				indexOptions['metric_type'] = metricType;
+			}
 			for (const [key, value] of Object.entries(restIndexOptions)) {
 				indexOptions[key] = value;
 			}

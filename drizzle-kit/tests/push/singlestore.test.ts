@@ -279,6 +279,7 @@ const singlestoreSuite: DialectSuite = {
 			await context.client.query(st);
 		}
 	},
+	// TODO non-vector indexes
 	addBasicIndexes: async function(context?: any): Promise<void> {
 		const schema1 = {
 			vectorIndex: singlestoreTable('vector_table', {
@@ -329,7 +330,48 @@ const singlestoreSuite: DialectSuite = {
 			await context.client.query(st);
 		}
 	},
-	changeIndexFields: function(context?: any): Promise<void> {
+	changeIndexFields: async function(context?: any): Promise<void> {
+		const schema1 = {
+			vectorIndex: singlestoreTable('vector_table', {
+				v: vector('v', { dimensions: 10 }),
+			}, (table) => [
+				vectorIndex('vector_index').on(table.v),
+			]),
+		};
+
+		const schema2 = {
+			vectorIndex: singlestoreTable('vector_table', {
+				v: vector('v', { dimensions: 10 }),
+			}, (table) => [
+				vectorIndex('vector_index', 'IVF_PQ').on(table.v).metricType('EUCLIDEAN_DISTANCE').nbits(16),
+			]),
+		};
+
+		const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
+			context.client as Connection,
+			schema1,
+			schema2,
+			[],
+			'drizzle',
+			false,
+		);
+		expect(statements.length).toBe(2);
+		expect(sqlStatements).toStrictEqual([
+			`DROP INDEX \`vector_index\` ON \`vector_table\`;`,
+			`ALTER TABLE \`vector_table\` ADD VECTOR INDEX \`vector_index\` (\`v\`) INDEX_OPTIONS '{"index_type":"IVF_PQ","metric_type":"EUCLIDEAN_DISTANCE","nbits":16}';`,
+		]);
+
+		const { sqlStatements: dropStatements } = await diffTestSchemasSingleStore(
+			schema2,
+			{},
+			[],
+			false,
+		);
+
+		for (const st of dropStatements) {
+			await context.client.query(st);
+		}
+
 		return {} as any;
 	},
 	dropIndex: async function(context?: any): Promise<void> {
@@ -355,9 +397,16 @@ const singlestoreSuite: DialectSuite = {
 			'drizzle',
 			false,
 		);
-		console.log(statements);
-		console.log(sqlStatements);
 		expect(statements.length).toBe(1);
+		expect(statements[0]).toStrictEqual({
+			type: 'drop_index',
+			tableName: 'vector_table',
+			data: 'vector_index;v;AUTO;;;;;;;;',
+			schema: '',
+		});
+		expect(sqlStatements[0]).toBe(
+			`DROP INDEX \`vector_index\` ON \`vector_table\`;`,
+		);
 
 		const { sqlStatements: dropStatements } = await diffTestSchemasSingleStore(
 			schema2,
