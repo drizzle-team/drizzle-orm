@@ -20,6 +20,7 @@ export default defineConfig({
 			'tests/utils/is-config.test.ts',
 			'js-tests/driver-init/commonjs/*.test.cjs',
 			'js-tests/driver-init/module/*.test.mjs',
+			'tests/gel/**/*.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
@@ -70,7 +71,7 @@ export default defineConfig({
 			tsconfig: 'tsconfig.json',
 		},
 		testTimeout: 100000,
-		hookTimeout: 100000,
+		hookTimeout: 200000,
 		isolate: true,
 		poolOptions: {
 			threads: {
