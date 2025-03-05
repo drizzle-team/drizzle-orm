@@ -4227,6 +4227,15 @@ export function tests() {
 		test('mySchema :: insert many', async (ctx) => {
 			const { db } = ctx.pg;
 
+			console.log('before');
+			console.log(
+				db.insert(usersMySchemaTable).values([
+					{ name: 'John' },
+					{ name: 'Bruce', jsonb: ['foo', 'bar'] },
+					{ name: 'Jane' },
+					{ name: 'Austin', verified: true },
+				]).toSQL(),
+			);
 			await db.insert(usersMySchemaTable).values([
 				{ name: 'John' },
 				{ name: 'Bruce', jsonb: ['foo', 'bar'] },
@@ -5130,13 +5139,13 @@ export function tests() {
 			}
 		});
 
-		test('neon: neon_identity', () => {
+		test('neon: neon_auth', () => {
 			const usersSyncTable = usersSync;
 
 			const { columns, schema, name } = getTableConfig(usersSyncTable);
 
 			expect(name).toBe('users_sync');
-			expect(schema).toBe('neon_identity');
+			expect(schema).toBe('neon_auth');
 			expect(columns).toHaveLength(6);
 		});
 
