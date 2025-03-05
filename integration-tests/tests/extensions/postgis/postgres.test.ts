@@ -103,7 +103,7 @@ beforeEach(async () => {
 		          "line_abc" line,
 				  "geo" geometry(point),
 				  "geo_obj" geometry(point),
-				  "geo_options" geometry(point,4000)
+				  "geo_options" geometry(point, 4000)
 		      );
 	`);
 });

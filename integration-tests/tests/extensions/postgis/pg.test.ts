@@ -86,8 +86,9 @@ const items = pgTable('items', {
 	line: line('line'),
 	lineObj: line('line_abc', { mode: 'abc' }),
 	geo: geometry('geo', { type: 'point' }),
+	geoSrid: geometry('geo_srid', { type: 'point', srid: 4000 }),
 	geoObj: geometry('geo_obj', { type: 'point', mode: 'xy' }),
-	geoSrid: geometry('geo_options', { type: 'point', mode: 'xy', srid: 4000 }),
+	geoObjSrid: geometry('geo_options', { type: 'point', mode: 'xy', srid: 4000 }),
 });
 
 beforeEach(async () => {
@@ -100,8 +101,9 @@ beforeEach(async () => {
 		          "line" line,
 		          "line_abc" line,
 				  "geo" geometry(point),
+				  "geo_srid" geometry(point, 4000),
 				  "geo_obj" geometry(point),
-				  "geo_options" geometry(point,4000)
+				  "geo_options" geometry(point, 4000)
 		      );
 	`);
 });
@@ -113,8 +115,9 @@ test('insert + select', async () => {
 		line: [1, 2, 3],
 		lineObj: { a: 1, b: 2, c: 3 },
 		geo: [1, 2],
-		geoObj: { x: 1, y: 2 },
 		geoSrid: { x: 1, y: 2 },
+		geoObj: { x: 1, y: 2 },
+		geoObjSrid: { x: 1, y: 2 },
 	}]).returning();
 
 	const response = await db.select().from(items);
@@ -126,8 +129,9 @@ test('insert + select', async () => {
 		line: [1, 2, 3],
 		lineObj: { a: 1, b: 2, c: 3 },
 		geo: [1, 2],
-		geoObj: { x: 1, y: 2 },
 		geoSrid: { x: 1, y: 2 },
+		geoObj: { x: 1, y: 2 },
+		geoObjSrid: { x: 1, y: 2 },
 	}]);
 
 	expect(response).toStrictEqual([{
@@ -137,7 +141,8 @@ test('insert + select', async () => {
 		line: [1, 2, 3],
 		lineObj: { a: 1, b: 2, c: 3 },
 		geo: [1, 2],
-		geoObj: { x: 1, y: 2 },
 		geoSrid: { x: 1, y: 2 },
+		geoObj: { x: 1, y: 2 },
+		geoObjSrid: { x: 1, y: 2 },
 	}]);
 });
