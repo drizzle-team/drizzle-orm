@@ -7,6 +7,7 @@ import type { NamedWithSchema } from './cli/commands/migrate';
 import { info } from './cli/views';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
+import { backwardCompatibleGelSchema } from './serializer/gelSchema';
 import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';
 import { backwardCompatibleSingleStoreSchema } from './serializer/singlestoreSchema';
@@ -125,6 +126,8 @@ const validatorForDialect = (dialect: Dialect) => {
 			return { validator: backwardCompatibleMysqlSchema, version: 5 };
 		case 'singlestore':
 			return { validator: backwardCompatibleSingleStoreSchema, version: 1 };
+		case 'gel':
+			return { validator: backwardCompatibleGelSchema, version: 1 };
 	}
 };
 
