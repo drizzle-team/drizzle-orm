@@ -11,6 +11,7 @@ import {
 	PgJson,
 	PgJsonb,
 	PgNumeric,
+	PgNumericNumber,
 	PgTime,
 	PgTimestamp,
 	PgTimestampString,
@@ -572,7 +573,7 @@ export class PgDialect {
 	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
 		if (is(encoder, PgJsonb) || is(encoder, PgJson)) {
 			return 'json';
-		} else if (is(encoder, PgNumeric)) {
+		} else if (is(encoder, PgNumeric) || is(encoder, PgNumericNumber)) {
 			return 'decimal';
 		} else if (is(encoder, PgTime)) {
 			return 'time';

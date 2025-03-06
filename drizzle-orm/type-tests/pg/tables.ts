@@ -1063,6 +1063,12 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		timestamp2: timestamp('timestamp2', { mode: 'date' }).default(new Date()),
 		timestamp3: timestamp('timestamp3', { mode: undefined }).default(new Date()),
 		timestamp4: timestamp('timestamp4', { mode: 'string' }).default('2020-01-01'),
+		numericDefaultString: numeric('numericDefaultString').default('10.2'),
+		numericString: numeric('numericString', { mode: 'string' }).default('10.2'),
+		numericNumber: numeric('numericNumber', { mode: 'number' }).default(10.2),
+		decimalDefaultString: decimal('decimalDefaultString').default('10.2'),
+		decimalString: decimal('decimalString', { mode: 'string' }).default('10.2'),
+		decimalNumber: decimal('decimalNumber', { mode: 'number' }).default(10.2),
 	});
 }
 
@@ -1071,6 +1077,13 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		col1: decimal('col1', { precision: 10, scale: 2 }).notNull().default('10.2'),
 	});
 	Expect<Equal<{ col1: string }, typeof test.$inferSelect>>;
+}
+
+{
+	const test = pgTable('test', {
+		col1: decimal('col1', { precision: 10, scale: 2, mode: 'number' }).notNull().default(10.2),
+	});
+	Expect<Equal<{ col1: number }, typeof test.$inferSelect>>;
 }
 
 {
@@ -1255,10 +1268,17 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		int: integer('integer'),
 		intdef: integer('integer_def').default(10),
 		numeric: numeric('numeric'),
-		numeric2: numeric('numeric2', { precision: 5 }),
-		numeric3: numeric('numeric3', { scale: 2 }),
-		numeric4: numeric('numeric4', { precision: 5, scale: 2 }),
-		numericdef: numeric('numeridef').default('100'),
+		numeric1: numeric('numeric1', { mode: 'number' }),
+		numeric2: numeric('numeric2', { mode: 'string' }),
+		numeric3: numeric('numeric3', { precision: 5 }),
+		numeric4: numeric('numeric4', { precision: 5, mode: 'number' }),
+		numeric5: numeric('numeric5', { precision: 5, mode: 'string' }),
+		numeric6: numeric('numeric6', { precision: 5, scale: 2 }),
+		numeric7: numeric('numeric7', { precision: 5, scale: 2, mode: 'number' }),
+		numeric8: numeric('numeric8', { precision: 5, scale: 2, mode: 'string' }),
+		numericdef: numeric('numericdef').default('100'),
+		numericdef2: numeric('numericdef2', { mode: 'string' }).default('100'),
+		numericdef3: numeric('numericdef3', { mode: 'number' }).default(100),
 		bigint: bigint('bigint', { mode: 'number' }),
 		bigintdef: bigint('bigintdef', { mode: 'number' }).default(100),
 		bool: boolean('boolean'),
@@ -1340,10 +1360,18 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		int: integer(),
 		intdef: integer().default(10),
 		numeric: numeric(),
-		numeric2: numeric({ precision: 5 }),
-		numeric3: numeric({ scale: 2 }),
-		numeric4: numeric({ precision: 5, scale: 2 }),
+		numeric2: numeric({ mode: 'number' }),
+		numeric3: numeric({ mode: 'string' }),
+		numeric4: numeric({ precision: 5 }),
+		numeric5: numeric({ precision: 5, scale: 2 }),
+		numeric6: numeric({ precision: 5, mode: 'number' }),
+		numeric7: numeric({ precision: 5, mode: 'string' }),
+		numeric8: numeric({ precision: 5, scale: 2, mode: 'number' }),
+		numeric9: numeric({ precision: 5, scale: 2, mode: 'string' }),
 		numericdef: numeric().default('100'),
+		numericdef2: numeric({ precision: 5 }).default('100'),
+		numericdef3: numeric({ mode: 'string' }).default('100'),
+		numericdef4: numeric({ mode: 'number' }).default(100),
 		bigint: bigint({ mode: 'number' }),
 		bigintdef: bigint({ mode: 'number' }).default(100),
 		bool: boolean(),

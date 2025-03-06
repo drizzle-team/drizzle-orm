@@ -5,7 +5,7 @@ import postgres, { type Sql } from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 import { Name, sql } from 'drizzle-orm';
-import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
+import { numeric, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
@@ -422,6 +422,156 @@ test('test mode string for timestamp with timezone in different timezone', async
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
+test('test mode string for numeric', async () => {
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		numeric: numeric('numeric_string', { mode: 'string' }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					numeric_string numeric not null
+			)
+	`);
+
+	const numberString = '123456.123456';
+
+	await db.insert(table).values({
+		numeric: numberString,
+	});
+
+	const result = await db.select().from(table);
+
+	expect(result).toEqual([{ id: 1, numeric: numberString }]);
+
+	const result2 = await db.execute<{
+		id: number;
+		numeric_string: number;
+	}>(sql`select * from ${table}`);
+
+	expect([...result2]).toEqual([{ id: 1, numeric_string: numberString }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test('test mode number for numeric', async () => {
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		numeric: numeric('numeric_string', { mode: 'number' }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					numeric_string numeric not null
+			)
+	`);
+
+	const number = 123456.123456;
+
+	await db.insert(table).values({
+		numeric: number,
+	});
+
+	const result = await db.select().from(table);
+
+	expect(result).toEqual([{ id: 1, numeric: number }]);
+
+	const result2 = await db.execute<{
+		id: number;
+		numeric_string: number;
+	}>(sql`select * from ${table}`);
+
+	expect([...result2]).toEqual([{ id: 1, numeric_string: '123456.123456' }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test('test mode string for numeric with precision and scale', async () => {
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		numeric1: numeric('numeric_string1', { mode: 'string', precision: 10 }).notNull(),
+		numeric2: numeric('numeric_string2', { mode: 'string', precision: 10, scale: 2 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					numeric_string1 numeric(10) not null,
+					numeric_string2 numeric(10, 2) not null
+			)
+	`);
+
+	const numberString1 = '123456';
+	const numberString2 = '123456.12';
+
+	await db.insert(table).values({
+		numeric1: numberString1,
+		numeric2: numberString2,
+	});
+
+	const result = await db.select().from(table);
+
+	expect(result).toEqual([{ id: 1, numeric1: numberString1, numeric2: numberString2 }]);
+
+	const result2 = await db.execute<{
+		id: number;
+		numeric_string1: number;
+		numeric_string2: number;
+	}>(sql`select * from ${table}`);
+
+	expect([...result2]).toEqual([{ id: 1, numeric_string1: numberString1, numeric_string2: numberString2 }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test('test mode number for numeric with precision and scale', async () => {
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		numeric1: numeric('numeric_string1', { mode: 'number', precision: 10 }).notNull(),
+		numeric2: numeric('numeric_string2', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					numeric_string1 numeric(10) not null,
+					numeric_string2 numeric(10, 2) not null
+			)
+	`);
+
+	const number1 = 123456;
+	const number2 = 123456.12;
+
+	await db.insert(table).values({
+		numeric1: number1,
+		numeric2: number2,
+	});
+
+	const result = await db.select().from(table);
+
+	expect(result).toEqual([{ id: 1, numeric1: number1, numeric2: number2 }]);
+
+	const result2 = await db.execute<{
+		id: number;
+		numeric_string1: number;
+		numeric_string2: number;
+	}>(sql`select * from ${table}`);
+
+	expect([...result2]).toEqual([{ id: 1, numeric_string1: '123456', numeric_string2: '123456.12' }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
 skipTests([
 	'migrator : default migration strategy',
 	'migrator : migrate with custom schema',
@@ -436,6 +586,10 @@ skipTests([
 	'test mode date for timestamp with timezone',
 	'test mode string for timestamp with timezone in UTC timezone',
 	'test mode string for timestamp with timezone in different timezone',
+	'test mode string for numeric',
+	'test mode number for numeric',
+	'test mode string for numeric with precision and scale',
+	'test mode number for numeric with precision and scale',
 ]);
 
 tests();

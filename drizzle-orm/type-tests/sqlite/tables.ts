@@ -303,6 +303,21 @@ Expect<
 
 {
 	sqliteTable('test', {
+		numeric: numeric('numeric'),
+		numeric1: numeric('numeric1', { mode: 'number' }),
+		numeric2: numeric('numeric2', { mode: 'string' }),
+		// @ts-expect-error - invalid mode
+		numeric3: numeric('numeric3', { mode: undefined }),
+		numericdef: numeric('numericdef').default('100'),
+		numericdef2: numeric('numericdef2', { mode: 'string' }).default('100'),
+		numericdef3: numeric('numericdef3', { mode: 'number' }).default(100),
+		// @ts-expect-error - wrong default value type
+		numericdef4: numeric('numericdef4', { mode: 'number' }).default('100'),
+	});
+}
+
+{
+	sqliteTable('test', {
 		col1: integer('col1').default(1),
 		col2: integer('col2', { mode: 'number' }).default(1),
 		col3: integer('col3', { mode: 'timestamp' }).default(new Date()),
@@ -570,7 +585,15 @@ Expect<
 		integer2: integer({ mode: 'boolean' }),
 		integerdef: integer().default(0),
 		numeric: numeric(),
-		numericdef: numeric().default(''),
+		numeric1: numeric({ mode: 'number' }),
+		numeric2: numeric({ mode: 'string' }),
+		// @ts-expect-error - invalid mode
+		numeric3: numeric({ mode: undefined }),
+		numericdef: numeric().default('100'),
+		numericdef2: numeric({ mode: 'string' }).default('100'),
+		numericdef3: numeric({ mode: 'number' }).default(100),
+		// @ts-expect-error - wrong default value type
+		numericdef4: numeric({ mode: 'number' }).default('100'),
 		real: real(),
 		realdef: real().default(0),
 		text: text(),

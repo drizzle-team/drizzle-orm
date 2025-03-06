@@ -2663,6 +2663,114 @@ export function tests() {
 			await db.execute(sql`drop table if exists ${table}`);
 		});
 
+		test('all numeric columns', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const table = pgTable('all_columns', {
+				id: serial('id').primaryKey(),
+				numeric: numeric('numeric').notNull(),
+				numericNumber: numeric('numeric_number', { mode: 'number' }).notNull(),
+				numericString: numeric('numeric_string', { mode: 'string' }).notNull(),
+				numericPrecision: numeric('numeric_precision', { precision: 10 }).notNull(),
+				numericPrecisionNumber: numeric('numeric_precision_number', { mode: 'number', precision: 10 }).notNull(),
+				numericPrecisionString: numeric('numeric_precision_string', { mode: 'string', precision: 10 }).notNull(),
+				numericPrecisionScale: numeric('numeric_precision_scale', { precision: 10, scale: 2 }).notNull(),
+				numericPrecisionScaleNumber: numeric('numeric_precision_scale_number', {
+					mode: 'number',
+					precision: 10,
+					scale: 2,
+				}).notNull(),
+				numericPrecisionScaleString: numeric('numeric_precision_scale_string', {
+					mode: 'string',
+					precision: 10,
+					scale: 2,
+				}).notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+
+			await db.execute(sql`
+				create table ${table} (
+					id serial primary key,
+					numeric numeric not null,
+					numeric_number numeric not null,
+					numeric_string numeric not null,
+					numeric_precision numeric(10) not null,
+					numeric_precision_number numeric(10) not null,
+					numeric_precision_string numeric(10) not null,
+					numeric_precision_scale numeric(10, 2) not null,
+					numeric_precision_scale_number numeric(10, 2) not null,
+					numeric_precision_scale_string numeric(10, 2) not null
+				)
+			`);
+
+			const integer = 1234567890;
+			const integerString = '1234567890';
+			const float = 12345678.12;
+			const floatString = '12345678.12';
+
+			await db.insert(table).values({
+				numeric: integerString,
+				numericNumber: integer,
+				numericString: integerString,
+				numericPrecision: integerString,
+				numericPrecisionNumber: integer,
+				numericPrecisionString: integerString,
+				numericPrecisionScale: floatString,
+				numericPrecisionScaleNumber: float,
+				numericPrecisionScaleString: floatString,
+			});
+
+			const result = await db.select().from(table);
+
+			Expect<
+				Equal<{
+					id: number;
+					numeric: string;
+					numericNumber: number;
+					numericString: string;
+					numericPrecision: string;
+					numericPrecisionNumber: number;
+					numericPrecisionString: string;
+					numericPrecisionScale: string;
+					numericPrecisionScaleNumber: number;
+					numericPrecisionScaleString: string;
+				}[], typeof result>
+			>;
+
+			Expect<
+				Equal<{
+					id?: number | undefined;
+					numeric: string;
+					numericNumber: number;
+					numericString: string;
+					numericPrecision: string;
+					numericPrecisionNumber: number;
+					numericPrecisionString: string;
+					numericPrecisionScale: string;
+					numericPrecisionScaleNumber: number;
+					numericPrecisionScaleString: string;
+				}, typeof table.$inferInsert>
+			>;
+
+			expect(result).toEqual([
+				{
+					id: 1,
+					numeric: integerString,
+					numericNumber: integer,
+					numericString: integerString,
+					numericPrecision: integerString,
+					numericPrecisionNumber: integer,
+					numericPrecisionString: integerString,
+					numericPrecisionScale: floatString,
+					numericPrecisionScaleNumber: float,
+					numericPrecisionScaleString: floatString,
+				},
+			]);
+
+			await db.execute(sql`drop table if exists ${table}`);
+		});
+
 		test('orderBy with aliased column', (ctx) => {
 			const { db } = ctx.pg;
 
