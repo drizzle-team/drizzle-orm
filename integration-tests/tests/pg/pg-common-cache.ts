@@ -22,11 +22,17 @@ export class TestGlobalCache extends Cache {
 	override strategy(): 'explicit' | 'all' {
 		return 'all';
 	}
-	override async get(key: string): Promise<any[] | undefined> {
+	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
 		const res = await this.kv.get(key) ?? undefined;
 		return res;
 	}
-	override async put(key: string, response: any, tables: string[], config?: CacheConfig): Promise<void> {
+	override async put(
+		key: string,
+		response: any,
+		tables: string[],
+		isTag: boolean,
+		config?: CacheConfig,
+	): Promise<void> {
 		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
 		for (const table of tables) {
 			const keys = this.usedTablesPerKey[table];
