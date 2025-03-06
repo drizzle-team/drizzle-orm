@@ -627,8 +627,8 @@ export class SeedService {
 			if (
 				col.columnType === 'real'
 				|| col.columnType === 'double precision'
-				|| col.columnType.match(/^decimal(\(\d+,? *\d*\))?$/) !== null
-				|| col.columnType.match(/^numeric(\(\d+,? *\d*\))?$/) !== null
+				|| col.columnType.match(/^decimal(\(\d{1,6}(, ?-?\d{0,5})?\))?$/) !== null
+				|| col.columnType.match(/^numeric(\(\d{1,6}(, ?-?\d{0,5})?\))?$/) !== null
 			) {
 				if (col.typeParams.precision !== undefined) {
 					const precision = col.typeParams.precision;
@@ -864,8 +864,8 @@ export class SeedService {
 				col.columnType === 'real'
 				|| col.columnType === 'double'
 				|| col.columnType === 'float'
-				|| col.columnType.match(/^decimal(\(\d+,? *\d*\))?$/) !== null
-				|| col.columnType.match(/^numeric(\(\d+,? *\d*\))?$/) !== null
+				|| col.columnType.startsWith('decimal')
+				|| col.columnType.startsWith('numeric')
 			) {
 				if (col.typeParams.precision !== undefined) {
 					const precision = col.typeParams.precision;
@@ -889,10 +889,10 @@ export class SeedService {
 				(
 					col.columnType === 'text'
 					|| col.columnType === 'blob'
-					|| col.columnType.match(/^char(\(\d+\))?$/) !== null
-					|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
-					|| col.columnType.match(/^binary(\(\d+\))?$/) !== null
-					|| col.columnType.match(/^varbinary(\(\d+\))?$/) !== null
+					|| col.columnType.startsWith('char')
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('binary')
+					|| col.columnType.startsWith('varbinary')
 				)
 				&& table.primaryKeys.includes(col.name)
 			) {
@@ -904,10 +904,10 @@ export class SeedService {
 				(
 					col.columnType === 'text'
 					|| col.columnType === 'blob'
-					|| col.columnType.match(/^char(\(\d+\))?$/) !== null
-					|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
-					|| col.columnType.match(/^binary(\(\d+\))?$/) !== null
-					|| col.columnType.match(/^varbinary(\(\d+\))?$/) !== null
+					|| col.columnType.startsWith('char')
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('binary')
+					|| col.columnType.startsWith('varbinary')
 				)
 				&& col.name.toLowerCase().includes('name')
 			) {
@@ -919,10 +919,10 @@ export class SeedService {
 				(
 					col.columnType === 'text'
 					|| col.columnType === 'blob'
-					|| col.columnType.match(/^char(\(\d+\))?$/) !== null
-					|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
-					|| col.columnType.match(/^binary(\(\d+\))?$/) !== null
-					|| col.columnType.match(/^varbinary(\(\d+\))?$/) !== null
+					|| col.columnType.startsWith('char')
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('binary')
+					|| col.columnType.startsWith('varbinary')
 				)
 				&& col.name.toLowerCase().includes('email')
 			) {
@@ -933,10 +933,10 @@ export class SeedService {
 			if (
 				col.columnType === 'text'
 				|| col.columnType === 'blob'
-				|| col.columnType.match(/^char(\(\d+\))?$/) !== null
-				|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
-				|| col.columnType.match(/^binary(\(\d+\))?$/) !== null
-				|| col.columnType.match(/^varbinary(\(\d+\))?$/) !== null
+				|| col.columnType.startsWith('char')
+				|| col.columnType.startsWith('varchar')
+				|| col.columnType.startsWith('binary')
+				|| col.columnType.startsWith('varbinary')
 			) {
 				const generator = new generatorsMap.GenerateString[0]();
 				return generator;
@@ -949,7 +949,7 @@ export class SeedService {
 			}
 
 			// DATE, TIME, TIMESTAMP, DATETIME, YEAR
-			if (col.columnType.match(/^datetime(\(\d\))?$/) !== null) {
+			if (col.columnType.startsWith('datetime')) {
 				const generator = new generatorsMap.GenerateDatetime[0]();
 				return generator;
 			}
@@ -964,7 +964,7 @@ export class SeedService {
 				return generator;
 			}
 
-			if (col.columnType.match(/^timestamp(\(\d\))?$/) !== null) {
+			if (col.columnType.startsWith('timestamp')) {
 				const generator = new generatorsMap.GenerateTimestamp[0]();
 				return generator;
 			}
@@ -1037,8 +1037,8 @@ export class SeedService {
 
 			// number section ------------------------------------------------------------------------------------
 			if (
-				col.columnType.match(/^real(\(\d+,? *\d*\))?$/) !== null
-				|| col.columnType.match(/^numeric(\(\d+,? *\d*\))?$/) !== null
+				col.columnType.startsWith('real')
+				|| col.columnType.startsWith('numeric')
 			) {
 				if (col.typeParams.precision !== undefined) {
 					const precision = col.typeParams.precision;
