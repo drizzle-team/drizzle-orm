@@ -555,10 +555,10 @@ export class SeedService {
 
 			// INT ------------------------------------------------------------------------------------------------------------
 			if (
-				(col.columnType.includes('serial')
-					|| col.columnType === 'integer'
-					|| col.columnType === 'smallint'
-					|| col.columnType.includes('bigint'))
+				(
+					['smallserial', 'serial', 'bigserial'].includes(col.columnType)
+					|| ['smallint', 'integer', 'bigint'].includes(col.columnType)
+				)
 				&& table.primaryKeys.includes(col.name)
 			) {
 				const generator = new generatorsMap.GenerateIntPrimaryKey[0]();
@@ -568,7 +568,7 @@ export class SeedService {
 
 			let minValue: number | bigint | undefined;
 			let maxValue: number | bigint | undefined;
-			if (col.columnType.includes('serial')) {
+			if (['smallserial', 'serial', 'bigserial'].includes(col.columnType)) {
 				minValue = 1;
 				if (col.columnType === 'smallserial') {
 					// 2^16 / 2 - 1, 2 bytes
@@ -581,7 +581,7 @@ export class SeedService {
 					minValue = BigInt(1);
 					maxValue = BigInt('9223372036854775807');
 				}
-			} else if (col.columnType.includes('int')) {
+			} else if (['smallint', 'integer', 'bigint'].includes(col.columnType)) {
 				if (col.columnType === 'smallint') {
 					// 2^16 / 2 - 1, 2 bytes
 					minValue = -32768;
@@ -605,9 +605,7 @@ export class SeedService {
 			}
 
 			if (
-				col.columnType.includes('int')
-				&& !col.columnType.includes('interval')
-				&& !col.columnType.includes('point')
+				['smallint', 'integer', 'bigint'].includes(col.columnType)
 			) {
 				const generator = new generatorsMap.GenerateInt[0]({
 					minValue,
@@ -617,7 +615,7 @@ export class SeedService {
 				return generator;
 			}
 
-			if (col.columnType.includes('serial')) {
+			if (['smallserial', 'serial', 'bigserial'].includes(col.columnType)) {
 				const generator = new generatorsMap.GenerateIntPrimaryKey[0]();
 
 				generator.maxValue = maxValue;
@@ -627,10 +625,10 @@ export class SeedService {
 
 			// NUMBER(real, double, decimal, numeric)
 			if (
-				col.columnType.startsWith('real')
-				|| col.columnType.startsWith('double precision')
-				|| col.columnType.startsWith('decimal')
-				|| col.columnType.startsWith('numeric')
+				col.columnType === 'real'
+				|| col.columnType === 'double precision'
+				|| col.columnType.match(/^decimal(\(\d+,? *\d*\))?$/) !== null
+				|| col.columnType.match(/^numeric(\(\d+,? *\d*\))?$/) !== null
 			) {
 				if (col.typeParams.precision !== undefined) {
 					const precision = col.typeParams.precision;
@@ -651,9 +649,11 @@ export class SeedService {
 
 			// STRING
 			if (
-				(col.columnType === 'text'
-					|| col.columnType.startsWith('varchar')
-					|| col.columnType.startsWith('char'))
+				(
+					col.columnType === 'text'
+					|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^char(\(\d+\))?$/) !== null
+				)
 				&& table.primaryKeys.includes(col.name)
 			) {
 				const generator = new generatorsMap.GenerateUniqueString[0]();
@@ -662,9 +662,11 @@ export class SeedService {
 			}
 
 			if (
-				(col.columnType === 'text'
-					|| col.columnType.startsWith('varchar')
-					|| col.columnType.startsWith('char'))
+				(
+					col.columnType === 'text'
+					|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^char(\(\d+\))?$/) !== null
+				)
 				&& col.name.toLowerCase().includes('name')
 			) {
 				const generator = new generatorsMap.GenerateFirstName[0]();
@@ -673,9 +675,11 @@ export class SeedService {
 			}
 
 			if (
-				(col.columnType === 'text'
-					|| col.columnType.startsWith('varchar')
-					|| col.columnType.startsWith('char'))
+				(
+					col.columnType === 'text'
+					|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^char(\(\d+\))?$/) !== null
+				)
 				&& col.name.toLowerCase().includes('email')
 			) {
 				const generator = new generatorsMap.GenerateEmail[0]();
@@ -685,8 +689,8 @@ export class SeedService {
 
 			if (
 				col.columnType === 'text'
-				|| col.columnType.startsWith('varchar')
-				|| col.columnType.startsWith('char')
+				|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
+				|| col.columnType.match(/^char(\(\d+\))?$/) !== null
 			) {
 				const generator = new generatorsMap.GenerateString[0]();
 
@@ -708,19 +712,19 @@ export class SeedService {
 			}
 
 			// DATE, TIME, TIMESTAMP
-			if (col.columnType.includes('date')) {
+			if (col.columnType === 'date') {
 				const generator = new generatorsMap.GenerateDate[0]();
 
 				return generator;
 			}
 
-			if (col.columnType === 'time') {
+			if (col.columnType.match(/^time((\(\d+\))|( with time zone))?$/) !== null) {
 				const generator = new generatorsMap.GenerateTime[0]();
 
 				return generator;
 			}
 
-			if (col.columnType.includes('timestamp')) {
+			if (col.columnType.match(/^timestamp((\(\d+\))|( with time zone))?$/) !== null) {
 				const generator = new generatorsMap.GenerateTimestamp[0]();
 
 				return generator;
@@ -748,7 +752,7 @@ export class SeedService {
 			}
 
 			// INTERVAL
-			if (col.columnType.startsWith('interval')) {
+			if (col.columnType.match(/^interval( .+)?$/) !== null) {
 				if (col.columnType === 'interval') {
 					const generator = new generatorsMap.GenerateInterval[0]();
 
@@ -762,13 +766,13 @@ export class SeedService {
 			}
 
 			// POINT, LINE
-			if (col.columnType.includes('point')) {
+			if (col.columnType === 'point') {
 				const generator = new generatorsMap.GeneratePoint[0]();
 
 				return generator;
 			}
 
-			if (col.columnType.includes('line')) {
+			if (col.columnType === 'line') {
 				const generator = new generatorsMap.GenerateLine[0]();
 
 				return generator;
@@ -801,7 +805,10 @@ export class SeedService {
 		const pickGenerator = (table: Table, col: Column) => {
 			// INT ------------------------------------------------------------------------------------------------------------
 			if (
-				(col.columnType.includes('serial') || col.columnType.includes('int'))
+				(
+					col.columnType === 'serial'
+					|| ['tinyint', 'smallint', 'mediumint', 'int', 'bigint'].includes(col.columnType)
+				)
 				&& table.primaryKeys.includes(col.name)
 			) {
 				const generator = new generatorsMap.GenerateIntPrimaryKey[0]();
@@ -814,7 +821,7 @@ export class SeedService {
 				// 2^64 % 2 - 1, 8 bytes
 				minValue = BigInt(0);
 				maxValue = BigInt('9223372036854775807');
-			} else if (col.columnType.includes('int')) {
+			} else if (['tinyint', 'smallint', 'mediumint', 'int', 'bigint'].includes(col.columnType)) {
 				if (col.columnType === 'tinyint') {
 					// 2^8 / 2 - 1, 1 bytes
 					minValue = -128;
@@ -838,7 +845,7 @@ export class SeedService {
 				}
 			}
 
-			if (col.columnType.includes('int')) {
+			if (['tinyint', 'smallint', 'mediumint', 'int', 'bigint'].includes(col.columnType)) {
 				const generator = new generatorsMap.GenerateInt[0]({
 					minValue,
 					maxValue,
@@ -846,7 +853,7 @@ export class SeedService {
 				return generator;
 			}
 
-			if (col.columnType.includes('serial')) {
+			if (col.columnType === 'serial') {
 				const generator = new generatorsMap.GenerateIntPrimaryKey[0]();
 				generator.maxValue = maxValue;
 				return generator;
@@ -854,11 +861,11 @@ export class SeedService {
 
 			// NUMBER(real, double, decimal, float)
 			if (
-				col.columnType.startsWith('real')
-				|| col.columnType.startsWith('double')
-				|| col.columnType.startsWith('decimal')
-				|| col.columnType.startsWith('float')
-				|| col.columnType.startsWith('numeric')
+				col.columnType === 'real'
+				|| col.columnType === 'double'
+				|| col.columnType === 'float'
+				|| col.columnType.match(/^decimal(\(\d+,? *\d*\))?$/) !== null
+				|| col.columnType.match(/^numeric(\(\d+,? *\d*\))?$/) !== null
 			) {
 				if (col.typeParams.precision !== undefined) {
 					const precision = col.typeParams.precision;
@@ -879,12 +886,14 @@ export class SeedService {
 
 			// STRING
 			if (
-				(col.columnType === 'text'
+				(
+					col.columnType === 'text'
 					|| col.columnType === 'blob'
-					|| col.columnType.startsWith('char')
-					|| col.columnType.startsWith('varchar')
-					|| col.columnType.startsWith('binary')
-					|| col.columnType.startsWith('varbinary'))
+					|| col.columnType.match(/^char(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^binary(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^varbinary(\(\d+\))?$/) !== null
+				)
 				&& table.primaryKeys.includes(col.name)
 			) {
 				const generator = new generatorsMap.GenerateUniqueString[0]();
@@ -892,12 +901,14 @@ export class SeedService {
 			}
 
 			if (
-				(col.columnType === 'text'
+				(
+					col.columnType === 'text'
 					|| col.columnType === 'blob'
-					|| col.columnType.startsWith('char')
-					|| col.columnType.startsWith('varchar')
-					|| col.columnType.startsWith('binary')
-					|| col.columnType.startsWith('varbinary'))
+					|| col.columnType.match(/^char(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^binary(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^varbinary(\(\d+\))?$/) !== null
+				)
 				&& col.name.toLowerCase().includes('name')
 			) {
 				const generator = new generatorsMap.GenerateFirstName[0]();
@@ -905,12 +916,14 @@ export class SeedService {
 			}
 
 			if (
-				(col.columnType === 'text'
+				(
+					col.columnType === 'text'
 					|| col.columnType === 'blob'
-					|| col.columnType.startsWith('char')
-					|| col.columnType.startsWith('varchar')
-					|| col.columnType.startsWith('binary')
-					|| col.columnType.startsWith('varbinary'))
+					|| col.columnType.match(/^char(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^binary(\(\d+\))?$/) !== null
+					|| col.columnType.match(/^varbinary(\(\d+\))?$/) !== null
+				)
 				&& col.name.toLowerCase().includes('email')
 			) {
 				const generator = new generatorsMap.GenerateEmail[0]();
@@ -920,10 +933,10 @@ export class SeedService {
 			if (
 				col.columnType === 'text'
 				|| col.columnType === 'blob'
-				|| col.columnType.startsWith('char')
-				|| col.columnType.startsWith('varchar')
-				|| col.columnType.startsWith('binary')
-				|| col.columnType.startsWith('varbinary')
+				|| col.columnType.match(/^char(\(\d+\))?$/) !== null
+				|| col.columnType.match(/^varchar(\(\d+\))?$/) !== null
+				|| col.columnType.match(/^binary(\(\d+\))?$/) !== null
+				|| col.columnType.match(/^varbinary(\(\d+\))?$/) !== null
 			) {
 				const generator = new generatorsMap.GenerateString[0]();
 				return generator;
@@ -936,12 +949,12 @@ export class SeedService {
 			}
 
 			// DATE, TIME, TIMESTAMP, DATETIME, YEAR
-			if (col.columnType.includes('datetime')) {
+			if (col.columnType.match(/^datetime(\(\d\))?$/) !== null) {
 				const generator = new generatorsMap.GenerateDatetime[0]();
 				return generator;
 			}
 
-			if (col.columnType.includes('date')) {
+			if (col.columnType === 'date') {
 				const generator = new generatorsMap.GenerateDate[0]();
 				return generator;
 			}
@@ -951,7 +964,7 @@ export class SeedService {
 				return generator;
 			}
 
-			if (col.columnType.includes('timestamp')) {
+			if (col.columnType.match(/^timestamp(\(\d\))?$/) !== null) {
 				const generator = new generatorsMap.GenerateTimestamp[0]();
 				return generator;
 			}
@@ -1023,7 +1036,10 @@ export class SeedService {
 			}
 
 			// number section ------------------------------------------------------------------------------------
-			if (col.columnType.startsWith('real') || col.columnType.startsWith('numeric')) {
+			if (
+				col.columnType.match(/^real(\(\d+,? *\d*\))?$/) !== null
+				|| col.columnType.match(/^numeric(\(\d+,? *\d*\))?$/) !== null
+			) {
 				if (col.typeParams.precision !== undefined) {
 					const precision = col.typeParams.precision;
 					const scale = col.typeParams.scale === undefined ? 0 : col.typeParams.scale;
@@ -1043,9 +1059,11 @@ export class SeedService {
 
 			// string section ------------------------------------------------------------------------------------
 			if (
-				(col.columnType.startsWith('text')
+				(
+					col.columnType.startsWith('text')
 					|| col.columnType.startsWith('numeric')
-					|| col.columnType.startsWith('blob'))
+					|| col.columnType.startsWith('blob')
+				)
 				&& table.primaryKeys.includes(col.name)
 			) {
 				const generator = new generatorsMap.GenerateUniqueString[0]();
@@ -1053,9 +1071,11 @@ export class SeedService {
 			}
 
 			if (
-				(col.columnType.startsWith('text')
+				(
+					col.columnType.startsWith('text')
 					|| col.columnType.startsWith('numeric')
-					|| col.columnType.startsWith('blob'))
+					|| col.columnType.startsWith('blob')
+				)
 				&& col.name.toLowerCase().includes('name')
 			) {
 				const generator = new generatorsMap.GenerateFirstName[0]();
@@ -1063,9 +1083,11 @@ export class SeedService {
 			}
 
 			if (
-				(col.columnType.startsWith('text')
+				(
+					col.columnType.startsWith('text')
 					|| col.columnType.startsWith('numeric')
-					|| col.columnType.startsWith('blob'))
+					|| col.columnType.startsWith('blob')
+				)
 				&& col.name.toLowerCase().includes('email')
 			) {
 				const generator = new generatorsMap.GenerateEmail[0]();
@@ -1398,6 +1420,9 @@ export class SeedService {
 			columnGenerator = tableGenerators[columnName]!;
 			override = tableGenerators[columnName]?.generatedIdentityType === 'always' ? true : override;
 
+			if (tableName === 'evaluations' && columnName === 'gameId') {
+				console.log();
+			}
 			columnsGenerators[columnName] = columnGenerator.generator!;
 			columnsGenerators[columnName]!.init({
 				count,

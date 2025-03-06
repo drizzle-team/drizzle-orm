@@ -18,6 +18,7 @@ import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase, getTableConfig as getSqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 
+import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { generatorsFuncs, generatorsFuncsV2 } from './services/GeneratorFuncs.ts';
 import type { AbstractGenerator } from './services/Generators.ts';
 import { SeedService } from './services/SeedService.ts';
@@ -29,7 +30,8 @@ type InferCallbackType<
 	DB extends
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| BaseSQLiteDatabase<any, any>
+		| LibSQLDatabase<any>,
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | Relations;
 	},
@@ -138,7 +140,8 @@ class SeedPromise<
 	DB extends
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| BaseSQLiteDatabase<any, any>
+		| LibSQLDatabase<any>,
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | Relations;
 	},
@@ -347,7 +350,8 @@ export function seed<
 	DB extends
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any, any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| BaseSQLiteDatabase<any, any>
+		| LibSQLDatabase<any>,
 	SCHEMA extends {
 		[key: string]:
 			| PgTable
@@ -364,7 +368,11 @@ export function seed<
 }
 
 const seedFunc = async (
-	db: PgDatabase<any, any> | MySqlDatabase<any, any> | BaseSQLiteDatabase<any, any>,
+	db:
+		| PgDatabase<any, any>
+		| MySqlDatabase<any, any>
+		| BaseSQLiteDatabase<any, any>
+		| LibSQLDatabase<any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -436,13 +444,18 @@ const seedFunc = async (
  * @example
  * ```ts
  * await reset(db, schema);
+ *
+ * // Alternatively, you can provide an object containing your tables
+ * // as the `schema` parameter when calling `reset`.
+ * await reset(db, { users });
  * ```
  */
 export async function reset<
 	DB extends
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any, any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| BaseSQLiteDatabase<any, any>
+		| LibSQLDatabase<any>,
 	SCHEMA extends {
 		[key: string]:
 			| PgTable
