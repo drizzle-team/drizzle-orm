@@ -1420,9 +1420,6 @@ export class SeedService {
 			columnGenerator = tableGenerators[columnName]!;
 			override = tableGenerators[columnName]?.generatedIdentityType === 'always' ? true : override;
 
-			if (tableName === 'evaluations' && columnName === 'gameId') {
-				console.log();
-			}
 			columnsGenerators[columnName] = columnGenerator.generator!;
 			columnsGenerators[columnName]!.init({
 				count,
