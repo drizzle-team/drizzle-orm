@@ -93,7 +93,7 @@ afterAll(async () => {
 
 const count = 10000;
 
-test.only('datetime generator test', async () => {
+test('datetime generator test', async () => {
 	await seed(db, { datetimeTable: schema.datetimeTable }).refine((funcs) => ({
 		datetimeTable: {
 			count,

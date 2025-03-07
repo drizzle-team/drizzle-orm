@@ -27,7 +27,6 @@ import type { RefinementsType } from './types/seedService.ts';
 import type { Column, Relation, RelationWithReferences, Table } from './types/tables.ts';
 
 export { AbstractGenerator } from './services/Generators.ts';
-export { CustomGenerator } from './services/Generators.ts';
 
 type InferCallbackType<
 	DB extends
