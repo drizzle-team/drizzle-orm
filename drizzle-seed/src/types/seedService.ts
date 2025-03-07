@@ -43,7 +43,7 @@ export type GeneratePossibleGeneratorsTableType = Prettify<{
 export type RefinementsType = Prettify<{
 	[tableName: string]: {
 		count?: number;
-		columns: { [columnName: string]: AbstractGenerator<{}> };
+		columns: { [columnName: string]: AbstractGenerator<{}> | false };
 		with?: { [tableName: string]: number | { weight: number; count: number | number[] }[] };
 	};
 }>;

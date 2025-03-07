@@ -1003,10 +1003,77 @@ test('date generator test', async () => {
 		},
 	}));
 
-	const data = await db.select().from(schema.dateTable);
+	let data = await db.select().from(schema.dateTable);
 	// every value in each row does not equal undefined.
-	const predicate = data.length !== 0
-		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	let predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== null));
+	expect(predicate).toBe(true);
+
+	// seed with parameters
+	const minDate = '2025-03-07';
+	const maxDate = '2025-03-09';
+	await reset(db, { dateTable: schema.dateTable });
+	await seed(db, { dateTable: schema.dateTable }).refine((funcs) => ({
+		dateTable: {
+			count,
+			columns: {
+				date: funcs.date({
+					minDate,
+					maxDate,
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.dateTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) => val !== null && val >= new Date(minDate) && val <= new Date(maxDate))
+		);
+
+	expect(predicate).toBe(true);
+
+	await reset(db, { dateTable: schema.dateTable });
+	await seed(db, { dateTable: schema.dateTable }).refine((funcs) => ({
+		dateTable: {
+			count,
+			columns: {
+				date: funcs.date({
+					minDate,
+					maxDate: minDate,
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.dateTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) => val !== null && val.getTime() === new Date(minDate).getTime())
+		);
+	expect(predicate).toBe(true);
+
+	await reset(db, { dateTable: schema.dateTable });
+	await seed(db, { dateTable: schema.dateTable }).refine((funcs) => ({
+		dateTable: {
+			count,
+			columns: {
+				date: funcs.date({
+					minDate: new Date(minDate),
+					maxDate: new Date(minDate),
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.dateTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) => val !== null && val.getTime() === new Date(minDate).getTime())
+		);
 	expect(predicate).toBe(true);
 });
 
@@ -1040,10 +1107,86 @@ test('time generator test', async () => {
 		},
 	}));
 
-	const data = await db.select().from(schema.timeTable);
+	let data = await db.select().from(schema.timeTable);
 	// every value in each row does not equal undefined.
-	const predicate = data.length !== 0
+	let predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+
+	// seed with parameters
+	const minTime = '13:12:13';
+	const maxTime = '15:12:13';
+	await reset(db, { timeTable: schema.timeTable });
+	await seed(db, { timeTable: schema.timeTable }).refine((funcs) => ({
+		timeTable: {
+			count,
+			columns: {
+				time: funcs.time({
+					minTime,
+					maxTime,
+				}),
+			},
+		},
+	}));
+
+	const anchorDate = new Date();
+	const getDateFromTime = (val: string) => new Date(anchorDate.toISOString().replace(/\d{2}:\d{2}:\d{2}/, val));
+	data = await db.select().from(schema.timeTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) =>
+				val !== null && getDateFromTime(val) >= getDateFromTime(minTime)
+				&& getDateFromTime(val) <= getDateFromTime(maxTime)
+			)
+		);
+
+	expect(predicate).toBe(true);
+
+	await reset(db, { timeTable: schema.timeTable });
+	await seed(db, { timeTable: schema.timeTable }).refine((funcs) => ({
+		timeTable: {
+			count,
+			columns: {
+				time: funcs.time({
+					minTime,
+					maxTime: minTime,
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.timeTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) =>
+				val !== null && getDateFromTime(val).getTime() === getDateFromTime(minTime).getTime()
+			)
+		);
+	expect(predicate).toBe(true);
+
+	await reset(db, { timeTable: schema.timeTable });
+	await seed(db, { timeTable: schema.timeTable }).refine((funcs) => ({
+		timeTable: {
+			count,
+			columns: {
+				time: funcs.time({
+					minTime: getDateFromTime(minTime),
+					maxTime: getDateFromTime(minTime),
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.timeTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) =>
+				val !== null && getDateFromTime(val).getTime() === getDateFromTime(minTime).getTime()
+			)
+		);
 	expect(predicate).toBe(true);
 });
 
@@ -1074,10 +1217,82 @@ test('timestamp generator test', async () => {
 		},
 	}));
 
-	const data = await db.select().from(schema.timestampTable);
+	let data = await db.select().from(schema.timestampTable);
 	// every value in each row does not equal undefined.
-	const predicate = data.length !== 0
+	let predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+
+	// seed with parameters
+	const minTimestamp = '2025-03-07 13:12:13.123Z';
+	const maxTimestamp = '2025-03-09 15:12:13.456Z';
+	await reset(db, { timestampTable: schema.timestampTable });
+	await seed(db, { timestampTable: schema.timestampTable }).refine((funcs) => ({
+		timestampTable: {
+			count,
+			columns: {
+				timestamp: funcs.timestamp({
+					minTimestamp,
+					maxTimestamp,
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.timestampTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) =>
+				val !== null && val >= new Date(minTimestamp)
+				&& val <= new Date(maxTimestamp)
+			)
+		);
+
+	expect(predicate).toBe(true);
+
+	await reset(db, { timestampTable: schema.timestampTable });
+	await seed(db, { timestampTable: schema.timestampTable }).refine((funcs) => ({
+		timestampTable: {
+			count,
+			columns: {
+				timestamp: funcs.timestamp({
+					minTimestamp,
+					maxTimestamp: minTimestamp,
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.timestampTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) => val !== null && val.getTime() === new Date(minTimestamp).getTime())
+		);
+
+	expect(predicate).toBe(true);
+
+	await reset(db, { timestampTable: schema.timestampTable });
+	await seed(db, { timestampTable: schema.timestampTable }).refine((funcs) => ({
+		timestampTable: {
+			count,
+			columns: {
+				timestamp: funcs.timestamp({
+					minTimestamp: new Date(minTimestamp),
+					maxTimestamp: new Date(minTimestamp),
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.timestampTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) => val !== null && val.getTime() === new Date(minTimestamp).getTime())
+		);
+
 	expect(predicate).toBe(true);
 });
 

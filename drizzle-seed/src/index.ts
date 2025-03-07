@@ -26,6 +26,9 @@ import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types
 import type { RefinementsType } from './types/seedService.ts';
 import type { Column, Relation, RelationWithReferences, Table } from './types/tables.ts';
 
+export { AbstractGenerator } from './services/Generators.ts';
+export { CustomGenerator } from './services/Generators.ts';
+
 type InferCallbackType<
 	DB extends
 		| PgDatabase<any, any>
@@ -55,7 +58,7 @@ type InferCallbackType<
 					[
 						column in keyof SCHEMA[table] as SCHEMA[table][column] extends PgColumn ? column
 							: never
-					]?: AbstractGenerator<any>;
+					]?: AbstractGenerator<any> | false;
 				};
 				with?: {
 					[

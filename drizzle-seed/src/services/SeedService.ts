@@ -93,6 +93,7 @@ export class SeedService {
 				}
 			}
 
+			// handling refinements (count, with)
 			if (refinements !== undefined && refinements[table.name] !== undefined) {
 				if (refinements[table.name]!.count !== undefined) {
 					tablesPossibleGenerators[i]!.count = refinements[table.name]!.count;
@@ -179,6 +180,7 @@ export class SeedService {
 					wasRefined: false,
 				};
 
+				// handling refinements (columnGenerator)
 				if (
 					refinements !== undefined
 					&& refinements[table.name] !== undefined
@@ -186,6 +188,22 @@ export class SeedService {
 					&& refinements[table.name]!.columns[col.name] !== undefined
 				) {
 					const genObj = refinements[table.name]!.columns[col.name]!;
+					if (genObj === false) {
+						if (col.notNull === true && col.hasDefault === false) {
+							throw new Error(
+								`You cannot set the '${col.name}' column in the '${table.name}' table to false in your refinements.`
+									+ `\nDoing so will result in a null value being inserted into the '${col.name}' column,`
+									+ `\nwhich will cause an error because the column has a not null constraint and no default value.`,
+							);
+						}
+
+						// Generating undefined as a value for a column and then inserting it via drizzle-orm
+						// will result in the value not being inserted into that column.
+						columnPossibleGenerator.generator = new generatorsMap.GenerateDefault[0]({ defaultValue: undefined });
+						columnPossibleGenerator.wasRefined = true;
+
+						continue;
+					}
 
 					if (col.columnType.match(/\[\w*]/g) !== null) {
 						if (

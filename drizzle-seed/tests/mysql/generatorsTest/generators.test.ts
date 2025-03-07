@@ -7,7 +7,7 @@ import type { Connection } from 'mysql2/promise';
 import { createConnection } from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { seed } from '../../../src/index.ts';
+import { reset, seed } from '../../../src/index.ts';
 import * as schema from './mysqlSchema.ts';
 
 let mysqlContainer: Docker.Container;
@@ -93,7 +93,7 @@ afterAll(async () => {
 
 const count = 10000;
 
-test('datetime generator test', async () => {
+test.only('datetime generator test', async () => {
 	await seed(db, { datetimeTable: schema.datetimeTable }).refine((funcs) => ({
 		datetimeTable: {
 			count,
@@ -103,10 +103,81 @@ test('datetime generator test', async () => {
 		},
 	}));
 
-	const data = await db.select().from(schema.datetimeTable);
+	let data = await db.select().from(schema.datetimeTable);
 	// every value in each row does not equal undefined.
-	const predicate = data.length !== 0
+	let predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+
+	const minDatetime = '2025-03-07 13:12:13Z';
+	const maxDatetime = '2025-03-09 15:12:13Z';
+	await reset(db, { datetimeTable: schema.datetimeTable });
+	await seed(db, { datetimeTable: schema.datetimeTable }).refine((funcs) => ({
+		datetimeTable: {
+			count,
+			columns: {
+				datetime: funcs.datetime({
+					minDatetime,
+					maxDatetime,
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.datetimeTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) =>
+				val !== null && val >= new Date(minDatetime)
+				&& val <= new Date(maxDatetime)
+			)
+		);
+
+	expect(predicate).toBe(true);
+
+	await reset(db, { datetimeTable: schema.datetimeTable });
+	await seed(db, { datetimeTable: schema.datetimeTable }).refine((funcs) => ({
+		datetimeTable: {
+			count,
+			columns: {
+				datetime: funcs.datetime({
+					minDatetime,
+					maxDatetime: minDatetime,
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.datetimeTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) => val !== null && val.getTime() === new Date(minDatetime).getTime())
+		);
+
+	expect(predicate).toBe(true);
+
+	await reset(db, { datetimeTable: schema.datetimeTable });
+	await seed(db, { datetimeTable: schema.datetimeTable }).refine((funcs) => ({
+		datetimeTable: {
+			count,
+			columns: {
+				datetime: funcs.datetime({
+					minDatetime: new Date(minDatetime),
+					maxDatetime: new Date(minDatetime),
+				}),
+			},
+		},
+	}));
+
+	data = await db.select().from(schema.datetimeTable);
+	// every value in each row does not equal undefined.
+	predicate = data.length !== 0
+		&& data.every((row) =>
+			Object.values(row).every((val) => val !== null && val.getTime() === new Date(minDatetime).getTime())
+		);
+
 	expect(predicate).toBe(true);
 });
 
