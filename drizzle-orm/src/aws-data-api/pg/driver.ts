@@ -49,8 +49,14 @@ export class AwsDataApiPgDatabase<
 export class AwsPgDialect extends PgDialect {
 	static override readonly [entityKind]: string = 'AwsPgDialect';
 
-	override escapeParam(num: number): string {
-		return `:${num + 1}`;
+	override escapeParam(num: number, _value: unknown, encoder: unknown | undefined): string {
+		const param = `:${num + 1}`;
+
+		if (is(encoder, PgArray)) {
+			return `${param}::${encoder.getSQLType()}`;
+		}
+
+		return param;
 	}
 
 	override buildInsertQuery(

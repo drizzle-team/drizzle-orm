@@ -32,7 +32,7 @@ export type Chunk =
 export interface BuildQueryConfig {
 	casing: CasingCache;
 	escapeName(name: string): string;
-	escapeParam(num: number, value: unknown): string;
+	escapeParam(num: number, value: unknown, encoder: DriverValueEncoder<unknown, unknown> | undefined): string;
 	escapeString(str: string): string;
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
 	paramStartIndex?: { value: number };
@@ -217,7 +217,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 
 			if (is(chunk, Param)) {
 				if (is(chunk.value, Placeholder)) {
-					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+					return {
+						sql: escapeParam(paramStartIndex.value++, chunk, chunk.encoder),
+						params: [chunk],
+						typings: ['none'],
+					};
 				}
 
 				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
@@ -235,11 +239,15 @@ export class SQL<T = unknown> implements SQLWrapper {
 					typings = [prepareTyping(chunk.encoder)];
 				}
 
-				return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
+				return {
+					sql: escapeParam(paramStartIndex.value++, mappedValue, chunk.encoder),
+					params: [mappedValue],
+					typings,
+				};
 			}
 
 			if (is(chunk, Placeholder)) {
-				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+				return { sql: escapeParam(paramStartIndex.value++, chunk, undefined), params: [chunk], typings: ['none'] };
 			}
 
 			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
@@ -280,7 +288,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
 
-			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+			return { sql: escapeParam(paramStartIndex.value++, chunk, undefined), params: [chunk], typings: ['none'] };
 		}));
 	}
 

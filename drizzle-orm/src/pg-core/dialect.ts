@@ -5,6 +5,7 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
+	PgArray,
 	PgColumn,
 	PgDate,
 	PgDateString,
@@ -115,7 +116,7 @@ export class PgDialect {
 		return `"${name}"`;
 	}
 
-	escapeParam(num: number): string {
+	escapeParam(num: number, _value: unknown, _encoder: unknown | undefined): string {
 		return `$${num + 1}`;
 	}
 
