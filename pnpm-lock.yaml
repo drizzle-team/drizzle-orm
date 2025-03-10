@@ -89,9 +89,6 @@ importers:
       '@drizzle-team/brocli':
         specifier: ^0.10.2
         version: 0.10.2
-      '@esbuild-kit/esm-loader':
-        specifier: ^2.5.5
-        version: 2.5.5
       esbuild:
         specifier: ^0.19.7
         version: 0.19.12
