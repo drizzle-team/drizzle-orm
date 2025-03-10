@@ -14,20 +14,20 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { Param, SQL } from '~/sql/sql.ts';
 import type { InferModelFromColumns } from '~/table.ts';
 import { Columns, Table } from '~/table.ts';
-import { haveSameKeys, mapUpdateSet } from '~/utils.ts';
+import { haveSameKeys } from '~/utils.ts';
 import type { AnyGoogleSqlColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
-import type { GoogleSqlUpdateSetSource } from './update.ts';
 
 export interface GoogleSqlInsertConfig<TTable extends GoogleSqlTable = GoogleSqlTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[] | GoogleSqlInsertSelectQueryBuilder<TTable> | SQL;
 	ignore: boolean;
-	onConflict?: SQL;
+	update: boolean;
+	// onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 	select?: boolean;
 }
@@ -52,6 +52,7 @@ export class GoogleSqlInsertBuilder<
 	static readonly [entityKind]: string = 'GoogleSqlInsertBuilder';
 
 	private shouldIgnore = false;
+	private shouldUpdate = false;
 
 	constructor(
 		private table: TTable,
@@ -61,6 +62,11 @@ export class GoogleSqlInsertBuilder<
 
 	ignore(): this {
 		this.shouldIgnore = true;
+		return this;
+	}
+
+	update(): this {
+		this.shouldUpdate = true;
 		return this;
 	}
 
@@ -83,7 +89,7 @@ export class GoogleSqlInsertBuilder<
 			return result;
 		});
 
-		return new GoogleSqlInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
+		return new GoogleSqlInsertBase(this.table, mappedValues, this.shouldIgnore, this.shouldUpdate, this.session, this.dialect);
 	}
 
 	select(
@@ -111,7 +117,7 @@ export class GoogleSqlInsertBuilder<
 			);
 		}
 
-		return new GoogleSqlInsertBase(this.table, select, this.shouldIgnore, this.session, this.dialect, true);
+		return new GoogleSqlInsertBase(this.table, select, this.shouldIgnore,this.shouldUpdate, this.session, this.dialect, true);
 	}
 }
 
@@ -147,10 +153,6 @@ export type GoogleSqlInsertPrepare<
 	},
 	true
 >;
-
-export type GoogleSqlInsertOnDuplicateKeyUpdateConfig<T extends AnyGoogleSqlInsert> = {
-	set: GoogleSqlUpdateSetSource<T['_']['table']>;
-};
 
 export type GoogleSqlInsert<
 	TTable extends GoogleSqlTable = GoogleSqlTable,
@@ -241,20 +243,24 @@ export class GoogleSqlInsertBase<
 		table: TTable,
 		values: GoogleSqlInsertConfig['values'],
 		ignore: boolean,
+		update: boolean,
 		private session: GoogleSqlSession,
 		private dialect: GoogleSqlDialect,
 		select?: boolean,
 	) {
 		super();
-		this.config = { table, values: values as any, select, ignore };
+		this.config = { table, values: values as any, select, ignore, update };
 	}
 
+	// spanner does not support onConflict, we can use update() instead
 	/**
 	 * Adds an `on duplicate key update` clause to the query.
 	 *
 	 * Calling this method will update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-duplicate-key-update}
+	 * 
+	 * @deprecated Use `update()` instead.
 	 *
 	 * @param config The `set` clause
 	 *
@@ -276,13 +282,15 @@ export class GoogleSqlInsertBase<
 	 * ```
 	 */
 	onDuplicateKeyUpdate(
-		config: GoogleSqlInsertOnDuplicateKeyUpdateConfig<this>,
+		// config: GoogleSqlInsertOnDuplicateKeyUpdateConfig<this>,
 	): GoogleSqlInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
-		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`update ${setSql}`;
+	// 	const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+	// 	this.config.onConflict = sql`update ${setSql}`;
+		this.config.update = true;
 		return this as any;
 	}
 
+	// TODO: SPANNER - still not sure if it will be supported by spanner driver
 	$returningId(): GoogleSqlInsertWithout<
 		GoogleSqlInsertReturning<this, TDynamic>,
 		TDynamic,

@@ -2,8 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
-import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { GoogleSqlDateBaseColumn, GoogleSqlDateColumnBaseBuilder } from './date.common.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
 export type GoogleSqlTimestampBuilderInitial<TName extends string> = GoogleSqlTimestampBuilder<{
 	name: TName;
@@ -15,13 +14,12 @@ export type GoogleSqlTimestampBuilderInitial<TName extends string> = GoogleSqlTi
 }>;
 
 export class GoogleSqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'GoogleSqlTimestamp'>>
-	extends GoogleSqlDateColumnBaseBuilder<T, GoogleSqlTimestampConfig>
+	extends GoogleSqlColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'GoogleSqlTimestampBuilder';
 
-	constructor(name: T['name'], config: GoogleSqlTimestampConfig | undefined) {
+	constructor(name: T['name']) {
 		super(name, 'date', 'GoogleSqlTimestamp');
-		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
@@ -35,16 +33,14 @@ export class GoogleSqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date',
 	}
 }
 
+// TODO: SPANNER - verify how values are mapped to and from the driver
 export class GoogleSqlTimestamp<T extends ColumnBaseConfig<'date', 'GoogleSqlTimestamp'>>
-	extends GoogleSqlDateBaseColumn<T, GoogleSqlTimestampConfig>
+	extends GoogleSqlColumn<T>
 {
 	static override readonly [entityKind]: string = 'GoogleSqlTimestamp';
 
-	readonly fsp: number | undefined = this.config.fsp;
-
 	getSQLType(): string {
-		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
-		return `timestamp${precision}`;
+		return `timestamp`;
 	}
 
 	override mapFromDriverValue(value: string): Date {
@@ -56,70 +52,15 @@ export class GoogleSqlTimestamp<T extends ColumnBaseConfig<'date', 'GoogleSqlTim
 	}
 }
 
-export type GoogleSqlTimestampStringBuilderInitial<TName extends string> = GoogleSqlTimestampStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'GoogleSqlTimestampString';
-	data: string;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
-
-export class GoogleSqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlTimestampString'>>
-	extends GoogleSqlDateColumnBaseBuilder<T, GoogleSqlTimestampConfig>
-{
-	static override readonly [entityKind]: string = 'GoogleSqlTimestampStringBuilder';
-
-	constructor(name: T['name'], config: GoogleSqlTimestampConfig | undefined) {
-		super(name, 'string', 'GoogleSqlTimestampString');
-		this.config.fsp = config?.fsp;
-	}
-
-	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGoogleSqlTable<{ name: TTableName }>,
-	): GoogleSqlTimestampString<MakeColumnConfig<T, TTableName>> {
-		return new GoogleSqlTimestampString<MakeColumnConfig<T, TTableName>>(
-			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
-		);
-	}
-}
-
-export class GoogleSqlTimestampString<T extends ColumnBaseConfig<'string', 'GoogleSqlTimestampString'>>
-	extends GoogleSqlDateBaseColumn<T, GoogleSqlTimestampConfig>
-{
-	static override readonly [entityKind]: string = 'GoogleSqlTimestampString';
-
-	readonly fsp: number | undefined = this.config.fsp;
-
-	getSQLType(): string {
-		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
-		return `timestamp${precision}`;
-	}
-}
-
-export type TimestampFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-
-export interface GoogleSqlTimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> {
-	mode?: TMode;
-	fsp?: TimestampFsp;
-}
+// TODO: SPANNER - add support for allowCommitTimestamp https://cloud.google.com/spanner/docs/commit-timestamp#overview
+// export interface GoogleSqlTimestampConfig<AllowAC extends boolean> {
+// 	allowCommitTimestamp?: AllowAC;
+// }
 
 export function timestamp(): GoogleSqlTimestampBuilderInitial<''>;
-export function timestamp<TMode extends GoogleSqlTimestampConfig['mode'] & {}>(
-	config?: GoogleSqlTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? GoogleSqlTimestampStringBuilderInitial<''>
-	: GoogleSqlTimestampBuilderInitial<''>;
-export function timestamp<TName extends string, TMode extends GoogleSqlTimestampConfig['mode'] & {}>(
+export function timestamp<TName extends string>(
 	name: TName,
-	config?: GoogleSqlTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? GoogleSqlTimestampStringBuilderInitial<TName>
-	: GoogleSqlTimestampBuilderInitial<TName>;
-export function timestamp(a?: string | GoogleSqlTimestampConfig, b: GoogleSqlTimestampConfig = {}) {
-	const { name, config } = getColumnNameAndConfig<GoogleSqlTimestampConfig | undefined>(a, b);
-	if (config?.mode === 'string') {
-		return new GoogleSqlTimestampStringBuilder(name, config);
-	}
-	return new GoogleSqlTimestampBuilder(name, config);
+): GoogleSqlTimestampBuilderInitial<TName>;
+export function timestamp(name?: string) {
+	return new GoogleSqlTimestampBuilder(name ?? '');
 }

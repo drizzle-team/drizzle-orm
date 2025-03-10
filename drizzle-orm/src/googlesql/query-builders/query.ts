@@ -112,25 +112,35 @@ export class GoogleSqlRelationalQuery<
 	}
 
 	private _getQuery() {
-		const query = this.mode === 'planetscale'
-			? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
-				fullSchema: this.fullSchema,
-				schema: this.schema,
-				tableNamesMap: this.tableNamesMap,
-				table: this.table,
-				tableConfig: this.tableConfig,
-				queryConfig: this.config,
-				tableAlias: this.tableConfig.tsName,
-			})
-			: this.dialect.buildRelationalQuery({
-				fullSchema: this.fullSchema,
-				schema: this.schema,
-				tableNamesMap: this.tableNamesMap,
-				table: this.table,
-				tableConfig: this.tableConfig,
-				queryConfig: this.config,
-				tableAlias: this.tableConfig.tsName,
-			});
+		// const query = this.mode === 'planetscale'
+		// 	? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
+		// 		fullSchema: this.fullSchema,
+		// 		schema: this.schema,
+		// 		tableNamesMap: this.tableNamesMap,
+		// 		table: this.table,
+		// 		tableConfig: this.tableConfig,
+		// 		queryConfig: this.config,
+		// 		tableAlias: this.tableConfig.tsName,
+		// 	})
+		// 	: this.dialect.buildRelationalQuery({
+		// 		fullSchema: this.fullSchema,
+		// 		schema: this.schema,
+		// 		tableNamesMap: this.tableNamesMap,
+		// 		table: this.table,
+		// 		tableConfig: this.tableConfig,
+		// 		queryConfig: this.config,
+		// 		tableAlias: this.tableConfig.tsName,
+		// 	});
+
+		const query = this.dialect.buildRelationalQuery({
+			fullSchema: this.fullSchema,
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tableAlias: this.tableConfig.tsName,
+		});
 		return query;
 	}
 

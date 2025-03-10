@@ -3,7 +3,7 @@ import { TableName } from '~/table.utils.ts';
 import type { AnyGoogleSqlColumn, GoogleSqlColumn } from './columns/index.ts';
 import type { GoogleSqlTable } from './table.ts';
 
-export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
+export type UpdateDeleteAction = 'cascade' | 'no action';
 
 export type Reference = () => {
 	readonly name?: string;
@@ -18,8 +18,8 @@ export class ForeignKeyBuilder {
 	/** @internal */
 	reference: Reference;
 
-	/** @internal */
-	_onUpdate: UpdateDeleteAction | undefined;
+	// /** @internal */
+	// _onUpdate: UpdateDeleteAction | undefined;
 
 	/** @internal */
 	_onDelete: UpdateDeleteAction | undefined;
@@ -31,7 +31,7 @@ export class ForeignKeyBuilder {
 			foreignColumns: GoogleSqlColumn[];
 		},
 		actions?: {
-			onUpdate?: UpdateDeleteAction;
+			// onUpdate?: UpdateDeleteAction;
 			onDelete?: UpdateDeleteAction;
 		} | undefined,
 	) {
@@ -40,15 +40,15 @@ export class ForeignKeyBuilder {
 			return { name, columns, foreignTable: foreignColumns[0]!.table as GoogleSqlTable, foreignColumns };
 		};
 		if (actions) {
-			this._onUpdate = actions.onUpdate;
+			// this._onUpdate = actions.onUpdate;
 			this._onDelete = actions.onDelete;
 		}
 	}
 
-	onUpdate(action: UpdateDeleteAction): this {
-		this._onUpdate = action;
-		return this;
-	}
+	// onUpdate(action: UpdateDeleteAction): this {
+	// 	this._onUpdate = action;
+	// 	return this;
+	// }
 
 	onDelete(action: UpdateDeleteAction): this {
 		this._onDelete = action;
@@ -67,12 +67,12 @@ export class ForeignKey {
 	static readonly [entityKind]: string = 'GoogleSqlForeignKey';
 
 	readonly reference: Reference;
-	readonly onUpdate: UpdateDeleteAction | undefined;
+	// readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
 	constructor(readonly table: GoogleSqlTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
-		this.onUpdate = builder._onUpdate;
+		// this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
 	}
 

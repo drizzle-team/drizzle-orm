@@ -12,22 +12,18 @@ import type {
 } from '~/googlesql/session.ts';
 import type { GoogleSqlTable } from '~/googlesql/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
-import type { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
-import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
-import type { GoogleSqlColumn } from '../columns/common.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { mapUpdateSet, type UpdateSet } from '~/utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface GoogleSqlUpdateConfig {
 	where?: SQL | undefined;
-	limit?: number | Placeholder;
-	orderBy?: (GoogleSqlColumn | SQL | SQL.Aliased)[];
+	// limit?: number | Placeholder;
+	// orderBy?: (GoogleSqlColumn | SQL | SQL.Aliased)[];
 	set: UpdateSet;
 	table: GoogleSqlTable;
 	returning?: SelectedFieldsOrdered;
-	withList?: Subquery[];
+	// withList?: Subquery[];
 }
 
 export type GoogleSqlUpdateSetSource<TTable extends GoogleSqlTable> =
@@ -54,7 +50,7 @@ export class GoogleSqlUpdateBuilder<
 		private table: TTable,
 		private session: GoogleSqlSession,
 		private dialect: GoogleSqlDialect,
-		private withList?: Subquery[],
+		// private withList?: Subquery[],
 	) {}
 
 	set(values: GoogleSqlUpdateSetSource<TTable>): GoogleSqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
@@ -63,7 +59,7 @@ export class GoogleSqlUpdateBuilder<
 			mapUpdateSet(this.table, values),
 			this.session,
 			this.dialect,
-			this.withList,
+			// this.withList,
 		);
 	}
 }
@@ -141,10 +137,10 @@ export class GoogleSqlUpdateBase<
 		set: UpdateSet,
 		private session: GoogleSqlSession,
 		private dialect: GoogleSqlDialect,
-		withList?: Subquery[],
+		// withList?: Subquery[],
 	) {
 		super();
-		this.config = { set, table, withList };
+		this.config = { set, table };
 	}
 
 	/**
@@ -182,37 +178,6 @@ export class GoogleSqlUpdateBase<
 	 */
 	where(where: SQL | undefined): GoogleSqlUpdateWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
-		return this as any;
-	}
-
-	orderBy(
-		builder: (updateTable: TTable) => ValueOrArray<GoogleSqlColumn | SQL | SQL.Aliased>,
-	): GoogleSqlUpdateWithout<this, TDynamic, 'orderBy'>;
-	orderBy(...columns: (GoogleSqlColumn | SQL | SQL.Aliased)[]): GoogleSqlUpdateWithout<this, TDynamic, 'orderBy'>;
-	orderBy(
-		...columns:
-			| [(updateTable: TTable) => ValueOrArray<GoogleSqlColumn | SQL | SQL.Aliased>]
-			| (GoogleSqlColumn | SQL | SQL.Aliased)[]
-	): GoogleSqlUpdateWithout<this, TDynamic, 'orderBy'> {
-		if (typeof columns[0] === 'function') {
-			const orderBy = columns[0](
-				new Proxy(
-					this.config.table[Table.Symbol.Columns],
-					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
-				) as any,
-			);
-
-			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
-			this.config.orderBy = orderByArray;
-		} else {
-			const orderByArray = columns as (GoogleSqlColumn | SQL | SQL.Aliased)[];
-			this.config.orderBy = orderByArray;
-		}
-		return this as any;
-	}
-
-	limit(limit: number | Placeholder): GoogleSqlUpdateWithout<this, TDynamic, 'limit'> {
-		this.config.limit = limit;
 		return this as any;
 	}
 

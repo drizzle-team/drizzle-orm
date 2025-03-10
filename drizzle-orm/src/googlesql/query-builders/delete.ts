@@ -11,12 +11,8 @@ import type {
 } from '~/googlesql/session.ts';
 import type { GoogleSqlTable } from '~/googlesql/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
-import type { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
-import type { ValueOrArray } from '~/utils.ts';
-import type { GoogleSqlColumn } from '../columns/common.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+// import type { Subquery } from '~/subquery.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export type GoogleSqlDeleteWithout<
@@ -43,11 +39,9 @@ export type GoogleSqlDelete<
 
 export interface GoogleSqlDeleteConfig {
 	where?: SQL | undefined;
-	limit?: number | Placeholder;
-	orderBy?: (GoogleSqlColumn | SQL | SQL.Aliased)[];
 	table: GoogleSqlTable;
 	returning?: SelectedFieldsOrdered;
-	withList?: Subquery[];
+	// withList?: Subquery[];
 }
 
 export type GoogleSqlDeletePrepare<T extends AnyGoogleSqlDeleteBase> = PreparedQueryKind<
@@ -100,10 +94,10 @@ export class GoogleSqlDeleteBase<
 		private table: TTable,
 		private session: GoogleSqlSession,
 		private dialect: GoogleSqlDialect,
-		withList?: Subquery[],
+		// withList?: Subquery[],
 	) {
 		super();
-		this.config = { table, withList };
+		this.config = { table };
 	}
 
 	/**
@@ -137,37 +131,6 @@ export class GoogleSqlDeleteBase<
 	 */
 	where(where: SQL | undefined): GoogleSqlDeleteWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
-		return this as any;
-	}
-
-	orderBy(
-		builder: (deleteTable: TTable) => ValueOrArray<GoogleSqlColumn | SQL | SQL.Aliased>,
-	): GoogleSqlDeleteWithout<this, TDynamic, 'orderBy'>;
-	orderBy(...columns: (GoogleSqlColumn | SQL | SQL.Aliased)[]): GoogleSqlDeleteWithout<this, TDynamic, 'orderBy'>;
-	orderBy(
-		...columns:
-			| [(deleteTable: TTable) => ValueOrArray<GoogleSqlColumn | SQL | SQL.Aliased>]
-			| (GoogleSqlColumn | SQL | SQL.Aliased)[]
-	): GoogleSqlDeleteWithout<this, TDynamic, 'orderBy'> {
-		if (typeof columns[0] === 'function') {
-			const orderBy = columns[0](
-				new Proxy(
-					this.config.table[Table.Symbol.Columns],
-					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
-				) as any,
-			);
-
-			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
-			this.config.orderBy = orderByArray;
-		} else {
-			const orderByArray = columns as (GoogleSqlColumn | SQL | SQL.Aliased)[];
-			this.config.orderBy = orderByArray;
-		}
-		return this as any;
-	}
-
-	limit(limit: number | Placeholder): GoogleSqlDeleteWithout<this, TDynamic, 'limit'> {
-		this.config.limit = limit;
 		return this as any;
 	}
 

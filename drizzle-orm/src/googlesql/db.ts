@@ -283,11 +283,11 @@ export class GoogleSqlDatabase<
 		 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
 		 * ```
 		 */
-		function update<TTable extends GoogleSqlTable>(
-			table: TTable,
-		): GoogleSqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
-			return new GoogleSqlUpdateBuilder(table, self.session, self.dialect, queries);
-		}
+		// function update<TTable extends GoogleSqlTable>(
+		// 	table: TTable,
+		// ): GoogleSqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+		// 	return new GoogleSqlUpdateBuilder(table, self.session, self.dialect, queries);
+		// }
 
 		/**
 		 * Creates a delete query.
@@ -308,13 +308,13 @@ export class GoogleSqlDatabase<
 		 * await db.delete(cars).where(eq(cars.color, 'green'));
 		 * ```
 		 */
-		function delete_<TTable extends GoogleSqlTable>(
-			table: TTable,
-		): GoogleSqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
-			return new GoogleSqlDeleteBase(table, self.session, self.dialect, queries);
-		}
+		// function delete_<TTable extends GoogleSqlTable>(
+		// 	table: TTable,
+		// ): GoogleSqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
+		// 	return new GoogleSqlDeleteBase(table, self.session, self.dialect, queries);
+		// }
 
-		return { select, selectDistinct, update, delete: delete_ };
+		return { select, selectDistinct };
 	}
 
 	/**

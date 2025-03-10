@@ -12,9 +12,9 @@ import { GoogleSqlViewBase } from './view-base.ts';
 import { GoogleSqlViewConfig } from './view-common.ts';
 
 export interface ViewBuilderConfig {
-	algorithm?: 'undefined' | 'merge' | 'temptable';
+	// algorithm?: 'undefined' | 'merge' | 'temptable';
 	sqlSecurity?: 'definer' | 'invoker';
-	withCheckOption?: 'cascaded' | 'local';
+	// withCheckOption?: 'cascaded' | 'local';
 }
 
 export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
@@ -32,13 +32,6 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 
 	protected config: ViewBuilderConfig = {};
 
-	algorithm(
-		algorithm: Exclude<ViewBuilderConfig['algorithm'], undefined>,
-	): this {
-		this.config.algorithm = algorithm;
-		return this;
-	}
-
 	sqlSecurity(
 		sqlSecurity: Exclude<ViewBuilderConfig['sqlSecurity'], undefined>,
 	): this {
@@ -46,12 +39,6 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 		return this;
 	}
 
-	withCheckOption(
-		withCheckOption?: Exclude<ViewBuilderConfig['withCheckOption'], undefined>,
-	): this {
-		this.config.withCheckOption = withCheckOption ?? 'cascaded';
-		return this;
-	}
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {

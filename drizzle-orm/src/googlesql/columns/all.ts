@@ -1,57 +1,32 @@
-import { bigint } from './bigint.ts';
-import { binary } from './binary.ts';
+// import { bigint } from './bigint.ts';
+import { bytes } from './bytes.ts';
 import { boolean } from './boolean.ts';
-import { char } from './char.ts';
-import { customType } from './custom.ts';
+import { string } from './string.ts';
+// import { customType } from './custom.ts';
 import { date } from './date.ts';
-import { datetime } from './datetime.ts';
-import { decimal } from './decimal.ts';
-import { double } from './double.ts';
-import { googlesqlEnum } from './enum.ts';
-import { float } from './float.ts';
-import { int } from './int.ts';
+import { numeric } from './numeric.ts';
+import { float32 } from './float32.ts';
+import { int64 } from './int64.ts';
 import { json } from './json.ts';
-import { mediumint } from './mediumint.ts';
-import { real } from './real.ts';
-import { serial } from './serial.ts';
-import { smallint } from './smallint.ts';
-import { longtext, mediumtext, text, tinytext } from './text.ts';
-import { time } from './time.ts';
 import { timestamp } from './timestamp.ts';
-import { tinyint } from './tinyint.ts';
-import { varbinary } from './varbinary.ts';
-import { varchar } from './varchar.ts';
-import { year } from './year.ts';
+import { float64 } from './float64.ts';
 
 export function getGoogleSqlColumnBuilders() {
 	return {
-		bigint,
-		binary,
+		bytes,
 		boolean,
-		char,
-		customType,
+		string,
 		date,
-		datetime,
-		decimal,
-		double,
-		googlesqlEnum,
-		float,
-		int,
+		numeric,
+		float32,
+		float64,
+		int64,
 		json,
-		mediumint,
-		real,
-		serial,
-		smallint,
-		text,
-		time,
 		timestamp,
-		tinyint,
-		varbinary,
-		varchar,
-		year,
-		longtext,
-		mediumtext,
-		tinytext,
+		// TODO: suppport for more types:
+		// array,
+		// proto,
+		// customType,
 	};
 }
 

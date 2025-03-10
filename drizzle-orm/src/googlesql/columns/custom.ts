@@ -6,6 +6,7 @@ import type { SQL } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
+// TODO - SPANNER: Low priority, make sure it works.
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
 	& {
 		name: TName;

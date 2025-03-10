@@ -50,9 +50,9 @@ import type {
 export type IndexForHint = IndexBuilder | string;
 
 export type IndexConfig = {
-	useIndex?: IndexForHint | IndexForHint[];
+	// useIndex?: IndexForHint | IndexForHint[];
 	forceIndex?: IndexForHint | IndexForHint[];
-	ignoreIndex?: IndexForHint | IndexForHint[];
+	// ignoreIndex?: IndexForHint | IndexForHint[];
 };
 
 export class GoogleSqlSelectBuilder<
@@ -117,19 +117,9 @@ export class GoogleSqlSelectBuilder<
 			fields = getTableColumns<GoogleSqlTable>(source);
 		}
 
-		let useIndex: string[] = [];
 		let forceIndex: string[] = [];
-		let ignoreIndex: string[] = [];
-		if (is(source, GoogleSqlTable) && onIndex && typeof onIndex !== 'string') {
-			if (onIndex.useIndex) {
-				useIndex = convertIndexToString(toArray(onIndex.useIndex));
-			}
-			if (onIndex.forceIndex) {
-				forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
-			}
-			if (onIndex.ignoreIndex) {
-				ignoreIndex = convertIndexToString(toArray(onIndex.ignoreIndex));
-			}
+		if (is(source, GoogleSqlTable) && onIndex && typeof onIndex !== 'string' && onIndex.forceIndex) {
+			forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
 		}
 
 		return new GoogleSqlSelectBase(
@@ -141,9 +131,7 @@ export class GoogleSqlSelectBuilder<
 				dialect: this.dialect,
 				withList: this.withList,
 				distinct: this.distinct,
-				useIndex,
 				forceIndex,
-				ignoreIndex,
 			},
 		) as any;
 	}
@@ -186,7 +174,7 @@ export abstract class GoogleSqlSelectQueryBuilderBase<
 	protected dialect: GoogleSqlDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct, useIndex, forceIndex, ignoreIndex }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, forceIndex }: {
 			table: GoogleSqlSelectConfig['table'];
 			fields: GoogleSqlSelectConfig['fields'];
 			isPartialSelect: boolean;
@@ -194,9 +182,7 @@ export abstract class GoogleSqlSelectQueryBuilderBase<
 			dialect: GoogleSqlDialect;
 			withList: Subquery[];
 			distinct: boolean | undefined;
-			useIndex?: string[];
 			forceIndex?: string[];
-			ignoreIndex?: string[];
 		},
 	) {
 		super();
@@ -206,9 +192,9 @@ export abstract class GoogleSqlSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
-			useIndex,
+			// useIndex,
 			forceIndex,
-			ignoreIndex,
+			// ignoreIndex,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -268,22 +254,12 @@ export abstract class GoogleSqlSelectQueryBuilderBase<
 				this.config.joins = [];
 			}
 
-			let useIndex: string[] = [];
 			let forceIndex: string[] = [];
-			let ignoreIndex: string[] = [];
-			if (is(table, GoogleSqlTable) && onIndex && typeof onIndex !== 'string') {
-				if (onIndex.useIndex) {
-					useIndex = convertIndexToString(toArray(onIndex.useIndex));
-				}
-				if (onIndex.forceIndex) {
-					forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
-				}
-				if (onIndex.ignoreIndex) {
-					ignoreIndex = convertIndexToString(toArray(onIndex.ignoreIndex));
-				}
+			if (is(table, GoogleSqlTable) && onIndex && typeof onIndex !== 'string' && onIndex.forceIndex) {
+				forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
 			}
 
-			this.config.joins.push({ on, table, joinType, alias: tableName, useIndex, forceIndex, ignoreIndex });
+			this.config.joins.push({ on, table, joinType, alias: tableName, forceIndex });
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {

@@ -77,9 +77,9 @@ export interface GoogleSqlSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
-	useIndex?: string[];
+	// useIndex?: string[];
 	forceIndex?: string[];
-	ignoreIndex?: string[];
+	// ignoreIndex?: string[];
 }
 
 export type GoogleSqlJoin<

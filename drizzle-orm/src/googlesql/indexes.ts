@@ -13,20 +13,17 @@ interface IndexConfig {
 	 */
 	unique?: boolean;
 
-	/**
-	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
-	 */
-	using?: 'btree' | 'hash';
+	// TODO: SPANNER - add support for nullFiltered https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#parameters_12
+	// nullFiltered?: boolean;
 
-	/**
-	 * If set, the index will be created as `create index ... algorythm { 'default' | 'inplace' | 'copy' }`.
-	 */
-	algorythm?: 'default' | 'inplace' | 'copy';
+	// TODO: SPANNER - add support for INTERLEAVE IN https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-index-interleave
+	// interleaveIn?: GoogleSqlTable;
 
-	/**
-	 * If set, adds locks to the index creation.
-	 */
-	lock?: 'default' | 'none' | 'shared' | 'exclusive';
+	// TODO: SPANNER - add support for stored columns https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-index
+	// storing?: GoogleSqlColumn[];
+
+	// TODO: SPANNER - add support for WHERE IS NOT NULL clause https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-index
+	// whereIsNotNull?: GoogleSqlColumn;
 }
 
 export type IndexColumn = GoogleSqlColumn | SQL;
@@ -60,21 +57,6 @@ export class IndexBuilder implements AnyIndexBuilder {
 			columns,
 			unique,
 		};
-	}
-
-	using(using: IndexConfig['using']): this {
-		this.config.using = using;
-		return this;
-	}
-
-	algorythm(algorythm: IndexConfig['algorythm']): this {
-		this.config.algorythm = algorythm;
-		return this;
-	}
-
-	lock(lock: IndexConfig['lock']): this {
-		this.config.lock = lock;
-		return this;
 	}
 
 	/** @internal */

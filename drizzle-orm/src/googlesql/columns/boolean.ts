@@ -44,6 +44,8 @@ export class GoogleSqlBoolean<T extends ColumnBaseConfig<'boolean', 'GoogleSqlBo
 		if (typeof value === 'boolean') {
 			return value;
 		}
+
+		// TODO: SPANNER - check how values are returned from the driver
 		return value === 1;
 	}
 }

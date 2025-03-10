@@ -56,10 +56,10 @@ export class GoogleSqlDialect {
 		session: GoogleSqlSession,
 		config: Omit<MigrationConfig, 'migrationsSchema'>,
 	): Promise<void> {
-		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+		const migrationsTable = config.migrationsTable ?? 'drizzle_migrations';
 		const migrationTableCreate = sql`
 			create table if not exists ${sql.identifier(migrationsTable)} (
-				id serial primary key,
+				id STRING(36) DEFAULT (GENERATE_UUID()),
 				hash text not null,
 				created_at bigint
 			)
@@ -96,11 +96,11 @@ export class GoogleSqlDialect {
 	}
 
 	escapeParam(_num: number): string {
-		return `?`;
+		return `@p${_num}`;
 	}
 
 	escapeString(str: string): string {
-		return `'${str.replace(/'/g, "''")}'`;
+		return `'${str.replace(/'/g, "\\'")}'`;
 	}
 
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
@@ -117,20 +117,17 @@ export class GoogleSqlDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: GoogleSqlDeleteConfig): SQL {
-		const withSql = this.buildWithCTE(withList);
+	buildDeleteQuery({ table, where, returning }: GoogleSqlDeleteConfig): SQL {
+		// TODO - SPANNER: verify if WITH on delete clause is supported in Spanner. By the docs, it is not supported. https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#delete-statement
+		// const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` then return ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderBySql = this.buildOrderBy(orderBy);
-
-		const limitSql = this.buildLimit(limit);
-
-		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${returningSql}`;
+		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: GoogleSqlTable, set: UpdateSet): SQL {
@@ -154,22 +151,25 @@ export class GoogleSqlDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: GoogleSqlUpdateConfig): SQL {
-		const withSql = this.buildWithCTE(withList);
+	buildUpdateQuery({ table, set, where, returning }: GoogleSqlUpdateConfig): SQL {
+		// TODO - SPANNER: verify if this is supported. By the docs, it is not. https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#update-statement
+		// const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` then return ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderBySql = this.buildOrderBy(orderBy);
+		// TODO - SPANNER: verify if this is supported. By the docs, it is not. https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#update-statement
+		// const orderBySql = this.buildOrderBy(orderBy);
 
-		const limitSql = this.buildLimit(limit);
+		// TODO - SPANNER: verify if this is supported. By the docs, it is not. https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#update-statement
+		// const limitSql = this.buildLimit(limit);
 
-		return sql`${withSql}update ${table} set ${setSql}${whereSql}${orderBySql}${limitSql}${returningSql}`;
+		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
 	/**
@@ -249,10 +249,10 @@ export class GoogleSqlDialect {
 		indexFor,
 	}: {
 		indexes: string[] | undefined;
-		indexFor: 'USE' | 'FORCE' | 'IGNORE';
+		indexFor: 'FORCE';
 	}): SQL | undefined {
 		return indexes && indexes.length > 0
-			? sql` ${sql.raw(indexFor)} INDEX (${sql.raw(indexes.join(`, `))})`
+			? sql`@{${sql.raw(indexFor)}_INDEX=${sql.raw(indexes.join(`, `))}}`
 			: undefined;
 	}
 
@@ -272,9 +272,9 @@ export class GoogleSqlDialect {
 			lockingClause,
 			distinct,
 			setOperators,
-			useIndex,
 			forceIndex,
-			ignoreIndex,
+			// useIndex,
+			// ignoreIndex,
 		}: GoogleSqlSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<GoogleSqlColumn>(fields);
@@ -327,20 +327,23 @@ export class GoogleSqlDialect {
 					joinsArray.push(sql` `);
 				}
 				const table = joinMeta.table;
+
+				// TODO: SPANNER - spanner calls "lateral" as "correlated joins". https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#correlated_join
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
+				if (lateralSql) {
+					throw new Error('GoogleSql does not support lateral joins. Correlated joins to be implemented.');
+				}
 
 				if (is(table, GoogleSqlTable)) {
 					const tableName = table[GoogleSqlTable.Symbol.Name];
 					const tableSchema = table[GoogleSqlTable.Symbol.Schema];
 					const origTableName = table[GoogleSqlTable.Symbol.OriginalName];
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
-					const useIndexSql = this.buildIndex({ indexes: joinMeta.useIndex, indexFor: 'USE' });
 					const forceIndexSql = this.buildIndex({ indexes: joinMeta.forceIndex, indexFor: 'FORCE' });
-					const ignoreIndexSql = this.buildIndex({ indexes: joinMeta.ignoreIndex, indexFor: 'IGNORE' });
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${
+						}${sql.identifier(origTableName)}${forceIndexSql}${
 							alias && sql` ${sql.identifier(alias)}`
 						} on ${joinMeta.on}`,
 					);
@@ -379,11 +382,9 @@ export class GoogleSqlDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		const useIndexSql = this.buildIndex({ indexes: useIndex, indexFor: 'USE' });
-
 		const forceIndexSql = this.buildIndex({ indexes: forceIndex, indexFor: 'FORCE' });
-
-		const ignoreIndexSql = this.buildIndex({ indexes: ignoreIndex, indexFor: 'IGNORE' });
+		// const useIndexSql = this.buildIndex({ indexes: useIndex, indexFor: 'USE' });
+		// const ignoreIndexSql = this.buildIndex({ indexes: ignoreIndex, indexFor: 'IGNORE' });
 
 		let lockingClausesSql;
 		if (lockingClause) {
@@ -397,7 +398,7 @@ export class GoogleSqlDialect {
 		}
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${forceIndexSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
@@ -470,8 +471,12 @@ export class GoogleSqlDialect {
 	}
 
 	buildInsertQuery(
-		{ table, values: valuesOrSelect, ignore, onConflict, select }: GoogleSqlInsertConfig,
+		{ table, values: valuesOrSelect, ignore, update, select }: GoogleSqlInsertConfig,
 	): { sql: SQL; generatedIds: Record<string, unknown>[] } {
+		if (update && ignore) {
+			throw new Error('Cannot use "ignore" and "update" at the same time');
+		}
+
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, GoogleSqlColumn> = table[Table.Symbol.Columns];
@@ -535,10 +540,12 @@ export class GoogleSqlDialect {
 
 		const ignoreSql = ignore ? sql` ignore` : undefined;
 
-		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
+		const updateSql = update ? sql` update` : undefined;
+	
+		// TODO: SPANNER - support "THEN RETURN ..." clause. https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#insert_with_then_return_examples
 
 		return {
-			sql: sql`insert${ignoreSql} into ${table} ${insertOrder} ${valuesSql}${onConflictSql}`,
+			sql: sql`insert${ignoreSql}${updateSql} into ${table} ${insertOrder} ${valuesSql}`,
 			generatedIds: generatedIdsResponse,
 		};
 	}
