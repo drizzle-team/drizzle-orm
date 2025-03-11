@@ -83,7 +83,7 @@ beforeAll(async () => {
 		await mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING, mode: 'default' });
+	db = drizzle(client, { schema, logger: ENABLE_LOGGING, mode: 'default', casing: 'snake_case' });
 });
 
 afterAll(async () => {

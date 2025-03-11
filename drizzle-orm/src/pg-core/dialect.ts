@@ -909,10 +909,10 @@ export class PgDialect {
 		if (is(column, Column)) {
 			switch (column.columnType) {
 				case 'PgBigInt64': {
-					return sql`${table}.${sql.identifier(column.name)}::text as ${sql.identifier(key)}`;
+					return sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}::text as ${sql.identifier(key)}`;
 				}
 				default: {
-					return sql`${table}.${sql.identifier(column.name)} as ${sql.identifier(key)}`;
+					return sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))} as ${sql.identifier(key)}`;
 				}
 			}
 		}

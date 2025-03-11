@@ -34,10 +34,10 @@ import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 
 export const usersTable = mysqlTable('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	invitedBy: bigint('invited_by', { mode: 'number' }).references(
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	verified: boolean().notNull().default(false),
+	invitedBy: bigint({ mode: 'number' }).references(
 		(): AnyMySqlColumn => usersTable.id,
 	),
 });
@@ -52,9 +52,9 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 }));
 
 export const groupsTable = mysqlTable('groups', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	description: text('description'),
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	description: text(),
 });
 export const groupsConfig = relations(groupsTable, ({ many }) => ({
 	usersToGroups: many(usersToGroupsTable),
@@ -63,11 +63,11 @@ export const groupsConfig = relations(groupsTable, ({ many }) => ({
 export const usersToGroupsTable = mysqlTable(
 	'users_to_groups',
 	{
-		id: serial('id').primaryKey(),
-		userId: bigint('user_id', { mode: 'number' }).notNull().references(
+		id: serial().primaryKey(),
+		userId: bigint({ mode: 'number' }).notNull().references(
 			() => usersTable.id,
 		),
-		groupId: bigint('group_id', { mode: 'number' }).notNull().references(
+		groupId: bigint({ mode: 'number' }).notNull().references(
 			() => groupsTable.id,
 		),
 	},
@@ -87,12 +87,12 @@ export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
 }));
 
 export const postsTable = mysqlTable('posts', {
-	id: serial('id').primaryKey(),
-	content: text('content').notNull(),
-	ownerId: bigint('owner_id', { mode: 'number' }).references(
+	id: serial().primaryKey(),
+	content: text().notNull(),
+	ownerId: bigint({ mode: 'number' }).references(
 		() => usersTable.id,
 	),
-	createdAt: timestamp('created_at')
+	createdAt: timestamp()
 		.notNull()
 		.defaultNow(),
 });
@@ -120,13 +120,13 @@ export const usersView = mysqlView('rqb_users_view').as((qb) =>
 );
 
 export const commentsTable = mysqlTable('comments', {
-	id: serial('id').primaryKey(),
-	content: text('content').notNull(),
-	creator: bigint('creator', { mode: 'number' }).references(
+	id: serial().primaryKey(),
+	content: text().notNull(),
+	creator: bigint({ mode: 'number' }).references(
 		() => usersTable.id,
 	),
-	postId: bigint('post_id', { mode: 'number' }).references(() => postsTable.id),
-	createdAt: timestamp('created_at')
+	postId: bigint({ mode: 'number' }).references(() => postsTable.id),
+	createdAt: timestamp()
 		.notNull()
 		.defaultNow(),
 });
@@ -143,14 +143,14 @@ export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
 }));
 
 export const commentLikesTable = mysqlTable('comment_likes', {
-	id: serial('id').primaryKey(),
-	creator: bigint('creator', { mode: 'number' }).references(
+	id: serial().primaryKey(),
+	creator: bigint({ mode: 'number' }).references(
 		() => usersTable.id,
 	),
-	commentId: bigint('comment_id', { mode: 'number' }).references(
+	commentId: bigint({ mode: 'number' }).references(
 		() => commentsTable.id,
 	),
-	createdAt: timestamp('created_at')
+	createdAt: timestamp()
 		.notNull()
 		.defaultNow(),
 });
@@ -168,39 +168,39 @@ export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 export const rqbSchema = mysqlSchema('rqb_test_schema');
 
 export const schemaUsers = rqbSchema.table('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	invitedBy: bigint('invited_by', { mode: 'number' }).references(
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	verified: boolean().notNull().default(false),
+	invitedBy: bigint({ mode: 'number' }).references(
 		(): AnyMySqlColumn => schemaUsers.id,
 	),
 });
 
 export const schemaPosts = rqbSchema.table('posts', {
-	id: serial('id').primaryKey(),
-	content: text('content').notNull(),
-	ownerId: bigint('owner_id', { mode: 'number' }).references(
+	id: serial().primaryKey(),
+	content: text().notNull(),
+	ownerId: bigint({ mode: 'number' }).references(
 		() => schemaUsers.id,
 	),
-	createdAt: timestamp('created_at')
+	createdAt: timestamp()
 		.notNull()
 		.defaultNow(),
 });
 
 export const schemaGroups = rqbSchema.table('groups', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	description: text('description'),
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	description: text(),
 });
 
 export const schemaUsersToGroups = rqbSchema.table(
 	'users_to_groups',
 	{
-		id: serial('id').primaryKey(),
-		userId: bigint('user_id', { mode: 'number' }).notNull().references(
+		id: serial().primaryKey(),
+		userId: bigint({ mode: 'number' }).notNull().references(
 			() => schemaUsers.id,
 		),
-		groupId: bigint('group_id', { mode: 'number' }).notNull().references(
+		groupId: bigint({ mode: 'number' }).notNull().references(
 			() => schemaGroups.id,
 		),
 	},

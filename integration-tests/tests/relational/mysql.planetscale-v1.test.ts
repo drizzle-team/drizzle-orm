@@ -25,7 +25,7 @@ beforeAll(async () => {
 			// username: process.env['DATABASE_USERNAME']!,
 			// password: process.env['DATABASE_PASSWORD']!,
 		}),
-		{ schema, logger: ENABLE_LOGGING },
+		{ schema, logger: ENABLE_LOGGING, casing: 'snake_case' },
 	);
 
 	await Promise.all([

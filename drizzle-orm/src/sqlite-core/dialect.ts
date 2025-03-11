@@ -812,11 +812,17 @@ export abstract class SQLiteDialect {
 		});
 	}
 
-	private buildRqbColumn(column: unknown, key: string) {
-		return sql`${
-			is(column, Column)
-				? sql.identifier(this.casing.getColumnCasing(column))
-				: is(column, SQL.Aliased)
+	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
+		if (is(column, Column)) {
+			switch (column.columnType) {
+				default: {
+					return sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))} as ${sql.identifier(key)}`;
+				}
+			}
+		}
+
+		return sql`${table}.${
+			is(column, SQL.Aliased)
 				? sql.identifier(column.fieldAlias)
 				: isSQLWrapper(column)
 				? sql.identifier(key)
@@ -832,7 +838,7 @@ export abstract class SQLiteDialect {
 					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
 				});
 
-				return sql`${table}.${this.buildRqbColumn(v, k)}`;
+				return this.buildRqbColumn(table, v, k);
 			}),
 			sql`, `,
 		);
@@ -884,7 +890,7 @@ export abstract class SQLiteDialect {
 				const selectedColumns = this.getSelectedTableColumns(table, params?.columns);
 
 				for (const { column, tsName } of selectedColumns) {
-					columnIdentifiers.push(sql`${table}.${this.buildRqbColumn(column, tsName)}`);
+					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName));
 					selection.push({
 						key: tsName,
 						field: column,

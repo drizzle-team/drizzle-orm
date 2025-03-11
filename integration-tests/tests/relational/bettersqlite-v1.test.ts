@@ -19,7 +19,7 @@ let db: BetterSQLite3Database<typeof schema>;
 beforeAll(() => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
-	db = drizzle(new Database(dbPath), { schema, logger: ENABLE_LOGGING });
+	db = drizzle(new Database(dbPath), { schema, logger: ENABLE_LOGGING, casing: 'snake_case' });
 });
 
 beforeEach(() => {

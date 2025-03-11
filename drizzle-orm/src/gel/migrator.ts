@@ -1,7 +1,7 @@
 // import type { MigrationConfig } from '~/migrator.ts';
 // import { readMigrationFiles } from '~/migrator.ts';
 // import type { GelJsDatabase } from './driver.ts';
-import type { AnyRelations } from '~/relations';
+import type { AnyRelations } from '~/relations.ts';
 
 // not supported
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

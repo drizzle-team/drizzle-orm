@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import Database from 'better-sqlite3';
-import { /*defineRelations,*/ DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
+import { /*defineRelations,*/ defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
@@ -14,7 +14,7 @@ let db: BetterSQLite3Database<never, typeof relations>;
 beforeAll(() => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
-	db = drizzle(new Database(dbPath), { relations, logger: ENABLE_LOGGING });
+	db = drizzle(new Database(dbPath), { relations, logger: ENABLE_LOGGING, casing: 'snake_case' });
 });
 
 beforeEach(() => {
@@ -10382,19 +10382,542 @@ test('[Find Many .through] Get users filtered by users of groups with groups', a
 	]);
 });
 
-test.todo('relationless querying', async () => {
-	// const rels = defineRelations({
-	// 	usersTable,
-	// });
-	// const d1 = drizzle(':memory:', {
-	// 	relations: rels,
-	// });
+test('[Find First] Relationless querying', async () => {
+	const rels = defineRelations({
+		usersTable,
+	});
 
-	// const res = await d1.query.usersTable.findFirst({
-	// 	where: {
-	// 		id: sql.placeholder('id'),
-	// 	},
-	// });
+	const d1 = drizzle(':memory:', {
+		relations: rels,
+		casing: 'snake_case',
+	});
+
+	d1.run(sql`DROP TABLE IF EXISTS \`users\``);
+	d1.run(
+		sql`
+			CREATE TABLE \`users\` (
+			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+			    \`name\` text NOT NULL,
+			    \`verified\` integer DEFAULT 0 NOT NULL,
+			    \`invited_by\` integer
+			);
+		`,
+	);
+
+	d1.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]).run();
+
+	const res = d1.query.usersTable.findFirst({
+		where: {
+			id: 2,
+		},
+	}).sync();
+
+	expectTypeOf(res).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		} | undefined
+	>();
+
+	expect(res).toStrictEqual(
+		{
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		},
+	);
+});
+
+test('[Find Many] Relationless querying', async () => {
+	const rels = defineRelations({
+		usersTable,
+	});
+
+	const d1 = drizzle(':memory:', {
+		relations: rels,
+		casing: 'snake_case',
+	});
+
+	d1.run(sql`DROP TABLE IF EXISTS \`users\``);
+	d1.run(
+		sql`
+			CREATE TABLE \`users\` (
+			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+			    \`name\` text NOT NULL,
+			    \`verified\` integer DEFAULT 0 NOT NULL,
+			    \`invited_by\` integer
+			);
+		`,
+	);
+
+	d1.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]).run();
+
+	const res = d1.query.usersTable.findMany({
+		where: {
+			id: {
+				lte: 2,
+			},
+		},
+	}).sync();
+
+	expectTypeOf(res).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[]
+	>();
+
+	expect(res).toStrictEqual(
+		[{
+			id: 1,
+			name: 'Dan',
+			verified: 0,
+			invitedBy: null,
+		}, {
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		}],
+	);
+});
+
+test('[Find Many] Shortcut form placeholders in filters - eq', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ id: 2, ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ id: 3, ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ id: 4, ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ id: 5, ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ id: 6, ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ id: 7, ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ id: 8, ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+		{ id: 9, ownerId: 3, content: 'Post3U.1', createdAt: date3 },
+		{ id: 10, ownerId: 3, content: 'Post3U.2', createdAt: date3 },
+	]);
+
+	const query = await db.query.postsTable.findMany({
+		where: {
+			ownerId: sql.placeholder('id'),
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	}).prepare();
+
+	const posts = query.execute({
+		id: 1,
+	}).sync();
+
+	expectTypeOf(posts).toEqualTypeOf<{
+		id: number;
+		content: string;
+		ownerId: number | null;
+		createdAt: Date;
+	}[]>();
+
+	expect(posts).toEqual([
+		{ id: 1, ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ id: 2, ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ id: 3, ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ id: 4, ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+	]);
+});
+
+test('[Find Many] Shortcut form placeholders in filters - or', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ id: 2, ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ id: 3, ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ id: 4, ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ id: 5, ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ id: 6, ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ id: 7, ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ id: 8, ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+		{ id: 9, ownerId: 3, content: 'Post3U.1', createdAt: date3 },
+		{ id: 10, ownerId: 3, content: 'Post3U.2', createdAt: date3 },
+	]);
+
+	const query = await db.query.postsTable.findMany({
+		where: {
+			OR: [{
+				ownerId: sql.placeholder('id1'),
+			}, {
+				ownerId: sql.placeholder('id2'),
+			}],
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	}).prepare();
+
+	const posts = query.execute({
+		id1: 1,
+		id2: 2,
+	}).sync();
+
+	expectTypeOf(posts).toEqualTypeOf<{
+		id: number;
+		content: string;
+		ownerId: number | null;
+		createdAt: Date;
+	}[]>();
+
+	expect(posts).toEqual([
+		{ id: 1, ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ id: 2, ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ id: 3, ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ id: 4, ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ id: 5, ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ id: 6, ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ id: 7, ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ id: 8, ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+	]);
+});
+
+test('[Find Many] Shortcut form placeholders in filters - column or', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ id: 2, ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ id: 3, ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ id: 4, ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ id: 5, ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ id: 6, ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ id: 7, ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ id: 8, ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+		{ id: 9, ownerId: 3, content: 'Post3U.1', createdAt: date3 },
+		{ id: 10, ownerId: 3, content: 'Post3U.2', createdAt: date3 },
+	]);
+
+	const query = await db.query.postsTable.findMany({
+		where: {
+			ownerId: {
+				OR: [sql.placeholder('id1'), sql.placeholder('id2')],
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	}).prepare();
+
+	const posts = query.execute({
+		id1: 1,
+		id2: 2,
+	}).sync();
+
+	expectTypeOf(posts).toEqualTypeOf<{
+		id: number;
+		content: string;
+		ownerId: number | null;
+		createdAt: Date;
+	}[]>();
+
+	expect(posts).toEqual([
+		{ id: 1, ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ id: 2, ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ id: 3, ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ id: 4, ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ id: 5, ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ id: 6, ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ id: 7, ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ id: 8, ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+	]);
+});
+
+test('[Find Many] Shortcut form placeholders in filters - column not', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ id: 2, ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ id: 3, ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ id: 4, ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ id: 5, ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ id: 6, ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ id: 7, ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ id: 8, ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+		{ id: 9, ownerId: 3, content: 'Post3U.1', createdAt: date3 },
+		{ id: 10, ownerId: 3, content: 'Post3U.2', createdAt: date3 },
+	]);
+
+	const query = await db.query.postsTable.findMany({
+		where: {
+			ownerId: {
+				NOT: sql.placeholder('id'),
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	}).prepare();
+
+	const posts = query.execute({
+		id: 3,
+	}).sync();
+
+	expectTypeOf(posts).toEqualTypeOf<{
+		id: number;
+		content: string;
+		ownerId: number | null;
+		createdAt: Date;
+	}[]>();
+
+	expect(posts).toEqual([
+		{ id: 1, ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ id: 2, ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ id: 3, ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ id: 4, ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ id: 5, ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ id: 6, ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ id: 7, ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ id: 8, ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+	]);
+});
+
+test('[Find Many] Get users filtered by posts with AND', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.3', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3U.1', createdAt: date3 },
+		{ ownerId: 3, content: 'Post3U.2', createdAt: date3 },
+	]);
+
+	const users = await db.query.usersTable.findMany({
+		where: {
+			AND: [{
+				posts: {
+					content: {
+						like: 'M%',
+					},
+				},
+			}, {
+				posts: {
+					ownerId: {
+						ne: 2,
+					},
+				},
+			}],
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(users).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+	}[]>();
+
+	expect(users).toEqual([
+		{
+			id: 1,
+			name: 'Dan',
+			verified: 0,
+			invitedBy: null,
+		},
+	]);
+});
+
+test('[Find Many] Get users filtered by posts with OR', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.3', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3U.1', createdAt: date3 },
+		{ ownerId: 3, content: 'Post3U.2', createdAt: date3 },
+	]);
+
+	const users = await db.query.usersTable.findMany({
+		where: {
+			OR: [{
+				posts: {
+					content: {
+						like: 'M%',
+					},
+				},
+			}, {
+				posts: {
+					ownerId: {
+						eq: 3,
+					},
+				},
+			}],
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(users).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+	}[]>();
+
+	expect(users).toEqual([
+		{
+			id: 1,
+			name: 'Dan',
+			verified: 0,
+			invitedBy: null,
+		},
+		{
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		},
+		{
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		},
+	]);
+});
+
+test('[Find Many] Get users filtered by posts with NOT', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1U.1', createdAt: date1 },
+		{ ownerId: 1, content: 'Post1U.2', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.1', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.2', createdAt: date1 },
+		{ ownerId: 1, content: 'Message1U.3', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2U.1', createdAt: date2 },
+		{ ownerId: 2, content: 'Post2U.2', createdAt: date2 },
+		{ ownerId: 2, content: 'MessageU.1', createdAt: date2 },
+		{ ownerId: 2, content: 'MessageU.2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3U.1', createdAt: date3 },
+		{ ownerId: 3, content: 'Post3U.2', createdAt: date3 },
+	]);
+
+	const users = await db.query.usersTable.findMany({
+		where: {
+			NOT: {
+				posts: {
+					content: {
+						like: 'M%',
+					},
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(users).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+	}[]>();
+
+	expect(users).toEqual([
+		{
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		},
+	]);
 });
 
 test.todo('alltypes', async () => {

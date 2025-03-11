@@ -37,10 +37,10 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const usersTable = pgTable('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	invitedBy: integer('invited_by').references((): PgColumn => usersTable.id),
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	verified: boolean().notNull().default(false),
+	invitedBy: integer().references((): PgColumn => usersTable.id),
 });
 
 export const usersConfig = relations(usersTable, ({ one, many }) => ({
@@ -50,9 +50,9 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 }));
 
 export const groupsTable = pgTable('groups', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	description: text('description'),
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	description: text(),
 });
 
 export const groupsConfig = relations(groupsTable, ({ many }) => ({
@@ -60,9 +60,9 @@ export const groupsConfig = relations(groupsTable, ({ many }) => ({
 }));
 
 export const usersToGroupsTable = pgTable('users_to_groups', {
-	id: serial('id').primaryKey(),
-	userId: integer('user_id').notNull().references(() => usersTable.id),
-	groupId: integer('group_id').notNull().references(() => groupsTable.id),
+	id: serial().primaryKey(),
+	userId: integer().notNull().references(() => usersTable.id),
+	groupId: integer().notNull().references(() => groupsTable.id),
 }, (t) => ({
 	pk: primaryKey(t.groupId, t.userId),
 }));
@@ -73,10 +73,10 @@ export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
 }));
 
 export const postsTable = pgTable('posts', {
-	id: serial('id').primaryKey(),
-	content: text('content').notNull(),
-	ownerId: integer('owner_id').references(() => usersTable.id),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	id: serial().primaryKey(),
+	content: text().notNull(),
+	ownerId: integer().references(() => usersTable.id),
+	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
 export const postsConfig = relations(postsTable, ({ one, many }) => ({
@@ -100,11 +100,11 @@ export const usersView = pgView('users_view').as((qb) =>
 );
 
 export const commentsTable = pgTable('comments', {
-	id: serial('id').primaryKey(),
-	content: text('content').notNull(),
-	creator: integer('creator').references(() => usersTable.id),
-	postId: integer('post_id').references(() => postsTable.id),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	id: serial().primaryKey(),
+	content: text().notNull(),
+	creator: integer().references(() => usersTable.id),
+	postId: integer().references(() => postsTable.id),
+	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
 export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
@@ -114,10 +114,10 @@ export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
 }));
 
 export const commentLikesTable = pgTable('comment_likes', {
-	id: serial('id').primaryKey(),
-	creator: integer('creator').references(() => usersTable.id),
-	commentId: integer('comment_id').references(() => commentsTable.id),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	id: serial().primaryKey(),
+	creator: integer().references(() => usersTable.id),
+	commentId: integer().references(() => commentsTable.id),
+	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
 export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
@@ -128,29 +128,29 @@ export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 export const rqbSchema = pgSchema('rqb_test_schema');
 
 export const schemaUsers = rqbSchema.table('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	invitedBy: integer('invited_by').references((): PgColumn => schemaUsers.id),
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	verified: boolean().notNull().default(false),
+	invitedBy: integer().references((): PgColumn => schemaUsers.id),
 });
 
 export const schemaPosts = rqbSchema.table('posts', {
-	id: serial('id').primaryKey(),
-	content: text('content').notNull(),
-	ownerId: integer('owner_id').references(() => schemaUsers.id),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	id: serial().primaryKey(),
+	content: text().notNull(),
+	ownerId: integer().references(() => schemaUsers.id),
+	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
 export const schemaGroups = rqbSchema.table('groups', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	description: text('description'),
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	description: text(),
 });
 
 export const schemaUsersToGroups = rqbSchema.table('users_to_groups', {
-	id: serial('id').primaryKey(),
-	userId: integer('user_id').notNull().references(() => schemaUsers.id),
-	groupId: integer('group_id').notNull().references(() => schemaGroups.id),
+	id: serial().primaryKey(),
+	userId: integer().notNull().references(() => schemaUsers.id),
+	groupId: integer().notNull().references(() => schemaGroups.id),
 }, (t) => ({
 	pk: primaryKey(t.groupId, t.userId),
 }));

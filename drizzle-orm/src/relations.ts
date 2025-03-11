@@ -893,23 +893,23 @@ export class RelationsBuilderJunctionColumn<
 }
 
 export interface RelationFieldsFilterInternals<T> {
-	eq?: T | Placeholder;
-	ne?: T | Placeholder;
-	gt?: T | Placeholder;
-	gte?: T | Placeholder;
-	lt?: T | Placeholder;
-	lte?: T | Placeholder;
-	in?: (T | Placeholder)[] | Placeholder;
-	notIn?: (T | Placeholder)[] | Placeholder;
-	like?: string | Placeholder;
-	ilike?: string | Placeholder;
-	notLike?: string | Placeholder;
-	notIlike?: string | Placeholder;
-	isNull?: true;
-	isNotNull?: true;
-	NOT?: RelationsFieldFilter<T>;
-	OR?: RelationsFieldFilter<T>[];
-	AND?: RelationsFieldFilter<T>[];
+	eq?: T | Placeholder | undefined;
+	ne?: T | Placeholder | undefined;
+	gt?: T | Placeholder | undefined;
+	gte?: T | Placeholder | undefined;
+	lt?: T | Placeholder | undefined;
+	lte?: T | Placeholder | undefined;
+	in?: (T | Placeholder)[] | Placeholder | undefined;
+	notIn?: (T | Placeholder)[] | Placeholder | undefined;
+	like?: string | Placeholder | undefined;
+	ilike?: string | Placeholder | undefined;
+	notLike?: string | Placeholder | undefined;
+	notIlike?: string | Placeholder | undefined;
+	isNull?: true | undefined;
+	isNotNull?: true | undefined;
+	NOT?: RelationsFieldFilter<T> | undefined;
+	OR?: RelationsFieldFilter<T>[] | undefined;
+	AND?: RelationsFieldFilter<T>[] | undefined;
 }
 
 export type RelationsFieldFilter<T = unknown> =
@@ -923,15 +923,15 @@ export interface RelationsFilterCommons<
 	TTable extends TableRelationalConfig = TableRelationalConfig,
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 > {
-	OR?: RelationsFilter<TTable, TSchema>[];
-	NOT?: RelationsFilter<TTable, TSchema>;
-	AND?: RelationsFilter<TTable, TSchema>[];
+	OR?: RelationsFilter<TTable, TSchema>[] | undefined;
+	NOT?: RelationsFilter<TTable, TSchema> | undefined;
+	AND?: RelationsFilter<TTable, TSchema>[] | undefined;
 	RAW?:
 		| SQLWrapper
 		| ((
 			table: TTable['table'],
 			operators: Operators,
-		) => SQL);
+		) => SQL) | undefined;
 }
 
 export type RelationsFilter<
@@ -942,14 +942,14 @@ export type RelationsFilter<
 > = TTable['relations'] extends Record<string, never> ? TableFilter<TTable['table']>
 	:
 		& {
-			[K in keyof TColumns as K extends keyof RelationsFilterCommons ? never : K]?: TColumns[K] extends Column
+			[K in keyof TColumns]?: (TColumns[K] extends Column
 				? RelationsFieldFilter<TColumns[K]['_']['data']>
-				: RelationsFieldFilter<unknown>;
+				: RelationsFieldFilter<unknown>) | undefined;
 		}
 		& {
-			[K in keyof TRelations as K extends keyof TColumns | keyof RelationsFilterCommons ? never : K]?:
+			[K in keyof TRelations]?:
 				| boolean
-				| RelationsFilter<FindTableInRelationalConfig<TSchema, TRelations[K]['targetTable']>, TSchema>;
+				| RelationsFilter<FindTableInRelationalConfig<TSchema, TRelations[K]['targetTable']>, TSchema> | undefined;
 		}
 		& RelationsFilterCommons<TTable, TSchema>;
 
@@ -958,15 +958,16 @@ export interface TableFilterCommons<
 	TColumns extends FieldSelection = TTable extends View ? Assume<TTable['_']['selectedFields'], FieldSelection>
 		: Assume<TTable, Table>['_']['columns'],
 > {
-	OR?: TableFilter<TTable, TColumns>[];
-	NOT?: TableFilter<TTable, TColumns>;
-	AND?: TableFilter<TTable, TColumns>[];
+	OR?: TableFilter<TTable, TColumns>[] | undefined;
+	NOT?: TableFilter<TTable, TColumns> | undefined;
+	AND?: TableFilter<TTable, TColumns>[] | undefined;
 	RAW?:
 		| SQLWrapper
 		| ((
 			table: TTable,
 			operators: Operators,
-		) => SQL);
+		) => SQL)
+		| undefined;
 }
 
 export type TableFilter<

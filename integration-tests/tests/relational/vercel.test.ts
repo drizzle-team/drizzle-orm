@@ -81,7 +81,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { relations, logger: ENABLE_LOGGING });
+	db = drizzle(client, { relations, logger: ENABLE_LOGGING, casing: 'snake_case' });
 });
 
 afterAll(async () => {

@@ -888,11 +888,17 @@ export class GelDialect {
 		});
 	}
 
-	private buildRqbColumn(column: unknown, key: string) {
-		return sql`${
-			is(column, Column)
-				? sql.identifier(this.casing.getColumnCasing(column))
-				: is(column, SQL.Aliased)
+	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
+		if (is(column, Column)) {
+			switch (column.columnType) {
+				default: {
+					return sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))} as ${sql.identifier(key)}`;
+				}
+			}
+		}
+
+		return sql`${table}.${
+			is(column, SQL.Aliased)
 				? sql.identifier(column.fieldAlias)
 				: isSQLWrapper(column)
 				? sql.identifier(key)
@@ -908,7 +914,7 @@ export class GelDialect {
 					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
 				});
 
-				return sql`${table}.${this.buildRqbColumn(v, k)}`;
+				return this.buildRqbColumn(table, v, k);
 			}),
 			sql`, `,
 		);
@@ -933,7 +939,7 @@ export class GelDialect {
 					if (v) {
 						const column = columnContainer[k];
 						columnIdentifiers.push(
-							sql`${table}.${this.buildRqbColumn(column, k)}`,
+							this.buildRqbColumn(table, column, k),
 						);
 
 						selection.push({
@@ -946,7 +952,7 @@ export class GelDialect {
 				if (colSelectionMode === false) {
 					for (const [k, v] of Object.entries(columnContainer)) {
 						if (config.columns[k] === false) continue;
-						columnIdentifiers.push(sql`${table}.${this.buildRqbColumn(v, k)}`);
+						columnIdentifiers.push(this.buildRqbColumn(table, v, k));
 
 						selection.push({
 							key: k,

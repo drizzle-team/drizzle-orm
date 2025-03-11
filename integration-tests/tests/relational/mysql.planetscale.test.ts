@@ -17,7 +17,7 @@ beforeAll(async () => {
 		new Client({
 			url: process.env['PLANETSCALE_CONNECTION_STRING']!,
 		}),
-		{ relations, logger: ENABLE_LOGGING },
+		{ relations, logger: ENABLE_LOGGING, casing: 'snake_case' },
 	);
 
 	await Promise.all([

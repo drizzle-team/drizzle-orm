@@ -36,7 +36,7 @@ beforeAll(async () => {
 		console.error('Cannot connect to libsql');
 		throw lastError;
 	}
-	db = drizzle(client!, { logger: ENABLE_LOGGING, relations });
+	db = drizzle(client!, { logger: ENABLE_LOGGING, relations, casing: 'snake_case' });
 });
 
 beforeEach(async () => {
