@@ -4244,11 +4244,7 @@ export function tests(driver?: string) {
 
 				const result = await db.query.rqbPost.findMany({
 					with: {
-						author: {
-							orderBy: {
-								id: 'asc',
-							},
-						},
+						author: true,
 					},
 					orderBy: {
 						id: 'asc',
@@ -4568,11 +4564,7 @@ export function tests(driver?: string) {
 				await db.transaction(async (db) => {
 					const result = await db.query.rqbPost.findMany({
 						with: {
-							author: {
-								orderBy: {
-									id: 'asc',
-								},
-							},
+							author: true,
 						},
 						orderBy: {
 							id: 'asc',

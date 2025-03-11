@@ -7,12 +7,13 @@ import * as gel from 'gel';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createDockerDB } from './createInstance';
 import 'zx/globals';
+import relations from './relations';
 
 $.quiet = true;
 
 const ENABLE_LOGGING = false;
 
-let db: GelJsDatabase;
+let db: GelJsDatabase<never, typeof relations>;
 let client: gel.Client;
 let container: Docker.Container | undefined;
 
@@ -46,7 +47,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 
 	dsn = connectionString;
 	await $`gel query "CREATE TYPE default::users_custom {

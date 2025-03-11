@@ -5404,11 +5404,7 @@ test('RQB v2 simple find many - with relation', async () => {
 
 		const result = await db.query.rqbPost.findMany({
 			with: {
-				author: {
-					orderBy: {
-						id: 'asc',
-					},
-				},
+				author: true,
 			},
 			orderBy: {
 				id: 'asc',
@@ -5720,11 +5716,7 @@ test('RQB v2 transaction find many - with relation', async () => {
 		await db.transaction(async (db) => {
 			const result = await db.query.rqbPost.findMany({
 				with: {
-					author: {
-						orderBy: {
-							id: 'asc',
-						},
-					},
+					author: true,
 				},
 				orderBy: {
 					id: 'asc',

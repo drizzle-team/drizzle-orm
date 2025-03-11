@@ -327,8 +327,8 @@ test('[Find Many] Get users with posts + custom fields', async () => {
 		with: {
 			posts: true,
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -421,8 +421,8 @@ test('[Find Many] Get users with posts + custom fields + limits', async () => {
 				limit: 1,
 			},
 		},
-		extras: (usersTable, { sql }) => ({
-			lowerName: sql<string>`lower(${usersTable.name})`.as('name_lower'),
+		extras: ({
+			lowerName: (usersTable, { sql }) => sql<string>`lower(${usersTable.name})`.as('name_lower'),
 		}),
 	});
 
@@ -968,13 +968,13 @@ test('[Find Many] Get only custom fields', async () => {
 		with: {
 			posts: {
 				columns: {},
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1050,16 +1050,16 @@ test('[Find Many] Get only custom fields + where', async () => {
 						gte: 2,
 					},
 				},
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
 		where: {
 			id: 1,
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1107,16 +1107,16 @@ test('[Find Many] Get only custom fields + where + limit', async () => {
 					},
 				},
 				limit: 1,
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
 		where: {
 			id: 1,
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1166,16 +1166,16 @@ test('[Find Many] Get only custom fields + where + orderBy', async () => {
 				orderBy: {
 					id: 'desc',
 				},
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
 		where: {
 			id: 1,
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1217,13 +1217,13 @@ test('[Find One] Get only custom fields', async () => {
 		with: {
 			posts: {
 				columns: {},
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1280,16 +1280,16 @@ test('[Find One] Get only custom fields + where', async () => {
 						gte: 2,
 					},
 				},
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
 		where: {
 			id: 1,
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1338,16 +1338,16 @@ test('[Find One] Get only custom fields + where + limit', async () => {
 					},
 				},
 				limit: 1,
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
 		where: {
 			id: 1,
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1398,16 +1398,16 @@ test('[Find One] Get only custom fields + where + orderBy', async () => {
 				orderBy: {
 					id: 'desc',
 				},
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
 		where: {
 			id: 1,
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1956,8 +1956,8 @@ test('[Find One] Get users with posts + custom fields', async () => {
 		with: {
 			posts: true,
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -2030,8 +2030,8 @@ test('[Find One] Get users with posts + custom fields + limits', async () => {
 				limit: 1,
 			},
 		},
-		extras: (usersTable, { sql }) => ({
-			lowerName: sql<string>`lower(${usersTable.name})`.as('name_lower'),
+		extras: ({
+			lowerName: (usersTable, { sql }) => sql<string>`lower(${usersTable.name})`.as('name_lower'),
 		}),
 	});
 
@@ -2523,10 +2523,10 @@ test('Get user with invitee and custom fields', async () => {
 	]);
 
 	const usersWithInvitee = await db.query.usersTable.findMany({
-		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
-				extras: (invitee, { sql }) => ({ lower: sql<string>`lower(${invitee.name})`.as('lower_name') }),
+				extras: ({ lower: (invitee, { sql }) => sql<string>`lower(${invitee.name})`.as('lower_name') }),
 			},
 		},
 	});
@@ -2599,11 +2599,11 @@ test('Get user with invitee and custom fields + limits', async () => {
 	]);
 
 	const usersWithInvitee = await db.query.usersTable.findMany({
-		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		limit: 3,
 		with: {
 			invitee: {
-				extras: (invitee, { sql }) => ({ lower: sql<string>`lower(${invitee.name})`.as('lower_name') }),
+				extras: ({ lower: (invitee, { sql }) => sql<string>`lower(${invitee.name})`.as('lower_name') }),
 			},
 		},
 	});
@@ -3184,14 +3184,14 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 
 	const response = await db.query.usersTable.findMany({
 		limit: 3,
-		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
-				extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_invitee_name') }),
+				extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_invitee_name') }),
 			},
 			posts: {
 				limit: 1,
-				extras: (posts, { sql }) => ({ lower: sql<string>`lower(${posts.content})`.as('lower_content') }),
+				extras: ({ lower: (posts, { sql }) => sql<string>`lower(${posts.content})`.as('lower_content') }),
 			},
 		},
 	});
@@ -3273,13 +3273,13 @@ test('Get user with invitee and posts + custom fields in each', async () => {
 	]);
 
 	const response = await db.query.usersTable.findMany({
-		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
-				extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+				extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 			},
 			posts: {
-				extras: (posts, { sql }) => ({ lower: sql<string>`lower(${posts.content})`.as('lower_name') }),
+				extras: ({ lower: (posts, { sql }) => sql<string>`lower(${posts.content})`.as('lower_name') }),
 			},
 		},
 	});
@@ -3646,8 +3646,8 @@ test('Get user with invitee and posts + orderBy + where + custom', async () => {
 		where: {
 			id: { OR: [3, 4] },
 		},
-		extras: (usersTable) => ({
-			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		extras: ({
+			lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
 		}),
 		with: {
 			invitee: true,
@@ -3658,8 +3658,8 @@ test('Get user with invitee and posts + orderBy + where + custom', async () => {
 				orderBy: {
 					id: 'desc',
 				},
-				extras: (postsTable) => ({
-					lower: sql<string>`lower(${postsTable.content})`.as('lower_name'),
+				extras: ({
+					lower: (postsTable) => sql<string>`lower(${postsTable.content})`.as('lower_name'),
 				}),
 			},
 		},
@@ -3739,8 +3739,8 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 		where: {
 			id: { OR: [3, 4] },
 		},
-		extras: (usersTable) => ({
-			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		extras: ({
+			lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
 		}),
 		columns: {
 			id: true,
@@ -3752,8 +3752,8 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 					id: true,
 					name: true,
 				},
-				extras: (usersTable) => ({
-					lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+				extras: ({
+					lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
 				}),
 			},
 			posts: {
@@ -3767,8 +3767,8 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 				orderBy: {
 					id: 'desc',
 				},
-				extras: (postsTable) => ({
-					lower: sql<string>`lower(${postsTable.content})`.as('lower_name'),
+				extras: ({
+					lower: (postsTable) => sql<string>`lower(${postsTable.content})`.as('lower_name'),
 				}),
 			},
 		},
@@ -6021,16 +6021,16 @@ test('Get users with groups + custom', async () => {
 	]);
 
 	const response = await db.query.usersTable.findMany({
-		extras: (usersTable) => ({
-			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		extras: ({
+			lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
 		}),
 		with: {
 			usersToGroups: {
 				columns: {},
 				with: {
 					group: {
-						extras: (groupsTable) => ({
-							lower: sql<string>`lower(${groupsTable.name})`.as('lower_name'),
+						extras: ({
+							lower: (groupsTable) => sql<string>`lower(${groupsTable.name})`.as('lower_name'),
 						}),
 					},
 				},
@@ -6141,16 +6141,16 @@ test('Get groups with users + custom', async () => {
 	]);
 
 	const response = await db.query.groupsTable.findMany({
-		extras: (table, { sql }) => ({
-			lower: sql<string>`lower(${table.name})`.as('lower_name'),
+		extras: ({
+			lower: (table, { sql }) => sql<string>`lower(${table.name})`.as('lower_name'),
 		}),
 		with: {
 			usersToGroups: {
 				columns: {},
 				with: {
 					user: {
-						extras: (table, { sql }) => ({
-							lower: sql<string>`lower(${table.name})`.as('lower_name'),
+						extras: ({
+							lower: (table, { sql }) => sql<string>`lower(${table.name})`.as('lower_name'),
 						}),
 					},
 				},
@@ -7839,16 +7839,16 @@ test('[Find Many .through] Get users with groups + custom', async () => {
 	]);
 
 	const response = await db.query.usersTable.findMany({
-		extras: ({ name }) => ({
-			lower: sql<string>`lower(${name})`.as('lower_name'),
+		extras: ({
+			lower: ({ name }) => sql<string>`lower(${name})`.as('lower_name'),
 		}),
 		with: {
 			groups: {
 				orderBy: {
 					id: 'asc',
 				},
-				extras: ({ name }) => ({
-					lower: sql<string>`lower(${name})`.as('lower_name'),
+				extras: ({
+					lower: ({ name }) => sql<string>`lower(${name})`.as('lower_name'),
 				}),
 			},
 		},
@@ -7943,13 +7943,13 @@ test('[Find Many .through] Get groups with users + custom', async () => {
 	]);
 
 	const response = await db.query.groupsTable.findMany({
-		extras: (table, { sql }) => ({
-			lower: sql<string>`lower(${table.name})`.as('lower_name'),
+		extras: ({
+			lower: (table, { sql }) => sql<string>`lower(${table.name})`.as('lower_name'),
 		}),
 		with: {
 			users: {
-				extras: (table, { sql }) => ({
-					lower: sql<string>`lower(${table.name})`.as('lower_name'),
+				extras: ({
+					lower: (table, { sql }) => sql<string>`lower(${table.name})`.as('lower_name'),
 				}),
 			},
 		},
@@ -8029,24 +8029,20 @@ test('[Find Many .through] Get users with first group', async () => {
 	]);
 
 	await db.insert(groupsTable).values([
-		{ id: 1, name: 'Group1' },
-		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
+		{ id: 2, name: 'Group2' },
+		{ id: 1, name: 'Group1' },
 	]);
 
 	await db.insert(usersToGroupsTable).values([
-		{ userId: 2, groupId: 2 },
-		{ userId: 2, groupId: 3 },
 		{ userId: 3, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 2, groupId: 2 },
 	]);
 
 	const response = await db.query.usersTable.findMany({
 		with: {
-			group: {
-				orderBy: {
-					id: 'desc',
-				},
-			},
+			group: true,
 		},
 	});
 
@@ -8114,11 +8110,7 @@ test('[Find Many .through] Get groups with first user', async () => {
 
 	const response = await db.query.groupsTable.findMany({
 		with: {
-			user: {
-				orderBy: {
-					id: 'asc',
-				},
-			},
+			user: true,
 		},
 	});
 

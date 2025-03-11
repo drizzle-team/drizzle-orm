@@ -1,5 +1,5 @@
+import { relations } from '~/_relations.ts';
 import { foreignKey, gelTable, integer, text, timestamptz } from '~/gel-core/index.ts';
-import { relations } from '~/relations.ts';
 
 export const users = gelTable('users', {
 	id: integer('id').primaryKey(),

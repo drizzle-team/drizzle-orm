@@ -1,10 +1,14 @@
 import { defineRelations } from 'drizzle-orm';
-import * as schema from './sqlite.schema.ts';
+import * as schema from './gel.schema.ts';
 
 export default defineRelations(schema, (r) => ({
 	usersView: {
 		posts: r.many.postsTable(),
 		groups: r.many.groupsTable(),
+	},
+	schemaUsersView: {
+		posts: r.many.schemaPosts(),
+		groups: r.many.schemaGroups(),
 	},
 	usersTable: {
 		invitee: r.one.usersTable({
@@ -65,15 +69,6 @@ export default defineRelations(schema, (r) => ({
 			},
 			alias: 'users-groups-direct-filtered',
 		}),
-		usersView: r.many.usersView({
-			from: r.groupsTable.id.through(r.usersToGroupsTable.groupId),
-			to: r.usersView.id.through(r.usersToGroupsTable.userId),
-			where: {
-				id: {
-					gt: 1,
-				},
-			},
-		}),
 	},
 	usersToGroupsTable: {
 		group: r.one.groupsTable({
@@ -92,16 +87,6 @@ export default defineRelations(schema, (r) => ({
 			from: r.postsTable.ownerId,
 			to: r.usersTable.id,
 			optional: false,
-		}),
-		viewAuthor: r.one.usersView({
-			from: r.postsTable.ownerId,
-			to: r.usersView.id,
-			optional: false,
-			where: {
-				id: {
-					gt: 1,
-				},
-			},
 		}),
 		authorFiltered: r.one.usersTable({
 			optional: false,
@@ -137,5 +122,31 @@ export default defineRelations(schema, (r) => ({
 			to: r.usersTable.id,
 			optional: false,
 		}),
+	},
+	schemaUsers: {
+		posts: r.many.schemaPosts({
+			from: r.schemaUsers.id,
+			to: r.schemaPosts.ownerId,
+			where: {
+				content: {
+					like: 'M%',
+				},
+			},
+		}),
+		groups: r.many.schemaGroups({
+			from: r.schemaUsers.id.through(r.schemaUsersToGroups.userId),
+			to: r.schemaGroups.id.through(r.schemaUsersToGroups.groupId),
+			where: {
+				id: {
+					gte: 2,
+				},
+			},
+		}),
+	},
+	schemaPosts: {
+		author: r.one.schemaUsers(),
+	},
+	schemaGroups: {
+		users: r.many.schemaUsers(),
 	},
 }));

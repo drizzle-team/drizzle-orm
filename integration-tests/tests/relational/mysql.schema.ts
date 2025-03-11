@@ -2,14 +2,32 @@ import {
 	alias,
 	type AnyMySqlColumn,
 	bigint,
+	binary,
 	boolean,
+	char,
+	date,
+	datetime,
+	decimal,
+	double,
+	float,
+	int,
+	json,
+	mediumint,
+	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
 	mysqlView,
 	primaryKey,
+	real,
 	serial,
+	smallint,
 	text,
+	time,
 	timestamp,
+	tinyint,
+	varbinary,
+	varchar,
+	year,
 } from 'drizzle-orm/mysql-core';
 
 import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
@@ -205,3 +223,51 @@ export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
 	})
 		.from(schemaUsers).leftJoin(schemaPosts, eq(schemaUsers.id, schemaPosts.ownerId))
 );
+
+export const allTypes = mysqlTable('all_types', {
+	serial: serial(),
+	bigint53: bigint({
+		mode: 'number',
+	}),
+	bigint64: bigint({
+		mode: 'bigint',
+	}),
+	binary: binary(),
+	boolean: boolean(),
+	char: char(),
+	date: date({
+		mode: 'date',
+	}),
+	dateStr: date({
+		mode: 'string',
+	}),
+	datetime: datetime({
+		mode: 'date',
+	}),
+	datetimeStr: datetime({
+		mode: 'string',
+	}),
+	decimal: decimal(),
+	double: double(),
+	float: float(),
+	int: int(),
+	json: json(),
+	medInt: mediumint(),
+	smallInt: smallint(),
+	real: real(),
+	text: text(),
+	time: time(),
+	timestamp: timestamp({
+		mode: 'date',
+	}),
+	timestampStr: timestamp({
+		mode: 'string',
+	}),
+	tinyInt: tinyint(),
+	varbin: varbinary({
+		length: 16,
+	}),
+	varchar: varchar({}),
+	year: year(),
+	enum: mysqlEnum(['enV1', 'enV2']),
+});

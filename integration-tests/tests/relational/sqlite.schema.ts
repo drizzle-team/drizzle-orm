@@ -1,8 +1,11 @@
 import {
 	alias,
 	type AnySQLiteColumn,
+	blob,
 	integer,
+	numeric,
 	primaryKey,
+	real,
 	sqliteTable,
 	sqliteView,
 	text,
@@ -136,3 +139,35 @@ export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 		references: [usersTable.id],
 	}),
 }));
+
+export const allTypes = sqliteTable('all_types', {
+	int: integer({
+		mode: 'number',
+	}),
+	bool: integer({
+		mode: 'boolean',
+	}),
+	time: integer({
+		mode: 'timestamp',
+	}),
+	timeMs: integer({
+		mode: 'timestamp_ms',
+	}),
+	bigint: blob({
+		mode: 'bigint',
+	}),
+	buffer: blob({
+		mode: 'buffer',
+	}),
+	json: blob({
+		mode: 'json',
+	}),
+	numeric: numeric(),
+	real: real(),
+	text: text({
+		mode: 'text',
+	}),
+	jsonText: text({
+		mode: 'json',
+	}),
+});

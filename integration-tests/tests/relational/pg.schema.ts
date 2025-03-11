@@ -2,16 +2,38 @@ import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import {
 	alias,
+	bigint,
+	bigserial,
 	boolean,
+	char,
+	cidr,
+	date,
+	doublePrecision,
+	inet,
 	integer,
+	interval,
+	json,
+	jsonb,
+	line,
+	macaddr,
+	macaddr8,
+	numeric,
 	type PgColumn,
+	pgEnum,
 	pgSchema,
 	pgTable,
 	pgView,
+	point,
 	primaryKey,
+	real,
 	serial,
+	smallint,
+	smallserial,
 	text,
+	time,
 	timestamp,
+	uuid,
+	varchar,
 } from 'drizzle-orm/pg-core';
 
 export const usersTable = pgTable('users', {
@@ -147,3 +169,65 @@ export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
 	})
 		.from(schemaUsers).leftJoin(schemaPosts, eq(schemaUsers.id, schemaPosts.ownerId))
 );
+
+const en = pgEnum('en', ['enVal1', 'enVal2']);
+
+export const allTypesTable = pgTable('all_types', {
+	serial: serial(),
+	bigserial53: bigserial({
+		mode: 'number',
+	}),
+	bigserial64: bigserial({
+		mode: 'bigint',
+	}),
+	int: integer(),
+	bigint53: bigint({
+		mode: 'number',
+	}),
+	bigint64: bigint({
+		mode: 'bigint',
+	}),
+	bool: boolean(),
+	char: char(),
+	cidr: cidr(),
+	date: date({
+		mode: 'date',
+	}),
+	dateStr: date({
+		mode: 'string',
+	}),
+	double: doublePrecision(),
+	enum: en(),
+	inet: inet(),
+	interval: interval(),
+	json: json(),
+	jsonb: jsonb(),
+	line: line({
+		mode: 'abc',
+	}),
+	lineTuple: line({
+		mode: 'tuple',
+	}),
+	macaddr: macaddr(),
+	macaddr8: macaddr8(),
+	numeric: numeric(),
+	point: point({
+		mode: 'xy',
+	}),
+	pointTuple: point({
+		mode: 'tuple',
+	}),
+	real: real(),
+	smallint: smallint(),
+	smallserial: smallserial(),
+	text: text(),
+	time: time(),
+	timestamp: timestamp({
+		mode: 'date',
+	}),
+	timestampStr: timestamp({
+		mode: 'string',
+	}),
+	uuid: uuid(),
+	varchar: varchar(),
+});

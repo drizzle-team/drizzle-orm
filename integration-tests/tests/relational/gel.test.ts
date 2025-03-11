@@ -1,120 +1,269 @@
 import 'dotenv/config';
-import Database from 'better-sqlite3';
-import { /*defineRelations,*/ DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
-import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
-import { alias } from 'drizzle-orm/sqlite-core';
-import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './sqlite.relations.ts';
-import { commentsTable, groupsTable, postsTable, usersTable, usersToGroupsTable } from './sqlite.schema.ts';
+import type Docker from 'dockerode';
+import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
+import { drizzle, type GelJsDatabase } from 'drizzle-orm/gel';
+import { alias } from 'drizzle-orm/gel-core';
+import createClient, { type Client } from 'gel';
+import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
+import relations from './gel.relations.ts';
+import * as schema from './gel.schema.ts';
+import 'zx';
+import retry from 'async-retry';
+import { createDockerDB } from '~/gel/createInstance.ts';
 
+$.quiet = true;
 const ENABLE_LOGGING = false;
 
-let db: BetterSQLite3Database<never, typeof relations>;
+const {
+	usersTable,
+	postsTable,
+	commentsTable,
+	usersToGroupsTable,
+	groupsTable,
+	schemaGroups,
+	schemaPosts,
+	schemaUsers,
+	schemaUsersToGroups,
+} = schema;
 
-beforeAll(() => {
-	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
+declare module 'vitest' {
+	export interface TestContext {
+		docker: Docker;
+		gelContainer: Docker.Container;
+		geljsDb: GelJsDatabase<never, typeof relations>;
+		gelClient: Client;
+	}
+}
 
-	db = drizzle(new Database(dbPath), { relations, logger: ENABLE_LOGGING });
+let globalDocker: Docker;
+let gelContainer: Docker.Container;
+let client: Client;
+let db: GelJsDatabase<never, typeof relations>;
+const tlsSecurity: string = 'insecure';
+let dsn: string;
+
+beforeAll(async () => {
+	let connectionString;
+	if (process.env['GEL_CONNECTION_STRING']) {
+		connectionString = process.env['GEL_CONNECTION_STRING'];
+	} else {
+		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
+		connectionString = conStr;
+		gelContainer = contrainerObj;
+	}
+	await sleep(15 * 1000);
+	client = await retry(() => {
+		client = createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
+		return client;
+	}, {
+		retries: 20,
+		factor: 1,
+		minTimeout: 250,
+		maxTimeout: 250,
+		randomize: false,
+		onRetry() {
+			client?.close();
+		},
+	});
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations, casing: 'snake_case' });
+
+	dsn = connectionString;
+
+	await $`gel query "CREATE SCALAR TYPE default::users_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "CREATE TYPE default::users {
+		create property custom_id: default::users_id {
+			create constraint exclusive;
+		};
+		create required property name: str;
+		create required property verified: bool {
+			SET default := false;
+		};
+		create PROPERTY invited_by: int64;
+	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "CREATE SCALAR TYPE default::groups_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "CREATE TYPE default::groups {
+		create property custom_id: default::groups_id {
+			create constraint exclusive;
+		};
+		create required property name: str;
+		create property description: str;
+	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "CREATE SCALAR TYPE default::users_to_groups_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "CREATE TYPE default::users_to_groups {
+		create property custom_id: default::users_to_groups_id {
+			create constraint exclusive;
+		};
+		create required property user_id: int32;
+		create required property group_id: int32;
+	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "CREATE SCALAR TYPE default::posts_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "CREATE TYPE default::posts {
+		create property custom_id: default::posts_id {
+			create constraint exclusive;
+		};
+		create required property content: str;
+		create property owner_id: int32;
+		create required property created_at: datetime {
+        	SET default := datetime_of_statement();
+      	};
+	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "CREATE SCALAR TYPE default::comments_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "CREATE TYPE default::comments {
+		create property custom_id: default::comments_id {
+			create constraint exclusive;
+		};
+		create required property content: str;
+		create property creator: int32;
+		create property post_id: int32;
+		create required property created_at: datetime {
+        	SET default := datetime_of_statement();
+      	};
+	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "CREATE SCALAR TYPE default::comment_likes_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "CREATE TYPE default::comment_likes {
+		create property custom_id: default::comment_likes_id {
+			create constraint exclusive;
+		};
+		create property creator: int32;
+		create property comment_id: int32;
+		create required property created_at: datetime {
+        	SET default := datetime_of_statement();
+      	};
+	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "CREATE MODULE rqb_test_schema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "CREATE SCALAR TYPE rqb_test_schema::users_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "CREATE TYPE rqb_test_schema::users {
+		create property custom_id: rqb_test_schema::users_id {
+			create constraint exclusive;
+		};
+		create required property name: str;
+		create required property verified: bool {
+			SET default := false;
+		};
+		create PROPERTY invited_by: int64;
+	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "CREATE SCALAR TYPE rqb_test_schema::groups_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "CREATE TYPE rqb_test_schema::groups {
+		create property custom_id: rqb_test_schema::groups_id {
+			create constraint exclusive;
+		};
+		create required property name: str;
+		create property description: str;
+	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "CREATE SCALAR TYPE rqb_test_schema::users_to_groups_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "CREATE TYPE rqb_test_schema::users_to_groups {
+		create property custom_id: rqb_test_schema::users_to_groups_id {
+			create constraint exclusive;
+		};
+		create required property user_id: int32;
+		create required property group_id: int32;
+	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "CREATE SCALAR TYPE rqb_test_schema::posts_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "CREATE TYPE rqb_test_schema::posts {
+		create property custom_id: rqb_test_schema::posts_id {
+			create constraint exclusive;
+		};
+		create required property content: str;
+		create property owner_id: int32;
+		create required property created_at: datetime {
+        	SET default := datetime_of_statement();
+      	};
+	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 });
 
-beforeEach(() => {
-	db.run(sql`drop table if exists \`groups\``);
-	db.run(sql`drop table if exists \`users\``);
-	db.run(sql`drop view if exists \`users_view\``);
-	db.run(sql`drop table if exists \`users_to_groups\``);
-	db.run(sql`drop table if exists \`posts\``);
-	db.run(sql`drop table if exists \`comments\``);
-	db.run(sql`drop table if exists \`comment_likes\``);
+afterAll(async () => {
+	await $`gel query "DROP TYPE default::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE default::users_to_groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE default::groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE default::posts;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE default::comments;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE default::comment_likes;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE rqb_test_schema::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE rqb_test_schema::users_to_groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE rqb_test_schema::groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE rqb_test_schema::posts;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
-	db.run(
-		sql`
-			CREATE TABLE \`users\` (
-			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-			    \`name\` text NOT NULL,
-			    \`verified\` integer DEFAULT 0 NOT NULL,
-			    \`invited_by\` integer
-			);
-		`,
-	);
-	db.run(
-		sql`
-			CREATE TABLE \`groups\` (
-			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-			    \`name\` text NOT NULL,
-			    \`description\` text
-			);
-		`,
-	);
-	db.run(
-		sql`
-			CREATE TABLE \`users_to_groups\` (
-			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-			    \`user_id\` integer NOT NULL,
-			    \`group_id\` integer NOT NULL
-			);
-		`,
-	);
-	db.run(
-		sql`
-			CREATE TABLE \`posts\` (
-			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-			    \`content\` text NOT NULL,
-			    \`owner_id\` integer,
-			    \`created_at\` integer DEFAULT current_timestamp NOT NULL
-			);
-		`,
-	);
-	db.run(
-		sql`
-			CREATE VIEW \`users_view\` AS select \`users\`.\`id\`, \`users\`.\`name\`, \`users\`.\`verified\`, \`users\`.\`invited_by\`, \`posts\`.\`content\`, \`posts\`.\`created_at\`, (select count(*) from \`users\` as \`count_source\` where \`users\`.\`id\` <> 2) as \`count\` from \`users\` left join \`posts\` on \`users\`.\`id\` = \`posts\`.\`owner_id\`;
-		`,
-	);
-	db.run(
-		sql`
-			CREATE TABLE \`comments\` (
-			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-			    \`content\` text NOT NULL,
-			    \`creator\` integer,
-			    \`post_id\` integer,
-			    \`created_at\` integer DEFAULT current_timestamp NOT NULL
-			);
-		`,
-	);
-	db.run(
-		sql`
-			CREATE TABLE \`comment_likes\` (
-			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-			    \`creator\` integer,
-			    \`comment_id\` integer,
-			    \`created_at\` integer DEFAULT current_timestamp NOT NULL
-			);
-		`,
-	);
+	await $`gel query "DROP SCALAR TYPE default::users_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP SCALAR TYPE default::groups_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP SCALAR TYPE default::users_to_groups_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP SCALAR TYPE default::posts_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP SCALAR TYPE default::comments_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP SCALAR TYPE default::comment_likes_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP SCALAR TYPE rqb_test_schema::users_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP SCALAR TYPE rqb_test_schema::groups_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP SCALAR TYPE rqb_test_schema::users_to_groups_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP SCALAR TYPE rqb_test_schema::posts_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "DROP MODULE rqb_test_schema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await client?.close().catch(console.error);
+	await gelContainer?.stop().catch(console.error);
 });
 
-test('[Find Many] Get users with posts', () => {
-	db.insert(usersTable).values([
+beforeEach(async (ctx) => {
+	ctx.geljsDb = db;
+	ctx.gelClient = client;
+	ctx.docker = globalDocker;
+	ctx.gelContainer = gelContainer;
+
+	await $`gel query "SELECT sequence_reset(introspect default::users_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "SELECT sequence_reset(introspect default::groups_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "SELECT sequence_reset(introspect default::users_to_groups_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "SELECT sequence_reset(introspect default::posts_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "SELECT sequence_reset(introspect default::comments_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "SELECT sequence_reset(introspect default::comment_likes_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "SELECT sequence_reset(introspect rqb_test_schema::users_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "SELECT sequence_reset(introspect rqb_test_schema::groups_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "SELECT sequence_reset(introspect rqb_test_schema::users_to_groups_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "SELECT sequence_reset(introspect rqb_test_schema::posts_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+	await $`gel query "DELETE default::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE default::users_to_groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE default::groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE default::posts;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE default::comments;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE default::comment_likes;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE rqb_test_schema::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE rqb_test_schema::users_to_groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE rqb_test_schema::groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DELETE rqb_test_schema::posts;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+});
+
+test('[Find Many] Get users with posts', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		with: {
 			posts: true,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -134,34 +283,36 @@ test('[Find Many] Get users with posts', () => {
 	expect(usersWithPosts[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 	expect(usersWithPosts[1]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }],
 	});
 	expect(usersWithPosts[2]).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find Many] Get users with posts + limit posts', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + limit posts', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -169,20 +320,20 @@ test('[Find Many] Get users with posts + limit posts', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		with: {
 			posts: {
 				limit: 1,
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -205,34 +356,36 @@ test('[Find Many] Get users with posts + limit posts', () => {
 	expect(usersWithPosts[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 	expect(usersWithPosts[1]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 4, ownerId: 2, content: 'Post2', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }],
 	});
 	expect(usersWithPosts[2]).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find Many] Get users with posts + limit posts and users', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + limit posts and users', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -240,21 +393,21 @@ test('[Find Many] Get users with posts + limit posts and users', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		limit: 2,
 		with: {
 			posts: {
 				limit: 1,
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -275,27 +428,29 @@ test('[Find Many] Get users with posts + limit posts and users', () => {
 	expect(usersWithPosts[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 	expect(usersWithPosts[1]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 4, ownerId: 2, content: 'Post2', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find Many] Get users with posts + custom fields', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + custom fields', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -303,21 +458,21 @@ test('[Find Many] Get users with posts + custom fields', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		with: {
 			posts: true,
 		},
 		extras: ({
-			lowerName: ({ name }, { sql }) => sql<string>`lower(${name})`.as('name_lower'),
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		lowerName: string;
 		posts: {
@@ -341,7 +496,7 @@ test('[Find Many] Get users with posts + custom fields', () => {
 	expect(usersWithPosts[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		lowerName: 'dan',
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }, {
@@ -355,7 +510,7 @@ test('[Find Many] Get users with posts + custom fields', () => {
 		id: 2,
 		name: 'Andrew',
 		lowerName: 'andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 4, ownerId: 2, content: 'Post2', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }, {
 			id: 5,
@@ -368,7 +523,7 @@ test('[Find Many] Get users with posts + custom fields', () => {
 		id: 3,
 		name: 'Alex',
 		lowerName: 'alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }, {
 			id: 7,
@@ -379,14 +534,16 @@ test('[Find Many] Get users with posts + custom fields', () => {
 	});
 });
 
-test('[Find Many] Get users with posts + custom fields + limits', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -394,9 +551,9 @@ test('[Find Many] Get users with posts + custom fields + limits', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		limit: 1,
 		with: {
 			posts: {
@@ -406,12 +563,12 @@ test('[Find Many] Get users with posts + custom fields + limits', () => {
 		extras: ({
 			lowerName: (usersTable, { sql }) => sql<string>`lower(${usersTable.name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		lowerName: string;
 		posts: {
@@ -429,20 +586,22 @@ test('[Find Many] Get users with posts + custom fields + limits', () => {
 		id: 1,
 		name: 'Dan',
 		lowerName: 'dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find Many] Get users with posts + orderBy', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: '1' },
 		{ ownerId: 1, content: '2' },
 		{ ownerId: 1, content: '3' },
@@ -450,9 +609,9 @@ test('[Find Many] Get users with posts + orderBy', () => {
 		{ ownerId: 2, content: '5' },
 		{ ownerId: 3, content: '6' },
 		{ ownerId: 3, content: '7' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		with: {
 			posts: {
 				orderBy: {
@@ -463,12 +622,12 @@ test('[Find Many] Get users with posts + orderBy', () => {
 		orderBy: {
 			id: 'desc',
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -478,62 +637,66 @@ test('[Find Many] Get users with posts + orderBy', () => {
 		}[];
 	}[]>();
 
-	expect(usersWithPosts[0]).toEqual({
-		id: 3,
-		name: 'Alex',
-		verified: 0,
-		invitedBy: null,
-		posts: expect.anything(),
-	});
-
-	expect(usersWithPosts[0]!.posts).toEqual([
-		{ id: 7, ownerId: 3, content: '7', createdAt: expect.any(Date) },
-		{ id: 6, ownerId: 3, content: '6', createdAt: expect.any(Date) },
-	]);
-
-	expect(usersWithPosts[1]).toEqual({
-		id: 2,
-		name: 'Andrew',
-		verified: 0,
-		invitedBy: null,
-		posts: expect.anything(),
-	});
-
-	expect(usersWithPosts[1]!.posts).toEqual([
-		{ id: 5, ownerId: 2, content: '5', createdAt: expect.any(Date) },
-		{ id: 4, ownerId: 2, content: '4', createdAt: expect.any(Date) },
-	]);
+	expect(usersWithPosts.length).eq(3);
+	expect(usersWithPosts[0]?.posts.length).eq(2);
+	expect(usersWithPosts[1]?.posts.length).eq(2);
+	expect(usersWithPosts[2]?.posts.length).eq(3);
 
 	expect(usersWithPosts[2]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
-		posts: expect.anything(),
+		posts: [{ id: 3, ownerId: 1, content: '3', createdAt: usersWithPosts[2]?.posts[2]?.createdAt }, {
+			id: 2,
+			ownerId: 1,
+			content: '2',
+			createdAt: usersWithPosts[2]?.posts[1]?.createdAt,
+		}, { id: 1, ownerId: 1, content: '1', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }],
 	});
-
-	expect(usersWithPosts[2]!.posts).toEqual([
-		{ id: 3, ownerId: 1, content: '3', createdAt: expect.any(Date) },
-		{ id: 2, ownerId: 1, content: '2', createdAt: expect.any(Date) },
-		{ id: 1, ownerId: 1, content: '1', createdAt: expect.any(Date) },
-	]);
+	expect(usersWithPosts[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		posts: [{
+			id: 5,
+			ownerId: 2,
+			content: '5',
+			createdAt: usersWithPosts[1]?.posts[1]?.createdAt,
+		}, { id: 4, ownerId: 2, content: '4', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }],
+	});
+	expect(usersWithPosts[0]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		posts: [{
+			id: 7,
+			ownerId: 3,
+			content: '7',
+			createdAt: usersWithPosts[0]?.posts[1]?.createdAt,
+		}, { id: 6, ownerId: 3, content: '6', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
+	});
 });
 
-test('[Find Many] Get users with posts + where', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		where: {
 			id: 1,
 		},
@@ -544,12 +707,12 @@ test('[Find Many] Get users with posts + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -565,27 +728,29 @@ test('[Find Many] Get users with posts + where', () => {
 	expect(usersWithPosts[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + where + partial', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		columns: {
 			id: true,
 			name: true,
@@ -604,7 +769,7 @@ test('[Find Many] Get users with posts + where + partial', () => {
 		where: {
 			id: 1,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -625,21 +790,23 @@ test('[Find Many] Get users with posts + where + partial', () => {
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		columns: {
 			id: true,
 			name: true,
@@ -658,7 +825,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 		where: {
 			id: 1,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -679,21 +846,24 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial(true + false)', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get users with posts + where + partial(true + false)', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		columns: {
 			id: true,
 			name: false,
@@ -712,7 +882,7 @@ test('[Find Many] Get users with posts + where + partial(true + false)', () => {
 		where: {
 			id: 1,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -730,21 +900,23 @@ test('[Find Many] Get users with posts + where + partial(true + false)', () => {
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial(false)', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		columns: {
 			name: false,
 		},
@@ -761,11 +933,11 @@ test('[Find Many] Get users with posts + where + partial(false)', () => {
 		where: {
 			id: 1,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -779,17 +951,19 @@ test('[Find Many] Get users with posts + where + partial(false)', () => {
 
 	expect(usersWithPosts[0]).toEqual({
 		id: 1,
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find Many] Get users with posts in transaction', () => {
+test('[Find Many] Get users with posts in transaction', async (t) => {
+	const { geljsDb: db } = t;
+
 	let usersWithPosts: {
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -799,21 +973,21 @@ test('[Find Many] Get users with posts in transaction', () => {
 		}[];
 	}[] = [];
 
-	db.transaction((tx) => {
-		tx.insert(usersTable).values([
+	await db.transaction(async (tx) => {
+		await tx.insert(usersTable).values([
 			{ id: 1, name: 'Dan' },
 			{ id: 2, name: 'Andrew' },
 			{ id: 3, name: 'Alex' },
-		]).run();
+		]);
 
-		tx.insert(postsTable).values([
+		await tx.insert(postsTable).values([
 			{ ownerId: 1, content: 'Post1' },
 			{ ownerId: 1, content: 'Post1.1' },
 			{ ownerId: 2, content: 'Post2' },
 			{ ownerId: 3, content: 'Post3' },
-		]).run();
+		]);
 
-		usersWithPosts = tx.query.usersTable.findMany({
+		usersWithPosts = await tx.query.usersTable.findMany({
 			where: {
 				id: 1,
 			},
@@ -824,13 +998,13 @@ test('[Find Many] Get users with posts in transaction', () => {
 					},
 				},
 			},
-		}).sync();
+		});
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -846,17 +1020,19 @@ test('[Find Many] Get users with posts in transaction', () => {
 	expect(usersWithPosts[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find Many] Get users with posts in rollbacked transaction', () => {
+test('[Find Many] Get users with posts in rollbacked transaction', async (t) => {
+	const { geljsDb: db } = t;
+
 	let usersWithPosts: {
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -866,42 +1042,40 @@ test('[Find Many] Get users with posts in rollbacked transaction', () => {
 		}[];
 	}[] = [];
 
-	expect(() =>
-		db.transaction((tx) => {
-			tx.insert(usersTable).values([
-				{ id: 1, name: 'Dan' },
-				{ id: 2, name: 'Andrew' },
-				{ id: 3, name: 'Alex' },
-			]).run();
+	await expect(db.transaction(async (tx) => {
+		await tx.insert(usersTable).values([
+			{ id: 1, name: 'Dan' },
+			{ id: 2, name: 'Andrew' },
+			{ id: 3, name: 'Alex' },
+		]);
 
-			tx.insert(postsTable).values([
-				{ ownerId: 1, content: 'Post1' },
-				{ ownerId: 1, content: 'Post1.1' },
-				{ ownerId: 2, content: 'Post2' },
-				{ ownerId: 3, content: 'Post3' },
-			]).run();
+		await tx.insert(postsTable).values([
+			{ ownerId: 1, content: 'Post1' },
+			{ ownerId: 1, content: 'Post1.1' },
+			{ ownerId: 2, content: 'Post2' },
+			{ ownerId: 3, content: 'Post3' },
+		]);
 
-			tx.rollback();
+		tx.rollback();
 
-			usersWithPosts = tx.query.usersTable.findMany({
-				where: {
-					id: 1,
-				},
-				with: {
-					posts: {
-						where: {
-							id: 1,
-						},
+		usersWithPosts = await tx.query.usersTable.findMany({
+			where: {
+				id: 1,
+			},
+			with: {
+				posts: {
+					where: {
+						id: 1,
 					},
 				},
-			}).sync();
-		})
-	).toThrow(TransactionRollbackError);
+			},
+		});
+	})).rejects.toThrowError(new TransactionRollbackError());
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -914,37 +1088,40 @@ test('[Find Many] Get users with posts in rollbacked transaction', () => {
 	expect(usersWithPosts.length).eq(0);
 });
 
-test('[Find Many] Get only custom fields', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get only custom fields', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
-		{ id: 1, ownerId: 1, content: 'Post1' },
-		{ id: 2, ownerId: 1, content: 'Post1.2' },
-		{ id: 3, ownerId: 1, content: 'Post1.3' },
-		{ id: 4, ownerId: 2, content: 'Post2' },
-		{ id: 5, ownerId: 2, content: 'Post2.1' },
-		{ id: 6, ownerId: 3, content: 'Post3' },
-		{ id: 7, ownerId: 3, content: 'Post3.1' },
-	]).run();
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 1, content: 'Post1.3' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
 				extras: ({
-					lowerName: ({ content }, { sql }) => sql<string>`lower(${content})`.as('content_lower'),
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
 		extras: ({
-			lowerName: ({ name }, { sql }) => sql<string>`lower(${name})`.as('name_lower'),
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		lowerName: string;
@@ -958,47 +1135,37 @@ test('[Find Many] Get only custom fields', () => {
 	expect(usersWithPosts[1]?.posts.length).toEqual(2);
 	expect(usersWithPosts[2]?.posts.length).toEqual(2);
 
-	expect(usersWithPosts[0]?.lowerName).toEqual('dan');
-	expect(usersWithPosts[1]?.lowerName).toEqual('andrew');
-	expect(usersWithPosts[2]?.lowerName).toEqual('alex');
-
-	expect(usersWithPosts[0]?.posts).toContainEqual({
-		lowerName: 'post1',
+	expect(usersWithPosts).toContainEqual({
+		lowerName: 'dan',
+		posts: [{ lowerName: 'post1' }, {
+			lowerName: 'post1.2',
+		}, { lowerName: 'post1.3' }],
 	});
-
-	expect(usersWithPosts[0]?.posts).toContainEqual({
-		lowerName: 'post1.2',
+	expect(usersWithPosts).toContainEqual({
+		lowerName: 'andrew',
+		posts: [{ lowerName: 'post2' }, {
+			lowerName: 'post2.1',
+		}],
 	});
-
-	expect(usersWithPosts[0]?.posts).toContainEqual({
-		lowerName: 'post1.3',
-	});
-
-	expect(usersWithPosts[1]?.posts).toContainEqual({
-		lowerName: 'post2',
-	});
-
-	expect(usersWithPosts[1]?.posts).toContainEqual({
-		lowerName: 'post2.1',
-	});
-
-	expect(usersWithPosts[2]?.posts).toContainEqual({
-		lowerName: 'post3',
-	});
-
-	expect(usersWithPosts[2]?.posts).toContainEqual({
-		lowerName: 'post3.1',
+	expect(usersWithPosts).toContainEqual({
+		lowerName: 'alex',
+		posts: [{ lowerName: 'post3' }, {
+			lowerName: 'post3.1',
+		}],
 	});
 });
 
-test('[Find Many] Get only custom fields + where', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get only custom fields + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1006,9 +1173,9 @@ test('[Find Many] Get only custom fields + where', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
@@ -1019,7 +1186,7 @@ test('[Find Many] Get only custom fields + where', () => {
 					},
 				},
 				extras: ({
-					lowerName: ({ content }, { sql }) => sql<string>`lower(${content})`.as('content_lower'),
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
@@ -1027,9 +1194,9 @@ test('[Find Many] Get only custom fields + where', () => {
 			id: 1,
 		},
 		extras: ({
-			lowerName: ({ name }, { sql }) => sql<string>`lower(${name})`.as('name_lower'),
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		lowerName: string;
@@ -1047,14 +1214,17 @@ test('[Find Many] Get only custom fields + where', () => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where + limit', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get only custom fields + where + limit', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1062,9 +1232,9 @@ test('[Find Many] Get only custom fields + where + limit', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
@@ -1076,7 +1246,7 @@ test('[Find Many] Get only custom fields + where + limit', () => {
 				},
 				limit: 1,
 				extras: ({
-					lowerName: ({ content }, { sql }) => sql<string>`lower(${content})`.as('content_lower'),
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
@@ -1084,9 +1254,9 @@ test('[Find Many] Get only custom fields + where + limit', () => {
 			id: 1,
 		},
 		extras: ({
-			lowerName: ({ name }, { sql }) => sql<string>`lower(${name})`.as('name_lower'),
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		lowerName: string;
@@ -1104,14 +1274,17 @@ test('[Find Many] Get only custom fields + where + limit', () => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where + orderBy', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get only custom fields + where + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1119,9 +1292,9 @@ test('[Find Many] Get only custom fields + where + orderBy', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findMany({
+	const usersWithPosts = await db.query.usersTable.findMany({
 		columns: {},
 		with: {
 			posts: {
@@ -1135,7 +1308,7 @@ test('[Find Many] Get only custom fields + where + orderBy', () => {
 					id: 'desc',
 				},
 				extras: ({
-					lowerName: ({ content }, { sql }) => sql<string>`lower(${content})`.as('content_lower'),
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
@@ -1143,9 +1316,9 @@ test('[Find Many] Get only custom fields + where + orderBy', () => {
 			id: 1,
 		},
 		extras: ({
-			lowerName: ({ name }, { sql }) => sql<string>`lower(${name})`.as('name_lower'),
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		lowerName: string;
@@ -1163,14 +1336,17 @@ test('[Find Many] Get only custom fields + where + orderBy', () => {
 	});
 });
 
-test('[Find One] Get only custom fields', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get only custom fields', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1178,22 +1354,22 @@ test('[Find One] Get only custom fields', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
 				columns: {},
 				extras: ({
-					lowerName: ({ content }, { sql }) => sql<string>`lower(${content})`.as('content_lower'),
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
 		extras: ({
-			lowerName: ({ name }, { sql }) => sql<string>`lower(${name})`.as('name_lower'),
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1206,29 +1382,25 @@ test('[Find One] Get only custom fields', () => {
 
 	expect(usersWithPosts?.posts.length).toEqual(3);
 
-	expect(usersWithPosts?.lowerName).toEqual('dan');
-
-	expect(usersWithPosts?.posts).toContainEqual({
-		lowerName: 'post1',
-	});
-
-	expect(usersWithPosts?.posts).toContainEqual({
-		lowerName: 'post1.2',
-	});
-
-	expect(usersWithPosts?.posts).toContainEqual({
-		lowerName: 'post1.3',
+	expect(usersWithPosts).toEqual({
+		lowerName: 'dan',
+		posts: [{ lowerName: 'post1' }, {
+			lowerName: 'post1.2',
+		}, { lowerName: 'post1.3' }],
 	});
 });
 
-test('[Find One] Get only custom fields + where', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get only custom fields + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1236,9 +1408,9 @@ test('[Find One] Get only custom fields + where', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
@@ -1249,7 +1421,7 @@ test('[Find One] Get only custom fields + where', () => {
 					},
 				},
 				extras: ({
-					lowerName: ({ content }, { sql }) => sql<string>`lower(${content})`.as('content_lower'),
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
@@ -1257,9 +1429,9 @@ test('[Find One] Get only custom fields + where', () => {
 			id: 1,
 		},
 		extras: ({
-			lowerName: ({ name }, { sql }) => sql<string>`lower(${name})`.as('name_lower'),
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1278,14 +1450,17 @@ test('[Find One] Get only custom fields + where', () => {
 	});
 });
 
-test('[Find One] Get only custom fields + where + limit', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get only custom fields + where + limit', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1293,9 +1468,9 @@ test('[Find One] Get only custom fields + where + limit', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
@@ -1307,7 +1482,7 @@ test('[Find One] Get only custom fields + where + limit', () => {
 				},
 				limit: 1,
 				extras: ({
-					lowerName: ({ content }, { sql }) => sql<string>`lower(${content})`.as('content_lower'),
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
@@ -1315,9 +1490,9 @@ test('[Find One] Get only custom fields + where + limit', () => {
 			id: 1,
 		},
 		extras: ({
-			lowerName: ({ name }, { sql }) => sql<string>`lower(${name})`.as('name_lower'),
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1336,14 +1511,17 @@ test('[Find One] Get only custom fields + where + limit', () => {
 	});
 });
 
-test('[Find One] Get only custom fields + where + orderBy', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get only custom fields + where + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1351,9 +1529,9 @@ test('[Find One] Get only custom fields + where + orderBy', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		columns: {},
 		with: {
 			posts: {
@@ -1367,7 +1545,7 @@ test('[Find One] Get only custom fields + where + orderBy', () => {
 					id: 'desc',
 				},
 				extras: ({
-					lowerName: ({ content }, { sql }) => sql<string>`lower(${content})`.as('content_lower'),
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
@@ -1375,9 +1553,9 @@ test('[Find One] Get only custom fields + where + orderBy', () => {
 			id: 1,
 		},
 		extras: ({
-			lowerName: ({ name }, { sql }) => sql<string>`lower(${name})`.as('name_lower'),
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1396,92 +1574,102 @@ test('[Find One] Get only custom fields + where + orderBy', () => {
 	});
 });
 
-test('[Find Many] Get select {}', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get select {}', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	expect(() =>
-		db.query.usersTable.findMany({
+	await expect(async () =>
+		await db.query.usersTable.findMany({
 			columns: {},
-		}).sync()
-	).toThrow(DrizzleError);
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
-test('[Find One] Get select {}', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get select {}', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	expect(() =>
-		db.query.usersTable.findFirst({
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
 			columns: {},
-		}).sync()
-	).toThrow(DrizzleError);
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
-test('[Find Many] Get deep select {}', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get deep select {}', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	expect(() =>
-		db.query.usersTable.findMany({
+	await expect(async () =>
+		await db.query.usersTable.findMany({
 			columns: {},
 			with: {
 				posts: {
 					columns: {},
 				},
 			},
-		}).sync()
-	).toThrow(DrizzleError);
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
-test('[Find One] Get deep select {}', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get deep select {}', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	expect(() =>
-		db.query.usersTable.findFirst({
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
 			columns: {},
 			with: {
 				posts: {
 					columns: {},
 				},
 			},
-		}).sync()
-	).toThrow(DrizzleError);
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
-test('[Find Many] Get users with posts + prepared limit', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + prepared limit', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1489,7 +1677,7 @@ test('[Find Many] Get users with posts + prepared limit', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
 	const prepared = db.query.usersTable.findMany({
 		with: {
@@ -1497,14 +1685,14 @@ test('[Find Many] Get users with posts + prepared limit', () => {
 				limit: sql.placeholder('limit'),
 			},
 		},
-	}).prepare();
+	}).prepare('query1');
 
-	const usersWithPosts = prepared.execute({ limit: 1 }).sync();
+	const usersWithPosts = await prepared.execute({ limit: 1 });
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -1522,34 +1710,36 @@ test('[Find Many] Get users with posts + prepared limit', () => {
 	expect(usersWithPosts).toContainEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 	expect(usersWithPosts).toContainEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 4, ownerId: 2, content: 'Post2', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }],
 	});
 	expect(usersWithPosts).toContainEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find Many] Get users with posts + prepared limit + offset', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + prepared limit + offset', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1557,7 +1747,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
 	const prepared = db.query.usersTable.findMany({
 		limit: sql.placeholder('uLimit'),
@@ -1567,14 +1757,14 @@ test('[Find Many] Get users with posts + prepared limit + offset', () => {
 				limit: sql.placeholder('pLimit'),
 			},
 		},
-	}).prepare();
+	}).prepare('query2');
 
-	const usersWithPosts = prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1 }).sync();
+	const usersWithPosts = await prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1 });
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -1591,32 +1781,34 @@ test('[Find Many] Get users with posts + prepared limit + offset', () => {
 	expect(usersWithPosts).toContainEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 4, ownerId: 2, content: 'Post2', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 	expect(usersWithPosts).toContainEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find Many] Get users with posts + prepared where', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + prepared where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
 	const prepared = db.query.usersTable.findMany({
 		where: {
@@ -1631,14 +1823,14 @@ test('[Find Many] Get users with posts + prepared where', () => {
 				},
 			},
 		},
-	}).prepare();
+	}).prepare('query3');
 
-	const usersWithPosts = prepared.execute({ id: 1 }).sync();
+	const usersWithPosts = await prepared.execute({ id: 1 });
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -1654,20 +1846,22 @@ test('[Find Many] Get users with posts + prepared where', () => {
 	expect(usersWithPosts[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find Many] Get users with posts + prepared + limit + offset + where', () => {
-	db.insert(usersTable).values([
+test('[Find Many] Get users with posts + prepared + limit + offset + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1675,17 +1869,14 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', () 
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
 	const prepared = db.query.usersTable.findMany({
 		limit: sql.placeholder('uLimit'),
 		offset: sql.placeholder('uOffset'),
 		where: {
 			id: {
-				OR: [
-					{ eq: sql.placeholder('id') },
-					3,
-				],
+				OR: [{ eq: sql.placeholder('id') }, 3],
 			},
 		},
 		with: {
@@ -1698,14 +1889,14 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', () 
 				limit: sql.placeholder('pLimit'),
 			},
 		},
-	}).prepare();
+	}).prepare('query4');
 
-	const usersWithPosts = prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1, id: 2, pid: 6 }).sync();
+	const usersWithPosts = await prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1, id: 2, pid: 6 });
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -1721,36 +1912,38 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', () 
 	expect(usersWithPosts).toContainEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find One] Get users with posts', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get users with posts', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		with: {
 			posts: true,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: {
 				id: number;
@@ -1766,20 +1959,22 @@ test('[Find One] Get users with posts', () => {
 	expect(usersWithPosts).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find One] Get users with posts + limit posts', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get users with posts + limit posts', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1787,21 +1982,21 @@ test('[Find One] Get users with posts + limit posts', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: {
 				id: number;
@@ -1817,26 +2012,28 @@ test('[Find One] Get users with posts + limit posts', () => {
 	expect(usersWithPosts).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find One] Get users with posts no results found', () => {
-	const usersWithPosts = db.query.usersTable.findFirst({
+test('[Find One] Get users with posts no results found', async (t) => {
+	const { geljsDb: db } = t;
+
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: {
 				id: number;
@@ -1850,14 +2047,16 @@ test('[Find One] Get users with posts no results found', () => {
 	expect(usersWithPosts).toBeUndefined();
 });
 
-test('[Find One] Get users with posts + limit posts and users', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get users with posts + limit posts and users', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1865,21 +2064,21 @@ test('[Find One] Get users with posts + limit posts and users', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: {
 				id: number;
@@ -1895,20 +2094,22 @@ test('[Find One] Get users with posts + limit posts and users', () => {
 	expect(usersWithPosts).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find One] Get users with posts + custom fields', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get users with posts + custom fields', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1916,22 +2117,22 @@ test('[Find One] Get users with posts + custom fields', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		with: {
 			posts: true,
 		},
 		extras: ({
-			lowerName: ({ name }, { sql }) => sql<string>`lower(${name})`.as('name_lower'),
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			lowerName: string;
 			posts: {
@@ -1945,42 +2146,31 @@ test('[Find One] Get users with posts + custom fields', () => {
 
 	expect(usersWithPosts!.posts.length).toEqual(3);
 
-	expect(usersWithPosts?.lowerName).toEqual('dan');
-	expect(usersWithPosts?.id).toEqual(1);
-	expect(usersWithPosts?.verified).toEqual(0);
-	expect(usersWithPosts?.invitedBy).toEqual(null);
-	expect(usersWithPosts?.name).toEqual('Dan');
-
-	expect(usersWithPosts?.posts).toContainEqual({
+	expect(usersWithPosts).toEqual({
 		id: 1,
-		ownerId: 1,
-		content: 'Post1',
-		createdAt: usersWithPosts?.posts[0]?.createdAt,
-	});
-
-	expect(usersWithPosts?.posts).toContainEqual({
-		id: 2,
-		ownerId: 1,
-		content: 'Post1.2',
-		createdAt: usersWithPosts?.posts[1]?.createdAt,
-	});
-
-	expect(usersWithPosts?.posts).toContainEqual({
-		id: 3,
-		ownerId: 1,
-		content: 'Post1.3',
-		createdAt: usersWithPosts?.posts[2]?.createdAt,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		lowerName: 'dan',
+		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts?.posts[0]?.createdAt }, {
+			id: 2,
+			ownerId: 1,
+			content: 'Post1.2',
+			createdAt: usersWithPosts?.posts[1]?.createdAt,
+		}, { id: 3, ownerId: 1, content: 'Post1.3', createdAt: usersWithPosts?.posts[2]?.createdAt }],
 	});
 });
 
-test('[Find One] Get users with posts + custom fields + limits', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get users with posts + custom fields + limits', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.2' },
 		{ ownerId: 1, content: 'Post1.3' },
@@ -1988,9 +2178,9 @@ test('[Find One] Get users with posts + custom fields + limits', () => {
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		with: {
 			posts: {
 				limit: 1,
@@ -1999,13 +2189,13 @@ test('[Find One] Get users with posts + custom fields + limits', () => {
 		extras: ({
 			lowerName: (usersTable, { sql }) => sql<string>`lower(${usersTable.name})`.as('name_lower'),
 		}),
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			lowerName: string;
 			posts: {
@@ -2023,20 +2213,22 @@ test('[Find One] Get users with posts + custom fields + limits', () => {
 		id: 1,
 		name: 'Dan',
 		lowerName: 'dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts?.posts[0]?.createdAt }],
 	});
 });
 
-test.skip('[Find One] Get users with posts + orderBy', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get users with posts + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: '1' },
 		{ ownerId: 1, content: '2' },
 		{ ownerId: 1, content: '3' },
@@ -2044,26 +2236,26 @@ test.skip('[Find One] Get users with posts + orderBy', () => {
 		{ ownerId: 2, content: '5' },
 		{ ownerId: 3, content: '6' },
 		{ ownerId: 3, content: '7' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		with: {
 			posts: {
 				orderBy: {
-					id: 'asc',
+					content: 'desc',
 				},
 			},
 		},
 		orderBy: {
 			id: 'desc',
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: {
 				id: number;
@@ -2079,7 +2271,7 @@ test.skip('[Find One] Get users with posts + orderBy', () => {
 	expect(usersWithPosts).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{
 			id: 7,
@@ -2090,21 +2282,23 @@ test.skip('[Find One] Get users with posts + orderBy', () => {
 	});
 });
 
-test('[Find One] Get users with posts + where', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get users with posts + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		where: {
 			id: 1,
 		},
@@ -2115,13 +2309,13 @@ test('[Find One] Get users with posts + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: {
 				id: number;
@@ -2137,27 +2331,29 @@ test('[Find One] Get users with posts + where', () => {
 	expect(usersWithPosts).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts?.posts[0]?.createdAt }],
 	});
 });
 
-test('[Find One] Get users with posts + where + partial', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get users with posts + where + partial', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		columns: {
 			id: true,
 			name: true,
@@ -2176,7 +2372,7 @@ test('[Find One] Get users with posts + where + partial', () => {
 		where: {
 			id: 1,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -2198,21 +2394,23 @@ test('[Find One] Get users with posts + where + partial', () => {
 	});
 });
 
-test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		columns: {
 			id: true,
 			name: true,
@@ -2231,7 +2429,7 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 		where: {
 			id: 1,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -2253,21 +2451,24 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 	});
 });
 
-test('[Find One] Get users with posts + where + partial(true + false)', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get users with posts + where + partial(true + false)', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		columns: {
 			id: true,
 			name: false,
@@ -2286,7 +2487,7 @@ test('[Find One] Get users with posts + where + partial(true + false)', () => {
 		where: {
 			id: 1,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -2305,21 +2506,23 @@ test('[Find One] Get users with posts + where + partial(true + false)', () => {
 	});
 });
 
-test('[Find One] Get users with posts + where + partial(false)', () => {
-	db.insert(usersTable).values([
+test('[Find One] Get users with posts + where + partial(false)', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const usersWithPosts = db.query.usersTable.findFirst({
+	const usersWithPosts = await db.query.usersTable.findFirst({
 		columns: {
 			name: false,
 		},
@@ -2336,12 +2539,12 @@ test('[Find One] Get users with posts + where + partial(false)', () => {
 		where: {
 			id: 1,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
 			id: number;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: {
 				id: number;
@@ -2355,36 +2558,38 @@ test('[Find One] Get users with posts + where + partial(false)', () => {
 
 	expect(usersWithPosts).toEqual({
 		id: 1,
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, createdAt: usersWithPosts?.posts[0]?.createdAt }],
 	});
 });
 
-test('Get user with invitee', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	const usersWithInvitee = db.query.usersTable.findMany({
+	const usersWithInvitee = await db.query.usersTable.findMany({
 		with: {
 			invitee: true,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -2401,58 +2606,60 @@ test('Get user with invitee', () => {
 	expect(usersWithInvitee[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 	});
 	expect(usersWithInvitee[1]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 	});
 	expect(usersWithInvitee[2]).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 	});
 	expect(usersWithInvitee[3]).toEqual({
 		id: 4,
 		name: 'John',
-		verified: 0,
+		verified: false,
 		invitedBy: 2,
-		invitee: { id: 2, name: 'Andrew', verified: 0, invitedBy: null },
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
 	});
 });
 
-test('Get user + limit with invitee', () => {
-	db.insert(usersTable).values([
+test('Get user + limit with invitee', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew', invitedBy: 1 },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	const usersWithInvitee = db.query.usersTable.findMany({
+	const usersWithInvitee = await db.query.usersTable.findMany({
 		with: {
 			invitee: true,
 		},
 		limit: 2,
-	}).sync();
+	});
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -2467,47 +2674,49 @@ test('Get user + limit with invitee', () => {
 	expect(usersWithInvitee[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 	});
 	expect(usersWithInvitee[1]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 	});
 });
 
-test('Get user with invitee and custom fields', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and custom fields', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	const usersWithInvitee = db.query.usersTable.findMany({
+	const usersWithInvitee = await db.query.usersTable.findMany({
 		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
 				extras: ({ lower: (invitee, { sql }) => sql<string>`lower(${invitee.name})`.as('lower_name') }),
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			lower: string;
 			invitedBy: number | null;
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				lower: string;
 				invitedBy: number | null;
 			} | null;
@@ -2526,7 +2735,7 @@ test('Get user with invitee and custom fields', () => {
 		id: 1,
 		name: 'Dan',
 		lower: 'dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 	});
@@ -2534,7 +2743,7 @@ test('Get user with invitee and custom fields', () => {
 		id: 2,
 		name: 'Andrew',
 		lower: 'andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 	});
@@ -2542,29 +2751,31 @@ test('Get user with invitee and custom fields', () => {
 		id: 3,
 		name: 'Alex',
 		lower: 'alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: false, invitedBy: null },
 	});
 	expect(usersWithInvitee[3]).toEqual({
 		id: 4,
 		name: 'John',
 		lower: 'john',
-		verified: 0,
+		verified: false,
 		invitedBy: 2,
-		invitee: { id: 2, name: 'Andrew', lower: 'andrew', verified: 0, invitedBy: null },
+		invitee: { id: 2, name: 'Andrew', lower: 'andrew', verified: false, invitedBy: null },
 	});
 });
 
-test('Get user with invitee and custom fields + limits', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and custom fields + limits', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	const usersWithInvitee = db.query.usersTable.findMany({
+	const usersWithInvitee = await db.query.usersTable.findMany({
 		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		limit: 3,
 		with: {
@@ -2572,19 +2783,19 @@ test('Get user with invitee and custom fields + limits', () => {
 				extras: ({ lower: (invitee, { sql }) => sql<string>`lower(${invitee.name})`.as('lower_name') }),
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			lower: string;
 			invitedBy: number | null;
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				lower: string;
 				invitedBy: number | null;
 			} | null;
@@ -2602,7 +2813,7 @@ test('Get user with invitee and custom fields + limits', () => {
 		id: 1,
 		name: 'Dan',
 		lower: 'dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 	});
@@ -2610,7 +2821,7 @@ test('Get user with invitee and custom fields + limits', () => {
 		id: 2,
 		name: 'Andrew',
 		lower: 'andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 	});
@@ -2618,39 +2829,41 @@ test('Get user with invitee and custom fields + limits', () => {
 		id: 3,
 		name: 'Alex',
 		lower: 'alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: false, invitedBy: null },
 	});
 });
 
-test('Get user with invitee + order by', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee + order by', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	const usersWithInvitee = db.query.usersTable.findMany({
+	const usersWithInvitee = await db.query.usersTable.findMany({
 		orderBy: {
 			id: 'desc',
 		},
 		with: {
 			invitee: true,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -2665,42 +2878,44 @@ test('Get user with invitee + order by', () => {
 	expect(usersWithInvitee[3]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 	});
 	expect(usersWithInvitee[2]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 	});
 	expect(usersWithInvitee[1]).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 	});
 	expect(usersWithInvitee[0]).toEqual({
 		id: 4,
 		name: 'John',
-		verified: 0,
+		verified: false,
 		invitedBy: 2,
-		invitee: { id: 2, name: 'Andrew', verified: 0, invitedBy: null },
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
 	});
 });
 
-test('Get user with invitee + where', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	const usersWithInvitee = db.query.usersTable.findMany({
+	const usersWithInvitee = await db.query.usersTable.findMany({
 		where: {
 			id: {
 				OR: [3, 4],
@@ -2709,18 +2924,18 @@ test('Get user with invitee + where', () => {
 		with: {
 			invitee: true,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -2733,28 +2948,30 @@ test('Get user with invitee + where', () => {
 	expect(usersWithInvitee).toContainEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 	});
 	expect(usersWithInvitee).toContainEqual({
 		id: 4,
 		name: 'John',
-		verified: 0,
+		verified: false,
 		invitedBy: 2,
-		invitee: { id: 2, name: 'Andrew', verified: 0, invitedBy: null },
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
 	});
 });
 
-test('Get user with invitee + where + partial', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee + where + partial', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	const usersWithInvitee = db.query.usersTable.findMany({
+	const usersWithInvitee = await db.query.usersTable.findMany({
 		where: {
 			id: {
 				OR: [3, 4],
@@ -2772,7 +2989,7 @@ test('Get user with invitee + where + partial', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2801,15 +3018,17 @@ test('Get user with invitee + where + partial', () => {
 	});
 });
 
-test('Get user with invitee + where + partial.  Did not select users id, but used it in where', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee + where + partial.  Did not select users id, but used it in where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	const usersWithInvitee = db.query.usersTable.findMany({
+	const usersWithInvitee = await db.query.usersTable.findMany({
 		where: {
 			id: {
 				OR: [3, 4],
@@ -2826,7 +3045,7 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2852,15 +3071,17 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 	});
 });
 
-test('Get user with invitee + where + partial(true+false)', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee + where + partial(true+false)', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	const usersWithInvitee = db.query.usersTable.findMany({
+	const usersWithInvitee = await db.query.usersTable.findMany({
 		where: {
 			id: {
 				OR: [3, 4],
@@ -2880,7 +3101,7 @@ test('Get user with invitee + where + partial(true+false)', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2909,15 +3130,17 @@ test('Get user with invitee + where + partial(true+false)', () => {
 	});
 });
 
-test('Get user with invitee + where + partial(false)', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee + where + partial(false)', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	const usersWithInvitee = db.query.usersTable.findMany({
+	const usersWithInvitee = await db.query.usersTable.findMany({
 		where: {
 			id: {
 				OR: [3, 4],
@@ -2933,7 +3156,7 @@ test('Get user with invitee + where + partial(false)', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2942,7 +3165,7 @@ test('Get user with invitee + where + partial(false)', () => {
 			invitedBy: number | null;
 			invitee: {
 				id: number;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -2956,48 +3179,50 @@ test('Get user with invitee + where + partial(false)', () => {
 		id: 3,
 		name: 'Alex',
 		invitedBy: 1,
-		invitee: { id: 1, verified: 0, invitedBy: null },
+		invitee: { id: 1, verified: false, invitedBy: null },
 	});
 	expect(usersWithInvitee).toContainEqual({
 		id: 4,
 		name: 'John',
 		invitedBy: 2,
-		invitee: { id: 2, verified: 0, invitedBy: null },
+		invitee: { id: 2, verified: false, invitedBy: null },
 	});
 });
 
-test('Get user with invitee and posts', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and posts', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		with: {
 			invitee: true,
 			posts: true,
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: { id: number; ownerId: number | null; content: string; createdAt: Date }[];
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -3019,7 +3244,7 @@ test('Get user with invitee and posts', () => {
 	expect(response).toContainEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: response[0]?.posts[0]?.createdAt }],
@@ -3027,7 +3252,7 @@ test('Get user with invitee and posts', () => {
 	expect(response).toContainEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: response[1]?.posts[0]?.createdAt }],
@@ -3035,39 +3260,41 @@ test('Get user with invitee and posts', () => {
 	expect(response).toContainEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 		posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: response[2]?.posts[0]?.createdAt }],
 	});
 	expect(response).toContainEqual({
 		id: 4,
 		name: 'John',
-		verified: 0,
+		verified: false,
 		invitedBy: 2,
-		invitee: { id: 2, name: 'Andrew', verified: 0, invitedBy: null },
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
 		posts: [],
 	});
 });
 
-test('Get user with invitee and posts + limit posts and users', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and posts + limit posts and users', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		limit: 3,
 		with: {
 			invitee: true,
@@ -3075,19 +3302,19 @@ test('Get user with invitee and posts + limit posts and users', () => {
 				limit: 1,
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: { id: number; ownerId: number | null; content: string; createdAt: Date }[];
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -3108,7 +3335,7 @@ test('Get user with invitee and posts + limit posts and users', () => {
 	expect(response).toContainEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: response[0]?.posts[0]?.createdAt }],
@@ -3116,7 +3343,7 @@ test('Get user with invitee and posts + limit posts and users', () => {
 	expect(response).toContainEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 3, ownerId: 2, content: 'Post2', createdAt: response[1]?.posts[0]?.createdAt }],
@@ -3124,31 +3351,33 @@ test('Get user with invitee and posts + limit posts and users', () => {
 	expect(response).toContainEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 		posts: [{ id: 5, ownerId: 3, content: 'Post3', createdAt: response[2]?.posts[0]?.createdAt }],
 	});
 });
 
-test('Get user with invitee and posts + limits + custom fields in each', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and posts + limits + custom fields in each', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		limit: 3,
 		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
@@ -3160,13 +3389,13 @@ test('Get user with invitee and posts + limits + custom fields in each', () => {
 				extras: ({ lower: (posts, { sql }) => sql<string>`lower(${posts.content})`.as('lower_content') }),
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			lower: string;
 			invitedBy: number | null;
 			posts: { id: number; lower: string; ownerId: number | null; content: string; createdAt: Date }[];
@@ -3174,7 +3403,7 @@ test('Get user with invitee and posts + limits + custom fields in each', () => {
 				id: number;
 				name: string;
 				lower: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -3196,7 +3425,7 @@ test('Get user with invitee and posts + limits + custom fields in each', () => {
 		id: 1,
 		name: 'Dan',
 		lower: 'dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', lower: 'post1', createdAt: response[0]?.posts[0]?.createdAt }],
@@ -3205,7 +3434,7 @@ test('Get user with invitee and posts + limits + custom fields in each', () => {
 		id: 2,
 		name: 'Andrew',
 		lower: 'andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 3, ownerId: 2, content: 'Post2', lower: 'post2', createdAt: response[1]?.posts[0]?.createdAt }],
@@ -3214,31 +3443,33 @@ test('Get user with invitee and posts + limits + custom fields in each', () => {
 		id: 3,
 		name: 'Alex',
 		lower: 'alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: false, invitedBy: null },
 		posts: [{ id: 5, ownerId: 3, content: 'Post3', lower: 'post3', createdAt: response[2]?.posts[0]?.createdAt }],
 	});
 });
 
-test('Get user with invitee and posts + custom fields in each', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and posts + custom fields in each', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
@@ -3248,13 +3479,13 @@ test('Get user with invitee and posts + custom fields in each', () => {
 				extras: ({ lower: (posts, { sql }) => sql<string>`lower(${posts.content})`.as('lower_name') }),
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			lower: string;
 			invitedBy: number | null;
 			posts: { id: number; lower: string; ownerId: number | null; content: string; createdAt: Date }[];
@@ -3262,17 +3493,13 @@ test('Get user with invitee and posts + custom fields in each', () => {
 				id: number;
 				name: string;
 				lower: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
 	>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
-
-	response[0]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
-	response[1]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
-	response[2]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(response.length).eq(4);
 
@@ -3290,7 +3517,7 @@ test('Get user with invitee and posts + custom fields in each', () => {
 		id: 1,
 		name: 'Dan',
 		lower: 'dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', lower: 'post1', createdAt: response[0]?.posts[0]?.createdAt }, {
@@ -3305,7 +3532,7 @@ test('Get user with invitee and posts + custom fields in each', () => {
 		id: 2,
 		name: 'Andrew',
 		lower: 'andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 3, ownerId: 2, content: 'Post2', lower: 'post2', createdAt: response[1]?.posts[0]?.createdAt }, {
@@ -3320,9 +3547,9 @@ test('Get user with invitee and posts + custom fields in each', () => {
 		id: 3,
 		name: 'Alex',
 		lower: 'alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: false, invitedBy: null },
 		posts: [{ id: 5, ownerId: 3, content: 'Post3', lower: 'post3', createdAt: response[2]?.posts[0]?.createdAt }, {
 			id: 6,
 			ownerId: 3,
@@ -3335,30 +3562,32 @@ test('Get user with invitee and posts + custom fields in each', () => {
 		id: 4,
 		name: 'John',
 		lower: 'john',
-		verified: 0,
+		verified: false,
 		invitedBy: 2,
-		invitee: { id: 2, name: 'Andrew', lower: 'andrew', verified: 0, invitedBy: null },
+		invitee: { id: 2, name: 'Andrew', lower: 'andrew', verified: false, invitedBy: null },
 		posts: [],
 	});
 });
 
-test.skip('Get user with invitee and posts + orderBy', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and posts + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		orderBy: {
 			id: 'desc',
 		},
@@ -3370,19 +3599,19 @@ test.skip('Get user with invitee and posts + orderBy', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: { id: number; ownerId: number | null; content: string; createdAt: Date }[];
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -3403,7 +3632,7 @@ test.skip('Get user with invitee and posts + orderBy', () => {
 	expect(response[3]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 2, ownerId: 1, content: 'Post1.1', createdAt: response[3]?.posts[0]?.createdAt }, {
@@ -3416,7 +3645,7 @@ test.skip('Get user with invitee and posts + orderBy', () => {
 	expect(response[2]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 4, ownerId: 2, content: 'Post2.1', createdAt: response[2]?.posts[0]?.createdAt }, {
@@ -3429,9 +3658,9 @@ test.skip('Get user with invitee and posts + orderBy', () => {
 	expect(response[1]).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 		posts: [{
 			id: 5,
 			ownerId: 3,
@@ -3442,28 +3671,30 @@ test.skip('Get user with invitee and posts + orderBy', () => {
 	expect(response[0]).toEqual({
 		id: 4,
 		name: 'John',
-		verified: 0,
+		verified: false,
 		invitedBy: 2,
-		invitee: { id: 2, name: 'Andrew', verified: 0, invitedBy: null },
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
 		posts: [],
 	});
 });
 
-test('Get user with invitee and posts + where', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and posts + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		where: {
 			id: {
 				OR: [2, 3],
@@ -3477,19 +3708,19 @@ test('Get user with invitee and posts + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: { id: number; ownerId: number | null; content: string; createdAt: Date }[];
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -3508,7 +3739,7 @@ test('Get user with invitee and posts + where', () => {
 	expect(response).toContainEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		invitee: null,
 		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: response[0]?.posts[0]?.createdAt }],
@@ -3516,31 +3747,33 @@ test('Get user with invitee and posts + where', () => {
 	expect(response).toContainEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 		posts: [],
 	});
 });
 
-test('Get user with invitee and posts + limit posts and users + where', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and posts + limit posts and users + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
 		{ ownerId: 3, content: 'Post3.1' },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		where: {
 			id: {
 				OR: [3, 4],
@@ -3556,19 +3789,19 @@ test('Get user with invitee and posts + limit posts and users + where', () => {
 				limit: 1,
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: { id: number; ownerId: number | null; content: string; createdAt: Date }[];
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -3582,30 +3815,32 @@ test('Get user with invitee and posts + limit posts and users + where', () => {
 	expect(response).toContainEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 		posts: [{ id: 5, ownerId: 3, content: 'Post3', createdAt: response[0]?.posts[0]?.createdAt }],
 	});
 });
 
-test('Get user with invitee and posts + orderBy + where + custom', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and posts + orderBy + where + custom', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		orderBy: {
 			id: 'desc',
 		},
@@ -3615,7 +3850,7 @@ test('Get user with invitee and posts + orderBy + where + custom', () => {
 			},
 		},
 		extras: ({
-			lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
+			lower: ({ name }) => sql<string>`lower(${name})`.as('lower_name'),
 		}),
 		with: {
 			invitee: true,
@@ -3627,24 +3862,24 @@ test('Get user with invitee and posts + orderBy + where + custom', () => {
 					id: 'desc',
 				},
 				extras: ({
-					lower: (postsTable) => sql<string>`lower(${postsTable.content})`.as('lower_name'),
+					lower: ({ content }) => sql<string>`lower(${content})`.as('lower_name'),
 				}),
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			lower: string;
 			posts: { id: number; lower: string; ownerId: number | null; content: string; createdAt: Date }[];
 			invitee: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			} | null;
 		}[]
@@ -3662,9 +3897,9 @@ test('Get user with invitee and posts + orderBy + where + custom', () => {
 		id: 3,
 		name: 'Alex',
 		lower: 'alex',
-		verified: 0,
+		verified: false,
 		invitedBy: 1,
-		invitee: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 		posts: [{
 			id: 5,
 			ownerId: 3,
@@ -3677,30 +3912,32 @@ test('Get user with invitee and posts + orderBy + where + custom', () => {
 		id: 4,
 		name: 'John',
 		lower: 'john',
-		verified: 0,
+		verified: false,
 		invitedBy: 2,
-		invitee: { id: 2, name: 'Andrew', verified: 0, invitedBy: null },
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
 		posts: [],
 	});
 });
 
-test('Get user with invitee and posts + orderBy + where + partial + custom', () => {
-	db.insert(usersTable).values([
+test('Get user with invitee and posts + orderBy + where + partial + custom', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex', invitedBy: 1 },
 		{ id: 4, name: 'John', invitedBy: 2 },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ ownerId: 1, content: 'Post1' },
 		{ ownerId: 1, content: 'Post1.1' },
 		{ ownerId: 2, content: 'Post2' },
 		{ ownerId: 2, content: 'Post2.1' },
 		{ ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		orderBy: {
 			id: 'desc',
 		},
@@ -3710,7 +3947,7 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', () 
 			},
 		},
 		extras: ({
-			lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
+			lower: ({ name }) => sql<string>`lower(${name})`.as('lower_name'),
 		}),
 		columns: {
 			id: true,
@@ -3723,7 +3960,7 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', () 
 					name: true,
 				},
 				extras: ({
-					lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
+					lower: ({ name }) => sql<string>`lower(${name})`.as('lower_name'),
 				}),
 			},
 			posts: {
@@ -3738,11 +3975,11 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', () 
 					id: 'desc',
 				},
 				extras: ({
-					lower: (postsTable) => sql<string>`lower(${postsTable.content})`.as('lower_name'),
+					lower: ({ content }) => sql<string>`lower(${content})`.as('lower_name'),
 				}),
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3786,26 +4023,28 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', () 
 	});
 });
 
-test('Get user with posts and posts with comments', () => {
-	db.insert(usersTable).values([
+test('Get user with posts and posts with comments', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ id: 1, ownerId: 1, content: 'Post1' },
 		{ id: 2, ownerId: 2, content: 'Post2' },
 		{ id: 3, ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	db.insert(commentsTable).values([
+	await db.insert(commentsTable).values([
 		{ postId: 1, content: 'Comment1', creator: 2 },
 		{ postId: 2, content: 'Comment2', creator: 2 },
 		{ postId: 3, content: 'Comment3', creator: 3 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		with: {
 			posts: {
 				with: {
@@ -3813,13 +4052,13 @@ test('Get user with posts and posts with comments', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			posts: {
 				id: number;
@@ -3851,7 +4090,7 @@ test('Get user with posts and posts with comments', () => {
 	expect(response[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{
 			id: 1,
@@ -3872,7 +4111,7 @@ test('Get user with posts and posts with comments', () => {
 	expect(response[1]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{
 			id: 2,
@@ -3893,7 +4132,7 @@ test('Get user with posts and posts with comments', () => {
 	// expect(response[2]).toEqual({
 	// 	id: 3,
 	// 	name: 'Alex',
-	// 	verified: 0,
+	// 	verified: false,
 	// 	invitedBy: null,
 	// 	posts: [{
 	// 		id: 3,
@@ -3913,26 +4152,28 @@ test('Get user with posts and posts with comments', () => {
 	// });
 });
 
-test('Get user with posts and posts with comments and comments with owner', () => {
-	db.insert(usersTable).values([
+test('Get user with posts and posts with comments and comments with owner', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ id: 1, ownerId: 1, content: 'Post1' },
 		{ id: 2, ownerId: 2, content: 'Post2' },
 		{ id: 3, ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	db.insert(commentsTable).values([
+	await db.insert(commentsTable).values([
 		{ postId: 1, content: 'Comment1', creator: 2 },
 		{ postId: 2, content: 'Comment2', creator: 2 },
 		{ postId: 3, content: 'Comment3', creator: 3 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		with: {
 			posts: {
 				with: {
@@ -3944,12 +4185,12 @@ test('Get user with posts and posts with comments and comments with owner', () =
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -3965,7 +4206,7 @@ test('Get user with posts and posts with comments and comments with owner', () =
 				author: {
 					id: number;
 					name: string;
-					verified: number;
+					verified: boolean;
 					invitedBy: number | null;
 				};
 			}[];
@@ -3986,7 +4227,7 @@ test('Get user with posts and posts with comments and comments with owner', () =
 	expect(response[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{
 			id: 1,
@@ -4001,7 +4242,7 @@ test('Get user with posts and posts with comments and comments with owner', () =
 					author: {
 						id: 2,
 						name: 'Andrew',
-						verified: 0,
+						verified: false,
 						invitedBy: null,
 					},
 					postId: 1,
@@ -4013,7 +4254,7 @@ test('Get user with posts and posts with comments and comments with owner', () =
 	expect(response[1]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{
 			id: 2,
@@ -4028,7 +4269,7 @@ test('Get user with posts and posts with comments and comments with owner', () =
 					author: {
 						id: 2,
 						name: 'Andrew',
-						verified: 0,
+						verified: false,
 						invitedBy: null,
 					},
 					postId: 2,
@@ -4039,26 +4280,28 @@ test('Get user with posts and posts with comments and comments with owner', () =
 	});
 });
 
-test('Get user with posts and posts with comments and comments with owner where exists', () => {
-	db.insert(usersTable).values([
+test('Get user with posts and posts with comments and comments with owner where exists', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(postsTable).values([
+	await db.insert(postsTable).values([
 		{ id: 1, ownerId: 1, content: 'Post1' },
 		{ id: 2, ownerId: 2, content: 'Post2' },
 		{ id: 3, ownerId: 3, content: 'Post3' },
-	]).run();
+	]);
 
-	db.insert(commentsTable).values([
+	await db.insert(commentsTable).values([
 		{ postId: 1, content: 'Comment1', creator: 2 },
 		{ postId: 2, content: 'Comment2', creator: 2 },
 		{ postId: 3, content: 'Comment3', creator: 3 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		with: {
 			posts: {
 				with: {
@@ -4071,14 +4314,15 @@ test('Get user with posts and posts with comments and comments with owner where 
 			},
 		},
 		where: {
-			RAW: ({ id }, { exists }) => exists(db.select({ one: sql`1` }).from(alias(usersTable, 'alias')).where(eq(id, 1))),
+			RAW: ({ id }, { notExists, eq }) =>
+				notExists(db.select({ one: sql`1` }).from(alias(usersTable, 'alias')).where(eq(sql`1`, id))),
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -4094,40 +4338,40 @@ test('Get user with posts and posts with comments and comments with owner where 
 				author: {
 					id: number;
 					name: string;
-					verified: number;
+					verified: boolean;
 					invitedBy: number | null;
 				};
 			}[];
 		}[];
 	}[]>();
 
-	expect(response.length).eq(1);
+	expect(response.length).eq(2);
 	expect(response[0]?.posts.length).eq(1);
 
 	expect(response[0]?.posts[0]?.comments.length).eq(1);
 
 	expect(response[0]).toEqual({
-		id: 1,
-		name: 'Dan',
-		verified: 0,
+		id: 2,
+		name: 'Andrew',
+		verified: false,
 		invitedBy: null,
 		posts: [{
-			id: 1,
-			ownerId: 1,
-			content: 'Post1',
+			id: 2,
+			ownerId: 2,
+			content: 'Post2',
 			createdAt: response[0]?.posts[0]?.createdAt,
 			comments: [
 				{
-					id: 1,
-					content: 'Comment1',
+					id: 2,
+					content: 'Comment2',
 					creator: 2,
 					author: {
 						id: 2,
 						name: 'Andrew',
-						verified: 0,
+						verified: false,
 						invitedBy: null,
 					},
-					postId: 1,
+					postId: 2,
 					createdAt: response[0]?.posts[0]?.comments[0]?.createdAt,
 				},
 			],
@@ -4135,41 +4379,47 @@ test('Get user with posts and posts with comments and comments with owner where 
 	});
 });
 
-test('[Find Many] Get users with groups', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get users with groups', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		with: {
 			usersToGroups: {
 				columns: {},
 				with: {
 					group: true,
 				},
+				orderBy: {
+					groupId: 'asc',
+				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		usersToGroups: {
 			group: {
@@ -4191,7 +4441,7 @@ test('[Find Many] Get users with groups', () => {
 	expect(response).toContainEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -4205,7 +4455,7 @@ test('[Find Many] Get users with groups', () => {
 	expect(response).toContainEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -4219,45 +4469,51 @@ test('[Find Many] Get users with groups', () => {
 	expect(response).toContainEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
-		usersToGroups: expect.arrayContaining([{
-			group: {
-				id: 2,
-				name: 'Group2',
-				description: null,
+		usersToGroups: expect.arrayContaining([
+			{
+				group: {
+					id: 2,
+					name: 'Group2',
+					description: null,
+				},
 			},
-		}, {
-			group: {
-				id: 3,
-				name: 'Group3',
-				description: null,
+			{
+				group: {
+					id: 3,
+					name: 'Group3',
+					description: null,
+				},
 			},
-		}]),
+		]),
 	});
 });
 
-test('[Find Many] Get groups with users', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get groups with users', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findMany({
+	const response = await db.query.groupsTable.findMany({
 		with: {
 			usersToGroups: {
 				columns: {},
@@ -4266,7 +4522,7 @@ test('[Find Many] Get groups with users', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4276,7 +4532,7 @@ test('[Find Many] Get groups with users', () => {
 			user: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			};
 		}[];
@@ -4298,7 +4554,7 @@ test('[Find Many] Get groups with users', () => {
 			user: {
 				id: 1,
 				name: 'Dan',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
@@ -4312,14 +4568,14 @@ test('[Find Many] Get groups with users', () => {
 			user: {
 				id: 2,
 				name: 'Andrew',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}, {
 			user: {
 				id: 3,
 				name: 'Alex',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
@@ -4333,34 +4589,37 @@ test('[Find Many] Get groups with users', () => {
 			user: {
 				id: 3,
 				name: 'Alex',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('[Find Many] Get users with groups + limit', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get users with groups + limit', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 2, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		limit: 2,
 		with: {
 			usersToGroups: {
@@ -4371,12 +4630,12 @@ test('[Find Many] Get users with groups + limit', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		usersToGroups: {
 			group: {
@@ -4397,7 +4656,7 @@ test('[Find Many] Get users with groups + limit', () => {
 	expect(response).toContainEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -4411,7 +4670,7 @@ test('[Find Many] Get users with groups + limit', () => {
 	expect(response).toContainEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -4423,27 +4682,30 @@ test('[Find Many] Get users with groups + limit', () => {
 	});
 });
 
-test('[Find Many] Get groups with users + limit', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get groups with users + limit', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findMany({
+	const response = await db.query.groupsTable.findMany({
 		limit: 2,
 		with: {
 			usersToGroups: {
@@ -4454,7 +4716,7 @@ test('[Find Many] Get groups with users + limit', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4464,7 +4726,7 @@ test('[Find Many] Get groups with users + limit', () => {
 			user: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			};
 		}[];
@@ -4485,7 +4747,7 @@ test('[Find Many] Get groups with users + limit', () => {
 			user: {
 				id: 1,
 				name: 'Dan',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
@@ -4499,34 +4761,37 @@ test('[Find Many] Get groups with users + limit', () => {
 			user: {
 				id: 2,
 				name: 'Andrew',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('[Find Many] Get users with groups + limit + where', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get users with groups + limit + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 2, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		limit: 1,
 		where: {
 			id: {
@@ -4544,12 +4809,12 @@ test('[Find Many] Get users with groups + limit + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		usersToGroups: {
 			group: {
@@ -4569,7 +4834,7 @@ test('[Find Many] Get users with groups + limit + where', () => {
 	expect(response).toContainEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -4581,27 +4846,30 @@ test('[Find Many] Get users with groups + limit + where', () => {
 	});
 });
 
-test('[Find Many] Get groups with users + limit + where', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get groups with users + limit + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findMany({
+	const response = await db.query.groupsTable.findMany({
 		limit: 1,
 		where: {
 			id: {
@@ -4620,7 +4888,7 @@ test('[Find Many] Get groups with users + limit + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4630,7 +4898,7 @@ test('[Find Many] Get groups with users + limit + where', () => {
 			user: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			};
 		}[];
@@ -4650,34 +4918,37 @@ test('[Find Many] Get groups with users + limit + where', () => {
 			user: {
 				id: 2,
 				name: 'Andrew',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('[Find Many] Get users with groups + where', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get users with groups + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 2, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		where: {
 			id: {
 				OR: [1, 2],
@@ -4694,12 +4965,12 @@ test('[Find Many] Get users with groups + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		usersToGroups: {
 			group: {
@@ -4720,7 +4991,7 @@ test('[Find Many] Get users with groups + where', () => {
 	expect(response).toContainEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [],
 	});
@@ -4728,7 +4999,7 @@ test('[Find Many] Get users with groups + where', () => {
 	expect(response).toContainEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -4740,27 +5011,30 @@ test('[Find Many] Get users with groups + where', () => {
 	});
 });
 
-test('[Find Many] Get groups with users + where', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get groups with users + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findMany({
+	const response = await db.query.groupsTable.findMany({
 		where: {
 			id: {
 				gt: 1,
@@ -4777,7 +5051,7 @@ test('[Find Many] Get groups with users + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4787,7 +5061,7 @@ test('[Find Many] Get groups with users + where', () => {
 			user: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			};
 		}[];
@@ -4808,7 +5082,7 @@ test('[Find Many] Get groups with users + where', () => {
 			user: {
 				id: 2,
 				name: 'Andrew',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
@@ -4822,27 +5096,30 @@ test('[Find Many] Get groups with users + where', () => {
 	});
 });
 
-test('[Find Many] Get users with groups + orderBy', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get users with groups + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		orderBy: {
 			id: 'desc',
 		},
@@ -4857,12 +5134,12 @@ test('[Find Many] Get users with groups + orderBy', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		usersToGroups: {
 			group: {
@@ -4882,7 +5159,7 @@ test('[Find Many] Get users with groups + orderBy', () => {
 	expect(response[2]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -4896,7 +5173,7 @@ test('[Find Many] Get users with groups + orderBy', () => {
 	expect(response[1]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -4910,7 +5187,7 @@ test('[Find Many] Get users with groups + orderBy', () => {
 	expect(response[0]).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -4928,27 +5205,30 @@ test('[Find Many] Get users with groups + orderBy', () => {
 	});
 });
 
-test('[Find Many] Get groups with users + orderBy', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get groups with users + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findMany({
+	const response = await db.query.groupsTable.findMany({
 		orderBy: {
 			id: 'desc',
 		},
@@ -4963,7 +5243,7 @@ test('[Find Many] Get groups with users + orderBy', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4973,7 +5253,7 @@ test('[Find Many] Get groups with users + orderBy', () => {
 			user: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			};
 		}[];
@@ -4993,7 +5273,7 @@ test('[Find Many] Get groups with users + orderBy', () => {
 			user: {
 				id: 1,
 				name: 'Dan',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
@@ -5007,14 +5287,14 @@ test('[Find Many] Get groups with users + orderBy', () => {
 			user: {
 				id: 3,
 				name: 'Alex',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}, {
 			user: {
 				id: 2,
 				name: 'Andrew',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
@@ -5028,34 +5308,37 @@ test('[Find Many] Get groups with users + orderBy', () => {
 			user: {
 				id: 3,
 				name: 'Alex',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('[Find Many] Get users with groups + orderBy + limit', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find Many] Get users with groups + orderBy + limit', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		orderBy: {
 			id: 'desc',
 		},
@@ -5072,12 +5355,12 @@ test('[Find Many] Get users with groups + orderBy + limit', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		usersToGroups: {
 			group: {
@@ -5096,7 +5379,7 @@ test('[Find Many] Get users with groups + orderBy + limit', () => {
 	expect(response[1]).toEqual({
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -5110,7 +5393,7 @@ test('[Find Many] Get users with groups + orderBy + limit', () => {
 	expect(response[0]).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -5122,27 +5405,30 @@ test('[Find Many] Get users with groups + orderBy + limit', () => {
 	});
 });
 
-test('[Find One] Get users with groups', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get users with groups', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findFirst({
+	const response = await db.query.usersTable.findFirst({
 		with: {
 			usersToGroups: {
 				columns: {},
@@ -5151,13 +5437,13 @@ test('[Find One] Get users with groups', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			usersToGroups: {
 				group: {
@@ -5174,7 +5460,7 @@ test('[Find One] Get users with groups', () => {
 	expect(response).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -5186,27 +5472,30 @@ test('[Find One] Get users with groups', () => {
 	});
 });
 
-test('[Find One] Get groups with users', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get groups with users', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findFirst({
+	const response = await db.query.groupsTable.findFirst({
 		with: {
 			usersToGroups: {
 				columns: {},
@@ -5215,7 +5504,7 @@ test('[Find One] Get groups with users', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5226,7 +5515,7 @@ test('[Find One] Get groups with users', () => {
 				user: {
 					id: number;
 					name: string;
-					verified: number;
+					verified: boolean;
 					invitedBy: number | null;
 				};
 			}[];
@@ -5243,34 +5532,37 @@ test('[Find One] Get groups with users', () => {
 			user: {
 				id: 1,
 				name: 'Dan',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('[Find One] Get users with groups + limit', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get users with groups + limit', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 2, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findFirst({
+	const response = await db.query.usersTable.findFirst({
 		with: {
 			usersToGroups: {
 				limit: 1,
@@ -5280,13 +5572,13 @@ test('[Find One] Get users with groups + limit', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			usersToGroups: {
 				group: {
@@ -5303,7 +5595,7 @@ test('[Find One] Get users with groups + limit', () => {
 	expect(response).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -5315,27 +5607,30 @@ test('[Find One] Get users with groups + limit', () => {
 	});
 });
 
-test('[Find One] Get groups with users + limit', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get groups with users + limit', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findFirst({
+	const response = await db.query.groupsTable.findFirst({
 		with: {
 			usersToGroups: {
 				limit: 1,
@@ -5345,7 +5640,7 @@ test('[Find One] Get groups with users + limit', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5356,7 +5651,7 @@ test('[Find One] Get groups with users + limit', () => {
 				user: {
 					id: number;
 					name: string;
-					verified: number;
+					verified: boolean;
 					invitedBy: number | null;
 				};
 			}[];
@@ -5373,34 +5668,37 @@ test('[Find One] Get groups with users + limit', () => {
 			user: {
 				id: 1,
 				name: 'Dan',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('[Find One] Get users with groups + limit + where', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get users with groups + limit + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 2, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findFirst({
+	const response = await db.query.usersTable.findFirst({
 		where: {
 			id: {
 				OR: [1, 2],
@@ -5417,13 +5715,13 @@ test('[Find One] Get users with groups + limit + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			usersToGroups: {
 				group: {
@@ -5440,7 +5738,7 @@ test('[Find One] Get users with groups + limit + where', () => {
 	expect(response).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -5452,27 +5750,30 @@ test('[Find One] Get users with groups + limit + where', () => {
 	});
 });
 
-test('[Find One] Get groups with users + limit + where', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get groups with users + limit + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findFirst({
+	const response = await db.query.groupsTable.findFirst({
 		where: {
 			id: {
 				gt: 1,
@@ -5490,7 +5791,7 @@ test('[Find One] Get groups with users + limit + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5501,7 +5802,7 @@ test('[Find One] Get groups with users + limit + where', () => {
 				user: {
 					id: number;
 					name: string;
-					verified: number;
+					verified: boolean;
 					invitedBy: number | null;
 				};
 			}[];
@@ -5518,34 +5819,37 @@ test('[Find One] Get groups with users + limit + where', () => {
 			user: {
 				id: 2,
 				name: 'Andrew',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('[Find One] Get users with groups + where', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get users with groups + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 2, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findFirst({
+	const response = await db.query.usersTable.findFirst({
 		where: {
 			id: {
 				OR: [1, 2],
@@ -5562,13 +5866,13 @@ test('[Find One] Get users with groups + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			usersToGroups: {
 				group: {
@@ -5585,33 +5889,36 @@ test('[Find One] Get users with groups + where', () => {
 	expect(response).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [],
 	});
 });
 
-test('[Find One] Get groups with users + where', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get groups with users + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findFirst({
+	const response = await db.query.groupsTable.findFirst({
 		where: {
 			id: {
 				gt: 1,
@@ -5628,7 +5935,7 @@ test('[Find One] Get groups with users + where', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5639,7 +5946,7 @@ test('[Find One] Get groups with users + where', () => {
 				user: {
 					id: number;
 					name: string;
-					verified: number;
+					verified: boolean;
 					invitedBy: number | null;
 				};
 			}[];
@@ -5656,34 +5963,37 @@ test('[Find One] Get groups with users + where', () => {
 			user: {
 				id: 2,
 				name: 'Andrew',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('[Find One] Get users with groups + orderBy', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get users with groups + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findFirst({
+	const response = await db.query.usersTable.findFirst({
 		orderBy: {
 			id: 'desc',
 		},
@@ -5698,13 +6008,13 @@ test('[Find One] Get users with groups + orderBy', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			usersToGroups: {
 				group: {
@@ -5721,7 +6031,7 @@ test('[Find One] Get users with groups + orderBy', () => {
 	expect(response).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -5739,27 +6049,30 @@ test('[Find One] Get users with groups + orderBy', () => {
 	});
 });
 
-test('[Find One] Get groups with users + orderBy', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get groups with users + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findFirst({
+	const response = await db.query.groupsTable.findFirst({
 		orderBy: {
 			id: 'desc',
 		},
@@ -5774,7 +6087,7 @@ test('[Find One] Get groups with users + orderBy', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5785,7 +6098,7 @@ test('[Find One] Get groups with users + orderBy', () => {
 				user: {
 					id: number;
 					name: string;
-					verified: number;
+					verified: boolean;
 					invitedBy: number | null;
 				};
 			}[];
@@ -5802,34 +6115,37 @@ test('[Find One] Get groups with users + orderBy', () => {
 			user: {
 				id: 3,
 				name: 'Alex',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('[Find One] Get users with groups + orderBy + limit', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('[Find One] Get users with groups + orderBy + limit', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findFirst({
+	const response = await db.query.usersTable.findFirst({
 		orderBy: {
 			id: 'desc',
 		},
@@ -5845,13 +6161,13 @@ test('[Find One] Get users with groups + orderBy + limit', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			usersToGroups: {
 				group: {
@@ -5868,7 +6184,7 @@ test('[Find One] Get users with groups + orderBy + limit', () => {
 	expect(response).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -5880,27 +6196,30 @@ test('[Find One] Get users with groups + orderBy + limit', () => {
 	});
 });
 
-test('Get groups with users + orderBy + limit', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('Get groups with users + orderBy + limit', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findMany({
+	const response = await db.query.groupsTable.findMany({
 		orderBy: {
 			id: 'desc',
 		},
@@ -5917,7 +6236,7 @@ test('Get groups with users + orderBy + limit', () => {
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5928,7 +6247,7 @@ test('Get groups with users + orderBy + limit', () => {
 				user: {
 					id: number;
 					name: string;
-					verified: number;
+					verified: boolean;
 					invitedBy: number | null;
 				};
 			}[];
@@ -5948,7 +6267,7 @@ test('Get groups with users + orderBy + limit', () => {
 			user: {
 				id: 3,
 				name: 'Alex',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
@@ -5962,36 +6281,39 @@ test('Get groups with users + orderBy + limit', () => {
 			user: {
 				id: 3,
 				name: 'Alex',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('Get users with groups + custom', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('Get users with groups + custom', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.usersTable.findMany({
+	const response = await db.query.usersTable.findMany({
 		extras: ({
-			lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
+			lower: ({ name }) => sql<string>`lower(${name})`.as('lower_name'),
 		}),
 		with: {
 			usersToGroups: {
@@ -5999,19 +6321,22 @@ test('Get users with groups + custom', () => {
 				with: {
 					group: {
 						extras: ({
-							lower: (groupsTable, { sql }) => sql<string>`lower(${groupsTable.name})`.as('lower_name'),
+							lower: ({ name }) => sql<string>`lower(${name})`.as('lower_name'),
 						}),
 					},
 				},
+				orderBy: {
+					groupId: 'asc',
+				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			lower: string;
 			usersToGroups: {
@@ -6027,10 +6352,6 @@ test('Get users with groups + custom', () => {
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
-	response[0]?.usersToGroups.sort((a, b) => (a.group.id > b.group.id) ? 1 : -1);
-	response[1]?.usersToGroups.sort((a, b) => (a.group.id > b.group.id) ? 1 : -1);
-	response[2]?.usersToGroups.sort((a, b) => (a.group.id > b.group.id) ? 1 : -1);
-
 	expect(response.length).toEqual(3);
 
 	expect(response[0]?.usersToGroups.length).toEqual(1);
@@ -6041,7 +6362,7 @@ test('Get users with groups + custom', () => {
 		id: 1,
 		name: 'Dan',
 		lower: 'dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -6057,7 +6378,7 @@ test('Get users with groups + custom', () => {
 		id: 2,
 		name: 'Andrew',
 		lower: 'andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		usersToGroups: [{
 			group: {
@@ -6073,49 +6394,55 @@ test('Get users with groups + custom', () => {
 		id: 3,
 		name: 'Alex',
 		lower: 'alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
-		usersToGroups: [{
-			group: {
-				id: 2,
-				name: 'Group2',
-				lower: 'group2',
-				description: null,
+		usersToGroups: [
+			{
+				group: {
+					id: 2,
+					name: 'Group2',
+					lower: 'group2',
+					description: null,
+				},
 			},
-		}, {
-			group: {
-				id: 3,
-				name: 'Group3',
-				lower: 'group3',
-				description: null,
+			{
+				group: {
+					id: 3,
+					name: 'Group3',
+					lower: 'group3',
+					description: null,
+				},
 			},
-		}],
+		],
 	});
 });
 
-test('Get groups with users + custom', () => {
-	db.insert(usersTable).values([
+// Awaiting fixes on db-side
+test.skip('Get groups with users + custom', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
-	]).run();
+	]);
 
-	db.insert(groupsTable).values([
+	await db.insert(groupsTable).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
-	]).run();
+	]);
 
-	db.insert(usersToGroupsTable).values([
+	await db.insert(usersToGroupsTable).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
-	]).run();
+	]);
 
-	const response = db.query.groupsTable.findMany({
+	const response = await db.query.groupsTable.findMany({
 		extras: ({
-			lower: (table) => sql<string>`lower(${table.name})`.as('lower_name'),
+			lower: (table, { sql }) => sql<string>`lower(${table.name})`.as('lower_name'),
 		}),
 		with: {
 			usersToGroups: {
@@ -6123,13 +6450,13 @@ test('Get groups with users + custom', () => {
 				with: {
 					user: {
 						extras: ({
-							lower: (table) => sql<string>`lower(${table.name})`.as('lower_name'),
+							lower: (table, { sql }) => sql<string>`lower(${table.name})`.as('lower_name'),
 						}),
 					},
 				},
 			},
 		},
-	}).sync();
+	});
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -6141,7 +6468,7 @@ test('Get groups with users + custom', () => {
 				user: {
 					id: number;
 					name: string;
-					verified: number;
+					verified: boolean;
 					invitedBy: number | null;
 					lower: string;
 				};
@@ -6167,7 +6494,7 @@ test('Get groups with users + custom', () => {
 				id: 1,
 				name: 'Dan',
 				lower: 'dan',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
@@ -6183,7 +6510,7 @@ test('Get groups with users + custom', () => {
 				id: 2,
 				name: 'Andrew',
 				lower: 'andrew',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}, {
@@ -6191,7 +6518,7 @@ test('Get groups with users + custom', () => {
 				id: 3,
 				name: 'Alex',
 				lower: 'alex',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
@@ -6207,113 +6534,16 @@ test('Get groups with users + custom', () => {
 				id: 3,
 				name: 'Alex',
 				lower: 'alex',
-				verified: 0,
+				verified: false,
 				invitedBy: null,
 			},
 		}],
 	});
 });
 
-test('async api', async () => {
-	await db.insert(usersTable).values([{ id: 1, name: 'Dan' }]);
-	const users = await db.query.usersTable.findMany();
-	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
-});
+test('[Find Many .through] Get users with groups', async (t) => {
+	const { geljsDb: db } = t;
 
-test('async api - sync()', () => {
-	db.insert(usersTable).values([{ id: 1, name: 'Dan' }]).run();
-	const users = db.query.usersTable.findMany().sync();
-	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
-});
-
-test('async api - prepare', async () => {
-	const insertStmt = db.insert(usersTable).values([{ id: 1, name: 'Dan' }]).prepare();
-	await insertStmt.execute();
-	const queryStmt = db.query.usersTable.findMany().prepare();
-	const users = await queryStmt.execute();
-	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
-});
-
-test('async api - sync() + prepare', () => {
-	const insertStmt = db.insert(usersTable).values([{ id: 1, name: 'Dan' }]).prepare();
-	insertStmt.execute().sync();
-	const queryStmt = db.query.usersTable.findMany().prepare();
-	const users = queryStmt.execute().sync();
-	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
-});
-
-test('Force optional on where on non-optional relation query', async () => {
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex', invitedBy: 1 },
-		{ id: 4, name: 'John', invitedBy: 2 },
-	]);
-
-	const usersWithInvitee = await db.query.usersTable.findMany({
-		with: {
-			inviteeRequired: {
-				where: {
-					id: 1,
-				},
-			},
-		},
-	});
-
-	expectTypeOf(usersWithInvitee).toEqualTypeOf<
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-			inviteeRequired: {
-				id: number;
-				name: string;
-				verified: number;
-				invitedBy: number | null;
-			} | null;
-		}[]
-	>();
-
-	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
-
-	expect(usersWithInvitee.length).eq(4);
-	expect(usersWithInvitee[0]?.inviteeRequired).toBeNull();
-	expect(usersWithInvitee[1]?.inviteeRequired).toBeNull();
-	expect(usersWithInvitee[2]?.inviteeRequired).not.toBeNull();
-	expect(usersWithInvitee[3]?.inviteeRequired).toBeNull();
-
-	expect(usersWithInvitee[0]).toEqual({
-		id: 1,
-		name: 'Dan',
-		verified: 0,
-		invitedBy: null,
-		inviteeRequired: null,
-	});
-	expect(usersWithInvitee[1]).toEqual({
-		id: 2,
-		name: 'Andrew',
-		verified: 0,
-		invitedBy: null,
-		inviteeRequired: null,
-	});
-	expect(usersWithInvitee[2]).toEqual({
-		id: 3,
-		name: 'Alex',
-		verified: 0,
-		invitedBy: 1,
-		inviteeRequired: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
-	});
-	expect(usersWithInvitee[3]).toEqual({
-		id: 4,
-		name: 'John',
-		verified: 0,
-		invitedBy: 2,
-		inviteeRequired: null,
-	});
-});
-
-test('[Find Many .through] Get users with groups', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6342,7 +6572,7 @@ test('[Find Many .through] Get users with groups', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -6359,7 +6589,7 @@ test('[Find Many .through] Get users with groups', async () => {
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 1,
@@ -6369,7 +6599,7 @@ test('[Find Many .through] Get users with groups', async () => {
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 2,
@@ -6379,7 +6609,7 @@ test('[Find Many .through] Get users with groups', async () => {
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [
 			{
@@ -6396,7 +6626,9 @@ test('[Find Many .through] Get users with groups', async () => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with users', async () => {
+test('[Find Many .through] Get groups with users', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6429,7 +6661,7 @@ test('[Find Many .through] Get groups with users', async () => {
 		users: {
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 		}[];
 	}[]>();
@@ -6446,7 +6678,7 @@ test('[Find Many .through] Get groups with users', async () => {
 		users: [{
 			id: 1,
 			name: 'Dan',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -6456,12 +6688,12 @@ test('[Find Many .through] Get groups with users', async () => {
 		users: [{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}, {
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -6471,13 +6703,15 @@ test('[Find Many .through] Get groups with users', async () => {
 		users: [{
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + limit', async () => {
+test('[Find Many .through] Get users with groups + limit', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6515,7 +6749,7 @@ test('[Find Many .through] Get users with groups + limit', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -6527,7 +6761,7 @@ test('[Find Many .through] Get users with groups + limit', async () => {
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 1,
@@ -6537,7 +6771,7 @@ test('[Find Many .through] Get users with groups + limit', async () => {
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 2,
@@ -6547,7 +6781,9 @@ test('[Find Many .through] Get users with groups + limit', async () => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with users + limit', async () => {
+test('[Find Many .through] Get groups with users + limit', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6589,7 +6825,7 @@ test('[Find Many .through] Get groups with users + limit', async () => {
 		users: {
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 		}[];
 	}[]>();
@@ -6601,7 +6837,7 @@ test('[Find Many .through] Get groups with users + limit', async () => {
 		users: [{
 			id: 1,
 			name: 'Dan',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -6611,13 +6847,15 @@ test('[Find Many .through] Get groups with users + limit', async () => {
 		users: [{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + limit + where', async () => {
+test('[Find Many .through] Get users with groups + limit + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6656,7 +6894,7 @@ test('[Find Many .through] Get users with groups + limit + where', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -6668,7 +6906,7 @@ test('[Find Many .through] Get users with groups + limit + where', async () => {
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 1,
@@ -6678,7 +6916,9 @@ test('[Find Many .through] Get users with groups + limit + where', async () => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with users + limit + where', async () => {
+test('[Find Many .through] Get groups with users + limit + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6720,7 +6960,7 @@ test('[Find Many .through] Get groups with users + limit + where', async () => {
 		users: {
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 		}[];
 	}[]>();
@@ -6732,13 +6972,15 @@ test('[Find Many .through] Get groups with users + limit + where', async () => {
 		users: [{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + where', async () => {
+test('[Find Many .through] Get users with groups + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6776,7 +7018,7 @@ test('[Find Many .through] Get users with groups + where', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -6790,13 +7032,13 @@ test('[Find Many .through] Get users with groups + where', async () => {
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [],
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 2,
@@ -6806,7 +7048,9 @@ test('[Find Many .through] Get users with groups + where', async () => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with users + where', async () => {
+test('[Find Many .through] Get groups with users + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6846,7 +7090,7 @@ test('[Find Many .through] Get groups with users + where', async () => {
 		users: {
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 		}[];
 	}[]>();
@@ -6860,7 +7104,7 @@ test('[Find Many .through] Get groups with users + where', async () => {
 		users: [{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -6871,7 +7115,9 @@ test('[Find Many .through] Get groups with users + where', async () => {
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + orderBy', async () => {
+test('[Find Many .through] Get users with groups + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6907,7 +7153,7 @@ test('[Find Many .through] Get users with groups + orderBy', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -6919,7 +7165,7 @@ test('[Find Many .through] Get users with groups + orderBy', async () => {
 	expect(response).toStrictEqual([{
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 3,
@@ -6933,7 +7179,7 @@ test('[Find Many .through] Get users with groups + orderBy', async () => {
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 2,
@@ -6943,7 +7189,7 @@ test('[Find Many .through] Get users with groups + orderBy', async () => {
 	}, {
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 1,
@@ -6953,7 +7199,9 @@ test('[Find Many .through] Get users with groups + orderBy', async () => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with users + orderBy', async () => {
+test('[Find Many .through] Get groups with users + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6993,7 +7241,7 @@ test('[Find Many .through] Get groups with users + orderBy', async () => {
 		users: {
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 		}[];
 	}[]>();
@@ -7005,7 +7253,7 @@ test('[Find Many .through] Get groups with users + orderBy', async () => {
 		users: [{
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -7015,12 +7263,12 @@ test('[Find Many .through] Get groups with users + orderBy', async () => {
 		users: [{
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}, {
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -7030,13 +7278,15 @@ test('[Find Many .through] Get groups with users + orderBy', async () => {
 		users: [{
 			id: 1,
 			name: 'Dan',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + orderBy + limit', async () => {
+test('[Find Many .through] Get users with groups + orderBy + limit', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7074,7 +7324,7 @@ test('[Find Many .through] Get users with groups + orderBy + limit', async () =>
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -7086,7 +7336,7 @@ test('[Find Many .through] Get users with groups + orderBy + limit', async () =>
 	expect(response).toStrictEqual([{
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 3,
@@ -7096,7 +7346,7 @@ test('[Find Many .through] Get users with groups + orderBy + limit', async () =>
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 2,
@@ -7106,7 +7356,9 @@ test('[Find Many .through] Get users with groups + orderBy + limit', async () =>
 	}]);
 });
 
-test('[Find One .through] Get users with groups', async () => {
+test('[Find One .through] Get users with groups', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7136,7 +7388,7 @@ test('[Find One .through] Get users with groups', async () => {
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			groups: {
 				id: number;
@@ -7149,7 +7401,7 @@ test('[Find One .through] Get users with groups', async () => {
 	expect(response).toStrictEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 1,
@@ -7159,7 +7411,9 @@ test('[Find One .through] Get users with groups', async () => {
 	});
 });
 
-test('[Find One .through] Get groups with users', async () => {
+test('[Find One .through] Get groups with users', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7193,7 +7447,7 @@ test('[Find One .through] Get groups with users', async () => {
 			users: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			}[];
 		} | undefined
@@ -7206,13 +7460,15 @@ test('[Find One .through] Get groups with users', async () => {
 		users: [{
 			id: 1,
 			name: 'Dan',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	});
 });
 
-test('[Find One .through] Get users with groups + limit', async () => {
+test('[Find One .through] Get users with groups + limit', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7244,7 +7500,7 @@ test('[Find One .through] Get users with groups + limit', async () => {
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			groups: {
 				id: number;
@@ -7257,7 +7513,7 @@ test('[Find One .through] Get users with groups + limit', async () => {
 	expect(response).toStrictEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 1,
@@ -7267,7 +7523,9 @@ test('[Find One .through] Get users with groups + limit', async () => {
 	});
 });
 
-test('[Find One .through] Get groups with users + limit', async () => {
+test('[Find One .through] Get groups with users + limit', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7303,7 +7561,7 @@ test('[Find One .through] Get groups with users + limit', async () => {
 			users: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			}[];
 		} | undefined
@@ -7316,13 +7574,15 @@ test('[Find One .through] Get groups with users + limit', async () => {
 		users: [{
 			id: 1,
 			name: 'Dan',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	});
 });
 
-test('[Find One .through] Get users with groups + limit + where', async () => {
+test('[Find One .through] Get users with groups + limit + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7361,7 +7621,7 @@ test('[Find One .through] Get users with groups + limit + where', async () => {
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			groups: {
 				id: number;
@@ -7374,7 +7634,7 @@ test('[Find One .through] Get users with groups + limit + where', async () => {
 	expect(response).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 1,
@@ -7384,7 +7644,9 @@ test('[Find One .through] Get users with groups + limit + where', async () => {
 	});
 });
 
-test('[Find One .through] Get groups with users + limit + where', async () => {
+test('[Find One .through] Get groups with users + limit + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7425,7 +7687,7 @@ test('[Find One .through] Get groups with users + limit + where', async () => {
 			users: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			}[];
 		} | undefined
@@ -7438,13 +7700,15 @@ test('[Find One .through] Get groups with users + limit + where', async () => {
 		users: [{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	});
 });
 
-test('[Find One .through] Get users with groups + where', async () => {
+test('[Find One .through] Get users with groups + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7483,7 +7747,7 @@ test('[Find One .through] Get users with groups + where', async () => {
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			groups: {
 				id: number;
@@ -7496,13 +7760,15 @@ test('[Find One .through] Get users with groups + where', async () => {
 	expect(response).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [],
 	});
 });
 
-test('[Find One .through] Get groups with users + where', async () => {
+test('[Find One .through] Get groups with users + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7543,7 +7809,7 @@ test('[Find One .through] Get groups with users + where', async () => {
 			users: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			}[];
 		} | undefined
@@ -7556,13 +7822,15 @@ test('[Find One .through] Get groups with users + where', async () => {
 		users: [{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	});
 });
 
-test('[Find One .through] Get users with groups + orderBy', async () => {
+test('[Find One .through] Get users with groups + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7599,7 +7867,7 @@ test('[Find One .through] Get users with groups + orderBy', async () => {
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			groups: {
 				id: number;
@@ -7612,7 +7880,7 @@ test('[Find One .through] Get users with groups + orderBy', async () => {
 	expect(response).toStrictEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 3,
@@ -7626,7 +7894,9 @@ test('[Find One .through] Get users with groups + orderBy', async () => {
 	});
 });
 
-test('[Find One .through] Get groups with users + orderBy', async () => {
+test('[Find One .through] Get groups with users + orderBy', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7667,7 +7937,7 @@ test('[Find One .through] Get groups with users + orderBy', async () => {
 			users: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			}[];
 		} | undefined
@@ -7680,13 +7950,15 @@ test('[Find One .through] Get groups with users + orderBy', async () => {
 		users: [{
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	});
 });
 
-test('[Find One .through] Get users with groups + orderBy + limit', async () => {
+test('[Find One .through] Get users with groups + orderBy + limit', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7724,7 +7996,7 @@ test('[Find One .through] Get users with groups + orderBy + limit', async () => 
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			groups: {
 				id: number;
@@ -7737,7 +8009,7 @@ test('[Find One .through] Get users with groups + orderBy + limit', async () => 
 	expect(response).toEqual({
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 3,
@@ -7747,7 +8019,9 @@ test('[Find One .through] Get users with groups + orderBy + limit', async () => 
 	});
 });
 
-test('[Find Many .through] Get groups with users + orderBy + limit', async () => {
+test('[Find Many .through] Get groups with users + orderBy + limit', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7790,7 +8064,7 @@ test('[Find Many .through] Get groups with users + orderBy + limit', async () =>
 			users: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 			}[];
 		}[]
@@ -7803,7 +8077,7 @@ test('[Find Many .through] Get groups with users + orderBy + limit', async () =>
 		users: [{
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -7813,13 +8087,15 @@ test('[Find Many .through] Get groups with users + orderBy + limit', async () =>
 		users: [{
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + custom', async () => {
+test('[Find Many .through] Get users with groups + custom', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7859,7 +8135,7 @@ test('[Find Many .through] Get users with groups + custom', async () => {
 		{
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 			lower: string;
 			groups: {
@@ -7880,7 +8156,7 @@ test('[Find Many .through] Get users with groups + custom', async () => {
 		id: 1,
 		name: 'Dan',
 		lower: 'dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 1,
@@ -7892,7 +8168,7 @@ test('[Find Many .through] Get users with groups + custom', async () => {
 		id: 2,
 		name: 'Andrew',
 		lower: 'andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 2,
@@ -7904,7 +8180,7 @@ test('[Find Many .through] Get users with groups + custom', async () => {
 		id: 3,
 		name: 'Alex',
 		lower: 'alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [
 			{
@@ -7923,7 +8199,9 @@ test('[Find Many .through] Get users with groups + custom', async () => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with users + custom', async () => {
+test('[Find Many .through] Get groups with users + custom', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -7965,7 +8243,7 @@ test('[Find Many .through] Get groups with users + custom', async () => {
 			users: {
 				id: number;
 				name: string;
-				verified: number;
+				verified: boolean;
 				invitedBy: number | null;
 				lower: string;
 			}[];
@@ -7986,7 +8264,7 @@ test('[Find Many .through] Get groups with users + custom', async () => {
 			id: 1,
 			name: 'Dan',
 			lower: 'dan',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -7998,13 +8276,13 @@ test('[Find Many .through] Get groups with users + custom', async () => {
 			id: 2,
 			name: 'Andrew',
 			lower: 'andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}, {
 			id: 3,
 			name: 'Alex',
 			lower: 'alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -8016,13 +8294,15 @@ test('[Find Many .through] Get groups with users + custom', async () => {
 			id: 3,
 			name: 'Alex',
 			lower: 'alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}]);
 });
 
-test('[Find Many .through] Get users with first group', async () => {
+test('[Find Many .through] Get users with first group', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -8050,7 +8330,7 @@ test('[Find Many .through] Get users with first group', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		group: {
 			id: number;
@@ -8064,13 +8344,13 @@ test('[Find Many .through] Get users with first group', async () => {
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		group: null,
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		group: {
 			id: 3,
@@ -8080,7 +8360,7 @@ test('[Find Many .through] Get users with first group', async () => {
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		group: {
 			id: 2,
@@ -8090,7 +8370,9 @@ test('[Find Many .through] Get users with first group', async () => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with first user', async () => {
+test('[Find Many .through] Get groups with first user', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -8122,7 +8404,7 @@ test('[Find Many .through] Get groups with first user', async () => {
 		user: {
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 		} | null;
 	}[]>();
@@ -8140,7 +8422,7 @@ test('[Find Many .through] Get groups with first user', async () => {
 		user: {
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		},
 	}, {
@@ -8150,13 +8432,15 @@ test('[Find Many .through] Get groups with first user', async () => {
 		user: {
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		},
 	}]);
 });
 
-test('[Find Many .through] Get users with filtered groups', async () => {
+test('[Find Many .through] Get users with filtered groups', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -8185,7 +8469,7 @@ test('[Find Many .through] Get users with filtered groups', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groupsFiltered: {
 			id: number;
@@ -8202,13 +8486,13 @@ test('[Find Many .through] Get users with filtered groups', async () => {
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groupsFiltered: [],
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groupsFiltered: [{
 			id: 2,
@@ -8218,7 +8502,7 @@ test('[Find Many .through] Get users with filtered groups', async () => {
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groupsFiltered: [
 			{
@@ -8235,7 +8519,9 @@ test('[Find Many .through] Get users with filtered groups', async () => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with filtered users', async () => {
+test('[Find Many .through] Get groups with filtered users', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -8268,7 +8554,7 @@ test('[Find Many .through] Get groups with filtered users', async () => {
 		usersFiltered: {
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 		}[];
 	}[]>();
@@ -8290,12 +8576,12 @@ test('[Find Many .through] Get groups with filtered users', async () => {
 		usersFiltered: [{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}, {
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -8305,13 +8591,15 @@ test('[Find Many .through] Get groups with filtered users', async () => {
 		usersFiltered: [{
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}]);
 });
 
-test('[Find Many .through] Get users with filtered groups + where', async () => {
+test('[Find Many .through] Get users with filtered groups + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -8346,7 +8634,7 @@ test('[Find Many .through] Get users with filtered groups + where', async () => 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groupsFiltered: {
 			id: number;
@@ -8363,13 +8651,13 @@ test('[Find Many .through] Get users with filtered groups + where', async () => 
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groupsFiltered: [],
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groupsFiltered: [{
 			id: 2,
@@ -8379,7 +8667,7 @@ test('[Find Many .through] Get users with filtered groups + where', async () => 
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groupsFiltered: [
 			{
@@ -8391,7 +8679,9 @@ test('[Find Many .through] Get users with filtered groups + where', async () => 
 	}]);
 });
 
-test('[Find Many .through] Get groups with filtered users + where', async () => {
+test('[Find Many .through] Get groups with filtered users + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -8426,7 +8716,7 @@ test('[Find Many .through] Get groups with filtered users + where', async () => 
 		usersFiltered: {
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
 		}[];
 	}[]>();
@@ -8448,7 +8738,7 @@ test('[Find Many .through] Get groups with filtered users + where', async () => 
 		usersFiltered: [{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 		}],
 	}, {
@@ -8459,7 +8749,9 @@ test('[Find Many .through] Get groups with filtered users + where', async () => 
 	}]);
 });
 
-test('[Find Many] Get users with filtered posts', async () => {
+test('[Find Many] Get users with filtered posts', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -8492,7 +8784,7 @@ test('[Find Many] Get users with filtered posts', async () => {
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		postsFiltered: {
 			ownerId: number | null;
@@ -8505,13 +8797,13 @@ test('[Find Many] Get users with filtered posts', async () => {
 	expect(usersWithPosts).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		postsFiltered: [],
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		postsFiltered: [
 			{ ownerId: 2, content: 'Post2.1' },
@@ -8521,13 +8813,15 @@ test('[Find Many] Get users with filtered posts', async () => {
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		postsFiltered: [],
 	}]);
 });
 
-test('[Find Many] Get posts with filtered authors', async () => {
+test('[Find Many] Get posts with filtered authors', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -8593,7 +8887,9 @@ test('[Find Many] Get posts with filtered authors', async () => {
 	]);
 });
 
-test('[Find Many] Get users with filtered posts + where', async () => {
+test('[Find Many] Get users with filtered posts + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -8631,7 +8927,7 @@ test('[Find Many] Get users with filtered posts + where', async () => {
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		postsFiltered: {
 			ownerId: number | null;
@@ -8644,13 +8940,13 @@ test('[Find Many] Get users with filtered posts + where', async () => {
 	expect(usersWithPosts).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		postsFiltered: [],
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		postsFiltered: [
 			{ ownerId: 2, content: 'Post2.2' },
@@ -8658,13 +8954,15 @@ test('[Find Many] Get users with filtered posts + where', async () => {
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		postsFiltered: [],
 	}]);
 });
 
-test('[Find Many] Get posts with filtered authors + where', async () => {
+test('[Find Many] Get posts with filtered authors + where', async (t) => {
+	const { geljsDb: db } = t;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -8726,108 +9024,59 @@ test('[Find Many] Get posts with filtered authors + where', async () => {
 	]);
 });
 
-test('[Find Many] Get view users with posts', async () => {
-	await db.insert(usersTable).values([
+test('[Find Many] Get custom schema users with filtered posts + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(schemaUsers).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const date1 = new Date(0);
-	const date2 = new Date(1000);
-	const date3 = new Date(10000);
-
-	await db.insert(postsTable).values([
-		{ ownerId: 1, content: 'Post1', createdAt: date1 },
-		{ ownerId: 2, content: 'Post2', createdAt: date2 },
-		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	await db.insert(schemaPosts).values([
+		{ id: 1, ownerId: 1, content: 'Message1.1' },
+		{ id: 2, ownerId: 2, content: 'Message2.1' },
+		{ id: 3, ownerId: 3, content: 'Message3.1' },
+		{ id: 4, ownerId: 1, content: 'Message1.2' },
+		{ id: 5, ownerId: 2, content: 'Message2.2' },
+		{ id: 6, ownerId: 3, content: 'Message3.2' },
+		{ id: 7, ownerId: 1, content: 'Message1.3' },
+		{ id: 8, ownerId: 2, content: 'Message2.3' },
+		{ id: 9, ownerId: 3, content: 'Message3.3' },
+		{ id: 10, ownerId: 1, content: 'Post1.1' },
+		{ id: 11, ownerId: 2, content: 'Post2.1' },
+		{ id: 12, ownerId: 3, content: 'Post3.1' },
+		{ id: 13, ownerId: 1, content: 'Post1.2' },
+		{ id: 14, ownerId: 2, content: 'Post2.2' },
+		{ id: 15, ownerId: 3, content: 'Post3.2' },
+		{ id: 16, ownerId: 1, content: 'Post1.3' },
+		{ id: 17, ownerId: 2, content: 'Post2.3' },
+		{ id: 18, ownerId: 3, content: 'Post3.3' },
 	]);
 
-	const usersWithPosts = await db.query.usersView.findMany({
+	const usersWithPosts = await db.query.schemaUsers.findMany({
 		with: {
-			posts: true,
-		},
-		orderBy: {
-			id: 'asc',
-		},
-		where: {
-			id: {
-				lt: 3,
+			posts: {
+				columns: {
+					ownerId: true,
+					content: true,
+				},
+				where: {
+					content: {
+						like: '%2.%',
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
 			},
-		},
-	});
-
-	expectTypeOf(usersWithPosts).toEqualTypeOf<{
-		id: number;
-		name: string;
-		verified: number;
-		invitedBy: number | null;
-		counter: number | null;
-		createdAt: Date | null;
-		postContent: string | null;
-		posts: {
-			id: number;
-			content: string;
-			ownerId: number | null;
-			createdAt: Date;
-		}[];
-	}[]>();
-
-	expect(usersWithPosts).toEqual([{
-		id: 1,
-		name: 'Dan',
-		verified: 0,
-		invitedBy: null,
-		counter: 3,
-		postContent: 'Post1',
-		createdAt: date1,
-		posts: [],
-	}, {
-		id: 2,
-		name: 'Andrew',
-		verified: 0,
-		invitedBy: null,
-		counter: null,
-		postContent: 'Post2',
-		createdAt: date2,
-		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: date2 }],
-	}]);
-});
-
-test('[Find Many] Get view users with posts + filter by SQL.Aliased field', async () => {
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex' },
-	]);
-
-	const date1 = new Date(0);
-	const date2 = new Date(1000);
-	const date3 = new Date(10000);
-
-	await db.insert(postsTable).values([
-		{ ownerId: 1, content: 'Post1', createdAt: date1 },
-		{ ownerId: 2, content: 'Post2', createdAt: date2 },
-		{ ownerId: 3, content: 'Post3', createdAt: date3 },
-	]);
-
-	const usersWithPosts = await db.query.usersView.findMany({
-		columns: {
-			id: true,
-			name: true,
-			verified: true,
-			invitedBy: true,
-			counter: true,
-		},
-		with: {
-			posts: true,
 		},
 		orderBy: {
 			id: 'desc',
 		},
 		where: {
-			counter: {
-				ne: 0,
+			id: {
+				gte: 2,
 			},
 		},
 	});
@@ -8835,479 +9084,136 @@ test('[Find Many] Get view users with posts + filter by SQL.Aliased field', asyn
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
-		counter: number | null;
 		posts: {
-			id: number;
-			content: string;
 			ownerId: number | null;
-			createdAt: Date;
+			content: string;
 		}[];
 	}[]>();
 
-	expect(usersWithPosts).toEqual([{
+	expect(usersWithPosts).toStrictEqual([{
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
-		counter: 3,
-		posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: date3 }],
-	}, {
-		id: 1,
-		name: 'Dan',
-		verified: 0,
-		invitedBy: null,
-		counter: 3,
 		posts: [],
-	}]);
-});
-
-test('[Find Many] Get view users with posts + filter by joined field', async () => {
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex' },
-	]);
-
-	const date1 = new Date(0);
-	const date2 = new Date(1000);
-	const date3 = new Date(10000);
-
-	await db.insert(postsTable).values([
-		{ ownerId: 1, content: 'Post1', createdAt: date1 },
-		{ ownerId: 2, content: 'Post2', createdAt: date2 },
-		{ ownerId: 3, content: 'Post3', createdAt: date3 },
-	]);
-
-	const usersWithPosts = await db.query.usersView.findMany({
-		with: {
-			posts: true,
-		},
-		orderBy: {
-			id: 'asc',
-		},
-		where: {
-			postContent: 'Post2',
-		},
-	});
-
-	expectTypeOf(usersWithPosts).toEqualTypeOf<{
-		id: number;
-		name: string;
-		verified: number;
-		invitedBy: number | null;
-		createdAt: Date | null;
-		postContent: string | null;
-		counter: number | null;
-		posts: {
-			id: number;
-			content: string;
-			ownerId: number | null;
-			createdAt: Date;
-		}[];
-	}[]>();
-
-	expect(usersWithPosts).toEqual([{
+	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
-		counter: null,
-		postContent: 'Post2',
-		createdAt: date2,
-		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: date2 }],
+		posts: [
+			{ ownerId: 2, content: 'Message2.1' },
+			{ ownerId: 2, content: 'Message2.2' },
+			{ ownerId: 2, content: 'Message2.3' },
+		],
 	}]);
 });
 
-test('[Find Many] Get posts with view users with posts', async () => {
-	await db.insert(usersTable).values([
+test('[Find Many] Get custom schema posts with filtered authors + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(schemaUsers).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const date1 = new Date(0);
-	const date2 = new Date(1000);
-	const date3 = new Date(10000);
-
-	await db.insert(postsTable).values([
-		{ ownerId: 1, content: 'Post1', createdAt: date1 },
-		{ ownerId: 2, content: 'Post2', createdAt: date2 },
-		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	await db.insert(schemaPosts).values([
+		{ id: 1, ownerId: 1, content: 'Message1.1' },
+		{ id: 2, ownerId: 2, content: 'Message2.1' },
+		{ id: 3, ownerId: 3, content: 'Message3.1' },
+		{ id: 4, ownerId: 1, content: 'Message1.2' },
+		{ id: 5, ownerId: 2, content: 'Message2.2' },
+		{ id: 6, ownerId: 3, content: 'Message3.2' },
+		{ id: 7, ownerId: 1, content: 'Message1.3' },
+		{ id: 8, ownerId: 2, content: 'Message2.3' },
+		{ id: 9, ownerId: 3, content: 'Message3.3' },
+		{ id: 10, ownerId: 1, content: 'Post1.1' },
+		{ id: 11, ownerId: 2, content: 'Post2.1' },
+		{ id: 12, ownerId: 3, content: 'Post3.1' },
+		{ id: 13, ownerId: 1, content: 'Post1.2' },
+		{ id: 14, ownerId: 2, content: 'Post2.2' },
+		{ id: 15, ownerId: 3, content: 'Post3.2' },
+		{ id: 16, ownerId: 1, content: 'Post1.3' },
+		{ id: 17, ownerId: 2, content: 'Post2.3' },
+		{ id: 18, ownerId: 3, content: 'Post3.3' },
 	]);
 
-	const result = await db.query.postsTable.findMany({
+	const posts = await db.query.schemaPosts.findMany({
+		columns: {
+			content: true,
+		},
 		with: {
-			viewAuthor: {
-				with: {
-					posts: true,
-				},
-			},
-		},
-		orderBy: {
-			id: 'asc',
-		},
-	});
-
-	expectTypeOf(result).toEqualTypeOf<{
-		id: number;
-		content: string;
-		ownerId: number | null;
-		createdAt: Date;
-		viewAuthor: {
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-			createdAt: Date | null;
-			postContent: string | null;
-			counter: number | null;
-			posts: {
-				id: number;
-				content: string;
-				ownerId: number | null;
-				createdAt: Date;
-			}[];
-		};
-	}[]>();
-
-	expect(result).toEqual([
-		{
-			id: 1,
-			ownerId: 1,
-			content: 'Post1',
-			createdAt: date1,
-			viewAuthor: null,
-		},
-		{
-			id: 2,
-			ownerId: 2,
-			content: 'Post2',
-			createdAt: date2,
-			viewAuthor: {
-				id: 2,
-				name: 'Andrew',
-				verified: 0,
-				invitedBy: null,
-				counter: null,
-				postContent: 'Post2',
-				createdAt: date2,
-				posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: date2 }],
-			},
-		},
-		{
-			id: 3,
-			ownerId: 3,
-			content: 'Post3',
-			createdAt: date3,
-			viewAuthor: {
-				id: 3,
-				name: 'Alex',
-				verified: 0,
-				invitedBy: null,
-				counter: 3,
-				postContent: 'Post3',
-				createdAt: date3,
-				posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: date3 }],
-			},
-		},
-	]);
-});
-
-test('[Find Many] Get posts with view users + filter with posts', async () => {
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex' },
-	]);
-
-	const date1 = new Date(0);
-	const date2 = new Date(1000);
-	const date3 = new Date(10000);
-
-	await db.insert(postsTable).values([
-		{ ownerId: 1, content: 'Post1', createdAt: date1 },
-		{ ownerId: 2, content: 'Post2', createdAt: date2 },
-		{ ownerId: 3, content: 'Post3', createdAt: date3 },
-	]);
-
-	const result = await db.query.postsTable.findMany({
-		with: {
-			viewAuthor: {
-				with: {
-					posts: true,
+			author: {
+				columns: {
+					name: true,
+					id: true,
 				},
 				where: {
-					id: {
-						ne: 2,
-					},
+					id: 2,
 				},
 			},
 		},
 		orderBy: {
-			id: 'asc',
+			id: 'desc',
 		},
 	});
 
-	expectTypeOf(result).toEqualTypeOf<{
-		id: number;
+	expectTypeOf(posts).toEqualTypeOf<{
 		content: string;
-		ownerId: number | null;
-		createdAt: Date;
-		viewAuthor: {
+		author: {
 			id: number;
 			name: string;
-			verified: number;
-			invitedBy: number | null;
-			createdAt: Date | null;
-			postContent: string | null;
-			counter: number | null;
-			posts: {
-				id: number;
-				content: string;
-				ownerId: number | null;
-				createdAt: Date;
-			}[];
 		} | null;
 	}[]>();
 
-	expect(result).toEqual([
-		{
-			id: 1,
-			ownerId: 1,
-			content: 'Post1',
-			createdAt: date1,
-			viewAuthor: null,
-		},
-		{
-			id: 2,
-			ownerId: 2,
-			content: 'Post2',
-			createdAt: date2,
-			viewAuthor: null,
-		},
-		{
-			id: 3,
-			ownerId: 3,
-			content: 'Post3',
-			createdAt: date3,
-			viewAuthor: {
-				id: 3,
-				name: 'Alex',
-				verified: 0,
-				invitedBy: null,
-				counter: 3,
-				postContent: 'Post3',
-				createdAt: date3,
-				posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: date3 }],
-			},
-		},
+	expect(posts).toStrictEqual([
+		{ content: 'Post3.3', author: null },
+		{ content: 'Post2.3', author: null },
+		{ content: 'Post1.3', author: null },
+		{ content: 'Post3.2', author: null },
+		{ content: 'Post2.2', author: null },
+		{ content: 'Post1.2', author: null },
+		{ content: 'Post3.1', author: null },
+		{ content: 'Post2.1', author: null },
+		{ content: 'Post1.1', author: null },
+		{ content: 'Message3.3', author: null },
+		{ content: 'Message2.3', author: { id: 2, name: 'Andrew' } },
+		{ content: 'Message1.3', author: null },
+		{ content: 'Message3.2', author: null },
+		{ content: 'Message2.2', author: { id: 2, name: 'Andrew' } },
+		{ content: 'Message1.2', author: null },
+		{ content: 'Message3.1', author: null },
+		{ content: 'Message2.1', author: { id: 2, name: 'Andrew' } },
+		{ content: 'Message1.1', author: null },
 	]);
 });
 
-test('[Find Many] Get posts with view users + filter by joined column with posts', async () => {
-	await db.insert(usersTable).values([
+test('[Find Many .through] Get custom schema users with filtered groups + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(schemaUsers).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const date1 = new Date(0);
-	const date2 = new Date(1000);
-	const date3 = new Date(10000);
-
-	await db.insert(postsTable).values([
-		{ ownerId: 1, content: 'Post1', createdAt: date1 },
-		{ ownerId: 2, content: 'Post2', createdAt: date2 },
-		{ ownerId: 3, content: 'Post3', createdAt: date3 },
-	]);
-
-	const result = await db.query.postsTable.findMany({
-		with: {
-			viewAuthor: {
-				with: {
-					posts: true,
-				},
-				where: {
-					postContent: {
-						notLike: '%2',
-					},
-				},
-			},
-		},
-		orderBy: {
-			id: 'asc',
-		},
-	});
-
-	expectTypeOf(result).toEqualTypeOf<{
-		id: number;
-		content: string;
-		ownerId: number | null;
-		createdAt: Date;
-		viewAuthor: {
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-			createdAt: Date | null;
-			postContent: string | null;
-			counter: number | null;
-			posts: {
-				id: number;
-				content: string;
-				ownerId: number | null;
-				createdAt: Date;
-			}[];
-		} | null;
-	}[]>();
-
-	expect(result).toEqual([
-		{
-			id: 1,
-			ownerId: 1,
-			content: 'Post1',
-			createdAt: date1,
-			viewAuthor: null,
-		},
-		{
-			id: 2,
-			ownerId: 2,
-			content: 'Post2',
-			createdAt: date2,
-			viewAuthor: null,
-		},
-		{
-			id: 3,
-			ownerId: 3,
-			content: 'Post3',
-			createdAt: date3,
-			viewAuthor: {
-				id: 3,
-				name: 'Alex',
-				verified: 0,
-				invitedBy: null,
-				counter: 3,
-				postContent: 'Post3',
-				createdAt: date3,
-				posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: date3 }],
-			},
-		},
-	]);
-});
-test('[Find Many] Get posts with view users + filter by SQL.Aliased with posts', async () => {
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex' },
-	]);
-
-	const date1 = new Date(0);
-	const date2 = new Date(1000);
-	const date3 = new Date(10000);
-
-	await db.insert(postsTable).values([
-		{ ownerId: 1, content: 'Post1', createdAt: date1 },
-		{ ownerId: 2, content: 'Post2', createdAt: date2 },
-		{ ownerId: 3, content: 'Post3', createdAt: date3 },
-	]);
-
-	const result = await db.query.postsTable.findMany({
-		with: {
-			viewAuthor: {
-				with: {
-					posts: true,
-				},
-				where: {
-					counter: {
-						ne: 0,
-					},
-				},
-			},
-		},
-		orderBy: {
-			id: 'asc',
-		},
-	});
-
-	expectTypeOf(result).toEqualTypeOf<{
-		id: number;
-		content: string;
-		ownerId: number | null;
-		createdAt: Date;
-		viewAuthor: {
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-			createdAt: Date | null;
-			postContent: string | null;
-			counter: number | null;
-			posts: {
-				id: number;
-				content: string;
-				ownerId: number | null;
-				createdAt: Date;
-			}[];
-		} | null;
-	}[]>();
-
-	expect(result).toEqual([
-		{
-			id: 1,
-			ownerId: 1,
-			content: 'Post1',
-			createdAt: date1,
-			viewAuthor: null,
-		},
-		{
-			id: 2,
-			ownerId: 2,
-			content: 'Post2',
-			createdAt: date2,
-			viewAuthor: null,
-		},
-		{
-			id: 3,
-			ownerId: 3,
-			content: 'Post3',
-			createdAt: date3,
-			viewAuthor: {
-				id: 3,
-				name: 'Alex',
-				verified: 0,
-				invitedBy: null,
-				counter: 3,
-				postContent: 'Post3',
-				createdAt: date3,
-				posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: date3 }],
-			},
-		},
-	]);
-});
-
-test('[Find Many .through] Get view users with filtered groups + where', async () => {
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex' },
-	]);
-
-	await db.insert(groupsTable).values([
+	await db.insert(schemaGroups).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
 	]);
 
-	await db.insert(usersToGroupsTable).values([
+	await db.insert(schemaUsersToGroups).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.usersView.findMany({
+	const response = await db.query.schemaUsers.findMany({
 		with: {
 			groups: {
 				where: {
@@ -9315,18 +9221,21 @@ test('[Find Many .through] Get view users with filtered groups + where', async (
 						lt: 3,
 					},
 				},
+				orderBy: {
+					id: 'asc',
+				},
 			},
+		},
+		orderBy: {
+			id: 'asc',
 		},
 	});
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
-		createdAt: Date | null;
-		postContent: string | null;
-		counter: number | null;
 		groups: {
 			id: number;
 			name: string;
@@ -9334,28 +9243,17 @@ test('[Find Many .through] Get view users with filtered groups + where', async (
 		}[];
 	}[]>();
 
-	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
-	for (const e of response) {
-		e.groups.sort((a, b) => (a.id > b.id) ? 1 : -1);
-	}
-
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
-		createdAt: null,
-		postContent: null,
-		counter: 3,
 		groups: [],
 	}, {
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
-		createdAt: null,
-		postContent: null,
-		counter: null,
 		groups: [{
 			id: 2,
 			name: 'Group2',
@@ -9364,11 +9262,8 @@ test('[Find Many .through] Get view users with filtered groups + where', async (
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
-		createdAt: null,
-		postContent: null,
-		counter: 3,
 		groups: [
 			{
 				id: 2,
@@ -9379,35 +9274,39 @@ test('[Find Many .through] Get view users with filtered groups + where', async (
 	}]);
 });
 
-test('[Find Many .through] Get groups with filtered view users + where', async () => {
-	await db.insert(usersTable).values([
+test('[Find Many .through] Get custom schema groups with filtered users + where', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(schemaUsers).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
 	]);
 
-	await db.insert(groupsTable).values([
+	await db.insert(schemaGroups).values([
 		{ id: 1, name: 'Group1' },
 		{ id: 2, name: 'Group2' },
 		{ id: 3, name: 'Group3' },
 	]);
 
-	await db.insert(usersToGroupsTable).values([
+	await db.insert(schemaUsersToGroups).values([
 		{ userId: 1, groupId: 1 },
 		{ userId: 2, groupId: 2 },
 		{ userId: 3, groupId: 3 },
 		{ userId: 3, groupId: 2 },
 	]);
 
-	const response = await db.query.groupsTable.findMany({
+	const response = await db.query.schemaGroups.findMany({
 		with: {
-			usersView: {
-				columns: {
-					createdAt: false,
-					postContent: false,
-				},
+			users: {
 				where: { id: { lt: 3 } },
+				orderBy: {
+					id: 'asc',
+				},
 			},
+		},
+		orderBy: {
+			id: 'asc',
 		},
 	});
 
@@ -9415,45 +9314,113 @@ test('[Find Many .through] Get groups with filtered view users + where', async (
 		id: number;
 		name: string;
 		description: string | null;
-		usersView: {
+		users: {
 			id: number;
 			name: string;
-			verified: number;
+			verified: boolean;
 			invitedBy: number | null;
-			counter: number | null;
 		}[];
 	}[]>();
-
-	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
-	for (const e of response) {
-		e.usersView.sort((a, b) => (a.id > b.id) ? 1 : -1);
-	}
 
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Group1',
 		description: null,
-		usersView: [],
+		users: [],
 	}, {
 		id: 2,
 		name: 'Group2',
 		description: null,
-		usersView: [{
+		users: [{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
-			counter: null,
 		}],
 	}, {
 		id: 3,
 		name: 'Group3',
 		description: null,
-		usersView: [],
+		users: [],
 	}]);
 });
 
-test('[Find Many] Get users + filter users by posts', async () => {
+test('Force optional on where on non-optional relation query', async (t) => {
+	const { geljsDb: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		with: {
+			inviteeRequired: {
+				where: {
+					id: 1,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			inviteeRequired: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
+	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(usersWithInvitee.length).eq(4);
+	expect(usersWithInvitee[0]?.inviteeRequired).toBeNull();
+	expect(usersWithInvitee[1]?.inviteeRequired).toBeNull();
+	expect(usersWithInvitee[2]?.inviteeRequired).not.toBeNull();
+	expect(usersWithInvitee[3]?.inviteeRequired).toBeNull();
+
+	expect(usersWithInvitee[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		inviteeRequired: null,
+	});
+	expect(usersWithInvitee[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		inviteeRequired: null,
+	});
+	expect(usersWithInvitee[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: 1,
+		inviteeRequired: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+	});
+	expect(usersWithInvitee[3]).toEqual({
+		id: 4,
+		name: 'John',
+		verified: false,
+		invitedBy: 2,
+		inviteeRequired: null,
+	});
+});
+
+test('[Find Many] Get users + filter users by posts', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -9486,19 +9453,21 @@ test('[Find Many] Get users + filter users by posts', async () => {
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 	}[]>();
 
 	expect(usersWithPosts).toEqual([{
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 	}]);
 });
 
-test('[Find Many] Get users with posts + filter users by posts', async () => {
+test('[Find Many] Get users with posts + filter users by posts', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -9534,7 +9503,7 @@ test('[Find Many] Get users with posts + filter users by posts', async () => {
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -9547,13 +9516,15 @@ test('[Find Many] Get users with posts + filter users by posts', async () => {
 	expect(usersWithPosts).toEqual([{
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: date2 }],
 	}]);
 });
 
-test('[Find Many] Get users filtered by existing posts', async () => {
+test('[Find Many] Get users filtered by existing posts', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -9580,24 +9551,26 @@ test('[Find Many] Get users filtered by existing posts', async () => {
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 	}[]>();
 
 	expect(usersWithPosts).toEqual([{
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 	}]);
 });
 
-test('[Find Many] Get users with posts + filter users by existing posts', async () => {
+test('[Find Many] Get users with posts + filter users by existing posts', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -9627,7 +9600,7 @@ test('[Find Many] Get users with posts + filter users by existing posts', async 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -9640,19 +9613,21 @@ test('[Find Many] Get users with posts + filter users by existing posts', async 
 	expect(usersWithPosts).toEqual([{
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 2, content: 'Post2', createdAt: date2 }],
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{ id: 2, ownerId: 3, content: 'Post3', createdAt: date3 }],
 	}]);
 });
 
-test('[Find Many] Get users filtered by nonexisting posts', async () => {
+test('[Find Many] Get users filtered by nonexisting posts', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -9679,19 +9654,21 @@ test('[Find Many] Get users filtered by nonexisting posts', async () => {
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 	}[]>();
 
 	expect(usersWithPosts).toEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 	}]);
 });
 
-test('[Find Many] Get users with posts + filter users by existing posts', async () => {
+test('[Find Many] Get users with posts + filter users by existing posts', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -9721,7 +9698,7 @@ test('[Find Many] Get users with posts + filter users by existing posts', async 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -9734,13 +9711,15 @@ test('[Find Many] Get users with posts + filter users by existing posts', async 
 	expect(usersWithPosts).toEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [],
 	}]);
 });
 
-test('[Find Many] Get users with posts + filter posts by author', async () => {
+test('[Find Many] Get users with posts + filter posts by author', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -9778,7 +9757,7 @@ test('[Find Many] Get users with posts + filter posts by author', async () => {
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -9792,14 +9771,14 @@ test('[Find Many] Get users with posts + filter posts by author', async () => {
 		{
 			id: 1,
 			name: 'Dan',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 			posts: [],
 		},
 		{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 			posts: [{
 				id: 3,
@@ -9816,14 +9795,16 @@ test('[Find Many] Get users with posts + filter posts by author', async () => {
 		{
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 			posts: [],
 		},
 	]);
 });
 
-test('[Find Many] Get users filtered by own columns and posts with filtered posts by own columns and author', async () => {
+test('[Find Many] Get users filtered by own columns and posts with filtered posts by own columns and author', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -9878,7 +9859,7 @@ test('[Find Many] Get users filtered by own columns and posts with filtered post
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		posts: {
 			id: number;
@@ -9892,7 +9873,7 @@ test('[Find Many] Get users filtered by own columns and posts with filtered post
 		{
 			id: 2,
 			name: 'Andrew',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 			posts: [{
 				id: 6,
@@ -9909,7 +9890,9 @@ test('[Find Many] Get users filtered by own columns and posts with filtered post
 	]);
 });
 
-test('[Find Many .through] Get users filtered by groups', async () => {
+test('[Find Many .through] Get users filtered by groups', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -9940,7 +9923,7 @@ test('[Find Many .through] Get users filtered by groups', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 	}[]>();
 
@@ -9949,12 +9932,14 @@ test('[Find Many .through] Get users filtered by groups', async () => {
 	expect(response).toStrictEqual([{
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 	}]);
 });
 
-test('[Find Many .through] Get users filtered by existing groups', async () => {
+test('[Find Many .through] Get users filtered by existing groups', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -9982,7 +9967,7 @@ test('[Find Many .through] Get users filtered by existing groups', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 	}[]>();
 
@@ -9991,17 +9976,19 @@ test('[Find Many .through] Get users filtered by existing groups', async () => {
 	expect(response).toStrictEqual([{
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 	}]);
 });
 
-test('[Find Many .through] Get users with existing groups', async () => {
+test('[Find Many .through] Get users with existing groups', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -10032,7 +10019,7 @@ test('[Find Many .through] Get users with existing groups', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -10049,7 +10036,7 @@ test('[Find Many .through] Get users with existing groups', async () => {
 	expect(response).toStrictEqual([{
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 2,
@@ -10059,7 +10046,7 @@ test('[Find Many .through] Get users with existing groups', async () => {
 	}, {
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 1,
@@ -10073,7 +10060,9 @@ test('[Find Many .through] Get users with existing groups', async () => {
 	}]);
 });
 
-test('[Find Many .through] Get users filtered by nonexisting groups', async () => {
+test('[Find Many .through] Get users filtered by nonexisting groups', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -10101,7 +10090,7 @@ test('[Find Many .through] Get users filtered by nonexisting groups', async () =
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 	}[]>();
 
@@ -10110,12 +10099,14 @@ test('[Find Many .through] Get users filtered by nonexisting groups', async () =
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 	}]);
 });
 
-test('[Find Many .through] Get users with nonexisting groups', async () => {
+test('[Find Many .through] Get users with nonexisting groups', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -10146,7 +10137,7 @@ test('[Find Many .through] Get users with nonexisting groups', async () => {
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -10163,13 +10154,15 @@ test('[Find Many .through] Get users with nonexisting groups', async () => {
 	expect(response).toStrictEqual([{
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [],
 	}]);
 });
 
-test('[Find Many .through] Get users filtered by groups with groups', async () => {
+test('[Find Many .through] Get users filtered by groups with groups', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -10210,7 +10203,7 @@ test('[Find Many .through] Get users filtered by groups with groups', async () =
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -10222,7 +10215,7 @@ test('[Find Many .through] Get users filtered by groups with groups', async () =
 	expect(response).toStrictEqual([{
 		id: 2,
 		name: 'Andrew',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 2,
@@ -10232,7 +10225,9 @@ test('[Find Many .through] Get users filtered by groups with groups', async () =
 	}]);
 });
 
-test('[Find Many .through] Get users filtered by groups with groups filtered by users', async () => {
+test('[Find Many .through] Get users filtered by groups with groups filtered by users', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -10278,7 +10273,7 @@ test('[Find Many .through] Get users filtered by groups with groups filtered by 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -10290,7 +10285,7 @@ test('[Find Many .through] Get users filtered by groups with groups filtered by 
 	expect(response).toStrictEqual([{
 		id: 3,
 		name: 'Alex',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		groups: [{
 			id: 1,
@@ -10300,7 +10295,9 @@ test('[Find Many .through] Get users filtered by groups with groups filtered by 
 	}]);
 });
 
-test('[Find Many .through] Get users filtered by users of groups with groups', async () => {
+test('[Find Many .through] Get users filtered by users of groups with groups', async (ctx) => {
+	const { geljsDb: db } = ctx;
+
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -10343,7 +10340,7 @@ test('[Find Many .through] Get users filtered by users of groups with groups', a
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
 		name: string;
-		verified: number;
+		verified: boolean;
 		invitedBy: number | null;
 		groups: {
 			id: number;
@@ -10356,7 +10353,7 @@ test('[Find Many .through] Get users filtered by users of groups with groups', a
 		{
 			id: 1,
 			name: 'Dan',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 			groups: [{
 				id: 1,
@@ -10367,7 +10364,7 @@ test('[Find Many .through] Get users filtered by users of groups with groups', a
 		{
 			id: 3,
 			name: 'Alex',
-			verified: 0,
+			verified: false,
 			invitedBy: null,
 			groups: [{
 				id: 1,
@@ -10380,21 +10377,6 @@ test('[Find Many .through] Get users filtered by users of groups with groups', a
 			}],
 		},
 	]);
-});
-
-test.todo('relationless querying', async () => {
-	// const rels = defineRelations({
-	// 	usersTable,
-	// });
-	// const d1 = drizzle(':memory:', {
-	// 	relations: rels,
-	// });
-
-	// const res = await d1.query.usersTable.findFirst({
-	// 	where: {
-	// 		id: sql.placeholder('id'),
-	// 	},
-	// });
 });
 
 test.todo('alltypes', async () => {
