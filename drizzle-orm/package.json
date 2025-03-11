@@ -64,14 +64,14 @@
 		"better-sqlite3": ">=7",
 		"bun-types": "*",
 		"expo-sqlite": ">=14.0.0",
+		"gel": ">=2",
 		"knex": "*",
 		"kysely": "*",
 		"mysql2": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
 		"sql.js": ">=1",
-		"sqlite3": ">=5",
-		"gel": ">=2"
+		"sqlite3": ">=5"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
