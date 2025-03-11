@@ -931,7 +931,8 @@ export interface RelationsFilterCommons<
 		| ((
 			table: TTable['table'],
 			operators: Operators,
-		) => SQL) | undefined;
+		) => SQL)
+		| undefined;
 }
 
 export type RelationsFilter<
@@ -942,14 +943,16 @@ export type RelationsFilter<
 > = TTable['relations'] extends Record<string, never> ? TableFilter<TTable['table']>
 	:
 		& {
-			[K in keyof TColumns]?: (TColumns[K] extends Column
-				? RelationsFieldFilter<TColumns[K]['_']['data']>
-				: RelationsFieldFilter<unknown>) | undefined;
+			[K in keyof TColumns]?:
+				| (TColumns[K] extends Column ? RelationsFieldFilter<TColumns[K]['_']['data']>
+					: RelationsFieldFilter<unknown>)
+				| undefined;
 		}
 		& {
 			[K in keyof TRelations]?:
 				| boolean
-				| RelationsFilter<FindTableInRelationalConfig<TSchema, TRelations[K]['targetTable']>, TSchema> | undefined;
+				| RelationsFilter<FindTableInRelationalConfig<TSchema, TRelations[K]['targetTable']>, TSchema>
+				| undefined;
 		}
 		& RelationsFilterCommons<TTable, TSchema>;
 
