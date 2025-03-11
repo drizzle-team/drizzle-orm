@@ -1,5 +1,4 @@
 import { getTableName, is } from 'drizzle-orm';
-import { AnyGelTable } from 'drizzle-orm/gel-core';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -7,7 +6,8 @@ import {
 	One,
 	Relation,
 	Relations,
-} from 'drizzle-orm/relations';
+} from 'drizzle-orm/_relations';
+import { AnyGelTable } from 'drizzle-orm/gel-core';
 import './@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from './cli/validations/common';
