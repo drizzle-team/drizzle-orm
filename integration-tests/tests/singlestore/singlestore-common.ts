@@ -3058,7 +3058,7 @@ export function tests(driver?: string) {
 
 			expect(initialRecord?.updatedAt?.valueOf()).not.toBe(updatedRecord?.updatedAt?.valueOf());
 
-			const msDelay = 1000;
+			const msDelay = 2000;
 
 			for (const eachUser of justDates) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);

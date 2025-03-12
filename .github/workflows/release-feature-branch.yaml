@@ -7,23 +7,21 @@ on:
   pull_request: {}
 
 jobs:
-  release:
-    # only run on all pushes or pull requests from forks
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+  test:
     strategy:
       matrix:
-        package:
-          - drizzle-orm
-          - drizzle-kit
-          - drizzle-zod
-          - drizzle-seed
-          - drizzle-typebox
-          - drizzle-valibot
-          - eslint-plugin-drizzle
+        shard:
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          - 8
+          - 9
+          - 10
     runs-on: ubuntu-20.04
-    permissions:
-      contents: read
-      id-token: write
     services:
       postgres-postgis:
         image: postgis/postgis:16-3.4
@@ -108,6 +106,81 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Build Prisma client
+        working-directory: drizzle-orm
+        run: pnpm prisma generate --schema src/prisma/schema.prisma
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run tests
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
+          PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
+          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
+          XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
+          XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
+          LIBSQL_URL: file:local.db
+          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
+          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+        working-directory: integration-tests
+        run: |
+          if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            export SKIP_EXTERNAL_DB_TESTS=1
+          fi
+
+          pnpm vitest run --shard=${{ matrix.shard }}/10
+
+  attw:
+    # only run on all pushes or pull requests from forks
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    strategy:
+      matrix:
+        package:
+          - drizzle-orm
+          - drizzle-kit
+          - drizzle-zod
+          - drizzle-seed
+          - drizzle-typebox
+          - drizzle-valibot
+          - eslint-plugin-drizzle
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18.18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v3
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: latest
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
       - name: Check preconditions
         id: checks
         shell: bash
@@ -138,32 +211,7 @@ jobs:
             pnpm prisma generate --schema src/prisma/schema.prisma
           )
           pnpm build
-
-      - name: Run tests
-        if: steps.checks.outputs.has_new_release == 'true'
-        env:
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
-          PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
-          PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
-          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
-          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
-          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-          TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
-          XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
-          XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
-          LIBSQL_URL: file:local.db
-          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
-          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
-        run: |
-          if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
-            export SKIP_EXTERNAL_DB_TESTS=1
-          fi
-          if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
-            pnpm test --filter ${{ matrix.package }} --filter integration-tests
-          else
-            pnpm test --filter ${{ matrix.package }}
-          fi
-
+      
       - name: Pack
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
@@ -181,6 +229,115 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: |
           pnpm attw package.tgz
+
+  release:
+    # only run on all pushes or pull requests from forks
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    needs:
+      - test
+      - attw
+    strategy:
+      matrix:
+        package:
+          - drizzle-orm
+          - drizzle-kit
+          - drizzle-zod
+          - drizzle-seed
+          - drizzle-typebox
+          - drizzle-valibot
+          - eslint-plugin-drizzle
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18.18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v3
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: latest
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Check preconditions
+        id: checks
+        shell: bash
+        working-directory: ${{ matrix.package }}
+        run: |
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          tag="${{ github.ref_name }}"
+          is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "true" ]]; then
+            echo "\`${{ matrix.package }}$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add ${{ matrix.package }}@$version $tag
+          else
+            {
+              echo "version=$version"
+              echo "tag=$tag"
+              echo "has_new_release=true"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Prisma client
+        working-directory: drizzle-orm
+        run: pnpm prisma generate --schema src/prisma/schema.prisma
+
+      - name: Build
+        if: steps.checks.outputs.has_new_release == 'true'
+        run: pnpm build
+
+      - name: Run tests
+        if: steps.checks.outputs.has_new_release == 'true'
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
+          PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
+          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
+          XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
+          XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
+          LIBSQL_URL: file:local.db
+          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
+          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+        run: |
+          pnpm test --filter ${{ matrix.package }}
+
+      - name: Pack
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: ${{ matrix.package }}
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+        run: |
+          npm run pack
 
       - name: Publish
         if: github.event_name == 'push' && steps.checks.outputs.has_new_release == 'true'
