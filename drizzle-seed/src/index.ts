@@ -325,7 +325,7 @@ export async function seedForDrizzleStudio(
  * // seeding with count and seed specified
  * await seed(db, schema, { count: 100000, seed: 1 });
  *
- * //seeding using refine
+ * // seeding using refine
  * await seed(db, schema, { count: 1000 }).refine((funcs) => ({
  *   users: {
  *     columns: {
@@ -342,6 +342,17 @@ export async function seedForDrizzleStudio(
  *         values: ["Title1", "Title2", "Title3", "Title4", "Title5"],
  *       }),
  *       content: funcs.loremIpsum({ sentencesCount: 3 }),
+ *     },
+ *   },
+ * }));
+ *
+ * // seeding while ignoring column
+ * await seed(db, schema).refine((funcs) => ({
+ *   users: {
+ *     count: 5,
+ *     columns: {
+ *       name: funcs.fullName(),
+ *       photo: false, // the photo column will not be seeded, allowing the database to use its default value.
  *     },
  *   },
  * }));
