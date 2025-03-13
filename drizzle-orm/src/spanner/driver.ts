@@ -1,11 +1,11 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
-import { DefaultLogger } from '~/logger.ts';
 import { GoogleSqlDatabase } from '~/googlesql/db.ts';
 import { GoogleSqlDialect } from '~/googlesql/dialect.ts';
 import type { Mode } from '~/googlesql/session.ts';
+import type { Logger } from '~/logger.ts';
+import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,

@@ -8,7 +8,7 @@ import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 export type GoogleSqlStringBuilderInitial<
 	TName extends string,
 	TEnum extends [string, ...string[]],
-	TLength extends number | undefined | "MAX",
+	TLength extends number | undefined | 'MAX',
 > = GoogleSqlStringBuilder<{
 	name: TName;
 	dataType: 'string';
@@ -19,10 +19,9 @@ export type GoogleSqlStringBuilderInitial<
 	length: TLength;
 }>;
 
-
 // TODO: SPANNER - check how those "enum" work
 export class GoogleSqlStringBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlString'> & { length?: number | undefined | "MAX" },
+	T extends ColumnBuilderBaseConfig<'string', 'GoogleSqlString'> & { length?: number | undefined | 'MAX' },
 > extends GoogleSqlColumnBuilder<
 	T,
 	GoogleSqlStringConfig<T['enumValues'], T['length']>,
@@ -47,9 +46,9 @@ export class GoogleSqlStringBuilder<
 	}
 }
 
-export class GoogleSqlString<T extends ColumnBaseConfig<'string', 'GoogleSqlString'> & { length?: number | undefined | "MAX" }>
-	extends GoogleSqlColumn<T, GoogleSqlStringConfig<T['enumValues'], T['length']>, { length: T['length'] }>
-{
+export class GoogleSqlString<
+	T extends ColumnBaseConfig<'string', 'GoogleSqlString'> & { length?: number | undefined | 'MAX' },
+> extends GoogleSqlColumn<T, GoogleSqlStringConfig<T['enumValues'], T['length']>, { length: T['length'] }> {
 	static override readonly [entityKind]: string = 'GoogleSqlString';
 
 	readonly length: T['length'] = this.config.length;
@@ -62,7 +61,7 @@ export class GoogleSqlString<T extends ColumnBaseConfig<'string', 'GoogleSqlStri
 
 export interface GoogleSqlStringConfig<
 	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
-	TLength extends number | undefined | "MAX" = number | undefined | "MAX",
+	TLength extends number | undefined | 'MAX' = number | undefined | 'MAX',
 > {
 	enum?: TEnum;
 	length?: TLength;

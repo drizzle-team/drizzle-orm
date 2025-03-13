@@ -541,7 +541,7 @@ export class GoogleSqlDialect {
 		const ignoreSql = ignore ? sql` ignore` : undefined;
 
 		const updateSql = update ? sql` update` : undefined;
-	
+
 		// TODO: SPANNER - support "THEN RETURN ..." clause. https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#insert_with_then_return_examples
 
 		return {

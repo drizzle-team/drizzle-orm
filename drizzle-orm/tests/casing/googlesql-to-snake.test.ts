@@ -1,8 +1,8 @@
 import { createPool } from 'mysql2';
 import { beforeEach, describe, it } from 'vitest';
-import { alias, boolean, int, googlesqlSchema, googlesqlTable, serial, text, union } from '~/googlesql';
-import { drizzle as spanner } from '~/spanner';
+import { alias, boolean, googlesqlSchema, googlesqlTable, int, serial, text, union } from '~/googlesql';
 import { relations } from '~/relations';
+import { drizzle as spanner } from '~/spanner';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = googlesqlSchema('test');
@@ -29,13 +29,11 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-
-
 const instance = createPool({
-	uri: "googlesql://root:password@localhost:3306/test",
+	uri: 'googlesql://root:password@localhost:3306/test',
 });
 
-const db = spanner({ client: instance, schema: schema, casing: 'snake_case', mode: "default" });
+const db = spanner({ client: instance, schema: schema, casing: 'snake_case', mode: 'default' });
 
 const usersCache = {
 	'public.users.id': 'id',
@@ -164,7 +162,6 @@ describe('googlesql to snake case', () => {
 		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
-
 	it('query (find many)', ({ expect }) => {
 		const query = db.query.users.findMany({
 			columns: {
@@ -192,7 +189,6 @@ describe('googlesql to snake case', () => {
 		});
 		expect(db.dialect.casing.cache).toEqual(cache);
 	});
-
 
 	it('insert', ({ expect }) => {
 		const query = db

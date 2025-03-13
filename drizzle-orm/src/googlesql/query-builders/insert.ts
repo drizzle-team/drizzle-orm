@@ -89,7 +89,14 @@ export class GoogleSqlInsertBuilder<
 			return result;
 		});
 
-		return new GoogleSqlInsertBase(this.table, mappedValues, this.shouldIgnore, this.shouldUpdate, this.session, this.dialect);
+		return new GoogleSqlInsertBase(
+			this.table,
+			mappedValues,
+			this.shouldIgnore,
+			this.shouldUpdate,
+			this.session,
+			this.dialect,
+		);
 	}
 
 	select(
@@ -117,7 +124,15 @@ export class GoogleSqlInsertBuilder<
 			);
 		}
 
-		return new GoogleSqlInsertBase(this.table, select, this.shouldIgnore,this.shouldUpdate, this.session, this.dialect, true);
+		return new GoogleSqlInsertBase(
+			this.table,
+			select,
+			this.shouldIgnore,
+			this.shouldUpdate,
+			this.session,
+			this.dialect,
+			true,
+		);
 	}
 }
 
@@ -259,7 +274,7 @@ export class GoogleSqlInsertBase<
 	 * Calling this method will update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-duplicate-key-update}
-	 * 
+	 *
 	 * @deprecated Use `update()` instead.
 	 *
 	 * @param config The `set` clause
@@ -284,8 +299,8 @@ export class GoogleSqlInsertBase<
 	onDuplicateKeyUpdate(
 		// config: GoogleSqlInsertOnDuplicateKeyUpdateConfig<this>,
 	): GoogleSqlInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
-	// 	const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-	// 	this.config.onConflict = sql`update ${setSql}`;
+		// 	const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+		// 	this.config.onConflict = sql`update ${setSql}`;
 		this.config.update = true;
 		return this as any;
 	}

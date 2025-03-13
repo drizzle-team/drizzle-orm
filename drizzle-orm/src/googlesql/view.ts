@@ -38,7 +38,6 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 		this.config.sqlSecurity = sqlSecurity;
 		return this;
 	}
-
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {

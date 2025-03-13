@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
-import { GoogleSqlColumnBuilder, GoogleSqlColumn } from './common.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
 export type GoogleSqlFloat64BuilderInitial<TName extends string> = GoogleSqlFloat64Builder<{
 	name: TName;
@@ -33,9 +33,7 @@ export class GoogleSqlFloat64Builder<T extends ColumnBuilderBaseConfig<'number',
 	}
 }
 
-export class GoogleSqlFloat64<T extends ColumnBaseConfig<'number', 'GoogleSqlFloat64'>>
-	extends GoogleSqlColumn<T>
-{
+export class GoogleSqlFloat64<T extends ColumnBaseConfig<'number', 'GoogleSqlFloat64'>> extends GoogleSqlColumn<T> {
 	static override readonly [entityKind]: string = 'GoogleSqlFloat64';
 
 	getSQLType(): string {

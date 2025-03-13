@@ -34,9 +34,7 @@ export class GoogleSqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date',
 }
 
 // TODO: SPANNER - verify how values are mapped to and from the driver
-export class GoogleSqlTimestamp<T extends ColumnBaseConfig<'date', 'GoogleSqlTimestamp'>>
-	extends GoogleSqlColumn<T>
-{
+export class GoogleSqlTimestamp<T extends ColumnBaseConfig<'date', 'GoogleSqlTimestamp'>> extends GoogleSqlColumn<T> {
 	static override readonly [entityKind]: string = 'GoogleSqlTimestamp';
 
 	getSQLType(): string {

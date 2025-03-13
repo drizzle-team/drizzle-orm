@@ -22,7 +22,7 @@ export class GoogleSqlBytesBuilder<T extends ColumnBuilderBaseConfig<'buffer', '
 {
 	static override readonly [entityKind]: string = 'GoogleSqlBytesBuilder';
 
-	constructor(name: T['name'], length: number | "MAX" |  undefined) {
+	constructor(name: T['name'], length: number | 'MAX' | undefined) {
 		super(name, 'buffer', 'GoogleSqlBytes');
 		this.config.length = length;
 	}
@@ -44,15 +44,15 @@ export class GoogleSqlBytes<T extends ColumnBaseConfig<'buffer', 'GoogleSqlBytes
 > {
 	static override readonly [entityKind]: string = 'GoogleSqlBytes';
 
-	length: number | "MAX" | undefined = this.config.length;
+	length: number | 'MAX' | undefined = this.config.length;
 
 	getSQLType(): string {
-		return `bytes(${this.length === undefined ? "MAX" : this.length})`;
+		return `bytes(${this.length === undefined ? 'MAX' : this.length})`;
 	}
 }
 
 export interface GoogleSqlBytesConfig {
-	length?: number | "MAX";
+	length?: number | 'MAX';
 }
 
 export function bytes(): GoogleSqlBytesBuilderInitial<''>;

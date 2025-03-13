@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGoogleSqlTable } from '~/googlesql/table.ts';
-import { GoogleSqlColumn, GoogleSqlColumnBuilder} from './common.ts';
+import { GoogleSqlColumn, GoogleSqlColumnBuilder } from './common.ts';
 
 export type GoogleSqlNumericBuilderInitial<TName extends string> = GoogleSqlNumericBuilder<{
 	name: TName;
@@ -33,16 +33,13 @@ export class GoogleSqlNumericBuilder<
 	}
 }
 
-export class GoogleSqlNumeric<T extends ColumnBaseConfig<'string', 'GoogleSqlNumeric'>>
-	extends GoogleSqlColumn<T>
-{
+export class GoogleSqlNumeric<T extends ColumnBaseConfig<'string', 'GoogleSqlNumeric'>> extends GoogleSqlColumn<T> {
 	static override readonly [entityKind]: string = 'GoogleSqlNumeric';
 
 	getSQLType(): string {
 		return 'numeric';
 	}
 }
-
 
 export function numeric(): GoogleSqlNumericBuilderInitial<''>;
 

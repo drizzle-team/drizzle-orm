@@ -33,9 +33,7 @@ export class GoogleSqlInt64Builder<T extends ColumnBuilderBaseConfig<'number', '
 	}
 }
 
-export class GoogleSqlInt64<T extends ColumnBaseConfig<'number', 'GoogleSqlInt64'>>
-	extends GoogleSqlColumn<T>
-{
+export class GoogleSqlInt64<T extends ColumnBaseConfig<'number', 'GoogleSqlInt64'>> extends GoogleSqlColumn<T> {
 	static override readonly [entityKind]: string = 'GoogleSqlInt64';
 
 	getSQLType(): string {
@@ -52,7 +50,7 @@ export class GoogleSqlInt64<T extends ColumnBaseConfig<'number', 'GoogleSqlInt64
 
 export function int64(): GoogleSqlInt64BuilderInitial<''>;
 export function int64<TName extends string>(
-	name: TName
+	name: TName,
 ): GoogleSqlInt64BuilderInitial<TName>;
 export function int64(name?: string) {
 	return new GoogleSqlInt64Builder(name ?? '');

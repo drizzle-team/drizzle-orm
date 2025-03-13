@@ -33,7 +33,6 @@ export class GoogleSqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'Goo
 	}
 }
 
-
 // TODO: SPANNER - check how values are mapped to and from the driver
 export class GoogleSqlDate<T extends ColumnBaseConfig<'date', 'GoogleSqlDate'>> extends GoogleSqlColumn<T> {
 	static override readonly [entityKind]: string = 'GoogleSqlDate';
@@ -60,7 +59,7 @@ export class GoogleSqlDate<T extends ColumnBaseConfig<'date', 'GoogleSqlDate'>> 
 
 export function date(): GoogleSqlDateBuilderInitial<''>;
 export function date<TName extends string>(
-	name: TName
+	name: TName,
 ): GoogleSqlDateBuilderInitial<TName>;
 export function date(name?: string) {
 	return new GoogleSqlDateBuilder(name ?? '');
