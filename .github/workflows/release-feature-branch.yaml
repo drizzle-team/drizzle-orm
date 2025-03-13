@@ -11,16 +11,15 @@ jobs:
     strategy:
       matrix:
         shard:
-          - 1
-          - 2
-          - 3
-          - 4
-          - 5
-          - 6
-          - 7
-          - 8
-          - 9
-          - 10
+          - gel
+          - planetscale
+          - singlestore-core
+          - singlestore-proxy
+          - singlestore-prefixed
+          - singlestore-custom
+          - neon-http
+          - neon-serverless
+          - other
     runs-on: ubuntu-20.04
     services:
       postgres-postgis:
@@ -133,7 +132,53 @@ jobs:
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
 
-          pnpm vitest run --shard=${{ matrix.shard }}/10
+          case ${{ matrix.shard }} in
+
+            gel)
+              pnpm vitest run tests/gel
+            ;;
+
+            planetscale)
+              pnpm vitest run tests/mysql/mysql-planetscale.test.ts tests/relational/mysql.planetscale.test.ts
+            ;;
+
+            singlestore-core)
+              pnpm vitest run tests/singlestore/singlestore.test.ts
+            ;;
+
+            singlestore-proxy)
+              pnpm vitest run tests/singlestore/singlestore-proxy.test.ts
+            ;;
+
+            singlestore-prefixed)
+              pnpm vitest run tests/singlestore/singlestore-prefixed.test.ts
+            ;;
+
+            singlestore-custom)
+              pnpm vitest run tests/singlestore/singlestore-custom.test.ts
+            ;;
+
+            neon-http)
+              pnpm vitest run tests/pg/neon-http.test.ts
+            ;;
+
+            neon-serverless)
+              pnpm vitest run tests/pg/neon-serverless.test.ts
+            ;;
+
+            other)
+              pnpm vitest run \
+                --exclude tests/gel \
+                --exclude tests/mysql/mysql-planetscale.test.ts \
+                --exclude tests/relational/mysql.planetscale.test.ts \
+                --exclude tests/singlestore/singlestore.test.ts \
+                --exclude tests/singlestore/singlestore-proxy.test.ts \
+                --exclude tests/singlestore/singlestore-prefixed.test.ts \
+                --exclude tests/singlestore/singlestore-custom.test.ts \
+                --exclude tests/pg/neon-http.test.ts \
+                --exclude tests/pg/neon-serverless.test.ts
+            ;;
+
 
   attw:
     # only run on all pushes or pull requests from forks
@@ -314,21 +359,7 @@ jobs:
 
       - name: Run tests
         if: steps.checks.outputs.has_new_release == 'true'
-        env:
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
-          PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
-          PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
-          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
-          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
-          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-          TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
-          XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
-          XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
-          LIBSQL_URL: file:local.db
-          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
-          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
-        run: |
-          pnpm test --filter ${{ matrix.package }}
+        run: pnpm test --filter ${{ matrix.package }}
 
       - name: Pack
         if: steps.checks.outputs.has_new_release == 'true'
@@ -336,8 +367,7 @@ jobs:
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-        run: |
-          npm run pack
+        run: npm run pack
 
       - name: Publish
         if: github.event_name == 'push' && steps.checks.outputs.has_new_release == 'true'
