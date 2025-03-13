@@ -22,6 +22,10 @@ const {
 	schemaPosts,
 	schemaUsers,
 	schemaUsersToGroups,
+	allTypesTable,
+	studentGrades,
+	students,
+	courseOfferings,
 } = schema;
 
 declare module 'vitest' {
@@ -221,6 +225,34 @@ beforeEach(async (ctx) => {
 				"creator" int REFERENCES "users"("id"),
 				"comment_id" int REFERENCES "comments"("id"),
 				"created_at" timestamp with time zone DEFAULT now() NOT NULL
+			);
+		`,
+	);
+	await ctx.pgjsDbV2.execute(
+		sql`
+			CREATE TABLE "course_offerings" (
+				"course_id" integer NOT NULL,
+				"semester" varchar(10) NOT NULL,
+				CONSTRAINT "course_offerings_pkey" PRIMARY KEY("course_id","semester")
+			)	
+		`,
+	);
+	await ctx.pgjsDbV2.execute(
+		sql`
+			CREATE TABLE "student_grades" (
+				"student_id" integer NOT NULL,
+				"course_id" integer NOT NULL,
+				"semester" varchar(10) NOT NULL,
+				"grade" char(2),
+				CONSTRAINT "student_grades_pkey" PRIMARY KEY("student_id","course_id","semester")
+			);
+		`,
+	);
+	await ctx.pgjsDbV2.execute(
+		sql`
+			CREATE TABLE "students" (
+				"student_id" serial PRIMARY KEY NOT NULL,
+				"name" text NOT NULL
 			);
 		`,
 	);
@@ -12246,7 +12278,705 @@ test('[Find Many] Get users filtered by posts with NOT', async () => {
 	]);
 });
 
-test.todo('alltypes', async () => {
+test('[Find Many .through] Through with uneven relation column count', async () => {
+	await db.insert(students).values([{
+		studentId: 1,
+		name: 'First',
+	}, {
+		studentId: 2,
+		name: 'Second',
+	}, {
+		studentId: 3,
+		name: 'Third',
+	}, {
+		studentId: 4,
+		name: 'Fourth',
+	}]);
+
+	await db.insert(studentGrades).values([
+		{
+			studentId: 1,
+			courseId: 1,
+			semester: 's1',
+			grade: '44',
+		},
+		{
+			studentId: 1,
+			courseId: 2,
+			semester: 's2',
+			grade: '35',
+		},
+		{
+			studentId: 2,
+			courseId: 1,
+			semester: 's1',
+			grade: '58',
+		},
+		{
+			studentId: 2,
+			courseId: 3,
+			semester: 's2',
+			grade: '72',
+		},
+		{
+			studentId: 3,
+			courseId: 4,
+			semester: 's4',
+			grade: '99',
+		},
+		{
+			studentId: 3,
+			courseId: 2,
+			semester: 's3',
+			grade: '85',
+		},
+		{
+			studentId: 3,
+			courseId: 1,
+			semester: 's2',
+			grade: '48',
+		},
+		{
+			studentId: 4,
+			courseId: 3,
+			semester: 's1',
+			grade: '63',
+		},
+		{
+			studentId: 4,
+			courseId: 4,
+			semester: 's3',
+			grade: '51',
+		},
+	]);
+
+	await db.insert(courseOfferings).values([{
+		courseId: 1,
+		semester: 's3',
+	}, {
+		courseId: 2,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's1',
+	}, {
+		courseId: 4,
+		semester: 's3',
+	}, {
+		courseId: 1,
+		semester: 's1',
+	}, {
+		courseId: 1,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's1',
+	}, {
+		courseId: 2,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's4',
+	}, {
+		courseId: 3,
+		semester: 's1',
+	}]);
+
+	const res = await db.query.students.findMany({
+		with: {
+			courseOfferings: {
+				orderBy: {
+					courseId: 'asc',
+					semester: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			studentId: 'asc',
+		},
+	});
+
+	expectTypeOf(res).toEqualTypeOf<{
+		studentId: number;
+		name: string;
+		courseOfferings: {
+			courseId: number;
+			semester: string;
+		}[];
+	}[]>();
+
+	expect(res).toStrictEqual([
+		{
+			name: 'First',
+			studentId: 1,
+			courseOfferings: [
+				{
+					courseId: 1,
+					semester: 's1',
+				},
+				{
+					courseId: 2,
+					semester: 's2',
+				},
+			],
+		},
+		{
+			name: 'Second',
+			studentId: 2,
+			courseOfferings: [
+				{
+					courseId: 1,
+					semester: 's1',
+				},
+			],
+		},
+		{
+			name: 'Third',
+			studentId: 3,
+			courseOfferings: [
+				{
+					courseId: 1,
+					semester: 's2',
+				},
+				{
+					courseId: 2,
+					semester: 's3',
+				},
+				{
+					courseId: 4,
+					semester: 's4',
+				},
+			],
+		},
+		{
+			name: 'Fourth',
+			studentId: 4,
+			courseOfferings: [
+				{
+					courseId: 3,
+					semester: 's1',
+				},
+				{
+					courseId: 4,
+					semester: 's3',
+				},
+			],
+		},
+	]);
+});
+
+test('[Find Many .through] Through with uneven relation column count - reverse', async () => {
+	await db.insert(students).values([{
+		studentId: 1,
+		name: 'First',
+	}, {
+		studentId: 2,
+		name: 'Second',
+	}, {
+		studentId: 3,
+		name: 'Third',
+	}, {
+		studentId: 4,
+		name: 'Fourth',
+	}]);
+
+	await db.insert(studentGrades).values([
+		{
+			studentId: 1,
+			courseId: 1,
+			semester: 's1',
+			grade: '44',
+		},
+		{
+			studentId: 1,
+			courseId: 2,
+			semester: 's2',
+			grade: '35',
+		},
+		{
+			studentId: 2,
+			courseId: 1,
+			semester: 's1',
+			grade: '58',
+		},
+		{
+			studentId: 2,
+			courseId: 3,
+			semester: 's2',
+			grade: '72',
+		},
+		{
+			studentId: 3,
+			courseId: 4,
+			semester: 's4',
+			grade: '99',
+		},
+		{
+			studentId: 3,
+			courseId: 2,
+			semester: 's3',
+			grade: '85',
+		},
+		{
+			studentId: 3,
+			courseId: 1,
+			semester: 's2',
+			grade: '48',
+		},
+		{
+			studentId: 4,
+			courseId: 3,
+			semester: 's1',
+			grade: '63',
+		},
+		{
+			studentId: 4,
+			courseId: 4,
+			semester: 's3',
+			grade: '51',
+		},
+	]);
+
+	await db.insert(courseOfferings).values([{
+		courseId: 1,
+		semester: 's3',
+	}, {
+		courseId: 2,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's1',
+	}, {
+		courseId: 4,
+		semester: 's3',
+	}, {
+		courseId: 1,
+		semester: 's1',
+	}, {
+		courseId: 1,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's1',
+	}, {
+		courseId: 2,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's4',
+	}, {
+		courseId: 3,
+		semester: 's1',
+	}]);
+
+	const res = await db.query.courseOfferings.findMany({
+		with: {
+			students: {
+				orderBy: {
+					studentId: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			courseId: 'asc',
+			semester: 'asc',
+		},
+	});
+
+	expectTypeOf(res).toEqualTypeOf<{
+		courseId: number;
+		semester: string;
+		students: {
+			studentId: number;
+			name: string;
+		}[];
+	}[]>();
+
+	expect(res).toStrictEqual([
+		{
+			courseId: 1,
+			semester: 's1',
+			students: [
+				{
+					name: 'First',
+					studentId: 1,
+				},
+				{
+					name: 'Second',
+					studentId: 2,
+				},
+			],
+		},
+		{
+			courseId: 1,
+			semester: 's2',
+			students: [
+				{
+					name: 'Third',
+					studentId: 3,
+				},
+			],
+		},
+		{
+			courseId: 1,
+			semester: 's3',
+			students: [],
+		},
+		{
+			courseId: 2,
+			semester: 's1',
+			students: [],
+		},
+		{
+			courseId: 2,
+			semester: 's2',
+			students: [
+				{
+					name: 'First',
+					studentId: 1,
+				},
+			],
+		},
+		{
+			courseId: 2,
+			semester: 's3',
+			students: [
+				{
+					name: 'Third',
+					studentId: 3,
+				},
+			],
+		},
+		{
+			courseId: 2,
+			semester: 's4',
+			students: [],
+		},
+		{
+			courseId: 3,
+			semester: 's1',
+			students: [
+				{
+					name: 'Fourth',
+					studentId: 4,
+				},
+			],
+		},
+		{
+			courseId: 3,
+			semester: 's3',
+			students: [],
+		},
+		{
+			courseId: 3,
+			semester: 's4',
+			students: [],
+		},
+		{
+			courseId: 4,
+			semester: 's1',
+			students: [],
+		},
+		{
+			courseId: 4,
+			semester: 's3',
+			students: [
+				{
+					name: 'Fourth',
+					studentId: 4,
+				},
+			],
+		},
+		{
+			courseId: 4,
+			semester: 's4',
+			students: [
+				{
+					name: 'Third',
+					studentId: 3,
+				},
+			],
+		},
+	]);
+});
+
+test('alltypes', async () => {
+	await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);
+	await db.execute(sql`
+		CREATE TABLE "all_types" (
+			"serial" serial NOT NULL,
+			"bigserial53" bigserial NOT NULL,
+			"bigserial64" bigserial,
+			"int" integer,
+			"bigint53" bigint,
+			"bigint64" bigint,
+			"bool" boolean,
+			"char" char,
+			"cidr" "cidr",
+			"date" date,
+			"date_str" date,
+			"double" double precision,
+			"enum" "en",
+			"inet" "inet",
+			"interval" interval,
+			"json" json,
+			"jsonb" jsonb,
+			"line" "line",
+			"line_tuple" "line",
+			"macaddr" "macaddr",
+			"macaddr8" "macaddr8",
+			"numeric" numeric,
+			"point" "point",
+			"point_tuple" "point",
+			"real" real,
+			"smallint" smallint,
+			"smallserial" "smallserial" NOT NULL,
+			"text" text,
+			"time" time,
+			"timestamp" timestamp,
+			"timestamp_tz" timestamp with time zone,
+			"timestamp_str" timestamp,
+			"timestamp_tz_str" timestamp with time zone,
+			"uuid" uuid,
+			"varchar" varchar,
+			"arrint" integer[],
+			"arrbigint53" bigint[],
+			"arrbigint64" bigint[],
+			"arrbool" boolean[],
+			"arrchar" char[],
+			"arrcidr" "cidr"[],
+			"arrdate" date[],
+			"arrdate_str" date[],
+			"arrdouble" double precision[],
+			"arrenum" "en"[],
+			"arrinet" "inet"[],
+			"arrinterval" interval[],
+			"arrjson" json[],
+			"arrjsonb" jsonb[],
+			"arrline" "line"[],
+			"arrline_tuple" "line"[],
+			"arrmacaddr" "macaddr"[],
+			"arrmacaddr8" "macaddr8"[],
+			"arrnumeric" numeric[],
+			"arrpoint" "point"[],
+			"arrpoint_tuple" "point"[],
+			"arrreal" real[],
+			"arrsmallint" smallint[],
+			"arrtext" text[],
+			"arrtime" time[],
+			"arrtimestamp" timestamp[],
+			"arrtimestamp_tz" timestamp with time zone[],
+			"arrtimestamp_str" timestamp[],
+			"arrtimestamp_tz_str" timestamp with time zone[],
+			"arruuid" uuid[],
+			"arrvarchar" varchar[]
+		);
+	`);
+
+	await db.insert(usersTable).values({
+		id: 1,
+		name: 'First',
+	});
+
+	await db.insert(allTypesTable).values({
+		serial: 1,
+		smallserial: 15,
+		bigint53: 9007199254740991,
+		bigint64: 5044565289845416380n,
+		bigserial53: 9007199254740991,
+		bigserial64: 5044565289845416380n,
+		bool: true,
+		char: 'c',
+		cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+		inet: '192.168.0.1/24',
+		macaddr: '08:00:2b:01:02:03',
+		macaddr8: '08:00:2b:01:02:03:04:05',
+		date: new Date(1741743161623),
+		dateStr: new Date(1741743161623).toISOString(),
+		double: 15.35325689124218,
+		enum: 'enVal1',
+		int: 621,
+		interval: '2 months ago',
+		json: {
+			str: 'strval',
+			arr: ['str', 10],
+		},
+		jsonb: {
+			str: 'strvalb',
+			arr: ['strb', 11],
+		},
+		line: {
+			a: 1,
+			b: 2,
+			c: 3,
+		},
+		lineTuple: [1, 2, 3],
+		numeric: '475452353476',
+		point: {
+			x: 24.5,
+			y: 49.6,
+		},
+		pointTuple: [57.2, 94.3],
+		real: 1.048596,
+		smallint: 10,
+		text: 'TEXT STRING',
+		time: '13:59:28',
+		timestamp: new Date(1741743161623),
+		timestampTz: new Date(1741743161623),
+		timestampStr: new Date(1741743161623).toISOString(),
+		timestampTzStr: new Date(1741743161623).toISOString(),
+		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+		varchar: 'C4-',
+		arrbigint53: [9007199254740991],
+		arrbigint64: [5044565289845416380n],
+		arrbool: [true],
+		arrchar: ['c'],
+		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+		arrinet: ['192.168.0.1/24'],
+		arrmacaddr: ['08:00:2b:01:02:03'],
+		arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+		arrdate: [new Date(1741743161623)],
+		arrdateStr: [new Date(1741743161623).toISOString()],
+		arrdouble: [15.35325689124218],
+		arrenum: ['enVal1'],
+		arrint: [621],
+		arrinterval: ['2 months ago'],
+		arrjson: [{
+			str: 'strval',
+			arr: ['str', 10],
+		}],
+		arrjsonb: [{
+			str: 'strvalb',
+			arr: ['strb', 11],
+		}],
+		arrline: [{
+			a: 1,
+			b: 2,
+			c: 3,
+		}],
+		arrlineTuple: [[1, 2, 3]],
+		arrnumeric: ['475452353476'],
+		arrpoint: [{
+			x: 24.5,
+			y: 49.6,
+		}],
+		arrpointTuple: [[57.2, 94.3]],
+		arrreal: [1.048596],
+		arrsmallint: [10],
+		arrtext: ['TEXT STRING'],
+		arrtime: ['13:59:28'],
+		arrtimestamp: [new Date(1741743161623)],
+		arrtimestampTz: [new Date(1741743161623)],
+		arrtimestampStr: [new Date(1741743161623).toISOString()],
+		arrtimestampTzStr: [new Date(1741743161623).toISOString()],
+		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+		arrvarchar: ['C4-'],
+	});
+
+	const rawRes = await db.select().from(allTypesTable);
+	const relationRootRes = await db.query.allTypesTable.findMany();
+	const { alltypes: nestedRelationRes } = (await db.query.usersTable.findFirst({
+		with: {
+			alltypes: true,
+		},
+	}))!;
+
+	expectTypeOf(relationRootRes).toEqualTypeOf(rawRes);
+	expectTypeOf(nestedRelationRes).toEqualTypeOf(rawRes);
+
+	expect(nestedRelationRes).toStrictEqual(rawRes);
+	expect(relationRootRes).toStrictEqual(rawRes);
+
+	const expectedRes = [
+		{
+			serial: 1,
+			bigserial53: 9007199254740991,
+			bigserial64: 5044565289845416380n,
+			int: 621,
+			bigint53: 9007199254740991,
+			bigint64: 5044565289845416380n,
+			bool: true,
+			char: 'c',
+			cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+			date: new Date('2025-03-12T00:00:00.000Z'),
+			dateStr: '2025-03-12',
+			double: 15.35325689124218,
+			enum: 'enVal1',
+			inet: '192.168.0.1/24',
+			interval: '-2 mons',
+			json: { str: 'strval', arr: ['str', 10] },
+			jsonb: { arr: ['strb', 11], str: 'strvalb' },
+			line: { a: 1, b: 2, c: 3 },
+			lineTuple: [1, 2, 3],
+			macaddr: '08:00:2b:01:02:03',
+			macaddr8: '08:00:2b:01:02:03:04:05',
+			numeric: '475452353476',
+			point: { x: 24.5, y: 49.6 },
+			pointTuple: [57.2, 94.3],
+			real: 1.048596,
+			smallint: 10,
+			smallserial: 15,
+			text: 'TEXT STRING',
+			time: '13:59:28',
+			timestamp: new Date('2025-03-12T01:32:41.623Z'),
+			timestampTz: new Date('2025-03-12T01:32:41.623Z'),
+			timestampStr: '2025-03-12 01:32:41.623',
+			timestampTzStr: '2025-03-12 01:32:41.623+00',
+			uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+			varchar: 'C4-',
+			arrint: [621],
+			arrbigint53: [9007199254740991],
+			arrbigint64: [5044565289845416380n],
+			arrbool: [true],
+			arrchar: ['c'],
+			arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+			arrdate: [new Date('2025-03-12T00:00:00.000Z')],
+			arrdateStr: ['2025-03-12'],
+			arrdouble: [15.35325689124218],
+			arrenum: ['enVal1'],
+			arrinet: ['192.168.0.1/24'],
+			arrinterval: ['-2 mons'],
+			arrjson: [{ str: 'strval', arr: ['str', 10] }],
+			arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+			arrline: [{ a: 1, b: 2, c: 3 }],
+			arrlineTuple: [[1, 2, 3]],
+			arrmacaddr: ['08:00:2b:01:02:03'],
+			arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+			arrnumeric: ['475452353476'],
+			arrpoint: [{ x: 24.5, y: 49.6 }],
+			arrpointTuple: [[57.2, 94.3]],
+			arrreal: [1.048596],
+			arrsmallint: [10],
+			arrtext: ['TEXT STRING'],
+			arrtime: ['13:59:28'],
+			arrtimestamp: [new Date('2025-03-12T01:32:41.623Z')],
+			arrtimestampTz: [new Date('2025-03-12T01:32:41.623Z')],
+			arrtimestampStr: ['2025-03-12 01:32:41.623'],
+			arrtimestampTzStr: ['2025-03-12 01:32:41.623+00'],
+			arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+			arrvarchar: ['C4-'],
+		},
+	];
+
+	expect(rawRes).toStrictEqual(expectedRes);
 });
 
 test('.toSQL()', () => {

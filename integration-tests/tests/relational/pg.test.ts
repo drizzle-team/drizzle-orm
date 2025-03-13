@@ -9,13 +9,17 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import relations from './pg.relations.ts';
 import {
+	allTypesTable,
 	commentsTable,
+	courseOfferings,
 	groupsTable,
 	postsTable,
 	schemaGroups,
 	schemaPosts,
 	schemaUsers,
 	schemaUsersToGroups,
+	studentGrades,
+	students,
 	usersTable,
 	usersToGroupsTable,
 } from './pg.schema.ts';
@@ -219,6 +223,34 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
+	await ctx.pgDbV2.execute(
+		sql`
+			CREATE TABLE "course_offerings" (
+				"course_id" integer NOT NULL,
+				"semester" varchar(10) NOT NULL,
+				CONSTRAINT "course_offerings_pkey" PRIMARY KEY("course_id","semester")
+			)	
+		`,
+	);
+	await ctx.pgDbV2.execute(
+		sql`
+			CREATE TABLE "student_grades" (
+				"student_id" integer NOT NULL,
+				"course_id" integer NOT NULL,
+				"semester" varchar(10) NOT NULL,
+				"grade" char(2),
+				CONSTRAINT "student_grades_pkey" PRIMARY KEY("student_id","course_id","semester")
+			);
+		`,
+	);
+	await ctx.pgDbV2.execute(
+		sql`
+			CREATE TABLE "students" (
+				"student_id" serial PRIMARY KEY NOT NULL,
+				"name" text NOT NULL
+			);
+		`,
+	);
 });
 
 test('[Find Many] Get users with posts', async (t) => {
@@ -285,7 +317,7 @@ test('[Find Many] Get users with posts', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + limit posts', async (t) => {
+test('[Find Many] Get users with posts limit posts', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -358,7 +390,7 @@ test('[Find Many] Get users with posts + limit posts', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + limit posts and users', async (t) => {
+test('[Find Many] Get users with posts limit posts and users', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -423,7 +455,7 @@ test('[Find Many] Get users with posts + limit posts and users', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + custom fields', async (t) => {
+test('[Find Many] Get users with posts custom fields', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -516,7 +548,7 @@ test('[Find Many] Get users with posts + custom fields', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
+test('[Find Many] Get users with posts custom fields limits', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -574,7 +606,7 @@ test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + orderBy', async (t) => {
+test('[Find Many] Get users with posts orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -662,7 +694,7 @@ test('[Find Many] Get users with posts + orderBy', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + where', async (t) => {
+test('[Find Many] Get users with posts where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -716,7 +748,7 @@ test('[Find Many] Get users with posts + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial', async (t) => {
+test('[Find Many] Get users with posts where partial', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -772,7 +804,7 @@ test('[Find Many] Get users with posts + where + partial', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
+test('[Find Many] Get users with posts where partial. Did not select posts id, but used it in where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -828,7 +860,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial(true + false)', async (t) => {
+test('[Find Many] Get users with posts where partial(true false)', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -881,7 +913,7 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
+test('[Find Many] Get users with posts where partial(false)', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1135,7 +1167,7 @@ test('[Find Many] Get only custom fields', async (t) => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where', async (t) => {
+test('[Find Many] Get only custom fields where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1191,7 +1223,7 @@ test('[Find Many] Get only custom fields + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where + limit', async (t) => {
+test('[Find Many] Get only custom fields where limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1248,7 +1280,7 @@ test('[Find Many] Get only custom fields + where + limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
+test('[Find Many] Get only custom fields where orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1360,7 +1392,7 @@ test('[Find One] Get only custom fields', async (t) => {
 	});
 });
 
-test('[Find One] Get only custom fields + where', async (t) => {
+test('[Find One] Get only custom fields where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1417,7 +1449,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 	});
 });
 
-test('[Find One] Get only custom fields + where + limit', async (t) => {
+test('[Find One] Get only custom fields where limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1475,7 +1507,7 @@ test('[Find One] Get only custom fields + where + limit', async (t) => {
 	});
 });
 
-test('[Find One] Get only custom fields + where + orderBy', async (t) => {
+test('[Find One] Get only custom fields where orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1621,7 +1653,7 @@ test('[Find One] Get deep select {}', async (t) => {
 	).rejects.toThrow(DrizzleError);
 });
 
-test('[Find Many] Get users with posts + prepared limit', async (t) => {
+test('[Find Many] Get users with posts prepared limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1691,7 +1723,7 @@ test('[Find Many] Get users with posts + prepared limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + prepared limit + offset', async (t) => {
+test('[Find Many] Get users with posts prepared limit offset', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1755,7 +1787,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', async (t) => 
 	});
 });
 
-test('[Find Many] Get users with posts + prepared where', async (t) => {
+test('[Find Many] Get users with posts prepared where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1813,7 +1845,7 @@ test('[Find Many] Get users with posts + prepared where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + prepared + limit + offset + where', async (t) => {
+test('[Find Many] Get users with posts prepared limit offset where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1926,7 +1958,7 @@ test('[Find One] Get users with posts', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + limit posts', async (t) => {
+test('[Find One] Get users with posts limit posts', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2008,7 +2040,7 @@ test('[Find One] Get users with posts no results found', async (t) => {
 	expect(usersWithPosts).toBeUndefined();
 });
 
-test('[Find One] Get users with posts + limit posts and users', async (t) => {
+test('[Find One] Get users with posts limit posts and users', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2061,7 +2093,7 @@ test('[Find One] Get users with posts + limit posts and users', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + custom fields', async (t) => {
+test('[Find One] Get users with posts custom fields', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2122,7 +2154,7 @@ test('[Find One] Get users with posts + custom fields', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + custom fields + limits', async (t) => {
+test('[Find One] Get users with posts custom fields limits', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2180,7 +2212,7 @@ test('[Find One] Get users with posts + custom fields + limits', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + orderBy', async (t) => {
+test('[Find One] Get users with posts orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2243,7 +2275,7 @@ test('[Find One] Get users with posts + orderBy', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + where', async (t) => {
+test('[Find One] Get users with posts where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2298,7 +2330,7 @@ test('[Find One] Get users with posts + where', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + where + partial', async (t) => {
+test('[Find One] Get users with posts where partial', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2355,7 +2387,7 @@ test('[Find One] Get users with posts + where + partial', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
+test('[Find One] Get users with posts where partial. Did not select posts id, but used it in where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2412,7 +2444,7 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 	});
 });
 
-test('[Find One] Get users with posts + where + partial(true + false)', async (t) => {
+test('[Find One] Get users with posts where partial(true false)', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2466,7 +2498,7 @@ test('[Find One] Get users with posts + where + partial(true + false)', async (t
 	});
 });
 
-test('[Find One] Get users with posts + where + partial(false)', async (t) => {
+test('[Find One] Get users with posts where partial(false)', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2593,7 +2625,7 @@ test('Get user with invitee', async (t) => {
 	});
 });
 
-test('Get user + limit with invitee', async (t) => {
+test('Get user limit with invitee', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2725,7 +2757,7 @@ test('Get user with invitee and custom fields', async (t) => {
 	});
 });
 
-test('Get user with invitee and custom fields + limits', async (t) => {
+test('Get user with invitee and custom fields limits', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2795,7 +2827,7 @@ test('Get user with invitee and custom fields + limits', async (t) => {
 	});
 });
 
-test('Get user with invitee + order by', async (t) => {
+test('Get user with invitee order by', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2865,7 +2897,7 @@ test('Get user with invitee + order by', async (t) => {
 	});
 });
 
-test('Get user with invitee + where', async (t) => {
+test('Get user with invitee where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2921,7 +2953,7 @@ test('Get user with invitee + where', async (t) => {
 	});
 });
 
-test('Get user with invitee + where + partial', async (t) => {
+test('Get user with invitee where partial', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2978,7 +3010,7 @@ test('Get user with invitee + where + partial', async (t) => {
 	});
 });
 
-test('Get user with invitee + where + partial.  Did not select users id, but used it in where', async (t) => {
+test('Get user with invitee where partial.  Did not select users id, but used it in where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3031,7 +3063,7 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 	});
 });
 
-test('Get user with invitee + where + partial(true+false)', async (t) => {
+test('Get user with invitee where partial(true+false)', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3090,7 +3122,7 @@ test('Get user with invitee + where + partial(true+false)', async (t) => {
 	});
 });
 
-test('Get user with invitee + where + partial(false)', async (t) => {
+test('Get user with invitee where partial(false)', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3235,7 +3267,7 @@ test('Get user with invitee and posts', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + limit posts and users', async (t) => {
+test('Get user with invitee and posts limit posts and users', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3318,7 +3350,7 @@ test('Get user with invitee and posts + limit posts and users', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + limits + custom fields in each', async (t) => {
+test('Get user with invitee and posts limits custom fields in each', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3410,7 +3442,7 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 	});
 });
 
-test('Get user with invitee and posts + custom fields in each', async (t) => {
+test('Get user with invitee and posts custom fields in each', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3529,7 +3561,7 @@ test('Get user with invitee and posts + custom fields in each', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + orderBy', async (t) => {
+test('Get user with invitee and posts orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3638,7 +3670,7 @@ test('Get user with invitee and posts + orderBy', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + where', async (t) => {
+test('Get user with invitee and posts where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3714,7 +3746,7 @@ test('Get user with invitee and posts + where', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + limit posts and users + where', async (t) => {
+test('Get user with invitee and posts limit posts and users where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3782,7 +3814,7 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 	});
 });
 
-test('Get user with invitee and posts + orderBy + where + custom', async (t) => {
+test('Get user with invitee and posts orderBy where custom', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3879,7 +3911,7 @@ test('Get user with invitee and posts + orderBy + where + custom', async (t) => 
 	});
 });
 
-test('Get user with invitee and posts + orderBy + where + partial + custom', async (t) => {
+test('Get user with invitee and posts orderBy where partial custom', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -4554,7 +4586,7 @@ test('[Find Many] Get groups with users', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + limit', async (t) => {
+test('[Find Many] Get users with groups limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -4639,7 +4671,7 @@ test('[Find Many] Get users with groups + limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + limit', async (t) => {
+test('[Find Many] Get groups with users limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -4724,7 +4756,7 @@ test('[Find Many] Get groups with users + limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + limit + where', async (t) => {
+test('[Find Many] Get users with groups limit where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -4801,7 +4833,7 @@ test('[Find Many] Get users with groups + limit + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + limit + where', async (t) => {
+test('[Find Many] Get groups with users limit where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -4877,7 +4909,7 @@ test('[Find Many] Get groups with users + limit + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + where', async (t) => {
+test('[Find Many] Get users with groups where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -4962,7 +4994,7 @@ test('[Find Many] Get users with groups + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + where', async (t) => {
+test('[Find Many] Get groups with users where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5044,7 +5076,7 @@ test('[Find Many] Get groups with users + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + orderBy', async (t) => {
+test('[Find Many] Get users with groups orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5152,7 +5184,7 @@ test('[Find Many] Get users with groups + orderBy', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + orderBy', async (t) => {
+test('[Find Many] Get groups with users orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5261,7 +5293,7 @@ test('[Find Many] Get groups with users + orderBy', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
+test('[Find Many] Get users with groups orderBy limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5482,7 +5514,7 @@ test('[Find One] Get groups with users', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + limit', async (t) => {
+test('[Find One] Get users with groups limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5549,7 +5581,7 @@ test('[Find One] Get users with groups + limit', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + limit', async (t) => {
+test('[Find One] Get groups with users limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5616,7 +5648,7 @@ test('[Find One] Get groups with users + limit', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + limit + where', async (t) => {
+test('[Find One] Get users with groups limit where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5690,7 +5722,7 @@ test('[Find One] Get users with groups + limit + where', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + limit + where', async (t) => {
+test('[Find One] Get groups with users limit where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5763,7 +5795,7 @@ test('[Find One] Get groups with users + limit + where', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + where', async (t) => {
+test('[Find One] Get users with groups where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5831,7 +5863,7 @@ test('[Find One] Get users with groups + where', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + where', async (t) => {
+test('[Find One] Get groups with users where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5903,7 +5935,7 @@ test('[Find One] Get groups with users + where', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + orderBy', async (t) => {
+test('[Find One] Get users with groups orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -5981,7 +6013,7 @@ test('[Find One] Get users with groups + orderBy', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + orderBy', async (t) => {
+test('[Find One] Get groups with users orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -6053,7 +6085,7 @@ test('[Find One] Get groups with users + orderBy', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + orderBy + limit', async (t) => {
+test('[Find One] Get users with groups orderBy limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -6126,7 +6158,7 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 	});
 });
 
-test('Get groups with users + orderBy + limit', async (t) => {
+test('Get groups with users orderBy limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -6217,7 +6249,7 @@ test('Get groups with users + orderBy + limit', async (t) => {
 	});
 });
 
-test('Get users with groups + custom', async (t) => {
+test('Get users with groups custom', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -6345,7 +6377,7 @@ test('Get users with groups + custom', async (t) => {
 	});
 });
 
-test('Get groups with users + custom', async (t) => {
+test('Get groups with users custom', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -6636,7 +6668,7 @@ test('[Find Many .through] Get groups with users', async (t) => {
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + limit', async (t) => {
+test('[Find Many .through] Get users with groups limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -6708,7 +6740,7 @@ test('[Find Many .through] Get users with groups + limit', async (t) => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with users + limit', async (t) => {
+test('[Find Many .through] Get groups with users limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -6780,7 +6812,7 @@ test('[Find Many .through] Get groups with users + limit', async (t) => {
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + limit + where', async (t) => {
+test('[Find Many .through] Get users with groups limit where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -6843,7 +6875,7 @@ test('[Find Many .through] Get users with groups + limit + where', async (t) => 
 	}]);
 });
 
-test('[Find Many .through] Get groups with users + limit + where', async (t) => {
+test('[Find Many .through] Get groups with users limit where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -6905,7 +6937,7 @@ test('[Find Many .through] Get groups with users + limit + where', async (t) => 
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + where', async (t) => {
+test('[Find Many .through] Get users with groups where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -6975,7 +7007,7 @@ test('[Find Many .through] Get users with groups + where', async (t) => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with users + where', async (t) => {
+test('[Find Many .through] Get groups with users where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7042,7 +7074,7 @@ test('[Find Many .through] Get groups with users + where', async (t) => {
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + orderBy', async (t) => {
+test('[Find Many .through] Get users with groups orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7126,7 +7158,7 @@ test('[Find Many .through] Get users with groups + orderBy', async (t) => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with users + orderBy', async (t) => {
+test('[Find Many .through] Get groups with users orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7211,7 +7243,7 @@ test('[Find Many .through] Get groups with users + orderBy', async (t) => {
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + orderBy + limit', async (t) => {
+test('[Find Many .through] Get users with groups orderBy limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7393,7 +7425,7 @@ test('[Find One .through] Get groups with users', async (t) => {
 	});
 });
 
-test('[Find One .through] Get users with groups + limit', async (t) => {
+test('[Find One .through] Get users with groups limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7450,7 +7482,7 @@ test('[Find One .through] Get users with groups + limit', async (t) => {
 	});
 });
 
-test('[Find One .through] Get groups with users + limit', async (t) => {
+test('[Find One .through] Get groups with users limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7507,7 +7539,7 @@ test('[Find One .through] Get groups with users + limit', async (t) => {
 	});
 });
 
-test('[Find One .through] Get users with groups + limit + where', async (t) => {
+test('[Find One .through] Get users with groups limit where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7571,7 +7603,7 @@ test('[Find One .through] Get users with groups + limit + where', async (t) => {
 	});
 });
 
-test('[Find One .through] Get groups with users + limit + where', async (t) => {
+test('[Find One .through] Get groups with users limit where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7633,7 +7665,7 @@ test('[Find One .through] Get groups with users + limit + where', async (t) => {
 	});
 });
 
-test('[Find One .through] Get users with groups + where', async (t) => {
+test('[Find One .through] Get users with groups where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7693,7 +7725,7 @@ test('[Find One .through] Get users with groups + where', async (t) => {
 	});
 });
 
-test('[Find One .through] Get groups with users + where', async (t) => {
+test('[Find One .through] Get groups with users where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7755,7 +7787,7 @@ test('[Find One .through] Get groups with users + where', async (t) => {
 	});
 });
 
-test('[Find One .through] Get users with groups + orderBy', async (t) => {
+test('[Find One .through] Get users with groups orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7821,7 +7853,7 @@ test('[Find One .through] Get users with groups + orderBy', async (t) => {
 	});
 });
 
-test('[Find One .through] Get groups with users + orderBy', async (t) => {
+test('[Find One .through] Get groups with users orderBy', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7883,7 +7915,7 @@ test('[Find One .through] Get groups with users + orderBy', async (t) => {
 	});
 });
 
-test('[Find One .through] Get users with groups + orderBy + limit', async (t) => {
+test('[Find One .through] Get users with groups orderBy limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -7946,7 +7978,7 @@ test('[Find One .through] Get users with groups + orderBy + limit', async (t) =>
 	});
 });
 
-test('[Find Many .through] Get groups with users + orderBy + limit', async (t) => {
+test('[Find Many .through] Get groups with users orderBy limit', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -8020,7 +8052,7 @@ test('[Find Many .through] Get groups with users + orderBy + limit', async (t) =
 	}]);
 });
 
-test('[Find Many .through] Get users with groups + custom', async (t) => {
+test('[Find Many .through] Get users with groups custom', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -8126,7 +8158,7 @@ test('[Find Many .through] Get users with groups + custom', async (t) => {
 	}]);
 });
 
-test('[Find Many .through] Get groups with users + custom', async (t) => {
+test('[Find Many .through] Get groups with users custom', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -8227,7 +8259,7 @@ test('[Find Many .through] Get groups with users + custom', async (t) => {
 	}]);
 });
 
-test('[Find Many .through] Get users with groups with usersToGroups + where', async (t) => {
+test('[Find Many .through] Get users with groups with usersToGroups where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -8316,7 +8348,7 @@ test('[Find Many .through] Get users with groups with usersToGroups + where', as
 	}]);
 });
 
-test('[Find Many .through] Get groups with users with posts + where', async (t) => {
+test('[Find Many .through] Get groups with users with posts where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -8711,7 +8743,7 @@ test('[Find Many .through] Get groups with filtered users', async (t) => {
 	}]);
 });
 
-test('[Find Many .through] Get users with filtered groups + where', async (t) => {
+test('[Find Many .through] Get users with filtered groups where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -8793,7 +8825,7 @@ test('[Find Many .through] Get users with filtered groups + where', async (t) =>
 	}]);
 });
 
-test('[Find Many .through] Get groups with filtered users + where', async (t) => {
+test('[Find Many .through] Get groups with filtered users where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -9001,7 +9033,7 @@ test('[Find Many] Get posts with filtered authors', async (t) => {
 	]);
 });
 
-test('[Find Many] Get users with filtered posts + where', async (t) => {
+test('[Find Many] Get users with filtered posts where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -9074,7 +9106,7 @@ test('[Find Many] Get users with filtered posts + where', async (t) => {
 	}]);
 });
 
-test('[Find Many] Get posts with filtered authors + where', async (t) => {
+test('[Find Many] Get posts with filtered authors where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -9138,7 +9170,7 @@ test('[Find Many] Get posts with filtered authors + where', async (t) => {
 	]);
 });
 
-test('[Find Many] Get custom schema users with filtered posts + where', async (t) => {
+test('[Find Many] Get custom schema users with filtered posts where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -9225,7 +9257,7 @@ test('[Find Many] Get custom schema users with filtered posts + where', async (t
 	}]);
 });
 
-test('[Find Many] Get custom schema posts with filtered authors + where', async (t) => {
+test('[Find Many] Get custom schema posts with filtered authors where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -9305,7 +9337,7 @@ test('[Find Many] Get custom schema posts with filtered authors + where', async 
 	]);
 });
 
-test('[Find Many .through] Get custom schema users with filtered groups + where', async (t) => {
+test('[Find Many .through] Get custom schema users with filtered groups where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -9388,7 +9420,7 @@ test('[Find Many .through] Get custom schema users with filtered groups + where'
 	}]);
 });
 
-test('[Find Many .through] Get custom schema groups with filtered users + where', async (t) => {
+test('[Find Many .through] Get custom schema groups with filtered users where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -9529,7 +9561,7 @@ test('[Find Many] Get view users with posts', async (t) => {
 	}]);
 });
 
-test('[Find Many] Get view users with posts + filter by SQL.Aliased field', async (t) => {
+test('[Find Many] Get view users with posts filter by SQL.Aliased field', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -9600,7 +9632,7 @@ test('[Find Many] Get view users with posts + filter by SQL.Aliased field', asyn
 	}]);
 });
 
-test('[Find Many] Get view users with posts + filter by joined field', async (t) => {
+test('[Find Many] Get view users with posts filter by joined field', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -9756,7 +9788,7 @@ test('[Find Many] Get posts with view users with posts', async (t) => {
 	]);
 });
 
-test('[Find Many] Get posts with view users + filter with posts', async (t) => {
+test('[Find Many] Get posts with view users filter with posts', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -9849,7 +9881,7 @@ test('[Find Many] Get posts with view users + filter with posts', async (t) => {
 	]);
 });
 
-test('[Find Many] Get posts with view users + filter by joined column with posts', async (t) => {
+test('[Find Many] Get posts with view users filter by joined column with posts', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -9941,7 +9973,7 @@ test('[Find Many] Get posts with view users + filter by joined column with posts
 		},
 	]);
 });
-test('[Find Many] Get posts with view users + filter by SQL.Aliased with posts', async (t) => {
+test('[Find Many] Get posts with view users filter by SQL.Aliased with posts', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -10034,7 +10066,7 @@ test('[Find Many] Get posts with view users + filter by SQL.Aliased with posts',
 	]);
 });
 
-test('[Find Many .through] Get view users with filtered groups + where', async (t) => {
+test('[Find Many .through] Get view users with filtered groups where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -10128,7 +10160,7 @@ test('[Find Many .through] Get view users with filtered groups + where', async (
 	}]);
 });
 
-test('[Find Many .through] Get groups with filtered view users + where', async (t) => {
+test('[Find Many .through] Get groups with filtered view users where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(usersTable).values([
@@ -10274,7 +10306,7 @@ test('[Find Many] Get schema view users with posts', async (t) => {
 	}]);
 });
 
-test('[Find Many] Get schema view users with posts + filter by SQL.Aliased field', async (t) => {
+test('[Find Many] Get schema view users with posts filter by SQL.Aliased field', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -10345,7 +10377,7 @@ test('[Find Many] Get schema view users with posts + filter by SQL.Aliased field
 	}]);
 });
 
-test('[Find Many] Get schema view users with posts + filter by joined field', async (t) => {
+test('[Find Many] Get schema view users with posts filter by joined field', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -10501,7 +10533,7 @@ test('[Find Many] Get schema posts with view users with posts', async (t) => {
 	]);
 });
 
-test('[Find Many] Get schema posts with view users + filter with posts', async (t) => {
+test('[Find Many] Get schema posts with view users filter with posts', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -10594,7 +10626,7 @@ test('[Find Many] Get schema posts with view users + filter with posts', async (
 	]);
 });
 
-test('[Find Many] Get schema posts with view users + filter by joined column with posts', async (t) => {
+test('[Find Many] Get schema posts with view users filter by joined column with posts', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -10686,7 +10718,7 @@ test('[Find Many] Get schema posts with view users + filter by joined column wit
 		},
 	]);
 });
-test('[Find Many] Get schema posts with view users + filter by SQL.Aliased with posts', async (t) => {
+test('[Find Many] Get schema posts with view users filter by SQL.Aliased with posts', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -10779,7 +10811,7 @@ test('[Find Many] Get schema posts with view users + filter by SQL.Aliased with 
 	]);
 });
 
-test('[Find Many .through] Get schema view users with filtered groups + where', async (t) => {
+test('[Find Many .through] Get schema view users with filtered groups where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -10873,7 +10905,7 @@ test('[Find Many .through] Get schema view users with filtered groups + where', 
 	}]);
 });
 
-test('[Find Many .through] Get schema groups with filtered view users + where', async (t) => {
+test('[Find Many .through] Get schema groups with filtered view users where', async (t) => {
 	const { pgDbV2: db } = t;
 
 	await db.insert(schemaUsers).values([
@@ -11043,7 +11075,7 @@ test('Force optional on where on non-optional relation query', async (t) => {
 	});
 });
 
-test('[Find Many] Get users + filter users by posts', async (ctx) => {
+test('[Find Many] Get users filter users by posts', async (ctx) => {
 	const { pgDbV2: db } = ctx;
 
 	await db.insert(usersTable).values([
@@ -11090,7 +11122,7 @@ test('[Find Many] Get users + filter users by posts', async (ctx) => {
 	}]);
 });
 
-test('[Find Many] Get users with posts + filter users by posts', async (ctx) => {
+test('[Find Many] Get users with posts filter users by posts', async (ctx) => {
 	const { pgDbV2: db } = ctx;
 
 	await db.insert(usersTable).values([
@@ -11193,7 +11225,7 @@ test('[Find Many] Get users filtered by existing posts', async (ctx) => {
 	}]);
 });
 
-test('[Find Many] Get users with posts + filter users by existing posts', async (ctx) => {
+test('[Find Many] Get users with posts filter users by existing posts', async (ctx) => {
 	const { pgDbV2: db } = ctx;
 
 	await db.insert(usersTable).values([
@@ -11291,7 +11323,7 @@ test('[Find Many] Get users filtered by nonexisting posts', async (ctx) => {
 	}]);
 });
 
-test('[Find Many] Get users with posts + filter users by existing posts', async (ctx) => {
+test('[Find Many] Get users with posts filter users by existing posts', async (ctx) => {
 	const { pgDbV2: db } = ctx;
 
 	await db.insert(usersTable).values([
@@ -11342,7 +11374,7 @@ test('[Find Many] Get users with posts + filter users by existing posts', async 
 	}]);
 });
 
-test('[Find Many] Get users with posts + filter posts by author', async (ctx) => {
+test('[Find Many] Get users with posts filter posts by author', async (ctx) => {
 	const { pgDbV2: db } = ctx;
 
 	await db.insert(usersTable).values([
@@ -12429,7 +12461,705 @@ test('[Find Many] Get users filtered by posts with NOT', async () => {
 	]);
 });
 
-test.todo('alltypes', async () => {
+test('[Find Many .through] Through with uneven relation column count', async () => {
+	await db.insert(students).values([{
+		studentId: 1,
+		name: 'First',
+	}, {
+		studentId: 2,
+		name: 'Second',
+	}, {
+		studentId: 3,
+		name: 'Third',
+	}, {
+		studentId: 4,
+		name: 'Fourth',
+	}]);
+
+	await db.insert(studentGrades).values([
+		{
+			studentId: 1,
+			courseId: 1,
+			semester: 's1',
+			grade: '44',
+		},
+		{
+			studentId: 1,
+			courseId: 2,
+			semester: 's2',
+			grade: '35',
+		},
+		{
+			studentId: 2,
+			courseId: 1,
+			semester: 's1',
+			grade: '58',
+		},
+		{
+			studentId: 2,
+			courseId: 3,
+			semester: 's2',
+			grade: '72',
+		},
+		{
+			studentId: 3,
+			courseId: 4,
+			semester: 's4',
+			grade: '99',
+		},
+		{
+			studentId: 3,
+			courseId: 2,
+			semester: 's3',
+			grade: '85',
+		},
+		{
+			studentId: 3,
+			courseId: 1,
+			semester: 's2',
+			grade: '48',
+		},
+		{
+			studentId: 4,
+			courseId: 3,
+			semester: 's1',
+			grade: '63',
+		},
+		{
+			studentId: 4,
+			courseId: 4,
+			semester: 's3',
+			grade: '51',
+		},
+	]);
+
+	await db.insert(courseOfferings).values([{
+		courseId: 1,
+		semester: 's3',
+	}, {
+		courseId: 2,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's1',
+	}, {
+		courseId: 4,
+		semester: 's3',
+	}, {
+		courseId: 1,
+		semester: 's1',
+	}, {
+		courseId: 1,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's1',
+	}, {
+		courseId: 2,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's4',
+	}, {
+		courseId: 3,
+		semester: 's1',
+	}]);
+
+	const res = await db.query.students.findMany({
+		with: {
+			courseOfferings: {
+				orderBy: {
+					courseId: 'asc',
+					semester: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			studentId: 'asc',
+		},
+	});
+
+	expectTypeOf(res).toEqualTypeOf<{
+		studentId: number;
+		name: string;
+		courseOfferings: {
+			courseId: number;
+			semester: string;
+		}[];
+	}[]>();
+
+	expect(res).toStrictEqual([
+		{
+			name: 'First',
+			studentId: 1,
+			courseOfferings: [
+				{
+					courseId: 1,
+					semester: 's1',
+				},
+				{
+					courseId: 2,
+					semester: 's2',
+				},
+			],
+		},
+		{
+			name: 'Second',
+			studentId: 2,
+			courseOfferings: [
+				{
+					courseId: 1,
+					semester: 's1',
+				},
+			],
+		},
+		{
+			name: 'Third',
+			studentId: 3,
+			courseOfferings: [
+				{
+					courseId: 1,
+					semester: 's2',
+				},
+				{
+					courseId: 2,
+					semester: 's3',
+				},
+				{
+					courseId: 4,
+					semester: 's4',
+				},
+			],
+		},
+		{
+			name: 'Fourth',
+			studentId: 4,
+			courseOfferings: [
+				{
+					courseId: 3,
+					semester: 's1',
+				},
+				{
+					courseId: 4,
+					semester: 's3',
+				},
+			],
+		},
+	]);
+});
+
+test('[Find Many .through] Through with uneven relation column count - reverse', async () => {
+	await db.insert(students).values([{
+		studentId: 1,
+		name: 'First',
+	}, {
+		studentId: 2,
+		name: 'Second',
+	}, {
+		studentId: 3,
+		name: 'Third',
+	}, {
+		studentId: 4,
+		name: 'Fourth',
+	}]);
+
+	await db.insert(studentGrades).values([
+		{
+			studentId: 1,
+			courseId: 1,
+			semester: 's1',
+			grade: '44',
+		},
+		{
+			studentId: 1,
+			courseId: 2,
+			semester: 's2',
+			grade: '35',
+		},
+		{
+			studentId: 2,
+			courseId: 1,
+			semester: 's1',
+			grade: '58',
+		},
+		{
+			studentId: 2,
+			courseId: 3,
+			semester: 's2',
+			grade: '72',
+		},
+		{
+			studentId: 3,
+			courseId: 4,
+			semester: 's4',
+			grade: '99',
+		},
+		{
+			studentId: 3,
+			courseId: 2,
+			semester: 's3',
+			grade: '85',
+		},
+		{
+			studentId: 3,
+			courseId: 1,
+			semester: 's2',
+			grade: '48',
+		},
+		{
+			studentId: 4,
+			courseId: 3,
+			semester: 's1',
+			grade: '63',
+		},
+		{
+			studentId: 4,
+			courseId: 4,
+			semester: 's3',
+			grade: '51',
+		},
+	]);
+
+	await db.insert(courseOfferings).values([{
+		courseId: 1,
+		semester: 's3',
+	}, {
+		courseId: 2,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's1',
+	}, {
+		courseId: 4,
+		semester: 's3',
+	}, {
+		courseId: 1,
+		semester: 's1',
+	}, {
+		courseId: 1,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's1',
+	}, {
+		courseId: 2,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's4',
+	}, {
+		courseId: 3,
+		semester: 's1',
+	}]);
+
+	const res = await db.query.courseOfferings.findMany({
+		with: {
+			students: {
+				orderBy: {
+					studentId: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			courseId: 'asc',
+			semester: 'asc',
+		},
+	});
+
+	expectTypeOf(res).toEqualTypeOf<{
+		courseId: number;
+		semester: string;
+		students: {
+			studentId: number;
+			name: string;
+		}[];
+	}[]>();
+
+	expect(res).toStrictEqual([
+		{
+			courseId: 1,
+			semester: 's1',
+			students: [
+				{
+					name: 'First',
+					studentId: 1,
+				},
+				{
+					name: 'Second',
+					studentId: 2,
+				},
+			],
+		},
+		{
+			courseId: 1,
+			semester: 's2',
+			students: [
+				{
+					name: 'Third',
+					studentId: 3,
+				},
+			],
+		},
+		{
+			courseId: 1,
+			semester: 's3',
+			students: [],
+		},
+		{
+			courseId: 2,
+			semester: 's1',
+			students: [],
+		},
+		{
+			courseId: 2,
+			semester: 's2',
+			students: [
+				{
+					name: 'First',
+					studentId: 1,
+				},
+			],
+		},
+		{
+			courseId: 2,
+			semester: 's3',
+			students: [
+				{
+					name: 'Third',
+					studentId: 3,
+				},
+			],
+		},
+		{
+			courseId: 2,
+			semester: 's4',
+			students: [],
+		},
+		{
+			courseId: 3,
+			semester: 's1',
+			students: [
+				{
+					name: 'Fourth',
+					studentId: 4,
+				},
+			],
+		},
+		{
+			courseId: 3,
+			semester: 's3',
+			students: [],
+		},
+		{
+			courseId: 3,
+			semester: 's4',
+			students: [],
+		},
+		{
+			courseId: 4,
+			semester: 's1',
+			students: [],
+		},
+		{
+			courseId: 4,
+			semester: 's3',
+			students: [
+				{
+					name: 'Fourth',
+					studentId: 4,
+				},
+			],
+		},
+		{
+			courseId: 4,
+			semester: 's4',
+			students: [
+				{
+					name: 'Third',
+					studentId: 3,
+				},
+			],
+		},
+	]);
+});
+
+test('alltypes', async () => {
+	await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);
+	await db.execute(sql`
+		CREATE TABLE "all_types" (
+			"serial" serial NOT NULL,
+			"bigserial53" bigserial NOT NULL,
+			"bigserial64" bigserial,
+			"int" integer,
+			"bigint53" bigint,
+			"bigint64" bigint,
+			"bool" boolean,
+			"char" char,
+			"cidr" "cidr",
+			"date" date,
+			"date_str" date,
+			"double" double precision,
+			"enum" "en",
+			"inet" "inet",
+			"interval" interval,
+			"json" json,
+			"jsonb" jsonb,
+			"line" "line",
+			"line_tuple" "line",
+			"macaddr" "macaddr",
+			"macaddr8" "macaddr8",
+			"numeric" numeric,
+			"point" "point",
+			"point_tuple" "point",
+			"real" real,
+			"smallint" smallint,
+			"smallserial" "smallserial" NOT NULL,
+			"text" text,
+			"time" time,
+			"timestamp" timestamp,
+			"timestamp_tz" timestamp with time zone,
+			"timestamp_str" timestamp,
+			"timestamp_tz_str" timestamp with time zone,
+			"uuid" uuid,
+			"varchar" varchar,
+			"arrint" integer[],
+			"arrbigint53" bigint[],
+			"arrbigint64" bigint[],
+			"arrbool" boolean[],
+			"arrchar" char[],
+			"arrcidr" "cidr"[],
+			"arrdate" date[],
+			"arrdate_str" date[],
+			"arrdouble" double precision[],
+			"arrenum" "en"[],
+			"arrinet" "inet"[],
+			"arrinterval" interval[],
+			"arrjson" json[],
+			"arrjsonb" jsonb[],
+			"arrline" "line"[],
+			"arrline_tuple" "line"[],
+			"arrmacaddr" "macaddr"[],
+			"arrmacaddr8" "macaddr8"[],
+			"arrnumeric" numeric[],
+			"arrpoint" "point"[],
+			"arrpoint_tuple" "point"[],
+			"arrreal" real[],
+			"arrsmallint" smallint[],
+			"arrtext" text[],
+			"arrtime" time[],
+			"arrtimestamp" timestamp[],
+			"arrtimestamp_tz" timestamp with time zone[],
+			"arrtimestamp_str" timestamp[],
+			"arrtimestamp_tz_str" timestamp with time zone[],
+			"arruuid" uuid[],
+			"arrvarchar" varchar[]
+		);
+	`);
+
+	await db.insert(usersTable).values({
+		id: 1,
+		name: 'First',
+	});
+
+	await db.insert(allTypesTable).values({
+		serial: 1,
+		smallserial: 15,
+		bigint53: 9007199254740991,
+		bigint64: 5044565289845416380n,
+		bigserial53: 9007199254740991,
+		bigserial64: 5044565289845416380n,
+		bool: true,
+		char: 'c',
+		cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+		inet: '192.168.0.1/24',
+		macaddr: '08:00:2b:01:02:03',
+		macaddr8: '08:00:2b:01:02:03:04:05',
+		date: new Date(1741743161623),
+		dateStr: new Date(1741743161623).toISOString(),
+		double: 15.35325689124218,
+		enum: 'enVal1',
+		int: 621,
+		interval: '2 months ago',
+		json: {
+			str: 'strval',
+			arr: ['str', 10],
+		},
+		jsonb: {
+			str: 'strvalb',
+			arr: ['strb', 11],
+		},
+		line: {
+			a: 1,
+			b: 2,
+			c: 3,
+		},
+		lineTuple: [1, 2, 3],
+		numeric: '475452353476',
+		point: {
+			x: 24.5,
+			y: 49.6,
+		},
+		pointTuple: [57.2, 94.3],
+		real: 1.048596,
+		smallint: 10,
+		text: 'TEXT STRING',
+		time: '13:59:28',
+		timestamp: new Date(1741743161623),
+		timestampTz: new Date(1741743161623),
+		timestampStr: new Date(1741743161623).toISOString(),
+		timestampTzStr: new Date(1741743161623).toISOString(),
+		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+		varchar: 'C4-',
+		arrbigint53: [9007199254740991],
+		arrbigint64: [5044565289845416380n],
+		arrbool: [true],
+		arrchar: ['c'],
+		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+		arrinet: ['192.168.0.1/24'],
+		arrmacaddr: ['08:00:2b:01:02:03'],
+		arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+		arrdate: [new Date(1741743161623)],
+		arrdateStr: [new Date(1741743161623).toISOString()],
+		arrdouble: [15.35325689124218],
+		arrenum: ['enVal1'],
+		arrint: [621],
+		arrinterval: ['2 months ago'],
+		arrjson: [{
+			str: 'strval',
+			arr: ['str', 10],
+		}],
+		arrjsonb: [{
+			str: 'strvalb',
+			arr: ['strb', 11],
+		}],
+		arrline: [{
+			a: 1,
+			b: 2,
+			c: 3,
+		}],
+		arrlineTuple: [[1, 2, 3]],
+		arrnumeric: ['475452353476'],
+		arrpoint: [{
+			x: 24.5,
+			y: 49.6,
+		}],
+		arrpointTuple: [[57.2, 94.3]],
+		arrreal: [1.048596],
+		arrsmallint: [10],
+		arrtext: ['TEXT STRING'],
+		arrtime: ['13:59:28'],
+		arrtimestamp: [new Date(1741743161623)],
+		arrtimestampTz: [new Date(1741743161623)],
+		arrtimestampStr: [new Date(1741743161623).toISOString()],
+		arrtimestampTzStr: [new Date(1741743161623).toISOString()],
+		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+		arrvarchar: ['C4-'],
+	});
+
+	const rawRes = await db.select().from(allTypesTable);
+	const relationRootRes = await db.query.allTypesTable.findMany();
+	const { alltypes: nestedRelationRes } = (await db.query.usersTable.findFirst({
+		with: {
+			alltypes: true,
+		},
+	}))!;
+
+	expectTypeOf(relationRootRes).toEqualTypeOf(rawRes);
+	expectTypeOf(nestedRelationRes).toEqualTypeOf(rawRes);
+
+	expect(nestedRelationRes).toStrictEqual(rawRes);
+	expect(relationRootRes).toStrictEqual(rawRes);
+
+	const expectedRes = [
+		{
+			serial: 1,
+			bigserial53: 9007199254740991,
+			bigserial64: 5044565289845416380n,
+			int: 621,
+			bigint53: 9007199254740991,
+			bigint64: 5044565289845416380n,
+			bool: true,
+			char: 'c',
+			cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+			date: new Date('2025-03-12T00:00:00.000Z'),
+			dateStr: '2025-03-12',
+			double: 15.35325689124218,
+			enum: 'enVal1',
+			inet: '192.168.0.1/24',
+			interval: '-2 mons',
+			json: { str: 'strval', arr: ['str', 10] },
+			jsonb: { arr: ['strb', 11], str: 'strvalb' },
+			line: { a: 1, b: 2, c: 3 },
+			lineTuple: [1, 2, 3],
+			macaddr: '08:00:2b:01:02:03',
+			macaddr8: '08:00:2b:01:02:03:04:05',
+			numeric: '475452353476',
+			point: { x: 24.5, y: 49.6 },
+			pointTuple: [57.2, 94.3],
+			real: 1.048596,
+			smallint: 10,
+			smallserial: 15,
+			text: 'TEXT STRING',
+			time: '13:59:28',
+			timestamp: new Date('2025-03-12T01:32:41.623Z'),
+			timestampTz: new Date('2025-03-12T01:32:41.623Z'),
+			timestampStr: '2025-03-12 01:32:41.623',
+			timestampTzStr: '2025-03-12 01:32:41.623+00',
+			uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+			varchar: 'C4-',
+			arrint: [621],
+			arrbigint53: [9007199254740991],
+			arrbigint64: [5044565289845416380n],
+			arrbool: [true],
+			arrchar: ['c'],
+			arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+			arrdate: [new Date('2025-03-12T00:00:00.000Z')],
+			arrdateStr: ['2025-03-12'],
+			arrdouble: [15.35325689124218],
+			arrenum: ['enVal1'],
+			arrinet: ['192.168.0.1/24'],
+			arrinterval: ['-2 mons'],
+			arrjson: [{ str: 'strval', arr: ['str', 10] }],
+			arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+			arrline: [{ a: 1, b: 2, c: 3 }],
+			arrlineTuple: [[1, 2, 3]],
+			arrmacaddr: ['08:00:2b:01:02:03'],
+			arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+			arrnumeric: ['475452353476'],
+			arrpoint: [{ x: 24.5, y: 49.6 }],
+			arrpointTuple: [[57.2, 94.3]],
+			arrreal: [1.048596],
+			arrsmallint: [10],
+			arrtext: ['TEXT STRING'],
+			arrtime: ['13:59:28'],
+			arrtimestamp: [new Date('2025-03-12T01:32:41.623Z')],
+			arrtimestampTz: [new Date('2025-03-12T01:32:41.623Z')],
+			arrtimestampStr: ['2025-03-12 01:32:41.623'],
+			arrtimestampTzStr: ['2025-03-12 01:32:41.623+00'],
+			arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+			arrvarchar: ['C4-'],
+		},
+	];
+
+	expect(rawRes).toStrictEqual(expectedRes);
 });
 
 test('.toSQL()', () => {

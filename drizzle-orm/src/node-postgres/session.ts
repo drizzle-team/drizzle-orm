@@ -57,6 +57,22 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 					if (typeId === types.builtins.INTERVAL) {
 						return (val) => val;
 					}
+					// timestamp[]
+					if (typeId === 1115) {
+						return (val) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185) {
+						return (val) => val;
+					}
+					// interval[]
+					if (typeId === 1187) {
+						return (val) => val;
+					}
+					// date[]
+					if (typeId === 1182) {
+						return (val) => val;
+					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
 				},
@@ -79,6 +95,22 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 						return (val) => val;
 					}
 					if (typeId === types.builtins.INTERVAL) {
+						return (val) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115) {
+						return (val) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185) {
+						return (val) => val;
+					}
+					// interval[]
+					if (typeId === 1187) {
+						return (val) => val;
+					}
+					// date[]
+					if (typeId === 1182) {
 						return (val) => val;
 					}
 					// @ts-ignore

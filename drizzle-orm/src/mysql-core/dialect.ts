@@ -1164,9 +1164,21 @@ export class MySqlDialect {
 
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
+			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
+
 			switch (column.columnType) {
+				case 'MySqlBinary':
+				case 'MySqlVarBinary':
+				case 'MySqlTime':
+				case 'MySqlDateTimeString':
+				case 'MySqlTimestampString':
+				case 'MySqlFloat':
+				case 'MySqlBigInt64': {
+					return sql`cast(${name} as char) as ${sql.identifier(key)}`;
+				}
+
 				default: {
-					return sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))} as ${sql.identifier(key)}`;
+					return sql`${name} as ${sql.identifier(key)}`;
 				}
 			}
 		}

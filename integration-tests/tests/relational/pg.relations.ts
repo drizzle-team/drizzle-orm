@@ -11,6 +11,10 @@ export default defineRelations(schema, (r) => ({
 		groups: r.many.schemaGroups(),
 	},
 	usersTable: {
+		alltypes: r.many.allTypesTable({
+			from: r.usersTable.id,
+			to: r.allTypesTable.serial,
+		}),
 		invitee: r.one.usersTable({
 			from: r.usersTable.invitedBy,
 			to: r.usersTable.id,
@@ -186,5 +190,17 @@ export default defineRelations(schema, (r) => ({
 				},
 			},
 		}),
+	},
+	students: {
+		courseOfferings: r.many.courseOfferings({
+			from: r.students.studentId.through(r.studentGrades.studentId),
+			to: [
+				r.courseOfferings.courseId.through(r.studentGrades.courseId),
+				r.courseOfferings.semester.through(r.studentGrades.semester),
+			],
+		}),
+	},
+	courseOfferings: {
+		students: r.many.students(),
 	},
 }));

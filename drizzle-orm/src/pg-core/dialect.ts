@@ -6,6 +6,7 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
+	PgArray,
 	PgColumn,
 	PgDate,
 	PgDateString,
@@ -907,12 +908,27 @@ export class PgDialect {
 
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
-			switch (column.columnType) {
-				case 'PgBigInt64': {
-					return sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}::text as ${sql.identifier(key)}`;
+			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
+			let targetType = column.columnType;
+			let col = column;
+			let arrVal = '';
+			while (is(col, PgArray)) {
+				col = (column as PgArray<any, any>).baseColumn;
+				targetType = col.columnType;
+				arrVal = arrVal + '[]';
+			}
+
+			switch (targetType) {
+				case 'PgNumeric':
+				case 'PgBigInt64':
+				case 'PgBigSerial64':
+				case 'PgTimestampString':
+				case 'PgGeometry':
+				case 'PgGeometryObject': {
+					return sql`${name}::text${sql.raw(arrVal).if(arrVal)} as ${sql.identifier(key)}`;
 				}
 				default: {
-					return sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))} as ${sql.identifier(key)}`;
+					return sql`${name} as ${sql.identifier(key)}`;
 				}
 			}
 		}

@@ -224,7 +224,7 @@ export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
 		.from(schemaUsers).leftJoin(schemaPosts, eq(schemaUsers.id, schemaPosts.ownerId))
 );
 
-export const allTypes = mysqlTable('all_types', {
+export const allTypesTable = mysqlTable('all_types', {
 	serial: serial(),
 	bigint53: bigint({
 		mode: 'number',
@@ -267,7 +267,26 @@ export const allTypes = mysqlTable('all_types', {
 	varbin: varbinary({
 		length: 16,
 	}),
-	varchar: varchar({}),
+	varchar: varchar({
+		length: 255,
+	}),
 	year: year(),
 	enum: mysqlEnum(['enV1', 'enV2']),
+});
+
+export const students = mysqlTable('students', {
+	studentId: serial('student_id').primaryKey().notNull(),
+	name: text().notNull(),
+});
+
+export const courseOfferings = mysqlTable('course_offerings', {
+	courseId: int('course_id').notNull(),
+	semester: varchar({ length: 10 }).notNull(),
+});
+
+export const studentGrades = mysqlTable('student_grades', {
+	studentId: int('student_id').notNull(),
+	courseId: int('course_id').notNull(),
+	semester: varchar({ length: 10 }).notNull(),
+	grade: char({ length: 2 }),
 });

@@ -41,7 +41,9 @@ export class PgGeometry<T extends ColumnBaseConfig<'array', 'PgGeometry'>> exten
 		return 'geometry(point)';
 	}
 
-	override mapFromDriverValue(value: string): [number, number] {
+	override mapFromDriverValue(value: string | [number, number]): [number, number] {
+		if (typeof value !== 'string') return value as [number, number];
+
 		return parseEWKB(value);
 	}
 

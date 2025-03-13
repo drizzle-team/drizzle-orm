@@ -170,7 +170,7 @@ export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
 		.from(schemaUsers).leftJoin(schemaPosts, eq(schemaUsers.id, schemaPosts.ownerId))
 );
 
-const en = pgEnum('en', ['enVal1', 'enVal2']);
+export const en = pgEnum('en', ['enVal1', 'enVal2']);
 
 export const allTypesTable = pgTable('all_types', {
 	serial: serial(),
@@ -225,9 +225,91 @@ export const allTypesTable = pgTable('all_types', {
 	timestamp: timestamp({
 		mode: 'date',
 	}),
+	timestampTz: timestamp({
+		mode: 'date',
+		withTimezone: true,
+	}),
 	timestampStr: timestamp({
 		mode: 'string',
 	}),
+	timestampTzStr: timestamp({
+		mode: 'string',
+		withTimezone: true,
+	}),
 	uuid: uuid(),
 	varchar: varchar(),
+	arrint: integer().array(),
+	arrbigint53: bigint({
+		mode: 'number',
+	}).array(),
+	arrbigint64: bigint({
+		mode: 'bigint',
+	}).array(),
+	arrbool: boolean().array(),
+	arrchar: char().array(),
+	arrcidr: cidr().array(),
+	arrdate: date({
+		mode: 'date',
+	}).array(),
+	arrdateStr: date({
+		mode: 'string',
+	}).array(),
+	arrdouble: doublePrecision().array(),
+	arrenum: en().array(),
+	arrinet: inet().array(),
+	arrinterval: interval().array(),
+	arrjson: json().array(),
+	arrjsonb: jsonb().array(),
+	arrline: line({
+		mode: 'abc',
+	}).array(),
+	arrlineTuple: line({
+		mode: 'tuple',
+	}).array(),
+	arrmacaddr: macaddr().array(),
+	arrmacaddr8: macaddr8().array(),
+	arrnumeric: numeric().array(),
+	arrpoint: point({
+		mode: 'xy',
+	}).array(),
+	arrpointTuple: point({
+		mode: 'tuple',
+	}).array(),
+	arrreal: real().array(),
+	arrsmallint: smallint().array(),
+	arrtext: text().array(),
+	arrtime: time().array(),
+	arrtimestamp: timestamp({
+		mode: 'date',
+	}).array(),
+	arrtimestampTz: timestamp({
+		mode: 'date',
+		withTimezone: true,
+	}).array(),
+	arrtimestampStr: timestamp({
+		mode: 'string',
+	}).array(),
+	arrtimestampTzStr: timestamp({
+		mode: 'string',
+		withTimezone: true,
+	}).array(),
+	arruuid: uuid().array(),
+	arrvarchar: varchar().array(),
+});
+
+export const students = pgTable('students', {
+	studentId: serial('student_id').primaryKey().notNull(),
+	name: text().notNull(),
+});
+
+export const courseOfferings = pgTable('course_offerings', {
+	courseId: integer('course_id').notNull(),
+	semester: varchar({ length: 10 }).notNull(),
+});
+
+export const studentGrades = pgTable('student_grades', {
+	studentId: integer('student_id').notNull(),
+	courseId: integer('course_id').notNull(),
+	semester: varchar({ length: 10 }).notNull(),
+	grade: char({ length: 2 }),
 });

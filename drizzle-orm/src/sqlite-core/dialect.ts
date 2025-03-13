@@ -814,9 +814,17 @@ export abstract class SQLiteDialect {
 
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
+			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
+
 			switch (column.columnType) {
+				case 'SQLiteBigInt':
+				case 'SQLiteBlobJson':
+				case 'SQLiteBlobBuffer': {
+					return sql`hex(${name}) as ${sql.identifier(key)}`;
+				}
+
 				default: {
-					return sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))} as ${sql.identifier(key)}`;
+					return sql`${name} as ${sql.identifier(key)}`;
 				}
 			}
 		}

@@ -9,13 +9,17 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import relations from './mysql.relations.ts';
 import {
+	allTypesTable,
 	commentsTable,
+	courseOfferings,
 	groupsTable,
 	postsTable,
 	schemaGroups,
 	schemaPosts,
 	schemaUsers,
 	schemaUsersToGroups,
+	studentGrades,
+	students,
 	usersTable,
 	usersToGroupsTable,
 } from './mysql.schema.ts';
@@ -72,7 +76,7 @@ beforeAll(async () => {
 	let lastError: unknown | undefined;
 	do {
 		try {
-			client = await mysql.createConnection(connectionString);
+			client = await mysql.createConnection({ uri: connectionString, supportBigNumbers: true, bigNumberStrings: true });
 			await client.connect();
 			connected = true;
 			break;
@@ -114,6 +118,11 @@ beforeEach(async (ctx) => {
 	await ctx.mysqlDbV2.execute(sql`drop table if exists \`rqb_test_schema\`.\`posts\``);
 	await ctx.mysqlDbV2.execute(sql`drop table if exists \`comments\``);
 	await ctx.mysqlDbV2.execute(sql`drop table if exists \`comment_likes\``);
+	await ctx.mysqlDbV2.execute(sql`drop table if exists \`all_types\``);
+	await ctx.mysqlDbV2.execute(sql`drop table if exists \`course_offerings\``);
+	await ctx.mysqlDbV2.execute(sql`drop table if exists \`student_grades\``);
+	await ctx.mysqlDbV2.execute(sql`drop table if exists \`students\``);
+
 	await ctx.mysqlDbV2.execute(sql`create schema if not exists \`rqb_test_schema\``);
 
 	await ctx.mysqlDbV2.execute(
@@ -224,6 +233,34 @@ beforeEach(async (ctx) => {
 				\`creator\` bigint REFERENCES \`users\`(\`id\`),
 				\`comment_id\` bigint REFERENCES \`comments\`(\`id\`),
 				\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+			);
+		`,
+	);
+	await ctx.mysqlDbV2.execute(
+		sql`
+			CREATE TABLE \`course_offerings\` (
+				\`course_id\` integer NOT NULL,
+				\`semester\` varchar(10) NOT NULL,
+				CONSTRAINT \`course_offerings_pkey\` PRIMARY KEY(\`course_id\`,\`semester\`)
+			)	
+		`,
+	);
+	await ctx.mysqlDbV2.execute(
+		sql`
+			CREATE TABLE \`student_grades\` (
+				\`student_id\` integer NOT NULL,
+				\`course_id\` integer NOT NULL,
+				\`semester\` varchar(10) NOT NULL,
+				\`grade\` char(2),
+				CONSTRAINT \`student_grades_pkey\` PRIMARY KEY(\`student_id\`,\`course_id\`,\`semester\`)
+			);
+		`,
+	);
+	await ctx.mysqlDbV2.execute(
+		sql`
+			CREATE TABLE \`students\` (
+				\`student_id\` serial PRIMARY KEY NOT NULL,
+				\`name\` text NOT NULL
 			);
 		`,
 	);
@@ -12269,7 +12306,564 @@ test('[Find Many] Get users filtered by posts with NOT', async () => {
 	]);
 });
 
-test.todo('alltypes', async () => {
+test('[Find Many .through] Through with uneven relation column count', async () => {
+	await db.insert(students).values([{
+		studentId: 1,
+		name: 'First',
+	}, {
+		studentId: 2,
+		name: 'Second',
+	}, {
+		studentId: 3,
+		name: 'Third',
+	}, {
+		studentId: 4,
+		name: 'Fourth',
+	}]);
+
+	await db.insert(studentGrades).values([
+		{
+			studentId: 1,
+			courseId: 1,
+			semester: 's1',
+			grade: '44',
+		},
+		{
+			studentId: 1,
+			courseId: 2,
+			semester: 's2',
+			grade: '35',
+		},
+		{
+			studentId: 2,
+			courseId: 1,
+			semester: 's1',
+			grade: '58',
+		},
+		{
+			studentId: 2,
+			courseId: 3,
+			semester: 's2',
+			grade: '72',
+		},
+		{
+			studentId: 3,
+			courseId: 4,
+			semester: 's4',
+			grade: '99',
+		},
+		{
+			studentId: 3,
+			courseId: 2,
+			semester: 's3',
+			grade: '85',
+		},
+		{
+			studentId: 3,
+			courseId: 1,
+			semester: 's2',
+			grade: '48',
+		},
+		{
+			studentId: 4,
+			courseId: 3,
+			semester: 's1',
+			grade: '63',
+		},
+		{
+			studentId: 4,
+			courseId: 4,
+			semester: 's3',
+			grade: '51',
+		},
+	]);
+
+	await db.insert(courseOfferings).values([{
+		courseId: 1,
+		semester: 's3',
+	}, {
+		courseId: 2,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's1',
+	}, {
+		courseId: 4,
+		semester: 's3',
+	}, {
+		courseId: 1,
+		semester: 's1',
+	}, {
+		courseId: 1,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's1',
+	}, {
+		courseId: 2,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's4',
+	}, {
+		courseId: 3,
+		semester: 's1',
+	}]);
+
+	const res = await db.query.students.findMany({
+		with: {
+			courseOfferings: {
+				orderBy: {
+					courseId: 'asc',
+					semester: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			studentId: 'asc',
+		},
+	});
+
+	expectTypeOf(res).toEqualTypeOf<{
+		studentId: number;
+		name: string;
+		courseOfferings: {
+			courseId: number;
+			semester: string;
+		}[];
+	}[]>();
+
+	expect(res).toStrictEqual([
+		{
+			name: 'First',
+			studentId: 1,
+			courseOfferings: [
+				{
+					courseId: 1,
+					semester: 's1',
+				},
+				{
+					courseId: 2,
+					semester: 's2',
+				},
+			],
+		},
+		{
+			name: 'Second',
+			studentId: 2,
+			courseOfferings: [
+				{
+					courseId: 1,
+					semester: 's1',
+				},
+			],
+		},
+		{
+			name: 'Third',
+			studentId: 3,
+			courseOfferings: [
+				{
+					courseId: 1,
+					semester: 's2',
+				},
+				{
+					courseId: 2,
+					semester: 's3',
+				},
+				{
+					courseId: 4,
+					semester: 's4',
+				},
+			],
+		},
+		{
+			name: 'Fourth',
+			studentId: 4,
+			courseOfferings: [
+				{
+					courseId: 3,
+					semester: 's1',
+				},
+				{
+					courseId: 4,
+					semester: 's3',
+				},
+			],
+		},
+	]);
+});
+
+test('[Find Many .through] Through with uneven relation column count - reverse', async () => {
+	await db.insert(students).values([{
+		studentId: 1,
+		name: 'First',
+	}, {
+		studentId: 2,
+		name: 'Second',
+	}, {
+		studentId: 3,
+		name: 'Third',
+	}, {
+		studentId: 4,
+		name: 'Fourth',
+	}]);
+
+	await db.insert(studentGrades).values([
+		{
+			studentId: 1,
+			courseId: 1,
+			semester: 's1',
+			grade: '44',
+		},
+		{
+			studentId: 1,
+			courseId: 2,
+			semester: 's2',
+			grade: '35',
+		},
+		{
+			studentId: 2,
+			courseId: 1,
+			semester: 's1',
+			grade: '58',
+		},
+		{
+			studentId: 2,
+			courseId: 3,
+			semester: 's2',
+			grade: '72',
+		},
+		{
+			studentId: 3,
+			courseId: 4,
+			semester: 's4',
+			grade: '99',
+		},
+		{
+			studentId: 3,
+			courseId: 2,
+			semester: 's3',
+			grade: '85',
+		},
+		{
+			studentId: 3,
+			courseId: 1,
+			semester: 's2',
+			grade: '48',
+		},
+		{
+			studentId: 4,
+			courseId: 3,
+			semester: 's1',
+			grade: '63',
+		},
+		{
+			studentId: 4,
+			courseId: 4,
+			semester: 's3',
+			grade: '51',
+		},
+	]);
+
+	await db.insert(courseOfferings).values([{
+		courseId: 1,
+		semester: 's3',
+	}, {
+		courseId: 2,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's1',
+	}, {
+		courseId: 4,
+		semester: 's3',
+	}, {
+		courseId: 1,
+		semester: 's1',
+	}, {
+		courseId: 1,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's1',
+	}, {
+		courseId: 2,
+		semester: 's2',
+	}, {
+		courseId: 2,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's3',
+	}, {
+		courseId: 3,
+		semester: 's4',
+	}, {
+		courseId: 4,
+		semester: 's4',
+	}, {
+		courseId: 3,
+		semester: 's1',
+	}]);
+
+	const res = await db.query.courseOfferings.findMany({
+		with: {
+			students: {
+				orderBy: {
+					studentId: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			courseId: 'asc',
+			semester: 'asc',
+		},
+	});
+
+	expectTypeOf(res).toEqualTypeOf<{
+		courseId: number;
+		semester: string;
+		students: {
+			studentId: number;
+			name: string;
+		}[];
+	}[]>();
+
+	expect(res).toStrictEqual([
+		{
+			courseId: 1,
+			semester: 's1',
+			students: [
+				{
+					name: 'First',
+					studentId: 1,
+				},
+				{
+					name: 'Second',
+					studentId: 2,
+				},
+			],
+		},
+		{
+			courseId: 1,
+			semester: 's2',
+			students: [
+				{
+					name: 'Third',
+					studentId: 3,
+				},
+			],
+		},
+		{
+			courseId: 1,
+			semester: 's3',
+			students: [],
+		},
+		{
+			courseId: 2,
+			semester: 's1',
+			students: [],
+		},
+		{
+			courseId: 2,
+			semester: 's2',
+			students: [
+				{
+					name: 'First',
+					studentId: 1,
+				},
+			],
+		},
+		{
+			courseId: 2,
+			semester: 's3',
+			students: [
+				{
+					name: 'Third',
+					studentId: 3,
+				},
+			],
+		},
+		{
+			courseId: 2,
+			semester: 's4',
+			students: [],
+		},
+		{
+			courseId: 3,
+			semester: 's1',
+			students: [
+				{
+					name: 'Fourth',
+					studentId: 4,
+				},
+			],
+		},
+		{
+			courseId: 3,
+			semester: 's3',
+			students: [],
+		},
+		{
+			courseId: 3,
+			semester: 's4',
+			students: [],
+		},
+		{
+			courseId: 4,
+			semester: 's1',
+			students: [],
+		},
+		{
+			courseId: 4,
+			semester: 's3',
+			students: [
+				{
+					name: 'Fourth',
+					studentId: 4,
+				},
+			],
+		},
+		{
+			courseId: 4,
+			semester: 's4',
+			students: [
+				{
+					name: 'Third',
+					studentId: 3,
+				},
+			],
+		},
+	]);
+});
+
+test('alltypes', async () => {
+	await db.execute(sql`
+		CREATE TABLE \`all_types\` (
+				\`serial\` serial AUTO_INCREMENT,
+				\`bigint53\` bigint,
+				\`bigint64\` bigint,
+				\`binary\` binary,
+				\`boolean\` boolean,
+				\`char\` char,
+				\`date\` date,
+				\`date_str\` date,
+				\`datetime\` datetime,
+				\`datetime_str\` datetime,
+				\`decimal\` decimal,
+				\`double\` double,
+				\`float\` float,
+				\`int\` int,
+				\`json\` json,
+				\`med_int\` mediumint,
+				\`small_int\` smallint,
+				\`real\` real,
+				\`text\` text,
+				\`time\` time,
+				\`timestamp\` timestamp,
+				\`timestamp_str\` timestamp,
+				\`tiny_int\` tinyint,
+				\`varbin\` varbinary(16),
+				\`varchar\` varchar(255),
+				\`year\` year,
+				\`enum\` enum('enV1','enV2')
+			);
+	`);
+
+	await db.insert(usersTable).values({
+		id: 1,
+		name: 'First',
+	});
+
+	await db.insert(allTypesTable).values({
+		serial: 1,
+		bigint53: 9007199254740991,
+		bigint64: 5044565289845416380n,
+		binary: '1',
+		boolean: true,
+		char: 'c',
+		date: new Date(1741743161623),
+		dateStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+		datetime: new Date(1741743161623),
+		datetimeStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+		decimal: '47521',
+		double: 15.35325689124218,
+		enum: 'enV1',
+		float: 1.048596,
+		real: 1.048596,
+		text: 'C4-',
+		int: 621,
+		json: {
+			str: 'strval',
+			arr: ['str', 10],
+		},
+		medInt: 560,
+		smallInt: 14,
+		time: '04:13:22',
+		timestamp: new Date(1741743161623),
+		timestampStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+		tinyInt: 7,
+		varbin: '1010110101001101',
+		varchar: 'VCHAR',
+		year: 2025,
+	});
+
+	const rawRes = await db.select().from(allTypesTable);
+	const relationRootRes = await db.query.allTypesTable.findMany();
+	const { alltypes: nestedRelationRes } = (await db.query.usersTable.findFirst({
+		with: {
+			alltypes: true,
+		},
+	}))!;
+
+	expectTypeOf(relationRootRes).toEqualTypeOf(rawRes);
+	expectTypeOf(nestedRelationRes).toEqualTypeOf(rawRes);
+
+	expect(nestedRelationRes).toStrictEqual(rawRes);
+	expect(relationRootRes).toStrictEqual(rawRes);
+
+	const expectedRes = [
+		{
+			serial: 1,
+			bigint53: 9007199254740991,
+			bigint64: 5044565289845416380n,
+			binary: '1',
+			boolean: true,
+			char: 'c',
+			date: new Date('2025-03-12T00:00:00.000Z'),
+			dateStr: '2025-03-12',
+			datetime: new Date('2025-03-12T01:32:42.000Z'),
+			datetimeStr: '2025-03-12 01:32:41',
+			decimal: '47521',
+			double: 15.35325689124218,
+			float: 1.0486,
+			int: 621,
+			json: { arr: ['str', 10], str: 'strval' },
+			medInt: 560,
+			smallInt: 14,
+			real: 1.048596,
+			text: 'C4-',
+			time: '04:13:22',
+			timestamp: new Date('2025-03-12T01:32:42.000Z'),
+			timestampStr: '2025-03-12 01:32:41',
+			tinyInt: 7,
+			varbin: '1010110101001101',
+			varchar: 'VCHAR',
+			year: 2025,
+			enum: 'enV1',
+		},
+	];
+
+	expect(rawRes).toStrictEqual(expectedRes);
 });
 
 test('.toSQL()', () => {

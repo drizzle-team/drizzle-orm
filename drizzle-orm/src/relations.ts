@@ -90,10 +90,13 @@ export class Relations<
 
 		for (const tableConfig of Object.values(this.tablesConfig)) {
 			for (const [relationFieldName, relation] of Object.entries(tableConfig.relations)) {
-				const relationPrintName = `relations -> ${tableConfig.tsName}.${relationFieldName}`;
 				if (!is(relation, Relation)) {
 					continue;
 				}
+
+				const relationPrintName = `relations -> ${tableConfig.tsName}: { ${relationFieldName}: r.${
+					is(relation, One) ? 'one' : 'many'
+				}.${this.tableNamesMap[getTableUniqueName(relation.targetTable)]}(...) }`;
 
 				if (typeof relation.alias === 'string' && !relation.alias) {
 					throw new Error(`${relationPrintName}: "alias" cannot be an empty string - omit it if you don't need it`);
@@ -116,8 +119,7 @@ export class Relations<
 
 					if (relation.through) {
 						if (
-							relation.through.source.length !== relation.through.target.length
-							|| relation.through.source.length !== relation.sourceColumns.length
+							relation.through.source.length !== relation.sourceColumns.length
 							|| relation.through.target.length !== relation.targetColumns.length
 						) {
 							throw new Error(
@@ -166,7 +168,7 @@ export class Relations<
 				}
 				if (relation.alias) {
 					const reverseRelations = Object.values(reverseTableConfig.relations).filter((it): it is Relation =>
-						is(it, Relation) && it.alias === relation.alias
+						is(it, Relation) && it.alias === relation.alias && it !== relation
 					);
 					if (reverseRelations.length > 1) {
 						throw new Error(
@@ -183,7 +185,7 @@ export class Relations<
 					}
 				} else {
 					const reverseRelations = Object.values(reverseTableConfig.relations).filter((it): it is Relation =>
-						is(it, Relation) && it.targetTable === relation.sourceTable && !it.alias
+						is(it, Relation) && it.targetTable === relation.sourceTable && !it.alias && it !== relation
 					);
 					if (reverseRelations.length > 1) {
 						throw new Error(

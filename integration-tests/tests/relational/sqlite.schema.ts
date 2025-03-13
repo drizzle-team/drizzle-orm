@@ -140,7 +140,7 @@ export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 	}),
 }));
 
-export const allTypes = sqliteTable('all_types', {
+export const allTypesTable = sqliteTable('all_types', {
 	int: integer({
 		mode: 'number',
 	}),
@@ -170,4 +170,21 @@ export const allTypes = sqliteTable('all_types', {
 	jsonText: text({
 		mode: 'json',
 	}),
+});
+
+export const students = sqliteTable('students', {
+	studentId: integer('student_id').primaryKey().notNull(),
+	name: text().notNull(),
+});
+
+export const courseOfferings = sqliteTable('course_offerings', {
+	courseId: integer('course_id').notNull(),
+	semester: text().notNull(),
+});
+
+export const studentGrades = sqliteTable('student_grades', {
+	studentId: integer('student_id').notNull(),
+	courseId: integer('course_id').notNull(),
+	semester: text().notNull(),
+	grade: text(),
 });
