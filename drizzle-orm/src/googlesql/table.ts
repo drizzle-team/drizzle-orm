@@ -7,14 +7,12 @@ import type { GoogleSqlColumn, GoogleSqlColumnBuilder, GoogleSqlColumnBuilderBas
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
-import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
 export type GoogleSqlTableExtraConfigValue =
 	| AnyIndexBuilder
 	| CheckBuilder
 	| ForeignKeyBuilder
-	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder;
+	| PrimaryKeyBuilder;
 
 export type GoogleSqlTableExtraConfig = Record<
 	string,

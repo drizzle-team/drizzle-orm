@@ -2,6 +2,12 @@ import chalk from 'chalk';
 import { getNewTableName } from './cli/commands/sqlitePushUtils';
 import { warning } from './cli/views';
 import { CommonSquashedSchema } from './schemaValidator';
+import {
+	GoogleSqlKitInternals,
+	GoogleSqlSchema,
+	GoogleSqlSquasher,
+	View as GoogleSqlView,
+} from './serializer/googlesqlSchema';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher, View as MySqlView } from './serializer/mysqlSchema';
 import {
 	Index,
@@ -22,7 +28,6 @@ import {
 	View as SqliteView,
 } from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
-import { GoogleSqlKitInternals, GoogleSqlSchema, GoogleSqlSquasher, View as GoogleSqlView  } from './serializer/googlesqlSchema';
 
 export interface JsonSqliteCreateTableStatement {
 	type: 'sqlite_create_table';
@@ -683,7 +688,6 @@ export type JsonCreateMySqlViewStatement = {
 	replace: boolean;
 } & Omit<MySqlView, 'columns' | 'isExisting'>;
 
-
 export type JsonCreateGoogleSqlViewStatement = {
 	type: 'googlesql_create_view';
 	replace: boolean;
@@ -950,7 +954,7 @@ export const prepareGoogleSqlCreateTableJson = (
 	// if previously it was an expression or column
 	internals: GoogleSqlKitInternals,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, checkConstraints } = table;
 
 	return {
 		type: 'create_table',
@@ -964,12 +968,10 @@ export const prepareGoogleSqlCreateTableJson = (
 					.name
 			].name
 			: '',
-		uniqueConstraints: Object.values(uniqueConstraints),
 		internals,
 		checkConstraints: Object.values(checkConstraints),
 	};
 };
-
 
 export const prepareSingleStoreCreateTableJson = (
 	table: Table,
@@ -1730,7 +1732,6 @@ export const prepareAlterColumnsMysql = (
 	return [...dropPkStatements, ...setPkStatements, ...statements];
 };
 
-
 // TODO - SPANNER - verify
 export const prepareAlterColumnsGooglesql = (
 	tableName: string,
@@ -1742,73 +1743,78 @@ export const prepareAlterColumnsGooglesql = (
 	action?: 'push' | undefined,
 ): JsonAlterColumnStatement[] => {
 	let statements: JsonAlterColumnStatement[] = [];
-	let dropPkStatements: JsonAlterColumnDropPrimaryKeyStatement[] = [];
-	let setPkStatements: JsonAlterColumnSetPrimaryKeyStatement[] = [];
 
+	// TODO - SPANNER - support autoincrement
 	for (const column of columns) {
-		const columnName = typeof column.name !== 'string' ? column.name.new : column.name;
+		if (column.autoincrement?.type) {
+			warning(
+				`Autoincrement is not supported yet. The autoincrement field in column ${column.name} will be ignored.`,
+			);
 
-		const table = json2.tables[tableName];
-		const snapshotColumn = table.columns[columnName];
+			// const columnName = typeof column.name !== 'string' ? column.name.new : column.name;
 
-		const columnType = snapshotColumn.type;
-		const columnDefault = snapshotColumn.default;
-		const columnOnUpdate = 'onUpdate' in snapshotColumn ? snapshotColumn.onUpdate : undefined;
-		const columnNotNull = table.columns[columnName].notNull;
-
-		const columnAutoIncrement = 'autoincrement' in snapshotColumn
-			? snapshotColumn.autoincrement ?? false
-			: false;
-
-		const columnPk = table.columns[columnName].primaryKey;
-
-		if (column.autoincrement?.type === 'added') {
-			statements.push({
-				type: 'alter_table_alter_column_set_autoincrement',
-				tableName,
-				columnName,
-				schema,
-				newDataType: columnType,
-				columnDefault,
-				columnOnUpdate,
-				columnNotNull,
-				columnAutoIncrement,
-				columnPk,
-			});
-		}
-
-		if (column.autoincrement?.type === 'changed') {
-			const type = column.autoincrement.new
-				? 'alter_table_alter_column_set_autoincrement'
-				: 'alter_table_alter_column_drop_autoincrement';
-
-			statements.push({
-				type,
-				tableName,
-				columnName,
-				schema,
-				newDataType: columnType,
-				columnDefault,
-				columnOnUpdate,
-				columnNotNull,
-				columnAutoIncrement,
-				columnPk,
-			});
-		}
-
-		if (column.autoincrement?.type === 'deleted') {
-			statements.push({
-				type: 'alter_table_alter_column_drop_autoincrement',
-				tableName,
-				columnName,
-				schema,
-				newDataType: columnType,
-				columnDefault,
-				columnOnUpdate,
-				columnNotNull,
-				columnAutoIncrement,
-				columnPk,
-			});
+			// const table = json2.tables[tableName];
+			// const snapshotColumn = table.columns[columnName];
+	
+			// const columnType = snapshotColumn.type;
+			// const columnDefault = snapshotColumn.default;
+			// const columnOnUpdate = 'onUpdate' in snapshotColumn ? snapshotColumn.onUpdate : undefined;
+			// const columnNotNull = table.columns[columnName].notNull;
+	
+			// const columnAutoIncrement = 'autoincrement' in snapshotColumn
+			// 	? snapshotColumn.autoincrement ?? false
+			// 	: false;
+	
+			// const columnPk = table.columns[columnName].primaryKey;
+	
+			// if (column.autoincrement?.type === 'added') {
+			// 	statements.push({
+			// 		type: 'alter_table_alter_column_set_autoincrement',
+			// 		tableName,
+			// 		columnName,
+			// 		schema,
+			// 		newDataType: columnType,
+			// 		columnDefault,
+			// 		columnOnUpdate,
+			// 		columnNotNull,
+			// 		columnAutoIncrement,
+			// 		columnPk,
+			// 	});
+			// }
+	
+			// if (column.autoincrement?.type === 'changed') {
+			// 	const type = column.autoincrement.new
+			// 		? 'alter_table_alter_column_set_autoincrement'
+			// 		: 'alter_table_alter_column_drop_autoincrement';
+	
+			// 	statements.push({
+			// 		type,
+			// 		tableName,
+			// 		columnName,
+			// 		schema,
+			// 		newDataType: columnType,
+			// 		columnDefault,
+			// 		columnOnUpdate,
+			// 		columnNotNull,
+			// 		columnAutoIncrement,
+			// 		columnPk,
+			// 	});
+			// }
+	
+			// if (column.autoincrement?.type === 'deleted') {
+			// 	statements.push({
+			// 		type: 'alter_table_alter_column_drop_autoincrement',
+			// 		tableName,
+			// 		columnName,
+			// 		schema,
+			// 		newDataType: columnType,
+			// 		columnDefault,
+			// 		columnOnUpdate,
+			// 		columnNotNull,
+			// 		columnAutoIncrement,
+			// 		columnPk,
+			// 	});
+			// }
 		}
 	}
 
@@ -1823,9 +1829,11 @@ export const prepareAlterColumnsGooglesql = (
 		const columnOnUpdate = (json2.tables[tableName].columns[columnName] as any)
 			.onUpdate;
 		const columnNotNull = json2.tables[tableName].columns[columnName].notNull;
-		const columnAutoIncrement = (
-			json2.tables[tableName].columns[columnName] as any
-		).autoincrement;
+		// TODO - SPANNER - support autoincrement
+		const columnAutoIncrement = false;
+		// const columnAutoIncrement = (
+		// 	json2.tables[tableName].columns[columnName] as any
+		// ).autoincrement;
 		const columnPk = (json2.tables[tableName].columns[columnName] as any)
 			.primaryKey;
 
@@ -1834,16 +1842,19 @@ export const prepareAlterColumnsGooglesql = (
 		];
 
 		if (typeof column.name !== 'string') {
-			statements.push({
-				type: 'alter_table_rename_column',
-				tableName,
-				oldColumnName: column.name.old,
-				newColumnName: column.name.new,
-				schema,
-			});
+			throw new Error('Renaming columns is not supported in Google Cloud Spanner');
 		}
 
 		if (column.type?.type === 'changed') {
+			function isStringOrBytes(type: string): boolean {
+				const lowerType = type.toLowerCase();
+				return lowerType.startsWith('string') || lowerType.startsWith('bytes');
+			}
+
+			// https://cloud.google.com/spanner/docs/schema-updates#supported-updates
+			if (!isStringOrBytes(column.type.new) || !isStringOrBytes(column.type.old)) {
+				throw new Error('Changing column types is only supported for STRING and BYTES types in Google Cloud Spanner');
+			}
 			statements.push({
 				type: 'alter_table_alter_column_set_type',
 				tableName,
@@ -1866,13 +1877,7 @@ export const prepareAlterColumnsGooglesql = (
 				&& !column.primaryKey.new
 				&& typeof compositePk === 'undefined')
 		) {
-			dropPkStatements.push({
-				////
-				type: 'alter_table_alter_column_drop_pk',
-				tableName,
-				columnName,
-				schema,
-			});
+			throw new Error('Dropping primary keys is not supported in Google Cloud Spanner');
 		}
 
 		if (column.default?.type === 'added') {
@@ -1919,6 +1924,10 @@ export const prepareAlterColumnsGooglesql = (
 				newDataType: columnType,
 				columnPk,
 			});
+		}
+
+		if (column.notNull?.type && columnPk) {
+			throw new Error('Adding NOT NULL constraint to a primary key column is not supported in Google Cloud Spanner');
 		}
 
 		if (column.notNull?.type === 'added') {
@@ -1970,31 +1979,13 @@ export const prepareAlterColumnsGooglesql = (
 		}
 
 		if (column.generated?.type === 'added') {
-			if (columnGenerated?.type === 'virtual') {
-				warning(
-					`You are trying to add virtual generated constraint to ${
-						chalk.blue(
-							columnName,
-						)
-					} column. As MySQL docs mention: "Nongenerated columns can be altered to stored but not virtual generated columns". We will drop an existing column and add it with a virtual generated statement. This means that the data previously stored in this column will be wiped, and new data will be generated on each read for this column\n`,
-				);
-			}
-			statements.push({
-				type: 'alter_table_alter_column_set_generated',
-				tableName,
-				columnName,
-				schema,
-				newDataType: columnType,
-				columnDefault,
-				columnOnUpdate,
-				columnNotNull,
-				columnAutoIncrement,
-				columnPk,
-				columnGenerated,
-			});
+			throw new Error('Google Cloud Spanner does not support transform an existing column to a generated column');
 		}
 
 		if (column.generated?.type === 'changed' && action !== 'push') {
+			if (column.generated.new.type === 'stored' || column.generated.old.type === 'stored') {
+				throw new Error("Google Cloud Spanner doesn't support changing stored generated columns");
+			}
 			statements.push({
 				type: 'alter_table_alter_column_alter_generated',
 				tableName,
@@ -2011,49 +2002,17 @@ export const prepareAlterColumnsGooglesql = (
 		}
 
 		if (column.generated?.type === 'deleted') {
-			if (columnGenerated?.type === 'virtual') {
-				warning(
-					`You are trying to remove virtual generated constraint from ${
-						chalk.blue(
-							columnName,
-						)
-					} column. As MySQL docs mention: "Stored but not virtual generated columns can be altered to nongenerated columns. The stored generated values become the values of the nongenerated column". We will drop an existing column and add it without a virtual generated statement. This means that this column will have no data after migration\n`,
-				);
-			}
-			statements.push({
-				type: 'alter_table_alter_column_drop_generated',
-				tableName,
-				columnName,
-				schema,
-				newDataType: columnType,
-				columnDefault,
-				columnOnUpdate,
-				columnNotNull,
-				columnAutoIncrement,
-				columnPk,
-				columnGenerated,
-				oldColumn: json1.tables[tableName].columns[columnName],
-			});
+			throw new Error('Google Cloud Spanner does not support transform an generated column to a non-generated column');
 		}
 
 		if (
 			column.primaryKey?.type === 'added'
 			|| (column.primaryKey?.type === 'changed' && column.primaryKey.new)
 		) {
-			const wasAutoincrement = statements.filter(
-				(it) => it.type === 'alter_table_alter_column_set_autoincrement',
-			);
-			if (wasAutoincrement.length === 0) {
-				setPkStatements.push({
-					type: 'alter_table_alter_column_set_pk',
-					tableName,
-					schema,
-					columnName,
-				});
-			}
+			throw new Error('Adding/changing primary keys is not supported in Google Cloud Spanner');
 		}
 
-		if (column.onUpdate?.type === 'added') {
+		if (column.onUpdate?.type === 'added' || column.onUpdate?.type === 'changed') {
 			statements.push({
 				type: 'alter_table_alter_column_set_on_update',
 				tableName,
@@ -2084,7 +2043,7 @@ export const prepareAlterColumnsGooglesql = (
 		}
 	}
 
-	return [...dropPkStatements, ...setPkStatements, ...statements];
+	return [...statements];
 };
 
 export const prepareAlterColumnsSingleStore = (
@@ -3718,74 +3677,6 @@ export const prepareAlterCompositePrimaryKeyMySql = (
 	});
 };
 
-// TODO - SPANNER - verify
-export const prepareAddCompositePrimaryKeyGoogleSql = (
-	tableName: string,
-	pks: Record<string, string>,
-	// TODO: remove?
-	json1: GoogleSqlSchema,
-	json2: GoogleSqlSchema,
-): JsonCreateCompositePK[] => {
-	const res: JsonCreateCompositePK[] = [];
-	for (const it of Object.values(pks)) {
-		const unsquashed = GoogleSqlSquasher.unsquashPK(it);
-
-		if (
-			unsquashed.columns.length === 1
-			&& json1.tables[tableName]?.columns[unsquashed.columns[0]]?.primaryKey
-		) {
-			continue;
-		}
-
-		res.push({
-			type: 'create_composite_pk',
-			tableName,
-			data: it,
-			constraintName: unsquashed.name,
-		} as JsonCreateCompositePK);
-	}
-	return res;
-};
-
-export const prepareDeleteCompositePrimaryKeyGoogleSql = (
-	tableName: string,
-	pks: Record<string, string>,
-	// TODO: remove?
-	json1: GoogleSqlSchema,
-): JsonDeleteCompositePK[] => {
-	return Object.values(pks).map((it) => {
-		const unsquashed = GoogleSqlSquasher.unsquashPK(it);
-		return {
-			type: 'delete_composite_pk',
-			tableName,
-			data: it,
-		} as JsonDeleteCompositePK;
-	});
-};
-
-export const prepareAlterCompositePrimaryKeyGoogleSql = (
-	tableName: string,
-	pks: Record<string, { __old: string; __new: string }>,
-	// TODO: remove?
-	json1: GoogleSqlSchema,
-	json2: GoogleSqlSchema,
-): JsonAlterCompositePK[] => {
-	return Object.values(pks).map((it) => {
-		return {
-			type: 'alter_composite_pk',
-			tableName,
-			old: it.__old,
-			new: it.__new,
-			oldConstraintName: json1.tables[tableName].compositePrimaryKeys[
-				MySqlSquasher.unsquashPK(it.__old).name
-			].name,
-			newConstraintName: json2.tables[tableName].compositePrimaryKeys[
-				MySqlSquasher.unsquashPK(it.__new).name
-			].name,
-		} as JsonAlterCompositePK;
-	});
-};
-
 export const preparePgCreateViewJson = (
 	name: string,
 	schema: string,
@@ -3834,14 +3725,12 @@ export const prepareGoogleSqlCreateViewJson = (
 	meta: string,
 	replace: boolean = false,
 ): JsonCreateGoogleSqlViewStatement => {
-	const { algorithm, sqlSecurity, withCheckOption } = GoogleSqlSquasher.unsquashView(meta);
+	const { sqlSecurity } = GoogleSqlSquasher.unsquashView(meta);
 	return {
 		type: 'googlesql_create_view',
 		name: name,
 		definition: definition,
-		algorithm,
 		sqlSecurity,
-		withCheckOption,
 		replace,
 	};
 };

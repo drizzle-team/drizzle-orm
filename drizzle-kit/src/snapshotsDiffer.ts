@@ -21,6 +21,7 @@ import {
 	_prepareSqliteAddColumns,
 	JsonAddColumnStatement,
 	JsonAlterCompositePK,
+	JsonAlterGoogleSqlViewStatement,
 	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
@@ -29,6 +30,7 @@ import {
 	JsonAlterViewStatement,
 	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
+	JsonCreateGoogleSqlViewStatement,
 	JsonCreateIndPolicyStatement,
 	JsonCreateMySqlViewStatement,
 	JsonCreatePgViewStatement,
@@ -59,6 +61,7 @@ import {
 	prepareAddCompositePrimaryKeySqlite,
 	prepareAddUniqueConstraintPg as prepareAddUniqueConstraint,
 	prepareAddValuesToEnumJson,
+	prepareAlterColumnsGooglesql,
 	prepareAlterColumnsMysql,
 	prepareAlterCompositePrimaryKeyMySql,
 	prepareAlterCompositePrimaryKeyPg,
@@ -92,6 +95,9 @@ import {
 	prepareDropSequenceJson,
 	prepareDropTableJson,
 	prepareDropViewJson,
+	prepareGoogleSqlAlterView,
+	prepareGoogleSqlCreateTableJson,
+	prepareGoogleSqlCreateViewJson,
 	prepareLibSQLCreateReferencesJson,
 	prepareLibSQLDropReferencesJson,
 	prepareMoveEnumJson,
@@ -121,19 +127,11 @@ import {
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
 	prepareSqliteCreateViewJson,
-	prepareAddCompositePrimaryKeyGoogleSql,
-	prepareDeleteCompositePrimaryKeyGoogleSql,
-	prepareAlterCompositePrimaryKeyGoogleSql,
-	prepareAlterColumnsGooglesql,
-	prepareGoogleSqlCreateTableJson,
-	prepareGoogleSqlCreateViewJson,
-	JsonCreateGoogleSqlViewStatement,
-	prepareGoogleSqlAlterView,
-	JsonAlterGoogleSqlViewStatement,
 } from './jsonStatements';
 
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
+import { GoogleSqlSchema, GoogleSqlSchemaSquashed } from './serializer/googlesqlSchema';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher, ViewSquashed } from './serializer/mysqlSchema';
 import {
 	mergedViewWithOption,
@@ -152,7 +150,6 @@ import { SingleStoreSchema, SingleStoreSchemaSquashed, SingleStoreSquasher } fro
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher, View as SqliteView } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, singleStoreCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';
-import { GoogleSqlSchema, GoogleSqlSchemaSquashed } from './serializer/googlesqlSchema';
 
 const makeChanged = <T extends ZodTypeAny>(schema: T) => {
 	return object({
@@ -400,7 +397,6 @@ const alteredGoogleSqlViewSchema = alteredViewCommon.merge(
 		}).strict().optional(),
 	}).strict(),
 );
-
 
 export const diffResultScheme = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
@@ -4353,33 +4349,33 @@ export const applyGooglesqlSnapshotsDiff = async (
 	// TODO: @AndriiSherman
 	// Add an upgrade to v6 and move all snaphosts to this strcutre
 	// After that we can generate mysql in 1 object directly(same as sqlite)
-	for (const tableName in json1.tables) {
-		const table = json1.tables[tableName];
-		for (const indexName in table.indexes) {
-			const index = MySqlSquasher.unsquashIdx(table.indexes[indexName]);
-			if (index.isUnique) {
-				table.uniqueConstraints[indexName] = MySqlSquasher.squashUnique({
-					name: index.name,
-					columns: index.columns,
-				});
-				delete json1.tables[tableName].indexes[index.name];
-			}
-		}
-	}
+	// for (const tableName in json1.tables) {
+	// 	const table = json1.tables[tableName];
+	// 	for (const indexName in table.indexes) {
+	// 		const index = MySqlSquasher.unsquashIdx(table.indexes[indexName]);
+	// 		if (index.isUnique) {
+	// 			table.uniqueConstraints[indexName] = MySqlSquasher.squashUnique({
+	// 				name: index.name,
+	// 				columns: index.columns,
+	// 			});
+	// 			delete json1.tables[tableName].indexes[index.name];
+	// 		}
+	// 	}
+	// }
 
-	for (const tableName in json2.tables) {
-		const table = json2.tables[tableName];
-		for (const indexName in table.indexes) {
-			const index = MySqlSquasher.unsquashIdx(table.indexes[indexName]);
-			if (index.isUnique) {
-				table.uniqueConstraints[indexName] = MySqlSquasher.squashUnique({
-					name: index.name,
-					columns: index.columns,
-				});
-				delete json2.tables[tableName].indexes[index.name];
-			}
-		}
-	}
+	// for (const tableName in json2.tables) {
+	// 	const table = json2.tables[tableName];
+	// 	for (const indexName in table.indexes) {
+	// 		const index = MySqlSquasher.unsquashIdx(table.indexes[indexName]);
+	// 		if (index.isUnique) {
+	// 			table.uniqueConstraints[indexName] = MySqlSquasher.squashUnique({
+	// 				name: index.name,
+	// 				columns: index.columns,
+	// 			});
+	// 			delete json2.tables[tableName].indexes[index.name];
+	// 		}
+	// 	}
+	// }
 
 	const tablesDiff = diffSchemasOrTables(json1.tables, json2.tables);
 
@@ -4578,63 +4574,44 @@ export const applyGooglesqlSnapshotsDiff = async (
 		// Don't need to sort, but need to add tests for it
 		// addedColumns.sort();
 		// deletedColumns.sort();
-		const doPerformDeleteAndCreate = JSON.stringify(addedColumns) !== JSON.stringify(deletedColumns);
+		// const doPerformDeleteAndCreate = JSON.stringify(addedColumns) !== JSON.stringify(deletedColumns);
 
-		let addedCompositePKs: JsonCreateCompositePK[] = [];
-		let deletedCompositePKs: JsonDeleteCompositePK[] = [];
-		let alteredCompositePKs: JsonAlterCompositePK[] = [];
-
-		addedCompositePKs = prepareAddCompositePrimaryKeyGoogleSql(
-			it.name,
-			it.addedCompositePKs,
-			prevFull,
-			curFull,
-		);
-		deletedCompositePKs = prepareDeleteCompositePrimaryKeyGoogleSql(
-			it.name,
-			it.deletedCompositePKs,
-			prevFull,
-		);
-		// }
-		alteredCompositePKs = prepareAlterCompositePrimaryKeyGoogleSql(
-			it.name,
-			it.alteredCompositePKs,
-			prevFull,
-			curFull,
-		);
+		// let addedCompositePKs: JsonCreateCompositePK[] = [];
+		// let deletedCompositePKs: JsonDeleteCompositePK[] = [];
+		// let alteredCompositePKs: JsonAlterCompositePK[] = [];
 
 		// add logic for unique constraints
-		let addedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
-		let deletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
-		let alteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
+		// let addedUniqueConstraints: JsonCreateUniqueConstraint[] = [];
+		// let deletedUniqueConstraints: JsonDeleteUniqueConstraint[] = [];
+		// let alteredUniqueConstraints: JsonAlterUniqueConstraint[] = [];
 
 		let createdCheckConstraints: JsonCreateCheckConstraint[] = [];
 		let deletedCheckConstraints: JsonDeleteCheckConstraint[] = [];
 
-		addedUniqueConstraints = prepareAddUniqueConstraint(
-			it.name,
-			it.schema,
-			it.addedUniqueConstraints,
-		);
-		deletedUniqueConstraints = prepareDeleteUniqueConstraint(
-			it.name,
-			it.schema,
-			it.deletedUniqueConstraints,
-		);
-		if (it.alteredUniqueConstraints) {
-			const added: Record<string, string> = {};
-			const deleted: Record<string, string> = {};
-			for (const k of Object.keys(it.alteredUniqueConstraints)) {
-				added[k] = it.alteredUniqueConstraints[k].__new;
-				deleted[k] = it.alteredUniqueConstraints[k].__old;
-			}
-			addedUniqueConstraints.push(
-				...prepareAddUniqueConstraint(it.name, it.schema, added),
-			);
-			deletedUniqueConstraints.push(
-				...prepareDeleteUniqueConstraint(it.name, it.schema, deleted),
-			);
-		}
+		// addedUniqueConstraints = prepareAddUniqueConstraint(
+		// 	it.name,
+		// 	it.schema,
+		// 	it.addedUniqueConstraints,
+		// );
+		// deletedUniqueConstraints = prepareDeleteUniqueConstraint(
+		// 	it.name,
+		// 	it.schema,
+		// 	it.deletedUniqueConstraints,
+		// );
+		// if (it.alteredUniqueConstraints) {
+		// 	const added: Record<string, string> = {};
+		// 	const deleted: Record<string, string> = {};
+		// 	for (const k of Object.keys(it.alteredUniqueConstraints)) {
+		// 		added[k] = it.alteredUniqueConstraints[k].__new;
+		// 		deleted[k] = it.alteredUniqueConstraints[k].__old;
+		// 	}
+		// 	addedUniqueConstraints.push(
+		// 		...prepareAddUniqueConstraint(it.name, it.schema, added),
+		// 	);
+		// 	deletedUniqueConstraints.push(
+		// 		...prepareDeleteUniqueConstraint(it.name, it.schema, deleted),
+		// 	);
+		// }
 
 		createdCheckConstraints = prepareAddCheckConstraint(it.name, it.schema, it.addedCheckConstraints);
 		deletedCheckConstraints = prepareDeleteCheckConstraint(
@@ -4656,13 +4633,13 @@ export const applyGooglesqlSnapshotsDiff = async (
 			deletedCheckConstraints.push(...prepareDeleteCheckConstraint(it.name, it.schema, deleted));
 		}
 
-		jsonAddedCompositePKs.push(...addedCompositePKs);
-		jsonDeletedCompositePKs.push(...deletedCompositePKs);
-		jsonAlteredCompositePKs.push(...alteredCompositePKs);
-
-		jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
-		jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
-		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
+		// all of it is not supported in google sql :)
+		// jsonAddedCompositePKs.push(...addedCompositePKs);
+		// jsonDeletedCompositePKs.push(...deletedCompositePKs);
+		// jsonAlteredCompositePKs.push(...alteredCompositePKs);
+		// jsonAddedUniqueConstraints.push(...addedUniqueConstraints);
+		// jsonDeletedUniqueConstraints.push(...deletedUniqueConstraints);
+		// jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
 
 		jsonCreatedCheckConstraints.push(...createdCheckConstraints);
 		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);

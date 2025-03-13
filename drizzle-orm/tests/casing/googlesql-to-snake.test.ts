@@ -5,6 +5,8 @@ import { relations } from '~/relations';
 import { drizzle as spanner } from '~/spanner';
 import { asc, eq, sql } from '~/sql';
 
+// TODO: SPANNER: rewrite tests
+
 const testSchema = googlesqlSchema('test');
 const users = googlesqlTable('users', {
 	id: serial().primaryKey(),
@@ -200,13 +202,13 @@ describe('googlesql to snake case', () => {
 			params: ['John', 'Doe', 30],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
-	});
+	}); 
 
 	it('insert (on duplicate key update)', ({ expect }) => {
 		const query = db
 			.insert(users)
 			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
-			.onDuplicateKeyUpdate({ set: { age: 31 } });
+			.onDuplicateKeyUpdate();
 
 		expect(query.toSQL()).toEqual({
 			sql:
