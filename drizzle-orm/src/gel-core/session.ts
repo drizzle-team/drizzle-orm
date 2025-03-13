@@ -1,6 +1,7 @@
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
-import type { TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
@@ -45,7 +46,9 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 export abstract class GelSession<
 	TQueryResult extends GelQueryResultHKT = any, // TO
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+	TTablesConfig extends TablesRelationalConfig = TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
 > {
 	static readonly [entityKind]: string = 'GelSession';
 
@@ -57,6 +60,16 @@ export abstract class GelSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+	): GelPreparedQuery<T>;
+
+	abstract prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		name: string | undefined,
+		customResultMapper?: (
+			rows: Record<string, unknown>[],
+			mapColumnValue?: (value: unknown) => unknown,
+		) => T['execute'],
 	): GelPreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {
@@ -92,27 +105,30 @@ export abstract class GelSession<
 	}
 
 	abstract transaction<T>(
-		transaction: (tx: GelTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: GelTransaction<TQueryResult, TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
 	): Promise<T>;
 }
 
 export abstract class GelTransaction<
 	TQueryResult extends GelQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
-> extends GelDatabase<TQueryResult, TFullSchema, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+	TTablesConfig extends TablesRelationalConfig = TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
+> extends GelDatabase<TQueryResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
 	static override readonly [entityKind]: string = 'GelTransaction';
 
 	constructor(
 		dialect: GelDialect,
-		session: GelSession<any, any, any>,
+		session: GelSession<any, any, any, any, any>,
+		protected relations: AnyRelations | undefined,
 		protected schema: {
 			fullSchema: Record<string, unknown>;
 			schema: TSchema;
 			tableNamesMap: Record<string, string>;
 		} | undefined,
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, relations, schema);
 	}
 
 	rollback(): never {
@@ -120,7 +136,7 @@ export abstract class GelTransaction<
 	}
 
 	abstract override transaction<T>(
-		transaction: (tx: GelTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: GelTransaction<TQueryResult, TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
 	): Promise<T>;
 }
 

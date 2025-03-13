@@ -46,6 +46,13 @@ export class MySqlDecimal<T extends ColumnBaseConfig<'string', 'MySqlDecimal'>>
 	readonly scale: number | undefined = this.config.scale;
 	readonly unsigned: boolean | undefined = this.config.unsigned;
 
+	override mapFromDriverValue(value: unknown): string {
+		// For RQBv2
+		if (typeof value === 'string') return value;
+
+		return String(value);
+	}
+
 	getSQLType(): string {
 		let type = '';
 		if (this.precision !== undefined && this.scale !== undefined) {

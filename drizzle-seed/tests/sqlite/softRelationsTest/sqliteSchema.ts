@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { integer, numeric, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const customers = sqliteTable('customer', {

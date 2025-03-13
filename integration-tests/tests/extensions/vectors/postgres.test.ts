@@ -1,18 +1,35 @@
 import Docker from 'dockerode';
-import { eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
+import { defineRelations, eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
 import { bigserial, bit, halfvec, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import getPort from 'get-port';
 import postgres, { type Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
 const ENABLE_LOGGING = false;
 
 let pgContainer: Docker.Container;
 let docker: Docker;
 let client: Sql;
-let db: PostgresJsDatabase;
+let db: PostgresJsDatabase<never, typeof relations>;
+
+const items = pgTable('items', {
+	id: bigserial('id', { mode: 'number' }).primaryKey(),
+	vector: vector('vector', { dimensions: 3 }),
+	bit: bit('bit', { dimensions: 3 }),
+	halfvec: halfvec('halfvec', { dimensions: 3 }),
+	sparsevec: sparsevec('sparsevec', { dimensions: 5 }),
+});
+
+const relations = defineRelations({ items }, (r) => ({
+	items: {
+		self: r.many.items({
+			from: r.items.id,
+			to: r.items.id,
+		}),
+	},
+}));
 
 async function createDockerDB(): Promise<string> {
 	const inDocker = (docker = new Docker());
@@ -71,7 +88,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 
 	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`);
 });
@@ -79,14 +96,6 @@ beforeAll(async () => {
 afterAll(async () => {
 	await client?.end().catch(console.error);
 	await pgContainer?.stop().catch(console.error);
-});
-
-const items = pgTable('items', {
-	id: bigserial('id', { mode: 'number' }).primaryKey(),
-	vector: vector('vector', { dimensions: 3 }),
-	bit: bit('bit', { dimensions: 3 }),
-	halfvec: halfvec('halfvec', { dimensions: 3 }),
-	sparsevec: sparsevec('sparsevec', { dimensions: 5 }),
 });
 
 beforeEach(async () => {
@@ -380,4 +389,27 @@ test('select + insert all vectors', async () => {
 		halfvec: [1, 2, 3],
 		sparsevec: '{1:1,3:2,5:3}/5',
 	}]);
+});
+
+test('RQBv2', async () => {
+	await db.insert(items).values([{
+		vector: [3, 1, 2],
+		bit: '000',
+		halfvec: [1, 2, 3],
+		sparsevec: '{1:1,3:2,5:3}/5',
+	}]).returning();
+
+	const rawResponse = await db.select().from(items);
+	const rootRqbResponse = await db.query.items.findMany();
+	const { self: nestedRqbResponse } = (await db.query.items.findFirst({
+		with: {
+			self: true,
+		},
+	}))!;
+
+	expectTypeOf(rootRqbResponse).toEqualTypeOf(rawResponse);
+	expectTypeOf(nestedRqbResponse).toEqualTypeOf(rawResponse);
+
+	expect(rootRqbResponse).toStrictEqual(rawResponse);
+	expect(nestedRqbResponse).toStrictEqual(rawResponse);
 });
