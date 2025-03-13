@@ -60,7 +60,7 @@ export class SQLiteSelectBuilder<
 	static readonly [entityKind]: string = 'SQLiteSelectBuilder';
 
 	private fields: TSelection;
-	private session: SQLiteSession<any, any, any, any> | undefined;
+	private session: SQLiteSession<any, any, any, any, any, any> | undefined;
 	private dialect: SQLiteDialect;
 	private withList: Subquery[] | undefined;
 	private distinct: boolean | undefined;
@@ -68,7 +68,7 @@ export class SQLiteSelectBuilder<
 	constructor(
 		config: {
 			fields: TSelection;
-			session: SQLiteSession<any, any, any, any> | undefined;
+			session: SQLiteSession<any, any, any, any, any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
@@ -159,7 +159,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;
-	protected session: SQLiteSession<any, any, any, any> | undefined;
+	protected session: SQLiteSession<any, any, any, any, any, any> | undefined;
 	protected dialect: SQLiteDialect;
 
 	constructor(
@@ -167,7 +167,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 			table: SQLiteSelectConfig['table'];
 			fields: SQLiteSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: SQLiteSession<any, any, any, any> | undefined;
+			session: SQLiteSession<any, any, any, any, any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList: Subquery[] | undefined;
 			distinct: boolean | undefined;

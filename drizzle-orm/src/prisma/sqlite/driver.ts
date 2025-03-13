@@ -25,7 +25,7 @@ export function drizzle(config: PrismaSQLiteConfig = {}) {
 		return client.$extends({
 			name: 'drizzle',
 			client: {
-				$drizzle: new BaseSQLiteDatabase('async', dialect, session, undefined) as PrismaSQLiteDatabase,
+				$drizzle: new BaseSQLiteDatabase('async', dialect, session, undefined, undefined) as PrismaSQLiteDatabase,
 			},
 		});
 	});

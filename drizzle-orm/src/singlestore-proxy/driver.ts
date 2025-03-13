@@ -1,11 +1,11 @@
-import { entityKind } from '~/entity.ts';
-import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations.ts';
+} from '~/_relations.ts';
+import { entityKind } from '~/entity.ts';
+import { DefaultLogger } from '~/logger.ts';
 import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';

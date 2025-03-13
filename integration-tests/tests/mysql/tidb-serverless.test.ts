@@ -6,10 +6,11 @@ import { drizzle } from 'drizzle-orm/tidb-serverless';
 import { beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common.ts';
 import { tests } from './mysql-common.ts';
+import relations from './relations.ts';
 
 const ENABLE_LOGGING = false;
 
-let db: TiDBServerlessDatabase;
+let db: TiDBServerlessDatabase<never, typeof relations>;
 
 beforeAll(async () => {
 	const connectionString = process.env['TIDB_CONNECTION_STRING'];
@@ -18,7 +19,7 @@ beforeAll(async () => {
 	}
 
 	const client = connect({ url: connectionString });
-	db = drizzle(client!, { logger: ENABLE_LOGGING });
+	db = drizzle(client!, { logger: ENABLE_LOGGING, relations });
 });
 
 beforeEach((ctx) => {

@@ -40,9 +40,14 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> 
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): bigint {
+	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer | string): bigint {
 		if (Buffer.isBuffer(value)) {
 			return BigInt(value.toString());
+		}
+
+		// For RQBv2
+		if (typeof value === 'string') {
+			return BigInt(Buffer.from(value, 'hex').toString());
 		}
 
 		// for sqlite durable objects
@@ -101,6 +106,11 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>
 			return JSON.parse(value.toString());
 		}
 
+		// For RQBv2
+		if (typeof value === 'string') {
+			return JSON.parse(Buffer.from(value, 'hex').toString());
+		}
+
 		// for sqlite durable objects
 		// eslint-disable-next-line no-instanceof/no-instanceof
 		if (value instanceof ArrayBuffer) {
@@ -144,6 +154,15 @@ export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer',
 
 export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'buffer', 'SQLiteBlobBuffer'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBlobBuffer';
+
+	override mapFromDriverValue(value: unknown): Buffer {
+		// For RQBv2
+		if (typeof value === 'string') {
+			return Buffer.from(value, 'hex');
+		}
+
+		return value as Buffer;
+	}
 
 	getSQLType(): string {
 		return 'blob';
