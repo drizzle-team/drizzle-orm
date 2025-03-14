@@ -58,8 +58,6 @@ export class Relations<
 		readonly config: TConfig,
 	) {
 		for (const [tsName, table] of Object.entries(tables)) {
-			if (config[tsName]?.$drizzleTypeError) continue;
-
 			const isTable = is(table, Table);
 			const isView = is(table, View);
 
@@ -1131,11 +1129,13 @@ export class RelationsHelperStatic<TTables extends Record<string, Table | View>>
 	}
 
 	one: {
-		[K in keyof TTables]: OneFn<TTables, K & string>;
+		[K in keyof TTables]: TTables[K] extends Table | View<string, boolean, FieldSelection> ? OneFn<TTables, K & string>
+			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 	};
 
 	many: {
-		[K in keyof TTables]: ManyFn<TTables, K & string>;
+		[K in keyof TTables]: TTables[K] extends Table | View<string, boolean, FieldSelection> ? ManyFn<TTables, K & string>
+			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 	};
 
 	/** @internal - to be reworked */
@@ -1171,9 +1171,7 @@ export type RelationsBuilder<TSchema extends Record<string, Table | View>> =
 	& RelationsHelperStatic<TSchema>;
 
 export type RelationsBuilderConfig<TTables extends Record<string, Table | View>> = {
-	[TTableName in keyof TTables & string]?: TTables[TTableName] extends Table | View<string, boolean, FieldSelection>
-		? Record<string, RelationsBuilderEntry<TTables, TTableName>>
-		: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+	[TTableName in keyof TTables & string]?: Record<string, RelationsBuilderEntry<TTables, TTableName>>;
 };
 
 export type RelationsBuilderEntry<
