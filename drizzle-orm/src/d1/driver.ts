@@ -81,6 +81,8 @@ export function drizzle<
 		>,
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
+		undefined,
+		true,
 	) as DrizzleD1Database<
 		TSchema,
 		TRelations

@@ -190,7 +190,7 @@ export class Relations<
 					if (reverseRelations.length > 1) {
 						throw new Error(
 							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations between "${targetTableTsName}" and "${
-								getTableUniqueName(relation.sourceTable)
+								this.tableNamesMap[getTableUniqueName(relation.sourceTable)] ?? getTableUniqueName(relation.sourceTable)
 							}" were found.\nHint: you can specify "alias" on both sides of the relation with the same value`,
 						);
 					}
@@ -198,7 +198,7 @@ export class Relations<
 					if (!reverseRelation) {
 						throw new Error(
 							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relation of table "${targetTableTsName}" with target table "${
-								getTableUniqueName(relation.sourceTable)
+								this.tableNamesMap[getTableUniqueName(relation.sourceTable)] ?? getTableUniqueName(relation.sourceTable)
 							}" was found`,
 						);
 					}

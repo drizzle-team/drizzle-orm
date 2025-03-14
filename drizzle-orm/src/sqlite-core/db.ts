@@ -72,6 +72,7 @@ export class BaseSQLiteDatabase<
 		relations: AnyRelations | undefined,
 		_schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		readonly rowModeRQB?: boolean,
+		readonly forbidJsonb?: boolean,
 	) {
 		const rel = relations ?? {} as EmptyRelations;
 
@@ -127,6 +128,7 @@ export class BaseSQLiteDatabase<
 					dialect,
 					session as SQLiteSession<any, any, any, any, any>,
 					rowModeRQB,
+					forbidJsonb,
 				);
 			}
 		}

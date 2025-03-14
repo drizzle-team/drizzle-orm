@@ -925,6 +925,7 @@ export abstract class SQLiteDialect {
 			errorPath,
 			depth,
 			throughJoin,
+			jsonb,
 		}: {
 			tables: Record<string, SQLiteTable | SQLiteView>;
 			schema: TablesRelationalConfig;
@@ -938,6 +939,7 @@ export abstract class SQLiteDialect {
 			errorPath?: string;
 			depth?: number;
 			throughJoin?: SQL;
+			jsonb: SQL;
 		},
 	): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -1019,6 +1021,7 @@ export abstract class SQLiteDialect {
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
 							throughJoin,
+							jsonb,
 						});
 
 						selection.push({
@@ -1033,13 +1036,13 @@ export abstract class SQLiteDialect {
 						const jsonColumns = sql.join(
 							innerQuery.selection.map((s) => {
 								return sql`${sql.raw(this.escapeString(s.key))}, ${
-									s.selection ? sql`jsonb(${sql.identifier(s.key)})` : sql.identifier(s.key)
+									s.selection ? sql`${jsonb}(${sql.identifier(s.key)})` : sql.identifier(s.key)
 								}`;
 							}),
 							sql`, `,
 						);
 
-						const json = isNested ? sql`jsonb` : sql`json`;
+						const json = isNested ? jsonb : sql`json`;
 
 						const joinQuery = isSingle
 							? sql`(select ${json}_object(${jsonColumns}) as ${sql.identifier('r')} from (${innerQuery.sql}) as ${
@@ -1047,7 +1050,7 @@ export abstract class SQLiteDialect {
 							}) as ${sql.identifier(k)}`
 							: sql`coalesce((select ${json}_group_array(json_object(${jsonColumns})) as ${
 								sql.identifier('r')
-							} from (${innerQuery.sql}) as ${sql.identifier('t')}), jsonb_array()) as ${sql.identifier(k)}`;
+							} from (${innerQuery.sql}) as ${sql.identifier('t')}), ${jsonb}_array()) as ${sql.identifier(k)}`;
 
 						return joinQuery;
 					}),
