@@ -232,7 +232,7 @@ export class PostgresJsTransaction<
 		/** @internal */
 		override readonly session: PostgresJsSession<TransactionSql, TFullSchema, TRelations, TTablesConfig, TSchema>,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		protected override relations: AnyRelations | undefined,
+		relations: AnyRelations | undefined,
 		nestedIndex = 0,
 	) {
 		super(dialect, session, relations, schema, nestedIndex);
