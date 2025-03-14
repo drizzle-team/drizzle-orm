@@ -36,6 +36,7 @@ export class RelationalQueryBuilder<
 		private dialect: SQLiteDialect,
 		private session: SQLiteSession<any, any, any, any, any, any>,
 		private rowMode?: boolean,
+		private forbidJsonb?: boolean,
 	) {
 	}
 
@@ -54,6 +55,7 @@ export class RelationalQueryBuilder<
 				config as DBQueryConfig<'many'> | undefined ?? true,
 				'many',
 				this.rowMode,
+				this.forbidJsonb,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>
 			: new SQLiteRelationalQuery(
 				this.tables,
@@ -66,6 +68,7 @@ export class RelationalQueryBuilder<
 				config as DBQueryConfig<'many'> | undefined ?? true,
 				'many',
 				this.rowMode,
+				this.forbidJsonb,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>;
 	}
 
@@ -84,6 +87,7 @@ export class RelationalQueryBuilder<
 				config as DBQueryConfig<'one'> | undefined ?? true,
 				'first',
 				this.rowMode,
+				this.forbidJsonb,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined>
 			: new SQLiteRelationalQuery(
 				this.tables,
@@ -96,6 +100,7 @@ export class RelationalQueryBuilder<
 				config as DBQueryConfig<'one'> | undefined ?? true,
 				'first',
 				this.rowMode,
+				this.forbidJsonb,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined>;
 	}
 }
@@ -127,6 +132,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		private config: DBQueryConfig<'many' | 'one'> | true,
 		mode: 'many' | 'first',
 		private rowMode?: boolean,
+		private forbidJsonb?: boolean,
 	) {
 		super();
 		this.mode = mode;
@@ -143,6 +149,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			queryConfig: this.config,
 			tables: this.tables,
 			mode: this.mode,
+			jsonb: this.forbidJsonb ? sql`json` : sql`jsonb`,
 		});
 
 		return query.sql;
@@ -173,6 +180,8 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	}
 
 	private _getQuery() {
+		const jsonb = this.forbidJsonb ? sql`json` : sql`jsonb`;
+
 		const query = this.dialect.buildRelationalQuery({
 			schema: this.schema,
 			tableNamesMap: this.tableNamesMap,
@@ -182,13 +191,14 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			tables: this.tables,
 			mode: this.mode,
 			isNested: this.rowMode,
+			jsonb,
 		});
 
 		if (this.rowMode) {
 			const jsonColumns = sql.join(
 				query.selection.map((s) => {
 					return sql`${sql.raw(this.dialect.escapeString(s.key))}, ${
-						s.selection ? sql`jsonb(${sql.identifier(s.key)})` : sql.identifier(s.key)
+						s.selection ? sql`${jsonb}(${sql.identifier(s.key)})` : sql.identifier(s.key)
 					}`;
 				}),
 				sql`, `,

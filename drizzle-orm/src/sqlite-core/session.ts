@@ -245,8 +245,9 @@ export abstract class SQLiteTransaction<
 		} | undefined,
 		protected readonly nestedIndex = 0,
 		rowModeRQB?: boolean,
+		forbidJsonb?: boolean,
 	) {
-		super(resultType, dialect, session, relations, schema, rowModeRQB);
+		super(resultType, dialect, session, relations, schema, rowModeRQB, forbidJsonb);
 	}
 
 	rollback(): never {
