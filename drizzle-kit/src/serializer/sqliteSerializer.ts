@@ -507,6 +507,14 @@ export const fromDatabase = async (
 	const result: Record<string, Table> = {};
 	const resultViews: Record<string, View> = {};
 
+	const ignoreTableNames = `NOT IN (
+		'sqlite_sequence',
+		'_litestream_seq',
+		'_litestream_lock',
+		'libsql_wasm_func_table',
+		'__drizzle_migrations',
+		'_cf_KV')`;
+
 	const columns = await db.query<{
 		tableName: string;
 		columnName: string;
@@ -522,14 +530,8 @@ export const fromDatabase = async (
 		`SELECT 
     m.name as "tableName", p.name as "columnName", p.type as "columnType", p."notnull" as "notNull", p.dflt_value as "defaultValue", p.pk as pk, p.hidden as hidden, m.sql, m.type as type
     FROM sqlite_master AS m JOIN pragma_table_xinfo(m.name) AS p
-    WHERE (m.type = 'table' OR m.type = 'view')
-    and m.tbl_name != 'sqlite_sequence' 
-    and m.tbl_name != 'sqlite_stat1' 
-    and m.tbl_name != '_litestream_seq' 
-    and m.tbl_name != '_litestream_lock' 
-    and m.tbl_name != 'libsql_wasm_func_table' 
-    and m.tbl_name != '__drizzle_migrations' 
-    and m.tbl_name != '_cf_KV';
+    WHERE (m.type = 'table' OR m.type = 'view') 
+	AND m.tbl_name ${ignoreTableNames};
     `,
 	);
 
@@ -539,10 +541,8 @@ export const fromDatabase = async (
 		name: string;
 	}>(
 		`SELECT * FROM sqlite_master WHERE name != 'sqlite_sequence' 
-    and name != 'sqlite_stat1' 
-    and name != '_litestream_seq' 
-    and name != '_litestream_lock' 
-    and tbl_name != '_cf_KV' 
+    and name ${ignoreTableNames}
+    and tbl_name ${ignoreTableNames}
     and sql GLOB '*[ *' || CHAR(9) || CHAR(10) || CHAR(13) || ']AUTOINCREMENT[^'']*';`,
 	);
 
@@ -688,7 +688,7 @@ export const fromDatabase = async (
 		}>(
 			`SELECT m.name as "tableFrom", f.id as "id", f."table" as "tableTo", f."from", f."to", f."on_update" as "onUpdate", f."on_delete" as "onDelete", f.seq as "seq"
       FROM sqlite_master m, pragma_foreign_key_list(m.name) as f 
-      where m.tbl_name != '_cf_KV';`,
+      where m.tbl_name ${ignoreTableNames};`,
 		);
 
 		const fkByTableName: Record<string, ForeignKey> = {};
@@ -765,7 +765,7 @@ FROM sqlite_master AS m,
 WHERE 
     m.type = 'table' 
     and il.name NOT LIKE 'sqlite_autoindex_%'
-    and m.tbl_name != '_cf_KV';`,
+    and m.tbl_name ${ignoreTableNames};`,
 	);
 
 	for (const idxRow of idxs) {
@@ -864,7 +864,7 @@ WHERE
 	const checkConstraints: Record<string, CheckConstraint> = {};
 	const checks = await db.query<{ tableName: string; sql: string }>(`SELECT name as "tableName", sql as "sql"
 		FROM sqlite_master 
-		WHERE type = 'table' AND name != 'sqlite_sequence';`);
+		WHERE type = 'table' AND name ${ignoreTableNames};`);
 	for (const check of checks) {
 		if (!tablesFilter(check.tableName)) continue;
 
