@@ -18,7 +18,7 @@ let client: Pool;
 // neonConfig.useSecureWebSocket = false;
 // neonConfig.pipelineTLS = false;
 // neonConfig.pipelineConnect = false;
-// neonConfig.webSocketConstructor = ws;
+neonConfig.webSocketConstructor = ws;
 
 beforeAll(async () => {
 	const connectionString = process.env['NEON_SERVERLESS_CONNECTION_STRING'] ?? process.env['NEON_CONNECTION_STRING'];
