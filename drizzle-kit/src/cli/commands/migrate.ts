@@ -1,5 +1,6 @@
 import fs from 'fs';
 import {
+	prepareGoogleSqlMigrationSnapshot,
 	prepareMySqlDbPushSnapshot,
 	prepareMySqlMigrationSnapshot,
 	preparePgDbPushSnapshot,
@@ -20,6 +21,7 @@ import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../..
 import { PgSchema, pgSchema, Policy, Role, squashPgScheme, View } from '../../serializer/pgSchema';
 import { SQLiteSchema, sqliteSchema, squashSqliteScheme, View as SQLiteView } from '../../serializer/sqliteSchema';
 import {
+	applyGooglesqlSnapshotsDiff,
 	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
@@ -55,6 +57,7 @@ import {
 	schema,
 } from '../views';
 import { ExportConfig, GenerateConfig } from './utils';
+import { googlesqlSchema, squashGooglesqlScheme } from 'src/serializer/googlesqlSchema';
 
 export type Named = {
 	name: string;
@@ -584,6 +587,67 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 		const squashedCur = squashMysqlScheme(validatedCur);
 
 		const { sqlStatements, statements, _meta } = await applyMysqlSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			mySqlViewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		writeResult({
+			cur,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			prefixMode: config.prefix,
+		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareAndMigrateGooglesql = async (config: GenerateConfig) => {
+	const outFolder = config.out;
+	const schemaPath = config.schema;
+	const casing = config.casing;
+
+	try {
+		// TODO: remove
+		assertV1OutFolder(outFolder); // TODO: SPANNER - what to do with this?
+
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'googlesql');
+		const { prev, cur, custom } = await prepareGoogleSqlMigrationSnapshot(
+			snapshots,
+			schemaPath,
+			casing,
+		);
+
+		const validatedPrev = googlesqlSchema.parse(prev);
+		const validatedCur = googlesqlSchema.parse(cur);
+
+		if (config.custom) {
+			writeResult({
+				cur: custom,
+				sqlStatements: [],
+				journal,
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				type: 'custom',
+				prefixMode: config.prefix,
+			});
+			return;
+		}
+
+		const squashedPrev = squashGooglesqlScheme(validatedPrev);
+		const squashedCur = squashGooglesqlScheme(validatedCur);
+
+		const { sqlStatements, statements, _meta } = await applyGooglesqlSnapshotsDiff(
 			squashedPrev,
 			squashedCur,
 			tablesResolver,

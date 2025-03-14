@@ -46,6 +46,12 @@ import {
 	SqliteCredentials,
 	sqliteCredentials,
 } from '../validations/sqlite';
+import {
+	printConfigConnectionIssues as printIssuesSpanner,
+	// SpannerCredentials,
+	spannerCredentials,
+} from '../validations/spanner';
+
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error, grey } from '../views';
 
@@ -444,8 +450,15 @@ export const preparePushConfig = async (
 			),
 		);
 		process.exit(1);
-	} else if (config.dialect === 'googlesql') {
-		throw new Error('Not implemented'); // TODO: SPANNER
+	}
+	
+	if (config.dialect === 'googlesql') {
+		console.log(
+			error(
+				`You can't use 'push' command with googlesql dialect`, // TODO: SPANNER - not a priority
+			),
+		);
+		process.exit(1);
 	}
 
 	assertUnreachable(config.dialect);
@@ -645,8 +658,15 @@ export const preparePullConfig = async (
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
 		};
-	} else if (dialect === 'googlesql') {
-		throw new Error('Not implemented'); // TODO: SPANNER
+	}
+
+	if (dialect === 'googlesql') {
+		console.log(
+			error(
+				`You can't use 'pull' command with googlesql dialect`, // TODO: SPANNER - not a priority
+			),
+		);
+		process.exit(1);
 	}
 
 	assertUnreachable(dialect);
@@ -758,15 +778,15 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			),
 		);
 		process.exit(1);
-	} else if (dialect === 'googlesql') {
-		throw new Error('Not implemented'); // TODO: SPANNER - not a priority
-		return {
-			dialect,
-			schema,
-			host,
-			port,
-			credentials: null as any,
-		};
+	}
+
+	if (dialect === 'googlesql') {
+		console.log(
+			error(
+				`You can't use 'studio' command with googlesql dialect`, // TODO: SPANNER - not a priority
+			),
+		);
+		process.exit(1);
 	}
 
 	assertUnreachable(dialect);
@@ -880,7 +900,17 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'googlesql') {
-		throw new Error('Not implemented'); // TODO: SPANNER
+		console.log(
+			error(
+				`You can't use 'migrate' command with googlesql dialect (YET)`,
+			),
+		);
+		process.exit(1);
+		const parsed = spannerCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesSpanner(config);
+			process.exit(1);
+		}
 		return {
 			dialect,
 			out,

@@ -13,6 +13,7 @@ import { backwardCompatiblePgSchema } from './serializer/pgSchema';
 import { backwardCompatibleSingleStoreSchema } from './serializer/singlestoreSchema';
 import { backwardCompatibleSqliteSchema } from './serializer/sqliteSchema';
 import type { ProxyParams } from './serializer/studio';
+import { backwardCompatibleGooglesqlSchema } from './serializer/googlesqlSchema';
 
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
 
@@ -129,7 +130,7 @@ const validatorForDialect = (dialect: Dialect) => {
 		case 'gel':
 			return { validator: backwardCompatibleGelSchema, version: 1 };
 		case 'googlesql':
-			throw new Error('Not implemented'); // TODO: SPANNER
+			return { validator: backwardCompatibleGooglesqlSchema, version: 0 }; // TODO: SPANNER - add proper version here
 	}
 };
 

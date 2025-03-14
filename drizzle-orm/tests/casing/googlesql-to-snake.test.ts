@@ -202,7 +202,7 @@ describe('googlesql to snake case', () => {
 			params: ['John', 'Doe', 30],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
-	}); 
+	});
 
 	it('insert (on duplicate key update)', ({ expect }) => {
 		const query = db

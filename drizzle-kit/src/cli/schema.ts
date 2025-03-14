@@ -29,6 +29,7 @@ import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersi
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
 import { error, grey, MigrateProgress } from './views';
+import { prepareAndMigrateGooglesql } from './commands/migrate';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
@@ -107,7 +108,7 @@ export const generate = command({
 			);
 			process.exit(1);
 		} else if (dialect === 'googlesql') {
-			throw new Error('Not implemented'); // TODO: SPANNER
+			await prepareAndMigrateGooglesql(opts);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -211,7 +212,12 @@ export const migrate = command({
 				);
 				process.exit(1);
 			} else if (dialect === 'googlesql') {
-				throw new Error('Not implemented'); // TODO: SPANNER
+				console.log(
+					error(
+						`You can't use 'migrate' command with googlesql dialect (yet)`, // TODO: SPANNER - high priority
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}

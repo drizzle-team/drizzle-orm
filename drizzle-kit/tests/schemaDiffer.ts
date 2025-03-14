@@ -2,6 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { Client } from '@libsql/client/.';
 import { Database } from 'better-sqlite3';
 import { is } from 'drizzle-orm';
+import { GoogleSqlSchema, GoogleSqlTable, GoogleSqlView } from 'drizzle-orm/googlesql';
 import { MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import {
 	getMaterializedViewConfig,
@@ -27,6 +28,7 @@ import { libSqlLogSuggestionsAndReturn } from 'src/cli/commands/libSqlPushUtils'
 import {
 	columnsResolver,
 	enumsResolver,
+	googleSqlViewsResolver,
 	indPolicyResolver,
 	mySqlViewsResolver,
 	Named,
@@ -49,6 +51,8 @@ import { schemaToTypeScript } from 'src/introspect-pg';
 import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
 import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/introspect-sqlite';
 import { fromDatabase as fromGelDatabase } from 'src/serializer/gelSerializer';
+import { googlesqlSchema, squashGooglesqlScheme } from 'src/serializer/googlesqlSchema';
+import { generateGoogleSqlSnapshot } from 'src/serializer/googlesqlSerializer';
 import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
 import { mysqlSchema, squashMysqlScheme, ViewSquashed } from 'src/serializer/mysqlSchema';
 import { fromDatabase as fromMySqlDatabase, generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
@@ -65,6 +69,7 @@ import { prepareFromSqliteImports } from 'src/serializer/sqliteImports';
 import { sqliteSchema, squashSqliteScheme, View as SqliteView } from 'src/serializer/sqliteSchema';
 import { fromDatabase as fromSqliteDatabase, generateSqliteSnapshot } from 'src/serializer/sqliteSerializer';
 import {
+	applyGooglesqlSnapshotsDiff,
 	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
@@ -106,6 +111,10 @@ export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
 export type SinglestoreSchema = Record<
 	string,
 	SingleStoreTable<any> | SingleStoreSchema /* | SingleStoreView */
+>;
+export type GooglesqlSchema = Record<
+	string,
+	GoogleSqlTable<any> | GoogleSqlSchema | GoogleSqlView
 >;
 
 export const testSchemasResolver =
@@ -716,6 +725,83 @@ async (
 };
 
 export const testViewsResolverMySql = (renames: Set<string>) =>
+async (
+	input: ResolverInput<ViewSquashed & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+	try {
+		if (
+			input.created.length === 0
+			|| input.deleted.length === 0
+			|| renames.size === 0
+		) {
+			return {
+				created: input.created,
+				moved: [],
+				renamed: [],
+				deleted: input.deleted,
+			};
+		}
+
+		let createdViews = [...input.created];
+		let deletedViews = [...input.deleted];
+
+		const result: {
+			created: ViewSquashed[];
+			moved: { name: string; schemaFrom: string; schemaTo: string }[];
+			renamed: { from: ViewSquashed; to: ViewSquashed }[];
+			deleted: ViewSquashed[];
+		} = { created: [], renamed: [], deleted: [], moved: [] };
+
+		for (let rename of renames) {
+			const [from, to] = rename.split('->');
+
+			const idxFrom = deletedViews.findIndex((it) => {
+				return `${it.schema || 'public'}.${it.name}` === from;
+			});
+
+			if (idxFrom >= 0) {
+				const idxTo = createdViews.findIndex((it) => {
+					return `${it.schema || 'public'}.${it.name}` === to;
+				});
+
+				const viewFrom = deletedViews[idxFrom];
+				const viewTo = createdViews[idxFrom];
+
+				if (viewFrom.schema !== viewTo.schema) {
+					result.moved.push({
+						name: viewFrom.name,
+						schemaFrom: viewFrom.schema,
+						schemaTo: viewTo.schema,
+					});
+				}
+
+				if (viewFrom.name !== viewTo.name) {
+					result.renamed.push({
+						from: deletedViews[idxFrom],
+						to: createdViews[idxTo],
+					});
+				}
+
+				delete createdViews[idxTo];
+				delete deletedViews[idxFrom];
+
+				createdViews = createdViews.filter(Boolean);
+				deletedViews = deletedViews.filter(Boolean);
+			}
+		}
+
+		result.created = createdViews;
+		result.deleted = deletedViews;
+
+		return result;
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+// TODO: SPANNER - verify
+export const testViewsResolverGoogleSql = (renames: Set<string>) =>
 async (
 	input: ResolverInput<ViewSquashed & { schema: '' }>,
 ): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
@@ -1536,6 +1622,77 @@ export const diffTestSchemasMysql = async (
 		tablesResolver,
 		columnsResolver,
 		mySqlViewsResolver,
+		validatedPrev,
+		validatedCur,
+	);
+	return { sqlStatements, statements };
+};
+
+// TODO: SPANNER - verify
+export const diffTestSchemasGooglesql = async (
+	left: GooglesqlSchema,
+	right: GooglesqlSchema,
+	renamesArr: string[],
+	cli: boolean = false,
+	casing?: CasingType | undefined,
+) => {
+	const leftTables = Object.values(left).filter((it) => is(it, GoogleSqlTable)) as GoogleSqlTable[];
+
+	const leftViews = Object.values(left).filter((it) => is(it, GoogleSqlView)) as GoogleSqlView[];
+
+	const rightTables = Object.values(right).filter((it) => is(it, GoogleSqlTable)) as GoogleSqlTable[];
+
+	const rightViews = Object.values(right).filter((it) => is(it, GoogleSqlView)) as GoogleSqlView[];
+
+	const serialized1 = generateGoogleSqlSnapshot(leftTables, leftViews, casing);
+	const serialized2 = generateGoogleSqlSnapshot(rightTables, rightViews, casing);
+
+	const { version: v1, dialect: d1, ...rest1 } = serialized1;
+	const { version: v2, dialect: d2, ...rest2 } = serialized2;
+
+	const sch1 = {
+		version: '0',
+		dialect: 'googlesql',
+		id: '0',
+		prevId: '0',
+		...rest1,
+	} as const;
+
+	const sch2 = {
+		version: '0',
+		dialect: 'googlesql',
+		id: '0',
+		prevId: '0',
+		...rest2,
+	} as const;
+
+	const sn1 = squashGooglesqlScheme(sch1);
+	const sn2 = squashGooglesqlScheme(sch2);
+
+	const validatedPrev = googlesqlSchema.parse(sch1);
+	const validatedCur = googlesqlSchema.parse(sch2);
+
+	const renames = new Set(renamesArr);
+
+	if (!cli) {
+		const { sqlStatements, statements } = await applyGooglesqlSnapshotsDiff(
+			sn1,
+			sn2,
+			testTablesResolver(renames),
+			testColumnsResolver(renames),
+			testViewsResolverGoogleSql(renames),
+			validatedPrev,
+			validatedCur,
+		);
+		return { sqlStatements, statements };
+	}
+
+	const { sqlStatements, statements } = await applyGooglesqlSnapshotsDiff(
+		sn1,
+		sn2,
+		tablesResolver,
+		columnsResolver,
+		googleSqlViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);

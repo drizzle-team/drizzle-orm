@@ -4,6 +4,8 @@ import { singlestoreCredentials } from 'src/cli/validations/singlestore';
 import { sqliteCredentials } from 'src/cli/validations/sqlite';
 import { expect, test } from 'vitest';
 
+// TODO: SPANNER - add tests for spanner
+
 test('turso #1', () => {
 	sqliteCredentials.parse({
 		dialect: 'sqlite',

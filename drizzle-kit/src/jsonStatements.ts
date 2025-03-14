@@ -1755,18 +1755,18 @@ export const prepareAlterColumnsGooglesql = (
 
 			// const table = json2.tables[tableName];
 			// const snapshotColumn = table.columns[columnName];
-	
+
 			// const columnType = snapshotColumn.type;
 			// const columnDefault = snapshotColumn.default;
 			// const columnOnUpdate = 'onUpdate' in snapshotColumn ? snapshotColumn.onUpdate : undefined;
 			// const columnNotNull = table.columns[columnName].notNull;
-	
+
 			// const columnAutoIncrement = 'autoincrement' in snapshotColumn
 			// 	? snapshotColumn.autoincrement ?? false
 			// 	: false;
-	
+
 			// const columnPk = table.columns[columnName].primaryKey;
-	
+
 			// if (column.autoincrement?.type === 'added') {
 			// 	statements.push({
 			// 		type: 'alter_table_alter_column_set_autoincrement',
@@ -1781,12 +1781,12 @@ export const prepareAlterColumnsGooglesql = (
 			// 		columnPk,
 			// 	});
 			// }
-	
+
 			// if (column.autoincrement?.type === 'changed') {
 			// 	const type = column.autoincrement.new
 			// 		? 'alter_table_alter_column_set_autoincrement'
 			// 		: 'alter_table_alter_column_drop_autoincrement';
-	
+
 			// 	statements.push({
 			// 		type,
 			// 		tableName,
@@ -1800,7 +1800,7 @@ export const prepareAlterColumnsGooglesql = (
 			// 		columnPk,
 			// 	});
 			// }
-	
+
 			// if (column.autoincrement?.type === 'deleted') {
 			// 	statements.push({
 			// 		type: 'alter_table_alter_column_drop_autoincrement',

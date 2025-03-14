@@ -14,7 +14,7 @@ export const outputs = {
 	studio: {
 		drivers: (param: string) =>
 			withStyle.error(
-				`"${param}" is not a valid driver. Available drivers: "pg", "mysql2", "better-sqlite", "libsql", "turso". You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
+				`"${param}" is not a valid driver. Available drivers: "pg", "mysql2", "better-sqlite", "libsql", "turso", "spanner". You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
 			),
 		noCredentials: () =>
 			withStyle.error(
@@ -91,10 +91,10 @@ export const outputs = {
 	googlesql: {
 		connection: {
 			driver: () => withStyle.error(`Only "spanner" is available options for "--driver"`),
-			required: () =>
-				withStyle.error(
-					`Either "url" or "host", "database" are required for database connection`, // TODO: SPANNER - write proper error message
-				),
+			// required: () =>
+			// 	withStyle.error(
+			// 		`Either "url" or "host", "database" are required for database connection`, // TODO: SPANNER - write proper error message
+			// 	),
 		},
 	},
 };
