@@ -26,6 +26,7 @@ import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import {
 	applyMixins,
+	type DrizzleTypeError,
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
@@ -52,6 +53,7 @@ import type {
 	PgSetOperatorWithResult,
 	SelectedFields,
 	SetOperatorRightSelect,
+	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
 export class PgSelectBuilder<
@@ -102,7 +104,10 @@ export class PgSelectBuilder<
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
 	 */
 	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
-		source: TFrom,
+		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
+			: TFrom,
 	): CreatePgSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
@@ -110,27 +115,28 @@ export class PgSelectBuilder<
 		TSelection extends undefined ? 'single' : 'partial'
 	> {
 		const isPartialSelect = !!this.fields;
+		const src = source as TFrom;
 
 		let fields: SelectedFields;
 		if (this.fields) {
 			fields = this.fields;
-		} else if (is(source, Subquery)) {
+		} else if (is(src, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
-				Object.keys(source._.selectedFields).map((
+				Object.keys(src._.selectedFields).map((
 					key,
-				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
+				) => [key, src[key as unknown as keyof typeof src] as unknown as SelectedFields[string]]),
 			);
-		} else if (is(source, PgViewBase)) {
-			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
-		} else if (is(source, SQL)) {
+		} else if (is(src, PgViewBase)) {
+			fields = src[ViewBaseConfig].selectedFields as SelectedFields;
+		} else if (is(src, SQL)) {
 			fields = {};
 		} else {
-			fields = getTableColumns<PgTable>(source);
+			fields = getTableColumns<PgTable>(src);
 		}
 
 		return (new PgSelectBase({
-			table: source,
+			table: src,
 			fields,
 			isPartialSelect,
 			session: this.session,
@@ -209,7 +215,7 @@ export abstract class PgSelectQueryBuilderBase<
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
 	): PgSelectJoinFn<this, TDynamic, TJoinType> {
-		return (
+		return ((
 			table: PgTable | Subquery | PgViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
@@ -280,7 +286,7 @@ export abstract class PgSelectQueryBuilderBase<
 			}
 
 			return this as any;
-		};
+		}) as any;
 	}
 
 	/**

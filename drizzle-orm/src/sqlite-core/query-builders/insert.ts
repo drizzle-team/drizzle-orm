@@ -21,7 +21,7 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[] | SQLiteInsertSelectQueryBuilder<TTable> | SQL;
 	withList?: Subquery[];
-	onConflict?: SQL;
+	onConflict?: SQL[];
 	returning?: SelectedFieldsOrdered;
 	select?: boolean;
 }
@@ -303,12 +303,14 @@ export class SQLiteInsertBase<
 	 * ```
 	 */
 	onConflictDoNothing(config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {}): this {
+		if (!this.config.onConflict) this.config.onConflict = [];
+
 		if (config.target === undefined) {
-			this.config.onConflict = sql`do nothing`;
+			this.config.onConflict.push(sql` on conflict do nothing`);
 		} else {
 			const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict = sql`${targetSql} do nothing${whereSql}`;
+			this.config.onConflict.push(sql` on conflict ${targetSql} do nothing${whereSql}`);
 		}
 		return this;
 	}
@@ -348,12 +350,17 @@ export class SQLiteInsertBase<
 				'You cannot use both "where" and "targetWhere"/"setWhere" at the same time - "where" is deprecated, use "targetWhere" or "setWhere" instead.',
 			);
 		}
+
+		if (!this.config.onConflict) this.config.onConflict = [];
+
 		const whereSql = config.where ? sql` where ${config.where}` : undefined;
 		const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
 		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
 		const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`${targetSql}${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
+		this.config.onConflict.push(
+			sql` on conflict ${targetSql}${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`,
+		);
 		return this;
 	}
 

@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.38.3",
+	"version": "0.40.0",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -58,7 +58,6 @@
 		"@tidbcloud/serverless": "*",
 		"@types/better-sqlite3": "*",
 		"@types/pg": "*",
-		"@types/react": ">=18",
 		"@types/sql.js": "*",
 		"@vercel/postgres": ">=0.8.0",
 		"@xata.io/client": "*",
@@ -70,9 +69,9 @@
 		"mysql2": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
-		"react": ">=18",
 		"sql.js": ">=1",
-		"sqlite3": ">=5"
+		"sqlite3": ">=5",
+		"gel": ">=2"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -141,13 +140,10 @@
 		"expo-sqlite": {
 			"optional": true
 		},
+		"gel": {
+			"optional": true
+		},
 		"@op-engineering/op-sqlite": {
-			"optional": true
-		},
-		"react": {
-			"optional": true
-		},
-		"@types/react": {
 			"optional": true
 		},
 		"@electric-sql/pglite": {
@@ -185,9 +181,10 @@
 		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
 		"better-sqlite3": "^8.4.0",
-		"bun-types": "^0.6.6",
+		"bun-types": "^1.2.0",
 		"cpy": "^10.1.0",
 		"expo-sqlite": "^14.0.0",
+		"gel": "^2.0.0",
 		"knex": "^2.4.2",
 		"kysely": "^0.25.0",
 		"mysql2": "^3.3.3",

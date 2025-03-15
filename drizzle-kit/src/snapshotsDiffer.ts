@@ -141,7 +141,7 @@ import {
 } from './serializer/pgSchema';
 import { SingleStoreSchema, SingleStoreSchemaSquashed, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher, View as SqliteView } from './serializer/sqliteSchema';
-import { libSQLCombineStatements, sqliteCombineStatements } from './statementCombiner';
+import { libSQLCombineStatements, singleStoreCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';
 
 const makeChanged = <T extends ZodTypeAny>(schema: T) => {
@@ -2875,9 +2875,8 @@ export const applySingleStoreSnapshotsDiff = async (
 			return [viewKey, viewValue];
 		},
 	);
-
 	*/
-	const diffResult = applyJsonDiff(tablesPatchedSnap1, json2); // replace tablesPatchedSnap1 with viewsPatchedSnap1
+	const diffResult = applyJsonDiff(columnsPatchedSnap1, json2); // replace columnsPatchedSnap1 with viewsPatchedSnap1
 
 	const typedResult: DiffResultSingleStore = diffResultSchemeSingleStore.parse(diffResult);
 
@@ -3177,7 +3176,8 @@ export const applySingleStoreSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
-	const sqlStatements = fromJson(jsonStatements, 'singlestore');
+	const combinedJsonStatements = singleStoreCombineStatements(jsonStatements, json2);
+	const sqlStatements = fromJson(combinedJsonStatements, 'singlestore');
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {
@@ -3193,7 +3193,7 @@ export const applySingleStoreSnapshotsDiff = async (
 	const _meta = prepareMigrationMeta([], rTables, rColumns);
 
 	return {
-		statements: jsonStatements,
+		statements: combinedJsonStatements,
 		sqlStatements: uniqueSqlStatements,
 		_meta,
 	};
