@@ -736,7 +736,7 @@ export interface JsonRenameMySqlViewStatement {
 }
 
 export interface JsonAlterViewAlterSchemaStatement {
-	type: 'alter_view_alter_schema';
+	type: 'move_view';
 	fromSchema: string;
 	toSchema: string;
 	name: string;
@@ -3441,7 +3441,7 @@ export const preparePgAlterViewAlterSchemaJson = (
 	materialized?: boolean,
 ): JsonAlterViewAlterSchemaStatement => {
 	const returnObject: JsonAlterViewAlterSchemaStatement = {
-		type: 'alter_view_alter_schema',
+		type: 'move_view',
 		fromSchema: from,
 		toSchema: to,
 		name,

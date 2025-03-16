@@ -42,31 +42,32 @@ export interface JsonRenameTable {
 }
 
 export interface JsonCreateEnum {
-	type: 'create_type_enum';
+	type: 'create_enum';
 	enum: Enum;
 }
 
 export interface JsonDropEnum {
-	type: 'drop_type_enum';
+	type: 'drop_enum';
 	enum: Enum;
 }
 
 export interface JsonMoveEnum {
-	type: 'move_type_enum';
+	type: 'move_enum';
 	name: string;
 	schemaFrom: string;
 	schemaTo: string;
 }
 
 export interface JsonRenameEnum {
-	type: 'rename_type_enum';
+	type: 'rename_enum';
 	from: Enum;
 	to: Enum;
 }
 
 export interface JsonAlterEnum {
-	type: 'alter_type_enum';
+	type: 'alter_enum';
 	diff: DiffEntities['enums'];
+	enum: Enum;
 }
 
 export interface JsonCreateRole {
@@ -87,6 +88,7 @@ export interface JsonRenameRole {
 export interface JsonAlterRole {
 	type: 'alter_role';
 	diff: DiffEntities['roles'];
+	role: Role;
 }
 
 export interface JsonDropValueFromEnum {
@@ -122,6 +124,7 @@ export interface JsonRenameSequence {
 export interface JsonAlterSequence {
 	type: 'alter_sequence';
 	diff: DiffEntities['sequences'];
+	sequence: Sequence;
 }
 
 export interface JsonDropColumn {
@@ -170,11 +173,13 @@ export interface JsonIndRenamePolicy {
 export interface JsonAlterRLS {
 	type: 'alter_rls';
 	diff: DiffEntities['tables'];
+	table: Table;
 }
 
 export interface JsonAlterPolicy {
 	type: 'alter_policy';
 	diff: DiffEntities['policies'];
+	policy: Policy;
 }
 
 export interface JsonAlterIndPolicy {
@@ -401,10 +406,10 @@ export interface JsonRenameSchema {
 	to: Schema;
 }
 
-export type JsonCreateView = {
+export interface JsonCreateView {
 	type: 'create_view';
 	view: View;
-};
+}
 
 export interface JsonDropView {
 	type: 'drop_view';
@@ -414,6 +419,8 @@ export interface JsonDropView {
 export interface JsonAlterView {
 	type: 'alter_view';
 	diff: DiffEntities['views'];
+	from: View;
+	to: View;
 }
 
 export interface JsonRenameView {
@@ -423,11 +430,10 @@ export interface JsonRenameView {
 }
 
 export interface JsonAlterViewAlterSchema {
-	type: 'alter_view_alter_schema';
+	type: 'move_view';
 	fromSchema: string;
 	toSchema: string;
-	name: string;
-	materialized?: boolean;
+	view: View;
 }
 
 export type JsonAlterViewAddWithOptionStatement = { type: 'alter_view_add_with_option'; view: View };

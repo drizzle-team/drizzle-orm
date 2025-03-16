@@ -529,7 +529,7 @@ export const drizzleToInternal = (
 	const policies: Policy[] = [];
 	const policyNames = new Set<string>();
 	for (const policy of drizzlePolicies) {
-		// @ts-ignore	
+		// @ts-ignore
 		if (!policy._linkedTable) {
 			warnings.push({ type: 'policy_not_linked', policy: policy.name });
 			continue;
@@ -578,6 +578,7 @@ export const drizzleToInternal = (
 			?? (parseFloat(increment) < 0 ? maxValue : minValue);
 		const cache = stringFromIdentityProperty(sequence?.seqOptions?.cache) ?? '1';
 		sequences.push({
+			entityType: 'sequences',
 			name,
 			schema: sequence.schema ?? 'public',
 			increment,
@@ -602,9 +603,10 @@ export const drizzleToInternal = (
 		if (role._existing) continue;
 
 		roles.push({
+			entityType: 'roles',
 			name: role.name,
 			createDb: role.createDb ?? false,
-			createRole: role.createRole ?? false ,
+			createRole: role.createRole ?? false,
 			inherit: role.inherit ?? true,
 		});
 	}
@@ -648,8 +650,8 @@ export const drizzleToInternal = (
 		viewNames.add(viewKey);
 
 		views.push({
-			columns: {},
-			definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
+			entityType: 'views',
+			definition: isExisting ? null : dialect.sqlToQuery(query!).sql,
 			name: viewName,
 			schema: viewSchema,
 			isExisting,
