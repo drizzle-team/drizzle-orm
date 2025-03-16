@@ -44,8 +44,8 @@
 	},
 	"dependencies": {
 		"@drizzle-team/brocli": "^0.10.2",
-		"esbuild": "^0.19.7",
-		"esbuild-register": "^3.5.0",
+		"esbuild": "^0.25.1",
+		"esbuild-register": "^3.6.0",
 		"gel": "^2.0.0"
 	},
 	"devDependencies": {
