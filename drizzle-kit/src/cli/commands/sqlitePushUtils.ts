@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../serializer/sqliteSchema';
+import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../dialects/sqlite/ddl';
 import {
 	CreateSqliteIndexConvertor,
 	fromJson,
@@ -9,7 +9,7 @@ import {
 	SqliteRenameTableConvertor,
 } from '../../sqlgenerator';
 
-import type { JsonStatement } from '../../jsonStatements';
+import type { JsonStatement } from '../../snapshot-differ/jsonStatementsSqlite';
 import { findAddedAndRemoved, type SQLiteDB } from '../../utils';
 
 export const _moveDataStatements = (
@@ -87,7 +87,7 @@ export const _moveDataStatements = (
 	for (const idx of Object.values(json.tables[tableName].indexes)) {
 		statements.push(
 			new CreateSqliteIndexConvertor().convert({
-				type: 'create_index',
+				type: 'add_index',
 				tableName: tableName,
 				schema: '',
 				data: idx,

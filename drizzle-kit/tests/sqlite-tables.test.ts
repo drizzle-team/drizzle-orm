@@ -4,6 +4,7 @@ import {
 	foreignKey,
 	index,
 	int,
+	integer,
 	primaryKey,
 	sqliteTable,
 	text,
@@ -11,25 +12,16 @@ import {
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemasSqlite } from './schemaDiffer';
+import { diffTestSchemasSqlite } from './mocks-sqlite';
 
 test('add table #1', async () => {
 	const to = {
 		users: sqliteTable('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSqlite({}, to, []);
+	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'sqlite_create_table',
-		tableName: 'users',
-		columns: [],
-		compositePKs: [],
-		uniqueConstraints: [],
-		referenceData: [],
-		checkConstraints: [],
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('add table #2', async () => {
@@ -39,26 +31,11 @@ test('add table #2', async () => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemasSqlite({}, to, []);
+	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'sqlite_create_table',
-		tableName: 'users',
-		columns: [
-			{
-				name: 'id',
-				notNull: true,
-				primaryKey: true,
-				type: 'integer',
-				autoincrement: true,
-			},
-		],
-		compositePKs: [],
-		referenceData: [],
-		uniqueConstraints: [],
-		checkConstraints: [],
-	});
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `users` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT\n);\n',
+	]);
 });
 
 test('add table #3', async () => {
@@ -79,26 +56,11 @@ test('add table #3', async () => {
 		),
 	};
 
-	const { statements } = await diffTestSchemasSqlite({}, to, []);
+	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'sqlite_create_table',
-		tableName: 'users',
-		columns: [
-			{
-				name: 'id',
-				notNull: false,
-				primaryKey: true,
-				type: 'integer',
-				autoincrement: false,
-			},
-		],
-		compositePKs: [],
-		uniqueConstraints: [],
-		referenceData: [],
-		checkConstraints: [],
-	});
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `users` (\n\t`id` integer PRIMARY KEY\n);\n',
+	]);
 });
 
 test('add table #4', async () => {
@@ -107,31 +69,32 @@ test('add table #4', async () => {
 		posts: sqliteTable('posts', {}),
 	};
 
-	const { statements } = await diffTestSchemasSqlite({}, to, []);
+	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'sqlite_create_table',
-		tableName: 'users',
-		columns: [],
-		compositePKs: [],
-		uniqueConstraints: [],
-		referenceData: [],
-		checkConstraints: [],
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'sqlite_create_table',
-		tableName: 'posts',
-		columns: [],
-		compositePKs: [],
-		uniqueConstraints: [],
-		referenceData: [],
-		checkConstraints: [],
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('add table #5', async () => {
-	// no schemas in sqlite
+	const to = {
+		users: sqliteTable('users', {
+			id1: integer(),
+			id2: integer(),
+		}, (t) => {
+			return {
+				pk: primaryKey({ columns: [t.id1, t.id2] }),
+			};
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `users` (\n'
+		+ '\t`id1` integer,\n'
+		+ '\t`id2` integer,\n'
+		+ '\tPRIMARY KEY(`id1`, `id2`)\n'
+		+ ');\n',
+	]);
 });
 
 test('add table #6', async () => {
@@ -143,24 +106,9 @@ test('add table #6', async () => {
 		users2: sqliteTable('users2', {}),
 	};
 
-	const { statements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'sqlite_create_table',
-		tableName: 'users2',
-		columns: [],
-		compositePKs: [],
-		uniqueConstraints: [],
-		referenceData: [],
-		checkConstraints: [],
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'drop_table',
-		tableName: 'users1',
-		schema: undefined,
-		policies: [],
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('add table #7', async () => {
@@ -173,27 +121,9 @@ test('add table #7', async () => {
 		users2: sqliteTable('users2', {}),
 	};
 
-	const { statements } = await diffTestSchemasSqlite(from, to, [
-		'public.users1->public.users2',
-	]);
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, ['public.users1->public.users2']);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'rename_table',
-		tableNameFrom: 'users1',
-		tableNameTo: 'users2',
-		fromSchema: undefined,
-		toSchema: undefined,
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'sqlite_create_table',
-		tableName: 'users',
-		columns: [],
-		compositePKs: [],
-		uniqueConstraints: [],
-		referenceData: [],
-		checkConstraints: [],
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('add table #8', async () => {
@@ -206,43 +136,15 @@ test('add table #8', async () => {
 		users,
 	};
 
-	const { statements } = await diffTestSchemasSqlite({}, to, []);
+	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'sqlite_create_table',
-		tableName: 'users',
-		columns: [
-			{
-				autoincrement: true,
-				name: 'id',
-				notNull: true,
-				primaryKey: true,
-				type: 'integer',
-			},
-			{
-				autoincrement: false,
-				name: 'reportee_id',
-				notNull: false,
-				primaryKey: false,
-				type: 'integer',
-			},
-		],
-		compositePKs: [],
-		uniqueConstraints: [],
-		checkConstraints: [],
-		referenceData: [
-			{
-				columnsFrom: ['reportee_id'],
-				columnsTo: ['id'],
-				name: 'users_reportee_id_users_id_fk',
-				onDelete: 'no action',
-				onUpdate: 'no action',
-				tableFrom: 'users',
-				tableTo: 'users',
-			},
-		],
-	});
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `users` (\n'
+		+ '\t`id` integer PRIMARY KEY AUTOINCREMENT,\n'
+		+ '\t`reportee_id` integer,\n'
+		+ '\tFOREIGN KEY (`reportee_id`) REFERENCES `users`(`id`)\n'
+		+ ');\n',
+	]);
 });
 
 test('add table #9', async () => {
@@ -261,43 +163,15 @@ test('add table #9', async () => {
 		),
 	};
 
-	const { statements } = await diffTestSchemasSqlite({}, to, []);
+	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'sqlite_create_table',
-		tableName: 'users',
-		columns: [
-			{
-				autoincrement: true,
-				name: 'id',
-				notNull: true,
-				primaryKey: true,
-				type: 'integer',
-			},
-			{
-				autoincrement: false,
-				name: 'reportee_id',
-				notNull: false,
-				primaryKey: false,
-				type: 'integer',
-			},
-		],
-		compositePKs: [],
-		uniqueConstraints: [],
-		referenceData: [],
-		checkConstraints: [],
-	});
-
-	expect(statements[1]).toStrictEqual({
-		type: 'create_index',
-		tableName: 'users',
-		internal: {
-			indexes: {},
-		},
-		schema: undefined,
-		data: 'reportee_idx;reportee_id;false;',
-	});
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `users` (\n'
+		+ '\t`id` integer PRIMARY KEY AUTOINCREMENT,\n'
+		+ '\t`reportee_id` integer\n'
+		+ ');\n',
+		'CREATE INDEX `reportee_idx` ON `users` (`reportee_id`);',
+	]);
 });
 
 test('add table #10', async () => {
@@ -308,10 +182,9 @@ test('add table #10', async () => {
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	expect(sqlStatements).toStrictEqual([
 		"CREATE TABLE `table` (\n\t`json` text DEFAULT '{}'\n);\n",
-	);
+	]);
 });
 
 test('add table #11', async () => {
@@ -322,10 +195,9 @@ test('add table #11', async () => {
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	expect(sqlStatements).toStrictEqual([
 		"CREATE TABLE `table` (\n\t`json` text DEFAULT '[]'\n);\n",
-	);
+	]);
 });
 
 test('add table #12', async () => {
@@ -336,10 +208,9 @@ test('add table #12', async () => {
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	expect(sqlStatements).toStrictEqual([
 		"CREATE TABLE `table` (\n\t`json` text DEFAULT '[1,2,3]'\n);\n",
-	);
+	]);
 });
 
 test('add table #13', async () => {
@@ -350,10 +221,9 @@ test('add table #13', async () => {
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `table` (\n\t`json` text DEFAULT \'{"key":"value"}\'\n);\n',
-	);
+	]);
 });
 
 test('add table #14', async () => {
@@ -367,10 +237,9 @@ test('add table #14', async () => {
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `table` (\n\t`json` text DEFAULT \'{"key":"value","arr":[1,2,3]}\'\n);\n',
-	);
+	]);
 });
 
 test('add table with indexes', async () => {
@@ -407,7 +276,7 @@ test('add table with indexes', async () => {
 	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
 	expect(sqlStatements.length).toBe(8);
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE `users` (\n\t`id` integer PRIMARY KEY NOT NULL,\n\t`name` text,\n\t`email` text\n);\n',
+		'CREATE TABLE `users` (\n\t`id` integer PRIMARY KEY,\n\t`name` text,\n\t`email` text\n);\n',
 		'CREATE UNIQUE INDEX `uniqueExpr` ON `users` ((lower("email")));',
 		'CREATE INDEX `indexExpr` ON `users` ((lower("email")));',
 		'CREATE INDEX `indexExprMultiple` ON `users` ((lower("email")),(lower("email")));',
@@ -458,7 +327,16 @@ test('add column before creating unique constraint', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `table` ADD `name` text NOT NULL;',
-		'CREATE UNIQUE INDEX `uq` ON `table` (`name`);',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_table` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`name` text NOT NULL,\n'
+		+ '\tCONSTRAINT uq UNIQUE(`name`)\n'
+		+ ');\n',
+		'INSERT INTO `__new_table`(`id`, `name`) SELECT `id`, `name` FROM `table`;',
+		'DROP TABLE `table`;',
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+		'PRAGMA foreign_keys=ON;',
 	]);
 });
 
@@ -515,38 +393,28 @@ test('optional db aliases (snake case)', async () => {
 
 	const { sqlStatements } = await diffTestSchemasSqlite(from, to, [], false, 'snake_case');
 
-	const st1 = `CREATE TABLE \`t1\` (
-	\`t1_id1\` integer PRIMARY KEY NOT NULL,
-	\`t1_col2\` integer NOT NULL,
-	\`t1_col3\` integer NOT NULL,
-	\`t2_ref\` integer NOT NULL,
-	\`t1_uni\` integer NOT NULL,
-	\`t1_uni_idx\` integer NOT NULL,
-	\`t1_idx\` integer NOT NULL,
-	FOREIGN KEY (\`t2_ref\`) REFERENCES \`t2\`(\`t2_id\`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (\`t1_col2\`,\`t1_col3\`) REFERENCES \`t3\`(\`t3_id1\`,\`t3_id2\`) ON UPDATE no action ON DELETE no action
-);
-`;
-
-	const st2 = `CREATE UNIQUE INDEX \`t1_uni_idx\` ON \`t1\` (\`t1_uni_idx\`);`;
-
-	const st3 = `CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`;
-
-	const st4 = `CREATE UNIQUE INDEX \`t1_uni\` ON \`t1\` (\`t1_uni\`);`;
-
-	const st5 = `CREATE TABLE \`t2\` (
-	\`t2_id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL
-);
-`;
-
-	const st6 = `CREATE TABLE \`t3\` (
-	\`t3_id1\` integer,
-	\`t3_id2\` integer,
-	PRIMARY KEY(\`t3_id1\`, \`t3_id2\`)
-);
-`;
-
-	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `t1` (\n'
+		+ '\t`t1_id1` integer PRIMARY KEY,\n'
+		+ '\t`t1_col2` integer NOT NULL,\n'
+		+ '\t`t1_col3` integer NOT NULL,\n'
+		+ '\t`t2_ref` integer NOT NULL,\n'
+		+ '\t`t1_uni` integer NOT NULL,\n'
+		+ '\t`t1_uni_idx` integer NOT NULL,\n'
+		+ '\t`t1_idx` integer NOT NULL,\n'
+		+ '\tFOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`),\n'
+		+ '\tFOREIGN KEY (`t1_col2`,`t1_col3`) REFERENCES `t3`(`t3_id1`,`t3_id2`),\n'
+		+ '\tCONSTRAINT t1_uni UNIQUE(`t1_uni`)\n'
+		+ ');\n',
+		'CREATE TABLE `t2` (\n\t`t2_id` integer PRIMARY KEY AUTOINCREMENT\n);\n',
+		'CREATE TABLE `t3` (\n'
+		+ '\t`t3_id1` integer,\n'
+		+ '\t`t3_id2` integer,\n'
+		+ '\tPRIMARY KEY(`t3_id1`, `t3_id2`)\n'
+		+ ');\n',
+		'CREATE UNIQUE INDEX `t1_uni_idx` ON `t1` (`t1_uni_idx`);',
+		'CREATE INDEX `t1_idx` ON `t1` (`t1_idx`);',
+	]);
 });
 
 test('optional db aliases (camel case)', async () => {
@@ -602,36 +470,26 @@ test('optional db aliases (camel case)', async () => {
 
 	const { sqlStatements } = await diffTestSchemasSqlite(from, to, [], false, 'camelCase');
 
-	const st1 = `CREATE TABLE \`t1\` (
-	\`t1Id1\` integer PRIMARY KEY NOT NULL,
-	\`t1Col2\` integer NOT NULL,
-	\`t1Col3\` integer NOT NULL,
-	\`t2Ref\` integer NOT NULL,
-	\`t1Uni\` integer NOT NULL,
-	\`t1UniIdx\` integer NOT NULL,
-	\`t1Idx\` integer NOT NULL,
-	FOREIGN KEY (\`t2Ref\`) REFERENCES \`t2\`(\`t2Id\`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (\`t1Col2\`,\`t1Col3\`) REFERENCES \`t3\`(\`t3Id1\`,\`t3Id2\`) ON UPDATE no action ON DELETE no action
-);
-`;
-
-	const st2 = `CREATE UNIQUE INDEX \`t1UniIdx\` ON \`t1\` (\`t1UniIdx\`);`;
-
-	const st3 = `CREATE INDEX \`t1Idx\` ON \`t1\` (\`t1Idx\`);`;
-
-	const st4 = `CREATE UNIQUE INDEX \`t1Uni\` ON \`t1\` (\`t1Uni\`);`;
-
-	const st5 = `CREATE TABLE \`t2\` (
-	\`t2Id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL
-);
-`;
-
-	const st6 = `CREATE TABLE \`t3\` (
-	\`t3Id1\` integer,
-	\`t3Id2\` integer,
-	PRIMARY KEY(\`t3Id1\`, \`t3Id2\`)
-);
-`;
-
-	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE `t1` (\n'
+		+ '\t`t1Id1` integer PRIMARY KEY,\n'
+		+ '\t`t1Col2` integer NOT NULL,\n'
+		+ '\t`t1Col3` integer NOT NULL,\n'
+		+ '\t`t2Ref` integer NOT NULL,\n'
+		+ '\t`t1Uni` integer NOT NULL,\n'
+		+ '\t`t1UniIdx` integer NOT NULL,\n'
+		+ '\t`t1Idx` integer NOT NULL,\n'
+		+ '\tFOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`),\n'
+		+ '\tFOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`),\n'
+		+ '\tCONSTRAINT t1Uni UNIQUE(`t1Uni`)\n'
+		+ ');\n',
+		'CREATE TABLE `t2` (\n\t`t2Id` integer PRIMARY KEY AUTOINCREMENT\n);\n',
+		'CREATE TABLE `t3` (\n'
+		+ '\t`t3Id1` integer,\n'
+		+ '\t`t3Id2` integer,\n'
+		+ '\tPRIMARY KEY(`t3Id1`, `t3Id2`)\n'
+		+ ');\n',
+		'CREATE UNIQUE INDEX `t1UniIdx` ON `t1` (`t1UniIdx`);',
+		'CREATE INDEX `t1Idx` ON `t1` (`t1Idx`);',
+	]);
 });

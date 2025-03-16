@@ -11,8 +11,8 @@ import {
 	pgSchemaV6,
 	Table,
 	TableV5,
-} from '../../serializer/pgSchema';
-import { prepareOutFolder, validateWithReport } from '../../utils';
+} from '../../dialects/postgres/ddl';
+import { prepareOutFolder, validateWithReport } from '../../utils-node';
 
 export const upPgHandler = (out: string) => {
 	const { snapshots } = prepareOutFolder(out, 'postgresql');

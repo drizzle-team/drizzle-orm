@@ -1,7 +1,7 @@
 import { renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { originUUID } from '../../global';
-import type { PgSchema, PgSchemaInternal } from '../../serializer/pgSchema';
+import type { PgSchema, PgSchemaInternal } from '../../dialects/postgres/ddl';
 import { fromDatabase } from '../../serializer/pgSerializer';
 import type { DB } from '../../utils';
 import { Entities } from '../validations/cli';

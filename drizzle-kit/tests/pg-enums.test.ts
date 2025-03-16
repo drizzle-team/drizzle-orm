@@ -356,11 +356,12 @@ test('enums #15', async () => {
 		'folder1.enum1->folder2.enum2',
 	]);
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder1"."enum1" SET SCHEMA "folder2";`);
-	expect(sqlStatements[1]).toBe(`ALTER TYPE "folder2"."enum1" RENAME TO "enum2";`);
-	expect(sqlStatements[2]).toBe(`ALTER TYPE "folder2"."enum2" ADD VALUE 'value2' BEFORE 'value4';`);
-	expect(sqlStatements[3]).toBe(`ALTER TYPE "folder2"."enum2" ADD VALUE 'value3' BEFORE 'value4';`);
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TYPE "folder1"."enum1" SET SCHEMA "folder2";`,
+		`ALTER TYPE "folder2"."enum1" RENAME TO "enum2";`,
+		`ALTER TYPE "folder2"."enum2" ADD VALUE 'value2' BEFORE 'value4';`,
+		`ALTER TYPE "folder2"."enum2" ADD VALUE 'value3' BEFORE 'value4';`,
+	]);
 
 	expect(statements.length).toBe(4);
 	expect(statements[0]).toStrictEqual({

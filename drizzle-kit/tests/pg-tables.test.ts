@@ -1,13 +1,10 @@
 import { sql } from 'drizzle-orm';
 import {
-	AnyPgColumn,
 	foreignKey,
 	geometry,
 	index,
 	integer,
-	pgEnum,
 	pgSchema,
-	pgSequence,
 	pgTable,
 	pgTableCreator,
 	primaryKey,
@@ -106,7 +103,7 @@ test('add table #3', async () => {
 				type: 'serial',
 			},
 		],
-		compositePKs: ['id;users_pk'],
+		compositePKs: [{ columns: ['id'], name: 'users_pk' }],
 		policies: [],
 		uniqueConstraints: [],
 		isRLSEnabled: false,
@@ -258,10 +255,120 @@ test('add table #8: geometry types', async () => {
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-
 	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE IF NOT EXISTS "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL\n);\n`,
+	]);
+});
+
+/* unique inline */
+test('add table #9', async () => {
+	const from = {};
+	const to = {
+		users: pgTable('users', {
+			name: text().unique(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	expect(statements.length).toBe(1);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_unique" UNIQUE("name")\n);\n`,
+	]);
+});
+
+/* unique inline named */
+test('add table #10', async () => {
+	const from = {};
+	const to = {
+		users: pgTable('users', {
+			name: text().unique('name_unique'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	expect(statements.length).toBe(1);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
+	]);
+});
+
+/* unique inline named nulls not distinct */
+test('add table #11', async () => {
+	const from = {};
+	const to = {
+		users: pgTable('users', {
+			name: text().unique('name_unique', { nulls: 'not distinct' }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	expect(statements.length).toBe(1);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text,\n\tCONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT("name")\n);\n`,
+	]);
+});
+
+/* unique inline default-named nulls not distinct */
+test('add table #12', async () => {
+	const from = {};
+	const to = {
+		users: pgTable('users', {
+			name: text().unique('users_name_key', { nulls: 'not distinct' }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	expect(statements.length).toBe(1);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text UNIQUE NULLS NOT DISTINCT\n);\n`,
+	]);
+});
+
+/* unique default-named */
+test('add table #13', async () => {
+	const from = {};
+	const to = {
+		users: pgTable('users', {
+			name: text(),
+		}, (t) => [unique('users_name_key').on(t.name)]),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	expect(statements.length).toBe(1);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text UNIQUE\n);\n`,
+	]);
+});
+
+/* unique default-named nulls not distinct */
+test('add table #14', async () => {
+	const from = {};
+	const to = {
+		users: pgTable('users', {
+			name: text(),
+		}, (t) => [unique('users_name_key').on(t.name).nullsNotDistinct()]),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	expect(statements.length).toBe(1);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text UNIQUE NULLS NOT DISTINCT\n);\n`,
+	]);
+});
+
+/* unique */
+test('add table #15', async () => {
+	const from = {};
+	const to = {
+		users: pgTable('users', {
+			name: text(),
+		}, (t) => [unique('name_unique').on(t.name).nullsNotDistinct()]),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	expect(statements.length).toBe(1);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text,\n\tCONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT("name")\n);\n`,
 	]);
 });
 
@@ -659,12 +766,9 @@ test('create table with tsvector', async () => {
 				title: text('title').notNull(),
 				description: text('description').notNull(),
 			},
-			(table) => ({
-				titleSearchIndex: index('title_search_index').using(
-					'gin',
-					sql`to_tsvector('english', ${table.title})`,
-				),
-			}),
+			(table) => [
+				index('title_search_index').using('gin', sql`to_tsvector('english', ${table.title})`),
+			],
 		),
 	};
 

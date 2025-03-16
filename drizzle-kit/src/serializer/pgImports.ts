@@ -92,5 +92,6 @@ export const prepareFromPgImports = async (imports: string[]) => {
 	}
 	unregister();
 
+	// TODO: new set ??
 	return { tables: Array.from(new Set(tables)), enums, schemas, sequences, views, matViews, roles, policies };
 };

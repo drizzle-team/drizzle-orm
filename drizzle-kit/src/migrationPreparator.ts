@@ -1,11 +1,10 @@
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import { CasingType } from './cli/validations/common';
-import { serializeMySql, serializePg, serializeSingleStore, serializeSQLite } from './serializer';
+import { serializeMySql, serializePg, serializeSingleStore, serializeSqlite } from './serializer';
 import { dryMySql, MySqlSchema, mysqlSchema } from './serializer/mysqlSchema';
-import { dryPg, PgSchema, pgSchema, PgSchemaInternal } from './serializer/pgSchema';
+import { dryPg, PgSchema, pgSchema, PgSchemaInternal } from './dialects/postgres/ddl';
 import { drySingleStore, SingleStoreSchema, singlestoreSchema } from './serializer/singlestoreSchema';
-import { drySQLite, SQLiteSchema, sqliteSchema } from './serializer/sqliteSchema';
 
 export const prepareMySqlDbPushSnapshot = async (
 	prev: MySqlSchema,
@@ -39,12 +38,12 @@ export const prepareSingleStoreDbPushSnapshot = async (
 	return { prev, cur: result };
 };
 
-export const prepareSQLiteDbPushSnapshot = async (
+export const prepareSqlitePushSnapshot = async (
 	prev: SQLiteSchema,
 	schemaPath: string | string[],
 	casing: CasingType | undefined,
 ): Promise<{ prev: SQLiteSchema; cur: SQLiteSchema }> => {
-	const serialized = await serializeSQLite(schemaPath, casing);
+	const serialized = await serializeSqlite(schemaPath, casing);
 
 	const id = randomUUID();
 	const idPrev = prev.id;
@@ -86,6 +85,7 @@ export const prepareMySqlMigrationSnapshot = async (
 	const prevSnapshot = mysqlSchema.parse(
 		preparePrevSnapshot(migrationFolders, dryMySql),
 	);
+
 	const serialized = await serializeMySql(schemaPath, casing);
 
 	const id = randomUUID();
@@ -126,40 +126,6 @@ export const prepareSingleStoreMigrationSnapshot = async (
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: SingleStoreSchema = {
-		id,
-		prevId: idPrev,
-		...prevRest,
-	};
-
-	return { prev: prevSnapshot, cur: result, custom };
-};
-
-export const prepareSqliteMigrationSnapshot = async (
-	snapshots: string[],
-	schemaPath: string | string[],
-	casing: CasingType | undefined,
-): Promise<{ prev: SQLiteSchema; cur: SQLiteSchema; custom: SQLiteSchema }> => {
-	const prevSnapshot = sqliteSchema.parse(
-		preparePrevSnapshot(snapshots, drySQLite),
-	);
-	const serialized = await serializeSQLite(schemaPath, casing);
-
-	const id = randomUUID();
-	const idPrev = prevSnapshot.id;
-
-	const { version, dialect, ...rest } = serialized;
-	const result: SQLiteSchema = {
-		version,
-		dialect,
-		id,
-		prevId: idPrev,
-		...rest,
-	};
-
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
-
-	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: SQLiteSchema = {
 		id,
 		prevId: idPrev,
 		...prevRest,

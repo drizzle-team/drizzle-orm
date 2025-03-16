@@ -19,6 +19,7 @@
 !.github
 !build.ts
 !build.dev.ts
+!build.ext.ts
 
 tests/test.ts
 

@@ -2,29 +2,35 @@ import fs from 'fs';
 import {
 	prepareMySqlDbPushSnapshot,
 	prepareMySqlMigrationSnapshot,
-	preparePgDbPushSnapshot,
 	preparePgMigrationSnapshot,
 	prepareSingleStoreDbPushSnapshot,
 	prepareSingleStoreMigrationSnapshot,
-	prepareSQLiteDbPushSnapshot,
-	prepareSqliteMigrationSnapshot,
+	prepareSqlitePushSnapshot,
 } from '../../migrationPreparator';
 
 import chalk from 'chalk';
 import { render } from 'hanji';
 import path, { join } from 'path';
-import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
+import { mockChecksResolver, mockFKsResolver, mockPKsResolver } from 'src/utils/mocks';
 import { TypeOf } from 'zod';
-import type { CommonSchema } from '../../schemaValidator';
+import type { Column as SqliteColumn } from '../../dialects/sqlite/ddl';
+import { applySqliteSnapshotsDiff } from '../../dialects/sqlite/differ';
+import { BREAKPOINT } from '../../global';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
-import { PgSchema, pgSchema, Policy, Role, squashPgScheme, View } from '../../serializer/pgSchema';
-import { SQLiteSchema, sqliteSchema, squashSqliteScheme, View as SQLiteView } from '../../serializer/sqliteSchema';
 import {
-	applyLibSQLSnapshotsDiff,
-	applyMysqlSnapshotsDiff,
-	applyPgSnapshotsDiff,
-	applySingleStoreSnapshotsDiff,
-	applySqliteSnapshotsDiff,
+	Index,
+	PgSchema,
+	pgSchema,
+	Policy,
+	PostgresGenerateSquasher,
+	PostgresPushSquasher,
+	Role,
+	squashPgScheme,
+	UniqueConstraint,
+	View,
+} from '../../dialects/postgres/ddl';
+import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from '../../serializer/singlestoreSchema';
+import {
 	Column,
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
@@ -40,8 +46,13 @@ import {
 	Table,
 	TablePolicyResolverInput,
 	TablePolicyResolverOutput,
-} from '../../snapshotsDiffer';
-import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
+} from '../../snapshot-differ/common';
+import { applyLibSQLSnapshotsDiff } from '../../snapshot-differ/libsql';
+import { applyMysqlSnapshotsDiff } from '../../snapshot-differ/mysql';
+import { applyPgSnapshotsDiff } from '../../dialects/postgres/diff';
+import { applySingleStoreSnapshotsDiff } from '../../snapshot-differ/singlestore';
+import { Journal } from '../../utils';
+import { assertV1OutFolder, prepareMigrationFolder } from '../../utils-node';
 import { prepareMigrationMetadata } from '../../utils/words';
 import { CasingType, Driver, Prefix } from '../validations/common';
 import { withStyle } from '../validations/outputs';
@@ -53,17 +64,11 @@ import {
 	ResolveSelect,
 	ResolveSelectNamed,
 	schema,
+	warning,
 } from '../views';
-import { GenerateConfig } from './utils';
-
-export type Named = {
-	name: string;
-};
-
-export type NamedWithSchema = {
-	name: string;
-	schema: string;
-};
+import type { GenerateConfig } from './utils';
+import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
+import { prepareSqliteMigrationSnapshot } from 'src/dialects/sqlite/serializer';
 
 export const schemasResolver = async (
 	input: ResolverInput<Table>,
@@ -168,28 +173,6 @@ export const mySqlViewsResolver = async (
 		throw e;
 	}
 }; */
-
-export const sqliteViewsResolver = async (
-	input: ResolverInput<SQLiteView & { schema: '' }>,
-): Promise<ResolverOutputWithMoved<SQLiteView>> => {
-	try {
-		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
-			input.created,
-			input.deleted,
-			'view',
-		);
-
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-};
 
 export const sequencesResolver = async (
 	input: ResolverInput<Sequence>,
@@ -299,6 +282,47 @@ export const columnsResolver = async (
 	};
 };
 
+export const sqliteColumnsResolver = async (
+	input: ColumnsResolverInput<SqliteColumn>,
+): Promise<ColumnsResolverOutput<SqliteColumn>> => {
+	const result = await promptColumnsConflicts(
+		input.tableName,
+		input.created,
+		input.deleted,
+	);
+	return {
+		tableName: input.tableName,
+		schema: input.schema,
+		created: result.created,
+		deleted: result.deleted,
+		renamed: result.renamed,
+	};
+};
+
+export const uniqueResolver = async (
+	input: ColumnsResolverInput<UniqueConstraint>,
+): Promise<ColumnsResolverOutput<UniqueConstraint>> => {
+	return {
+		tableName: input.tableName,
+		schema: input.schema,
+		created: input.created,
+		deleted: input.deleted,
+		renamed: [],
+	};
+};
+
+export const indexesResolver = async (
+	input: ColumnsResolverInput<Index>,
+): Promise<ColumnsResolverOutput<Index>> => {
+	return {
+		tableName: input.tableName,
+		schema: input.schema,
+		created: input.created,
+		deleted: input.deleted,
+		renamed: [],
+	};
+};
+
 export const prepareAndMigratePg = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
@@ -334,9 +358,9 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			});
 			return;
 		}
-
-		const squashedPrev = squashPgScheme(validatedPrev);
-		const squashedCur = squashPgScheme(validatedCur);
+		const squasher = PostgresGenerateSquasher;
+		const squashedPrev = squashPgScheme(validatedPrev, squasher);
+		const squashedCur = squashPgScheme(validatedCur, squasher);
 
 		const { sqlStatements, _meta } = await applyPgSnapshotsDiff(
 			squashedPrev,
@@ -350,8 +374,14 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			tablesResolver,
 			columnsResolver,
 			viewsResolver,
+			uniqueResolver,
+			indexesResolver,
+			mockChecksResolver(new Set()),
+			mockPKsResolver(new Set()),
+			mockFKsResolver(new Set()),
 			validatedPrev,
 			validatedCur,
+			squasher,
 		);
 
 		writeResult({
@@ -375,8 +405,9 @@ export const preparePgPush = async (
 	const validatedPrev = pgSchema.parse(prev);
 	const validatedCur = pgSchema.parse(cur);
 
-	const squashedPrev = squashPgScheme(validatedPrev, 'push');
-	const squashedCur = squashPgScheme(validatedCur, 'push');
+	const squasher = PostgresPushSquasher;
+	const squashedPrev = squashPgScheme(validatedPrev, squasher);
+	const squashedCur = squashPgScheme(validatedCur, squasher);
 
 	const { sqlStatements, statements, _meta } = await applyPgSnapshotsDiff(
 		squashedPrev,
@@ -390,9 +421,14 @@ export const preparePgPush = async (
 		tablesResolver,
 		columnsResolver,
 		viewsResolver,
+		uniqueResolver,
+		indexesResolver,
+		mockChecksResolver(new Set()),
+		mockPKsResolver(new Set()),
+		mockFKsResolver(new Set()),
 		validatedPrev,
 		validatedCur,
-		'push',
+		squasher,
 	);
 
 	return { sqlStatements, statements, squashedPrev, squashedCur };
@@ -474,6 +510,7 @@ export const prepareMySQLPush = async (
 			tablesResolver,
 			columnsResolver,
 			mySqlViewsResolver,
+			uniqueResolver,
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -528,6 +565,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 			tablesResolver,
 			columnsResolver,
 			mySqlViewsResolver,
+			uniqueResolver,
 			validatedPrev,
 			validatedCur,
 		);
@@ -706,14 +744,11 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 		assertV1OutFolder(outFolder);
 
 		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite');
-		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
+		const { ddlCur, ddlPrev, snapshot, snapshotPrev, custom } = await prepareSqliteMigrationSnapshot(
 			snapshots,
 			schemaPath,
 			casing,
 		);
-
-		const validatedPrev = sqliteSchema.parse(prev);
-		const validatedCur = sqliteSchema.parse(cur);
 
 		if (config.custom) {
 			writeResult({
@@ -730,21 +765,20 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 			return;
 		}
 
-		const squashedPrev = squashSqliteScheme(validatedPrev);
-		const squashedCur = squashSqliteScheme(validatedCur);
-
-		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
+		const { sqlStatements, _meta, warnings } = await applySqliteSnapshotsDiff(
+			ddlCur,
+			ddlPrev,
 			tablesResolver,
-			columnsResolver,
-			sqliteViewsResolver,
-			validatedPrev,
-			validatedCur,
+			sqliteColumnsResolver,
+			'generate',
 		);
 
+		for (const w of warnings) {
+			warning(w);
+		}
+
 		writeResult({
-			cur,
+			cur: snapshot,
 			sqlStatements,
 			journal,
 			_meta,
@@ -759,6 +793,34 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 		console.error(e);
 	}
 };
+
+export const prepareSqlitePush = async (
+	schemaPath: string | string[],
+	snapshot: SqliteSnapshot,
+	casing: CasingType | undefined,
+) => {
+	const { prev, cur } = await prepareSqlitePushSnapshot(snapshot, schemaPath, casing);
+
+	const { sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		sqliteViewsResolver,
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
+
+	return {
+		sqlStatements,
+		statements,
+		squashedPrev,
+		squashedCur,
+		meta: _meta,
+	};
+};
+
 
 export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 	const outFolder = config.out;
@@ -793,8 +855,8 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 			return;
 		}
 
-		const squashedPrev = squashSqliteScheme(validatedPrev);
-		const squashedCur = squashSqliteScheme(validatedCur);
+		const squashedPrev = squashSqliteScheme(validatedPrev, SQLiteGenerateSquasher);
+		const squashedCur = squashSqliteScheme(validatedCur, SQLiteGenerateSquasher);
 
 		const { sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
 			squashedPrev,
@@ -822,51 +884,18 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 	}
 };
 
-export const prepareSQLitePush = async (
-	schemaPath: string | string[],
-	snapshot: SQLiteSchema,
-	casing: CasingType | undefined,
-) => {
-	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath, casing);
-
-	const validatedPrev = sqliteSchema.parse(prev);
-	const validatedCur = sqliteSchema.parse(cur);
-
-	const squashedPrev = squashSqliteScheme(validatedPrev, 'push');
-	const squashedCur = squashSqliteScheme(validatedCur, 'push');
-
-	const { sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
-		squashedPrev,
-		squashedCur,
-		tablesResolver,
-		columnsResolver,
-		sqliteViewsResolver,
-		validatedPrev,
-		validatedCur,
-		'push',
-	);
-
-	return {
-		sqlStatements,
-		statements,
-		squashedPrev,
-		squashedCur,
-		meta: _meta,
-	};
-};
-
 export const prepareLibSQLPush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
 	casing: CasingType | undefined,
 ) => {
-	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath, casing);
+	const { prev, cur } = await prepareSqlitePushSnapshot(snapshot, schemaPath, casing);
 
 	const validatedPrev = sqliteSchema.parse(prev);
 	const validatedCur = sqliteSchema.parse(cur);
 
-	const squashedPrev = squashSqliteScheme(validatedPrev, 'push');
-	const squashedCur = squashSqliteScheme(validatedCur, 'push');
+	const squashedPrev = squashSqliteScheme(validatedPrev, SQLitePushSquasher);
+	const squashedCur = squashSqliteScheme(validatedCur, SQLitePushSquasher);
 
 	const { sqlStatements, statements, _meta } = await applyLibSQLSnapshotsDiff(
 		squashedPrev,
@@ -1185,8 +1214,6 @@ export const promptSchemasConflict = async <T extends Named>(
 	return result;
 };
 
-export const BREAKPOINT = '--> statement-breakpoint\n';
-
 export const writeResult = ({
 	cur,
 	sqlStatements,
@@ -1204,10 +1231,17 @@ export const writeResult = ({
 	prefixMode,
 	driver,
 }: {
-	cur: CommonSchema;
+	cur: SqliteSnapshot;
 	sqlStatements: string[];
 	journal: Journal;
-	_meta?: any;
+	_meta?: {
+		columns: {};
+		schemas: {};
+		tables: {};
+	} | {
+		columns: {};
+		tables: {};
+	};
 	outFolder: string;
 	breakpoints: boolean;
 	prefixMode: Prefix;
@@ -1235,8 +1269,8 @@ export const writeResult = ({
 
 	const { prefix, tag } = prepareMigrationMetadata(idx, prefixMode, name);
 
-	const toSave = JSON.parse(JSON.stringify(cur));
-	toSave['_meta'] = _meta;
+	const snToSave = { ...cur, meta: _meta };
+	const toSave = JSON.parse(JSON.stringify(snToSave));
 
 	// todo: save results to a new migration folder
 	const metaFolderPath = join(outFolder, 'meta');

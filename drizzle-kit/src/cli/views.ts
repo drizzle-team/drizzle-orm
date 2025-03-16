@@ -1,8 +1,12 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
+import { assertUnreachable } from 'src/global';
+import type { Named, NamedWithSchema } from '../ddl';
+import { vectorOps } from '../extensions/vector';
 import type { CommonSchema } from '../schemaValidator';
-import { objectValues } from '../utils';
-import type { Named, NamedWithSchema } from './commands/migrate';
+import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
+import { objectValues, SchemaError, SchemaWarning } from '../utils';
+import { withStyle } from './validations/outputs';
 
 export const warning = (msg: string) => {
 	render(`[${chalk.yellow('Warning')}] ${msg}`);
@@ -20,6 +24,120 @@ export const grey = (msg: string): string => {
 
 export const error = (error: string, greyMsg: string = ''): string => {
 	return `${chalk.bgRed.bold(' Error ')} ${error} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
+};
+
+export const schemaWarning = (warning: SchemaWarning): string => {
+	if (warning.type === 'policy_not_linked') {
+		return withStyle.errorWarning(
+			`"Policy ${warning.policy} was skipped because it was not linked to any table. You should either include the policy in a table or use .link() on the policy to link it to any table you have. For more information, please check:`,
+		);
+	}
+
+	assertUnreachable(warning.type);
+};
+
+export const sqliteSchemaError = (error: SqliteSchemaError): string => {
+	if (error.type === 'conflict_table') {
+		return `'${error.table}' table name is a duplicate`
+	}
+
+	if (error.type === 'conflict_check') {
+		return `'${error.name}' check constraint name is a duplicate`;
+	}
+
+	if (error.type === 'conflict_unique') {
+		return `'${error.name}' unique constraint name is a duplicate`;
+	}
+
+	if (error.type === 'conflict_view') {
+		return `'${error.view}' view name is a duplicate`;
+	}
+
+	assertUnreachable(error.type)
+};
+
+export const schemaError = (error: SchemaError): string => {
+	if (error.type === 'constraint_name_duplicate') {
+		const { name, schema, table } = error;
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+		const constraintName = chalk.underline.blue(`'${name}'`);
+		return withStyle.errorWarning(
+			`There's a duplicate constraint name ${constraintName} in ${tableName} table`,
+		);
+	}
+
+	if (error.type === 'index_duplicate') {
+		// check for index names duplicates
+		const { schema, table, indexName } = error;
+		const sch = chalk.underline.blue(`"${schema}"`);
+		const idx = chalk.underline.blue(`'${indexName}'`);
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+		return withStyle.errorWarning(
+			`There's a duplicate index name ${idx} in ${sch} schema in ${tableName}`,
+		);
+	}
+
+	if (error.type === 'index_no_name') {
+		const { schema, table, sql } = error;
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+		return withStyle.errorWarning(
+			`Please specify an index name in ${tableName} table that has "${sql}" expression.\n\nWe can generate index names for indexes on columns only; for expressions in indexes, you need to specify index name yourself.`,
+		);
+	}
+
+	if (error.type === 'pgvector_index_noop') {
+		const { table, indexName, column, method } = error;
+		return withStyle.errorWarning(
+			`You are specifying an index on the ${
+				chalk.blueBright(
+					column,
+				)
+			} column inside the ${
+				chalk.blueBright(
+					table,
+				)
+			} table with the ${
+				chalk.blueBright(
+					'vector',
+				)
+			} type without specifying an operator class. Vector extension doesn't have a default operator class, so you need to specify one of the available options. Here is a list of available op classes for the vector extension: [${
+				vectorOps
+					.map((it) => `${chalk.underline(`${it}`)}`)
+					.join(', ')
+			}].\n\nYou can specify it using current syntax: ${
+				chalk.underline(
+					`index("${indexName}").using("${method}", table.${column}.op("${vectorOps[0]}"))`,
+				)
+			}\n\nYou can check the "pg_vector" docs for more info: https://github.com/pgvector/pgvector?tab=readme-ov-file#indexing\n`,
+		);
+	}
+
+	if (error.type === 'policy_duplicate') {
+		const { schema, table, policy } = error;
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+
+		return withStyle.errorWarning(
+			`We\'ve found duplicated policy name across ${tableName} table. Please rename one of the policies with ${
+				chalk.underline.blue(
+					policy,
+				)
+			} name`,
+		);
+	}
+
+	if (error.type === 'view_name_duplicate') {
+		const schema = chalk.underline.blue(error.schema ?? 'public');
+		const name = chalk.underline.blue(error.name);
+		return withStyle.errorWarning(
+			`There's a view duplicate name ${name} in ${schema} schema`,
+		);
+	}
+
+	if (error.type === 'sequence_name_duplicate') {
+		return withStyle.errorWarning(`There's a sequence name duplicate '${error.name}' in '${error.schema}' schema`);
+	}
+
+	assertUnreachable(error);
 };
 
 export const schema = (schema: CommonSchema): string => {

@@ -70,6 +70,7 @@ test('rename schema #1', async () => {
 	const from = {
 		devSchema: pgSchema('dev'),
 	};
+
 	const to = {
 		devSchema2: pgSchema('dev2'),
 	};

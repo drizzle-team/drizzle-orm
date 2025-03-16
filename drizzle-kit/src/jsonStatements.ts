@@ -1,18 +1,29 @@
-import chalk from 'chalk';
+// import chalk from 'chalk';
 import { getNewTableName } from './cli/commands/sqlitePushUtils';
-import { warning } from './cli/views';
+// import { warning } from './cli/views';
 import { CommonSquashedSchema } from './schemaValidator';
+import { Squasher } from './serializer/common';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher, View as MySqlView } from './serializer/mysqlSchema';
 import {
+	CheckConstraint,
+	CheckConstraint as PostgresCheckConstraint,
+	ForeignKey as PostgresForeignKey,
+	Identity,
 	Index,
+	Index as PostgresIndex,
 	MatViewWithOption,
 	PgSchema,
-	PgSquasher,
 	Policy,
+	Policy as PostgresPolicy,
+	PostgresSquasher,
+	PrimaryKey as PostgresPrimaryKey,
 	Role,
+	Sequence,
+	UniqueConstraint,
+	UniqueConstraint as PostgresUniqueConstraint,
 	View as PgView,
 	ViewWithOption,
-} from './serializer/pgSchema';
+} from './dialects/postgres/ddl';
 import { SingleStoreKitInternals, SingleStoreSchema, SingleStoreSquasher } from './serializer/singlestoreSchema';
 import {
 	SQLiteKitInternals,
@@ -20,8 +31,8 @@ import {
 	SQLiteSchemaSquashed,
 	SQLiteSquasher,
 	View as SqliteView,
-} from './serializer/sqliteSchema';
-import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
+} from './dialects/sqlite/ddl';
+import { AlteredColumn, Column, Table } from './snapshot-differ/common';
 
 export interface JsonSqliteCreateTableStatement {
 	type: 'sqlite_create_table';
@@ -39,6 +50,19 @@ export interface JsonSqliteCreateTableStatement {
 	compositePKs: string[][];
 	uniqueConstraints?: string[];
 	checkConstraints?: string[];
+}
+
+export interface JsonPostgresCreateTableStatement {
+	type: 'postgres_create_table';
+	tableName: string;
+	schema: string;
+	columns: { data: Column; identity?: Identity }[];
+	compositePKs: PostgresPrimaryKey[];
+	compositePkName: string;
+	uniqueConstraints: PostgresUniqueConstraint[];
+	policies: PostgresPolicy[];
+	checkConstraints: PostgresCheckConstraint[];
+	isRLSEnabled?: boolean;
 }
 
 export interface JsonCreateTableStatement {
@@ -77,7 +101,7 @@ export interface JsonDropTableStatement {
 	type: 'drop_table';
 	tableName: string;
 	schema: string;
-	policies?: string[];
+	policies: Policy[];
 }
 
 export interface JsonRenameTableStatement {
@@ -224,7 +248,7 @@ export interface JsonDropColumnStatement {
 export interface JsonAddColumnStatement {
 	type: 'alter_table_add_column';
 	tableName: string;
-	column: Column;
+	column: Omit<Column, 'identity'> & { identity?: Identity };
 	schema: string;
 }
 
@@ -238,27 +262,27 @@ export interface JsonSqliteAddColumnStatement {
 export interface JsonCreatePolicyStatement {
 	type: 'create_policy';
 	tableName: string;
-	data: Policy;
+	data: PostgresPolicy;
 	schema: string;
 }
 
 export interface JsonCreateIndPolicyStatement {
 	type: 'create_ind_policy';
 	tableName: string;
-	data: Policy;
+	data: PostgresPolicy;
 }
 
 export interface JsonDropPolicyStatement {
 	type: 'drop_policy';
 	tableName: string;
-	data: Policy;
+	data: PostgresPolicy;
 	schema: string;
 }
 
 export interface JsonDropIndPolicyStatement {
 	type: 'drop_ind_policy';
 	tableName: string;
-	data: Policy;
+	data: PostgresPolicy;
 }
 
 export interface JsonRenamePolicyStatement {
@@ -291,35 +315,28 @@ export interface JsonDisableRLSStatement {
 export interface JsonAlterPolicyStatement {
 	type: 'alter_policy';
 	tableName: string;
-	oldData: string;
-	newData: string;
+	oldPolicy: PostgresPolicy;
+	newPolicy: PostgresPolicy;
 	schema: string;
 }
 
 export interface JsonAlterIndPolicyStatement {
 	type: 'alter_ind_policy';
-	oldData: Policy;
-	newData: Policy;
+	oldData: PostgresPolicy;
+	newData: PostgresPolicy;
 }
 
 export interface JsonCreateIndexStatement {
-	type: 'create_index';
+	type: 'add_index';
 	tableName: string;
-	data: string;
+	index: PostgresIndex;
 	schema: string;
 	internal?: MySqlKitInternals | SQLiteKitInternals | SingleStoreKitInternals;
 }
 
-export interface JsonPgCreateIndexStatement {
-	type: 'create_index_pg';
-	tableName: string;
-	data: Index;
-	schema: string;
-}
-
 export interface JsonReferenceStatement {
 	type: 'create_reference' | 'alter_reference' | 'delete_reference';
-	data: string;
+	foreignKey: PostgresForeignKey;
 	schema: string;
 	tableName: string;
 	isMulticolumn?: boolean;
@@ -336,9 +353,9 @@ export interface JsonReferenceStatement {
 }
 
 export interface JsonCreateUniqueConstraint {
-	type: 'create_unique_constraint';
+	type: 'add_unique';
 	tableName: string;
-	data: string;
+	unique: UniqueConstraint;
 	schema?: string;
 	constraintName?: string;
 }
@@ -346,9 +363,17 @@ export interface JsonCreateUniqueConstraint {
 export interface JsonDeleteUniqueConstraint {
 	type: 'delete_unique_constraint';
 	tableName: string;
-	data: string;
+	data: UniqueConstraint;
 	schema?: string;
 	constraintName?: string;
+}
+
+export interface JsonRenameUniqueConstraint {
+	type: 'rename_unique_constraint';
+	schema?: string;
+	tableName: string;
+	from: string;
+	to: string;
 }
 
 export interface JsonAlterUniqueConstraint {
@@ -364,7 +389,7 @@ export interface JsonAlterUniqueConstraint {
 export interface JsonCreateCheckConstraint {
 	type: 'create_check_constraint';
 	tableName: string;
-	data: string;
+	check: CheckConstraint;
 	schema?: string;
 }
 
@@ -375,18 +400,24 @@ export interface JsonDeleteCheckConstraint {
 	schema?: string;
 }
 
-export interface JsonCreateCompositePK {
-	type: 'create_composite_pk';
+export interface JsonAlterCheckConstraint {
+	type: 'alter_check_constraint';
 	tableName: string;
-	data: string;
 	schema?: string;
-	constraintName?: string;
+	from: CheckConstraint;
+	to: CheckConstraint;
+}
+
+export interface JsonCreateCompositePK {
+	type: 'add_composite_pk';
+	tableName: string;
+	primaryKey: PostgresPrimaryKey;
+	schema?: string;
 }
 
 export interface JsonDeleteCompositePK {
 	type: 'delete_composite_pk';
 	tableName: string;
-	data: string;
 	schema?: string;
 	constraintName?: string;
 }
@@ -394,11 +425,9 @@ export interface JsonDeleteCompositePK {
 export interface JsonAlterCompositePK {
 	type: 'alter_composite_pk';
 	tableName: string;
-	old: string;
-	new: string;
+	old: PostgresPrimaryKey;
+	new: PostgresPrimaryKey;
 	schema?: string;
-	oldConstraintName?: string;
-	newConstraintName?: string;
 }
 
 export interface JsonAlterTableSetSchema {
@@ -437,7 +466,7 @@ export interface JsonDeleteReferenceStatement extends JsonReferenceStatement {
 export interface JsonDropIndexStatement {
 	type: 'drop_index';
 	tableName: string;
-	data: string;
+	index: Index;
 	schema: string;
 }
 
@@ -549,7 +578,7 @@ export interface JsonAlterColumnSetIdentityStatement {
 	tableName: string;
 	columnName: string;
 	schema: string;
-	identity: string;
+	identity: Identity;
 }
 
 export interface JsonAlterColumnDropIdentityStatement {
@@ -564,8 +593,8 @@ export interface JsonAlterColumnAlterIdentityStatement {
 	tableName: string;
 	columnName: string;
 	schema: string;
-	identity: string;
-	oldIdentity: string;
+	identity: Identity;
+	oldIdentity: Identity;
 }
 
 export interface JsonAlterColumnDropGeneratedStatement {
@@ -665,7 +694,7 @@ export interface JsonRenameSchema {
 	to: string;
 }
 
-export type JsonCreatePgViewStatement = {
+export type JsonCreateViewStatement = {
 	type: 'create_view';
 } & Omit<PgView, 'columns' | 'isExisting'>;
 
@@ -767,6 +796,7 @@ export type JsonAlterMySqlViewStatement = {
 } & Omit<SingleStoreView, 'isExisting'>; */
 
 export type JsonAlterViewStatement =
+	| JsonAlterViewDefinitionStatement
 	| JsonAlterViewAlterSchemaStatement
 	| JsonAlterViewAddWithOptionStatement
 	| JsonAlterViewDropWithOptionStatement
@@ -797,6 +827,7 @@ export type JsonStatement =
 	| JsonRecreateTableStatement
 	| JsonAlterColumnStatement
 	| JsonCreateTableStatement
+	| JsonPostgresCreateTableStatement
 	| JsonDropTableStatement
 	| JsonRenameTableStatement
 	| JsonCreateEnumStatement
@@ -819,6 +850,7 @@ export type JsonStatement =
 	| JsonAlterCompositePK
 	| JsonCreateUniqueConstraint
 	| JsonDeleteUniqueConstraint
+	| JsonRenameUniqueConstraint
 	| JsonAlterUniqueConstraint
 	| JsonCreateSchema
 	| JsonDropSchema
@@ -826,7 +858,6 @@ export type JsonStatement =
 	| JsonAlterTableSetSchema
 	| JsonAlterTableRemoveFromSchema
 	| JsonAlterTableSetNewSchema
-	| JsonPgCreateIndexStatement
 	| JsonAlterSequenceStatement
 	| JsonDropSequenceStatement
 	| JsonCreateSequenceStatement
@@ -842,7 +873,7 @@ export type JsonStatement =
 	| JsonCreateRoleStatement
 	| JsonDropRoleStatement
 	| JsonAlterRoleStatement
-	| JsonCreatePgViewStatement
+	| JsonCreateViewStatement
 	| JsonDropViewStatement
 	| JsonRenameViewStatement
 	| JsonAlterViewStatement
@@ -853,6 +884,7 @@ export type JsonStatement =
 	| JsonCreateSqliteViewStatement
 	| JsonCreateCheckConstraint
 	| JsonDeleteCheckConstraint
+	| JsonAlterCheckConstraint
 	| JsonDropValueFromEnumStatement
 	| JsonIndRenamePolicyStatement
 	| JsonDropIndPolicyStatement
@@ -861,9 +893,10 @@ export type JsonStatement =
 
 export const preparePgCreateTableJson = (
 	table: Table,
+	squasher: PostgresSquasher,
 	// TODO: remove?
 	json2: PgSchema,
-): JsonCreateTableStatement => {
+): JsonPostgresCreateTableStatement => {
 	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
 		table;
 	const tableKey = `${schema || 'public'}.${name}`;
@@ -871,20 +904,24 @@ export const preparePgCreateTableJson = (
 	// TODO: @AndriiSherman. We need this, will add test cases
 	const compositePkName = Object.values(compositePrimaryKeys).length > 0
 		? json2.tables[tableKey].compositePrimaryKeys[
-			`${PgSquasher.unsquashPK(Object.values(compositePrimaryKeys)[0]).name}`
+			`${squasher.unsquashPK(Object.values(compositePrimaryKeys)[0]).name}`
 		].name
 		: '';
 
+	const mappedColumns = Object.values(columns).map((it) => {
+		return { data: it, identity: it.identity ? squasher.unsquashIdentity(it.identity) : undefined };
+	});
+
 	return {
-		type: 'create_table',
+		type: 'postgres_create_table',
 		tableName: name,
 		schema,
-		columns: Object.values(columns),
-		compositePKs: Object.values(compositePrimaryKeys),
+		columns: mappedColumns,
+		compositePKs: Object.values(compositePrimaryKeys).map((it) => squasher.unsquashPK(it)),
 		compositePkName: compositePkName,
-		uniqueConstraints: Object.values(uniqueConstraints),
-		policies: Object.values(policies),
-		checkConstraints: Object.values(checkConstraints),
+		uniqueConstraints: Object.values(uniqueConstraints).map((it) => squasher.unsquashUnique(it)),
+		policies: Object.values(policies).map((it) => squasher.unsquashPolicy(it)),
+		checkConstraints: Object.values(checkConstraints).map((it) => squasher.unsquashCheck(it)),
 		isRLSEnabled: isRLSEnabled ?? false,
 	};
 };
@@ -975,12 +1012,12 @@ export const prepareSQLiteCreateTable = (
 	};
 };
 
-export const prepareDropTableJson = (table: Table): JsonDropTableStatement => {
+export const prepareDropTableJson = (table: Table, squasher: PostgresSquasher): JsonDropTableStatement => {
 	return {
 		type: 'drop_table',
 		tableName: table.name,
 		schema: table.schema,
-		policies: table.policies ? Object.values(table.policies) : [],
+		policies: Object.values(table.policies).map((it) => squasher.unsquashPolicy(it)),
 	};
 };
 
@@ -1099,25 +1136,23 @@ export const prepareRenameEnumJson = (
 export const prepareCreateSequenceJson = (
 	seq: Sequence,
 ): JsonCreateSequenceStatement => {
-	const values = PgSquasher.unsquashSequence(seq.values);
 	return {
 		type: 'create_sequence',
 		name: seq.name,
 		schema: seq.schema,
-		values,
+		values: seq,
 	};
 };
 
 export const prepareAlterSequenceJson = (
 	seq: Sequence,
 ): JsonAlterSequenceStatement[] => {
-	const values = PgSquasher.unsquashSequence(seq.values);
 	return [
 		{
 			type: 'alter_sequence',
 			schema: seq.schema,
 			name: seq.name,
-			values,
+			values: seq,
 		},
 	];
 };
@@ -1281,8 +1316,17 @@ export const _prepareAddColumns = (
 	tableName: string,
 	schema: string,
 	columns: Column[],
+	squasher: PostgresSquasher,
 ): JsonAddColumnStatement[] => {
-	return columns.map((it) => {
+	const columnsWithIdentities = columns.map((it) => {
+		const { identity: identityString, ...rest } = it;
+		const identity = identityString ? squasher.unsquashIdentity(identityString) : undefined;
+		return {
+			...rest,
+			identity,
+		};
+	});
+	return columnsWithIdentities.map((it) => {
 		return {
 			type: 'alter_table_add_column',
 			tableName: tableName,
@@ -2034,13 +2078,13 @@ export const prepareAlterColumnsSingleStore = (
 	return [...dropPkStatements, ...setPkStatements, ...statements];
 };
 
-export const preparePgAlterColumns = (
+export const preparePostgresAlterColumns = (
 	_tableName: string,
 	schema: string,
 	columns: AlteredColumn[],
+	squasher: PostgresSquasher,
 	// TODO: remove?
 	json2: CommonSquashedSchema,
-	action?: 'push' | undefined,
 ): JsonAlterColumnStatement[] => {
 	const tableKey = `${schema || 'public'}.${_tableName}`;
 	let statements: JsonAlterColumnStatement[] = [];
@@ -2209,7 +2253,7 @@ export const preparePgAlterColumns = (
 				tableName,
 				columnName,
 				schema,
-				identity: column.identity.value,
+				identity: squasher.unsquashIdentity(column.identity.value),
 			});
 		}
 
@@ -2219,8 +2263,8 @@ export const preparePgAlterColumns = (
 				tableName,
 				columnName,
 				schema,
-				identity: column.identity.new,
-				oldIdentity: column.identity.old,
+				identity: squasher.unsquashIdentity(column.identity.new),
+				oldIdentity: squasher.unsquashIdentity(column.identity.old),
 			});
 		}
 
@@ -2249,7 +2293,7 @@ export const preparePgAlterColumns = (
 			});
 		}
 
-		if (column.generated?.type === 'changed' && action !== 'push') {
+		if (column.generated?.type === 'changed') {
 			statements.push({
 				type: 'alter_table_alter_column_alter_generated',
 				tableName,
@@ -2710,8 +2754,8 @@ export const prepareRenamePolicyJsons = (
 	tableName: string,
 	schema: string,
 	renames: {
-		from: Policy;
-		to: Policy;
+		from: PostgresPolicy;
+		to: PostgresPolicy;
 	}[],
 ): JsonRenamePolicyStatement[] => {
 	return renames.map((it) => {
@@ -2727,8 +2771,8 @@ export const prepareRenamePolicyJsons = (
 
 export const prepareRenameIndPolicyJsons = (
 	renames: {
-		from: Policy;
-		to: Policy;
+		from: PostgresPolicy;
+		to: PostgresPolicy;
 	}[],
 ): JsonIndRenamePolicyStatement[] => {
 	return renames.map((it) => {
@@ -2744,7 +2788,7 @@ export const prepareRenameIndPolicyJsons = (
 export const prepareCreatePolicyJsons = (
 	tableName: string,
 	schema: string,
-	policies: Policy[],
+	policies: PostgresPolicy[],
 ): JsonCreatePolicyStatement[] => {
 	return policies.map((it) => {
 		return {
@@ -2757,7 +2801,7 @@ export const prepareCreatePolicyJsons = (
 };
 
 export const prepareCreateIndPolicyJsons = (
-	policies: Policy[],
+	policies: PostgresPolicy[],
 ): JsonCreateIndPolicyStatement[] => {
 	return policies.map((it) => {
 		return {
@@ -2771,7 +2815,7 @@ export const prepareCreateIndPolicyJsons = (
 export const prepareDropPolicyJsons = (
 	tableName: string,
 	schema: string,
-	policies: Policy[],
+	policies: PostgresPolicy[],
 ): JsonDropPolicyStatement[] => {
 	return policies.map((it) => {
 		return {
@@ -2784,7 +2828,7 @@ export const prepareDropPolicyJsons = (
 };
 
 export const prepareDropIndPolicyJsons = (
-	policies: Policy[],
+	policies: PostgresPolicy[],
 ): JsonDropIndPolicyStatement[] => {
 	return policies.map((it) => {
 		return {
@@ -2800,19 +2844,20 @@ export const prepareAlterPolicyJson = (
 	schema: string,
 	oldPolicy: string,
 	newPolicy: string,
+	squasher: PostgresSquasher,
 ): JsonAlterPolicyStatement => {
 	return {
 		type: 'alter_policy',
 		tableName,
-		oldData: oldPolicy,
-		newData: newPolicy,
+		oldPolicy: squasher.unsquashPolicy(oldPolicy),
+		newPolicy: squasher.unsquashPolicy(newPolicy),
 		schema,
 	};
 };
 
 export const prepareAlterIndPolicyJson = (
-	oldPolicy: Policy,
-	newPolicy: Policy,
+	oldPolicy: PostgresPolicy,
+	newPolicy: PostgresPolicy,
 ): JsonAlterIndPolicyStatement => {
 	return {
 		type: 'alter_ind_policy',
@@ -2821,47 +2866,17 @@ export const prepareAlterIndPolicyJson = (
 	};
 };
 
-export const preparePgCreateIndexesJson = (
-	tableName: string,
-	schema: string,
-	indexes: Record<string, string>,
-	fullSchema: PgSchema,
-	action?: 'push' | undefined,
-): JsonPgCreateIndexStatement[] => {
-	if (action === 'push') {
-		return Object.values(indexes).map((indexData) => {
-			const unsquashedIndex = PgSquasher.unsquashIdxPush(indexData);
-			const data = fullSchema.tables[`${schema === '' ? 'public' : schema}.${tableName}`]
-				.indexes[unsquashedIndex.name];
-			return {
-				type: 'create_index_pg',
-				tableName,
-				data,
-				schema,
-			};
-		});
-	}
-	return Object.values(indexes).map((indexData) => {
-		return {
-			type: 'create_index_pg',
-			tableName,
-			data: PgSquasher.unsquashIdx(indexData),
-			schema,
-		};
-	});
-};
-
 export const prepareCreateIndexesJson = (
 	tableName: string,
 	schema: string,
-	indexes: Record<string, string>,
+	indexes: PostgresIndex[],
 	internal?: MySqlKitInternals | SQLiteKitInternals,
 ): JsonCreateIndexStatement[] => {
-	return Object.values(indexes).map((indexData) => {
+	return indexes.map((index) => {
 		return {
-			type: 'create_index',
+			type: 'add_index',
 			tableName,
-			data: indexData,
+			index,
 			schema,
 			internal,
 		};
@@ -2871,53 +2886,52 @@ export const prepareCreateIndexesJson = (
 export const prepareCreateReferencesJson = (
 	tableName: string,
 	schema: string,
-	foreignKeys: Record<string, string>,
+	foreignKeys: PostgresForeignKey[],
 ): JsonCreateReferenceStatement[] => {
-	return Object.values(foreignKeys).map((fkData) => {
+	return foreignKeys.map((foreignKey) => {
 		return {
 			type: 'create_reference',
 			tableName,
-			data: fkData,
+			foreignKey,
 			schema,
 		};
 	});
 };
+
 export const prepareLibSQLCreateReferencesJson = (
 	tableName: string,
 	schema: string,
 	foreignKeys: Record<string, string>,
 	json2: SQLiteSchemaSquashed,
-	action?: 'push',
+	squasher: LibsqlSquasher,
 ): JsonCreateReferenceStatement[] => {
 	return Object.values(foreignKeys).map((fkData) => {
-		const { columnsFrom, tableFrom, columnsTo } = action === 'push'
-			? SQLiteSquasher.unsquashPushFK(fkData)
-			: SQLiteSquasher.unsquashFK(fkData);
+		const foreignKey = squasher.unsquashFK(fkData);
 
 		// When trying to alter table in lib sql it is necessary to pass all config for column like "NOT NULL", "DEFAULT", etc.
 		// If it is multicolumn reference it is not possible to pass this data for all columns
 		// Pass multicolumn flag for sql statements to not generate migration
 		let isMulticolumn = false;
 
-		if (columnsFrom.length > 1 || columnsTo.length > 1) {
+		if (foreignKey.columnsFrom.length > 1 || foreignKey.columnsTo.length > 1) {
 			isMulticolumn = true;
 
 			return {
 				type: 'create_reference',
 				tableName,
-				data: fkData,
+				foreignKey,
 				schema,
 				isMulticolumn,
 			};
 		}
 
-		const columnFrom = columnsFrom[0];
+		const columnFrom = foreignKey.columnsFrom[0];
 
 		const {
 			notNull: columnNotNull,
 			default: columnDefault,
 			type: columnType,
-		} = json2.tables[tableFrom].columns[columnFrom];
+		} = json2.tables[foreignKey.tableFrom].columns[columnFrom];
 
 		return {
 			type: 'create_reference',
@@ -2935,12 +2949,15 @@ export const prepareDropReferencesJson = (
 	tableName: string,
 	schema: string,
 	foreignKeys: Record<string, string>,
+	squasher: PostgresSquasher,
 ): JsonDeleteReferenceStatement[] => {
 	return Object.values(foreignKeys).map((fkData) => {
+		const foreignKey = squasher.unsquashFK(fkData);
+
 		return {
 			type: 'delete_reference',
 			tableName,
-			data: fkData,
+			foreignKey,
 			schema,
 		};
 	});
@@ -3022,6 +3039,7 @@ export const prepareAlterReferencesJson = (
 	tableName: string,
 	schema: string,
 	foreignKeys: Record<string, { __old: string; __new: string }>,
+	squasher: Squasher,
 ): JsonReferenceStatement[] => {
 	const stmts: JsonReferenceStatement[] = [];
 	Object.values(foreignKeys).map((val) => {
@@ -3029,14 +3047,14 @@ export const prepareAlterReferencesJson = (
 			type: 'delete_reference',
 			tableName,
 			schema,
-			data: val.__old,
+			foreignKey: squasher.unsquashPK(val.__old),
 		});
 
 		stmts.push({
 			type: 'create_reference',
 			tableName,
 			schema,
-			data: val.__new,
+			foreignKey: squasher.unsquashPK(val.__new),
 		});
 	});
 	return stmts;
@@ -3045,13 +3063,13 @@ export const prepareAlterReferencesJson = (
 export const prepareDropIndexesJson = (
 	tableName: string,
 	schema: string,
-	indexes: Record<string, string>,
+	indexes: PostgresIndex[],
 ): JsonDropIndexStatement[] => {
-	return Object.values(indexes).map((indexData) => {
+	return indexes.map((index) => {
 		return {
 			type: 'drop_index',
 			tableName,
-			data: indexData,
+			index,
 			schema,
 		};
 	});
@@ -3060,13 +3078,14 @@ export const prepareDropIndexesJson = (
 export const prepareAddCompositePrimaryKeySqlite = (
 	tableName: string,
 	pks: Record<string, string>,
+	squasher: PostgresSquasher,
 ): JsonCreateCompositePK[] => {
 	return Object.values(pks).map((it) => {
 		return {
-			type: 'create_composite_pk',
+			type: 'add_composite_pk',
 			tableName,
-			data: it,
-		} as JsonCreateCompositePK;
+			primaryKey: squasher.unsquashPK(it),
+		};
 	});
 };
 
@@ -3086,14 +3105,15 @@ export const prepareDeleteCompositePrimaryKeySqlite = (
 export const prepareAlterCompositePrimaryKeySqlite = (
 	tableName: string,
 	pks: Record<string, { __old: string; __new: string }>,
+	squasher: PostgresSquasher,
 ): JsonAlterCompositePK[] => {
 	return Object.values(pks).map((it) => {
 		return {
 			type: 'alter_composite_pk',
 			tableName,
-			old: it.__old,
-			new: it.__new,
-		} as JsonAlterCompositePK;
+			old: squasher.unsquashPK(it.__old),
+			new: squasher.unsquashPK(it.__new),
+		};
 	});
 };
 
@@ -3101,18 +3121,16 @@ export const prepareAddCompositePrimaryKeyPg = (
 	tableName: string,
 	schema: string,
 	pks: Record<string, string>,
-	// TODO: remove?
-	json2: PgSchema,
+	squasher: PostgresSquasher,
 ): JsonCreateCompositePK[] => {
 	return Object.values(pks).map((it) => {
-		const unsquashed = PgSquasher.unsquashPK(it);
+		const unsquashed = squasher.unsquashPK(it);
 		return {
-			type: 'create_composite_pk',
+			type: 'add_composite_pk',
 			tableName,
-			data: it,
+			primaryKey: unsquashed,
 			schema,
-			constraintName: PgSquasher.unsquashPK(it).name,
-		} as JsonCreateCompositePK;
+		};
 	});
 };
 
@@ -3120,8 +3138,7 @@ export const prepareDeleteCompositePrimaryKeyPg = (
 	tableName: string,
 	schema: string,
 	pks: Record<string, string>,
-	// TODO: remove?
-	json1: PgSchema,
+	squasher: PostgresSquasher,
 ): JsonDeleteCompositePK[] => {
 	return Object.values(pks).map((it) => {
 		return {
@@ -3129,7 +3146,7 @@ export const prepareDeleteCompositePrimaryKeyPg = (
 			tableName,
 			data: it,
 			schema,
-			constraintName: PgSquasher.unsquashPK(it).name,
+			constraintName: squasher.unsquashPK(it).name,
 		} as JsonDeleteCompositePK;
 	});
 };
@@ -3138,33 +3155,29 @@ export const prepareAlterCompositePrimaryKeyPg = (
 	tableName: string,
 	schema: string,
 	pks: Record<string, { __old: string; __new: string }>,
-	// TODO: remove?
-	json1: PgSchema,
-	json2: PgSchema,
+	squasher: PostgresSquasher,
 ): JsonAlterCompositePK[] => {
 	return Object.values(pks).map((it) => {
 		return {
 			type: 'alter_composite_pk',
 			tableName,
-			old: it.__old,
-			new: it.__new,
+			old: squasher.unsquashPK(it.__old),
+			new: squasher.unsquashPK(it.__new),
 			schema,
-			oldConstraintName: PgSquasher.unsquashPK(it.__old).name,
-			newConstraintName: PgSquasher.unsquashPK(it.__new).name,
-		} as JsonAlterCompositePK;
+		};
 	});
 };
 
 export const prepareAddUniqueConstraintPg = (
 	tableName: string,
 	schema: string,
-	unqs: Record<string, string>,
+	unqs: PostgresUniqueConstraint[],
 ): JsonCreateUniqueConstraint[] => {
-	return Object.values(unqs).map((it) => {
+	return unqs.map((it) => {
 		return {
-			type: 'create_unique_constraint',
+			type: 'add_unique',
 			tableName,
-			data: it,
+			unique: it,
 			schema,
 		} as JsonCreateUniqueConstraint;
 	});
@@ -3173,15 +3186,15 @@ export const prepareAddUniqueConstraintPg = (
 export const prepareDeleteUniqueConstraintPg = (
 	tableName: string,
 	schema: string,
-	unqs: Record<string, string>,
+	unqs: PostgresUniqueConstraint[],
 ): JsonDeleteUniqueConstraint[] => {
-	return Object.values(unqs).map((it) => {
+	return unqs.map((it) => {
 		return {
 			type: 'delete_unique_constraint',
 			tableName,
 			data: it,
 			schema,
-		} as JsonDeleteUniqueConstraint;
+		};
 	});
 };
 
@@ -3189,12 +3202,13 @@ export const prepareAddCheckConstraint = (
 	tableName: string,
 	schema: string,
 	check: Record<string, string>,
+	squasher: PostgresSquasher,
 ): JsonCreateCheckConstraint[] => {
 	return Object.values(check).map((it) => {
 		return {
 			type: 'create_check_constraint',
 			tableName,
-			data: it,
+			check: squasher.unsquashCheck(it),
 			schema,
 		} as JsonCreateCheckConstraint;
 	});
@@ -3204,15 +3218,31 @@ export const prepareDeleteCheckConstraint = (
 	tableName: string,
 	schema: string,
 	check: Record<string, string>,
+	squasher: PostgresSquasher,
 ): JsonDeleteCheckConstraint[] => {
 	return Object.values(check).map((it) => {
 		return {
 			type: 'delete_check_constraint',
 			tableName,
-			constraintName: PgSquasher.unsquashCheck(it).name,
+			constraintName: squasher.unsquashCheck(it).name,
 			schema,
 		} as JsonDeleteCheckConstraint;
 	});
+};
+
+export const prepareAlterCheckConstraint = (
+	tableName: string,
+	schema: string,
+	from: CheckConstraint,
+	to: CheckConstraint,
+): JsonAlterCheckConstraint => {
+	return {
+		type: 'alter_check_constraint',
+		tableName,
+		from,
+		to,
+		schema,
+	};
 };
 
 // add create table changes
@@ -3225,18 +3255,32 @@ export const prepareDeleteCheckConstraint = (
 // add release notes
 // add docs changes
 
+export const prepareRenameUniqueConstraintPg = (
+	tableName: string,
+	schema: string,
+	renames: { from: string; to: string }[],
+): JsonRenameUniqueConstraint[] => {
+	return renames.map((it) => ({
+		type: 'rename_unique_constraint',
+		tableName,
+		schema,
+		from: it.from,
+		to: it.to,
+	}));
+};
+
 export const prepareAlterUniqueConstraintPg = (
 	tableName: string,
 	schema: string,
-	unqs: Record<string, { __old: string; __new: string }>,
+	unqs: { old: string; new: string }[],
 ): JsonAlterUniqueConstraint[] => {
-	return Object.values(unqs).map((it) => {
+	return unqs.map((it) => {
 		return {
 			type: 'alter_unique_constraint',
 			tableName,
-			old: it.__old,
-			new: it.__new,
 			schema,
+			old: it.old,
+			new: it.new,
 		} as JsonAlterUniqueConstraint;
 	});
 };
@@ -3260,11 +3304,11 @@ export const prepareAddCompositePrimaryKeyMySql = (
 		}
 
 		res.push({
-			type: 'create_composite_pk',
+			type: 'add_composite_pk',
 			tableName,
 			data: it,
 			constraintName: unsquashed.name,
-		} as JsonCreateCompositePK);
+		});
 	}
 	return res;
 };
@@ -3288,22 +3332,14 @@ export const prepareDeleteCompositePrimaryKeyMySql = (
 export const prepareAlterCompositePrimaryKeyMySql = (
 	tableName: string,
 	pks: Record<string, { __old: string; __new: string }>,
-	// TODO: remove?
-	json1: MySqlSchema,
-	json2: MySqlSchema,
+	squasher: PostgresSquasher,
 ): JsonAlterCompositePK[] => {
 	return Object.values(pks).map((it) => {
 		return {
 			type: 'alter_composite_pk',
 			tableName,
-			old: it.__old,
-			new: it.__new,
-			oldConstraintName: json1.tables[tableName].compositePrimaryKeys[
-				MySqlSquasher.unsquashPK(it.__old).name
-			].name,
-			newConstraintName: json2.tables[tableName].compositePrimaryKeys[
-				MySqlSquasher.unsquashPK(it.__new).name
-			].name,
+			old: squasher.unsquashPK(it.__old),
+			new: squasher.unsquashPK(it.__new),
 		} as JsonAlterCompositePK;
 	});
 };
@@ -3317,7 +3353,7 @@ export const preparePgCreateViewJson = (
 	withOption?: any,
 	using?: string,
 	tablespace?: string,
-): JsonCreatePgViewStatement => {
+): JsonCreateViewStatement => {
 	return {
 		type: 'create_view',
 		name: name,
@@ -3367,17 +3403,6 @@ export const prepareMySqlCreateViewJson = (
 	};
 }; */
 
-export const prepareSqliteCreateViewJson = (
-	name: string,
-	definition: string,
-): JsonCreateSqliteViewStatement => {
-	return {
-		type: 'sqlite_create_view',
-		name: name,
-		definition: definition,
-	};
-};
-
 export const prepareDropViewJson = (
 	name: string,
 	schema?: string,
@@ -3386,7 +3411,6 @@ export const prepareDropViewJson = (
 	const resObject: JsonDropViewStatement = <JsonDropViewStatement> { name, type: 'drop_view' };
 
 	if (schema) resObject['schema'] = schema;
-
 	if (materialized) resObject['materialized'] = materialized;
 
 	return resObject;

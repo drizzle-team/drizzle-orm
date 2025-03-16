@@ -14,6 +14,7 @@ const index = object({
 const column = object({
 	name: string(),
 	type: string(),
+	typeSchema: string().optional(), // compatibility with postgres schema?
 	primaryKey: boolean(),
 	notNull: boolean(),
 	autoincrement: boolean().optional(),
@@ -102,6 +103,7 @@ export const schema = schemaInternal.merge(schemaHash);
 
 const tableSquashed = object({
 	name: string(),
+	schema: string().optional(),
 	columns: record(string(), column),
 	indexes: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()),
@@ -236,10 +238,6 @@ export const squashSingleStoreScheme = (json: SingleStoreSchema): SingleStoreSch
 };
 
 export const singlestoreSchema = schema;
-export const singlestoreSchemaSquashed = schemaSquashed;
-
-// no prev version
-export const backwardCompatibleSingleStoreSchema = union([singlestoreSchema, schema]);
 
 export const drySingleStore = singlestoreSchema.parse({
 	version: '1',

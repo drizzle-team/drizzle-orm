@@ -7,7 +7,7 @@ import { dialects } from 'src/schemaValidator';
 import '../@types/utils';
 import { assertUnreachable } from '../global';
 import { type Setup } from '../serializer/studio';
-import { assertV1OutFolder } from '../utils';
+import { assertV1OutFolder } from '../utils-node';
 import { certs } from '../utils/certs';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';

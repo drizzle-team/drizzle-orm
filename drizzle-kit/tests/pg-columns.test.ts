@@ -457,14 +457,14 @@ test('add multiple constraints #3', async (t) => {
 	expect(statements.length).toBe(6);
 });
 
-test('varchar and text default values escape single quotes', async (t) => {
+test('varchar and text default values escape single quotes', async () => {
 	const schema1 = {
 		table: pgTable('table', {
 			id: serial('id').primaryKey(),
 		}),
 	};
 
-	const schem2 = {
+	const schema2 = {
 		table: pgTable('table', {
 			id: serial('id').primaryKey(),
 			text: text('text').default("escape's quotes"),
@@ -472,7 +472,7 @@ test('varchar and text default values escape single quotes', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schem2, []);
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toStrictEqual(

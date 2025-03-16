@@ -1,8 +1,7 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import type { JsonStatement } from '../../jsonStatements';
-import { PgSquasher } from '../../serializer/pgSchema';
-import { fromJson } from '../../sqlgenerator';
+import type { JsonStatement } from '../../dialects/postgres/statements';
+import { fromJson } from '../../dialects/postgres/convertor';
 import type { DB } from '../../utils';
 import { Select } from '../selector-ui';
 
@@ -70,7 +69,30 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 	let renamedSchemas: Record<string, string> = {};
 	let renamedTables: Record<string, string> = {};
 
-	for (const statement of statements) {
+	const ignored = new Set<JsonStatement['type']>([
+		'alter_table_alter_column_alter_generated', // discussion -
+
+		/*
+			drizzle-kit push does not handle alternation of check constraints
+			that's a limitation due to a nature of in-database way of persisting check constraints values
+
+			in order to properly support one - we'd need to either fully implement in-database DDL,
+			or implement proper commutativity checks or use shadow DB for push command(the most reasonable way)
+		*/
+		'alter_check_constraint',
+
+		/*
+			drizzle-kit push does not handle alternations of postgres views definitions
+			just like with check constraints we can only reliably handle this with introduction of shadow db
+
+			for now we encourage developers to `remove view from drizzle schema -> push -> add view to drizzle schema -> push`
+		 */
+		'recreate_view_definition',
+	]);
+
+	const filtered = statements.filter((it) => !ignored.has(it.type));
+
+	for (const statement of filtered) {
 		if (statement.type === 'rename_schema') {
 			renamedSchemas[statement.to] = statement.from;
 		} else if (statement.type === 'rename_table') {
@@ -224,7 +246,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
-				const unsquashedUnique = PgSquasher.unsquashUnique(statement.data);
+				const unsquashedUnique = statement.unique;
 				console.log(
 					`· You're about to add ${
 						chalk.underline(
@@ -250,9 +272,9 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 				}
 			}
 		}
-		const stmnt = fromJson([statement], 'postgresql', 'push');
-		if (typeof stmnt !== 'undefined') {
-			statementsToExecute.push(...stmnt);
+		const { sqlStatements, groupedStatements } = fromJson([statement]);
+		if (typeof sqlStatements !== 'undefined') {
+			statementsToExecute.push(...sqlStatements);
 		}
 	}
 
