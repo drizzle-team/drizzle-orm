@@ -8,10 +8,10 @@ import {
 	Relation,
 	Relations,
 } from 'drizzle-orm/relations';
-import './@types/utils';
+import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
-import { Casing } from './cli/validations/common';
-import { assertUnreachable } from './global';
+import { Casing } from '../../cli/validations/common';
+import { assertUnreachable } from '../../global';
 import {
 	CheckConstraint,
 	Column,
@@ -22,9 +22,9 @@ import {
 	Policy,
 	PrimaryKey,
 	UniqueConstraint,
-} from './serializer/pgSchema';
-import { indexName } from './serializer/pgSerializer';
-import { unescapeSingleQuotes } from './utils';
+} from './ddl';
+import { indexName } from '../../serializer/pgSerializer';
+import { unescapeSingleQuotes } from '../../utils';
 
 const pgImportsList = new Set([
 	'pgTable',

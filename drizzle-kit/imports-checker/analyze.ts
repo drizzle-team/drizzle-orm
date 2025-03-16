@@ -45,9 +45,10 @@ function init(collection: CollectionItem[]) {
 
 		ImportExpr_From(kImport, importInner, kFrom, importSource) {
 			const ruleName = importInner.children[0]!.ctorName;
-			const importType = ruleName === 'ImportInner_Type' || ruleName === 'ImportInner_Types'
-				? 'types'
-				: 'data';
+			const importType =
+				ruleName === 'ImportInner_Type' || ruleName === 'ImportInner_Types' || ruleName === 'ImportInner_AllTypes'
+					? 'types'
+					: 'data';
 
 			collection.push({
 				source: importSource.children[1]!.sourceString!,

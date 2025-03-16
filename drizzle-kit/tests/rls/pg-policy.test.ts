@@ -1275,7 +1275,7 @@ test('rename policy that is linked', async (t) => {
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, [
-		'"public"."users".test->"public"."users".newName',
+		'public.users.test->public.users.newName',
 	]);
 
 	expect(sqlStatements).toStrictEqual([
@@ -1509,15 +1509,6 @@ test('alter policy in the table', async (t) => {
 	expect(sqlStatements).toStrictEqual([
 		'ALTER POLICY "test" ON "users" TO current_role;',
 	]);
-	expect(statements).toStrictEqual([
-		{
-			newData: 'test--PERMISSIVE--ALL--current_role--undefined--undefined--undefined',
-			oldData: 'test--PERMISSIVE--ALL--public--undefined--undefined--undefined',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_policy',
-		},
-	]);
 });
 
 test('alter policy in the table: withCheck', async (t) => {
@@ -1546,15 +1537,6 @@ test('alter policy in the table: withCheck', async (t) => {
 	expect(sqlStatements).toStrictEqual([
 		'ALTER POLICY "test" ON "users" TO public WITH CHECK (false);',
 	]);
-	expect(statements).toStrictEqual([
-		{
-			newData: 'test--PERMISSIVE--ALL--public--undefined--false--undefined',
-			oldData: 'test--PERMISSIVE--ALL--public--undefined--true--undefined',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_policy',
-		},
-	]);
 });
 
 test('alter policy in the table: using', async (t) => {
@@ -1582,15 +1564,6 @@ test('alter policy in the table: using', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER POLICY "test" ON "users" TO public USING (false);',
-	]);
-	expect(statements).toStrictEqual([
-		{
-			newData: 'test--PERMISSIVE--ALL--public--false--undefined--undefined',
-			oldData: 'test--PERMISSIVE--ALL--public--true--undefined--undefined',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_policy',
-		},
 	]);
 });
 

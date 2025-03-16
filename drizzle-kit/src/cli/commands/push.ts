@@ -66,7 +66,7 @@ export const mysqlPush = async (
 				statements.validatedCur,
 			);
 
-			const filteredSqlStatements = fromJson(filteredStatements, 'mysql');
+			const { sqlStatements: filteredSqlStatements } = fromJson(filteredStatements, 'mysql');
 
 			const uniqueSqlStatementsToExecute: string[] = [];
 			statementsToExecute.forEach((ss) => {
@@ -210,7 +210,7 @@ export const singlestorePush = async (
 				statements.validatedCur,
 			);
 
-			const filteredSqlStatements = fromJson(filteredStatements, 'singlestore');
+			const { sqlStatements: filteredSqlStatements } = fromJson(filteredStatements, 'singlestore');
 
 			const uniqueSqlStatementsToExecute: string[] = [];
 			statementsToExecute.forEach((ss) => {
@@ -445,9 +445,9 @@ export const sqlitePush = async (
 
 	const db = await connectToSQLite(credentials);
 	const { schema } = await sqlitePushIntrospect(db, tablesFilter);
-	const { prepareSQLitePush } = await import('./migrate');
+	const { prepareSqlitePush } = await import('./migrate');
 
-	const statements = await prepareSQLitePush(schemaPath, schema, casing);
+	const statements = await prepareSqlitePush(schemaPath, schema, casing);
 
 	if (statements.sqlStatements.length === 0) {
 		render(`\n[${chalk.blue('i')}] No changes detected`);

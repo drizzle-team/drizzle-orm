@@ -2,7 +2,7 @@ import chalk from 'chalk';
 
 import { JsonStatement } from 'src/jsonStatements';
 import { findAddedAndRemoved, SQLiteDB } from 'src/utils';
-import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../serializer/sqliteSchema';
+import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../dialects/sqlite/ddl';
 import {
 	CreateSqliteIndexConvertor,
 	fromJson,
@@ -100,7 +100,7 @@ export const _moveDataStatements = (
 	for (const idx of Object.values(json.tables[tableName].indexes)) {
 		statements.push(
 			new CreateSqliteIndexConvertor().convert({
-				type: 'create_index',
+				type: 'add_index',
 				tableName: tableName,
 				schema: '',
 				data: idx,

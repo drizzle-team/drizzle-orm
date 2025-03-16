@@ -1,3 +1,8 @@
+import { SQL, sql } from 'drizzle-orm';
+import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { expect, test } from 'vitest';
+import { diffTestSchemasSqlite } from './mocks-sqlite';
+
 // 1. add stored column to existing table - not supported +
 // 2. add virtual column to existing table - supported +
 // 3. create table with stored/virtual columns(pg, mysql, sqlite)
@@ -5,11 +10,6 @@
 // 5. add virtual generated to column -> supported with drop+add column +
 // 6. drop stored/virtual expression -> supported with drop+add column
 // 7. alter generated expession -> stored not supported, virtual supported
-
-import { SQL, sql } from 'drizzle-orm';
-import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { expect, test } from 'vitest';
-import { diffTestSchemasSqlite } from './schemaDiffer';
 
 // should generate 0 statements + warning/error in console
 test('generated as callback: add column with stored generated constraint', async () => {
@@ -32,14 +32,25 @@ test('generated as callback: add column with stored generated constraint', async
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`id2` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as callback: add column with virtual generated constraint', async () => {
@@ -62,30 +73,12 @@ test('generated as callback: add column with virtual generated constraint', asyn
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			column: {
-				generated: {
-					as: '("name" || \'hello\')',
-					type: 'virtual',
-				},
-				autoincrement: false,
-				name: 'gen_name',
-				notNull: false,
-				primaryKey: false,
-				type: 'text',
-			},
-			referenceData: undefined,
-			tableName: 'users',
-			type: 'sqlite_alter_table_add_column',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL;',
 	]);
@@ -95,15 +88,14 @@ test('generated as callback: add generated constraint to an exisiting column as 
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),
-			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').notNull(),
 		}),
 	};
+
 	const to = {
 		users: sqliteTable('users', {
 			id: int('id'),
-			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name')
 				.notNull()
@@ -113,14 +105,24 @@ test('generated as callback: add generated constraint to an exisiting column as 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'to add\') STORED NOT NULL\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`) SELECT `id`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as callback: add generated constraint to an exisiting column as virtual', async () => {
@@ -145,30 +147,12 @@ test('generated as callback: add generated constraint to an exisiting column as 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: '("name" || \'to add\')',
-				type: 'virtual',
-			},
-			columnName: 'gen_name',
-			columnNotNull: true,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_set_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'to add\') VIRTUAL NOT NULL;',
@@ -196,27 +180,12 @@ test('generated as callback: drop generated constraint as stored', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',
@@ -244,27 +213,12 @@ test('generated as callback: drop generated constraint as virtual', async () => 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',
@@ -276,7 +230,6 @@ test('generated as callback: change generated constraint type from virtual to st
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),
-			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
 				(): SQL => sql`${from.users.name}`,
@@ -287,7 +240,6 @@ test('generated as callback: change generated constraint type from virtual to st
 	const to = {
 		users: sqliteTable('users', {
 			id: int('id'),
-			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
 				(): SQL => sql`${to.users.name} || 'hello'`,
@@ -296,14 +248,24 @@ test('generated as callback: change generated constraint type from virtual to st
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`) SELECT `id`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as callback: change generated constraint type from stored to virtual', async () => {
@@ -330,30 +292,12 @@ test('generated as callback: change generated constraint type from stored to vir
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: '("name" || \'hello\')',
-				type: 'virtual',
-			},
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_alter_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL;',
@@ -385,14 +329,25 @@ test('generated as callback: change stored generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`id2` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as callback: change virtual generated constraint', async () => {
@@ -417,30 +372,12 @@ test('generated as callback: change virtual generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: '("name" || \'hello\')',
-				type: 'virtual',
-			},
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_alter_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL;',
@@ -461,56 +398,12 @@ test('generated as callback: add table with column with stored generated constra
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columns: [
-				{
-					autoincrement: false,
-					name: 'id',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'id2',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-				{
-					autoincrement: false,
-					generated: {
-						as: '("name" || \'hello\')',
-						type: 'stored',
-					},
-					name: 'gen_name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-			],
-			compositePKs: [],
-			referenceData: [],
-			tableName: 'users',
-			type: 'sqlite_create_table',
-			uniqueConstraints: [],
-			checkConstraints: [],
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n);\n',
 	]);
@@ -530,56 +423,12 @@ test('generated as callback: add table with column with virtual generated constr
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columns: [
-				{
-					autoincrement: false,
-					name: 'id',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'id2',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-				{
-					autoincrement: false,
-					generated: {
-						as: '("name" || \'hello\')',
-						type: 'virtual',
-					},
-					name: 'gen_name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-			],
-			compositePKs: [],
-			referenceData: [],
-			tableName: 'users',
-			type: 'sqlite_create_table',
-			uniqueConstraints: [],
-			checkConstraints: [],
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL\n);\n',
 	]);
@@ -607,14 +456,25 @@ test('generated as sql: add column with stored generated constraint', async () =
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`id2` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\' || \'hello\') STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as sql: add column with virtual generated constraint', async () => {
@@ -637,30 +497,12 @@ test('generated as sql: add column with virtual generated constraint', async () 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			column: {
-				generated: {
-					as: '("users"."name" || \'hello\')',
-					type: 'virtual',
-				},
-				autoincrement: false,
-				name: 'gen_name',
-				notNull: false,
-				primaryKey: false,
-				type: 'text',
-			},
-			referenceData: undefined,
-			tableName: 'users',
-			type: 'sqlite_alter_table_add_column',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
 	]);
@@ -688,14 +530,25 @@ test('generated as sql: add generated constraint to an exisiting column as store
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`id2` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as sql: add generated constraint to an exisiting column as virtual', async () => {
@@ -720,30 +573,12 @@ test('generated as sql: add generated constraint to an exisiting column as virtu
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: '("users"."name" || \'to add\')',
-				type: 'virtual',
-			},
-			columnName: 'gen_name',
-			columnNotNull: true,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_set_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'to add\') VIRTUAL NOT NULL;',
@@ -771,27 +606,12 @@ test('generated as sql: drop generated constraint as stored', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',
@@ -819,27 +639,12 @@ test('generated as sql: drop generated constraint as virtual', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',
@@ -851,7 +656,6 @@ test('generated as sql: change generated constraint type from virtual to stored'
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),
-			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(sql`"users"."name"`, {
 				mode: 'virtual',
@@ -861,23 +665,32 @@ test('generated as sql: change generated constraint type from virtual to stored'
 	const to = {
 		users: sqliteTable('users', {
 			id: int('id'),
-			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`"users"."name" || 'hello'`,
+				sql`"name" || 'hello'`,
 				{ mode: 'stored' },
 			),
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`) SELECT `id`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as sql: change generated constraint type from stored to virtual', async () => {
@@ -903,30 +716,12 @@ test('generated as sql: change generated constraint type from stored to virtual'
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: '("users"."name" || \'hello\')',
-				type: 'virtual',
-			},
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_alter_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
@@ -951,20 +746,31 @@ test('generated as sql: change stored generated constraint', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`"users"."name" || 'hello'`,
+				sql`"name" || 'hello'`,
 				{ mode: 'stored' },
 			),
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`id2` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as sql: change virtual generated constraint', async () => {
@@ -987,30 +793,12 @@ test('generated as sql: change virtual generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: '("users"."name" || \'hello\')',
-				type: 'virtual',
-			},
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_alter_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
@@ -1031,56 +819,12 @@ test('generated as sql: add table with column with stored generated constraint',
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columns: [
-				{
-					autoincrement: false,
-					name: 'id',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'id2',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-				{
-					autoincrement: false,
-					generated: {
-						as: '("users"."name" || \'hello\')',
-						type: 'stored',
-					},
-					name: 'gen_name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-			],
-			compositePKs: [],
-			referenceData: [],
-			tableName: 'users',
-			type: 'sqlite_create_table',
-			uniqueConstraints: [],
-			checkConstraints: [],
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED\n);\n',
 	]);
@@ -1100,56 +844,12 @@ test('generated as sql: add table with column with virtual generated constraint'
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columns: [
-				{
-					autoincrement: false,
-					name: 'id',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'id2',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-				{
-					autoincrement: false,
-					generated: {
-						as: '("users"."name" || \'hello\')',
-						type: 'virtual',
-					},
-					name: 'gen_name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-			],
-			compositePKs: [],
-			referenceData: [],
-			tableName: 'users',
-			type: 'sqlite_create_table',
-			uniqueConstraints: [],
-			checkConstraints: [],
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL\n);\n',
 	]);
@@ -1161,30 +861,38 @@ test('generated as string: add column with stored generated constraint', async (
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),
-			id2: int('id2'),
 			name: text('name'),
 		}),
 	};
 	const to = {
 		users: sqliteTable('users', {
 			id: int('id'),
-			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`"users"."name" || \'hello\'`,
+				`"name" || \'hello\'`,
 				{ mode: 'stored' },
 			),
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`) SELECT `id`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as string: add column with virtual generated constraint', async () => {
@@ -1207,30 +915,12 @@ test('generated as string: add column with virtual generated constraint', async 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			column: {
-				generated: {
-					as: '("users"."name" || \'hello\')',
-					type: 'virtual',
-				},
-				autoincrement: false,
-				name: 'gen_name',
-				notNull: false,
-				primaryKey: false,
-				type: 'text',
-			},
-			referenceData: undefined,
-			tableName: 'users',
-			type: 'sqlite_alter_table_add_column',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
 	]);
@@ -1258,14 +948,25 @@ test('generated as string: add generated constraint to an exisiting column as st
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`id2` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as string: add generated constraint to an exisiting column as virtual', async () => {
@@ -1290,30 +991,12 @@ test('generated as string: add generated constraint to an exisiting column as vi
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: '("users"."name" || \'to add\')',
-				type: 'virtual',
-			},
-			columnName: 'gen_name',
-			columnNotNull: true,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_set_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'to add\') VIRTUAL NOT NULL;',
@@ -1341,27 +1024,12 @@ test('generated as string: drop generated constraint as stored', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',
@@ -1389,27 +1057,12 @@ test('generated as string: drop generated constraint as virtual', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',
@@ -1434,20 +1087,31 @@ test('generated as string: change generated constraint type from virtual to stor
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`"users"."name" || 'hello'`,
+				`"name" || 'hello'`,
 				{ mode: 'stored' },
 			),
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`id2` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as string: change generated constraint type from stored to virtual', async () => {
@@ -1473,30 +1137,12 @@ test('generated as string: change generated constraint type from stored to virtu
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: '("users"."name" || \'hello\')',
-				type: 'virtual',
-			},
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_alter_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
@@ -1508,7 +1154,6 @@ test('generated as string: change stored generated constraint', async () => {
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id'),
-			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(`"users"."name"`, {
 				mode: 'stored',
@@ -1518,23 +1163,32 @@ test('generated as string: change stored generated constraint', async () => {
 	const to = {
 		users: sqliteTable('users', {
 			id: int('id'),
-			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`"users"."name" || 'hello'`,
+				`"name" || 'hello'`,
 				{ mode: 'stored' },
 			),
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`name` text,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`) SELECT `id`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 });
 
 test('generated as string: change virtual generated constraint', async () => {
@@ -1557,30 +1211,12 @@ test('generated as string: change virtual generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: '("users"."name" || \'hello\')',
-				type: 'virtual',
-			},
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_alter_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
@@ -1601,56 +1237,12 @@ test('generated as string: add table with column with stored generated constrain
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columns: [
-				{
-					autoincrement: false,
-					name: 'id',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'id2',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-				{
-					autoincrement: false,
-					generated: {
-						as: '("users"."name" || \'hello\')',
-						type: 'stored',
-					},
-					name: 'gen_name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-			],
-			compositePKs: [],
-			referenceData: [],
-			tableName: 'users',
-			type: 'sqlite_create_table',
-			uniqueConstraints: [],
-			checkConstraints: [],
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED\n);\n',
 	]);
@@ -1670,56 +1262,12 @@ test('generated as string: add table with column with virtual generated constrai
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diffTestSchemasSqlite(
 		from,
 		to,
 		[],
 	);
 
-	expect(statements).toStrictEqual([
-		{
-			columns: [
-				{
-					autoincrement: false,
-					name: 'id',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'id2',
-					notNull: false,
-					primaryKey: false,
-					type: 'integer',
-				},
-				{
-					autoincrement: false,
-					name: 'name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-				{
-					autoincrement: false,
-					generated: {
-						as: '("users"."name" || \'hello\')',
-						type: 'virtual',
-					},
-					name: 'gen_name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-			],
-			compositePKs: [],
-			referenceData: [],
-			tableName: 'users',
-			type: 'sqlite_create_table',
-			uniqueConstraints: [],
-			checkConstraints: [],
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL\n);\n',
 	]);

@@ -313,7 +313,7 @@ export const logSuggestionsAndReturn = async (
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
-				const unsquashedUnique = MySqlSquasher.unsquashUnique(statement.data);
+				const unsquashedUnique = MySqlSquasher.unsquashUnique(statement.unique);
 				console.log(
 					`· You're about to add ${
 						chalk.underline(

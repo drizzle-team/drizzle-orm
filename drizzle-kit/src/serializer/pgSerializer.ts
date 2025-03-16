@@ -1,26 +1,3 @@
-import chalk from 'chalk';
-import { getTableName, is, SQL } from 'drizzle-orm';
-import {
-	AnyPgTable,
-	getMaterializedViewConfig,
-	getTableConfig,
-	getViewConfig,
-	IndexedColumn,
-	PgColumn,
-	PgDialect,
-	PgEnum,
-	PgEnumColumn,
-	PgMaterializedView,
-	PgPolicy,
-	PgRole,
-	PgSchema,
-	PgSequence,
-	PgView,
-	uniqueKeyName,
-} from 'drizzle-orm/pg-core';
-import { CasingType } from 'src/cli/validations/common';
-import { vectorOps } from 'src/extensions/vector';
-import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import type {
 	CheckConstraint,
@@ -28,7 +5,6 @@ import type {
 	Enum,
 	ForeignKey,
 	Index,
-	IndexColumnType,
 	PgKitInternals,
 	PgSchemaInternal,
 	Policy,
@@ -38,9 +14,15 @@ import type {
 	Table,
 	UniqueConstraint,
 	View,
-} from '../serializer/pgSchema';
-import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
-import { getColumnCasing, sqlToStr } from './utils';
+} from '../dialects/postgres/ddl';
+import {
+	type DB,
+	RecordValues,
+	RecordValuesAnd,
+	RecordValuesOptional,
+	RecordValuesOptionalAnd,
+	Simplify,
+} from '../utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -97,53 +79,105 @@ export function buildArrayString(array: any[], sqlType: string): string {
 	return `{${values}}`;
 }
 
-export const generatePgSnapshot = (
-	tables: AnyPgTable[],
-	enums: PgEnum<any>[],
-	schemas: PgSchema[],
-	sequences: PgSequence[],
-	roles: PgRole[],
-	policies: PgPolicy[],
-	views: PgView[],
-	matViews: PgMaterializedView[],
-	casing: CasingType | undefined,
-	schemaFilter?: string[],
-): PgSchemaInternal => {
-	const dialect = new PgDialect({ casing });
+export type InterimTable = Simplify<
+	& Omit<
+		Table,
+		| 'columns'
+		| 'indexes'
+		| 'foreignKeys'
+		| 'compositePrimaryKeys'
+		| 'uniqueConstraints'
+		| 'policies'
+		| 'checkConstraints'
+	>
+	& {
+		columns: RecordValues<Table['columns']>;
+		indexes: RecordValues<Table['indexes']>;
+		foreignKeys: RecordValues<Table['foreignKeys']>;
+		compositePrimaryKeys: RecordValues<Table['compositePrimaryKeys']>;
+		uniqueConstraints: RecordValues<Table['uniqueConstraints']>;
+		checkConstraints: RecordValues<Table['checkConstraints']>;
+		policies: RecordValuesAnd<Table['policies'], { table?: string }>;
+	}
+>;
+
+export type InterimOptionalTable = Simplify<
+	& Omit<
+		Table,
+		| 'columns'
+		| 'indexes'
+		| 'foreignKeys'
+		| 'compositePrimaryKeys'
+		| 'uniqueConstraints'
+		| 'policies'
+		| 'checkConstraints'
+	>
+	& {
+		columns?: RecordValuesOptional<Table['columns']>;
+		indexes?: RecordValuesOptional<Table['indexes']>;
+		foreignKeys?: RecordValuesOptional<Table['foreignKeys']>;
+		compositePrimaryKeys?: RecordValuesOptional<Table['compositePrimaryKeys']>;
+		uniqueConstraints?: RecordValuesOptional<Table['uniqueConstraints']>;
+		checkConstraints?: RecordValuesOptional<Table['checkConstraints']>;
+		policies?: RecordValuesOptionalAnd<Table['policies'], { table?: string }>;
+	}
+>;
+
+export type InterimSchema = {
+	tables: InterimTable[];
+	enums: Enum[];
+	schemas: string[];
+	sequences: Sequence[];
+	roles: Role[];
+	policies: Policy[];
+	views: View[];
+};
+
+export type InterimOptionalSchema = {
+	tables: InterimOptionalTable[];
+	enums?: Enum[];
+	schemas?: string[];
+	sequences?: Sequence[];
+	roles?: Role[];
+	policies?: Policy[];
+	views?: View[];
+};
+
+export const generateFromOptional = (it: InterimOptionalSchema): PgSchemaInternal => {
+	const tables: InterimTable[] = it.tables?.map((table) => {
+		return {
+			...table,
+			columns: table.columns || [],
+			checkConstraints: table.checkConstraints || [],
+			compositePrimaryKeys: table.compositePrimaryKeys || [],
+			indexes: table.indexes || [],
+			foreignKeys: table.foreignKeys || [],
+			uniqueConstraints: table.uniqueConstraints || [],
+			policies: table.policies || [],
+		};
+	});
+	const schema: InterimSchema = {
+		tables,
+		enums: it.enums || [],
+		schemas: it.schemas || [],
+		views: it.views || [],
+		sequences: it.sequences || [],
+		policies: it.policies || [],
+		roles: it.roles || [],
+	};
+	return generatePgSnapshot(schema);
+};
+// TODO: convert drizzle entities to internal entities on 1 step above so that:
+// drizzle studio can use this method without drizzle orm
+export const generatePgSnapshot = (schema: InterimSchema): PgSchemaInternal => {
 	const result: Record<string, Table> = {};
 	const resultViews: Record<string, View> = {};
 	const sequencesToReturn: Record<string, Sequence> = {};
 	const rolesToReturn: Record<string, Role> = {};
-	// this policies are a separate objects that were linked to a table outside of it
 	const policiesToReturn: Record<string, Policy> = {};
-
-	// This object stores unique names for indexes and will be used to detect if you have the same names for indexes
-	// within the same PostgreSQL schema
-
 	const indexesInSchema: Record<string, string[]> = {};
 
-	for (const table of tables) {
-		// This object stores unique names for checks and will be used to detect if you have the same names for checks
-		// within the same PostgreSQL table
-		const checksInTable: Record<string, string[]> = {};
-
-		const {
-			name: tableName,
-			columns,
-			indexes,
-			foreignKeys,
-			checks,
-			schema,
-			primaryKeys,
-			uniqueConstraints,
-			policies,
-			enableRLS,
-		} = getTableConfig(table);
-
-		if (schemaFilter && !schemaFilter.includes(schema ?? 'public')) {
-			continue;
-		}
-
+	for (const table of schema.tables) {
 		const columnsObject: Record<string, Column> = {};
 		const indexesObject: Record<string, Index> = {};
 		const checksObject: Record<string, CheckConstraint> = {};
@@ -152,422 +186,58 @@ export const generatePgSnapshot = (
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
 		const policiesObject: Record<string, Policy> = {};
 
-		columns.forEach((column) => {
-			const name = getColumnCasing(column, casing);
-			const notNull: boolean = column.notNull;
-			const primaryKey: boolean = column.primary;
-			const sqlTypeLowered = column.getSQLType().toLowerCase();
+		table.columns.forEach((column) => {
+			columnsObject[column.name] = column;
+		});
 
-			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
-			const generated = column.generated;
-			const identity = column.generatedIdentity;
+		table.compositePrimaryKeys.map((pk) => {
+			primaryKeysObject[pk.name] = pk;
+		});
 
-			const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
-			const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
-				?? (parseFloat(increment) < 0 ? minRangeForIdentityBasedOn(column.columnType) : '1');
-			const maxValue = stringFromIdentityProperty(identity?.sequenceOptions?.maxValue)
-				?? (parseFloat(increment) < 0 ? '-1' : maxRangeForIdentityBasedOn(column.getSQLType()));
-			const startWith = stringFromIdentityProperty(identity?.sequenceOptions?.startWith)
-				?? (parseFloat(increment) < 0 ? maxValue : minValue);
-			const cache = stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? '1';
+		table.columns.forEach((it) => {
+			if (it.isUnique) {
+				const uniqueName = it.uniqueName ? it.uniqueName : `${table.name}_${it.name}_key`;
+				uniqueConstraintObject[uniqueName] = {
+					name: uniqueName,
 
-			const columnToSet: Column = {
-				name,
-				type: column.getSQLType(),
-				typeSchema: typeSchema,
-				primaryKey,
-				notNull,
-				generated: generated
-					? {
-						as: is(generated.as, SQL)
-							? dialect.sqlToQuery(generated.as as SQL).sql
-							: typeof generated.as === 'function'
-							? dialect.sqlToQuery(generated.as() as SQL).sql
-							: (generated.as as any),
-						type: 'stored',
-					}
-					: undefined,
-				identity: identity
-					? {
-						type: identity.type,
-						name: identity.sequenceName ?? `${tableName}_${name}_seq`,
-						schema: schema ?? 'public',
-						increment,
-						startWith,
-						minValue,
-						maxValue,
-						cache,
-						cycle: identity?.sequenceOptions?.cycle ?? false,
-					}
-					: undefined,
-			};
+					/*
+					By default, NULL values are treated as distinct entries.
+					Specifying NULLS NOT DISTINCT on unique indexes / constraints will cause NULL to be treated as not distinct,
+					or in other words, equivalently.
 
-			if (column.isUnique) {
-				const existingUnique = uniqueConstraintObject[column.uniqueName!];
-				if (typeof existingUnique !== 'undefined') {
-					console.log(
-						`\n${
-							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
-								chalk.underline.blue(
-									tableName,
-								)
-							} table. 
-          The unique constraint ${
-								chalk.underline.blue(
-									column.uniqueName,
-								)
-							} on the ${
-								chalk.underline.blue(
-									name,
-								)
-							} column is conflicting with a unique constraint name already defined for ${
-								chalk.underline.blue(
-									existingUnique.columns.join(','),
-								)
-							} columns\n`)
-						}`,
-					);
-					process.exit(1);
-				}
-				uniqueConstraintObject[column.uniqueName!] = {
-					name: column.uniqueName!,
-					nullsNotDistinct: column.uniqueType === 'not distinct',
-					columns: [columnToSet.name],
+					https://www.postgresql.org/about/featurematrix/detail/392/
+					 */
+					nullsNotDistinct: it.nullsNotDistinct || false,
+					columns: [it.name],
 				};
 			}
-
-			if (column.default !== undefined) {
-				if (is(column.default, SQL)) {
-					columnToSet.default = sqlToStr(column.default, casing);
-				} else {
-					if (typeof column.default === 'string') {
-						columnToSet.default = `'${escapeSingleQuotes(column.default)}'`;
-					} else {
-						if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
-							columnToSet.default = `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`;
-						} else if (column.default instanceof Date) {
-							if (sqlTypeLowered === 'date') {
-								columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
-							} else if (sqlTypeLowered === 'timestamp') {
-								columnToSet.default = `'${column.default.toISOString().replace('T', ' ').slice(0, 23)}'`;
-							} else {
-								columnToSet.default = `'${column.default.toISOString()}'`;
-							}
-						} else if (isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)) {
-							columnToSet.default = `'${buildArrayString(column.default, sqlTypeLowered)}'`;
-						} else {
-							// Should do for all types
-							// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
-							columnToSet.default = column.default;
-						}
-					}
-				}
-			}
-			columnsObject[name] = columnToSet;
 		});
 
-		primaryKeys.map((pk) => {
-			const originalColumnNames = pk.columns.map((c) => c.name);
-			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
-
-			let name = pk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnNames.length; i++) {
-					name = name.replace(originalColumnNames[i], columnNames[i]);
-				}
-			}
-
-			primaryKeysObject[name] = {
-				name,
-				columns: columnNames,
-			};
+		table.uniqueConstraints.map((unq) => {
+			uniqueConstraintObject[unq.name] = unq;
 		});
 
-		uniqueConstraints?.map((unq) => {
-			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
-
-			const name = unq.name ?? uniqueKeyName(table, columnNames);
-
-			const existingUnique = uniqueConstraintObject[name];
-			if (typeof existingUnique !== 'undefined') {
-				console.log(
-					`\n${
-						withStyle.errorWarning(
-							`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(tableName)} table. 
-        The unique constraint ${chalk.underline.blue(name)} on the ${
-								chalk.underline.blue(
-									columnNames.join(','),
-								)
-							} columns is confilcting with a unique constraint name already defined for ${
-								chalk.underline.blue(existingUnique.columns.join(','))
-							} columns\n`,
-						)
-					}`,
-				);
-				process.exit(1);
-			}
-
-			uniqueConstraintObject[name] = {
-				name: unq.name!,
-				nullsNotDistinct: unq.nullsNotDistinct,
-				columns: columnNames,
-			};
-		});
-
-		const fks: ForeignKey[] = foreignKeys.map((fk) => {
-			const tableFrom = tableName;
-			const onDelete = fk.onDelete;
-			const onUpdate = fk.onUpdate;
-			const reference = fk.reference();
-
-			const tableTo = getTableName(reference.foreignTable);
-			// TODO: resolve issue with schema undefined/public for db push(or squasher)
-			// getTableConfig(reference.foreignTable).schema || "public";
-			const schemaTo = getTableConfig(reference.foreignTable).schema;
-
-			const originalColumnsFrom = reference.columns.map((it) => it.name);
-			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
-			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
-
-			let name = fk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnsFrom.length; i++) {
-					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
-				}
-				for (let i = 0; i < originalColumnsTo.length; i++) {
-					name = name.replace(originalColumnsTo[i], columnsTo[i]);
-				}
-			}
-
-			return {
-				name,
-				tableFrom,
-				tableTo,
-				schemaTo,
-				columnsFrom,
-				columnsTo,
-				onDelete,
-				onUpdate,
-			} as ForeignKey;
-		});
-
-		fks.forEach((it) => {
+		table.foreignKeys.forEach((it) => {
 			foreignKeysObject[it.name] = it;
 		});
 
-		indexes.forEach((value) => {
-			const columns = value.config.columns;
-
-			let indexColumnNames: string[] = [];
-			columns.forEach((it) => {
-				if (is(it, SQL)) {
-					if (typeof value.config.name === 'undefined') {
-						console.log(
-							`\n${
-								withStyle.errorWarning(
-									`Please specify an index name in ${getTableName(value.config.table)} table that has "${
-										dialect.sqlToQuery(it).sql
-									}" expression. We can generate index names for indexes on columns only; for expressions in indexes, you need to specify the name yourself.`,
-								)
-							}`,
-						);
-						process.exit(1);
-					}
-				}
-				it = it as IndexedColumn;
-				const name = getColumnCasing(it as IndexedColumn, casing);
-				if (
-					!is(it, SQL)
-					&& it.type! === 'PgVector'
-					&& typeof it.indexConfig!.opClass === 'undefined'
-				) {
-					console.log(
-						`\n${
-							withStyle.errorWarning(
-								`You are specifying an index on the ${
-									chalk.blueBright(
-										name,
-									)
-								} column inside the ${
-									chalk.blueBright(
-										tableName,
-									)
-								} table with the ${
-									chalk.blueBright(
-										'vector',
-									)
-								} type without specifying an operator class. Vector extension doesn't have a default operator class, so you need to specify one of the available options. Here is a list of available op classes for the vector extension: [${
-									vectorOps
-										.map((it) => `${chalk.underline(`${it}`)}`)
-										.join(', ')
-								}].\n\nYou can specify it using current syntax: ${
-									chalk.underline(
-										`index("${value.config.name}").using("${value.config.method}", table.${name}.op("${
-											vectorOps[0]
-										}"))`,
-									)
-								}\n\nYou can check the "pg_vector" docs for more info: https://github.com/pgvector/pgvector?tab=readme-ov-file#indexing\n`,
-							)
-						}`,
-					);
-					process.exit(1);
-				}
-				indexColumnNames.push(name);
-			});
-
-			const name = value.config.name ? value.config.name : indexName(tableName, indexColumnNames);
-
-			let indexColumns: IndexColumnType[] = columns.map(
-				(it): IndexColumnType => {
-					if (is(it, SQL)) {
-						return {
-							expression: dialect.sqlToQuery(it, 'indexes').sql,
-							asc: true,
-							isExpression: true,
-							nulls: 'last',
-						};
-					} else {
-						it = it as IndexedColumn;
-						return {
-							expression: getColumnCasing(it as IndexedColumn, casing),
-							isExpression: false,
-							asc: it.indexConfig?.order === 'asc',
-							nulls: it.indexConfig?.nulls
-								? it.indexConfig?.nulls
-								: it.indexConfig?.order === 'desc'
-								? 'first'
-								: 'last',
-							opclass: it.indexConfig?.opClass,
-						};
-					}
-				},
-			);
-
-			// check for index names duplicates
-			if (typeof indexesInSchema[schema ?? 'public'] !== 'undefined') {
-				if (indexesInSchema[schema ?? 'public'].includes(name)) {
-					console.log(
-						`\n${
-							withStyle.errorWarning(
-								`We\'ve found duplicated index name across ${
-									chalk.underline.blue(schema ?? 'public')
-								} schema. Please rename your index in either the ${
-									chalk.underline.blue(
-										tableName,
-									)
-								} table or the table with the duplicated index name`,
-							)
-						}`,
-					);
-					process.exit(1);
-				}
-				indexesInSchema[schema ?? 'public'].push(name);
-			} else {
-				indexesInSchema[schema ?? 'public'] = [name];
-			}
-
-			indexesObject[name] = {
-				name,
-				columns: indexColumns,
-				isUnique: value.config.unique ?? false,
-				where: value.config.where ? dialect.sqlToQuery(value.config.where).sql : undefined,
-				concurrently: value.config.concurrently ?? false,
-				method: value.config.method ?? 'btree',
-				with: value.config.with ?? {},
-			};
+		table.indexes.forEach((idx) => {
+			indexesObject[idx.name] = idx;
 		});
 
-		policies.forEach((policy) => {
-			const mappedTo = [];
-
-			if (!policy.to) {
-				mappedTo.push('public');
-			} else {
-				if (policy.to && typeof policy.to === 'string') {
-					mappedTo.push(policy.to);
-				} else if (policy.to && is(policy.to, PgRole)) {
-					mappedTo.push(policy.to.name);
-				} else if (policy.to && Array.isArray(policy.to)) {
-					policy.to.forEach((it) => {
-						if (typeof it === 'string') {
-							mappedTo.push(it);
-						} else if (is(it, PgRole)) {
-							mappedTo.push(it.name);
-						}
-					});
-				}
-			}
-
-			if (policiesObject[policy.name] !== undefined) {
-				console.log(
-					`\n${
-						withStyle.errorWarning(
-							`We\'ve found duplicated policy name across ${
-								chalk.underline.blue(tableKey)
-							} table. Please rename one of the policies with ${
-								chalk.underline.blue(
-									policy.name,
-								)
-							} name`,
-						)
-					}`,
-				);
-				process.exit(1);
-			}
-
-			policiesObject[policy.name] = {
-				name: policy.name,
-				as: policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE',
-				for: policy.for?.toUpperCase() as Policy['for'] ?? 'ALL',
-				to: mappedTo.sort(),
-				using: is(policy.using, SQL) ? dialect.sqlToQuery(policy.using).sql : undefined,
-				withCheck: is(policy.withCheck, SQL) ? dialect.sqlToQuery(policy.withCheck).sql : undefined,
-			};
+		table.policies.forEach((policy) => {
+			policiesObject[policy.name] = policy;
 		});
 
-		checks.forEach((check) => {
-			const checkName = check.name;
-
-			if (typeof checksInTable[`"${schema ?? 'public'}"."${tableName}"`] !== 'undefined') {
-				if (checksInTable[`"${schema ?? 'public'}"."${tableName}"`].includes(check.name)) {
-					console.log(
-						`\n${
-							withStyle.errorWarning(
-								`We\'ve found duplicated check constraint name across ${
-									chalk.underline.blue(
-										schema ?? 'public',
-									)
-								} schema in ${
-									chalk.underline.blue(
-										tableName,
-									)
-								}. Please rename your check constraint in either the ${
-									chalk.underline.blue(
-										tableName,
-									)
-								} table or the table with the duplicated check contraint name`,
-							)
-						}`,
-					);
-					process.exit(1);
-				}
-				checksInTable[`"${schema ?? 'public'}"."${tableName}"`].push(checkName);
-			} else {
-				checksInTable[`"${schema ?? 'public'}"."${tableName}"`] = [check.name];
-			}
-
-			checksObject[checkName] = {
-				name: checkName,
-				value: dialect.sqlToQuery(check.value).sql,
-			};
+		table.checkConstraints.forEach((check) => {
+			checksObject[check.name] = check;
 		});
 
-		const tableKey = `${schema ?? 'public'}.${tableName}`;
+		const tableKey = `${table.schema || 'public'}.${table.name}`;
 
 		result[tableKey] = {
-			name: tableName,
-			schema: schema ?? '',
+			name: table.name,
+			schema: table.schema || '',
 			columns: columnsObject,
 			indexes: indexesObject,
 			foreignKeys: foreignKeysObject,
@@ -575,315 +245,41 @@ export const generatePgSnapshot = (
 			uniqueConstraints: uniqueConstraintObject,
 			policies: policiesObject,
 			checkConstraints: checksObject,
-			isRLSEnabled: enableRLS,
+			isRLSEnabled: table.isRLSEnabled,
 		};
 	}
 
-	for (const policy of policies) {
-		// @ts-ignore
-		if (!policy._linkedTable) {
-			console.log(
-				`\n${
-					withStyle.errorWarning(
-						`"Policy ${policy.name} was skipped because it was not linked to any table. You should either include the policy in a table or use .link() on the policy to link it to any table you have. For more information, please check:`,
-					)
-				}`,
-			);
-			continue;
-		}
-
-		// @ts-ignore
-		const tableConfig = getTableConfig(policy._linkedTable);
-
-		const tableKey = `${tableConfig.schema ?? 'public'}.${tableConfig.name}`;
-
-		const mappedTo = [];
-
-		if (!policy.to) {
-			mappedTo.push('public');
-		} else {
-			if (policy.to && typeof policy.to === 'string') {
-				mappedTo.push(policy.to);
-			} else if (policy.to && is(policy.to, PgRole)) {
-				mappedTo.push(policy.to.name);
-			} else if (policy.to && Array.isArray(policy.to)) {
-				policy.to.forEach((it) => {
-					if (typeof it === 'string') {
-						mappedTo.push(it);
-					} else if (is(it, PgRole)) {
-						mappedTo.push(it.name);
-					}
-				});
-			}
-		}
-
-		// add separate policies object, that will be only responsible for policy creation
-		// but we would need to track if a policy was enabled for a specific table or not
-		// enable only if jsonStatements for enable rls was not already there + filter it
-
-		if (result[tableKey]?.policies[policy.name] !== undefined || policiesToReturn[policy.name] !== undefined) {
-			console.log(
-				`\n${
-					withStyle.errorWarning(
-						`We\'ve found duplicated policy name across ${
-							chalk.underline.blue(tableKey)
-						} table. Please rename one of the policies with ${
-							chalk.underline.blue(
-								policy.name,
-							)
-						} name`,
-					)
-				}`,
-			);
-			process.exit(1);
-		}
-
-		const mappedPolicy = {
-			name: policy.name,
-			as: policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE',
-			for: policy.for?.toUpperCase() as Policy['for'] ?? 'ALL',
-			to: mappedTo.sort(),
-			using: is(policy.using, SQL) ? dialect.sqlToQuery(policy.using).sql : undefined,
-			withCheck: is(policy.withCheck, SQL) ? dialect.sqlToQuery(policy.withCheck).sql : undefined,
-		};
-
-		if (result[tableKey]) {
-			result[tableKey].policies[policy.name] = mappedPolicy;
-		} else {
-			policiesToReturn[policy.name] = {
-				...mappedPolicy,
-				schema: tableConfig.schema ?? 'public',
-				on: `"${tableConfig.schema ?? 'public'}"."${tableConfig.name}"`,
-			};
-		}
+	for (const policy of schema.policies) {
+		policiesToReturn[policy.name] = policy;
 	}
 
-	for (const sequence of sequences) {
-		const name = sequence.seqName!;
-		if (typeof sequencesToReturn[`${sequence.schema ?? 'public'}.${name}`] === 'undefined') {
-			const increment = stringFromIdentityProperty(sequence?.seqOptions?.increment) ?? '1';
-			const minValue = stringFromIdentityProperty(sequence?.seqOptions?.minValue)
-				?? (parseFloat(increment) < 0 ? '-9223372036854775808' : '1');
-			const maxValue = stringFromIdentityProperty(sequence?.seqOptions?.maxValue)
-				?? (parseFloat(increment) < 0 ? '-1' : '9223372036854775807');
-			const startWith = stringFromIdentityProperty(sequence?.seqOptions?.startWith)
-				?? (parseFloat(increment) < 0 ? maxValue : minValue);
-			const cache = stringFromIdentityProperty(sequence?.seqOptions?.cache) ?? '1';
-
-			sequencesToReturn[`${sequence.schema ?? 'public'}.${name}`] = {
-				name,
-				schema: sequence.schema ?? 'public',
-				increment,
-				startWith,
-				minValue,
-				maxValue,
-				cache,
-				cycle: sequence.seqOptions?.cycle ?? false,
-			};
-		} else {
-			// duplicate seq error
-		}
+	for (const sequence of schema.sequences) {
+		const key = `${sequence.schema ?? 'public'}.${sequence.name}`;
+		sequencesToReturn[key] = sequence;
 	}
 
-	for (const role of roles) {
-		if (!(role as any)._existing) {
-			rolesToReturn[role.name] = {
-				name: role.name,
-				createDb: (role as any).createDb === undefined ? false : (role as any).createDb,
-				createRole: (role as any).createRole === undefined ? false : (role as any).createRole,
-				inherit: (role as any).inherit === undefined ? true : (role as any).inherit,
-			};
-		}
-	}
-	const combinedViews = [...views, ...matViews];
-	for (const view of combinedViews) {
-		let viewName;
-		let schema;
-		let query;
-		let selectedFields;
-		let isExisting;
-		let withOption;
-		let tablespace;
-		let using;
-		let withNoData;
-		let materialized: boolean = false;
-
-		if (is(view, PgView)) {
-			({ name: viewName, schema, query, selectedFields, isExisting, with: withOption } = getViewConfig(view));
-		} else {
-			({ name: viewName, schema, query, selectedFields, isExisting, with: withOption, tablespace, using, withNoData } =
-				getMaterializedViewConfig(view));
-
-			materialized = true;
-		}
-
-		const viewSchema = schema ?? 'public';
-
-		const viewKey = `${viewSchema}.${viewName}`;
-
-		const columnsObject: Record<string, Column> = {};
-		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
-
-		const existingView = resultViews[viewKey];
-		if (typeof existingView !== 'undefined') {
-			console.log(
-				`\n${
-					withStyle.errorWarning(
-						`We\'ve found duplicated view name across ${
-							chalk.underline.blue(schema ?? 'public')
-						} schema. Please rename your view`,
-					)
-				}`,
-			);
-			process.exit(1);
-		}
-
-		for (const key in selectedFields) {
-			if (is(selectedFields[key], PgColumn)) {
-				const column = selectedFields[key];
-
-				const notNull: boolean = column.notNull;
-				const primaryKey: boolean = column.primary;
-				const sqlTypeLowered = column.getSQLType().toLowerCase();
-
-				const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
-				const generated = column.generated;
-				const identity = column.generatedIdentity;
-
-				const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
-				const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
-					?? (parseFloat(increment) < 0 ? minRangeForIdentityBasedOn(column.columnType) : '1');
-				const maxValue = stringFromIdentityProperty(identity?.sequenceOptions?.maxValue)
-					?? (parseFloat(increment) < 0 ? '-1' : maxRangeForIdentityBasedOn(column.getSQLType()));
-				const startWith = stringFromIdentityProperty(identity?.sequenceOptions?.startWith)
-					?? (parseFloat(increment) < 0 ? maxValue : minValue);
-				const cache = stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? '1';
-
-				const columnToSet: Column = {
-					name: column.name,
-					type: column.getSQLType(),
-					typeSchema: typeSchema,
-					primaryKey,
-					notNull,
-					generated: generated
-						? {
-							as: is(generated.as, SQL)
-								? dialect.sqlToQuery(generated.as as SQL).sql
-								: typeof generated.as === 'function'
-								? dialect.sqlToQuery(generated.as() as SQL).sql
-								: (generated.as as any),
-							type: 'stored',
-						}
-						: undefined,
-					identity: identity
-						? {
-							type: identity.type,
-							name: identity.sequenceName ?? `${viewName}_${column.name}_seq`,
-							schema: schema ?? 'public',
-							increment,
-							startWith,
-							minValue,
-							maxValue,
-							cache,
-							cycle: identity?.sequenceOptions?.cycle ?? false,
-						}
-						: undefined,
-				};
-
-				if (column.isUnique) {
-					const existingUnique = uniqueConstraintObject[column.uniqueName!];
-					if (typeof existingUnique !== 'undefined') {
-						console.log(
-							`\n${
-								withStyle.errorWarning(
-									`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(viewName)} table. 
-          The unique constraint ${chalk.underline.blue(column.uniqueName)} on the ${
-										chalk.underline.blue(
-											column.name,
-										)
-									} column is confilcting with a unique constraint name already defined for ${
-										chalk.underline.blue(existingUnique.columns.join(','))
-									} columns\n`,
-								)
-							}`,
-						);
-						process.exit(1);
-					}
-					uniqueConstraintObject[column.uniqueName!] = {
-						name: column.uniqueName!,
-						nullsNotDistinct: column.uniqueType === 'not distinct',
-						columns: [columnToSet.name],
-					};
-				}
-
-				if (column.default !== undefined) {
-					if (is(column.default, SQL)) {
-						columnToSet.default = sqlToStr(column.default, casing);
-					} else {
-						if (typeof column.default === 'string') {
-							columnToSet.default = `'${column.default}'`;
-						} else {
-							if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
-								columnToSet.default = `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`;
-							} else if (column.default instanceof Date) {
-								if (sqlTypeLowered === 'date') {
-									columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
-								} else if (sqlTypeLowered === 'timestamp') {
-									columnToSet.default = `'${column.default.toISOString().replace('T', ' ').slice(0, 23)}'`;
-								} else {
-									columnToSet.default = `'${column.default.toISOString()}'`;
-								}
-							} else if (isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)) {
-								columnToSet.default = `'${buildArrayString(column.default, sqlTypeLowered)}'`;
-							} else {
-								// Should do for all types
-								// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
-								columnToSet.default = column.default;
-							}
-						}
-					}
-				}
-				columnsObject[column.name] = columnToSet;
-			}
-		}
-
-		resultViews[viewKey] = {
-			columns: columnsObject,
-			definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
-			name: viewName,
-			schema: viewSchema,
-			isExisting,
-			with: withOption,
-			withNoData,
-			materialized,
-			tablespace,
-			using,
-		};
+	for (const role of schema.roles) {
+		rolesToReturn[role.name] = role;
 	}
 
-	const enumsToReturn: Record<string, Enum> = enums.reduce<{
+	for (const view of schema.views) {
+		const viewSchema = view.schema ?? 'public';
+
+		const viewKey = `${viewSchema}.${view.name}`;
+		resultViews[viewKey] = view;
+	}
+
+	const enumsToReturn: Record<string, Enum> = schema.enums.reduce<{
 		[key: string]: Enum;
 	}>((map, obj) => {
-		const enumSchema = obj.schema || 'public';
-		const key = `${enumSchema}.${obj.enumName}`;
-		map[key] = {
-			name: obj.enumName,
-			schema: enumSchema,
-			values: obj.enumValues,
-		};
+		const key = `${obj.schema}.${obj.name}`;
+		map[key] = obj;
 		return map;
 	}, {});
 
 	const schemasObject = Object.fromEntries(
-		schemas
-			.filter((it) => {
-				if (schemaFilter) {
-					return schemaFilter.includes(it.schemaName) && it.schemaName !== 'public';
-				} else {
-					return it.schemaName !== 'public';
-				}
-			})
-			.map((it) => [it.schemaName, it.schemaName]),
+		schema.schemas
+			.map((it) => [it, it]),
 	);
 
 	return {
@@ -1170,17 +566,17 @@ WHERE
 		const parsedUsing = using === null ? undefined : using;
 
 		if (tableForPolicy) {
-			tableForPolicy[dbPolicy.name] = { ...rest, to: parsedTo } as Policy;
+			tableForPolicy[dbPolicy.name] = { ...rest, roles: parsedTo } as Policy;
 		} else {
 			policiesByTable[`${schemaname}.${tablename}`] = {
-				[dbPolicy.name]: { ...rest, to: parsedTo, withCheck: parsedWithCheck, using: parsedUsing } as Policy,
+				[dbPolicy.name]: { ...rest, roles: parsedTo, withCheck: parsedWithCheck, using: parsedUsing } as Policy,
 			};
 		}
 
 		if (tsSchema?.policies[dbPolicy.name]) {
 			policies[dbPolicy.name] = {
 				...rest,
-				to: parsedTo,
+				roles: parsedTo,
 				withCheck: parsedWithCheck,
 				using: parsedUsing,
 				on: tsSchema?.policies[dbPolicy.name].on,
@@ -1510,7 +906,6 @@ WHERE
 										? sequencesToReturn[`${tableSchema}.${identityName}`]?.cache
 										: undefined,
 									cycle: identityCycle,
-									schema: tableSchema,
 								}
 								: undefined,
 						};
@@ -1808,7 +1203,6 @@ WHERE
 										? sequencesToReturn[`${viewSchema}.${identityName}`]?.cache
 										: undefined,
 									cycle: identityCycle,
-									schema: viewSchema,
 								}
 								: undefined,
 						};

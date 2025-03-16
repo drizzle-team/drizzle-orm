@@ -1,18 +1,16 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { toCamelCase } from 'drizzle-orm/casing';
-import './@types/utils';
-import type { Casing } from './cli/validations/common';
-import { assertUnreachable } from './global';
-import { CheckConstraint } from './serializer/mysqlSchema';
+import '../../@types/utils';
+import type { Casing } from '../../cli/validations/common';
+import { assertUnreachable } from '../../global';
+import { CheckConstraint } from '../../serializer/mysqlSchema';
 import type {
 	Column,
 	ForeignKey,
 	Index,
 	PrimaryKey,
-	SQLiteSchema,
-	SQLiteSchemaInternal,
 	UniqueConstraint,
-} from './serializer/sqliteSchema';
+} from './ddl';
 
 const sqliteImportsList = new Set([
 	'sqliteTable',

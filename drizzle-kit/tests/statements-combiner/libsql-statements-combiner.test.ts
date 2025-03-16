@@ -1,5 +1,5 @@
 import { JsonAddColumnStatement, JsonSqliteAddColumnStatement, JsonStatement } from 'src/jsonStatements';
-import { SQLiteSchemaSquashed } from 'src/serializer/sqliteSchema';
+import { SQLiteSchemaSquashed } from 'src/dialects/sqlite/ddl';
 import { SQLiteAlterTableAddColumnConvertor } from 'src/sqlgenerator';
 import { libSQLCombineStatements } from 'src/statementCombiner';
 import { expect, test } from 'vitest';

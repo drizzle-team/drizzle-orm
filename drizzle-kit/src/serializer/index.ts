@@ -2,12 +2,12 @@ import chalk from 'chalk';
 import fs from 'fs';
 import * as glob from 'glob';
 import Path from 'path';
-import { CasingType } from 'src/cli/validations/common';
-import { error } from '../cli/views';
+import type { CasingType } from 'src/cli/validations/common';
+import { error, schemaError, schemaWarning, sqliteSchemaError } from '../cli/views';
 import type { MySqlSchemaInternal } from './mysqlSchema';
-import type { PgSchemaInternal } from './pgSchema';
-import { SingleStoreSchemaInternal } from './singlestoreSchema';
-import type { SQLiteSchemaInternal } from './sqliteSchema';
+import type { PgSchemaInternal } from '../dialects/postgres/ddl';
+import type { SingleStoreSchemaInternal } from './singlestoreSchema';
+import type { SQLiteDDL } from '../dialects/sqlite/ddl';
 
 export const serializeMySql = async (
 	path: string | string[],
@@ -34,24 +34,34 @@ export const serializePg = async (
 
 	const { prepareFromPgImports } = await import('./pgImports');
 	const { generatePgSnapshot } = await import('./pgSerializer');
+	const { drizzleToInternal } = await import('./pgDrizzleSerializer');
 
 	const { tables, enums, schemas, sequences, views, matViews, roles, policies } = await prepareFromPgImports(
 		filenames,
 	);
+	const { schema, errors, warnings } = drizzleToInternal(
+		tables,
+		enums,
+		schemas,
+		sequences,
+		roles,
+		policies,
+		views,
+		matViews,
+		casing,
+		schemaFilter,
+	);
 
-	return generatePgSnapshot(tables, enums, schemas, sequences, roles, policies, views, matViews, casing, schemaFilter);
-};
+	if (warnings.length > 0) {
+		console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
+	}
 
-export const serializeSQLite = async (
-	path: string | string[],
-	casing: CasingType | undefined,
-): Promise<SQLiteSchemaInternal> => {
-	const filenames = prepareFilenames(path);
+	if (errors.length > 0) {
+		console.log(errors.map((it) => schemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
-	const { prepareFromSqliteImports } = await import('./sqliteImports');
-	const { generateSqliteSnapshot } = await import('./sqliteSerializer');
-	const { tables, views } = await prepareFromSqliteImports(filenames);
-	return generateSqliteSnapshot(tables, views, casing);
+	return generatePgSnapshot(schema);
 };
 
 export const serializeSingleStore = async (

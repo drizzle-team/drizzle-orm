@@ -1,6 +1,6 @@
 import { is } from 'drizzle-orm';
 import { AnySQLiteTable, SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
-import { safeRegister } from '../cli/commands/utils';
+import { safeRegister } from '../../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnySQLiteTable[] = [];

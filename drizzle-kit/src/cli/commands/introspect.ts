@@ -7,24 +7,22 @@ import { plural, singular } from 'pluralize';
 import { drySingleStore, SingleStoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { assertUnreachable, originUUID } from '../../global';
 import { schemaToTypeScript as mysqlSchemaToTypeScript } from '../../introspect-mysql';
-import { paramNameFor, schemaToTypeScript as postgresSchemaToTypeScript } from '../../introspect-pg';
+import { paramNameFor, schemaToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/introspect-pg';
 import { schemaToTypeScript as singlestoreSchemaToTypeScript } from '../../introspect-singlestore';
-import { schemaToTypeScript as sqliteSchemaToTypeScript } from '../../introspect-sqlite';
+import { schemaToTypeScript as sqliteSchemaToTypeScript } from '../../dialects/sqlite/introspect-sqlite';
 import { dryMySql, MySqlSchema, squashMysqlScheme } from '../../serializer/mysqlSchema';
 import { fromDatabase as fromMysqlDatabase } from '../../serializer/mysqlSerializer';
-import { dryPg, type PgSchema, squashPgScheme } from '../../serializer/pgSchema';
+import { dryPg, type PgSchema, PostgresPushSquasher, squashPgScheme } from '../../dialects/postgres/ddl';
 import { fromDatabase as fromPostgresDatabase } from '../../serializer/pgSerializer';
 import { fromDatabase as fromSingleStoreDatabase } from '../../serializer/singlestoreSerializer';
-import { drySQLite, type SQLiteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
-import { fromDatabase as fromSqliteDatabase } from '../../serializer/sqliteSerializer';
-import {
-	applyLibSQLSnapshotsDiff,
-	applyMysqlSnapshotsDiff,
-	applyPgSnapshotsDiff,
-	applySingleStoreSnapshotsDiff,
-	applySqliteSnapshotsDiff,
-} from '../../snapshotsDiffer';
-import { prepareOutFolder } from '../../utils';
+import { drySQLite } from '../../dialects/sqlite/ddl';
+import { fromDatabase as fromSqliteDatabase } from '../../dialects/sqlite/serializer';
+import { applyLibSQLSnapshotsDiff } from '../../snapshot-differ/libsql';
+import { applyMysqlSnapshotsDiff } from '../../snapshot-differ/mysql';
+import { applyPgSnapshotsDiff } from '../../dialects/postgres/diff';
+import { applySingleStoreSnapshotsDiff } from '../../snapshot-differ/singlestore';
+import { applySqliteSnapshotsDiff } from '../../dialects/sqlite/differ';
+import { prepareOutFolder } from '../../utils-node';
 import { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import { LibSQLCredentials } from '../validations/libsql';
@@ -36,6 +34,7 @@ import { IntrospectProgress } from '../views';
 import {
 	columnsResolver,
 	enumsResolver,
+	indexesResolver,
 	indPolicyResolver,
 	mySqlViewsResolver,
 	policyResolver,
@@ -44,6 +43,7 @@ import {
 	sequencesResolver,
 	sqliteViewsResolver,
 	tablesResolver,
+	uniqueResolver,
 	viewsResolver,
 	writeResult,
 } from './migrate';
@@ -115,11 +115,11 @@ export const introspectPostgres = async (
 	console.log();
 
 	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
-
+	const squasher = PostgresPushSquasher;
 	if (snapshots.length === 0) {
 		const { sqlStatements, _meta } = await applyPgSnapshotsDiff(
-			squashPgScheme(dryPg),
-			squashPgScheme(schema),
+			squashPgScheme(dryPg, squasher),
+			squashPgScheme(schema, squasher),
 			schemasResolver,
 			enumsResolver,
 			sequencesResolver,
@@ -129,8 +129,11 @@ export const introspectPostgres = async (
 			tablesResolver,
 			columnsResolver,
 			viewsResolver,
+			uniqueResolver,
+			indexesResolver,
 			dryPg,
 			schema,
+			squasher,
 		);
 
 		writeResult({
@@ -240,6 +243,7 @@ export const introspectMysql = async (
 			tablesResolver,
 			columnsResolver,
 			mySqlViewsResolver,
+			uniqueResolver,
 			dryMySql,
 			schema,
 		);

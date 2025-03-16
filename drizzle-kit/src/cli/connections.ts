@@ -5,15 +5,8 @@ import fetch from 'node-fetch';
 import ws from 'ws';
 import { assertUnreachable } from '../global';
 import type { ProxyParams } from '../serializer/studio';
-import {
-	type DB,
-	LibSQLDB,
-	normalisePGliteUrl,
-	normaliseSQLiteUrl,
-	type Proxy,
-	type SQLiteDB,
-	type SqliteProxy,
-} from '../utils';
+import { type DB, LibSQLDB, normalisePGliteUrl, type Proxy, type SQLiteDB, type SqliteProxy } from '../utils';
+import { normaliseSQLiteUrl } from '../utils-node';
 import { assertPackages, checkPackage } from './utils';
 import { LibSQLCredentials } from './validations/libsql';
 import type { MysqlCredentials } from './validations/mysql';

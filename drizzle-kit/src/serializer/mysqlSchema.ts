@@ -24,6 +24,7 @@ const fk = object({
 const column = object({
 	name: string(),
 	type: string(),
+	typeSchema: string().optional(),
 	primaryKey: boolean(),
 	notNull: boolean(),
 	autoincrement: boolean().optional(),
@@ -171,6 +172,7 @@ const tableSquashedV4 = object({
 
 const tableSquashed = object({
 	name: string(),
+	schema: string().optional(),
 	columns: record(string(), column),
 	indexes: record(string(), string()),
 	foreignKeys: record(string(), string()),
@@ -403,9 +405,6 @@ export const mysqlSchemaV3 = schemaV3;
 export const mysqlSchemaV4 = schemaV4;
 export const mysqlSchemaV5 = schemaV5;
 export const mysqlSchemaSquashed = schemaSquashed;
-
-// no prev version
-export const backwardCompatibleMysqlSchema = union([mysqlSchemaV5, schema]);
 
 export const dryMySql = mysqlSchema.parse({
 	version: '5',

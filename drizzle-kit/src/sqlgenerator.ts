@@ -1,5 +1,5 @@
-import { BREAKPOINT } from './cli/commands/migrate';
-import {
+import { BREAKPOINT } from './global';
+import type {
 	JsonAddColumnStatement,
 	JsonAddValueToEnumStatement,
 	JsonAlterColumnAlterGeneratedStatement,
@@ -68,7 +68,7 @@ import {
 	JsonIndRenamePolicyStatement,
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
-	JsonPgCreateIndexStatement,
+	JsonPostgresCreateTableStatement,
 	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
 	JsonRenameEnumStatement,
@@ -77,16 +77,18 @@ import {
 	JsonRenameSchema,
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
+	JsonRenameUniqueConstraint,
 	JsonRenameViewStatement,
 	JsonSqliteAddColumnStatement,
 	JsonSqliteCreateTableStatement,
 	JsonStatement,
 } from './jsonStatements';
-import { Dialect } from './schemaValidator';
+import type { Dialect } from './schemaValidator';
+import { Squasher } from './serializer/common';
 import { MySqlSquasher } from './serializer/mysqlSchema';
-import { PgSquasher, policy } from './serializer/pgSchema';
+import { PostgresSquasher } from './dialects/postgres/ddl';
 import { SingleStoreSquasher } from './serializer/singlestoreSchema';
-import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
+import { type SQLiteSchemaSquashed, SQLiteSquasher } from './dialects/sqlite/ddl';
 
 import { escapeSingleQuotes } from './utils';
 
@@ -143,23 +145,21 @@ const parseType = (schemaPrefix: string, type: string) => {
 		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
 };
 
-abstract class Convertor {
-	abstract can(
+interface Convertor {
+	can(
 		statement: JsonStatement,
 		dialect: Dialect,
 	): boolean;
-	abstract convert(
+	convert(
 		statement: JsonStatement,
-		json2?: SQLiteSchemaSquashed,
-		action?: 'push',
 	): string | string[];
 }
 
-class PgCreateRoleConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PostgresCreateRoleConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_role' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonCreateRoleStatement): string | string[] {
+	convert(statement: JsonCreateRoleStatement): string | string[] {
 		return `CREATE ROLE "${statement.name}"${
 			statement.values.createDb || statement.values.createRole || !statement.values.inherit
 				? ` WITH${statement.values.createDb ? ' CREATEDB' : ''}${statement.values.createRole ? ' CREATEROLE' : ''}${
@@ -170,29 +170,29 @@ class PgCreateRoleConvertor extends Convertor {
 	}
 }
 
-class PgDropRoleConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgDropRoleConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_role' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonDropRoleStatement): string | string[] {
+	convert(statement: JsonDropRoleStatement): string | string[] {
 		return `DROP ROLE "${statement.name}";`;
 	}
 }
 
-class PgRenameRoleConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgRenameRoleConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_role' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonRenameRoleStatement): string | string[] {
+	convert(statement: JsonRenameRoleStatement): string | string[] {
 		return `ALTER ROLE "${statement.nameFrom}" RENAME TO "${statement.nameTo}";`;
 	}
 }
 
-class PgAlterRoleConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgAlterRoleConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_role' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonAlterRoleStatement): string | string[] {
+	convert(statement: JsonAlterRoleStatement): string | string[] {
 		return `ALTER ROLE "${statement.name}"${` WITH${statement.values.createDb ? ' CREATEDB' : ' NOCREATEDB'}${
 			statement.values.createRole ? ' CREATEROLE' : ' NOCREATEROLE'
 		}${statement.values.inherit ? ' INHERIT' : ' NOINHERIT'}`};`;
@@ -201,11 +201,11 @@ class PgAlterRoleConvertor extends Convertor {
 
 /////
 
-class PgCreatePolicyConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgCreatePolicyConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_policy' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonCreatePolicyStatement): string | string[] {
+	convert(statement: JsonCreatePolicyStatement): string | string[] {
 		const policy = statement.data;
 
 		const tableNameWithSchema = statement.schema
@@ -224,11 +224,11 @@ class PgCreatePolicyConvertor extends Convertor {
 	}
 }
 
-class PgDropPolicyConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgDropPolicyConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_policy' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonDropPolicyStatement): string | string[] {
+	convert(statement: JsonDropPolicyStatement): string | string[] {
 		const policy = statement.data;
 
 		const tableNameWithSchema = statement.schema
@@ -239,11 +239,11 @@ class PgDropPolicyConvertor extends Convertor {
 	}
 }
 
-class PgRenamePolicyConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgRenamePolicyConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_policy' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonRenamePolicyStatement): string | string[] {
+	convert(statement: JsonRenamePolicyStatement): string | string[] {
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
@@ -252,17 +252,12 @@ class PgRenamePolicyConvertor extends Convertor {
 	}
 }
 
-class PgAlterPolicyConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgAlterPolicyConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_policy' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonAlterPolicyStatement, _dialect: any, action?: string): string | string[] {
-		const newPolicy = action === 'push'
-			? PgSquasher.unsquashPolicyPush(statement.newData)
-			: PgSquasher.unsquashPolicy(statement.newData);
-		const oldPolicy = action === 'push'
-			? PgSquasher.unsquashPolicyPush(statement.oldData)
-			: PgSquasher.unsquashPolicy(statement.oldData);
+	convert(statement: JsonAlterPolicyStatement): string | string[] {
+		const { oldPolicy, newPolicy } = statement;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -286,11 +281,11 @@ class PgAlterPolicyConvertor extends Convertor {
 
 ////
 
-class PgCreateIndPolicyConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgCreateIndPolicyConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_ind_policy' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonCreateIndPolicyStatement): string | string[] {
+	convert(statement: JsonCreateIndPolicyStatement): string | string[] {
 		const policy = statement.data;
 
 		const usingPart = policy.using ? ` USING (${policy.using})` : '';
@@ -305,31 +300,31 @@ class PgCreateIndPolicyConvertor extends Convertor {
 	}
 }
 
-class PgDropIndPolicyConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgDropIndPolicyConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_ind_policy' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonDropIndPolicyStatement): string | string[] {
+	convert(statement: JsonDropIndPolicyStatement): string | string[] {
 		const policy = statement.data;
 
 		return `DROP POLICY "${policy.name}" ON ${policy.on} CASCADE;`;
 	}
 }
 
-class PgRenameIndPolicyConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgRenameIndPolicyConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_ind_policy' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonIndRenamePolicyStatement): string | string[] {
+	convert(statement: JsonIndRenamePolicyStatement): string | string[] {
 		return `ALTER POLICY "${statement.oldName}" ON ${statement.tableKey} RENAME TO "${statement.newName}";`;
 	}
 }
 
-class PgAlterIndPolicyConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgAlterIndPolicyConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_ind_policy' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonAlterIndPolicyStatement): string | string[] {
+	convert(statement: JsonAlterIndPolicyStatement): string | string[] {
 		const newPolicy = statement.newData;
 		const oldPolicy = statement.oldData;
 
@@ -351,11 +346,11 @@ class PgAlterIndPolicyConvertor extends Convertor {
 
 ////
 
-class PgEnableRlsConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgEnableRlsConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'enable_rls' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonEnableRLSStatement): string {
+	convert(statement: JsonEnableRLSStatement): string {
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
@@ -364,11 +359,11 @@ class PgEnableRlsConvertor extends Convertor {
 	}
 }
 
-class PgDisableRlsConvertor extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgDisableRlsConvertor implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'disable_rls' && dialect === 'postgresql';
 	}
-	override convert(statement: JsonDisableRLSStatement): string {
+	convert(statement: JsonDisableRLSStatement): string {
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
@@ -377,12 +372,14 @@ class PgDisableRlsConvertor extends Convertor {
 	}
 }
 
-class PgCreateTableConvertor extends Convertor {
+class PgCreateTableConvertor implements Convertor {
+	constructor(private readonly rlsConvertor: PgEnableRlsConvertor) {}
+
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_table' && dialect === 'postgresql';
 	}
 
-	convert(st: JsonCreateTableStatement) {
+	convert(st: JsonPostgresCreateTableStatement) {
 		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
 			st;
 
@@ -391,14 +388,20 @@ class PgCreateTableConvertor extends Convertor {
 
 		statement += `CREATE TABLE IF NOT EXISTS ${name} (\n`;
 		for (let i = 0; i < columns.length; i++) {
-			const column = columns[i];
+			const { data: column, identity: unsquashedIdentity } = columns[i];
 
 			const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
 			const notNullStatement = column.notNull && !column.identity ? ' NOT NULL' : '';
 			const defaultStatement = column.default !== undefined ? ` DEFAULT ${column.default}` : '';
 
-			const uniqueConstraint = column.isUnique
-				? ` CONSTRAINT "${column.uniqueName}" UNIQUE${column.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}`
+			const uniqueConstraint = uniqueConstraints.find((it) =>
+				it.columns.length === 1 && it.columns[0] === column.name && `${tableName}_${column.name}_key` === it.name
+			);
+			const unqiueConstraintPrefix = uniqueConstraint
+				? 'UNIQUE'
+				: '';
+			const uniqueConstraintStatement = uniqueConstraint
+				? ` ${unqiueConstraintPrefix}${uniqueConstraint.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}`
 				: '';
 
 			const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
@@ -409,10 +412,6 @@ class PgCreateTableConvertor extends Convertor {
 			const generated = column.generated;
 
 			const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
-
-			const unsquashedIdentity = column.identity
-				? PgSquasher.unsquashIdentity(column.identity)
-				: undefined;
 
 			const identityWithSchema = schema
 				? `"${schema}"."${unsquashedIdentity?.name}"`
@@ -443,43 +442,37 @@ class PgCreateTableConvertor extends Convertor {
 				: '';
 
 			statement += '\t'
-				+ `"${column.name}" ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${uniqueConstraint}${identity}`;
+				+ `"${column.name}" ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${uniqueConstraintStatement}${identity}`;
 			statement += i === columns.length - 1 ? '' : ',\n';
 		}
 
 		if (typeof compositePKs !== 'undefined' && compositePKs.length > 0) {
 			statement += ',\n';
-			const compositePK = PgSquasher.unsquashPK(compositePKs[0]);
+			const compositePK = compositePKs[0];
 			statement += `\tCONSTRAINT "${st.compositePkName}" PRIMARY KEY(\"${compositePK.columns.join(`","`)}\")`;
 			// statement += `\n`;
 		}
 
-		if (
-			typeof uniqueConstraints !== 'undefined'
-			&& uniqueConstraints.length > 0
-		) {
-			for (const uniqueConstraint of uniqueConstraints) {
-				statement += ',\n';
-				const unsquashedUnique = PgSquasher.unsquashUnique(uniqueConstraint);
-				statement += `\tCONSTRAINT "${unsquashedUnique.name}" UNIQUE${
-					unsquashedUnique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
-				}(\"${unsquashedUnique.columns.join(`","`)}\")`;
-				// statement += `\n`;
-			}
+		for (const it of uniqueConstraints) {
+			// skip for inlined uniques
+			if (it.columns.length === 1 && it.name === `${tableName}_${it.columns[0]}_key`) continue;
+
+			statement += ',\n';
+			statement += `\tCONSTRAINT "${it.name}" UNIQUE${it.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}(\"${
+				it.columns.join(`","`)
+			}\")`;
+			// statement += `\n`;
 		}
 
-		if (typeof checkConstraints !== 'undefined' && checkConstraints.length > 0) {
-			for (const checkConstraint of checkConstraints) {
-				statement += ',\n';
-				const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
-				statement += `\tCONSTRAINT "${unsquashedCheck.name}" CHECK (${unsquashedCheck.value})`;
-			}
+		for (const check of checkConstraints) {
+			statement += ',\n';
+			statement += `\tCONSTRAINT "${check.name}" CHECK (${check.value})`;
 		}
 
 		statement += `\n);`;
 		statement += `\n`;
 
-		const enableRls = new PgEnableRlsConvertor().convert({
+		const enableRls = this.rlsConvertor.convert({
 			type: 'enable_rls',
 			tableName,
 			schema,
@@ -489,7 +482,7 @@ class PgCreateTableConvertor extends Convertor {
 	}
 }
 
-class MySqlCreateTableConvertor extends Convertor {
+class MySqlCreateTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_table' && dialect === 'mysql';
 	}
@@ -574,7 +567,7 @@ class MySqlCreateTableConvertor extends Convertor {
 		return statement;
 	}
 }
-class SingleStoreCreateTableConvertor extends Convertor {
+class SingleStoreCreateTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_table' && dialect === 'singlestore';
 	}
@@ -650,7 +643,7 @@ class SingleStoreCreateTableConvertor extends Convertor {
 	}
 }
 
-export class SQLiteCreateTableConvertor extends Convertor {
+export class SQLiteCreateTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'sqlite_create_table' && (dialect === 'sqlite' || dialect === 'turso');
 	}
@@ -745,7 +738,7 @@ export class SQLiteCreateTableConvertor extends Convertor {
 	}
 }
 
-class PgCreateViewConvertor extends Convertor {
+class PgCreateViewConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_view' && dialect === 'postgresql';
 	}
@@ -786,7 +779,7 @@ class PgCreateViewConvertor extends Convertor {
 	}
 }
 
-class MySqlCreateViewConvertor extends Convertor {
+class MySqlCreateViewConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'mysql_create_view' && dialect === 'mysql';
 	}
@@ -807,7 +800,7 @@ class MySqlCreateViewConvertor extends Convertor {
 	}
 }
 
-class SqliteCreateViewConvertor extends Convertor {
+class SqliteCreateViewConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'sqlite_create_view' && (dialect === 'sqlite' || dialect === 'turso');
 	}
@@ -819,7 +812,7 @@ class SqliteCreateViewConvertor extends Convertor {
 	}
 }
 
-class PgDropViewConvertor extends Convertor {
+class PgDropViewConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_view' && dialect === 'postgresql';
 	}
@@ -833,7 +826,7 @@ class PgDropViewConvertor extends Convertor {
 	}
 }
 
-class MySqlDropViewConvertor extends Convertor {
+class MySqlDropViewConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_view' && dialect === 'mysql';
 	}
@@ -845,7 +838,7 @@ class MySqlDropViewConvertor extends Convertor {
 	}
 }
 
-class SqliteDropViewConvertor extends Convertor {
+class SqliteDropViewConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_view' && (dialect === 'sqlite' || dialect === 'turso');
 	}
@@ -857,7 +850,7 @@ class SqliteDropViewConvertor extends Convertor {
 	}
 }
 
-class MySqlAlterViewConvertor extends Convertor {
+class MySqlAlterViewConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_mysql_view' && dialect === 'mysql';
 	}
@@ -877,7 +870,7 @@ class MySqlAlterViewConvertor extends Convertor {
 	}
 }
 
-class PgRenameViewConvertor extends Convertor {
+class PgRenameViewConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_view' && dialect === 'postgresql';
 	}
@@ -891,7 +884,7 @@ class PgRenameViewConvertor extends Convertor {
 	}
 }
 
-class MySqlRenameViewConvertor extends Convertor {
+class MySqlRenameViewConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_view' && dialect === 'mysql';
 	}
@@ -903,7 +896,7 @@ class MySqlRenameViewConvertor extends Convertor {
 	}
 }
 
-class PgAlterViewSchemaConvertor extends Convertor {
+class PgAlterViewSchemaConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_view_alter_schema' && dialect === 'postgresql';
 	}
@@ -919,7 +912,7 @@ class PgAlterViewSchemaConvertor extends Convertor {
 	}
 }
 
-class PgAlterViewAddWithOptionConvertor extends Convertor {
+class PgAlterViewAddWithOptionConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_view_add_with_option' && dialect === 'postgresql';
 	}
@@ -943,7 +936,7 @@ class PgAlterViewAddWithOptionConvertor extends Convertor {
 	}
 }
 
-class PgAlterViewDropWithOptionConvertor extends Convertor {
+class PgAlterViewDropWithOptionConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_view_drop_with_option' && dialect === 'postgresql';
 	}
@@ -967,7 +960,7 @@ class PgAlterViewDropWithOptionConvertor extends Convertor {
 	}
 }
 
-class PgAlterViewAlterTablespaceConvertor extends Convertor {
+class PgAlterViewAlterTablespaceConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_view_alter_tablespace' && dialect === 'postgresql';
 	}
@@ -981,7 +974,7 @@ class PgAlterViewAlterTablespaceConvertor extends Convertor {
 	}
 }
 
-class PgAlterViewAlterUsingConvertor extends Convertor {
+class PgAlterViewAlterUsingConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_view_alter_using' && dialect === 'postgresql';
 	}
@@ -995,14 +988,14 @@ class PgAlterViewAlterUsingConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnSetGenerated extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgAlterTableAlterColumnSetGenerated implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_identity'
 			&& dialect === 'postgresql'
 		);
 	}
-	override convert(
+	convert(
 		statement: JsonAlterColumnSetIdentityStatement,
 	): string | string[] {
 		const { identity, tableName, columnName, schema } = statement;
@@ -1011,7 +1004,7 @@ class PgAlterTableAlterColumnSetGenerated extends Convertor {
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		const unsquashedIdentity = PgSquasher.unsquashIdentity(identity);
+		const unsquashedIdentity = identity;
 
 		const identityWithSchema = schema
 			? `"${schema}"."${unsquashedIdentity?.name}"`
@@ -1045,14 +1038,14 @@ class PgAlterTableAlterColumnSetGenerated extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnDropGenerated extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgAlterTableAlterColumnDropGenerated implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_identity'
 			&& dialect === 'postgresql'
 		);
 	}
-	override convert(
+	convert(
 		statement: JsonAlterColumnDropIdentityStatement,
 	): string | string[] {
 		const { tableName, columnName, schema } = statement;
@@ -1065,14 +1058,15 @@ class PgAlterTableAlterColumnDropGenerated extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnAlterGenerated extends Convertor {
-	override can(statement: JsonStatement, dialect: Dialect): boolean {
+class PgAlterTableAlterColumnAlterGenerated implements Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_change_identity'
 			&& dialect === 'postgresql'
 		);
 	}
-	override convert(
+
+	convert(
 		statement: JsonAlterColumnAlterIdentityStatement,
 	): string | string[] {
 		const { identity, oldIdentity, tableName, columnName, schema } = statement;
@@ -1081,8 +1075,8 @@ class PgAlterTableAlterColumnAlterGenerated extends Convertor {
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		const unsquashedIdentity = PgSquasher.unsquashIdentity(identity);
-		const unsquashedOldIdentity = PgSquasher.unsquashIdentity(oldIdentity);
+		const unsquashedIdentity = identity;
+		const unsquashedOldIdentity = oldIdentity;
 
 		const statementsToReturn: string[] = [];
 
@@ -1136,33 +1130,33 @@ class PgAlterTableAlterColumnAlterGenerated extends Convertor {
 	}
 }
 
-class PgAlterTableAddUniqueConstraintConvertor extends Convertor {
+class PgAlterTableAddUniqueConstraintConvertor implements Convertor {
 	can(statement: JsonCreateUniqueConstraint, dialect: Dialect): boolean {
 		return (
-			statement.type === 'create_unique_constraint' && dialect === 'postgresql'
+			statement.type === 'add_unique' && dialect === 'postgresql'
 		);
 	}
 	convert(statement: JsonCreateUniqueConstraint): string {
-		const unsquashed = PgSquasher.unsquashUnique(statement.data);
+		const unique = statement.unique;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unsquashed.name}" UNIQUE${
-			unsquashed.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
-		}("${unsquashed.columns.join('","')}");`;
+		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unique.name}" UNIQUE${
+			unique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
+		}("${unique.columns.join('","')}");`;
 	}
 }
 
-class PgAlterTableDropUniqueConstraintConvertor extends Convertor {
+class PgAlterTableDropUniqueConstraintConvertor implements Convertor {
 	can(statement: JsonDeleteUniqueConstraint, dialect: Dialect): boolean {
 		return (
 			statement.type === 'delete_unique_constraint' && dialect === 'postgresql'
 		);
 	}
 	convert(statement: JsonDeleteUniqueConstraint): string {
-		const unsquashed = PgSquasher.unsquashUnique(statement.data);
+		const unsquashed = statement.data;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -1172,24 +1166,39 @@ class PgAlterTableDropUniqueConstraintConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAddCheckConstraintConvertor extends Convertor {
+class PgAlterTableRenameUniqueConstraintConvertor implements Convertor {
+	can(statement: JsonRenameUniqueConstraint, dialect: Dialect): boolean {
+		return (
+			statement.type === 'rename_unique_constraint' && dialect === 'postgresql'
+		);
+	}
+	convert(statement: JsonRenameUniqueConstraint): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} RENAME CONSTRAINT "${statement.from}" TO "${statement.to}";`;
+	}
+}
+
+class PgAlterTableAddCheckConstraintConvertor implements Convertor {
 	can(statement: JsonCreateCheckConstraint, dialect: Dialect): boolean {
 		return (
 			statement.type === 'create_check_constraint' && dialect === 'postgresql'
 		);
 	}
 	convert(statement: JsonCreateCheckConstraint): string {
-		const unsquashed = PgSquasher.unsquashCheck(statement.data);
+		const check = statement.check;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unsquashed.name}" CHECK (${unsquashed.value});`;
+		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${check.name}" CHECK (${check.value});`;
 	}
 }
 
-class PgAlterTableDeleteCheckConstraintConvertor extends Convertor {
+class PgAlterTableDeleteCheckConstraintConvertor implements Convertor {
 	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
 		return (
 			statement.type === 'delete_check_constraint' && dialect === 'postgresql'
@@ -1204,12 +1213,12 @@ class PgAlterTableDeleteCheckConstraintConvertor extends Convertor {
 	}
 }
 
-class MySQLAlterTableAddUniqueConstraintConvertor extends Convertor {
+class MySQLAlterTableAddUniqueConstraintConvertor implements Convertor {
 	can(statement: JsonCreateUniqueConstraint, dialect: Dialect): boolean {
-		return statement.type === 'create_unique_constraint' && dialect === 'mysql';
+		return statement.type === 'add_unique' && dialect === 'mysql';
 	}
 	convert(statement: JsonCreateUniqueConstraint): string {
-		const unsquashed = MySqlSquasher.unsquashUnique(statement.data);
+		const unsquashed = MySqlSquasher.unsquashUnique(statement.unique);
 
 		return `ALTER TABLE \`${statement.tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` UNIQUE(\`${
 			unsquashed.columns.join('`,`')
@@ -1217,7 +1226,7 @@ class MySQLAlterTableAddUniqueConstraintConvertor extends Convertor {
 	}
 }
 
-class MySQLAlterTableDropUniqueConstraintConvertor extends Convertor {
+class MySQLAlterTableDropUniqueConstraintConvertor implements Convertor {
 	can(statement: JsonDeleteUniqueConstraint, dialect: Dialect): boolean {
 		return statement.type === 'delete_unique_constraint' && dialect === 'mysql';
 	}
@@ -1228,7 +1237,7 @@ class MySQLAlterTableDropUniqueConstraintConvertor extends Convertor {
 	}
 }
 
-class MySqlAlterTableAddCheckConstraintConvertor extends Convertor {
+class MySqlAlterTableAddCheckConstraintConvertor implements Convertor {
 	can(statement: JsonCreateCheckConstraint, dialect: Dialect): boolean {
 		return (
 			statement.type === 'create_check_constraint' && dialect === 'mysql'
@@ -1242,19 +1251,19 @@ class MySqlAlterTableAddCheckConstraintConvertor extends Convertor {
 	}
 }
 
-class SingleStoreAlterTableAddUniqueConstraintConvertor extends Convertor {
+class SingleStoreAlterTableAddUniqueConstraintConvertor implements Convertor {
 	can(statement: JsonCreateUniqueConstraint, dialect: Dialect): boolean {
-		return statement.type === 'create_unique_constraint' && dialect === 'singlestore';
+		return statement.type === 'add_unique' && dialect === 'singlestore';
 	}
 	convert(statement: JsonCreateUniqueConstraint): string {
-		const unsquashed = SingleStoreSquasher.unsquashUnique(statement.data);
+		const unsquashed = SingleStoreSquasher.unsquashUnique(statement.unique);
 
 		return `ALTER TABLE \`${statement.tableName}\` ADD CONSTRAINT \`${unsquashed.name}\` UNIQUE(\`${
 			unsquashed.columns.join('`,`')
 		}\`);`;
 	}
 }
-class SingleStoreAlterTableDropUniqueConstraintConvertor extends Convertor {
+class SingleStoreAlterTableDropUniqueConstraintConvertor implements Convertor {
 	can(statement: JsonDeleteUniqueConstraint, dialect: Dialect): boolean {
 		return statement.type === 'delete_unique_constraint' && dialect === 'singlestore';
 	}
@@ -1265,7 +1274,7 @@ class SingleStoreAlterTableDropUniqueConstraintConvertor extends Convertor {
 	}
 }
 
-class MySqlAlterTableDeleteCheckConstraintConvertor extends Convertor {
+class MySqlAlterTableDeleteCheckConstraintConvertor implements Convertor {
 	can(statement: JsonDeleteCheckConstraint, dialect: Dialect): boolean {
 		return (
 			statement.type === 'delete_check_constraint' && dialect === 'mysql'
@@ -1278,7 +1287,7 @@ class MySqlAlterTableDeleteCheckConstraintConvertor extends Convertor {
 	}
 }
 
-class CreatePgSequenceConvertor extends Convertor {
+class CreatePgSequenceConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_sequence' && dialect === 'postgresql';
 	}
@@ -1296,7 +1305,7 @@ class CreatePgSequenceConvertor extends Convertor {
 	}
 }
 
-class DropPgSequenceConvertor extends Convertor {
+class DropPgSequenceConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_sequence' && dialect === 'postgresql';
 	}
@@ -1310,7 +1319,7 @@ class DropPgSequenceConvertor extends Convertor {
 	}
 }
 
-class RenamePgSequenceConvertor extends Convertor {
+class RenamePgSequenceConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_sequence' && dialect === 'postgresql';
 	}
@@ -1329,7 +1338,7 @@ class RenamePgSequenceConvertor extends Convertor {
 	}
 }
 
-class MovePgSequenceConvertor extends Convertor {
+class MovePgSequenceConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'move_sequence' && dialect === 'postgresql';
 	}
@@ -1347,7 +1356,7 @@ class MovePgSequenceConvertor extends Convertor {
 	}
 }
 
-class AlterPgSequenceConvertor extends Convertor {
+class AlterPgSequenceConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_sequence' && dialect === 'postgresql';
 	}
@@ -1367,7 +1376,7 @@ class AlterPgSequenceConvertor extends Convertor {
 	}
 }
 
-class CreateTypeEnumConvertor extends Convertor {
+class CreateTypeEnumConvertor implements Convertor {
 	can(statement: JsonStatement): boolean {
 		return statement.type === 'create_type_enum';
 	}
@@ -1396,7 +1405,7 @@ class CreateTypeEnumConvertor extends Convertor {
 	}
 }
 
-class DropTypeEnumConvertor extends Convertor {
+class DropTypeEnumConvertor implements Convertor {
 	can(statement: JsonStatement): boolean {
 		return statement.type === 'drop_type_enum';
 	}
@@ -1412,7 +1421,7 @@ class DropTypeEnumConvertor extends Convertor {
 	}
 }
 
-class AlterTypeAddValueConvertor extends Convertor {
+class AlterTypeAddValueConvertor implements Convertor {
 	can(statement: JsonStatement): boolean {
 		return statement.type === 'alter_type_add_value';
 	}
@@ -1426,7 +1435,7 @@ class AlterTypeAddValueConvertor extends Convertor {
 	}
 }
 
-class AlterTypeSetSchemaConvertor extends Convertor {
+class AlterTypeSetSchemaConvertor implements Convertor {
 	can(statement: JsonStatement): boolean {
 		return statement.type === 'move_type_enum';
 	}
@@ -1440,7 +1449,7 @@ class AlterTypeSetSchemaConvertor extends Convertor {
 	}
 }
 
-class AlterRenameTypeConvertor extends Convertor {
+class AlterRenameTypeConvertor implements Convertor {
 	can(statement: JsonStatement): boolean {
 		return statement.type === 'rename_type_enum';
 	}
@@ -1454,7 +1463,7 @@ class AlterRenameTypeConvertor extends Convertor {
 	}
 }
 
-class AlterTypeDropValueConvertor extends Convertor {
+class AlterTypeDropValueConvertor implements Convertor {
 	can(statement: JsonStatement): boolean {
 		return statement.type === 'alter_type_drop_value';
 	}
@@ -1489,26 +1498,25 @@ class AlterTypeDropValueConvertor extends Convertor {
 	}
 }
 
-class PgDropTableConvertor extends Convertor {
+class PgDropTableConvertor implements Convertor {
+	constructor(private readonly dropPolicyConvertor: PgDropPolicyConvertor) {}
+
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_table' && dialect === 'postgresql';
 	}
 
-	convert(statement: JsonDropTableStatement, _d: any, action?: string) {
+	convert(statement: JsonDropTableStatement) {
 		const { tableName, schema, policies } = statement;
 
 		const tableNameWithSchema = schema
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		const dropPolicyConvertor = new PgDropPolicyConvertor();
-		const droppedPolicies = policies?.map((p) => {
-			return dropPolicyConvertor.convert({
+		const droppedPolicies = policies.map((policy) => {
+			return this.dropPolicyConvertor.convert({
 				type: 'drop_policy',
 				tableName,
-				data: action === 'push'
-					? PgSquasher.unsquashPolicyPush(p)
-					: PgSquasher.unsquashPolicy(p),
+				data: policy,
 				schema,
 			}) as string;
 		}) ?? [];
@@ -1520,7 +1528,7 @@ class PgDropTableConvertor extends Convertor {
 	}
 }
 
-class MySQLDropTableConvertor extends Convertor {
+class MySQLDropTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_table' && dialect === 'mysql';
 	}
@@ -1531,7 +1539,7 @@ class MySQLDropTableConvertor extends Convertor {
 	}
 }
 
-class SingleStoreDropTableConvertor extends Convertor {
+class SingleStoreDropTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_table' && dialect === 'singlestore';
 	}
@@ -1542,7 +1550,7 @@ class SingleStoreDropTableConvertor extends Convertor {
 	}
 }
 
-export class SQLiteDropTableConvertor extends Convertor {
+export class SQLiteDropTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_table' && (dialect === 'sqlite' || dialect === 'turso');
 	}
@@ -1553,7 +1561,7 @@ export class SQLiteDropTableConvertor extends Convertor {
 	}
 }
 
-class PgRenameTableConvertor extends Convertor {
+class PgRenameTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_table' && dialect === 'postgresql';
 	}
@@ -1568,7 +1576,7 @@ class PgRenameTableConvertor extends Convertor {
 	}
 }
 
-export class SqliteRenameTableConvertor extends Convertor {
+export class SqliteRenameTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_table' && (dialect === 'sqlite' || dialect === 'turso');
 	}
@@ -1579,7 +1587,7 @@ export class SqliteRenameTableConvertor extends Convertor {
 	}
 }
 
-class MySqlRenameTableConvertor extends Convertor {
+class MySqlRenameTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_table' && dialect === 'mysql';
 	}
@@ -1590,7 +1598,7 @@ class MySqlRenameTableConvertor extends Convertor {
 	}
 }
 
-class SingleStoreRenameTableConvertor extends Convertor {
+class SingleStoreRenameTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_table' && dialect === 'singlestore';
 	}
@@ -1601,7 +1609,7 @@ class SingleStoreRenameTableConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableRenameColumnConvertor extends Convertor {
+class PgAlterTableRenameColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_rename_column' && dialect === 'postgresql'
@@ -1619,7 +1627,7 @@ class PgAlterTableRenameColumnConvertor extends Convertor {
 	}
 }
 
-class MySqlAlterTableRenameColumnConvertor extends Convertor {
+class MySqlAlterTableRenameColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_rename_column' && dialect === 'mysql'
@@ -1632,7 +1640,7 @@ class MySqlAlterTableRenameColumnConvertor extends Convertor {
 	}
 }
 
-class SingleStoreAlterTableRenameColumnConvertor extends Convertor {
+class SingleStoreAlterTableRenameColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_rename_column' && dialect === 'singlestore'
@@ -1645,7 +1653,7 @@ class SingleStoreAlterTableRenameColumnConvertor extends Convertor {
 	}
 }
 
-class SQLiteAlterTableRenameColumnConvertor extends Convertor {
+class SQLiteAlterTableRenameColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_rename_column' && (dialect === 'sqlite' || dialect === 'turso')
@@ -1658,7 +1666,7 @@ class SQLiteAlterTableRenameColumnConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableDropColumnConvertor extends Convertor {
+class PgAlterTableDropColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_drop_column' && dialect === 'postgresql'
@@ -1676,7 +1684,7 @@ class PgAlterTableDropColumnConvertor extends Convertor {
 	}
 }
 
-class MySqlAlterTableDropColumnConvertor extends Convertor {
+class MySqlAlterTableDropColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_table_drop_column' && dialect === 'mysql';
 	}
@@ -1687,7 +1695,7 @@ class MySqlAlterTableDropColumnConvertor extends Convertor {
 	}
 }
 
-class SingleStoreAlterTableDropColumnConvertor extends Convertor {
+class SingleStoreAlterTableDropColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_table_drop_column' && dialect === 'singlestore';
 	}
@@ -1698,7 +1706,7 @@ class SingleStoreAlterTableDropColumnConvertor extends Convertor {
 	}
 }
 
-class SQLiteAlterTableDropColumnConvertor extends Convertor {
+class SQLiteAlterTableDropColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_table_drop_column' && (dialect === 'sqlite' || dialect === 'turso');
 	}
@@ -1709,7 +1717,7 @@ class SQLiteAlterTableDropColumnConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAddColumnConvertor extends Convertor {
+class PostgresAlterTableAddColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_add_column' && dialect === 'postgresql'
@@ -1736,9 +1744,7 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 
 		const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 
-		const unsquashedIdentity = identity
-			? PgSquasher.unsquashIdentity(identity)
-			: undefined;
+		const unsquashedIdentity = identity;
 
 		const identityWithSchema = schema
 			? `"${schema}"."${unsquashedIdentity?.name}"`
@@ -1774,7 +1780,7 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 	}
 }
 
-class MySqlAlterTableAddColumnConvertor extends Convertor {
+class MySqlAlterTableAddColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_table_add_column' && dialect === 'mysql';
 	}
@@ -1805,7 +1811,7 @@ class MySqlAlterTableAddColumnConvertor extends Convertor {
 	}
 }
 
-class SingleStoreAlterTableAddColumnConvertor extends Convertor {
+class SingleStoreAlterTableAddColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_table_add_column' && dialect === 'singlestore';
 	}
@@ -1836,7 +1842,7 @@ class SingleStoreAlterTableAddColumnConvertor extends Convertor {
 	}
 }
 
-export class SQLiteAlterTableAddColumnConvertor extends Convertor {
+export class SQLiteAlterTableAddColumnConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'sqlite_alter_table_add_column' && (dialect === 'sqlite' || dialect === 'turso')
@@ -1867,7 +1873,7 @@ export class SQLiteAlterTableAddColumnConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnSetTypeConvertor extends Convertor {
+class PgAlterTableAlterColumnSetTypeConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_type'
@@ -1886,7 +1892,7 @@ class PgAlterTableAlterColumnSetTypeConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnSetDefaultConvertor extends Convertor {
+class PgAlterTableAlterColumnSetDefaultConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_default'
@@ -1905,7 +1911,7 @@ class PgAlterTableAlterColumnSetDefaultConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnDropDefaultConvertor extends Convertor {
+class PgAlterTableAlterColumnDropDefaultConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_default'
@@ -1924,7 +1930,7 @@ class PgAlterTableAlterColumnDropDefaultConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnDropGeneratedConvertor extends Convertor {
+class PgAlterTableAlterColumnDropGeneratedConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_generated'
@@ -1943,7 +1949,7 @@ class PgAlterTableAlterColumnDropGeneratedConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnSetExpressionConvertor extends Convertor {
+class PgAlterTableAlterColumnSetExpressionConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_generated'
@@ -1968,7 +1974,7 @@ class PgAlterTableAlterColumnSetExpressionConvertor extends Convertor {
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		const addColumnStatement = new PgAlterTableAddColumnConvertor().convert({
+		const addColumnStatement = new PostgresAlterTableAddColumnConvertor().convert({
 			schema,
 			tableName,
 			column: {
@@ -1991,7 +1997,7 @@ class PgAlterTableAlterColumnSetExpressionConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor {
+class PgAlterTableAlterColumnAlterrGeneratedConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_alter_generated'
@@ -2016,7 +2022,7 @@ class PgAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor {
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		const addColumnStatement = new PgAlterTableAddColumnConvertor().convert({
+		const addColumnStatement = new PostgresAlterTableAddColumnConvertor().convert({
 			schema,
 			tableName,
 			column: {
@@ -2040,7 +2046,7 @@ class PgAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor {
 }
 
 ////
-class SqliteAlterTableAlterColumnDropGeneratedConvertor extends Convertor {
+class SqliteAlterTableAlterColumnDropGeneratedConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_generated'
@@ -2089,7 +2095,7 @@ class SqliteAlterTableAlterColumnDropGeneratedConvertor extends Convertor {
 	}
 }
 
-class SqliteAlterTableAlterColumnSetExpressionConvertor extends Convertor {
+class SqliteAlterTableAlterColumnSetExpressionConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_generated'
@@ -2138,7 +2144,7 @@ class SqliteAlterTableAlterColumnSetExpressionConvertor extends Convertor {
 	}
 }
 
-class SqliteAlterTableAlterColumnAlterGeneratedConvertor extends Convertor {
+class SqliteAlterTableAlterColumnAlterGeneratedConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_alter_generated'
@@ -2189,7 +2195,7 @@ class SqliteAlterTableAlterColumnAlterGeneratedConvertor extends Convertor {
 
 ////
 
-class MySqlAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor {
+class MySqlAlterTableAlterColumnAlterrGeneratedConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_alter_generated'
@@ -2237,7 +2243,7 @@ class MySqlAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor {
 	}
 }
 
-class MySqlAlterTableAlterColumnSetDefaultConvertor extends Convertor {
+class MySqlAlterTableAlterColumnSetDefaultConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_default'
@@ -2251,7 +2257,7 @@ class MySqlAlterTableAlterColumnSetDefaultConvertor extends Convertor {
 	}
 }
 
-class MySqlAlterTableAlterColumnDropDefaultConvertor extends Convertor {
+class MySqlAlterTableAlterColumnDropDefaultConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_default'
@@ -2265,7 +2271,7 @@ class MySqlAlterTableAlterColumnDropDefaultConvertor extends Convertor {
 	}
 }
 
-class MySqlAlterTableAddPk extends Convertor {
+class MySqlAlterTableAddPk implements Convertor {
 	can(statement: JsonStatement, dialect: string): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_pk'
@@ -2277,7 +2283,7 @@ class MySqlAlterTableAddPk extends Convertor {
 	}
 }
 
-class MySqlAlterTableDropPk extends Convertor {
+class MySqlAlterTableDropPk implements Convertor {
 	can(statement: JsonStatement, dialect: string): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_pk'
@@ -2296,7 +2302,7 @@ type LibSQLModifyColumnStatement =
 	| JsonAlterColumnSetDefaultStatement
 	| JsonAlterColumnDropDefaultStatement;
 
-export class LibSQLModifyColumn extends Convertor {
+export class LibSQLModifyColumn implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			(statement.type === 'alter_table_alter_column_set_type'
@@ -2310,7 +2316,7 @@ export class LibSQLModifyColumn extends Convertor {
 		);
 	}
 
-	convert(statement: LibSQLModifyColumnStatement, json2: SQLiteSchemaSquashed) {
+	convert(statement: LibSQLModifyColumnStatement) {
 		const { tableName, columnName } = statement;
 
 		let columnType = ``;
@@ -2417,7 +2423,7 @@ type MySqlModifyColumnStatement =
 	| JsonAlterColumnSetGeneratedStatement
 	| JsonAlterColumnDropGeneratedStatement;
 
-class MySqlModifyColumn extends Convertor {
+class MySqlModifyColumn implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			(statement.type === 'alter_table_alter_column_set_type'
@@ -2639,7 +2645,7 @@ class MySqlModifyColumn extends Convertor {
 	}
 }
 
-class SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor {
+class SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_alter_generated'
@@ -2687,7 +2693,7 @@ class SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor
 	}
 }
 
-class SingleStoreAlterTableAlterColumnSetDefaultConvertor extends Convertor {
+class SingleStoreAlterTableAlterColumnSetDefaultConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_default'
@@ -2701,7 +2707,7 @@ class SingleStoreAlterTableAlterColumnSetDefaultConvertor extends Convertor {
 	}
 }
 
-class SingleStoreAlterTableAlterColumnDropDefaultConvertor extends Convertor {
+class SingleStoreAlterTableAlterColumnDropDefaultConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_default'
@@ -2715,7 +2721,7 @@ class SingleStoreAlterTableAlterColumnDropDefaultConvertor extends Convertor {
 	}
 }
 
-class SingleStoreAlterTableAddPk extends Convertor {
+class SingleStoreAlterTableAddPk implements Convertor {
 	can(statement: JsonStatement, dialect: string): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_pk'
@@ -2727,7 +2733,7 @@ class SingleStoreAlterTableAddPk extends Convertor {
 	}
 }
 
-class SingleStoreAlterTableDropPk extends Convertor {
+class SingleStoreAlterTableDropPk implements Convertor {
 	can(statement: JsonStatement, dialect: string): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_pk'
@@ -2752,7 +2758,7 @@ type SingleStoreModifyColumnStatement =
 	| JsonAlterColumnSetGeneratedStatement
 	| JsonAlterColumnDropGeneratedStatement;
 
-class SingleStoreModifyColumn extends Convertor {
+class SingleStoreModifyColumn implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			(statement.type === 'alter_table_alter_column_set_type'
@@ -2973,7 +2979,7 @@ class SingleStoreModifyColumn extends Convertor {
 		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnNotNull}${columnDefault}${columnOnUpdate}${columnGenerated};`;
 	}
 }
-class SqliteAlterTableAlterColumnDropDefaultConvertor extends Convertor {
+class SqliteAlterTableAlterColumnDropDefaultConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_default'
@@ -2993,13 +2999,13 @@ class SqliteAlterTableAlterColumnDropDefaultConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
+class PostgresAlterTableCreateCompositePrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_composite_pk' && dialect === 'postgresql';
 	}
 
 	convert(statement: JsonCreateCompositePK) {
-		const { name, columns } = PgSquasher.unsquashPK(statement.data);
+		const { name, columns } = statement.primaryKey;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -3010,14 +3016,12 @@ class PgAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 		}");`;
 	}
 }
-class PgAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
+class PgAlterTableDeleteCompositePrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'delete_composite_pk' && dialect === 'postgresql';
 	}
 
 	convert(statement: JsonDeleteCompositePK) {
-		const { name, columns } = PgSquasher.unsquashPK(statement.data);
-
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
@@ -3026,16 +3030,13 @@ class PgAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
+class PgAlterTableAlterCompositePrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_composite_pk' && dialect === 'postgresql';
 	}
 
 	convert(statement: JsonAlterCompositePK) {
-		const { name, columns } = PgSquasher.unsquashPK(statement.old);
-		const { name: newName, columns: newColumns } = PgSquasher.unsquashPK(
-			statement.new,
-		);
+		const { name: newName, columns: newColumns } = statement.new;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -3047,29 +3048,28 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 	}
 }
 
-class MySqlAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
+class MySqlAlterTableCreateCompositePrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_composite_pk' && dialect === 'mysql';
 	}
 
 	convert(statement: JsonCreateCompositePK) {
-		const { name, columns } = MySqlSquasher.unsquashPK(statement.data);
+		const { name, columns } = statement.primaryKey;
 		return `ALTER TABLE \`${statement.tableName}\` ADD PRIMARY KEY(\`${columns.join('`,`')}\`);`;
 	}
 }
 
-class MySqlAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
+class MySqlAlterTableDeleteCompositePrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'delete_composite_pk' && dialect === 'mysql';
 	}
 
 	convert(statement: JsonDeleteCompositePK) {
-		const { name, columns } = MySqlSquasher.unsquashPK(statement.data);
 		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY;`;
 	}
 }
 
-class MySqlAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
+class MySqlAlterTableAlterCompositePrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_composite_pk' && dialect === 'mysql';
 	}
@@ -3083,7 +3083,7 @@ class MySqlAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 	}
 }
 
-class SqliteAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
+class SqliteAlterTableCreateCompositePrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_composite_pk' && dialect === 'sqlite';
 	}
@@ -3110,7 +3110,7 @@ class SqliteAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 		return msg;
 	}
 }
-class SqliteAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
+class SqliteAlterTableDeleteCompositePrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'delete_composite_pk' && dialect === 'sqlite';
 	}
@@ -3138,7 +3138,7 @@ class SqliteAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
 	}
 }
 
-class SqliteAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
+class SqliteAlterTableAlterCompositePrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_composite_pk' && dialect === 'sqlite';
 	}
@@ -3166,7 +3166,7 @@ class SqliteAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnSetPrimaryKeyConvertor extends Convertor {
+class PgAlterTableAlterColumnSetPrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_pk'
@@ -3185,7 +3185,7 @@ class PgAlterTableAlterColumnSetPrimaryKeyConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnDropPrimaryKeyConvertor extends Convertor {
+class PgAlterTableAlterColumnDropPrimaryKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_pk'
@@ -3214,7 +3214,7 @@ class PgAlterTableAlterColumnDropPrimaryKeyConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnSetNotNullConvertor extends Convertor {
+class PgAlterTableAlterColumnSetNotNullConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_set_notnull'
@@ -3233,7 +3233,7 @@ class PgAlterTableAlterColumnSetNotNullConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableAlterColumnDropNotNullConvertor extends Convertor {
+class PgAlterTableAlterColumnDropNotNullConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_alter_column_drop_notnull'
@@ -3253,7 +3253,7 @@ class PgAlterTableAlterColumnDropNotNullConvertor extends Convertor {
 }
 
 // FK
-class PgCreateForeignKeyConvertor extends Convertor {
+class PgCreateForeignKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_reference' && dialect === 'postgresql';
 	}
@@ -3294,7 +3294,7 @@ class PgCreateForeignKeyConvertor extends Convertor {
 	}
 }
 
-class LibSQLCreateForeignKeyConvertor extends Convertor {
+class LibSQLCreateForeignKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'create_reference'
@@ -3327,7 +3327,7 @@ class LibSQLCreateForeignKeyConvertor extends Convertor {
 	}
 }
 
-class MySqlCreateForeignKeyConvertor extends Convertor {
+class MySqlCreateForeignKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_reference' && dialect === 'mysql';
 	}
@@ -3351,7 +3351,7 @@ class MySqlCreateForeignKeyConvertor extends Convertor {
 	}
 }
 
-class PgAlterForeignKeyConvertor extends Convertor {
+class PgAlterForeignKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_reference' && dialect === 'postgresql';
 	}
@@ -3398,7 +3398,7 @@ class PgAlterForeignKeyConvertor extends Convertor {
 	}
 }
 
-class PgDeleteForeignKeyConvertor extends Convertor {
+class PgDeleteForeignKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'delete_reference' && dialect === 'postgresql';
 	}
@@ -3415,7 +3415,7 @@ class PgDeleteForeignKeyConvertor extends Convertor {
 	}
 }
 
-class MySqlDeleteForeignKeyConvertor extends Convertor {
+class MySqlDeleteForeignKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'delete_reference' && dialect === 'mysql';
 	}
@@ -3427,12 +3427,12 @@ class MySqlDeleteForeignKeyConvertor extends Convertor {
 	}
 }
 
-class CreatePgIndexConvertor extends Convertor {
+class CreatePgIndexConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'create_index_pg' && dialect === 'postgresql';
+		return statement.type === 'create_index' && dialect === 'postgresql';
 	}
 
-	convert(statement: JsonPgCreateIndexStatement): string {
+	convert(statement: JsonCreateIndexStatement): string {
 		const {
 			name,
 			columns,
@@ -3482,7 +3482,7 @@ class CreatePgIndexConvertor extends Convertor {
 	}
 }
 
-class CreateMySqlIndexConvertor extends Convertor {
+class CreateMySqlIndexConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_index' && dialect === 'mysql';
 	}
@@ -3508,7 +3508,7 @@ class CreateMySqlIndexConvertor extends Convertor {
 	}
 }
 
-class CreateSingleStoreIndexConvertor extends Convertor {
+class CreateSingleStoreIndexConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_index' && dialect === 'singlestore';
 	}
@@ -3534,7 +3534,7 @@ class CreateSingleStoreIndexConvertor extends Convertor {
 	}
 }
 
-export class CreateSqliteIndexConvertor extends Convertor {
+export class CreateSqliteIndexConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_index' && (dialect === 'sqlite' || dialect === 'turso');
 	}
@@ -3560,7 +3560,7 @@ export class CreateSqliteIndexConvertor extends Convertor {
 	}
 }
 
-class PgDropIndexConvertor extends Convertor {
+class PgDropIndexConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_index' && dialect === 'postgresql';
 	}
@@ -3571,7 +3571,7 @@ class PgDropIndexConvertor extends Convertor {
 	}
 }
 
-class PgCreateSchemaConvertor extends Convertor {
+class PgCreateSchemaConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_schema' && dialect === 'postgresql';
 	}
@@ -3582,7 +3582,7 @@ class PgCreateSchemaConvertor extends Convertor {
 	}
 }
 
-class PgRenameSchemaConvertor extends Convertor {
+class PgRenameSchemaConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_schema' && dialect === 'postgresql';
 	}
@@ -3593,7 +3593,7 @@ class PgRenameSchemaConvertor extends Convertor {
 	}
 }
 
-class PgDropSchemaConvertor extends Convertor {
+class PgDropSchemaConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_schema' && dialect === 'postgresql';
 	}
@@ -3604,7 +3604,7 @@ class PgDropSchemaConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableSetSchemaConvertor extends Convertor {
+class PgAlterTableSetSchemaConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_set_schema' && dialect === 'postgresql'
@@ -3618,7 +3618,7 @@ class PgAlterTableSetSchemaConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableSetNewSchemaConvertor extends Convertor {
+class PgAlterTableSetNewSchemaConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_set_new_schema'
@@ -3637,7 +3637,7 @@ class PgAlterTableSetNewSchemaConvertor extends Convertor {
 	}
 }
 
-class PgAlterTableRemoveFromSchemaConvertor extends Convertor {
+class PgAlterTableRemoveFromSchemaConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'alter_table_remove_from_schema'
@@ -3656,7 +3656,7 @@ class PgAlterTableRemoveFromSchemaConvertor extends Convertor {
 	}
 }
 
-export class SqliteDropIndexConvertor extends Convertor {
+export class SqliteDropIndexConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_index' && (dialect === 'sqlite' || dialect === 'turso');
 	}
@@ -3667,7 +3667,7 @@ export class SqliteDropIndexConvertor extends Convertor {
 	}
 }
 
-class MySqlDropIndexConvertor extends Convertor {
+class MySqlDropIndexConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_index' && dialect === 'mysql';
 	}
@@ -3678,7 +3678,7 @@ class MySqlDropIndexConvertor extends Convertor {
 	}
 }
 
-class SingleStoreDropIndexConvertor extends Convertor {
+class SingleStoreDropIndexConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_index' && dialect === 'singlestore';
 	}
@@ -3689,7 +3689,7 @@ class SingleStoreDropIndexConvertor extends Convertor {
 	}
 }
 
-class SQLiteRecreateTableConvertor extends Convertor {
+class SQLiteRecreateTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'recreate_table' && dialect === 'sqlite'
@@ -3755,7 +3755,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 	}
 }
 
-class LibSQLRecreateTableConvertor extends Convertor {
+class LibSQLRecreateTableConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
 			statement.type === 'recreate_table'
@@ -3822,7 +3822,10 @@ class LibSQLRecreateTableConvertor extends Convertor {
 }
 
 const convertors: Convertor[] = [];
-convertors.push(new PgCreateTableConvertor());
+const postgresEnableRlsConvertor = new PgEnableRlsConvertor();
+const postgresDropPolicyConvertor = new PgDropPolicyConvertor();
+
+convertors.push(postgresEnableRlsConvertor);
 convertors.push(new MySqlCreateTableConvertor());
 convertors.push(new SingleStoreCreateTableConvertor());
 convertors.push(new SQLiteCreateTableConvertor());
@@ -3859,7 +3862,7 @@ convertors.push(new RenamePgSequenceConvertor());
 convertors.push(new MovePgSequenceConvertor());
 convertors.push(new AlterPgSequenceConvertor());
 
-convertors.push(new PgDropTableConvertor());
+convertors.push(new PgDropTableConvertor(postgresDropPolicyConvertor));
 convertors.push(new MySQLDropTableConvertor());
 convertors.push(new SingleStoreDropTableConvertor());
 convertors.push(new SQLiteDropTableConvertor());
@@ -3879,13 +3882,14 @@ convertors.push(new MySqlAlterTableDropColumnConvertor());
 convertors.push(new SingleStoreAlterTableDropColumnConvertor());
 convertors.push(new SQLiteAlterTableDropColumnConvertor());
 
-convertors.push(new PgAlterTableAddColumnConvertor());
+convertors.push(new PostgresAlterTableAddColumnConvertor());
 convertors.push(new MySqlAlterTableAddColumnConvertor());
 convertors.push(new SingleStoreAlterTableAddColumnConvertor());
 convertors.push(new SQLiteAlterTableAddColumnConvertor());
 
 convertors.push(new PgAlterTableAlterColumnSetTypeConvertor());
 
+convertors.push(new PgAlterTableRenameUniqueConstraintConvertor());
 convertors.push(new PgAlterTableAddUniqueConstraintConvertor());
 convertors.push(new PgAlterTableDropUniqueConstraintConvertor());
 
@@ -3919,7 +3923,7 @@ convertors.push(new PgAlterTableAlterColumnDropDefaultConvertor());
 
 convertors.push(new PgAlterPolicyConvertor());
 convertors.push(new PgCreatePolicyConvertor());
-convertors.push(new PgDropPolicyConvertor());
+convertors.push(postgresDropPolicyConvertor);
 convertors.push(new PgRenamePolicyConvertor());
 
 convertors.push(new PgAlterIndPolicyConvertor());
@@ -3927,12 +3931,12 @@ convertors.push(new PgCreateIndPolicyConvertor());
 convertors.push(new PgDropIndPolicyConvertor());
 convertors.push(new PgRenameIndPolicyConvertor());
 
-convertors.push(new PgEnableRlsConvertor());
+convertors.push(postgresEnableRlsConvertor);
 convertors.push(new PgDisableRlsConvertor());
 
 convertors.push(new PgDropRoleConvertor());
 convertors.push(new PgAlterRoleConvertor());
-convertors.push(new PgCreateRoleConvertor());
+convertors.push(new PostgresCreateRoleConvertor());
 convertors.push(new PgRenameRoleConvertor());
 
 /// generated
@@ -3976,7 +3980,7 @@ convertors.push(new PgAlterTableAlterColumnDropGenerated());
 convertors.push(new PgAlterTableAlterColumnSetGenerated());
 convertors.push(new PgAlterTableAlterColumnAlterGenerated());
 
-convertors.push(new PgAlterTableCreateCompositePrimaryKeyConvertor());
+convertors.push(new PostgresAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new PgAlterTableDeleteCompositePrimaryKeyConvertor());
 convertors.push(new PgAlterTableAlterCompositePrimaryKeyConvertor());
 
@@ -3992,24 +3996,28 @@ convertors.push(new SingleStoreAlterTableAddPk());
 export function fromJson(
 	statements: JsonStatement[],
 	dialect: Dialect,
-	action?: 'push',
-	json2?: SQLiteSchemaSquashed,
 ) {
-	const result = statements
-		.flatMap((statement) => {
+	const grouped = statements
+		.map((statement) => {
 			const filtered = convertors.filter((it) => {
 				return it.can(statement, dialect);
 			});
 
 			const convertor = filtered.length === 1 ? filtered[0] : undefined;
-
 			if (!convertor) {
-				return '';
+				return null;
 			}
 
-			return convertor.convert(statement, json2, action);
+			const sqlStatements = convertor.convert(statement);
+			const statements = typeof sqlStatements === 'string' ? [sqlStatements] : sqlStatements;
+			return { jsonStatement: statement, sqlStatements: statements };
 		})
-		.filter((it) => it !== '');
+		.filter((it) => it !== null);
+
+	const result = {
+		sqlStatements: grouped.map((it) => it.sqlStatements).flat(),
+		groupedStatements: grouped,
+	};
 	return result;
 }
 

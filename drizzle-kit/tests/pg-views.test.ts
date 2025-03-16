@@ -666,6 +666,7 @@ test('drop view #1', async () => {
 		type: 'drop_view',
 		name: 'some_view',
 		schema: 'public',
+		soft: false,
 	});
 
 	expect(sqlStatements.length).toBe(1);
@@ -714,6 +715,7 @@ test('drop materialized view #1', async () => {
 		name: 'some_view',
 		schema: 'public',
 		materialized: true,
+		soft:false
 	});
 
 	expect(sqlStatements.length).toBe(1);
@@ -1372,36 +1374,36 @@ test('alter view ".as" value', async () => {
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual(
+	expect(statements).toStrictEqual([
 		{
-			name: 'some_view',
-			schema: 'public',
-			type: 'drop_view',
-		},
-	);
-	expect(statements[1]).toStrictEqual(
-		{
-			definition: "SELECT '1234'",
-			name: 'some_view',
-			schema: 'public',
-			type: 'create_view',
-			materialized: false,
-			with: {
-				checkOption: 'local',
-				securityBarrier: true,
-				securityInvoker: true,
+			type: 'recreate_view_definition',
+			drop: {
+				name: 'some_view',
+				schema: 'public',
+				type: 'drop_view',
+				soft: false
 			},
-			withNoData: false,
-			tablespace: undefined,
-			using: undefined,
-		},
-	);
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe('DROP VIEW "public"."some_view";');
-	expect(sqlStatements[1]).toBe(
-		`CREATE VIEW "public"."some_view" WITH (check_option = local, security_barrier = true, security_invoker = true) AS (SELECT '1234');`,
-	);
+			create: {
+				type: 'create_view',
+				name: 'some_view',
+				schema: 'public',
+				definition: "SELECT '1234'",
+				with: {
+					checkOption: 'local',
+					securityBarrier: true,
+					securityInvoker: true
+				},
+				materialized: false,
+				withNoData: false,
+				using: undefined,
+				tablespace: undefined
+			}
+		}
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'DROP VIEW "public"."some_view";',
+		`CREATE VIEW "public"."some_view" WITH (check_option = local, security_barrier = true, security_invoker = true) AS (SELECT '1234');`
+	]);
 });
 
 test('alter view ".as" value with existing flag', async () => {
@@ -1454,34 +1456,34 @@ test('alter materialized view ".as" value', async () => {
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual(
+	expect(statements).toStrictEqual([
 		{
-			name: 'some_view',
-			schema: 'public',
-			type: 'drop_view',
-			materialized: true,
-		},
-	);
-	expect(statements[1]).toStrictEqual(
-		{
-			definition: "SELECT '1234'",
-			name: 'some_view',
-			schema: 'public',
-			type: 'create_view',
-			with: {
-				autovacuumVacuumCostLimit: 1,
+			type: 'recreate_view_definition',
+			drop: {
+				name: 'some_view',
+				schema: 'public',
+				type: 'drop_view',
+				soft: false,
+				materialized: true
 			},
-			materialized: true,
-			withNoData: false,
-			tablespace: undefined,
-			using: undefined,
-		},
-	);
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe('DROP MATERIALIZED VIEW "public"."some_view";');
-	expect(sqlStatements[1]).toBe(
-		`CREATE MATERIALIZED VIEW "public"."some_view" WITH (autovacuum_vacuum_cost_limit = 1) AS (SELECT '1234');`,
+			create: {
+				type: 'create_view',
+				name: 'some_view',
+				schema: 'public',
+				definition: "SELECT '1234'",
+				with: { autovacuumVacuumCostLimit: 1 },
+				materialized: true,
+				withNoData: false,
+				using: undefined,
+				tablespace: undefined
+			}
+		}
+	]);
+	expect(sqlStatements).toStrictEqual(
+		[
+			'DROP MATERIALIZED VIEW "public"."some_view";',
+			`CREATE MATERIALIZED VIEW "public"."some_view" WITH (autovacuum_vacuum_cost_limit = 1) AS (SELECT '1234');`
+		]
 	);
 });
 
@@ -1531,31 +1533,33 @@ test('drop existing flag', async () => {
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toEqual({
-		type: 'drop_view',
-		name: 'some_view',
-		schema: 'public',
-		materialized: true,
-	});
-	expect(statements[1]).toEqual({
-		definition: "SELECT 'asd'",
-		materialized: true,
-		name: 'some_view',
-		schema: 'public',
-		tablespace: undefined,
-		type: 'create_view',
-		using: undefined,
-		with: {
-			autovacuumVacuumCostLimit: 1,
-		},
-		withNoData: false,
-	});
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`DROP MATERIALIZED VIEW "public"."some_view";`);
-	expect(sqlStatements[1]).toBe(
-		`CREATE MATERIALIZED VIEW "public"."some_view" WITH (autovacuum_vacuum_cost_limit = 1) AS (SELECT 'asd');`,
-	);
+	expect(statements).toStrictEqual([
+		{
+			type: 'recreate_view_definition',
+			drop: {
+				name: 'some_view',
+				schema: 'public',
+				type: 'drop_view',
+				soft: true,
+				materialized: true
+			},
+			create: {
+				type: 'create_view',
+				name: 'some_view',
+				schema: 'public',
+				definition: "SELECT 'asd'",
+				with: { autovacuumVacuumCostLimit: 1 },
+				materialized: true,
+				withNoData: false,
+				using: undefined,
+				tablespace: undefined
+			}
+		}
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'DROP MATERIALIZED VIEW IF EXISTS "public"."some_view";',
+		`CREATE MATERIALIZED VIEW "public"."some_view" WITH (autovacuum_vacuum_cost_limit = 1) AS (SELECT 'asd');`
+	]);
 });
 
 test('alter tablespace - materialize', async () => {
@@ -1715,9 +1719,32 @@ test('drop existing - materialized', async () => {
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(2);
+	expect(statements).toStrictEqual([{
+		type: 'recreate_view_definition',
+		drop: {
+			name: 'some_view',
+			schema: 'public',
+			type: 'drop_view',
+			soft: true,
+			materialized: true,
+		},
+		create: {
+			type: 'create_view',
+			name: 'some_view',
+			schema: 'public',
+			definition: "SELECT 'asd'",
+			with: { autovacuumVacuumCostLimit: 1, autovacuumFreezeMinAge: 1 },
+			materialized: true,
+			withNoData: true,
+			using: undefined,
+			tablespace: undefined,
+		},
+	}]);
 
-	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements).toStrictEqual([
+		'DROP MATERIALIZED VIEW IF EXISTS "public"."some_view";',
+		`CREATE MATERIALIZED VIEW "public"."some_view" WITH (autovacuum_vacuum_cost_limit = 1, autovacuum_freeze_min_age = 1) AS (SELECT 'asd') WITH NO DATA;`,
+	]);
 });
 
 test('set existing', async () => {
