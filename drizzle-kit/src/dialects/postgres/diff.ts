@@ -624,19 +624,28 @@ export const applyPgSnapshotsDiff = async (
 	const jsonRenamePoliciesStatements = policyRenames.map((it) => prepareStatement('rename_policy', it));
 
 	const alteredPolicies = alters.filter((it) => it.entityType === 'policies');
-	const jsonAlterPoliciesStatements = alteredPolicies.map((it) => prepareStatement('alter_policy', { diff: it }));
+	const jsonAlterPoliciesStatements = alteredPolicies.map((it) =>
+		prepareStatement('alter_policy', {
+			diff: it,
+			policy: ddl2.policies.one({
+				schema: it.schema,
+				table: it.table,
+				name: it.name,
+			})!,
+		})
+	);
 
 	const rlsAlters = alters.filter((it) => it.entityType === 'tables').filter((it) => it.isRlsEnabled);
 	const jsonAlterRlsStatements = rlsAlters.map((it) => prepareStatement('alter_rls', { diff: it }));
 	const policiesAlters = alters.filter((it) => it.entityType === 'policies');
 	const jsonPloiciesAlterStatements = policiesAlters.map((it) => prepareStatement('alter_policy', { diff: it }));
 
-	const jsonCreateEnums = createdEnums.map((it) => prepareStatement('create_type_enum', { enum: it }));
-	const jsonDropEnums = deletedEnums.map((it) => prepareStatement('drop_type_enum', { enum: it }));
-	const jsonMoveEnums = movedEnums.map((it) => prepareStatement('move_type_enum', it));
-	const jsonRenameEnums = renamedEnums.map((it) => prepareStatement('rename_type_enum', it));
+	const jsonCreateEnums = createdEnums.map((it) => prepareStatement('create_enum', { enum: it }));
+	const jsonDropEnums = deletedEnums.map((it) => prepareStatement('drop_enum', { enum: it }));
+	const jsonMoveEnums = movedEnums.map((it) => prepareStatement('move_enum', it));
+	const jsonRenameEnums = renamedEnums.map((it) => prepareStatement('rename_enum', it));
 	const enumsAlters = alters.filter((it) => it.entityType === 'enums');
-	const jsonAlterEnums = enumsAlters.map((it) => prepareStatement('alter_type_enum', { diff: it }));
+	const jsonAlterEnums = enumsAlters.map((it) => prepareStatement('alter_enum', { diff: it }));
 
 	const createSequences = createdSequences.map((it) => prepareStatement('create_sequence', { sequence: it }));
 	const dropSequences = deletedSequences.map((it) => prepareStatement('drop_sequence', { sequence: it }));

@@ -1,7 +1,7 @@
 import type { Simplify } from '../../utils';
 import type { JsonStatement } from './statements';
 
-const convertor = <TType extends JsonStatement['type'], TStatement extends Extract<JsonStatement, { type: TType }>>(
+export const convertor = <TType extends JsonStatement['type'], TStatement extends Extract<JsonStatement, { type: TType }>>(
 	type: TType,
 	convertor: (statement: Simplify<Omit<TStatement, 'type'>>) => string | string[],
 ) => {
