@@ -11413,6 +11413,7 @@ test('alltypes', async () => {
 			\`buffer\` blob,
 			\`json\` blob,
 			\`numeric\` numeric,
+			\`numeric_num\` numeric,
 			\`real\` real,
 			\`text\` text,
 			\`json_text\` text
@@ -11459,6 +11460,7 @@ test('alltypes', async () => {
 			arr: ['strb', 11],
 		},
 		numeric: '475452353476',
+		numericNum: 9007199254740991,
 		real: 1.048596,
 		text: 'TEXT STRING',
 		time: new Date(1741743161623),
@@ -11510,6 +11512,7 @@ test('alltypes', async () => {
 			]),
 			json: { str: 'strval', arr: ['str', 10] },
 			numeric: 475452353476,
+			numericNum: 9007199254740991,
 			real: 1.048596,
 			text: 'TEXT STRING',
 			jsonText: { str: 'strvalb', arr: ['strb', 11] },

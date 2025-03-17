@@ -211,6 +211,9 @@ export const allTypesTable = pgTable('all_types', {
 	macaddr: macaddr(),
 	macaddr8: macaddr8(),
 	numeric: numeric(),
+	numericNum: numeric({
+		mode: 'number',
+	}),
 	point: point({
 		mode: 'xy',
 	}),
@@ -269,6 +272,9 @@ export const allTypesTable = pgTable('all_types', {
 	arrmacaddr: macaddr().array(),
 	arrmacaddr8: macaddr8().array(),
 	arrnumeric: numeric().array(),
+	arrnumericNum: numeric({
+		mode: 'number',
+	}).array(),
 	arrpoint: point({
 		mode: 'xy',
 	}).array(),
