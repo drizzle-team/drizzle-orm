@@ -14,16 +14,16 @@ const ENABLE_LOGGING = false;
 let db: NeonDatabase;
 let client: Pool;
 
-// neonConfig.wsProxy = (host) => `${host}:5446/v1`;
-// neonConfig.useSecureWebSocket = false;
-// neonConfig.pipelineTLS = false;
-// neonConfig.pipelineConnect = false;
+neonConfig.wsProxy = (host) => `${host}:5446/v1`;
+neonConfig.useSecureWebSocket = false;
+neonConfig.pipelineTLS = false;
+neonConfig.pipelineConnect = false;
 neonConfig.webSocketConstructor = ws;
 
 beforeAll(async () => {
-	const connectionString = process.env['NEON_SERVERLESS_CONNECTION_STRING'] ?? process.env['NEON_CONNECTION_STRING'];
+	const connectionString = process.env['NEON_SERVERLESS_CONNECTION_STRING'];
 	if (!connectionString) {
-		throw new Error('Neither NEON_SERVERLESS_CONNECTION_STRING nor NEON_CONNECTION_STRING are defined');
+		throw new Error('NEON_SERVERLESS_CONNECTION_STRING is not defined');
 	}
 
 	client = new Pool({ connectionString });

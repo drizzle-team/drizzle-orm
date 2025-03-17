@@ -13,7 +13,7 @@ const ENABLE_LOGGING = false;
 let db: NeonHttpDatabase;
 
 beforeAll(async () => {
-	const connectionString = process.env['NEON_CONNECTION_STRING'];
+	const connectionString = process.env['NEON_HTTP_CONNECTION_STRING'];
 	if (!connectionString) {
 		throw new Error('NEON_CONNECTION_STRING is not defined');
 	}
@@ -22,7 +22,6 @@ beforeAll(async () => {
 		const [protocol, port] = host === 'db.localtest.me' ? ['http', 4444] : ['https', 443];
 		return `${protocol}://${host}:${port}/sql`;
 	};
-	neonConfig.poolQueryViaFetch = true;
 	db = drizzle(neon(connectionString), { logger: ENABLE_LOGGING });
 });
 

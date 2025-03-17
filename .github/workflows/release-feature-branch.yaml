@@ -61,6 +61,19 @@ jobs:
           --health-retries 5
         ports:
           - 55433:5432
+      neon-proxy:
+        image: ghcr.io/timowilhelm/local-neon-http-proxy:main
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@postgres:5432/postgres
+        ports:
+          - 4444:4444
+      pg-proxy:
+        image: ghcr.io/neondatabase/wsproxy:latest
+        env:
+          APPEND_PORT: 'postgres:5432'
+          ALLOW_ADDR_REGEX: '.*'
+          ports:
+            5446:80
       mysql:
         image: mysql:8
         env:
@@ -73,12 +86,18 @@ jobs:
           --health-retries 5
         ports:
           - 33306:3306
+      singlestore:
+        image: ghcr.io/singlestore-labs/singlestoredb-dev:latest
+        env:
+          ROOT_PASSWORD: singlestore
+        ports:
+          - 33307:3306
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18.18'
+          node-version: '20.19'
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v3
@@ -119,13 +138,16 @@ jobs:
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
-          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          # NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          NEON_HTTP_CONNECTION_STRING: postgres://postgres:postgres@db.localtest.me:5432/postgres
+          NEON_SERVERLESS_CONNECTION_STRING: postgres://postgres:postgres@localhost:5445/postgres
           TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+          SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
         working-directory: integration-tests
         run: |
           if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
@@ -135,11 +157,15 @@ jobs:
           case ${{ matrix.shard }} in
 
             gel)
-              pnpm vitest run tests/gel
+              if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
+                pnpm vitest run tests/gel
+              fi
             ;;
 
             planetscale)
-              pnpm vitest run tests/mysql/mysql-planetscale.test.ts tests/relational/mysql.planetscale.test.ts
+              if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
+                pnpm vitest run tests/mysql/mysql-planetscale.test.ts tests/relational/mysql.planetscale.test.ts
+              fi
             ;;
 
             singlestore-core)
