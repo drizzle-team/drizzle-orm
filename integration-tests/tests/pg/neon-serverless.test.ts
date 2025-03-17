@@ -8,7 +8,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
+import { mySchema, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
@@ -26,13 +26,10 @@ beforeAll(async () => {
 	if (!connectionString) {
 		throw new Error('NEON_CONNECTION_STRING is not defined');
 	}
-
 	client = await retry(async () => {
 		client = new Pool({ connectionString });
-
 		const cnt = await client.connect();
 		cnt.release();
-
 		return client;
 	}, {
 		retries: 20,
