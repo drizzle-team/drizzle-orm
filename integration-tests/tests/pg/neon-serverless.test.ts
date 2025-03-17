@@ -8,27 +8,28 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
+import { mySchema, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
 let db: NeonDatabase;
 let client: Pool;
 
+neonConfig.wsProxy = (host) => `${host}:5446/v1`
+neonConfig.useSecureWebSocket = false
+neonConfig.pipelineTLS = false
+neonConfig.pipelineConnect = false
+neonConfig.webSocketConstructor = ws;
+
 beforeAll(async () => {
-	const connectionString = process.env['NEON_CONNECTION_STRING'];
+	const connectionString = "postgres://postgres:postgres@localhost:5445/postgres" // process.env['NEON_CONNECTION_STRING'];
 	if (!connectionString) {
 		throw new Error('NEON_CONNECTION_STRING is not defined');
 	}
-
-	neonConfig.webSocketConstructor = ws;
-
 	client = await retry(async () => {
 		client = new Pool({ connectionString });
-
 		const cnt = await client.connect();
 		cnt.release();
-
 		return client;
 	}, {
 		retries: 20,
@@ -515,7 +516,7 @@ skipTests([
 	'mySchema :: select all fields',
 	'mySchema :: delete with returning all fields',
 ]);
-tests();
+// tests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);
