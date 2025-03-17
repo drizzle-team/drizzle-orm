@@ -61,19 +61,19 @@ jobs:
           --health-retries 5
         ports:
           - 55433:5432
-      neon-proxy:
-        image: ghcr.io/timowilhelm/local-neon-http-proxy:main
-        env:
-          PG_CONNECTION_STRING: postgres://postgres:postgres@postgres:5432/postgres
-        ports:
-          - 4444:4444
-      pg-proxy:
-        image: ghcr.io/neondatabase/wsproxy:latest
-        env:
-          APPEND_PORT: 'postgres:5432'
-          ALLOW_ADDR_REGEX: '.*'
-          ports:
-            5446:80
+      # neon-proxy:
+      #   image: ghcr.io/timowilhelm/local-neon-http-proxy:main
+      #   env:
+      #     PG_CONNECTION_STRING: postgres://postgres:postgres@postgres:5432/postgres
+      #   ports:
+      #     - 4444:4444
+      # pg-proxy:
+      #   image: ghcr.io/neondatabase/wsproxy:latest
+      #   env:
+      #     APPEND_PORT: 'postgres:5432'
+      #     ALLOW_ADDR_REGEX: '.*'
+      #     ports:
+      #       5446:80
       mysql:
         image: mysql:8
         env:
@@ -185,11 +185,15 @@ jobs:
             ;;
 
             neon-http)
+              docker compose -f docker-neon.yml up -d
               pnpm vitest run tests/pg/neon-http.test.ts
+              docker compose -f docker-neon.yml down
             ;;
 
             neon-serverless)
+              docker compose -f docker-neon.yml up -d
               pnpm vitest run tests/pg/neon-serverless.test.ts
+              docker compose -f docker-neon.yml down
             ;;
 
             other)
