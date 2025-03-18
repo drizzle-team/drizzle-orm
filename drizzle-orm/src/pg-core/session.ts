@@ -73,6 +73,8 @@ export abstract class PgSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+		transactionId?: string,
+		isSimple?: boolean,
 	): PgPreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T>;
