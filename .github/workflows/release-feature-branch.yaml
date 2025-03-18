@@ -18,7 +18,6 @@ jobs:
           - singlestore-prefixed
           - singlestore-custom
           - neon-http
-          - neon-http-batch
           - neon-serverless
           - other
     runs-on: ubuntu-20.04
@@ -140,7 +139,8 @@ jobs:
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-          NEON_HTTP_CONNECTION_STRING: postgres://postgres:postgres@db.localtest.me:5432/postgres
+          # NEON_HTTP_CONNECTION_STRING: postgres://postgres:postgres@db.localtest.me:5432/postgres
+          NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           NEON_SERVERLESS_CONNECTION_STRING: postgres://postgres:postgres@localhost:5445/postgres
           TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
@@ -186,9 +186,7 @@ jobs:
             ;;
 
             neon-http)
-              docker compose -f docker-neon.yml up -d
-              pnpm vitest run tests/pg/neon-http.test.ts
-              docker compose -f docker-neon.yml down
+              pnpm vitest run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
             ;;
 
             neon-http-batch)
