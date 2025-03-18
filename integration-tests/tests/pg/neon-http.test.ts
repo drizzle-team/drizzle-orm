@@ -1,5 +1,5 @@
 import { neon, neonConfig, type NeonQueryFunction } from '@neondatabase/serverless';
-import { eq, sql } from 'drizzle-orm';
+import { defineRelations, eq, sql } from 'drizzle-orm';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
 import { pgMaterializedView, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
@@ -7,10 +7,11 @@ import { beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: NeonHttpDatabase;
+let db: NeonHttpDatabase<never, typeof relations>;
 
 beforeAll(async () => {
 	const connectionString = process.env['NEON_HTTP_CONNECTION_STRING'];
@@ -22,7 +23,7 @@ beforeAll(async () => {
 		const [protocol, port] = host === 'db.localtest.me' ? ['http', 4444] : ['https', 443];
 		return `${protocol}://${host}:${port}/sql`;
 	};
-	db = drizzle(neon(connectionString), { logger: ENABLE_LOGGING });
+	db = drizzle(neon(connectionString), { logger: ENABLE_LOGGING, relations });
 });
 
 beforeEach((ctx) => {
@@ -414,6 +415,14 @@ skipTests([
 	'transaction',
 	'timestamp timezone',
 	'test $onUpdateFn and $onUpdate works as $default',
+	'RQB v2 transaction find first - no rows',
+	'RQB v2 transaction find first - multiple rows',
+	'RQB v2 transaction find first - with relation',
+	'RQB v2 transaction find first - placeholders',
+	'RQB v2 transaction find many - no rows',
+	'RQB v2 transaction find many - multiple rows',
+	'RQB v2 transaction find many - with relation',
+	'RQB v2 transaction find many - placeholders',
 ]);
 tests();
 
@@ -472,6 +481,7 @@ describe('$withAuth tests', (it) => {
 		schema: {
 			usersTable,
 		},
+		relations: defineRelations({ usersTable }, () => ({})),
 	});
 
 	it('$count', async () => {
@@ -536,9 +546,15 @@ describe('$withAuth tests', (it) => {
 	});
 
 	it('rqb', async () => {
-		await db.$withAuth('rqb').query.usersTable.findFirst().catch(() => null);
+		await db.$withAuth('rqb')._query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'rqb' });
+	});
+
+	it('rqbV2', async () => {
+		await db.$withAuth('rqbV2').query.usersTable.findFirst().catch(() => null);
+
+		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: false, fullResults: true, authToken: 'rqbV2' });
 	});
 
 	it('exec', async () => {
@@ -576,6 +592,7 @@ describe('$withAuth callback tests', (it) => {
 		schema: {
 			usersTable,
 		},
+		relations: defineRelations({ usersTable }, () => ({})),
 	});
 	const auth = (token: string) => () => token;
 
@@ -635,9 +652,15 @@ describe('$withAuth callback tests', (it) => {
 	});
 
 	it('rqb', async () => {
-		await db.$withAuth(auth('rqb')).query.usersTable.findFirst().catch(() => null);
+		await db.$withAuth(auth('rqb'))._query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqb');
+	});
+
+	it('rqbV2', async () => {
+		await db.$withAuth(auth('rqbV2')).query.usersTable.findFirst().catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqbV2');
 	});
 
 	it('exec', async () => {
@@ -671,6 +694,7 @@ describe('$withAuth async callback tests', (it) => {
 		schema: {
 			usersTable,
 		},
+		relations: defineRelations({ usersTable }, () => ({})),
 	});
 	const auth = (token: string) => async () => token;
 
@@ -738,10 +762,17 @@ describe('$withAuth async callback tests', (it) => {
 	});
 
 	it('rqb', async () => {
-		await db.$withAuth(auth('rqb')).query.usersTable.findFirst().catch(() => null);
+		await db.$withAuth(auth('rqb'))._query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqb');
+	});
+
+	it('rqbV2', async () => {
+		await db.$withAuth(auth('rqbV2')).query.usersTable.findFirst().catch(() => null);
+
+		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
+		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqbV2');
 	});
 
 	it('exec', async () => {
