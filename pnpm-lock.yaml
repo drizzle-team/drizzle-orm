@@ -9,8 +9,8 @@ importers:
   .:
     devDependencies:
       '@arethetypeswrong/cli':
-        specifier: 0.17.4
-        version: 0.17.4
+        specifier: 0.15.3
+        version: 0.15.3
       '@trivago/prettier-plugin-sort-imports':
         specifier: ^4.2.0
         version: 4.2.0(prettier@3.0.3)
@@ -839,21 +839,12 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@arethetypeswrong/cli@0.17.4':
-    resolution: {integrity: sha512-AeiKxtf67XD/NdOqXgBOE5TZWH3EOCt+0GkbUpekOzngc+Q/cRZ5azjWyMxISxxfp0EItgm5NoSld9p7BAA5xQ==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   '@arethetypeswrong/core@0.15.1':
     resolution: {integrity: sha512-FYp6GBAgsNz81BkfItRz8RLZO03w5+BaeiPma1uCfmxTnxbtuMrI/dbzGiOk8VghO108uFI0oJo0OkewdSHw7g==}
     engines: {node: '>=18'}
 
   '@arethetypeswrong/core@0.16.4':
     resolution: {integrity: sha512-RI3HXgSuKTfcBf1hSEg1P9/cOvmI0flsMm6/QL3L3wju4AlHDqd55JFPfXs4pzgEAgy5L9pul4/HPPz99x2GvA==}
-    engines: {node: '>=18'}
-
-  '@arethetypeswrong/core@0.17.4':
-    resolution: {integrity: sha512-Izvir8iIoU+X4SKtDAa5kpb+9cpifclzsbA8x/AZY0k0gIfXYQ1fa1B6Epfe6vNA2YfDX8VtrZFgvnXB6aPEoQ==}
     engines: {node: '>=18'}
 
   '@ava/typescript@5.0.0':
@@ -1995,9 +1986,6 @@ packages:
 
   '@balena/dockerignore@1.0.2':
     resolution: {integrity: sha512-wMue2Sy4GAVTk6Ic4tJVcnfdau+gx2EnG7S+uAEe+TWJFqE4YoWN4/H8MSLj4eYJKxGg26lZwboEniNiNwZQ6Q==}
-
-  '@braidai/lang@1.1.0':
-    resolution: {integrity: sha512-xyJYkiyNQtTyCLeHxZmOs7rnB94D+N1IjKNArQIh8+8lTBOY7TFgwEV+Ow5a1uaBi5j2w9fLbWcJFTWLDItl5g==}
 
   '@cloudflare/kv-asset-handler@0.3.4':
     resolution: {integrity: sha512-YLPHc8yASwjNkmcDMQMY35yiWjoKAKnhUbPRszBRS0YgH+IXtsMp61j+yTcnCE3oO2DgP0U3iejLC8FTtKDC8Q==}
@@ -3278,9 +3266,6 @@ packages:
     resolution: {integrity: sha512-IdODVqV/PrdOnHA/004uWyorZQuRsB7U7bCRCE3vXgABj3eJLJGc6cv2C6ksEaEoVxJbD8k53H4VVAGrtYwXzQ==}
     cpu: [x64]
     os: [win32]
-
-  '@loaderkit/resolve@1.0.4':
-    resolution: {integrity: sha512-rJzYKVcV4dxJv+vW6jlvagF8zvGxHJ2+HTr1e2qOejfmGhAApgJHl8Aog4mMszxceTRiKTTbnpgmTO1bEZHV/A==}
 
   '@miniflare/core@2.14.4':
     resolution: {integrity: sha512-FMmZcC1f54YpF4pDWPtdQPIO8NXfgUxCoR9uyrhxKJdZu7M6n8QKopPVNuaxR40jcsdxb7yKoQoFWnHfzJD9GQ==}
@@ -5226,9 +5211,6 @@ packages:
 
   cjs-module-lexer@1.4.1:
     resolution: {integrity: sha512-cuSVIHi9/9E/+821Qjdvngor+xpnlwnuwIyZOaLmHBVdXL+gP+I6QQB9VkO7RI77YIcTV+S1W9AreJ5eN63JBA==}
-
-  cjs-module-lexer@1.4.3:
-    resolution: {integrity: sha512-9z8TZaGM1pfswYeXrUpzPrkx8UnWYdhJclsiYMm6x/w5+nN+8Tf/LnAgfLGQCm59qAOxU8WwHEq2vNwF6i4j+Q==}
 
   clean-regexp@1.0.0:
     resolution: {integrity: sha512-GfisEZEJvzKrmGWkvfhgzcz/BllN1USeqD2V6tg14OAOgaCD2Z/PUEuxnAZ/nPvmaHRG7a8y77p1T/IRQ4D1Hw==}
@@ -7872,12 +7854,6 @@ packages:
     peerDependencies:
       marked: '>=1 <15'
 
-  marked-terminal@7.3.0:
-    resolution: {integrity: sha512-t4rBvPsHc57uE/2nJOLmMbZCQ4tgAccAED3ngXQqW6g+TxA488JzJ+FK3lQkzBQOI1mRV/r/Kq+1ZlJ4D0owQw==}
-    engines: {node: '>=16.0.0'}
-    peerDependencies:
-      marked: '>=1 <16'
-
   marked@9.1.6:
     resolution: {integrity: sha512-jcByLnIFkd5gSXZmjNvS1TlmRhCXZjIzHYlaGkPlLIekG55JDR2Z4va9tZwCiP+/RDERiNhMOFu01xd6O5ct1Q==}
     engines: {node: '>= 16'}
@@ -9811,10 +9787,6 @@ packages:
     resolution: {integrity: sha512-RpsAZlpWcDwOPQA22aCH4J0t7L8JmAvsCxfOSEwm7cQs3LshN36QaTkwd70DnBOXDWGssw2eUoc8CaRWT0XunA==}
     engines: {node: '>=8'}
 
-  supports-hyperlinks@3.0.0:
-    resolution: {integrity: sha512-QBDPHyPQDRTy9ku4URNGY5Lah8PAaXs6tAAwp55sL5WCsSW7GIfdf6W5ixfziW+t7wh3GVvHyHHyQ1ESsoRvaA==}
-    engines: {node: '>=14.18'}
-
   supports-hyperlinks@3.1.0:
     resolution: {integrity: sha512-2rn0BZ+/f7puLOHZm1HOJfwBggfaHXUpPUSSG/SWM4TWp5KCfmNYwnC3hruy2rZlMnmWZ+QAGpZfchu3f3695A==}
     engines: {node: '>=14.18'}
@@ -10920,11 +10892,11 @@ snapshots:
     dependencies:
       '@arethetypeswrong/core': 0.15.1
       chalk: 4.1.2
-      cli-table3: 0.6.3
+      cli-table3: 0.6.5
       commander: 10.0.1
       marked: 9.1.6
       marked-terminal: 6.2.0(marked@9.1.6)
-      semver: 7.6.2
+      semver: 7.7.1
 
   '@arethetypeswrong/cli@0.16.4':
     dependencies:
@@ -10936,24 +10908,14 @@ snapshots:
       marked-terminal: 7.2.1(marked@9.1.6)
       semver: 7.6.2
 
-  '@arethetypeswrong/cli@0.17.4':
-    dependencies:
-      '@arethetypeswrong/core': 0.17.4
-      chalk: 4.1.2
-      cli-table3: 0.6.5
-      commander: 10.0.1
-      marked: 9.1.6
-      marked-terminal: 7.3.0(marked@9.1.6)
-      semver: 7.7.1
-
   '@arethetypeswrong/core@0.15.1':
     dependencies:
       '@andrewbranch/untar.js': 1.0.3
       fflate: 0.8.2
-      semver: 7.6.2
+      semver: 7.7.1
       ts-expose-internals-conditionally: 1.0.0-empty.0
       typescript: 5.3.3
-      validate-npm-package-name: 5.0.0
+      validate-npm-package-name: 5.0.1
 
   '@arethetypeswrong/core@0.16.4':
     dependencies:
@@ -10961,20 +10923,9 @@ snapshots:
       cjs-module-lexer: 1.4.1
       fflate: 0.8.2
       lru-cache: 10.4.3
-      semver: 7.6.2
-      typescript: 5.6.1-rc
-      validate-npm-package-name: 5.0.0
-
-  '@arethetypeswrong/core@0.17.4':
-    dependencies:
-      '@andrewbranch/untar.js': 1.0.3
-      '@loaderkit/resolve': 1.0.4
-      cjs-module-lexer: 1.4.3
-      fflate: 0.8.2
-      lru-cache: 10.4.3
       semver: 7.7.1
       typescript: 5.6.1-rc
-      validate-npm-package-name: 5.0.1
+      validate-npm-package-name: 5.0.0
 
   '@ava/typescript@5.0.0':
     dependencies:
@@ -13170,8 +13121,6 @@ snapshots:
 
   '@balena/dockerignore@1.0.2': {}
 
-  '@braidai/lang@1.1.0': {}
-
   '@cloudflare/kv-asset-handler@0.3.4':
     dependencies:
       mime: 3.0.0
@@ -14270,10 +14219,6 @@ snapshots:
 
   '@libsql/win32-x64-msvc@0.4.1':
     optional: true
-
-  '@loaderkit/resolve@1.0.4':
-    dependencies:
-      '@braidai/lang': 1.1.0
 
   '@miniflare/core@2.14.4':
     dependencies:
@@ -15939,7 +15884,7 @@ snapshots:
       debug: 4.3.7
       globby: 11.1.0
       is-glob: 4.0.3
-      semver: 7.6.2
+      semver: 7.7.1
       tsutils: 3.21.0(typescript@5.6.3)
     optionalDependencies:
       typescript: 5.6.3
@@ -15982,7 +15927,7 @@ snapshots:
       globby: 11.1.0
       is-glob: 4.0.3
       minimatch: 9.0.4
-      semver: 7.6.2
+      semver: 7.7.1
       ts-api-utils: 1.3.0(typescript@5.6.3)
     optionalDependencies:
       typescript: 5.6.3
@@ -16705,7 +16650,7 @@ snapshots:
 
   builtins@5.1.0:
     dependencies:
-      semver: 7.6.2
+      semver: 7.7.1
 
   bun-types@0.6.14: {}
 
@@ -16931,8 +16876,6 @@ snapshots:
 
   cjs-module-lexer@1.4.1: {}
 
-  cjs-module-lexer@1.4.3: {}
-
   clean-regexp@1.0.0:
     dependencies:
       escape-string-regexp: 1.0.5
@@ -17094,7 +17037,7 @@ snapshots:
       js-string-escape: 1.0.1
       lodash: 4.17.21
       md5-hex: 3.0.1
-      semver: 7.6.2
+      semver: 7.7.1
       well-known-symbols: 2.0.0
 
   concurrently@8.2.1:
@@ -19988,24 +19931,13 @@ snapshots:
     dependencies:
       ansi-escapes: 6.2.0
       cardinal: 2.1.1
-      chalk: 5.3.0
-      cli-table3: 0.6.3
-      marked: 9.1.6
-      node-emoji: 2.1.3
-      supports-hyperlinks: 3.0.0
-
-  marked-terminal@7.2.1(marked@9.1.6):
-    dependencies:
-      ansi-escapes: 7.0.0
-      ansi-regex: 6.1.0
-      chalk: 5.3.0
-      cli-highlight: 2.1.11
+      chalk: 5.4.1
       cli-table3: 0.6.5
       marked: 9.1.6
-      node-emoji: 2.1.3
-      supports-hyperlinks: 3.1.0
+      node-emoji: 2.2.0
+      supports-hyperlinks: 3.2.0
 
-  marked-terminal@7.3.0(marked@9.1.6):
+  marked-terminal@7.2.1(marked@9.1.6):
     dependencies:
       ansi-escapes: 7.0.0
       ansi-regex: 6.1.0
@@ -20013,8 +19945,8 @@ snapshots:
       cli-highlight: 2.1.11
       cli-table3: 0.6.5
       marked: 9.1.6
-      node-emoji: 2.2.0
-      supports-hyperlinks: 3.2.0
+      node-emoji: 2.1.3
+      supports-hyperlinks: 3.1.0
 
   marked@9.1.6: {}
 
@@ -20467,7 +20399,7 @@ snapshots:
 
   node-abi@3.62.0:
     dependencies:
-      semver: 7.6.2
+      semver: 7.7.1
 
   node-abort-controller@3.1.1: {}
 
@@ -22191,11 +22123,6 @@ snapshots:
       has-flag: 4.0.0
 
   supports-hyperlinks@2.3.0:
-    dependencies:
-      has-flag: 4.0.0
-      supports-color: 7.2.0
-
-  supports-hyperlinks@3.0.0:
     dependencies:
       has-flag: 4.0.0
       supports-color: 7.2.0
