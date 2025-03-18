@@ -8,6 +8,8 @@ on:
 
 jobs:
   test:
+    # only run on all pushes or pull requests from forks
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     strategy:
       matrix:
         shard:
@@ -61,19 +63,6 @@ jobs:
           --health-retries 5
         ports:
           - 55433:5432
-      # neon-proxy:
-      #   image: ghcr.io/timowilhelm/local-neon-http-proxy:main
-      #   env:
-      #     PG_CONNECTION_STRING: postgres://postgres:postgres@postgres:5432/postgres
-      #   ports:
-      #     - 4444:4444
-      # pg-proxy:
-      #   image: ghcr.io/neondatabase/wsproxy:latest
-      #   env:
-      #     APPEND_PORT: 'postgres:5432'
-      #     ALLOW_ADDR_REGEX: '.*'
-      #     ports:
-      #       5446:80
       mysql:
         image: mysql:8
         env:
@@ -189,12 +178,6 @@ jobs:
               pnpm vitest run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
             ;;
 
-            neon-http-batch)
-              docker compose -f docker-neon.yml up -d
-              pnpm vitest run tests/pg/neon-http-batch.test.ts
-              docker compose -f docker-neon.yml down
-            ;;
-
             neon-serverless)
               docker compose -f docker-neon.yml up -d
               pnpm vitest run tests/pg/neon-serverless.test.ts
@@ -264,6 +247,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Check preconditions
         id: checks
         shell: bash
@@ -286,32 +272,23 @@ jobs:
             } >> $GITHUB_OUTPUT
           fi
 
+      - name: Build Prisma client
+        working-directory: drizzle-orm
+        run: pnpm prisma generate --schema src/prisma/schema.prisma
+
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
-        run: |
-          (
-            cd drizzle-orm
-            pnpm prisma generate --schema src/prisma/schema.prisma
-          )
-          pnpm build
+        run: pnpm build
       
       - name: Pack
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
-        shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-        run: |
-          npm run pack
+        run: npm run pack
   
       - name: Run @arethetypeswrong/cli
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
-        shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-        run: |
-          pnpm attw package.tgz
+        run: bunx attw package.tgz
 
   release:
     # only run on all pushes or pull requests from forks
