@@ -21,6 +21,12 @@ jobs:
           - singlestore-custom
           - neon-http
           - neon-serverless
+          - drizzle-orm
+          - drizzle-kit
+          - drizzle-zod
+          - drizzle-seed
+          - drizzle-typebox
+          - drizzle-valibot
           - other
     runs-on: ubuntu-20.04
     services:
@@ -154,7 +160,10 @@ jobs:
 
             planetscale)
               if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
-                pnpm vitest run tests/mysql/mysql-planetscale.test.ts tests/relational/mysql.planetscale.test.ts
+                pnpm vitest run \
+                  tests/mysql/mysql-planetscale.test.ts \
+                  tests/relational/mysql.planetscale-v1.test.ts \
+                  tests/relational/mysql.planetscale.test.ts
               fi
             ;;
 
@@ -175,7 +184,9 @@ jobs:
             ;;
 
             neon-http)
-              pnpm vitest run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
+              if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
+                pnpm vitest run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
+              fi
             ;;
 
             neon-serverless)
@@ -184,10 +195,15 @@ jobs:
               docker compose -f docker-neon.yml down
             ;;
 
+            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot)
+              pnpm run test --filter ${{ matrix.shard }}
+            ;;
+
             other)
               pnpm vitest run \
                 --exclude tests/gel \
                 --exclude tests/mysql/mysql-planetscale.test.ts \
+                --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
                 --exclude tests/singlestore/singlestore.test.ts \
                 --exclude tests/singlestore/singlestore-proxy.test.ts \
@@ -371,10 +387,6 @@ jobs:
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
         run: pnpm build
-
-      - name: Run tests
-        if: steps.checks.outputs.has_new_release == 'true'
-        run: pnpm test --filter ${{ matrix.package }}
 
       - name: Pack
         if: steps.checks.outputs.has_new_release == 'true'
