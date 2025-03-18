@@ -196,7 +196,7 @@ jobs:
             ;;
 
             drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot)
-              pnpm run test --filter ${{ matrix.shard }}
+              (cd .. && pnpm test --filter ${{ matrix.shard }})
             ;;
 
             other)
