@@ -214,6 +214,9 @@ export const allTypesTable = pgTable('all_types', {
 	numericNum: numeric({
 		mode: 'number',
 	}),
+	numericBig: numeric({
+		mode: 'bigint',
+	}),
 	point: point({
 		mode: 'xy',
 	}),
@@ -274,6 +277,9 @@ export const allTypesTable = pgTable('all_types', {
 	arrnumeric: numeric().array(),
 	arrnumericNum: numeric({
 		mode: 'number',
+	}).array(),
+	arrnumericBig: numeric({
+		mode: 'bigint',
 	}).array(),
 	arrpoint: point({
 		mode: 'xy',

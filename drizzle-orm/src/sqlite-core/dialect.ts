@@ -822,7 +822,11 @@ export abstract class SQLiteDialect {
 				case 'SQLiteBlobBuffer': {
 					return sql`hex(${name}) as ${sql.identifier(key)}`;
 				}
-
+				case 'SQLiteNumeric':
+				case 'SQLiteNumericNumber':
+				case 'SQLiteNumericBigInt': {
+					return sql`cast(${name} as text) as ${sql.identifier(key)}`;
+				}
 				default: {
 					return sql`${name} as ${sql.identifier(key)}`;
 				}

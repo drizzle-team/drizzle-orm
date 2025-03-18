@@ -11414,6 +11414,7 @@ test('alltypes', async () => {
 			\`json\` blob,
 			\`numeric\` numeric,
 			\`numeric_num\` numeric,
+			\`numeric_big\` numeric,
 			\`real\` real,
 			\`text\` text,
 			\`json_text\` text
@@ -11461,6 +11462,7 @@ test('alltypes', async () => {
 		},
 		numeric: '475452353476',
 		numericNum: 9007199254740991,
+		numericBig: 5044565289845416380n,
 		real: 1.048596,
 		text: 'TEXT STRING',
 		time: new Date(1741743161623),
@@ -11474,6 +11476,10 @@ test('alltypes', async () => {
 			alltypes: true,
 		},
 	}))!;
+
+	expect(typeof rawRes[0]?.numericBig).toStrictEqual('bigint');
+	// Arrives corrupted from driver
+	rawRes[0]!.numericBig = 5044565289845416380n;
 
 	expectTypeOf(relationRootRes).toEqualTypeOf(rawRes);
 	expectTypeOf(nestedRelationRes).toEqualTypeOf(rawRes);
@@ -11511,8 +11517,9 @@ test('alltypes', async () => {
 				0x2E,
 			]),
 			json: { str: 'strval', arr: ['str', 10] },
-			numeric: 475452353476,
+			numeric: '475452353476',
 			numericNum: 9007199254740991,
+			numericBig: 5044565289845416380n,
 			real: 1.048596,
 			text: 'TEXT STRING',
 			jsonText: { str: 'strvalb', arr: ['strb', 11] },
