@@ -45,6 +45,13 @@ export class GelTimestampTz<T extends ColumnBaseConfig<'date', 'GelTimestampTz'>
 		super(table, config);
 	}
 
+	override mapFromDriverValue(value: unknown): Date {
+		// Needed for fields nested in RQBv2's JSON
+		if (typeof value === 'string') return new Date(value as string);
+
+		return value as Date;
+	}
+
 	getSQLType(): string {
 		return 'datetime';
 	}

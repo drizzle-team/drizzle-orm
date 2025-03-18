@@ -8,6 +8,7 @@ import * as pg from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
+import relations from './relations';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
@@ -67,7 +68,7 @@ class ServerSimulator {
 
 const ENABLE_LOGGING = false;
 
-let db: PgRemoteDatabase;
+let db: PgRemoteDatabase<never, typeof relations>;
 let client: pg.Client;
 let serverSimulator: ServerSimulator;
 
@@ -109,6 +110,7 @@ beforeAll(async () => {
 		}
 	}, {
 		logger: ENABLE_LOGGING,
+		relations,
 	});
 });
 
@@ -442,6 +444,14 @@ skipTests([
 	'nested transaction',
 	'nested transaction rollback',
 	'test $onUpdateFn and $onUpdate works updating',
+	'RQB v2 transaction find first - no rows',
+	'RQB v2 transaction find first - multiple rows',
+	'RQB v2 transaction find first - with relation',
+	'RQB v2 transaction find first - placeholders',
+	'RQB v2 transaction find many - no rows',
+	'RQB v2 transaction find many - multiple rows',
+	'RQB v2 transaction find many - with relation',
+	'RQB v2 transaction find many - placeholders',
 ]);
 
 beforeEach(async () => {

@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { boolean, integer, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
 
 export const menuItems = pgTable('menu_items', {

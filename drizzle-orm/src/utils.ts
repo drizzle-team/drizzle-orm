@@ -4,6 +4,7 @@ import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
+import type { AnyRelations, EmptyRelations } from './relations.ts';
 import { Param, SQL, View } from './sql/sql.ts';
 import type { DriverValueDecoder } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
@@ -213,10 +214,14 @@ export type ColumnsWithTable<
 
 export type Casing = 'snake_case' | 'camelCase';
 
-export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
+export interface DrizzleConfig<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+> {
 	logger?: boolean | Logger;
 	schema?: TSchema;
 	casing?: Casing;
+	relations?: TRelations;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -255,6 +260,7 @@ type ExpectedConfigShape = {
 		logQuery(query: string, params: unknown[]): void;
 	};
 	schema?: Record<string, never>;
+	relations?: EmptyRelations;
 	casing?: 'snake_case' | 'camelCase';
 };
 
@@ -278,14 +284,14 @@ export function isConfig(data: any): boolean {
 	}
 
 	if ('schema' in data) {
-		const type = typeof data['logger'];
+		const type = typeof data['schema'];
 		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;
 	}
 
 	if ('casing' in data) {
-		const type = typeof data['logger'];
+		const type = typeof data['casing'];
 		if (type !== 'string' && type !== 'undefined') return false;
 
 		return true;

@@ -1,12 +1,8 @@
 import type { OPSQLiteConnection, QueryResult } from '@op-engineering/op-sqlite';
+import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -14,14 +10,18 @@ import { OPSQLiteSession } from './session.ts';
 
 export class OPSQLiteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends BaseSQLiteDatabase<'async', QueryResult, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends BaseSQLiteDatabase<'async', QueryResult, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'OPSQLiteDatabase';
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
 	client: OPSQLiteConnection,
-	config: DrizzleConfig<TSchema> = {},
-): OPSQLiteDatabase<TSchema> & {
+	config: DrizzleConfig<TSchema, TRelations> = {},
+): OPSQLiteDatabase<TSchema, TRelations> & {
 	$client: OPSQLiteConnection;
 } {
 	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
@@ -32,11 +32,11 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
+		const tablesConfig = V1.extractTablesRelationalConfig(
 			config.schema,
-			createTableRelationsHelpers,
+			V1.createTableRelationsHelpers,
 		);
 		schema = {
 			fullSchema: config.schema,
@@ -45,8 +45,18 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new OPSQLiteSession(client, dialect, schema, { logger });
-	const db = new OPSQLiteDatabase('async', dialect, session, schema) as OPSQLiteDatabase<TSchema>;
+	const relations = config.relations;
+	const session = new OPSQLiteSession(client, dialect, relations, schema, { logger });
+	const db = new OPSQLiteDatabase(
+		'async',
+		dialect,
+		session as OPSQLiteDatabase<Record<string, any>, AnyRelations>['session'],
+		relations,
+		schema as V1.RelationalSchemaConfig<any>,
+	) as OPSQLiteDatabase<
+		TSchema,
+		TRelations
+	>;
 	(<any> db).$client = client;
 
 	return db as any;

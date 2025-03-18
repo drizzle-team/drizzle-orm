@@ -1,7 +1,7 @@
 import type { ResultSetHeader } from 'mysql2/promise';
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { SingleStoreDriverDatabase } from '~/singlestore/driver.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
@@ -31,7 +31,7 @@ export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = {},
-	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'SingleStoreDatabase';
 
@@ -50,7 +50,7 @@ export class SingleStoreDatabase<
 		readonly dialect: SingleStoreDialect,
 		/** @internal */
 		readonly session: SingleStoreSession<any, any, any, any>,
-		schema: RelationalSchemaConfig<TSchema> | undefined,
+		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 	) {
 		this._ = schema
 			? {

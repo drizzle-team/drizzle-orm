@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import type { MigrationMeta } from '~/migrator.ts';
+import type { AnyRelations } from '~/relations.ts';
 import type { OPSQLiteDatabase } from './driver.ts';
 
 interface MigrationConfig {
@@ -38,8 +39,8 @@ async function readMigrationFiles({ journal, migrations }: MigrationConfig): Pro
 	return migrationQueries;
 }
 
-export async function migrate<TSchema extends Record<string, unknown>>(
-	db: OPSQLiteDatabase<TSchema>,
+export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: OPSQLiteDatabase<TSchema, TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = await readMigrationFiles(config);
@@ -56,7 +57,7 @@ type Action =
 	| { type: 'migrated'; payload: true }
 	| { type: 'error'; payload: Error };
 
-export const useMigrations = (db: OPSQLiteDatabase<any>, migrations: {
+export const useMigrations = (db: OPSQLiteDatabase<any, any>, migrations: {
 	journal: {
 		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
 	};

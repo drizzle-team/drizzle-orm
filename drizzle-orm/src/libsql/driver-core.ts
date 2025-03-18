@@ -1,14 +1,9 @@
 import type { Client, ResultSet } from '@libsql/client';
+import * as V1 from '~/_relations.ts';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type ExtractTablesWithRelations,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -16,11 +11,17 @@ import { LibSQLSession } from './session.ts';
 
 export class LibSQLDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends BaseSQLiteDatabase<'async', ResultSet, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends BaseSQLiteDatabase<'async', ResultSet, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'LibSQLDatabase';
 
 	/** @internal */
-	declare readonly session: LibSQLSession<TSchema, ExtractTablesWithRelations<TSchema>>;
+	declare readonly session: LibSQLSession<
+		TSchema,
+		TRelations,
+		ExtractTablesWithRelations<TRelations>,
+		V1.ExtractTablesWithRelations<TSchema>
+	>;
 
 	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
@@ -32,7 +33,8 @@ export class LibSQLDatabase<
 /** @internal */
 export function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
->(client: Client, config: DrizzleConfig<TSchema> = {}): LibSQLDatabase<TSchema> & {
+	TRelations extends AnyRelations = EmptyRelations,
+>(client: Client, config: DrizzleConfig<TSchema, TRelations> = {}): LibSQLDatabase<TSchema, TRelations> & {
 	$client: Client;
 } {
 	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
@@ -43,11 +45,11 @@ export function construct<
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
+		const tablesConfig = V1.extractTablesRelationalConfig(
 			config.schema,
-			createTableRelationsHelpers,
+			V1.createTableRelationsHelpers,
 		);
 		schema = {
 			fullSchema: config.schema,
@@ -56,8 +58,20 @@ export function construct<
 		};
 	}
 
-	const session = new LibSQLSession(client, dialect, schema, { logger }, undefined);
-	const db = new LibSQLDatabase('async', dialect, session, schema) as LibSQLDatabase<TSchema>;
+	const relations = config.relations;
+	const session = new LibSQLSession(client, dialect, relations, schema, { logger }, undefined);
+	const db = new LibSQLDatabase(
+		'async',
+		dialect,
+		session as LibSQLSession<
+			TSchema,
+			TRelations,
+			ExtractTablesWithRelations<TRelations>,
+			V1.ExtractTablesWithRelations<TSchema>
+		>,
+		relations,
+		schema as V1.RelationalSchemaConfig<any>,
+	) as LibSQLDatabase<TSchema, TRelations>;
 	(<any> db).$client = client;
 
 	return db as any;

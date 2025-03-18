@@ -6,7 +6,7 @@ import type { MySqlViewBase } from '../view-base.ts';
 
 export class MySqlCountBuilder<
 	TSession extends MySqlSession<any, any, any>,
-> extends SQL<number> implements Promise<number>, SQLWrapper {
+> extends SQL<number> implements Promise<number>, SQLWrapper<number> {
 	private sql: SQL<number>;
 
 	static override readonly [entityKind] = 'MySqlCountBuilder';

@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import type { AnyMySqlColumn } from 'drizzle-orm/mysql-core';
 import { int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 

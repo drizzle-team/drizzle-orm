@@ -1,8 +1,8 @@
 import postgres from 'postgres';
 import { beforeEach, describe, it } from 'vitest';
+import { relations } from '~/_relations';
 import { alias, boolean, integer, pgSchema, pgTable, serial, text, union } from '~/pg-core';
 import { drizzle } from '~/postgres-js';
-import { relations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = pgSchema('test');
@@ -133,7 +133,7 @@ describe('postgres to snake case', () => {
 	});
 
 	it('query (find first)', ({ expect }) => {
-		const query = db.query.users.findFirst({
+		const query = db._query.users.findFirst({
 			columns: {
 				id: true,
 				age: true,
@@ -161,7 +161,7 @@ describe('postgres to snake case', () => {
 	});
 
 	it('query (find many)', ({ expect }) => {
-		const query = db.query.users.findMany({
+		const query = db._query.users.findMany({
 			columns: {
 				id: true,
 				age: true,

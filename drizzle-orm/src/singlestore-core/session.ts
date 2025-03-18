@@ -1,6 +1,6 @@
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { SingleStoreDatabase } from './db.ts';
@@ -61,7 +61,7 @@ export abstract class SingleStoreSession<
 	TQueryResult extends SingleStoreQueryResultHKT = SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
 > {
 	static readonly [entityKind]: string = 'SingleStoreSession';
 
@@ -129,14 +129,14 @@ export abstract class SingleStoreTransaction<
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
 > extends SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'SingleStoreTransaction';
 
 	constructor(
 		dialect: SingleStoreDialect,
 		session: SingleStoreSession,
-		protected schema: RelationalSchemaConfig<TSchema> | undefined,
+		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
 	) {
 		super(dialect, session, schema);
