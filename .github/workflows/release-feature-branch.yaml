@@ -216,7 +216,6 @@ jobs:
 
           esac
 
-
   attw:
     # only run on all pushes or pull requests from forks
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
@@ -289,6 +288,7 @@ jobs:
           fi
 
       - name: Build Prisma client
+        if: steps.checks.outputs.has_new_release == 'true'
         working-directory: drizzle-orm
         run: pnpm prisma generate --schema src/prisma/schema.prisma
 
