@@ -31,6 +31,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private signal?: AbortSignal,
 	) {
 		super({ sql: queryString, params });
 		this.rawQueryConfig = {
@@ -84,6 +85,13 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async () => {
+			try {
+				this.signal?.throwIfAborted();
+			} catch (e) {
+				// Create new error to capture stack trace
+				throw new Error('PostgreSQL connection experienced an error or has been closed', { cause: e });
+			}
+
 			const params = fillPlaceholders(this.params, placeholderValues);
 
 			this.logger.logQuery(this.rawQueryConfig.text, params);
@@ -149,6 +157,11 @@ export class NodePgSession<
 > extends PgSession<NodePgQueryResultHKT, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'NodePgSession';
 
+	private abortController = new AbortController();
+	private errorCallback = (err: unknown) => {
+		this.abortController.abort(err);
+	};
+
 	private logger: Logger;
 
 	constructor(
@@ -159,6 +172,7 @@ export class NodePgSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.client.on('error', this.errorCallback);
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -177,6 +191,7 @@ export class NodePgSession<
 			name,
 			isResponseInArrayMode,
 			customResultMapper,
+			this.abortController.signal,
 		);
 	}
 
@@ -198,6 +213,7 @@ export class NodePgSession<
 			throw error;
 		} finally {
 			if (this.client instanceof Pool) { // eslint-disable-line no-instanceof/no-instanceof
+				session.end();
 				(session.client as PoolClient).release();
 			}
 		}
@@ -208,6 +224,11 @@ export class NodePgSession<
 		return Number(
 			res['rows'][0]['count'],
 		);
+	}
+
+	end(): void {
+		this.client.off('error', this.errorCallback);
+		this.abortController.abort();
 	}
 }
 
