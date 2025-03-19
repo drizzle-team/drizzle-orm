@@ -748,7 +748,7 @@ export const connectToSQLite = async (
 				params,
 				method,
 			) => {
-				let body:string;
+				let body: string;
 				if (params.length > 0) {
 					body = JSON.stringify({ sql, params });
 				} else {
