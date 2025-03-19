@@ -300,7 +300,7 @@ export class GelDialect {
 	private buildFromTable(
 		table: SQL | Subquery | GelViewBase | GelTable | undefined,
 	): SQL | Subquery | GelViewBase | GelTable | undefined {
-		if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+		if (is(table, Table) && table[Table.Symbol.IsAlias]) {
 			let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
 			if (table[Table.Symbol.Schema]) {
 				fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;

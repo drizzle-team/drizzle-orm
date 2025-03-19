@@ -272,7 +272,7 @@ export abstract class SQLiteDialect {
 	private buildFromTable(
 		table: SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined,
 	): SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined {
-		if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+		if (is(table, Table) && table[Table.Symbol.IsAlias]) {
 			return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
 		}
 
