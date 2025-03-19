@@ -8,7 +8,6 @@ jobs:
       matrix:
         shard:
           - gel
-          - gel-relational
           - planetscale
           - singlestore-core
           - singlestore-proxy
@@ -147,10 +146,6 @@ jobs:
               pnpm vitest run tests/gel
             ;;
 
-            gel-relational)
-              pnpm vitest run tests/relational/gel.test.ts
-            ;;
-
             planetscale)
               pnpm vitest run \
                 tests/mysql/mysql-planetscale.test.ts \
@@ -191,7 +186,6 @@ jobs:
             other)
               pnpm vitest run \
                 --exclude tests/gel \
-                --exclude tests/relational/gel.test.ts \
                 --exclude tests/mysql/mysql-planetscale.test.ts \
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
