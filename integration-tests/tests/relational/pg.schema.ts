@@ -43,6 +43,22 @@ export const usersTable = pgTable('users', {
 	invitedBy: integer().references((): PgColumn => usersTable.id),
 });
 
+export const schemaV1 = pgSchema('schemaV1');
+
+export const usersV1 = schemaV1.table('usersV1', {
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	verified: boolean().notNull().default(false),
+	invitedBy: integer(),
+});
+
+export const usersTableV1 = schemaV1.table('users_table_V1', {
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	verified: boolean().notNull().default(false),
+	invitedBy: integer(),
+});
+
 export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	invitee: one(usersTable, { fields: [usersTable.invitedBy], references: [usersTable.id] }),
 	usersToGroups: many(usersToGroupsTable),
