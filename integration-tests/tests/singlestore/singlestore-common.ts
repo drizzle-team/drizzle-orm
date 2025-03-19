@@ -2699,7 +2699,7 @@ export function tests(driver?: string) {
 
 			await setupSetOperationTest(db);
 
-			const sq = await except(
+			const sq = except(
 				db
 					.select({ id: citiesTable.id, name: citiesTable.name })
 					.from(citiesTable),
