@@ -39,7 +39,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/pgSchema';
-import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
+import { type DB, escapeSingleQuotes, isPgArrayType, replaceQueryParams } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
@@ -239,6 +239,11 @@ export const generatePgSnapshot = (
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
 					columnToSet.default = sqlToStr(column.default, casing);
+				} else if (sqlTypeLowered === 'geometry(point)') {
+					const def = Array.isArray(column.default)
+						? column.default
+						: [(column.default as any).x, (column.default as any).y];
+					columnToSet.default = `st_geomfromtext('point(${def[0]}, ${def[1]})'::text)`;
 				} else {
 					if (typeof column.default === 'string') {
 						columnToSet.default = `'${escapeSingleQuotes(column.default)}'`;
@@ -255,6 +260,8 @@ export const generatePgSnapshot = (
 							}
 						} else if (isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)) {
 							columnToSet.default = `'${buildArrayString(column.default, sqlTypeLowered)}'`;
+						} else if (typeof column.default === 'bigint') {
+							columnToSet.default = column.default.toString();
 						} else {
 							// Should do for all types
 							// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
@@ -559,7 +566,7 @@ export const generatePgSnapshot = (
 
 			checksObject[checkName] = {
 				name: checkName,
-				value: dialect.sqlToQuery(check.value).sql,
+				value: replaceQueryParams('postgresql', dialect.sqlToQuery(check.value)),
 			};
 		});
 
@@ -819,11 +826,18 @@ export const generatePgSnapshot = (
 				if (column.default !== undefined) {
 					if (is(column.default, SQL)) {
 						columnToSet.default = sqlToStr(column.default, casing);
+					} else if (sqlTypeLowered === 'geometry(point)') {
+						const def = Array.isArray(column.default)
+							? column.default
+							: [(column.default as any).x, (column.default as any).y];
+						columnToSet.default = `st_geomfromtext('point(${def[0]}, ${def[1]})'::text)`;
 					} else {
 						if (typeof column.default === 'string') {
 							columnToSet.default = `'${column.default}'`;
+						} else if (typeof column.default === 'bigint') {
+							columnToSet.default = column.default.toString();
 						} else {
-							if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
+							if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json' || sqlTypeLowered.startsWith('geometry')) {
 								columnToSet.default = `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`;
 							} else if (column.default instanceof Date) {
 								if (sqlTypeLowered === 'date') {
@@ -1220,12 +1234,16 @@ WHERE
 					const tableResponse = await getColumnsInfoQuery({ schema: tableSchema, table: tableName, db });
 
 					const tableConstraints = await db.query(
-						`SELECT c.column_name, c.data_type, constraint_type, constraint_name, constraint_schema
+						`WITH constraints AS (
+			SELECT c.column_name, c.data_type, constraint_type, constraint_name, constraint_schema
       FROM information_schema.table_constraints tc
       JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_name)
       JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema
         AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
-      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}';`,
+      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}'
+			) SELECT DISTINCT ON (c.column_name, c.constraint_name, c.constraint_schema) c.*, kcu.ordinal_position as position FROM constraints as c
+			LEFT JOIN information_schema.key_column_usage AS kcu USING (constraint_schema, constraint_name, column_name)
+			ORDER BY c.column_name, c.constraint_name, c.constraint_schema, position;`,
 					);
 
 					const tableChecks = await db.query(`SELECT 
@@ -1387,7 +1405,10 @@ WHERE
 						const identityMaximum = columnResponse.identity_maximum;
 						const identityMinimum = columnResponse.identity_minimum;
 						const identityCycle = columnResponse.identity_cycle === 'YES';
-						const identityName = columnResponse.seq_name;
+						const identityName = columnResponse.seq_name && columnResponse.seq_name.startsWith('"')
+								&& columnResponse.seq_name.endsWith('"')
+							? columnResponse.seq_name.slice(1, -1)
+							: columnResponse.seq_name;
 
 						const primaryKey = tableConstraints.filter((mapRow) =>
 							columnName === mapRow.column_name && mapRow.constraint_type === 'PRIMARY KEY'
@@ -1478,6 +1499,9 @@ WHERE
 							.replace('character', 'char');
 
 						columnTypeMapped = trimChar(columnTypeMapped, '"');
+						columnTypeMapped = columnTypeMapped === 'geometry(Point)'
+							? columnTypeMapped.toLowerCase()
+							: columnTypeMapped;
 
 						columnToReturn[columnName] = {
 							name: columnName,
@@ -1780,6 +1804,9 @@ WHERE
 							.replace('character', 'char');
 
 						columnTypeMapped = trimChar(columnTypeMapped, '"');
+						columnTypeMapped = columnTypeMapped === 'geometry(Point)'
+							? columnTypeMapped.toLowerCase()
+							: columnTypeMapped;
 
 						columnToReturn[columnName] = {
 							name: columnName,
