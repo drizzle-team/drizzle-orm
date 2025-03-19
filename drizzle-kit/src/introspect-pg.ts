@@ -321,6 +321,11 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		}),
 	);
 
+	const domainTypes = Object.values(schema.domains).reduce((acc, cur) => {
+		acc.add(`${cur.schema}.${cur.name}`);
+		return acc;
+	}, new Set<string>());
+
 	const enumTypes = Object.values(schema.enums).reduce((acc, cur) => {
 		acc.add(`${cur.schema}.${cur.name}`);
 		return acc;
@@ -415,6 +420,15 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		}
 	});
 
+	Object.values(schema.domains).forEach((it) => {
+		if (it.schema && it.schema !== 'public' && it.schema !== '') {
+			imports.pg.push('pgSchema');
+		} else if (it.schema === 'public') {
+			imports.pg.push('check');
+			imports.pg.push('pgDomain');
+		}
+	});
+
 	Object.values(schema.enums).forEach((it) => {
 		if (it.schema && it.schema !== 'public' && it.schema !== '') {
 			imports.pg.push('pgSchema');
@@ -426,6 +440,46 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 	if (Object.keys(schema.roles).length > 0) {
 		imports.pg.push('pgRole');
 	}
+
+	const domainStatements = Object.values(schema.domains)
+		.map((it) => {
+			const domainSchema = schemas[it.schema];
+			const paramName = paramNameFor(it.name, domainSchema);
+			const func = domainSchema ? `${domainSchema}.domain` : 'pgDomain';
+
+			let params = `'${it.baseType}'`; // Base type is now a separate argument
+			let options = '{'; // Build the options object separately
+
+			if (it.notNull) {
+				options += `notNull: true,`;
+			}
+			if (it.defaultValue) {
+				options += `defaultValue: \`${it.defaultValue}\`,`; // Use template literals
+			}
+			if (it.checkConstraints && Object.keys(it.checkConstraints).length > 0) {
+				const checkStmts = Object.entries(it.checkConstraints)
+					.map(([, check]) => {
+						// Use check name and provided expression
+						return `check('${check.name}', sql\`${check.value}\`)`;
+					}).join(', ');
+
+				options += `checkConstraints: [${checkStmts}],`;
+			}
+
+			options += '}'; // close the options object
+
+			// Remove trailing comma if options object is not empty
+			if (options.length > 2) {
+				options = options.replace(/,$/, '');
+			}
+
+			// Pass baseType and options separately.
+			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", ${params}${
+				options !== '{}' ? `, ${options}` : ''
+			})\n`;
+		})
+		.join('')
+		.concat('\n');
 
 	const enumStatements = Object.values(schema.enums)
 		.map((it) => {
@@ -515,6 +569,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			table.name,
 			Object.values(table.columns),
 			Object.values(table.foreignKeys),
+			domainTypes,
 			enumTypes,
 			schemas,
 			casing,
@@ -586,6 +641,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 				'',
 				Object.values(it.columns),
 				[],
+				domainTypes,
 				enumTypes,
 				schemas,
 				casing,
@@ -612,6 +668,7 @@ import { sql } from "drizzle-orm"\n\n`;
 
 	let decalrations = schemaStatements;
 	decalrations += rolesStatements;
+	decalrations += domainStatements;
 	decalrations += enumStatements;
 	decalrations += sequencesStatements;
 	decalrations += '\n';
@@ -839,7 +896,9 @@ const column = (
 	tableName: string,
 	type: string,
 	name: string,
+	domainTypes: Set<string>,
 	enumTypes: Set<string>,
+	domainTypeSchema: string,
 	typeSchema: string,
 	casing: Casing,
 	defaultValue?: any,
@@ -853,6 +912,10 @@ const column = (
 			dbColumnName({ name, casing })
 		})`;
 		return out;
+	}
+
+	if (domainTypes.has(`${domainTypeSchema}.${type}`)) {
+		return `${withCasing(name, casing)}: ${withCasing(type, casing)}`;
 	}
 
 	if (lowered.startsWith('serial')) {
@@ -1113,6 +1176,7 @@ const createTableColumns = (
 	tableName: string,
 	columns: Column[],
 	fks: ForeignKey[],
+	domainTypes: Set<string>,
 	enumTypes: Set<string>,
 	schemas: Record<string, string>,
 	casing: Casing,
@@ -1135,11 +1199,18 @@ const createTableColumns = (
 	}, {} as Record<string, ForeignKey[]>);
 
 	columns.forEach((it) => {
+		if (it.type === 'limited_text') {
+			console.log(it);
+			console.log(it.domainTypeSchema);
+		}
+
 		const columnStatement = column(
 			tableName,
 			it.type,
 			it.name,
+			domainTypes,
 			enumTypes,
+			it.domainTypeSchema ?? 'public',
 			it.typeSchema ?? 'public',
 			casing,
 			it.default,

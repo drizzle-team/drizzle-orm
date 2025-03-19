@@ -165,12 +165,15 @@ export const generatePgSnapshot = (
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
 			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+			const domainTypeSchema = is(column, PgDomainColumn) ? column.domain.schema : undefined;
+
+			// TODO remove
+			if (is(column, PgDomainColumn)) {
+				console.log(`printing domain ${column.domain}`);
+			}
+
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
-			let domainSchema: string | undefined;
-			if (is(column, PgDomainColumn)) {
-				domainSchema = column.domain.schema;
-			}
 			const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
 			const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
 				?? (parseFloat(increment) < 0 ? minRangeForIdentityBasedOn(column.columnType) : '1');
@@ -183,8 +186,8 @@ export const generatePgSnapshot = (
 			const columnToSet: Column = {
 				name,
 				type: column.getSQLType(),
-				typeSchema: typeSchema,
-				domainSchema: domainSchema,
+				typeSchema,
+				domainTypeSchema,
 				primaryKey,
 				notNull,
 				generated: generated
@@ -764,6 +767,7 @@ export const generatePgSnapshot = (
 				const sqlTypeLowered = column.getSQLType().toLowerCase();
 
 				const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+				// const domainTypeSchema = is(column, PgDomainColumn) ? column.domain : undefined;
 				const generated = column.generated;
 				const identity = column.generatedIdentity;
 
@@ -1119,11 +1123,16 @@ WHERE
 
 	const whereDomains = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
 
-	const allDomains = await db.query(
+	const allDomainsConstraints = await db.query(
 		`SELECT
-			 n.nspname AS domain_schema,
-			 t.typname AS domain_name,
+			 n.nspname AS schema,
+			 t.typname AS name,
 			 t.typbasetype::regtype AS base_type,
+			 CASE
+				WHEN t.typbasetype = 'character varying'::regtype AND t.typtypmod <> -1
+				THEN t.typtypmod - 4 
+				ELSE NULL
+             END AS varchar_length,
 			 t.typnotnull AS not_null,
 			 t.typdefault AS default_value,
 			 c.conname AS constraint_name,  -- Get constraint name
@@ -1136,34 +1145,38 @@ WHERE
 			 t.typtype = 'd'
 			 ${whereDomains === '' ? '' : ` AND (${whereDomains})`}
 		 ORDER BY
-			 domain_schema, domain_name;`,
+			 schema, name;`,
 	);
 
 	const domainsToReturn: Record<string, Domain> = {};
 
-	for (const domain of allDomains) {
-		const schemaName = domain.domain_schema || 'public';
-		const key = `${schemaName}.${domain.domain_name}`;
+	for (const domainConstraint of allDomainsConstraints) {
+		const schemaName = domainConstraint.schema || 'public';
+		const key = `${schemaName}.${domainConstraint.name}`;
+		let baseType = domainConstraint.base_type;
+		if (baseType === 'character varying' && domainConstraint.varchar_length) {
+			baseType += ` (${domainConstraint.varchar_length})`;
+		}
 
 		if (!domainsToReturn[key]) {
 			domainsToReturn[key] = {
-				name: domain.domain_name,
+				name: domainConstraint.name,
 				schema: schemaName,
-				baseType: domain.base_type,
-				notNull: domain.not_null,
-				defaultValue: domain.default_value,
+				baseType: baseType,
+				notNull: domainConstraint.not_null,
+				defaultValue: domainConstraint.default_value,
 			};
 		}
 
 		// Add the check constraint if present in this row
-		if (domain.constraint_name && domain.domain_constraint) {
+		if (domainConstraint.constraint_name && domainConstraint.domain_constraint) {
 			if (!domainsToReturn[key].checkConstraints) {
 				domainsToReturn[key].checkConstraints = {};
 			}
 
-			domainsToReturn[key].checkConstraints[domain.constraint_name] = {
-				name: domain.constraint_name,
-				value: domain.domain_constraint,
+			domainsToReturn[key].checkConstraints[domainConstraint.constraint_name] = {
+				name: domainConstraint.constraint_name,
+				value: domainConstraint.domain_constraint,
 			};
 		}
 	}
