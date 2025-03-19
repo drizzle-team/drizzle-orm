@@ -7,7 +7,7 @@ export const sqliteCredentials = union([
 	object({
 		driver: literal('turso'),
 		url: string().min(1),
-		authToken: string().min(1).optional(),
+		authToken: string().min(0).optional(),
 	}),
 	object({
 		driver: literal('d1-http'),
