@@ -205,7 +205,7 @@ const createAllDataTypesTable = async () => {
 				\`decimal\` decimal,
 				\`double\` double,
 				\`float\` float,
-				\`serial\` serial AUTO_INCREMENT,
+				\`serial\` serial,
 				\`binary\` binary(255),
 				\`varbinary\` varbinary(256),
 				\`char\` char(255),
