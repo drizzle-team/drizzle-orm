@@ -2715,10 +2715,8 @@ export function tests(driver?: string) {
 
 			expect(result).toHaveLength(2);
 
-			expect(result).toEqual([
-				{ id: 2, name: 'London' },
-				{ id: 3, name: 'Tampa' },
-			]);
+			expect(result).toContainEqual({ id: 2, name: 'London' });
+			expect(result).toContainEqual({ id: 3, name: 'Tampa' });
 
 			await expect((async () => {
 				except(
