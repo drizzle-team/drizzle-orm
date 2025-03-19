@@ -14,8 +14,10 @@ jobs:
       matrix:
         shard:
           - gel
+          - gel-relational
           - planetscale
           - singlestore-core
+          - singlestore-relational
           - singlestore-proxy
           - singlestore-prefixed
           - singlestore-custom
@@ -158,6 +160,12 @@ jobs:
               fi
             ;;
 
+            gel-relational)
+              if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
+                pnpm vitest run tests/relational/gel.test.ts
+              fi
+            ;;
+
             planetscale)
               if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
                 pnpm vitest run \
@@ -169,6 +177,10 @@ jobs:
 
             singlestore-core)
               pnpm vitest run tests/singlestore/singlestore.test.ts
+            ;;
+
+            singlestore-relational)
+              pnpm vitest run tests/relational/singlestore.test.ts
             ;;
 
             singlestore-proxy)
@@ -202,10 +214,12 @@ jobs:
             other)
               pnpm vitest run \
                 --exclude tests/gel \
+                --exclude tests/relational/gel.test.ts \
                 --exclude tests/mysql/mysql-planetscale.test.ts \
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
                 --exclude tests/singlestore/singlestore.test.ts \
+                --exclude tests/relational/singlestore.test.ts \
                 --exclude tests/singlestore/singlestore-proxy.test.ts \
                 --exclude tests/singlestore/singlestore-prefixed.test.ts \
                 --exclude tests/singlestore/singlestore-custom.test.ts \
