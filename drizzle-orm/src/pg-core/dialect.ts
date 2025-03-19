@@ -70,11 +70,17 @@ export class PgDialect {
 		this.casing = new CasingCache(config?.casing);
 	}
 
-	async migrate(migrations: MigrationMeta[], session: PgSession, config: string | MigrationConfig): Promise<void> {
+	async migrate(
+		migrations: MigrationMeta[],
+		session: PgSession,
+		config: string | MigrationConfig,
+	): Promise<void> {
 		const migrationsTable = typeof config === 'string'
 			? '__drizzle_migrations'
-			: config.migrationsTable ?? '__drizzle_migrations';
-		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+			: (config.migrationsTable ?? '__drizzle_migrations');
+		const migrationsSchema = typeof config === 'string'
+			? 'drizzle'
+			: (config.migrationsSchema ?? 'drizzle');
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
@@ -82,15 +88,25 @@ export class PgDialect {
 				created_at bigint
 			)
 		`;
-		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+		await session.execute(
+			sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`,
+		);
 		await session.execute(migrationTableCreate);
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
+		// get all database migrations so that we can indicate when one is skipped completely
+		const dbMigrations = await session.all<{
+			id: number;
+			hash: string;
+			created_at: string;
+		}>(
 			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
-				sql.identifier(migrationsTable)
-			} order by created_at desc limit 1`,
+				sql.identifier(
+					migrationsTable,
+				)
+			} order by created_at desc`,
 		);
 
+		// final migration
 		const lastDbMigration = dbMigrations[0];
 		await session.transaction(async (tx) => {
 			for await (const migration of migrations) {
@@ -99,13 +115,38 @@ export class PgDialect {
 					|| Number(lastDbMigration.created_at) < migration.folderMillis
 				) {
 					for (const stmt of migration.sql) {
-						await tx.execute(sql.raw(stmt));
+						try {
+							await tx.execute(sql.raw(stmt));
+						} catch (error) {
+							throw new DrizzleError({
+								message: `Failed to execute statement ${stmt} in migration ${migration.tag}`,
+								cause: error,
+							});
+						}
 					}
-					await tx.execute(
-						sql`insert into ${sql.identifier(migrationsSchema)}.${
-							sql.identifier(migrationsTable)
-						} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
-					);
+					try {
+						await tx.execute(
+							sql`insert into ${sql.identifier(migrationsSchema)}.${
+								sql.identifier(
+									migrationsTable,
+								)
+							} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+						);
+					} catch (error) {
+						throw new DrizzleError({
+							message: `Failed to insert migration '${migration.tag}' to '${migrationsSchema}'.'${migrationsTable}'`,
+							cause: error,
+						});
+					}
+				} else if (
+					Number(lastDbMigration.created_at) > migration.folderMillis
+					&& !dbMigrations.some((m) => m.hash === migration.hash)
+				) {
+					throw new DrizzleError({
+						message: `Migration '${migration.tag}' was skipped because a newer migration (${lastDbMigration.hash}, at ${
+							new Date(Number.parseInt(lastDbMigration.created_at)).toLocaleString()
+						}) has already been executed.`,
+					});
 				}
 			}
 		});
@@ -152,25 +193,37 @@ export class PgDialect {
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
+		const columnNames = Object.keys(tableColumns).filter(
+			(colName) =>
+				set[colName] !== undefined
+				|| tableColumns[colName]?.onUpdateFn !== undefined,
 		);
 
 		const setSize = columnNames.length;
-		return sql.join(columnNames.flatMap((colName, i) => {
-			const col = tableColumns[colName]!;
+		return sql.join(
+			columnNames.flatMap((colName, i) => {
+				const col = tableColumns[colName]!;
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+				const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+				const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
-			if (i < setSize - 1) {
-				return [res, sql.raw(', ')];
-			}
-			return [res];
-		}));
+				if (i < setSize - 1) {
+					return [res, sql.raw(', ')];
+				}
+				return [res];
+			}),
+		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, from, joins }: PgUpdateConfig): SQL {
+	buildUpdateQuery({
+		table,
+		set,
+		where,
+		returning,
+		withList,
+		from,
+		joins,
+	}: PgUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const tableName = table[PgTable.Symbol.Name];
@@ -178,7 +231,9 @@ export class PgDialect {
 		const origTableName = table[PgTable.Symbol.OriginalName];
 		const alias = tableName === origTableName ? undefined : tableName;
 		const tableSql = sql`${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
-			sql.identifier(origTableName)
+			sql.identifier(
+				origTableName,
+			)
 		}${alias && sql` ${sql.identifier(alias)}`}`;
 
 		const setSql = this.buildUpdateSet(table, set);
@@ -213,47 +268,46 @@ export class PgDialect {
 	): SQL {
 		const columnsLen = fields.length;
 
-		const chunks = fields
-			.flatMap(({ field }, i) => {
-				const chunk: SQLChunk[] = [];
+		const chunks = fields.flatMap(({ field }, i) => {
+			const chunk: SQLChunk[] = [];
 
-				if (is(field, SQL.Aliased) && field.isSelectionField) {
-					chunk.push(sql.identifier(field.fieldAlias));
-				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
-					const query = is(field, SQL.Aliased) ? field.sql : field;
+			if (is(field, SQL.Aliased) && field.isSelectionField) {
+				chunk.push(sql.identifier(field.fieldAlias));
+			} else if (is(field, SQL.Aliased) || is(field, SQL)) {
+				const query = is(field, SQL.Aliased) ? field.sql : field;
 
-					if (isSingleTable) {
-						chunk.push(
-							new SQL(
-								query.queryChunks.map((c) => {
-									if (is(c, PgColumn)) {
-										return sql.identifier(this.casing.getColumnCasing(c));
-									}
-									return c;
-								}),
-							),
-						);
-					} else {
-						chunk.push(query);
-					}
-
-					if (is(field, SQL.Aliased)) {
-						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
-					}
-				} else if (is(field, Column)) {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					} else {
-						chunk.push(field);
-					}
+				if (isSingleTable) {
+					chunk.push(
+						new SQL(
+							query.queryChunks.map((c) => {
+								if (is(c, PgColumn)) {
+									return sql.identifier(this.casing.getColumnCasing(c));
+								}
+								return c;
+							}),
+						),
+					);
+				} else {
+					chunk.push(query);
 				}
 
-				if (i < columnsLen - 1) {
-					chunk.push(sql`, `);
+				if (is(field, SQL.Aliased)) {
+					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
+			} else if (is(field, Column)) {
+				if (isSingleTable) {
+					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+				} else {
+					chunk.push(field);
+				}
+			}
 
-				return chunk;
-			});
+			if (i < columnsLen - 1) {
+				chunk.push(sql`, `);
+			}
+
+			return chunk;
+		});
 
 		return sql.join(chunks);
 	}
@@ -308,7 +362,10 @@ export class PgDialect {
 	private buildFromTable(
 		table: SQL | Subquery | PgViewBase | PgTable | undefined,
 	): SQL | Subquery | PgViewBase | PgTable | undefined {
-		if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+		if (
+			is(table, Table)
+			&& table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]
+		) {
 			let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
 			if (table[Table.Symbol.Schema]) {
 				fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
@@ -319,24 +376,22 @@ export class PgDialect {
 		return table;
 	}
 
-	buildSelectQuery(
-		{
-			withList,
-			fields,
-			fieldsFlat,
-			where,
-			having,
-			table,
-			joins,
-			orderBy,
-			groupBy,
-			limit,
-			offset,
-			lockingClause,
-			distinct,
-			setOperators,
-		}: PgSelectConfig,
-	): SQL {
+	buildSelectQuery({
+		withList,
+		fields,
+		fieldsFlat,
+		where,
+		having,
+		table,
+		joins,
+		orderBy,
+		groupBy,
+		limit,
+		offset,
+		lockingClause,
+		distinct,
+		setOperators,
+	}: PgSelectConfig): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn>(fields);
 		for (const f of fieldsList) {
 			if (
@@ -350,14 +405,20 @@ export class PgDialect {
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
-					joins?.some(({ alias }) =>
-						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
+					joins?.some(
+						({ alias }) =>
+							alias
+								=== (table[Table.Symbol.IsAlias]
+									? getTableName(table)
+									: table[Table.Symbol.BaseName]),
 					))(f.field.table)
 			) {
 				const tableName = getTableName(f.field.table);
 				throw new Error(
 					`Your "${
-						f.path.join('->')
+						f.path.join(
+							'->',
+						)
 					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
 				);
 			}
@@ -369,7 +430,9 @@ export class PgDialect {
 
 		let distinctSql: SQL | undefined;
 		if (distinct) {
-			distinctSql = distinct === true ? sql` distinct` : sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
+			distinctSql = distinct === true
+				? sql` distinct`
+				: sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
 		}
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
@@ -405,7 +468,9 @@ export class PgDialect {
 				clauseSql.append(
 					sql` of ${
 						sql.join(
-							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
+							Array.isArray(lockingClause.config.of)
+								? lockingClause.config.of
+								: [lockingClause.config.of],
 							sql`, `,
 						)
 					}`,
@@ -428,7 +493,10 @@ export class PgDialect {
 		return finalQuery;
 	}
 
-	buildSetOperations(leftSelect: SQL, setOperators: PgSelectConfig['setOperators']): SQL {
+	buildSetOperations(
+		leftSelect: SQL,
+		setOperators: PgSelectConfig['setOperators'],
+	): SQL {
 		const [setOperator, ...rest] = setOperators;
 
 		if (!setOperator) {
@@ -449,7 +517,10 @@ export class PgDialect {
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
-	}: { leftSelect: SQL; setOperator: PgSelectConfig['setOperators'][number] }): SQL {
+	}: {
+		leftSelect: SQL;
+		setOperator: PgSelectConfig['setOperators'][number];
+	}): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
@@ -491,17 +562,23 @@ export class PgDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery(
-		{ table, values: valuesOrSelect, onConflict, returning, withList, select, overridingSystemValue_ }: PgInsertConfig,
-	): SQL {
+	buildInsertQuery({
+		table,
+		values: valuesOrSelect,
+		onConflict,
+		returning,
+		withList,
+		select,
+		overridingSystemValue_,
+	}: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
-
-		const insertOrder = colEntries.map(
-			([, column]) => sql.identifier(this.casing.getColumnCasing(column)),
+		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(
+			([_, col]) => !col.shouldDisableInsert(),
 		);
+
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
 
 		if (select) {
 			const select = valuesOrSelect as AnyPgSelectQueryBuilder | SQL;
@@ -519,16 +596,23 @@ export class PgDialect {
 				const valueList: (SQLChunk | SQL)[] = [];
 				for (const [fieldName, col] of colEntries) {
 					const colValue = value[fieldName];
-					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+					if (
+						colValue === undefined
+						|| (is(colValue, Param) && colValue.value === undefined)
+					) {
 						// eslint-disable-next-line unicorn/no-negated-condition
 						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
-							const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							const defaultValue = is(defaultFnResult, SQL)
+								? defaultFnResult
+								: sql.param(defaultFnResult, col);
 							valueList.push(defaultValue);
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
-							const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+							const newValue = is(onUpdateFnResult, SQL)
+								? onUpdateFnResult
+								: sql.param(onUpdateFnResult, col);
 							valueList.push(newValue);
 						} else {
 							valueList.push(sql`default`);
@@ -553,23 +637,35 @@ export class PgDialect {
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
-		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
+		const onConflictSql = onConflict
+			? sql` on conflict ${onConflict}`
+			: undefined;
 
-		const overridingSql = overridingSystemValue_ === true ? sql`overriding system value ` : undefined;
+		const overridingSql = overridingSystemValue_ === true
+			? sql`overriding system value `
+			: undefined;
 
 		return sql`${withSql}insert into ${table} ${insertOrder} ${overridingSql}${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	buildRefreshMaterializedViewQuery(
-		{ view, concurrently, withNoData }: { view: PgMaterializedView; concurrently?: boolean; withNoData?: boolean },
-	): SQL {
+	buildRefreshMaterializedViewQuery({
+		view,
+		concurrently,
+		withNoData,
+	}: {
+		view: PgMaterializedView;
+		concurrently?: boolean;
+		withNoData?: boolean;
+	}): SQL {
 		const concurrentlySql = concurrently ? sql` concurrently` : undefined;
 		const withNoDataSql = withNoData ? sql` with no data` : undefined;
 
 		return sql`refresh materialized view${concurrentlySql} ${view}${withNoDataSql}`;
 	}
 
-	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
+	prepareTyping(
+		encoder: DriverValueEncoder<unknown, unknown>,
+	): QueryTypingsValue {
 		if (is(encoder, PgJsonb) || is(encoder, PgJson)) {
 			return 'json';
 		} else if (is(encoder, PgNumeric)) {
@@ -1150,14 +1246,15 @@ export class PgDialect {
 		joinOn?: SQL;
 	}): BuildRelationalQueryResult<PgTable, PgColumn> {
 		let selection: BuildRelationalQueryResult<PgTable, PgColumn>['selection'] = [];
-		let limit, offset, orderBy: NonNullable<PgSelectConfig['orderBy']> = [], where;
+		let limit,
+			offset,
+			orderBy: NonNullable<PgSelectConfig['orderBy']> = [],
+			where;
 		const joins: PgSelectJoinConfig[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
-			selection = selectionEntries.map((
-				[key, value],
-			) => ({
+			selection = selectionEntries.map(([key, value]) => ({
 				dbKey: value.name,
 				tsKey: key,
 				field: aliasedTableColumn(value as PgColumn, tableAlias),
@@ -1167,9 +1264,10 @@ export class PgDialect {
 			}));
 		} else {
 			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map((
-					[key, value],
-				) => [key, aliasedTableColumn(value, tableAlias)]),
+				Object.entries(tableConfig.columns).map(([key, value]) => [
+					key,
+					aliasedTableColumn(value, tableAlias),
+				]),
 			);
 
 			if (config.where) {
@@ -1179,7 +1277,10 @@ export class PgDialect {
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: PgColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: {
+				tsKey: string;
+				value: PgColumn | SQL.Aliased;
+			}[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -1202,7 +1303,9 @@ export class PgDialect {
 				if (selectedColumns.length > 0) {
 					selectedColumns = isIncludeMode
 						? selectedColumns.filter((c) => config.columns?.[c] === true)
-						: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
+						: Object.keys(tableConfig.columns).filter(
+							(key) => !selectedColumns.includes(key),
+						);
 				}
 			} else {
 				// Select all columns if selection is not specified
@@ -1223,8 +1326,16 @@ export class PgDialect {
 			// Figure out which relations to select
 			if (config.with) {
 				selectedRelations = Object.entries(config.with)
-					.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
-					.map(([tsKey, queryConfig]) => ({ tsKey, queryConfig, relation: tableConfig.relations[tsKey]! }));
+					.filter(
+						(
+							entry,
+						): entry is [(typeof entry)[0], NonNullable<(typeof entry)[1]>] => !!entry[1],
+					)
+					.map(([tsKey, queryConfig]) => ({
+						tsKey,
+						queryConfig,
+						relation: tableConfig.relations[tsKey]!,
+					}));
 			}
 
 			let extras;
@@ -1246,9 +1357,13 @@ export class PgDialect {
 			// `fieldsSelection` shouldn't be used after this point
 			for (const { tsKey, value } of fieldsSelection) {
 				selection.push({
-					dbKey: is(value, SQL.Aliased) ? value.fieldAlias : tableConfig.columns[tsKey]!.name,
+					dbKey: is(value, SQL.Aliased)
+						? value.fieldAlias
+						: tableConfig.columns[tsKey]!.name,
 					tsKey,
-					field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
+					field: is(value, Column)
+						? aliasedTableColumn(value, tableAlias)
+						: value,
 					relationTableTsKey: undefined,
 					isJson: false,
 					selection: [],
@@ -1257,7 +1372,7 @@ export class PgDialect {
 
 			let orderByOrig = typeof config.orderBy === 'function'
 				? config.orderBy(aliasedColumns, getOrderByOperators())
-				: config.orderBy ?? [];
+				: (config.orderBy ?? []);
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];
 			}
@@ -1279,14 +1394,21 @@ export class PgDialect {
 					relation,
 				} of selectedRelations
 			) {
-				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
+				const normalizedRelation = normalizeRelation(
+					schema,
+					tableNamesMap,
+					relation,
+				);
 				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(
 					...normalizedRelation.fields.map((field, i) =>
 						eq(
-							aliasedTableColumn(normalizedRelation.references[i]!, relationTableAlias),
+							aliasedTableColumn(
+								normalizedRelation.references[i]!,
+								relationTableAlias,
+							),
 							aliasedTableColumn(field, tableAlias),
 						)
 					),
@@ -1298,15 +1420,17 @@ export class PgDialect {
 					table: fullSchema[relationTableTsName] as PgTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
-						? (selectedRelationConfigValue === true
+						? selectedRelationConfigValue === true
 							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 })
+							: { ...selectedRelationConfigValue, limit: 1 }
 						: selectedRelationConfigValue,
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
 				});
-				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
+				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(
+					selectedRelationTsKey,
+				);
 				joins.push({
 					on: sql`true`,
 					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
@@ -1326,7 +1450,9 @@ export class PgDialect {
 		}
 
 		if (selection.length === 0) {
-			throw new DrizzleError({ message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")` });
+			throw new DrizzleError({
+				message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")`,
+			});
 		}
 
 		let result;
@@ -1348,18 +1474,22 @@ export class PgDialect {
 			})`;
 			if (is(nestedQueryRelation, Many)) {
 				field = sql`coalesce(json_agg(${field}${
-					orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
+					orderBy.length > 0
+						? sql` order by ${sql.join(orderBy, sql`, `)}`
+						: undefined
 				}), '[]'::json)`;
 				// orderBy = [];
 			}
-			const nestedSelection = [{
-				dbKey: 'data',
-				tsKey: 'data',
-				field: field.as('data'),
-				isJson: true,
-				relationTableTsKey: tableConfig.tsName,
-				selection,
-			}];
+			const nestedSelection = [
+				{
+					dbKey: 'data',
+					tsKey: 'data',
+					field: field.as('data'),
+					isJson: true,
+					relationTableTsKey: tableConfig.tsName,
+					selection,
+				},
+			];
 
 			const needsSubquery = limit !== undefined || offset !== undefined || orderBy.length > 0;
 
@@ -1367,10 +1497,12 @@ export class PgDialect {
 				result = this.buildSelectQuery({
 					table: aliasedTable(table, tableAlias),
 					fields: {},
-					fieldsFlat: [{
-						path: [],
-						field: sql.raw('*'),
-					}],
+					fieldsFlat: [
+						{
+							path: [],
+							field: sql.raw('*'),
+						},
+					],
 					where,
 					limit,
 					offset,
@@ -1387,11 +1519,15 @@ export class PgDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, PgTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, PgTable)
+					? result
+					: new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
+					field: is(field, Column)
+						? aliasedTableColumn(field, tableAlias)
+						: field,
 				})),
 				joins,
 				where,
@@ -1406,7 +1542,9 @@ export class PgDialect {
 				fields: {},
 				fieldsFlat: selection.map(({ field }) => ({
 					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
+					field: is(field, Column)
+						? aliasedTableColumn(field, tableAlias)
+						: field,
 				})),
 				joins,
 				where,
