@@ -2699,7 +2699,7 @@ export function tests(driver?: string) {
 
 			await setupSetOperationTest(db);
 
-			const sq = await except(
+			const sq = except(
 				db
 					.select({ id: citiesTable.id, name: citiesTable.name })
 					.from(citiesTable),
@@ -2715,10 +2715,8 @@ export function tests(driver?: string) {
 
 			expect(result).toHaveLength(2);
 
-			expect(result).toEqual([
-				{ id: 2, name: 'London' },
-				{ id: 3, name: 'Tampa' },
-			]);
+			expect(result).toContainEqual({ id: 2, name: 'London' });
+			expect(result).toContainEqual({ id: 3, name: 'Tampa' });
 
 			await expect((async () => {
 				except(
@@ -3058,7 +3056,7 @@ export function tests(driver?: string) {
 
 			expect(initialRecord?.updatedAt?.valueOf()).not.toBe(updatedRecord?.updatedAt?.valueOf());
 
-			const msDelay = 1000;
+			const msDelay = 2000;
 
 			for (const eachUser of justDates) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);

@@ -1,11 +1,9 @@
-import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
-import retry from 'async-retry';
+import { neon, neonConfig, type NeonQueryFunction } from '@neondatabase/serverless';
 import { defineRelations, eq, sql } from 'drizzle-orm';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
 import { pgMaterializedView, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
-import { Client } from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
@@ -14,34 +12,18 @@ import relations from './relations';
 const ENABLE_LOGGING = false;
 
 let db: NeonHttpDatabase<never, typeof relations>;
-let ddlRunner: Client;
-let client: NeonQueryFunction<any, any>;
 
 beforeAll(async () => {
-	const connectionString = process.env['NEON_CONNECTION_STRING'];
+	const connectionString = process.env['NEON_HTTP_CONNECTION_STRING'];
 	if (!connectionString) {
 		throw new Error('NEON_CONNECTION_STRING is not defined');
 	}
-	client = neon(connectionString);
-	ddlRunner = await retry(async () => {
-		ddlRunner = new Client(connectionString);
-		await ddlRunner.connect();
-		return ddlRunner;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			ddlRunner?.end();
-		},
-	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
-});
 
-afterAll(async () => {
-	await ddlRunner?.end();
+	neonConfig.fetchEndpoint = (host) => {
+		const [protocol, port] = host === 'db.localtest.me' ? ['http', 4444] : ['https', 443];
+		return `${protocol}://${host}:${port}/sql`;
+	};
+	db = drizzle(neon(connectionString), { logger: ENABLE_LOGGING, relations });
 });
 
 beforeEach((ctx) => {
