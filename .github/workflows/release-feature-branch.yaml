@@ -17,7 +17,6 @@ jobs:
           - gel-relational
           - planetscale
           - singlestore-core
-          - singlestore-relational
           - singlestore-proxy
           - singlestore-prefixed
           - singlestore-custom
@@ -179,10 +178,6 @@ jobs:
               pnpm vitest run tests/singlestore/singlestore.test.ts
             ;;
 
-            singlestore-relational)
-              pnpm vitest run tests/relational/singlestore.test.ts
-            ;;
-
             singlestore-proxy)
               pnpm vitest run tests/singlestore/singlestore-proxy.test.ts
             ;;
@@ -219,7 +214,6 @@ jobs:
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
                 --exclude tests/singlestore/singlestore.test.ts \
-                --exclude tests/relational/singlestore.test.ts \
                 --exclude tests/singlestore/singlestore-proxy.test.ts \
                 --exclude tests/singlestore/singlestore-prefixed.test.ts \
                 --exclude tests/singlestore/singlestore-custom.test.ts \
