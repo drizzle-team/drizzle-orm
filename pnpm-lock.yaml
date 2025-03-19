@@ -84,6 +84,39 @@ importers:
         specifier: 5.6.3
         version: 5.6.3
 
+  drizzle-arktype:
+    devDependencies:
+      '@rollup/plugin-typescript':
+        specifier: ^11.1.0
+        version: 11.1.6(rollup@3.27.2)(tslib@2.8.1)(typescript@5.6.3)
+      '@types/node':
+        specifier: ^18.15.10
+        version: 18.19.33
+      arktype:
+        specifier: ^2.1.10
+        version: 2.1.10
+      cpy:
+        specifier: ^10.1.0
+        version: 10.1.0
+      drizzle-orm:
+        specifier: link:../drizzle-orm/dist
+        version: link:../drizzle-orm/dist
+      rimraf:
+        specifier: ^5.0.0
+        version: 5.0.0
+      rollup:
+        specifier: ^3.20.7
+        version: 3.27.2
+      vite-tsconfig-paths:
+        specifier: ^4.3.2
+        version: 4.3.2(typescript@5.6.3)(vite@5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.31.0))
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.0(@types/node@18.19.33)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.31.0)
+      zx:
+        specifier: ^7.2.2
+        version: 7.2.2
+
   drizzle-kit:
     dependencies:
       '@drizzle-team/brocli':
@@ -846,6 +879,12 @@ packages:
   '@arethetypeswrong/core@0.16.4':
     resolution: {integrity: sha512-RI3HXgSuKTfcBf1hSEg1P9/cOvmI0flsMm6/QL3L3wju4AlHDqd55JFPfXs4pzgEAgy5L9pul4/HPPz99x2GvA==}
     engines: {node: '>=18'}
+
+  '@ark/schema@0.45.0':
+    resolution: {integrity: sha512-3XlMWkZbEjh0YsF92vnnRNCWNRNhRKDTf6XhugyCXH0YRFuM+w1vFLDbB2JLfZloEd7i5cbqsLaDLzyBZbPrSg==}
+
+  '@ark/util@0.45.0':
+    resolution: {integrity: sha512-Z1gHEGbpPzLtPmYb932t2B++6YonlUi1Fa14IQ4vhsGMWhd81Mi1miUmdZXW4fNI/wg1saT7H2/5cAuONgTXhg==}
 
   '@ava/typescript@5.0.0':
     resolution: {integrity: sha512-2twsQz2fUd95QK1MtKuEnjkiN47SKHZfi/vWj040EN6Eo2ZW3SNcAwncJqXXoMTYZTWtBRXYp3Fg8z+JkFI9aQ==}
@@ -4722,6 +4761,9 @@ packages:
 
   argsarray@0.0.1:
     resolution: {integrity: sha512-u96dg2GcAKtpTrBdDoFIM7PjcBA+6rSP0OR94MOReNRyUECL6MtQt5XXmRr4qrftYaef9+l5hcpO5te7sML1Cg==}
+
+  arktype@2.1.10:
+    resolution: {integrity: sha512-KqbrzI9qIGrQUClifyS1HpUp/oTSRtGDvnMKzwg2TAvxRpynY1mn/ubXaxAAdGPOM8V3pBqwb01Z6TcXqhBxzQ==}
 
   array-buffer-byte-length@1.0.0:
     resolution: {integrity: sha512-LPuwb2P+NrQw3XhxGc36+XSvuBPopovXYTR9Ew++Du9Yb/bx5AzBfrIsBoj0EZUifjQU+sHL21sseZ3jerWO/A==}
@@ -8729,9 +8771,6 @@ packages:
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
 
-  react-is@18.2.0:
-    resolution: {integrity: sha512-xWGDIW6x921xtzPkhiULtthJHoJvBbF3q26fzloPCK0hsvxtPVelvftw3zjbHWSkR2km9Z+4uxbDDK/6Zw9B8w==}
-
   react-is@18.3.1:
     resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
 
@@ -9968,10 +10007,6 @@ packages:
     resolution: {integrity: sha512-rb6X1W158d7pRQBg5gkR8uPaSfiids68LTJQYOtEUhoJUWBdaQHsuT/EUduxXYxcrt4r5PJ4fuHW1MHT6p0qug==}
     engines: {node: '>= 10.0.0'}
 
-  universalify@2.0.0:
-    resolution: {integrity: sha512-hAZsKq7Yy11Zu1DE0OzWjw7nnLZmJZYTDZZyEFHZdUhV8FkH5MCfoU1XMaxXovpyW5nq5scPqq0ZDP9Zyl04oQ==}
-    engines: {node: '>= 10.0.0'}
-
   universalify@2.0.1:
     resolution: {integrity: sha512-gptHNQghINnc/vTGIk0SOFGFNXw7JVrlRUtConJRlvaw6DuX0wO5Jeko9sWrMBhh+PsYAZ7oXAiOnf/UKogyiw==}
     engines: {node: '>= 10.0.0'}
@@ -10533,6 +10568,12 @@ snapshots:
       semver: 7.6.2
       typescript: 5.6.1-rc
       validate-npm-package-name: 5.0.0
+
+  '@ark/schema@0.45.0':
+    dependencies:
+      '@ark/util': 0.45.0
+
+  '@ark/util@0.45.0': {}
 
   '@ava/typescript@5.0.0':
     dependencies:
@@ -14326,6 +14367,15 @@ snapshots:
       rollup: 3.27.2
       tslib: 2.8.1
 
+  '@rollup/plugin-typescript@11.1.6(rollup@3.27.2)(tslib@2.8.1)(typescript@5.6.3)':
+    dependencies:
+      '@rollup/pluginutils': 5.1.3(rollup@3.27.2)
+      resolve: 1.22.8
+      typescript: 5.6.3
+    optionalDependencies:
+      rollup: 3.27.2
+      tslib: 2.8.1
+
   '@rollup/plugin-typescript@11.1.6(rollup@4.27.3)(tslib@2.8.1)(typescript@5.6.3)':
     dependencies:
       '@rollup/pluginutils': 5.1.3(rollup@4.27.3)
@@ -14348,6 +14398,14 @@ snapshots:
       '@types/estree': 1.0.1
       estree-walker: 2.0.2
       picomatch: 2.3.1
+    optionalDependencies:
+      rollup: 3.27.2
+
+  '@rollup/pluginutils@5.1.3(rollup@3.27.2)':
+    dependencies:
+      '@types/estree': 1.0.6
+      estree-walker: 2.0.2
+      picomatch: 4.0.2
     optionalDependencies:
       rollup: 3.27.2
 
@@ -15122,7 +15180,7 @@ snapshots:
   '@types/fs-extra@11.0.4':
     dependencies:
       '@types/jsonfile': 6.1.4
-      '@types/node': 20.12.12
+      '@types/node': 18.19.33
 
   '@types/glob@8.1.0':
     dependencies:
@@ -15149,7 +15207,7 @@ snapshots:
 
   '@types/jsonfile@6.1.4':
     dependencies:
-      '@types/node': 20.12.12
+      '@types/node': 18.19.33
 
   '@types/micromatch@4.0.9':
     dependencies:
@@ -15617,7 +15675,7 @@ snapshots:
 
   '@vitest/snapshot@1.6.0':
     dependencies:
-      magic-string: 0.30.10
+      magic-string: 0.30.11
       pathe: 1.1.2
       pretty-format: 29.7.0
 
@@ -15806,6 +15864,11 @@ snapshots:
   argparse@2.0.1: {}
 
   argsarray@0.0.1: {}
+
+  arktype@2.1.10:
+    dependencies:
+      '@ark/schema': 0.45.0
+      '@ark/util': 0.45.0
 
   array-buffer-byte-length@1.0.0:
     dependencies:
@@ -16621,7 +16684,7 @@ snapshots:
       cp-file: 10.0.0
       globby: 13.2.2
       junk: 4.0.1
-      micromatch: 4.0.7
+      micromatch: 4.0.8
       nested-error-stacks: 2.1.1
       p-filter: 3.0.0
       p-map: 6.0.0
@@ -17682,7 +17745,7 @@ snapshots:
 
   estree-walker@3.0.3:
     dependencies:
-      '@types/estree': 1.0.5
+      '@types/estree': 1.0.6
 
   esutils@2.0.3: {}
 
@@ -17889,7 +17952,7 @@ snapshots:
       '@nodelib/fs.walk': 1.2.8
       glob-parent: 5.1.2
       merge2: 1.4.1
-      micromatch: 4.0.7
+      micromatch: 4.0.8
 
   fast-json-stable-stringify@2.1.0: {}
 
@@ -18898,7 +18961,7 @@ snapshots:
 
   jsonfile@6.1.0:
     dependencies:
-      universalify: 2.0.0
+      universalify: 2.0.1
     optionalDependencies:
       graceful-fs: 4.2.11
 
@@ -20307,7 +20370,7 @@ snapshots:
     dependencies:
       '@jest/schemas': 29.6.3
       ansi-styles: 5.2.0
-      react-is: 18.2.0
+      react-is: 18.3.1
 
   pretty-ms@8.0.0:
     dependencies:
@@ -20420,8 +20483,6 @@ snapshots:
   react-is@16.13.1: {}
 
   react-is@17.0.2: {}
-
-  react-is@18.2.0: {}
 
   react-is@18.3.1: {}
 
@@ -21816,8 +21877,6 @@ snapshots:
 
   universalify@1.0.0: {}
 
-  universalify@2.0.0: {}
-
   universalify@2.0.1: {}
 
   unpipe@1.0.0: {}
@@ -21906,7 +21965,7 @@ snapshots:
   vite-node@1.6.0(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.31.0):
     dependencies:
       cac: 6.7.14
-      debug: 4.3.4
+      debug: 4.3.7
       pathe: 1.1.2
       picocolors: 1.0.1
       vite: 5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.31.0)
@@ -21999,7 +22058,7 @@ snapshots:
 
   vite-tsconfig-paths@4.3.2(typescript@5.6.3)(vite@5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.31.0)):
     dependencies:
-      debug: 4.3.4
+      debug: 4.3.7
       globrex: 0.1.2
       tsconfck: 3.0.3(typescript@5.6.3)
     optionalDependencies:
@@ -22026,17 +22085,6 @@ snapshots:
       rollup: 4.27.3
     optionalDependencies:
       '@types/node': 18.15.10
-      fsevents: 2.3.3
-      lightningcss: 1.25.1
-      terser: 5.31.0
-
-  vite@5.2.12(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.31.0):
-    dependencies:
-      esbuild: 0.20.2
-      postcss: 8.4.38
-      rollup: 4.27.3
-    optionalDependencies:
-      '@types/node': 18.19.33
       fsevents: 2.3.3
       lightningcss: 1.25.1
       terser: 5.31.0
@@ -22161,19 +22209,19 @@ snapshots:
       '@vitest/utils': 1.6.0
       acorn-walk: 8.3.2
       chai: 4.4.1
-      debug: 4.3.4
+      debug: 4.3.7
       execa: 8.0.1
       local-pkg: 0.5.0
-      magic-string: 0.30.10
+      magic-string: 0.30.11
       pathe: 1.1.2
-      picocolors: 1.0.0
+      picocolors: 1.0.1
       std-env: 3.7.0
       strip-literal: 2.1.0
-      tinybench: 2.8.0
+      tinybench: 2.9.0
       tinypool: 0.8.4
-      vite: 5.2.12(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.31.0)
+      vite: 5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.31.0)
       vite-node: 1.6.0(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.31.0)
-      why-is-node-running: 2.2.2
+      why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 18.19.33
       '@vitest/ui': 1.6.0(vitest@1.6.0)
