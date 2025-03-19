@@ -9,7 +9,6 @@ import type {
 	ForeignKey,
 	Index,
 	PrimaryKey,
-	SQLiteSchema,
 	SQLiteSchemaInternal,
 	UniqueConstraint,
 } from './serializer/sqliteSchema';
