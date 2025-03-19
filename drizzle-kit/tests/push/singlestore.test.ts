@@ -5,15 +5,12 @@ import {
 	binary,
 	char,
 	date,
-	datetime,
 	decimal,
 	double,
 	float,
 	int,
-	json,
 	mediumint,
 	primaryKey,
-	serial,
 	singlestoreEnum,
 	singlestoreTable,
 	smallint,
@@ -400,7 +397,7 @@ const singlestoreSuite: DialectSuite = {
 
 		// It's not possible to create/alter/drop primary keys in SingleStore
 		expect(sqlStatements).toStrictEqual([
-			'RENAME TABLE `products_categories` TO `products_to_categories`;',
+			'ALTER TABLE `products_categories` RENAME TO `products_to_categories`;',
 		]);
 
 		await context.client.query(`DROP TABLE \`products_categories\``);

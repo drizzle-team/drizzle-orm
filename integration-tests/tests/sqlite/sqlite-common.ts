@@ -125,6 +125,14 @@ const pkExampleTable = sqliteTable('pk_example', {
 	compositePk: primaryKey({ columns: [table.id, table.name] }),
 }));
 
+const conflictChainExampleTable = sqliteTable('conflict_chain_example', {
+	id: integer('id').notNull().unique(),
+	name: text('name').notNull(),
+	email: text('email').notNull(),
+}, (table) => ({
+	compositePk: primaryKey({ columns: [table.id, table.name] }),
+}));
+
 const bigIntExample = sqliteTable('big_int_example', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
@@ -154,6 +162,7 @@ export function tests() {
 			await db.run(sql`drop table if exists ${orders}`);
 			await db.run(sql`drop table if exists ${bigIntExample}`);
 			await db.run(sql`drop table if exists ${pkExampleTable}`);
+			await db.run(sql`drop table if exists ${conflictChainExampleTable}`);
 			await db.run(sql`drop table if exists user_notifications_insert_into`);
 			await db.run(sql`drop table if exists users_insert_into`);
 			await db.run(sql`drop table if exists notifications_insert_into`);
@@ -207,6 +216,14 @@ export function tests() {
 			await db.run(sql`
 				create table ${pkExampleTable} (
 					id integer not null,
+					name text not null,
+					email text not null,
+					primary key (id, name)
+				)
+			`);
+			await db.run(sql`
+				create table ${conflictChainExampleTable} (
+					id integer not null unique,
 					name text not null,
 					email text not null,
 					primary key (id, name)
@@ -2037,6 +2054,165 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John', email: 'john1@example.com' }]);
 		});
 
+		test('insert with onConflict chained (.update -> .nothing)', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]).run();
+
+			await db
+				.insert(conflictChainExampleTable)
+				.values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+					id: 2,
+					name: 'Anthony',
+					email: 'idthief@example.com',
+				}])
+				.onConflictDoUpdate({
+					target: [conflictChainExampleTable.id, conflictChainExampleTable.name],
+					set: { email: 'john1@example.com' },
+				})
+				.onConflictDoNothing({ target: conflictChainExampleTable.id })
+				.run();
+
+			const res = await db
+				.select({
+					id: conflictChainExampleTable.id,
+					name: conflictChainExampleTable.name,
+					email: conflictChainExampleTable.email,
+				})
+				.from(conflictChainExampleTable)
+				.orderBy(conflictChainExampleTable.id)
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John', email: 'john1@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]);
+		});
+
+		test('insert with onConflict chained (.nothing -> .update)', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]).run();
+
+			await db
+				.insert(conflictChainExampleTable)
+				.values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+					id: 2,
+					name: 'Anthony',
+					email: 'idthief@example.com',
+				}])
+				.onConflictDoUpdate({
+					target: [conflictChainExampleTable.id, conflictChainExampleTable.name],
+					set: { email: 'john1@example.com' },
+				})
+				.onConflictDoNothing({ target: conflictChainExampleTable.id })
+				.run();
+
+			const res = await db
+				.select({
+					id: conflictChainExampleTable.id,
+					name: conflictChainExampleTable.name,
+					email: conflictChainExampleTable.email,
+				})
+				.from(conflictChainExampleTable)
+				.orderBy(conflictChainExampleTable.id)
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John', email: 'john1@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]);
+		});
+
+		test('insert with onConflict chained (.update -> .update)', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]).run();
+
+			await db
+				.insert(conflictChainExampleTable)
+				.values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+					id: 2,
+					name: 'Anthony',
+					email: 'idthief@example.com',
+				}])
+				.onConflictDoUpdate({
+					target: [conflictChainExampleTable.id, conflictChainExampleTable.name],
+					set: { email: 'john1@example.com' },
+				})
+				.onConflictDoUpdate({ target: conflictChainExampleTable.id, set: { email: 'john2@example.com' } })
+				.run();
+
+			const res = await db
+				.select({
+					id: conflictChainExampleTable.id,
+					name: conflictChainExampleTable.name,
+					email: conflictChainExampleTable.email,
+				})
+				.from(conflictChainExampleTable)
+				.orderBy(conflictChainExampleTable.id)
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John', email: 'john1@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: 'john2@example.com',
+			}]);
+		});
+
+		test('insert with onConflict chained (.nothing -> .nothing)', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]).run();
+
+			await db
+				.insert(conflictChainExampleTable)
+				.values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+					id: 2,
+					name: 'Anthony',
+					email: 'idthief@example.com',
+				}])
+				.onConflictDoNothing({
+					target: [conflictChainExampleTable.id, conflictChainExampleTable.name],
+				})
+				.onConflictDoNothing({ target: conflictChainExampleTable.id })
+				.run();
+
+			const res = await db
+				.select({
+					id: conflictChainExampleTable.id,
+					name: conflictChainExampleTable.name,
+					email: conflictChainExampleTable.email,
+				})
+				.from(conflictChainExampleTable)
+				.orderBy(conflictChainExampleTable.id)
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John', email: 'john@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]);
+		});
+
 		test('insert undefined', async (ctx) => {
 			const { db } = ctx.sqlite;
 
@@ -3432,5 +3608,40 @@ export function tests() {
 		]);
 
 		await db.run(sql`drop table users`);
+	});
+
+	test('sql operator as cte', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		const users = sqliteTable('users', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+
+		await db.run(sql`drop table if exists ${users}`);
+		await db.run(sql`create table ${users} (id integer not null primary key autoincrement, name text not null)`);
+		await db.insert(users).values([
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
+
+		const sq1 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name,
+			},
+		}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+		const result1 = await db.with(sq1).select().from(sq1);
+
+		const sq2 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name,
+			},
+		}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+		const result2 = await db.with(sq2).select().from(sq1);
+
+		expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
+		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 	});
 }

@@ -23,7 +23,7 @@ import type {
 import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
-import type { Assume, ValidateShape, ValueOrArray } from '~/utils.ts';
+import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
 import type { PgPreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { PgSelectBase, PgSelectQueryBuilderBase } from './select.ts';
 
@@ -79,6 +79,10 @@ export interface PgSelectConfig {
 	}[];
 }
 
+export type TableLikeHasEmptySelection<T extends PgTable | Subquery | PgViewBase | SQL> = T extends Subquery
+	? Equal<T['_']['selectedFields'], {}> extends true ? true : false
+	: false;
+
 export type PgSelectJoin<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
@@ -94,7 +98,7 @@ export type PgSelectJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends Table ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 					: never,
 				T['_']['selectMode']
 			>,
@@ -116,7 +120,10 @@ export type PgSelectJoinFn<
 	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
-	table: TJoinedTable,
+	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
+			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+		>
+		: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 

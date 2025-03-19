@@ -208,22 +208,8 @@ export const singlestorePush = async (
 				db,
 				filteredStatements,
 				statements.validatedCur,
+				statements.validatedPrev,
 			);
-
-			const filteredSqlStatements = fromJson(filteredStatements, 'singlestore');
-
-			const uniqueSqlStatementsToExecute: string[] = [];
-			statementsToExecute.forEach((ss) => {
-				if (!uniqueSqlStatementsToExecute.includes(ss)) {
-					uniqueSqlStatementsToExecute.push(ss);
-				}
-			});
-			const uniqueFilteredSqlStatements: string[] = [];
-			filteredSqlStatements.forEach((ss) => {
-				if (!uniqueFilteredSqlStatements.includes(ss)) {
-					uniqueFilteredSqlStatements.push(ss);
-				}
-			});
 
 			if (verbose) {
 				console.log();
@@ -231,11 +217,7 @@ export const singlestorePush = async (
 					withStyle.warning('You are about to execute current statements:'),
 				);
 				console.log();
-				console.log(
-					[...uniqueSqlStatementsToExecute, ...uniqueFilteredSqlStatements]
-						.map((s) => chalk.blue(s))
-						.join('\n'),
-				);
+				console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
 				console.log();
 			}
 
@@ -289,13 +271,10 @@ export const singlestorePush = async (
 				}
 			}
 
-			for (const dStmnt of uniqueSqlStatementsToExecute) {
+			for (const dStmnt of statementsToExecute) {
 				await db.query(dStmnt);
 			}
 
-			for (const statement of uniqueFilteredSqlStatements) {
-				await db.query(statement);
-			}
 			if (filteredStatements.length > 0) {
 				render(`[${chalk.green('✓')}] Changes applied`);
 			} else {

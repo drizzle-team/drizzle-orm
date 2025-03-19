@@ -60,9 +60,7 @@ import { isColumnType, isWithEnum } from './utils.ts';
 import type { BufferSchema, JsonSchema } from './utils.ts';
 
 export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]);
-export const jsonSchema: JsonSchema = t.Recursive((self) =>
-	t.Union([literalSchema, t.Array(self), t.Record(t.String(), self)])
-) as any;
+export const jsonSchema: JsonSchema = t.Union([literalSchema, t.Array(t.Any()), t.Record(t.String(), t.Any())]) as any;
 TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
 

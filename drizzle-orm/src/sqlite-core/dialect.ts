@@ -487,7 +487,9 @@ export abstract class SQLiteDialect {
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
-		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
+		const onConflictSql = onConflict?.length
+			? sql.join(onConflict)
+			: undefined;
 
 		// if (isSingleValue && valuesSqlList.length === 0){
 		// 	return sql`insert into ${table} default values ${onConflictSql}${returningSql}`;

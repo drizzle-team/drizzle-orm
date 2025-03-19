@@ -69,6 +69,7 @@ import {
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
+	JsonRecreateSingleStoreTableStatement,
 	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
 	JsonRenameEnumStatement,
@@ -574,7 +575,7 @@ class MySqlCreateTableConvertor extends Convertor {
 		return statement;
 	}
 }
-class SingleStoreCreateTableConvertor extends Convertor {
+export class SingleStoreCreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_table' && dialect === 'singlestore';
 	}
@@ -618,7 +619,7 @@ class SingleStoreCreateTableConvertor extends Convertor {
 		if (typeof compositePKs !== 'undefined' && compositePKs.length > 0) {
 			statement += ',\n';
 			const compositePK = SingleStoreSquasher.unsquashPK(compositePKs[0]);
-			statement += `\tCONSTRAINT \`${st.compositePkName}\` PRIMARY KEY(\`${compositePK.columns.join(`\`,\``)}\`)`;
+			statement += `\tCONSTRAINT \`${compositePK.name}\` PRIMARY KEY(\`${compositePK.columns.join(`\`,\``)}\`)`;
 		}
 
 		if (
@@ -1531,7 +1532,7 @@ class MySQLDropTableConvertor extends Convertor {
 	}
 }
 
-class SingleStoreDropTableConvertor extends Convertor {
+export class SingleStoreDropTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_table' && dialect === 'singlestore';
 	}
@@ -1590,14 +1591,14 @@ class MySqlRenameTableConvertor extends Convertor {
 	}
 }
 
-class SingleStoreRenameTableConvertor extends Convertor {
+export class SingleStoreRenameTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_table' && dialect === 'singlestore';
 	}
 
 	convert(statement: JsonRenameTableStatement) {
 		const { tableNameFrom, tableNameTo } = statement;
-		return `RENAME TABLE \`${tableNameFrom}\` TO \`${tableNameTo}\`;`;
+		return `ALTER TABLE \`${tableNameFrom}\` RENAME TO \`${tableNameTo}\`;`;
 	}
 }
 
@@ -1641,7 +1642,7 @@ class SingleStoreAlterTableRenameColumnConvertor extends Convertor {
 
 	convert(statement: JsonRenameColumnStatement) {
 		const { tableName, oldColumnName, newColumnName } = statement;
-		return `ALTER TABLE \`${tableName}\` RENAME COLUMN \`${oldColumnName}\` TO \`${newColumnName}\`;`;
+		return `ALTER TABLE \`${tableName}\` CHANGE \`${oldColumnName}\` \`${newColumnName}\`;`;
 	}
 }
 
@@ -3499,7 +3500,7 @@ class CreateMySqlIndexConvertor extends Convertor {
 	}
 }
 
-class CreateSingleStoreIndexConvertor extends Convertor {
+export class CreateSingleStoreIndexConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_index' && dialect === 'singlestore';
 	}
@@ -3816,10 +3817,68 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 }
 
+class SingleStoreRecreateTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'singlestore_recreate_table'
+			&& dialect === 'singlestore'
+		);
+	}
+
+	convert(statement: JsonRecreateSingleStoreTableStatement): string[] {
+		const { tableName, columns, compositePKs, uniqueConstraints } = statement;
+
+		const columnNames = columns.map((it) => `\`${it.name}\``).join(', ');
+		const newTableName = `__new_${tableName}`;
+
+		const sqlStatements: string[] = [];
+
+		// create new table
+		sqlStatements.push(
+			new SingleStoreCreateTableConvertor().convert({
+				type: 'create_table',
+				tableName: newTableName,
+				columns,
+				compositePKs,
+				uniqueConstraints,
+				schema: '',
+			}),
+		);
+
+		// migrate data
+		sqlStatements.push(
+			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
+		);
+
+		// drop table
+		sqlStatements.push(
+			new SingleStoreDropTableConvertor().convert({
+				type: 'drop_table',
+				tableName: tableName,
+				schema: '',
+			}),
+		);
+
+		// rename table
+		sqlStatements.push(
+			new SingleStoreRenameTableConvertor().convert({
+				fromSchema: '',
+				tableNameFrom: newTableName,
+				tableNameTo: tableName,
+				toSchema: '',
+				type: 'rename_table',
+			}),
+		);
+
+		return sqlStatements;
+	}
+}
+
 const convertors: Convertor[] = [];
 convertors.push(new PgCreateTableConvertor());
 convertors.push(new MySqlCreateTableConvertor());
 convertors.push(new SingleStoreCreateTableConvertor());
+convertors.push(new SingleStoreRecreateTableConvertor());
 convertors.push(new SQLiteCreateTableConvertor());
 convertors.push(new SQLiteRecreateTableConvertor());
 convertors.push(new LibSQLRecreateTableConvertor());

@@ -18,7 +18,7 @@
 		"@typescript-eslint/eslint-plugin": "^6.7.3",
 		"@typescript-eslint/experimental-utils": "^5.62.0",
 		"@typescript-eslint/parser": "^6.7.3",
-		"bun-types": "^1.0.3",
+		"bun-types": "^1.2.0",
 		"concurrently": "^8.2.1",
 		"dprint": "^0.46.2",
 		"drizzle-kit": "^0.19.13",

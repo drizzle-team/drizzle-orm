@@ -21,6 +21,7 @@ export default defineConfig({
 			'tests/deno/**/*.test.ts',
 			'js-tests/driver-init/commonjs/*.test.cjs',
 			'js-tests/driver-init/module/*.test.mjs',
+			'tests/gel/**/*.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
@@ -62,9 +63,6 @@ export default defineConfig({
 			'tests/mysql/tidb-serverless.test.ts',
 			// waiting for json_array from singlestore team
 			'tests/relational/singlestore.test.ts',
-			// get back when planetscale will open free tier for our CI/CD
-			'tests/mysql/mysql-planetscale.test.ts',
-			'tests/relational/mysql.planetscale.test.ts',
 			'js-tests/driver-init/module/planetscale.test.mjs',
 			'js-tests/driver-init/module/planetscale.test.cjs',
 			'js-tests/driver-init/commonjs/planetscale.test.cjs',
@@ -73,7 +71,7 @@ export default defineConfig({
 			tsconfig: 'tsconfig.json',
 		},
 		testTimeout: 100000,
-		hookTimeout: 100000,
+		hookTimeout: 200000,
 		isolate: true,
 		poolOptions: {
 			threads: {

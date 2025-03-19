@@ -1,10 +1,10 @@
-import { type Equal } from 'drizzle-orm';
+import type { Equal } from 'drizzle-orm';
 import { customType, int, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
@@ -451,6 +451,59 @@ test('all data types', (t) => {
 		mediumtext2: z.enum(['a', 'b', 'c']),
 		tinytext1: z.string().max(CONSTANTS.INT8_UNSIGNED_MAX),
 		tinytext2: z.enum(['a', 'b', 'c']),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('type coercion - all', (t) => {
+	const table = singlestoreTable('test', ({
+		bigint,
+		boolean,
+		timestamp,
+		int,
+		text,
+	}) => ({
+		bigint: bigint({ mode: 'bigint' }).notNull(),
+		boolean: boolean().notNull(),
+		timestamp: timestamp().notNull(),
+		int: int().notNull(),
+		text: text().notNull(),
+	}));
+
+	const { createSelectSchema } = createSchemaFactory({
+		coerce: true,
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		bigint: z.coerce.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
+		boolean: z.coerce.boolean(),
+		timestamp: z.coerce.date(),
+		int: z.coerce.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		text: z.coerce.string().max(CONSTANTS.INT16_UNSIGNED_MAX),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('type coercion - mixed', (t) => {
+	const table = singlestoreTable('test', ({
+		timestamp,
+		int,
+	}) => ({
+		timestamp: timestamp().notNull(),
+		int: int().notNull(),
+	}));
+
+	const { createSelectSchema } = createSchemaFactory({
+		coerce: {
+			date: true,
+		},
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		timestamp: z.coerce.date(),
+		int: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
