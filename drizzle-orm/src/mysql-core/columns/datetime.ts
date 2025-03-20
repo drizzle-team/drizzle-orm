@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { Placeholder, SQL } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
@@ -53,8 +54,9 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> 
 		return `datetime${precision}`;
 	}
 
-	override mapToDriverValue(value: Date): unknown {
-		return value.toISOString().replace('T', ' ').replace('Z', '');
+	override mapToDriverValue(value: Date | SQL | Placeholder): unknown {
+		// eslint-disable-next-line no-instanceof/no-instanceof
+		return value instanceof Date ? value.toISOString().replace('T', ' ').replace('Z', '') : value;
 	}
 
 	override mapFromDriverValue(value: string): Date {

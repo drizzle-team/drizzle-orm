@@ -1,6 +1,7 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
+import { Placeholder, SQL } from '~/sql/sql.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
@@ -60,8 +61,8 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> 
 		return BigInt(String.fromCodePoint(...value));
 	}
 
-	override mapToDriverValue(value: bigint): Buffer {
-		return Buffer.from(value.toString());
+	override mapToDriverValue(value: bigint | SQL | Placeholder): Buffer | SQL | Placeholder {
+		return typeof value === 'bigint' ? Buffer.from(value.toString()) : value;
 	}
 }
 
@@ -121,8 +122,8 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>
 		return JSON.parse(String.fromCodePoint(...value));
 	}
 
-	override mapToDriverValue(value: T['data']): Buffer {
-		return Buffer.from(JSON.stringify(value));
+	override mapToDriverValue(value: T['data'] | SQL | Placeholder): Buffer | SQL | Placeholder {
+		return is(value, SQL) || is(value, Placeholder) ? value : Buffer.from(JSON.stringify(value));
 	}
 }
 
