@@ -577,6 +577,31 @@ test('enums #21', async () => {
 	]);
 });
 
+test('enums #22 - enum array in schema', async () => {
+	const schema = pgSchema('custom_schema');
+	const myEnum = schema.enum('my_enum', ['one', 'two', 'three']);
+
+	const from = {
+		myEnum,
+		table: schema.table('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const to = {
+		myEnum,
+		table: schema.table('table', {
+			id: serial('id').primaryKey(),
+			col1: myEnum('col1').array(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe('ALTER TABLE "custom_schema"."table" ADD COLUMN "col1" "custom_schema"."my_enum"[];');
+});
+
 test('drop enum value', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
 
