@@ -651,17 +651,29 @@ export const applyPgSnapshotsDiff = async (
 	);
 
 	const rlsAlters = alters.filter((it) => it.entityType === 'tables').filter((it) => it.isRlsEnabled);
-	const jsonAlterRlsStatements = rlsAlters.map((it) => prepareStatement('alter_rls', { diff: it }));
+	const jsonAlterRlsStatements = rlsAlters.map((it) =>
+		prepareStatement('alter_rls', {
+			table: ddl2.tables.one({ schema: it.schema, name: it.name })!,
+			isRlsEnabled: it.isRlsEnabled?.to || false,
+		})
+	);
 	const policiesAlters = alters.filter((it) => it.entityType === 'policies');
-	const jsonPloiciesAlterStatements = policiesAlters.map((it) => prepareStatement('alter_policy', { diff: it }));
+	const jsonPloiciesAlterStatements = policiesAlters.map((it) =>
+		prepareStatement('alter_policy', {
+			diff: it,
+			policy: ddl2.policies.one({ schema: it.schema, table: it.name, name: it.name })!,
+		})
+	);
 
 	const jsonCreateEnums = createdEnums.map((it) => prepareStatement('create_enum', { enum: it }));
 	const jsonDropEnums = deletedEnums.map((it) => prepareStatement('drop_enum', { enum: it }));
 	const jsonMoveEnums = movedEnums.map((it) => prepareStatement('move_enum', it));
 	const jsonRenameEnums = renamedEnums.map((it) => prepareStatement('rename_enum', it));
 	const enumsAlters = alters.filter((it) => it.entityType === 'enums');
-	const recreateEnums = [];
-	const alterEnums = [];
+
+	const recreateEnums = [] as Extract<JsonStatement, { type: 'recreate_enum' }>[];
+	const jsonAlterEnums = [] as Extract<JsonStatement, { type: 'alter_enum' }>[];
+
 	for (const alter of enumsAlters) {
 		const values = alter.values!;
 		const res = diffStringArrays(values.from, values.to);
@@ -672,23 +684,29 @@ export const applyPgSnapshotsDiff = async (
 			const columns = ddl2.columns.list({ typeSchema: alter.schema, type: alter.name });
 			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns }));
 		} else {
-			alterEnums.push(prepareStatement('alter_enum', { diff: res, enum: e }));
+			jsonAlterEnums.push(prepareStatement('alter_enum', { diff: res, enum: e }));
 		}
 	}
-	const jsonAlterEnums = enumsAlters.map((it) => prepareStatement('alter_enum', { diff: it }));
 
 	const createSequences = createdSequences.map((it) => prepareStatement('create_sequence', { sequence: it }));
 	const dropSequences = deletedSequences.map((it) => prepareStatement('drop_sequence', { sequence: it }));
 	const moveSequences = movedSequences.map((it) => prepareStatement('move_sequence', it));
 	const renameSequences = renamedSequences.map((it) => prepareStatement('rename_sequence', it));
 	const sequencesAlter = alters.filter((it) => it.entityType === 'sequences');
-	const jsonAlterSequences = sequencesAlter.map((it) => prepareStatement('alter_sequence', { diff: it }));
+	const jsonAlterSequences = sequencesAlter.map((it) =>
+		prepareStatement('alter_sequence', {
+			diff: it,
+			sequence: ddl2.sequences.one({ schema: it.schema, name: it.name })!,
+		})
+	);
 
 	const createRoles = createdRoles.map((it) => prepareStatement('create_role', { role: it }));
 	const dropRoles = deletedRoles.map((it) => prepareStatement('drop_role', { role: it }));
 	const renameRoles = renamedRoles.map((it) => prepareStatement('rename_role', it));
 	const rolesAlter = alters.filter((it) => it.entityType === 'roles');
-	const jsonAlterRoles = rolesAlter.map((it) => prepareStatement('alter_role', { diff: it }));
+	const jsonAlterRoles = rolesAlter.map((it) =>
+		prepareStatement('alter_role', { diff: it, role: ddl2.roles.one({ name: it.name })! })
+	);
 
 	const createSchemas = createdSchemas.map((it) => prepareStatement('create_schema', it));
 	const dropSchemas = deletedSchemas.map((it) => prepareStatement('drop_schema', it));
@@ -708,7 +726,13 @@ export const applyPgSnapshotsDiff = async (
 	const viewsAlters = alters.filter((it) => it.entityType === 'views').filter((it) =>
 		!(it.isExisting && it.isExisting.to) && !(it.definition && type === 'push')
 	);
-	const jsonAlterViews = viewsAlters.map((it) => prepareStatement('alter_view', { diff: it }));
+	const jsonAlterViews = viewsAlters.map((it) =>
+		prepareStatement('alter_view', {
+			diff: it,
+			from: ddl1.views.one({ schema: it.schema, name: it.name })!,
+			to: ddl2.views.one({ schema: it.schema, name: it.name })!,
+		})
+	);
 	const jsonRecreateViews = createdViews.filter((it) => it.definition && type !== 'push').map((it) => {
 		const from = ddl1.views.one({ schema: it.schema, name: it.name })!;
 		return prepareStatement('recreate_view', { from, to: it });

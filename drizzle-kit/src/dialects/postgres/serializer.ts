@@ -1,12 +1,18 @@
-import type { IntrospectStage, IntrospectStatus } from '../cli/views';
+import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
+import type {
+	DB,
+	RecordValues,
+	RecordValuesAnd,
+	RecordValuesOptional,
+	RecordValuesOptionalAnd,
+	Simplify,
+} from '../../utils';
 import type {
 	CheckConstraint,
 	Column,
 	Enum,
 	ForeignKey,
 	Index,
-	PgKitInternals,
-	PgSchemaInternal,
 	Policy,
 	PrimaryKey,
 	Role,
@@ -14,70 +20,7 @@ import type {
 	Table,
 	UniqueConstraint,
 	View,
-} from '../dialects/postgres/ddl';
-import {
-	type DB,
-	RecordValues,
-	RecordValuesAnd,
-	RecordValuesOptional,
-	RecordValuesOptionalAnd,
-	Simplify,
-} from '../utils';
-
-export const indexName = (tableName: string, columns: string[]) => {
-	return `${tableName}_${columns.join('_')}_index`;
-};
-
-function stringFromIdentityProperty(field: string | number | undefined): string | undefined {
-	return typeof field === 'string' ? (field as string) : typeof field === 'undefined' ? undefined : String(field);
-}
-
-function maxRangeForIdentityBasedOn(columnType: string) {
-	return columnType === 'integer' ? '2147483647' : columnType === 'bigint' ? '9223372036854775807' : '32767';
-}
-
-function minRangeForIdentityBasedOn(columnType: string) {
-	return columnType === 'integer' ? '-2147483648' : columnType === 'bigint' ? '-9223372036854775808' : '-32768';
-}
-
-function stringFromDatabaseIdentityProperty(field: any): string | undefined {
-	return typeof field === 'string'
-		? (field as string)
-		: typeof field === 'undefined'
-		? undefined
-		: typeof field === 'bigint'
-		? field.toString()
-		: String(field);
-}
-
-export function buildArrayString(array: any[], sqlType: string): string {
-	sqlType = sqlType.split('[')[0];
-	const values = array
-		.map((value) => {
-			if (typeof value === 'number' || typeof value === 'bigint') {
-				return value.toString();
-			} else if (typeof value === 'boolean') {
-				return value ? 'true' : 'false';
-			} else if (Array.isArray(value)) {
-				return buildArrayString(value, sqlType);
-			} else if (value instanceof Date) {
-				if (sqlType === 'date') {
-					return `"${value.toISOString().split('T')[0]}"`;
-				} else if (sqlType === 'timestamp') {
-					return `"${value.toISOString().replace('T', ' ').slice(0, 23)}"`;
-				} else {
-					return `"${value.toISOString()}"`;
-				}
-			} else if (typeof value === 'object') {
-				return `"${JSON.stringify(value).replaceAll('"', '\\"')}"`;
-			}
-
-			return `"${value}"`;
-		})
-		.join(',');
-
-	return `{${values}}`;
-}
+} from './ddl';
 
 export type InterimTable = Simplify<
 	& Omit<
@@ -93,10 +36,10 @@ export type InterimTable = Simplify<
 	& {
 		columns: RecordValues<Table['columns']>;
 		indexes: RecordValues<Table['indexes']>;
-		foreignKeys: RecordValues<Table['foreignKeys']>;
-		compositePrimaryKeys: RecordValues<Table['compositePrimaryKeys']>;
-		uniqueConstraints: RecordValues<Table['uniqueConstraints']>;
-		checkConstraints: RecordValues<Table['checkConstraints']>;
+		fks: RecordValues<Table['fks']>;
+		pk: RecordValues<Table['pk']>;
+		uniques: RecordValues<Table['uniques']>;
+		checks: RecordValues<Table['checks']>;
 		policies: RecordValuesAnd<Table['policies'], { table?: string }>;
 	}
 >;
@@ -115,10 +58,10 @@ export type InterimOptionalTable = Simplify<
 	& {
 		columns?: RecordValuesOptional<Table['columns']>;
 		indexes?: RecordValuesOptional<Table['indexes']>;
-		foreignKeys?: RecordValuesOptional<Table['foreignKeys']>;
-		compositePrimaryKeys?: RecordValuesOptional<Table['compositePrimaryKeys']>;
-		uniqueConstraints?: RecordValuesOptional<Table['uniqueConstraints']>;
-		checkConstraints?: RecordValuesOptional<Table['checkConstraints']>;
+		fks?: RecordValuesOptional<Table['fks']>;
+		pk?: RecordValuesOptional<Table['pk']>;
+		uniques?: RecordValuesOptional<Table['uniques']>;
+		checks?: RecordValuesOptional<Table['checks']>;
 		policies?: RecordValuesOptionalAnd<Table['policies'], { table?: string }>;
 	}
 >;
@@ -190,7 +133,7 @@ export const generatePgSnapshot = (schema: InterimSchema): PgSchemaInternal => {
 			columnsObject[column.name] = column;
 		});
 
-		table.compositePrimaryKeys.map((pk) => {
+		table.pk.map((pk) => {
 			primaryKeysObject[pk.name] = pk;
 		});
 
@@ -217,7 +160,7 @@ export const generatePgSnapshot = (schema: InterimSchema): PgSchemaInternal => {
 			uniqueConstraintObject[unq.name] = unq;
 		});
 
-		table.foreignKeys.forEach((it) => {
+		table.fks.forEach((it) => {
 			foreignKeysObject[it.name] = it;
 		});
 

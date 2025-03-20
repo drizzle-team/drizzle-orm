@@ -33,7 +33,7 @@ export const serializePg = async (
 	const filenames = prepareFilenames(path);
 
 	const { prepareFromPgImports } = await import('./pgImports');
-	const { generatePgSnapshot } = await import('./pgSerializer');
+	const { generatePgSnapshot } = await import('../dialects/postgres/serializer');
 	const { drizzleToInternal } = await import('./pgDrizzleSerializer');
 
 	const { tables, enums, schemas, sequences, views, matViews, roles, policies } = await prepareFromPgImports(

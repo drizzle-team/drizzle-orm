@@ -27,7 +27,7 @@ import {
 	type UniqueConstraint,
 	type View,
 } from './ddl';
-import { extractGeneratedColumns, Generated, parseTableSQL, parseViewSQL } from './grammar';
+import { extractGeneratedColumns, Generated, parseTableSQL, parseViewSQL, sqlTypeFrom } from './grammar';
 import { drySqliteSnapshot, snapshotValidator, SqliteSnapshot } from './snapshot';
 
 const preparePrevSnapshot = (snapshots: string[], defaultPrev: any) => {
@@ -172,7 +172,7 @@ export const fromDrizzleSchema = (
 	const pks = tableConfigs.map((it) => {
 		return it.config.primaryKeys.map((pk) => {
 			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
-			
+
 			return {
 				entityType: 'pks',
 				name: pk.name ?? '',
@@ -182,7 +182,6 @@ export const fromDrizzleSchema = (
 		});
 	}).flat();
 
-	
 	const fks = tableConfigs.map((it) => {
 		return it.config.foreignKeys.map((fk) => {
 			const tableFrom = it.config.name;
@@ -291,53 +290,6 @@ export const fromDrizzleSchema = (
 	return { tables, columns, indexes, uniques, fks, pks, checks, views };
 };
 
-function sqlTypeFrom(sqlType: string): string {
-	const lowered = sqlType.toLowerCase();
-	if (
-		[
-			'int',
-			'integer',
-			'integer auto_increment',
-			'tinyint',
-			'smallint',
-			'mediumint',
-			'bigint',
-			'unsigned big int',
-			'int2',
-			'int8',
-		].some((it) => lowered.startsWith(it))
-	) {
-		return 'integer';
-	} else if (
-		[
-			'character',
-			'varchar',
-			'varying character',
-			'national varying character',
-			'nchar',
-			'native character',
-			'nvarchar',
-			'text',
-			'clob',
-		].some((it) => lowered.startsWith(it))
-	) {
-		const match = lowered.match(/\d+/);
-
-		if (match) {
-			return `text(${match[0]})`;
-		}
-
-		return 'text';
-	} else if (lowered.startsWith('blob')) {
-		return 'blob';
-	} else if (
-		['real', 'double', 'double precision', 'float'].some((it) => lowered.startsWith(it))
-	) {
-		return 'real';
-	} else {
-		return 'numeric';
-	}
-}
 
 export const fromDatabase = async (
 	db: SQLiteDB,

@@ -1,7 +1,7 @@
 import { renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { originUUID } from '../../global';
-import { schemaToTypeScript } from '../../dialects/sqlite/introspect-sqlite';
+import { schemaToTypeScript } from '../../dialects/sqlite/introspect';
 import { fromDatabase } from '../../dialects/sqlite/serializer';
 import type { SQLiteDB } from '../../utils';
 import { Casing } from '../validations/common';

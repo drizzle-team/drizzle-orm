@@ -1,7 +1,6 @@
 import { it } from 'node:test';
-import { BREAKPOINT } from '../../global';
 import { escapeSingleQuotes, type Simplify } from '../../utils';
-import { parseType } from './grammar';
+import { defaults, parseType } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -79,9 +78,7 @@ const moveViewConvertor = convertor('move_view', (st) => {
 	} VIEW "${fromSchema}"."${view.name}" SET SCHEMA "${toSchema}";`;
 });
 
-// alter view - recreate
 const alterViewConvertor = convertor('alter_view', (st) => {
-	// alter view with options
 	const diff = st.diff;
 	if (diff) {}
 
@@ -104,38 +101,12 @@ const alterViewConvertor = convertor('alter_view', (st) => {
 	}
 
 	if (diff.tablespace) {
-		/*
-			By default, PostgreSQL uses the cluster’s default tablespace (which is named 'pg_default')
-
-			This operation requires an exclusive lock on the materialized view (it rewrites the data file),
-			and you must have CREATE privilege on the target tablespace.
-			If you have indexes on the materialized view, note that moving the base table does not automatically move its indexes.
-			Each index is a separate object and retains its original tablespace​.
-
-			You should move indexes individually, for example:
-			sql`ALTER INDEX my_matview_idx1 SET TABLESPACE pg_default`;
-			sql`ALTER INDEX my_matview_idx2 SET TABLESPACE pg_default`;
-		*/
-		const to = diff.tablespace.to || 'pg_default';
-		statements.push(`ALTER ${viewClause} SET TABLESPACE ${to};`);
+		const to = diff.tablespace.to || defaults.tablespace;
+		statements.push(`ALTER ${viewClause} SET TABLESPACE "${to}";`);
 	}
 
 	if (diff.using) {
-		/*
-		The table access method (the storage engine format) is chosen when the materialized view is created,
-		 using the optional USING <method> clause.
-		 If no method is specified, it uses the default access method (typically the regular heap storage)​
-
-		sql`
-			CREATE MATERIALIZED VIEW my_matview
-			USING heap  -- storage access method; "heap" is the default
-			AS SELECT ...;
-		`
-
-		Starting with PostgreSQL 15, you can alter a materialized view’s access method in-place.
-		PostgreSQL 15 introduced support for ALTER MATERIALIZED VIEW ... SET ACCESS METHOD new_method
-		*/
-		const toUsing = diff.using.to || 'heap';
+		const toUsing = diff.using.to || defaults.accessMethod;
 		statements.push(`ALTER ${viewClause} SET ACCESS METHOD "${toUsing}";`);
 	}
 
@@ -217,7 +188,6 @@ const createTableConvertor = convertor('create_table', (st) => {
 	if (pk && pk.columns.length > 0) {
 		statement += ',\n';
 		statement += `\tCONSTRAINT "${pk.name}" PRIMARY KEY(\"${pk.columns.join(`","`)}\")`;
-		// statement += `\n`;
 	}
 
 	for (const it of uniques) {
@@ -228,7 +198,6 @@ const createTableConvertor = convertor('create_table', (st) => {
 		statement += `\tCONSTRAINT "${it.name}" UNIQUE${it.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}(\"${
 			it.columns.join(`","`)
 		}\")`;
-		// statement += `\n`;
 	}
 
 	for (const check of checks) {
@@ -243,7 +212,12 @@ const createTableConvertor = convertor('create_table', (st) => {
 	if (policies && policies.length > 0 || isRlsEnabled) {
 		statements.push(toggleRlsConvertor.convert({
 			isRlsEnabled: true,
-			table: st.table,
+			table: {
+				entityType: 'tables',
+				name: st.table.name,
+				schema: st.table.schema,
+				isRlsEnabled: st.table.isRlsEnabled,
+			},
 		}) as string);
 	}
 
@@ -421,6 +395,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		} else {
 			const { from, to } = diff.identity;
 
+			// TODO: when to.prop === null?
 			if (from.type !== to.type) {
 				const typeClause = to.type === 'always' ? 'ALWAYS' : 'BY DEFAULT';
 				statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET GENERATED ${typeClause};`);
@@ -462,7 +437,7 @@ const createIndexConvertor = convertor('create_index', (st) => {
 		columns,
 		isUnique,
 		concurrently,
-		with: withMap,
+		with: w,
 		method,
 		where,
 	} = st.index;
@@ -481,34 +456,17 @@ const createIndexConvertor = convertor('create_index', (st) => {
 		)
 		.join(',');
 
-	const tableNameWithSchema = schema
+	const key = schema
 		? `"${schema}"."${table}"`
 		: `"${table}"`;
 
-	function reverseLogic(mappedWith: Record<string, string>): string {
-		let reversedString = '';
-		for (const key in mappedWith) {
-			// TODO: wtf??
-			if (mappedWith.hasOwnProperty(key)) {
-				reversedString += `${key}=${mappedWith[key]},`;
-			}
-		}
-		
-		reversedString = reversedString.slice(0, -1);
-		return reversedString;
-	}
-
-	return `CREATE ${indexPart}${
-		concurrently ? ' CONCURRENTLY' : ''
-	} IF NOT EXISTS "${name}" ON ${tableNameWithSchema} USING ${method} (${value})${
-		Object.keys(withMap!).length !== 0
-			? ` WITH (${reverseLogic(withMap!)})`
-			: ''
-	}${where ? ` WHERE ${where}` : ''};`;
+	const concur = concurrently ? ' CONCURRENTLY' : '';
+	const withClause = w ? ` WITH (${w})` : '';
+	const whereClause = where ? ` WHERE ${where}` : '';
+	return `CREATE ${indexPart}${concur} IF NOT EXISTS "${name}" ON ${key} USING ${method} (${value})${withClause}${whereClause};`;
 });
 
 const dropIndexConvertor = convertor('drop_index', (st) => {
-	// TODO: strict?
 	return `DROP INDEX "${st.index}";`;
 });
 
@@ -553,6 +511,14 @@ const dropPrimaryKeyConvertor = convertor('drop_pk', (st) => {
 -- ALTER TABLE "${key}" DROP CONSTRAINT "<constraint_name>";`;
 });
 
+const renameConstraintConvertor = convertor('rename_pk', (st) => {
+	const key = st.to.schema
+		? `"${st.to.schema}"."${st.to.table}"`
+		: `"${st.to.table}"`;
+
+	return `ALTER TABLE ${key} RENAME CONSTRAINT "${st.from.name}" TO "${st.to.name}";`;
+});
+
 const createForeignKeyConvertor = convertor('create_fk', (st) => {
 	const { schema, table, name, tableFrom, tableTo, columnsFrom, columnsTo, onDelete, onUpdate, schemaTo } = st.fk;
 
@@ -569,15 +535,7 @@ const createForeignKeyConvertor = convertor('create_fk', (st) => {
 		? `"${schemaTo}"."${tableTo}"`
 		: `"${tableTo}"`;
 
-	const alterStatement =
-		`ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
-
-	let sql = 'DO $$ BEGIN\n';
-	sql += ' ' + alterStatement + ';\n';
-	sql += 'EXCEPTION\n';
-	sql += ' WHEN duplicate_object THEN null;\n';
-	sql += 'END $$;\n';
-	return sql;
+	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
 });
 
 const alterForeignKeyConvertor = convertor('alter_fk', (st) => {
@@ -659,14 +617,6 @@ const dropUniqueConvertor = convertor('drop_unique', (st) => {
 		? `"${unique.schema}"."${unique.table}"`
 		: `"${unique.table}"`;
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${unique.name}";`;
-});
-
-const renameUniqueConvertor = convertor('rename_unique', (st) => {
-	const { from, to } = st;
-	const tableNameWithSchema = to.schema
-		? `"${to.schema}"."${to.table}"`
-		: `"${to.table}"`;
-	return `ALTER TABLE ${tableNameWithSchema} RENAME CONSTRAINT "${from.name}" TO "${to.name}";`;
 });
 
 const createEnumConvertor = convertor('create_enum', (st) => {
@@ -902,17 +852,14 @@ const convertors = [
 	dropIndexConvertor,
 	addPrimaryKeyConvertor,
 	dropPrimaryKeyConvertor,
-	renamePrimaryKeyConvertor,
 	createForeignKeyConvertor,
 	alterForeignKeyConvertor,
 	dropForeignKeyConvertor,
-	renameForeignKeyConvertor,
 	addCheckConvertor,
 	dropCheckConvertor,
-	renameCheckConvertor,
 	addUniqueConvertor,
 	dropUniqueConvertor,
-	renameUniqueConvertor,
+	renameConstraintConvertor,
 	createEnumConvertor,
 	dropEnumConvertor,
 	renameEnumConvertor,
@@ -950,7 +897,7 @@ export function fromJson(
 				return null;
 			}
 
-			const sqlStatements = convertor.convert(statement);
+			const sqlStatements = convertor.convert(statement as any);
 			const statements = typeof sqlStatements === 'string' ? [sqlStatements] : sqlStatements;
 			return { jsonStatement: statement, sqlStatements: statements };
 		})

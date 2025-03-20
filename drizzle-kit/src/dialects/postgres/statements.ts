@@ -1,5 +1,3 @@
-import { D } from '@electric-sql/pglite/dist/pglite-BvWM7BTQ';
-import { F } from 'vitest/dist/reporters-yx5ZTtEV';
 import { Simplify } from '../../utils';
 import { DiffColumn } from '../sqlite/ddl';
 import type {
@@ -8,7 +6,6 @@ import type {
 	DiffEntities,
 	Enum,
 	ForeignKey,
-	Identity,
 	Index,
 	Policy,
 	PostgresEntities,
@@ -183,7 +180,7 @@ export interface JsonIndRenamePolicy {
 
 export interface JsonAlterRLS {
 	type: 'alter_rls';
-	table: Table;
+	table: PostgresEntities['tables'];
 	isRlsEnabled: boolean;
 }
 
@@ -271,6 +268,12 @@ export interface JsonAddPrimaryKey {
 export interface JsonDropPrimaryKey {
 	type: 'drop_pk';
 	pk: PrimaryKey;
+}
+
+export interface JsonRenamePrimaryKey {
+	type: 'rename_pk';
+	from: { schema: string | null; table: string; name: string };
+	to: { schema: string | null; table: string; name: string };
 }
 
 export interface JsonAlterPrimaryKey {
@@ -429,6 +432,7 @@ export type JsonStatement =
 	| JsonDropIndex
 	| JsonAddPrimaryKey
 	| JsonDropPrimaryKey
+	| JsonRenamePrimaryKey
 	| JsonAlterPrimaryKey
 	| JsonCreateFK
 	| JsonDropFK
@@ -481,43 +485,4 @@ export const prepareStatement = <
 		type,
 		...args,
 	} as TStatement;
-};
-
-export const prepareCreateTableJson = (
-	table: Table,
-): JsonCreateTable => {
-	// TODO: @AndriiSherman. We need this, will add test cases
-	// const compositePkName = Object.values(compositePrimaryKeys).length > 0
-	// 	? json2.tables[tableKey].compositePrimaryKeys[
-	// 		`${squasher.unsquashPK(Object.values(compositePrimaryKeys)[0]).name}`
-	// 	].name
-	// 	: '';
-	return {
-		type: 'create_table',
-		table: table,
-	};
-};
-
-export const prepareAlterColumns = (
-	diff: DiffEntities['columns'],
-	column: Column,
-): JsonAlterColumn[] => {
-	let statements: JsonAlterColumn[] = [];
-
-	if (diff.primaryKey) {
-		statements.push({
-			type: 'alter_column_change_pk',
-			column,
-			diff: diff.primaryKey,
-		});
-	}
-
-	if (column.identity) {
-		statements.push({
-			type: 'alter_column_change_identity',
-			column,
-		});
-	}
-
-	return statements;
 };
