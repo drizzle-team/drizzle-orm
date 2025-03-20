@@ -24,17 +24,17 @@ export const usersTable = mysqlTable('users', {
 const schemaV1 = mysqlSchema('schemaV1');
 
 export const usersV1 = schemaV1.table('usersV1', {
-	id: serial().primaryKey(),
-	name: text().notNull(),
-	verified: boolean().notNull().default(false),
-	invitedBy: bigint({ mode: 'number' }),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: bigint('invited_by', { mode: 'number' }),
 });
 
 export const usersTableV1 = schemaV1.table('users_table_V1', {
-	id: serial().primaryKey(),
-	name: text().notNull(),
-	verified: boolean().notNull().default(false),
-	invitedBy: bigint({ mode: 'number' }),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: bigint('invited_by', { mode: 'number' }),
 });
 
 export const usersConfig = relations(usersTable, ({ one, many }) => ({
