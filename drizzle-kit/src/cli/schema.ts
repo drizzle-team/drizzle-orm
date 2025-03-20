@@ -790,7 +790,7 @@ export const studio = command({
 								chalk.blue(
 									`https://local.drizzle.studio${queryString ? `?${queryString}` : ''}`,
 								)
-							}`,
+							} (http://${address})`,
 						);
 					}
 				},
