@@ -14,18 +14,6 @@ export const convertor = <TType extends JsonStatement['type'], TStatement extend
 	};
 };
 
-const intAffinities = [
-	'INT',
-	'INTEGER',
-	'TINYINT',
-	'SMALLINT',
-	'MEDIUMINT',
-	'BIGINT',
-	'UNSIGNED BIG INT',
-	'INT2',
-	'INT8',
-];
-
 const createTable = convertor('create_table', (st) => {
 	const {
 		name: tableName,
@@ -198,7 +186,7 @@ const alterTableRecreateColumn = convertor('alter_table_recreate_column', (st) =
 	return [drop, add];
 });
 
-const createIndex = convertor('add_index', (st) => {
+const createIndex = convertor('create_index', (st) => {
 	const { columns, isUnique, where, name, table } = st.index;
 
 	const idx = isUnique ? 'UNIQUE INDEX' : 'INDEX';

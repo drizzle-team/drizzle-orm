@@ -1,4 +1,5 @@
 import { D } from '@electric-sql/pglite/dist/pglite-BvWM7BTQ';
+import { F } from 'vitest/dist/reporters-yx5ZTtEV';
 import { Simplify } from '../../utils';
 import { DiffColumn } from '../sqlite/ddl';
 import type {
@@ -64,10 +65,20 @@ export interface JsonRenameEnum {
 	to: Enum;
 }
 
+export interface JsonRecreateEnum {
+	type: 'recreate_enum';
+	to: Enum;
+	columns: Column[];
+}
+
 export interface JsonAlterEnum {
 	type: 'alter_enum';
-	diff: DiffEntities['enums'];
 	enum: Enum;
+	diff: {
+		type: 'same' | 'removed' | 'added';
+		value: string;
+		beforeValue?: string;
+	}[];
 }
 
 export interface JsonCreateRole {
@@ -172,8 +183,8 @@ export interface JsonIndRenamePolicy {
 
 export interface JsonAlterRLS {
 	type: 'alter_rls';
-	diff: DiffEntities['tables'];
 	table: Table;
+	isRlsEnabled: boolean;
 }
 
 export interface JsonAlterPolicy {
@@ -189,27 +200,29 @@ export interface JsonAlterIndPolicy {
 }
 
 export interface JsonCreateIndex {
-	type: 'add_index';
+	type: 'create_index';
 	index: Index;
 }
 
-export interface JsonCreateReference {
-	type: 'create_reference';
+export interface JsonCreateFK {
+	type: 'create_fk';
 	fk: ForeignKey;
 }
 
-export interface JsonDropReference {
-	type: 'drop_reference';
+export interface JsonDropFK {
+	type: 'drop_fk';
 	fk: ForeignKey;
 }
 
-export interface JsonAlterReference {
-	type: 'alter_reference';
+export interface JsonAlterFK {
+	type: 'alter_fk';
 	diff: DiffEntities['fks'];
+	from: ForeignKey;
+	to: ForeignKey;
 }
 
-export interface JsonRenameReference {
-	type: 'rename_reference';
+export interface JsonRenameFK {
+	type: 'rename_fk';
 	from: ForeignKey;
 	to: ForeignKey;
 }
@@ -250,18 +263,18 @@ export interface JsonAlterCheckConstraint {
 	diff: DiffEntities['checks'];
 }
 
-export interface JsonCreateCompositePK {
-	type: 'add_composite_pk';
+export interface JsonAddPrimaryKey {
+	type: 'add_pk';
 	pk: PrimaryKey;
 }
 
-export interface JsonDropCompositePK {
-	type: 'drop_composite_pk';
+export interface JsonDropPrimaryKey {
+	type: 'drop_pk';
 	pk: PrimaryKey;
 }
 
-export interface JsonAlterCompositePK {
-	type: 'alter_composite_pk';
+export interface JsonAlterPrimaryKey {
+	type: 'alter_pk';
 	diff: DiffEntities['pks'];
 }
 
@@ -296,10 +309,15 @@ export interface JsonRenameColumn {
 	to: Column;
 }
 
-export interface JsonAlterColumnType {
-	type: 'alter_column_change_type';
+export interface JsonAlterColumn {
+	type: 'alter_column';
 	column: Column;
 	diff: DiffEntities['columns'];
+}
+
+export interface JsonRecreateColumn {
+	type: 'recreate_column';
+	column: Column;
 }
 
 export interface JsonAlterColumnSetPrimaryKey {
@@ -313,16 +331,6 @@ export interface JsonAlterColumnDropPrimaryKey {
 	type: 'alter_column_change_pk';
 	column: Column;
 	diff: DiffColumn['primaryKey'];
-}
-
-export interface JsonAlterColumnChangetDefault {
-	type: 'alter_column_change_default';
-	column: Column;
-}
-
-export interface JsonAlterColumnChangeNotNull {
-	type: 'alter_column_change_notnull';
-	column: Column;
 }
 
 export interface JsonAlterColumnChangeGenerated {
@@ -344,50 +352,6 @@ export interface JsonAlterColumnAlterGenerated {
 	columnNotNull: boolean;
 	columnPk: boolean;
 	columnGenerated?: { as: string; type: 'stored' | 'virtual' };
-}
-
-export interface JsonAlterColumnSetOnUpdate {
-	type: 'alter_column_set_on_update';
-	table: string;
-	column: string;
-	schema: string;
-	newDataType: string;
-	columnDefault: string;
-	columnNotNull: boolean;
-	columnPk: boolean;
-}
-
-export interface JsonAlterColumnDropOnUpdate {
-	type: 'alter_column_drop_on_update';
-	table: string;
-	column: string;
-	schema: string;
-	newDataType: string;
-	columnDefault: string;
-	columnNotNull: boolean;
-	columnPk: boolean;
-}
-
-export interface JsonAlterColumnSetAutoincrement {
-	type: 'alter_column_set_autoincrement';
-	table: string;
-	column: string;
-	schema: string;
-	newDataType: string;
-	columnDefault: string;
-	columnNotNull: boolean;
-	columnPk: boolean;
-}
-
-export interface JsonAlterColumnDropAutoincrement {
-	type: 'alter_column_drop_autoincrement';
-	table: string;
-	column: string;
-	schema: string;
-	newDataType: string;
-	columnDefault: string;
-	columnNotNull: boolean;
-	columnPk: boolean;
 }
 
 export interface JsonCreateSchema {
@@ -416,6 +380,19 @@ export interface JsonDropView {
 	view: View;
 }
 
+export interface JsonRenameView {
+	type: 'rename_view';
+	from: View;
+	to: View;
+}
+
+export interface JsonMoveView {
+	type: 'move_view';
+	fromSchema: string;
+	toSchema: string;
+	view: View;
+}
+
 export interface JsonAlterView {
 	type: 'alter_view';
 	diff: DiffEntities['views'];
@@ -423,83 +400,40 @@ export interface JsonAlterView {
 	to: View;
 }
 
-export interface JsonRenameView {
-	type: 'rename_view';
+export interface JsonRecreateView {
+	type: 'recreate_view';
 	from: View;
 	to: View;
 }
 
-export interface JsonAlterViewAlterSchema {
-	type: 'move_view';
-	fromSchema: string;
-	toSchema: string;
-	view: View;
-}
-
-export type JsonAlterViewAddWithOptionStatement = { type: 'alter_view_add_with_option'; view: View };
-
-export type JsonAlterViewDropWithOptionStatement = {
-	type: 'alter_view_drop_with_option';
-	view: View;
-};
-
-export interface JsonAlterViewAlterTablespace {
-	type: 'alter_view_alter_tablespace';
-	toTablespace: string;
-	name: string;
-	schema: string;
-	materialized: true;
-}
-
-export interface JsonAlterViewAlterUsing {
-	type: 'alter_view_alter_using';
-	toUsing: string;
-	name: string;
-	schema: string;
-	materialized: true;
-}
-
-export type JsonAlterColumn =
-	| JsonRenameColumn
-	| JsonAlterColumnType
-	| JsonAlterColumnChangetDefault
-	| JsonAlterColumnChangeNotNull
-	| JsonAlterColumnDropOnUpdate
-	| JsonAlterColumnSetOnUpdate
-	| JsonAlterColumnDropAutoincrement
-	| JsonAlterColumnSetAutoincrement
-	| JsonAlterColumnSetPrimaryKey
-	| JsonAlterColumnDropPrimaryKey
-	| JsonAlterColumnChangeGenerated
-	| JsonAlterColumnAlterGenerated
-	| JsonAlterColumnChangeIdentity;
-
 export type JsonStatement =
-	| JsonRecreateTable
-	| JsonAlterColumn
 	| JsonCreateTable
 	| JsonDropTable
 	| JsonRenameTable
+	| JsonRecreateTable
+	| JsonRenameColumn
+	| JsonAlterColumn
+	| JsonRecreateColumn
+	| JsonMoveView
 	| JsonAlterView
-	| JsonAlterViewAlterSchema
-	| JsonAlterViewAlterTablespace
-	| JsonAlterViewAlterUsing
+	| JsonRecreateView
 	| JsonCreateEnum
 	| JsonDropEnum
 	| JsonMoveEnum
 	| JsonRenameEnum
+	| JsonRecreateEnum
 	| JsonAlterEnum
 	| JsonDropColumn
 	| JsonAddColumn
 	| JsonCreateIndex
 	| JsonDropIndex
-	| JsonCreateCompositePK
-	| JsonDropCompositePK
-	| JsonAlterCompositePK
-	| JsonCreateReference
-	| JsonDropReference
-	| JsonRenameReference
-	| JsonAlterReference
+	| JsonAddPrimaryKey
+	| JsonDropPrimaryKey
+	| JsonAlterPrimaryKey
+	| JsonCreateFK
+	| JsonDropFK
+	| JsonRenameFK
+	| JsonAlterFK
 	| JsonCreateUnique
 	| JsonDeleteUnique
 	| JsonRenameUnique
@@ -570,14 +504,6 @@ export const prepareAlterColumns = (
 ): JsonAlterColumn[] => {
 	let statements: JsonAlterColumn[] = [];
 
-	if (diff.type) {
-		statements.push({
-			type: 'alter_column_change_type',
-			column,
-			diff,
-		});
-	}
-
 	if (diff.primaryKey) {
 		statements.push({
 			type: 'alter_column_change_pk',
@@ -585,30 +511,10 @@ export const prepareAlterColumns = (
 			diff: diff.primaryKey,
 		});
 	}
-	if (column.default) {
-		statements.push({
-			type: 'alter_column_change_default',
-			column,
-		});
-	}
-
-	if (column.notNull) {
-		statements.push({
-			type: 'alter_column_change_notnull',
-			column,
-		});
-	}
 
 	if (column.identity) {
 		statements.push({
 			type: 'alter_column_change_identity',
-			column,
-		});
-	}
-
-	if (column.generated) {
-		statements.push({
-			type: 'alter_column_change_generated',
 			column,
 		});
 	}

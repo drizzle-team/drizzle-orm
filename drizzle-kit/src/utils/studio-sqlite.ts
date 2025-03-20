@@ -51,7 +51,7 @@ const fromInterims = (tables: InterimTable[], views: InterimView[]): SqliteEntit
 	}).flat(1);
 
 	const indexes: Index[] = tables.map((table) => {
-		return table.indexes.map((it) => {
+		return table.indexes.filter((it) => it.origin === 'manual').map((it) => {
 			return { entityType: 'indexes', ...it } satisfies Index;
 		});
 	}).flat(1);

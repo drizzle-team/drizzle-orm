@@ -1212,7 +1212,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 
 		const indexGeneratedName = indexName(
 			tableName,
-			it.columns.map((it) => it.expression),
+			it.columns.map((it) => it.isExpression),
 		);
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
@@ -1225,9 +1225,9 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 			it.columns
 				.map((it) => {
 					if (it.isExpression) {
-						return `sql\`${it.expression}\``;
+						return `sql\`${it.isExpression}\``;
 					} else {
-						return `table.${withCasing(it.expression, casing)}${it.asc ? '.asc()' : '.desc()'}${
+						return `table.${withCasing(it.isExpression, casing)}${it.asc ? '.asc()' : '.desc()'}${
 							it.nulls === 'first' ? '.nullsFirst()' : '.nullsLast()'
 						}${
 							it.opclass

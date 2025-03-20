@@ -47,7 +47,7 @@ export const createDDL = () => {
 			table: 'required',
 			columns: [{
 				value: 'string',
-				expression: 'boolean',
+				isExpression: 'boolean',
 				asc: 'boolean',
 				nulls: 'string?',
 				opclass: 'string?',
@@ -63,6 +63,7 @@ export const createDDL = () => {
 			table: 'required',
 			tableFrom: 'string',
 			columnsFrom: 'string[]',
+			schemaTo: 'string?',
 			tableTo: 'string',
 			columnsTo: 'string[]',
 			onUpdate: 'string?',
@@ -72,6 +73,7 @@ export const createDDL = () => {
 			schema: 'required',
 			table: 'required',
 			columns: 'string[]',
+			isNameExplicit: 'boolean',
 		},
 		uniques: {
 			schema: 'required',

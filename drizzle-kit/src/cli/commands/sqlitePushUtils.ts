@@ -87,7 +87,7 @@ export const _moveDataStatements = (
 	for (const idx of Object.values(json.tables[tableName].indexes)) {
 		statements.push(
 			new CreateSqliteIndexConvertor().convert({
-				type: 'add_index',
+				type: 'create_index',
 				tableName: tableName,
 				schema: '',
 				data: idx,

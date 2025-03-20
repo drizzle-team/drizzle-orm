@@ -33,7 +33,7 @@ export interface JsonAddColumnStatement {
 }
 
 export interface JsonCreateIndexStatement {
-	type: 'add_index';
+	type: 'create_index';
 	index: Index;
 }
 

@@ -327,7 +327,7 @@ export interface JsonAlterIndPolicyStatement {
 }
 
 export interface JsonCreateIndexStatement {
-	type: 'add_index';
+	type: 'create_index';
 	tableName: string;
 	index: PostgresIndex;
 	schema: string;
@@ -451,11 +451,11 @@ export interface JsonAlterTableSetNewSchema {
 }
 
 export interface JsonCreateReferenceStatement extends JsonReferenceStatement {
-	type: 'create_reference';
+	type: 'create_fk';
 }
 
 export interface JsonAlterReferenceStatement extends JsonReferenceStatement {
-	type: 'alter_reference';
+	type: 'alter_fk';
 	oldFkey: string;
 }
 
@@ -2874,7 +2874,7 @@ export const prepareCreateIndexesJson = (
 ): JsonCreateIndexStatement[] => {
 	return indexes.map((index) => {
 		return {
-			type: 'add_index',
+			type: 'create_index',
 			tableName,
 			index,
 			schema,
@@ -2890,7 +2890,7 @@ export const prepareCreateReferencesJson = (
 ): JsonCreateReferenceStatement[] => {
 	return foreignKeys.map((foreignKey) => {
 		return {
-			type: 'create_reference',
+			type: 'create_fk',
 			tableName,
 			foreignKey,
 			schema,
@@ -2917,7 +2917,7 @@ export const prepareLibSQLCreateReferencesJson = (
 			isMulticolumn = true;
 
 			return {
-				type: 'create_reference',
+				type: 'create_fk',
 				tableName,
 				foreignKey,
 				schema,
@@ -2934,7 +2934,7 @@ export const prepareLibSQLCreateReferencesJson = (
 		} = json2.tables[foreignKey.tableFrom].columns[columnFrom];
 
 		return {
-			type: 'create_reference',
+			type: 'create_fk',
 			tableName,
 			data: fkData,
 			schema,

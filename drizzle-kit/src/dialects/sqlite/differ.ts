@@ -256,7 +256,7 @@ export const applySqliteSnapshotsDiff = async (
 	const jsonCreateIndexes = [...jsonRecreateTables]
 		.map((it) => it.table.indexes)
 		.concat(indexesByTable.filter((it) => !setOfTablesToRecereate.has(it.table)).map((it) => it.inserted))
-		.map((it) => it.map((index) => prepareStatement('add_index', { index })))
+		.map((it) => it.map((index) => prepareStatement('create_index', { index })))
 		.flat();
 
 	const jsonDropIndexes = indexesByTable.map((it) =>

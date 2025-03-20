@@ -1,5 +1,7 @@
+import { it } from 'node:test';
 import { BREAKPOINT } from '../../global';
-import { escapeSingleQuotes, Simplify } from '../../utils';
+import { escapeSingleQuotes, type Simplify } from '../../utils';
+import { parseType } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -18,67 +20,768 @@ export const convertor = <
 	};
 };
 
-const parseType = (schemaPrefix: string, type: string) => {
-	const NativeTypes = [
-		'uuid',
-		'smallint',
-		'integer',
-		'bigint',
-		'boolean',
-		'text',
-		'varchar',
-		'serial',
-		'bigserial',
-		'decimal',
-		'numeric',
-		'real',
-		'json',
-		'jsonb',
-		'time',
-		'time with time zone',
-		'time without time zone',
-		'time',
-		'timestamp',
-		'timestamp with time zone',
-		'timestamp without time zone',
-		'date',
-		'interval',
-		'bigint',
-		'bigserial',
-		'double precision',
-		'interval year',
-		'interval month',
-		'interval day',
-		'interval hour',
-		'interval minute',
-		'interval second',
-		'interval year to month',
-		'interval day to hour',
-		'interval day to minute',
-		'interval day to second',
-		'interval hour to minute',
-		'interval hour to second',
-		'interval minute to second',
-		'char',
-		'vector',
-		'geometry',
-	];
-	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
-	const arrayDefinition = (type.match(arrayDefinitionRegex) ?? []).join('');
-	const withoutArrayDefinition = type.replace(arrayDefinitionRegex, '');
-	return NativeTypes.some((it) => type.startsWith(it))
-		? `${withoutArrayDefinition}${arrayDefinition}`
-		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
-};
+const createSchemaConvertor = convertor('create_schema', (st) => {
+	return `CREATE SCHEMA "${st.name}";\n`;
+});
 
-interface Convertor {
-	can(
-		statement: JsonStatement,
-	): boolean;
-	convert(
-		statement: JsonStatement,
-	): string | string[];
-}
+const dropSchemaConvertor = convertor('drop_schema', (st) => {
+	return `DROP SCHEMA "${st.name}";\n`;
+});
+
+const renameSchemaConvertor = convertor('rename_schema', (st) => {
+	return `ALTER SCHEMA "${st.from}" RENAME TO "${st.to}";\n`;
+});
+
+const createViewConvertor = convertor('create_view', (st) => {
+	const { definition, name: viewName, schema, with: withOption, materialized, withNoData, tablespace, using } = st.view;
+
+	const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
+	let statement = materialized ? `CREATE MATERIALIZED VIEW ${name}` : `CREATE VIEW ${name}`;
+	if (using) statement += ` USING "${using}"`;
+
+	const options: string[] = [];
+	if (withOption) {
+		statement += ` WITH (`;
+		for (const [key, value] of Object.entries(withOption)) {
+			if (typeof value === 'undefined') continue;
+			options.push(`${key.snake_case()} = ${value}`);
+		}
+		statement += options.join(', ');
+		statement += `)`;
+	}
+
+	if (tablespace) statement += ` TABLESPACE ${tablespace}`;
+	statement += ` AS (${definition})`;
+	if (withNoData) statement += ` WITH NO DATA`;
+	statement += `;`;
+
+	return statement;
+});
+
+const dropViewConvertor = convertor('drop_view', (st) => {
+	const { name: viewName, schema, materialized } = st.view;
+	const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
+	return `DROP${materialized ? ' MATERIALIZED' : ''} VIEW ${name};`;
+});
+
+const renameViewConvertor = convertor('rename_view', (st) => {
+	const materialized = st.from.materialized;
+	const nameFrom = st.from.schema ? `"${st.from.schema}"."${st.from.name}"` : `"${st.from.name}"`;
+	const nameTo = st.to.schema ? `"${st.to.schema}"."${st.to.name}"` : `"${st.to.name}"`;
+
+	return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO "${nameTo}";`;
+});
+
+const moveViewConvertor = convertor('move_view', (st) => {
+	const { fromSchema, toSchema, view } = st;
+	return `ALTER${
+		view.materialized ? ' MATERIALIZED' : ''
+	} VIEW "${fromSchema}"."${view.name}" SET SCHEMA "${toSchema}";`;
+});
+
+// alter view - recreate
+const alterViewConvertor = convertor('alter_view', (st) => {
+	// alter view with options
+	const diff = st.diff;
+	if (diff) {}
+
+	const statements = [] as string[];
+	const key = st.to.schema ? `"${st.to.schema}"."${st.to.name}"` : `"${st.to.name}"`;
+	const viewClause = st.to.materialized ? `MATERIALIZED VIEW ${key}` : `VIEW ${key}`;
+	if (diff.with) {
+		if (diff.with.from === null) {
+			const options = Object.entries(diff.with.to!).filter((it) => it[1]).map(([key, value]) =>
+				`${key.snake_case()} = ${value}`
+			).join(', ');
+			statements.push(`ALTER ${viewClause} SET (${options});`);
+		} else {
+			// TODO: reset missing options, set changed options and new options?
+			const options = diff.with.to
+				? Object.keys(diff.with.to!).map((key) => key.snake_case()).join(', ')
+				: '';
+			statements.push(`ALTER ${viewClause} RESET (${options});`);
+		}
+	}
+
+	if (diff.tablespace) {
+		/*
+			By default, PostgreSQL uses the cluster’s default tablespace (which is named 'pg_default')
+
+			This operation requires an exclusive lock on the materialized view (it rewrites the data file),
+			and you must have CREATE privilege on the target tablespace.
+			If you have indexes on the materialized view, note that moving the base table does not automatically move its indexes.
+			Each index is a separate object and retains its original tablespace​.
+
+			You should move indexes individually, for example:
+			sql`ALTER INDEX my_matview_idx1 SET TABLESPACE pg_default`;
+			sql`ALTER INDEX my_matview_idx2 SET TABLESPACE pg_default`;
+		*/
+		const to = diff.tablespace.to || 'pg_default';
+		statements.push(`ALTER ${viewClause} SET TABLESPACE ${to};`);
+	}
+
+	if (diff.using) {
+		/*
+		The table access method (the storage engine format) is chosen when the materialized view is created,
+		 using the optional USING <method> clause.
+		 If no method is specified, it uses the default access method (typically the regular heap storage)​
+
+		sql`
+			CREATE MATERIALIZED VIEW my_matview
+			USING heap  -- storage access method; "heap" is the default
+			AS SELECT ...;
+		`
+
+		Starting with PostgreSQL 15, you can alter a materialized view’s access method in-place.
+		PostgreSQL 15 introduced support for ALTER MATERIALIZED VIEW ... SET ACCESS METHOD new_method
+		*/
+		const toUsing = diff.using.to || 'heap';
+		statements.push(`ALTER ${viewClause} SET ACCESS METHOD "${toUsing}";`);
+	}
+
+	return statements;
+});
+
+const recreateViewConvertor = convertor('recreate_view', (st) => {
+	const drop = dropViewConvertor.convert({ view: st.from }) as string;
+	const create = createViewConvertor.convert({ view: st.to }) as string;
+	return [drop, create];
+});
+
+const createTableConvertor = convertor('create_table', (st) => {
+	const { schema, name, columns, pk, uniques, checks, policies, isRlsEnabled } = st.table;
+
+	const statements = [] as string[];
+	let statement = '';
+	const key = schema ? `"${schema}"."${name}"` : `"${name}"`;
+
+	// TODO: strict?
+	statement += `CREATE TABLE IF NOT EXISTS ${key} (\n`;
+	for (let i = 0; i < columns.length; i++) {
+		const column = columns[i];
+
+		const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
+		const notNullStatement = column.notNull && !column.identity ? ' NOT NULL' : '';
+		const defaultStatement = column.default !== undefined ? ` DEFAULT ${column.default}` : '';
+
+		const uniqueConstraint = uniques.find((it) =>
+			it.columns.length === 1 && it.columns[0] === column.name && `${name}_${column.name}_key` === it.name
+		);
+		const unqiueConstraintPrefix = uniqueConstraint
+			? 'UNIQUE'
+			: '';
+		const uniqueConstraintStatement = uniqueConstraint
+			? ` ${unqiueConstraintPrefix}${uniqueConstraint.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}`
+			: '';
+
+		const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
+			? `"${column.typeSchema}".`
+			: '';
+
+		const type = parseType(schemaPrefix, column.type);
+		const generated = column.generated;
+
+		const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
+
+		const identityWithSchema = schema
+			? `"${schema}"."${column.identity?.name}"`
+			: `"${column.identity?.name}"`;
+
+		const identity = column.identity
+			? ` GENERATED ${
+				column.identity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
+			} AS IDENTITY (sequence name ${identityWithSchema}${
+				column.identity.increment
+					? ` INCREMENT BY ${column.identity.increment}`
+					: ''
+			}${
+				column.identity.minValue
+					? ` MINVALUE ${column.identity.minValue}`
+					: ''
+			}${
+				column.identity.maxValue
+					? ` MAXVALUE ${column.identity.maxValue}`
+					: ''
+			}${
+				column.identity.startWith
+					? ` START WITH ${column.identity.startWith}`
+					: ''
+			}${column.identity.cache ? ` CACHE ${column.identity.cache}` : ''}${column.identity.cycle ? ` CYCLE` : ''})`
+			: '';
+
+		statement += '\t'
+			+ `"${column.name}" ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${uniqueConstraintStatement}${identity}`;
+		statement += i === columns.length - 1 ? '' : ',\n';
+	}
+
+	if (pk && pk.columns.length > 0) {
+		statement += ',\n';
+		statement += `\tCONSTRAINT "${pk.name}" PRIMARY KEY(\"${pk.columns.join(`","`)}\")`;
+		// statement += `\n`;
+	}
+
+	for (const it of uniques) {
+		// skip for inlined uniques
+		if (it.columns.length === 1 && it.name === `${name}_${it.columns[0]}_key`) continue;
+
+		statement += ',\n';
+		statement += `\tCONSTRAINT "${it.name}" UNIQUE${it.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}(\"${
+			it.columns.join(`","`)
+		}\")`;
+		// statement += `\n`;
+	}
+
+	for (const check of checks) {
+		statement += ',\n';
+		statement += `\tCONSTRAINT "${check.name}" CHECK (${check.value})`;
+	}
+
+	statement += `\n);`;
+	statement += `\n`;
+	statements.push(statement);
+
+	if (policies && policies.length > 0 || isRlsEnabled) {
+		statements.push(toggleRlsConvertor.convert({
+			isRlsEnabled: true,
+			table: st.table,
+		}) as string);
+	}
+
+	return statements;
+});
+
+const dropTableConvertor = convertor('drop_table', (st) => {
+	const { name, schema, policies } = st.table;
+
+	const tableNameWithSchema = schema
+		? `"${schema}"."${name}"`
+		: `"${name}"`;
+
+	const droppedPolicies = policies.map((policy) => dropPolicyConvertor.convert({ policy }) as string);
+
+	return [
+		...droppedPolicies,
+		`DROP TABLE ${tableNameWithSchema} CASCADE;`,
+	];
+});
+
+const renameTableConvertor = convertor('rename_table', (st) => {
+	const from = st.from.schema
+		? `"${st.from.schema}"."${st.from.name}"`
+		: `"${st.from.name}"`;
+	const to = st.to.schema
+		? `"${st.to.schema}"."${st.to.name}"`
+		: `"${st.to.name}"`;
+
+	return `ALTER TABLE ${from} RENAME TO ${to};`;
+});
+
+const moveTableConvertor = convertor('move_table', (st) => {
+	const from = st.schemaFrom ? `"${st.schemaFrom}".${st.name}` : 'public';
+	const to = st.schemaTo ? `"${st.schemaTo}"` : 'public';
+
+	return `ALTER TABLE ${from} SET SCHEMA ${to};\n`;
+});
+
+const addColumnConvertor = convertor('add_column', (st) => {
+	const { schema, table, name } = st.column;
+	const column = st.column;
+
+	const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
+
+	const tableNameWithSchema = schema
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
+
+	const defaultStatement = `${column.default !== undefined ? ` DEFAULT ${column.default}` : ''}`;
+
+	const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
+		? `"${column.typeSchema}".`
+		: '';
+
+	const fixedType = parseType(schemaPrefix, column.type);
+
+	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
+
+	const unsquashedIdentity = column.identity;
+
+	const identityWithSchema = schema
+		? `"${schema}"."${unsquashedIdentity?.name}"`
+		: `"${unsquashedIdentity?.name}"`;
+
+	const identityStatement = unsquashedIdentity
+		? ` GENERATED ${
+			unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
+		} AS IDENTITY (sequence name ${identityWithSchema}${
+			unsquashedIdentity.increment
+				? ` INCREMENT BY ${unsquashedIdentity.increment}`
+				: ''
+		}${
+			unsquashedIdentity.minValue
+				? ` MINVALUE ${unsquashedIdentity.minValue}`
+				: ''
+		}${
+			unsquashedIdentity.maxValue
+				? ` MAXVALUE ${unsquashedIdentity.maxValue}`
+				: ''
+		}${
+			unsquashedIdentity.startWith
+				? ` START WITH ${unsquashedIdentity.startWith}`
+				: ''
+		}${unsquashedIdentity.cache ? ` CACHE ${unsquashedIdentity.cache}` : ''}${
+			unsquashedIdentity.cycle ? ` CYCLE` : ''
+		})`
+		: '';
+
+	const generatedStatement = column.generated ? ` GENERATED ALWAYS AS (${column.generated.as}) STORED` : '';
+
+	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
+});
+
+const dropColumnConvertor = convertor('drop_column', (st) => {
+	const { schema, table, name } = st.column;
+
+	const tableNameWithSchema = schema
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
+
+	return `ALTER TABLE ${tableNameWithSchema} DROP COLUMN "${name}";`;
+});
+
+const renameColumnConvertor = convertor('rename_column', (st) => {
+	const { table, schema } = st.from;
+	const tableNameWithSchema = schema
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
+
+	return `ALTER TABLE ${tableNameWithSchema} RENAME COLUMN "${st.from.name}" TO "${st.to.name}";`;
+});
+
+const recreateColumnConvertor = convertor('recreate_column', (st) => {
+	// AlterTableAlterColumnSetExpressionConvertor
+	// AlterTableAlterColumnAlterGeneratedConvertor
+
+	const drop = dropColumnConvertor.convert({ column: st.column }) as string;
+	const add = addColumnConvertor.convert({ column: st.column }) as string;
+
+	return [drop, add];
+});
+
+const alterColumnConvertor = convertor('alter_column', (st) => {
+	const { diff, column } = st;
+
+	const statements = [] as string[];
+
+	const key = column.schema
+		? `"${column.schema}"."${column.table}"`
+		: `"${column.table}"`;
+
+	if (diff.type) {
+		const type = diff.typeSchema?.to ? `"${diff.typeSchema.to}"."${diff.type.to}"` : diff.type.to; // TODO: enum?
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type};`);
+	}
+
+	if (diff.default) {
+		if (diff.default.to) {
+			const { expression, value } = diff.default.to;
+			const def = expression ? `(${value})` : value;
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${def};`);
+		} else {
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
+		}
+	}
+
+	if (diff.generated && diff.generated.to === null) {
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
+	}
+
+	if (diff.notNull) {
+		const clause = diff.notNull.to ? 'SET NOT NULL' : 'DROP NOT NULL';
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" ${clause};`);
+	}
+
+	if (diff.identity) {
+		if (diff.identity.from === null) {
+			const identity = column.identity!;
+			const identityWithSchema = column.schema
+				? `"${column.schema}"."${identity.name}"`
+				: `"${identity.name}"`;
+			const typeClause = identity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT';
+			const incrementClause = identity.increment ? ` INCREMENT BY ${identity.increment}` : '';
+			const minClause = identity.minValue ? ` MINVALUE ${identity.minValue}` : '';
+			const maxClause = identity.maxValue ? ` MAXVALUE ${identity.maxValue}` : '';
+			const startWith = identity.startWith ? ` START WITH ${identity.startWith}` : '';
+			const cache = identity.cache ? ` CACHE ${identity.cache}` : '';
+			const cycle = identity.cycle ? ` CYCLE` : '';
+			const identityStatement =
+				`GENERATED ${typeClause} AS IDENTITY (sequence name ${identityWithSchema}${incrementClause}${minClause}${maxClause}${startWith}${cache}${cycle})`;
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" ADD ${identityStatement};`);
+		} else if (diff.identity.to === null) {
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP IDENTITY;`);
+		} else {
+			const { from, to } = diff.identity;
+
+			if (from.type !== to.type) {
+				const typeClause = to.type === 'always' ? 'ALWAYS' : 'BY DEFAULT';
+				statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET GENERATED ${typeClause};`);
+			}
+			if (from.minValue !== to.minValue) {
+				statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET MINVALUE ${to.minValue};`);
+			}
+
+			if (from.maxValue !== to.maxValue) {
+				statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET MAXVALUE ${to.maxValue};`);
+			}
+
+			if (from.increment !== to.increment) {
+				statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET INCREMENT BY ${to.increment};`);
+			}
+
+			if (from.startWith !== to.startWith) {
+				statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET START WITH ${to.startWith};`);
+			}
+
+			if (from.cache !== to.cache) {
+				statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET CACHE ${to.cache};`);
+			}
+
+			if (from.cycle !== to.cycle) {
+				statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET ${to.cycle ? `CYCLE` : 'NO CYCLE'};`);
+			}
+		}
+	}
+
+	return statements;
+});
+
+const createIndexConvertor = convertor('create_index', (st) => {
+	const {
+		schema,
+		table,
+		name,
+		columns,
+		isUnique,
+		concurrently,
+		with: withMap,
+		method,
+		where,
+	} = st.index;
+	// // since postgresql 9.5
+	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
+	const value = columns
+		.map(
+			(it) =>
+				`${it.isExpression ? it.isExpression : `"${it.isExpression}"`}${
+					it.opclass ? ` ${it.opclass}` : it.asc ? '' : ' DESC'
+				}${
+					(it.asc && it.nulls && it.nulls === 'last') || it.opclass
+						? ''
+						: ` NULLS ${it.nulls!.toUpperCase()}`
+				}`,
+		)
+		.join(',');
+
+	const tableNameWithSchema = schema
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
+
+	function reverseLogic(mappedWith: Record<string, string>): string {
+		let reversedString = '';
+		for (const key in mappedWith) {
+			// TODO: wtf??
+			if (mappedWith.hasOwnProperty(key)) {
+				reversedString += `${key}=${mappedWith[key]},`;
+			}
+		}
+		
+		reversedString = reversedString.slice(0, -1);
+		return reversedString;
+	}
+
+	return `CREATE ${indexPart}${
+		concurrently ? ' CONCURRENTLY' : ''
+	} IF NOT EXISTS "${name}" ON ${tableNameWithSchema} USING ${method} (${value})${
+		Object.keys(withMap!).length !== 0
+			? ` WITH (${reverseLogic(withMap!)})`
+			: ''
+	}${where ? ` WHERE ${where}` : ''};`;
+});
+
+const dropIndexConvertor = convertor('drop_index', (st) => {
+	// TODO: strict?
+	return `DROP INDEX "${st.index}";`;
+});
+
+const addPrimaryKeyConvertor = convertor('add_pk', (st) => {
+	const { pk } = st;
+	const key = pk.schema
+		? `"${pk.schema}"."${pk.table}"`
+		: `"${pk.table}"`;
+
+	if (!pk.isNameExplicit) {
+		return `ALTER TABLE ${key} ADD PRIMARY KEY ("${pk.columns.join('","')}");`;
+	}
+	return `ALTER TABLE ${key} ADD CONSTRAINT "${pk.name}" PRIMARY KEY("${pk.columns.join('","')}");`;
+});
+
+const dropPrimaryKeyConvertor = convertor('drop_pk', (st) => {
+	const pk = st.pk;
+	const key = pk.schema
+		? `"${pk.schema}"."${pk.table}"`
+		: `"${pk.table}"`;
+
+	if (st.pk.isNameExplicit) {
+		return `ALTER TABLE ${key} DROP CONSTRAINT "${pk.name}";`;
+	}
+
+	const schema = pk.schema ?? 'public';
+	return `/* 
+    Unfortunately in current drizzle-kit version we can't automatically get name for primary key.
+    We are working on making it available!
+
+    Meanwhile you can:
+        1. Check pk name in your database, by running
+            SELECT constraint_name FROM information_schema.table_constraints
+            WHERE table_schema = '${schema}'
+                AND table_name = '${pk.table}'
+                AND constraint_type = 'PRIMARY KEY';
+        2. Uncomment code below and paste pk name manually
+        
+    Hope to release this update as soon as possible
+*/
+
+-- ALTER TABLE "${key}" DROP CONSTRAINT "<constraint_name>";`;
+});
+
+const createForeignKeyConvertor = convertor('create_fk', (st) => {
+	const { schema, table, name, tableFrom, tableTo, columnsFrom, columnsTo, onDelete, onUpdate, schemaTo } = st.fk;
+
+	const onDeleteStatement = onDelete ? ` ON DELETE ${onDelete}` : '';
+	const onUpdateStatement = onUpdate ? ` ON UPDATE ${onUpdate}` : '';
+	const fromColumnsString = columnsFrom.map((it) => `"${it}"`).join(',');
+	const toColumnsString = columnsTo.map((it) => `"${it}"`).join(',');
+
+	const tableNameWithSchema = schema
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
+
+	const tableToNameWithSchema = schemaTo
+		? `"${schemaTo}"."${tableTo}"`
+		: `"${tableTo}"`;
+
+	const alterStatement =
+		`ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
+
+	let sql = 'DO $$ BEGIN\n';
+	sql += ' ' + alterStatement + ';\n';
+	sql += 'EXCEPTION\n';
+	sql += ' WHEN duplicate_object THEN null;\n';
+	sql += 'END $$;\n';
+	return sql;
+});
+
+const alterForeignKeyConvertor = convertor('alter_fk', (st) => {
+	const { from, to } = st;
+
+	const key = to.schema
+		? `"${to.schema}"."${to.table}"`
+		: `"${to.table}"`;
+
+	let sql = `ALTER TABLE ${key} DROP CONSTRAINT "${from.name}";\n`;
+
+	const onDeleteStatement = to.onDelete
+		? ` ON DELETE ${to.onDelete}`
+		: '';
+	const onUpdateStatement = to.onUpdate
+		? ` ON UPDATE ${to.onUpdate}`
+		: '';
+
+	const fromColumnsString = to.columnsFrom
+		.map((it) => `"${it}"`)
+		.join(',');
+	const toColumnsString = to.columnsTo.map((it) => `"${it}"`).join(',');
+
+	const tableToNameWithSchema = to.schemaTo
+		? `"${to.schemaTo}"."${to.tableTo}"`
+		: `"${to.tableTo}"`;
+
+	const alterStatement =
+		`ALTER TABLE ${key} ADD CONSTRAINT "${to.name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
+
+	// TODO: remove DO BEGIN?
+	sql += 'DO $$ BEGIN\n';
+	sql += ' ' + alterStatement + ';\n';
+	sql += 'EXCEPTION\n';
+	sql += ' WHEN duplicate_object THEN null;\n';
+	sql += 'END $$;\n';
+	return sql;
+});
+
+const dropForeignKeyConvertor = convertor('drop_fk', (st) => {
+	const { schema, table, name } = st.fk;
+
+	const tableNameWithSchema = schema
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
+
+	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${name}";\n`;
+});
+
+const addCheckConvertor = convertor('add_check', (st) => {
+	const { check } = st;
+	const tableNameWithSchema = check.schema
+		? `"${check.schema}"."${check.table}"`
+		: `"${check.table}"`;
+	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${check.name}" CHECK (${check.value});`;
+});
+
+const dropCheckConvertor = convertor('drop_check', (st) => {
+	const { check } = st;
+	const tableNameWithSchema = check.schema
+		? `"${check.schema}"."${check.table}"`
+		: `"${check.table}"`;
+	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${check.name}";`;
+});
+
+const addUniqueConvertor = convertor('add_unique', (st) => {
+	const { unique } = st;
+	const tableNameWithSchema = unique.schema
+		? `"${unique.schema}"."${unique.table}"`
+		: `"${unique.table}"`;
+	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unique.name}" UNIQUE${
+		unique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
+	}("${unique.columns.join('","')}");`;
+});
+
+const dropUniqueConvertor = convertor('drop_unique', (st) => {
+	const { unique } = st;
+	const tableNameWithSchema = unique.schema
+		? `"${unique.schema}"."${unique.table}"`
+		: `"${unique.table}"`;
+	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${unique.name}";`;
+});
+
+const renameUniqueConvertor = convertor('rename_unique', (st) => {
+	const { from, to } = st;
+	const tableNameWithSchema = to.schema
+		? `"${to.schema}"."${to.table}"`
+		: `"${to.table}"`;
+	return `ALTER TABLE ${tableNameWithSchema} RENAME CONSTRAINT "${from.name}" TO "${to.name}";`;
+});
+
+const createEnumConvertor = convertor('create_enum', (st) => {
+	const { name, schema, values } = st.enum;
+	const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+
+	let valuesStatement = '(';
+	valuesStatement += values.map((it) => `'${escapeSingleQuotes(it)}'`).join(', ');
+	valuesStatement += ')';
+
+	return `CREATE TYPE ${enumNameWithSchema} AS ENUM${valuesStatement};`;
+});
+
+const dropEnumConvertor = convertor('drop_enum', (st) => {
+	const { name, schema } = st.enum;
+	const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+	return `DROP TYPE ${enumNameWithSchema};`;
+});
+
+const renameEnumConvertor = convertor('rename_enum', (st) => {
+	const from = st.from.schema ? `"${st.from.schema}"."${st.from.name}"` : `"${st.from.name}"`;
+	const to = st.to.schema ? `"${st.to.schema}"."${st.to.name}"` : `"${st.to.name}"`;
+	return `ALTER TYPE ${from} RENAME TO "${to}";`;
+});
+
+const moveEnumConvertor = convertor('move_enum', (st) => {
+	const { schemaFrom, schemaTo, name } = st;
+	const enumNameWithSchema = schemaFrom ? `"${schemaFrom}"."${name}"` : `"${name}"`;
+	return `ALTER TYPE ${enumNameWithSchema} SET SCHEMA "${schemaTo}";`;
+});
+
+const alterEnumConvertor = convertor('alter_enum', (st) => {
+	const { diff, enum: e } = st;
+	const key = e.schema ? `"${e.schema}"."${e.name}"` : `"${e.name}"`;
+
+	const statements = [] as string[];
+	for (const d of diff.filter((it) => it.type === 'added')) {
+		if (d.beforeValue) {
+			statements.push(`ALTER TYPE ${key} ADD VALUE '${d.value}' BEFORE '${d.beforeValue}'`);
+		} else {
+			statements.push(`ALTER TYPE ${key} ADD VALUE IF NOT EXISTS ${d.value};`);
+		}
+	}
+	return statements;
+});
+
+const recreateEnumConvertor = convertor('recreate_enum', (st) => {
+	const { to, columns } = st;
+	const statements: string[] = [];
+	for (const column of columns) {
+		const key = column.schema ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
+		statements.push(
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text;`,
+		);
+	}
+	statements.push(dropEnumConvertor.convert({ enum: to }) as string);
+	statements.push(createEnumConvertor.convert({ enum: to }) as string);
+
+	for (const column of columns) {
+		const key = column.schema ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
+		const enumType = to.schema ? `"${to.schema}"."${to.name}"` : `"${to.name}"`;
+		statements.push(
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType} USING "${column.name}"::${enumType};`,
+		);
+	}
+
+	return statements;
+});
+
+const createSequenceConvertor = convertor('create_sequence', (st) => {
+	const { name, schema, minValue, maxValue, increment, startWith, cache, cycle } = st.sequence;
+	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+
+	return `CREATE SEQUENCE ${sequenceWithSchema}${increment ? ` INCREMENT BY ${increment}` : ''}${
+		minValue ? ` MINVALUE ${minValue}` : ''
+	}${maxValue ? ` MAXVALUE ${maxValue}` : ''}${startWith ? ` START WITH ${startWith}` : ''}${
+		cache ? ` CACHE ${cache}` : ''
+	}${cycle ? ` CYCLE` : ''};`;
+});
+
+const dropSequenceConvertor = convertor('drop_sequence', (st) => {
+	const { name, schema } = st.sequence;
+	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+	return `DROP SEQUENCE ${sequenceWithSchema};`;
+});
+
+const renameSequenceConvertor = convertor('rename_sequence', (st) => {
+	const sequenceWithSchemaFrom = st.from.schema
+		? `"${st.from.schema}"."${st.from.name}"`
+		: `"${st.from.name}"`;
+	const sequenceWithSchemaTo = st.to.schema
+		? `"${st.to.schema}"."${st.to.name}"`
+		: `"${st.to.name}"`;
+	return `ALTER SEQUENCE ${sequenceWithSchemaFrom} RENAME TO "${sequenceWithSchemaTo}";`;
+});
+
+const moveSequenceConvertor = convertor('move_sequence', (st) => {
+	const sequenceWithSchema = st.schemaFrom
+		? `"${st.schemaFrom}"."${st.name}"`
+		: `"${st.name}"`;
+	const seqSchemaTo = st.schemaTo ? `"${st.schemaTo}"` : `public`;
+	return `ALTER SEQUENCE ${sequenceWithSchema} SET SCHEMA ${seqSchemaTo};`;
+});
+
+const alterSequenceConvertor = convertor('alter_sequence', (st) => {
+	const { schema, name, increment, minValue, maxValue, startWith, cache, cycle } = st.sequence;
+
+	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+
+	return `ALTER SEQUENCE ${sequenceWithSchema}${increment ? ` INCREMENT BY ${increment}` : ''}${
+		minValue ? ` MINVALUE ${minValue}` : ''
+	}${maxValue ? ` MAXVALUE ${maxValue}` : ''}${startWith ? ` START WITH ${startWith}` : ''}${
+		cache ? ` CACHE ${cache}` : ''
+	}${cycle ? ` CYCLE` : ''};`;
+});
 
 const createRoleConvertor = convertor('create_role', (st) => {
 	const { name, createDb, createRole, inherit } = st.role;
@@ -177,978 +880,61 @@ const toggleRlsConvertor = convertor('alter_rls', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} ${table.isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
 });
 
-const createViewConvertor = convertor('create_view', (st) => {
-	const { definition, name: viewName, schema, with: withOption, materialized, withNoData, tablespace, using } = st.view;
+const convertors = [
+	createSchemaConvertor,
+	dropSchemaConvertor,
+	renameSchemaConvertor,
+	createViewConvertor,
+	dropViewConvertor,
+	renameViewConvertor,
+	moveViewConvertor,
+	alterViewConvertor,
+	recreateViewConvertor,
+	createTableConvertor,
+	renameTableConvertor,
+	moveTableConvertor,
+	addColumnConvertor,
+	dropCheckConvertor,
+	renameColumnConvertor,
+	recreateColumnConvertor,
+	alterColumnConvertor,
+	createIndexConvertor,
+	dropIndexConvertor,
+	addPrimaryKeyConvertor,
+	dropPrimaryKeyConvertor,
+	renamePrimaryKeyConvertor,
+	createForeignKeyConvertor,
+	alterForeignKeyConvertor,
+	dropForeignKeyConvertor,
+	renameForeignKeyConvertor,
+	addCheckConvertor,
+	dropCheckConvertor,
+	renameCheckConvertor,
+	addUniqueConvertor,
+	dropUniqueConvertor,
+	renameUniqueConvertor,
+	createEnumConvertor,
+	dropEnumConvertor,
+	renameEnumConvertor,
+	moveEnumConvertor,
+	alterEnumConvertor,
+	recreateEnumConvertor,
+	createSequenceConvertor,
+	dropSequenceConvertor,
+	renameSequenceConvertor,
+	moveSequenceConvertor,
+	alterSequenceConvertor,
+	createRoleConvertor,
+	dropRoleConvertor,
+	renameRoleConvertor,
+	alterRoleConvertor,
+	createPolicyConvertor,
+	dropPolicyConvertor,
+	renamePolicyConvertor,
+	alterPolicyConvertor,
+	toggleRlsConvertor,
+];
 
-	const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
-	let statement = materialized ? `CREATE MATERIALIZED VIEW ${name}` : `CREATE VIEW ${name}`;
-	if (using) statement += ` USING "${using}"`;
-
-	const options: string[] = [];
-	if (withOption) {
-		statement += ` WITH (`;
-		for (const [key, value] of Object.entries(withOption)) {
-			if (typeof value === 'undefined') continue;
-			options.push(`${key.snake_case()} = ${value}`);
-		}
-		statement += options.join(', ');
-		statement += `)`;
-	}
-
-	if (tablespace) statement += ` TABLESPACE ${tablespace}`;
-	statement += ` AS (${definition})`;
-	if (withNoData) statement += ` WITH NO DATA`;
-	statement += `;`;
-
-	return statement;
-});
-
-const dropViewConvertor = convertor('drop_view', (st) => {
-	const { name: viewName, schema, materialized } = st.view;
-	const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
-	return `DROP${materialized ? ' MATERIALIZED' : ''} VIEW ${name};`;
-});
-
-const renameViewConvertor = convertor('rename_view', (st) => {
-	const materialized = st.from.materialized;
-	const nameFrom = st.from.schema ? `"${st.from.schema}"."${st.from.name}"` : `"${st.from.name}"`;
-	const nameTo = st.to.schema ? `"${st.to.schema}"."${st.to.name}"` : `"${st.to.name}"`;
-
-	return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO "${nameTo}";`;
-});
-
-const moveViewConvertor = convertor('move_view', (st) => {
-	const { fromSchema, toSchema, view } = st;
-	return `ALTER${
-		view.materialized ? ' MATERIALIZED' : ''
-	} VIEW "${fromSchema}"."${view.name}" SET SCHEMA "${toSchema}";`;
-});
-
-// alter view - recreate
-const alterViewConvertor = convertor('alter_view', (st) => {
-	// alter view with options
-	const { schema, with: withOption, name, materialized } = st;
-	let statement = `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW "${schema}"."${name}" SET (`;
-	const options: string[] = [];
-	for (const [key, value] of Object.entries(withOption)) {
-		options.push(`${key.snake_case()} = ${value}`);
-	}
-	statement += options.join(', ');
-	statement += `);`;
-	return statement;
-
-	// alter view drop with options
-	const { schema, name, materialized, with: withOptions } = st;
-	let statement = `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW "${schema}"."${name}" RESET (`;
-	const options: string[] = [];
-	Object.entries(withOptions).forEach(([key, value]) => {
-		options.push(`${key.snake_case()}`);
-	});
-	statement += options.join(', ');
-	statement += ');';
-	return statement;
-
-	// alter table namescpace
-	const { schema, name, toTablespace } = st;
-	const statement = `ALTER MATERIALIZED VIEW "${schema}"."${name}" SET TABLESPACE ${toTablespace};`;
-
-	// AlterViewAlterUsingConvertor
-	const { schema, name, toUsing } = st;
-	const statement = `ALTER MATERIALIZED VIEW "${schema}"."${name}" SET ACCESS METHOD "${toUsing}";`;
-	return statement;
-
-	const drop = dropViewConvertor.convert({ view: st.from }) as string;
-	const create = createViewConvertor.convert({ view: st.to }) as string;
-	return [drop, create];
-});
-
-const CreateTableConvertor = convertor('create_table', (st) => {
-	const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled } = st;
-
-	let statement = '';
-	const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
-
-	statement += `CREATE TABLE IF NOT EXISTS ${name} (\n`;
-	for (let i = 0; i < columns.length; i++) {
-		const column = columns[i];
-
-		const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
-		const notNullStatement = column.notNull && !column.identity ? ' NOT NULL' : '';
-		const defaultStatement = column.default !== undefined ? ` DEFAULT ${column.default}` : '';
-
-		const uniqueConstraint = uniqueConstraints.find((it) =>
-			it.columns.length === 1 && it.columns[0] === column.name && `${tableName}_${column.name}_key` === it.name
-		);
-		const unqiueConstraintPrefix = uniqueConstraint
-			? 'UNIQUE'
-			: '';
-		const uniqueConstraintStatement = uniqueConstraint
-			? ` ${unqiueConstraintPrefix}${uniqueConstraint.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}`
-			: '';
-
-		const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
-			? `"${column.typeSchema}".`
-			: '';
-
-		const type = parseType(schemaPrefix, column.type);
-		const generated = column.generated;
-
-		const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
-
-		const identityWithSchema = schema
-			? `"${schema}"."${column.identity?.name}"`
-			: `"${column.identity?.name}"`;
-
-		const identity = column.identity
-			? ` GENERATED ${
-				column.identity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
-			} AS IDENTITY (sequence name ${identityWithSchema}${
-				column.identity.increment
-					? ` INCREMENT BY ${column.identity.increment}`
-					: ''
-			}${
-				column.identity.minValue
-					? ` MINVALUE ${column.identity.minValue}`
-					: ''
-			}${
-				column.identity.maxValue
-					? ` MAXVALUE ${column.identity.maxValue}`
-					: ''
-			}${
-				column.identity.startWith
-					? ` START WITH ${column.identity.startWith}`
-					: ''
-			}${column.identity.cache ? ` CACHE ${column.identity.cache}` : ''}${column.identity.cycle ? ` CYCLE` : ''})`
-			: '';
-
-		statement += '\t'
-			+ `"${column.name}" ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${uniqueConstraintStatement}${identity}`;
-		statement += i === columns.length - 1 ? '' : ',\n';
-	}
-
-	if (typeof compositePKs !== 'undefined' && compositePKs.length > 0) {
-		statement += ',\n';
-		const compositePK = compositePKs[0];
-		statement += `\tCONSTRAINT "${st.compositePkName}" PRIMARY KEY(\"${compositePK.columns.join(`","`)}\")`;
-		// statement += `\n`;
-	}
-
-	for (const it of uniqueConstraints) {
-		// skip for inlined uniques
-		if (it.columns.length === 1 && it.name === `${tableName}_${it.columns[0]}_key`) continue;
-
-		statement += ',\n';
-		statement += `\tCONSTRAINT "${it.name}" UNIQUE${it.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}(\"${
-			it.columns.join(`","`)
-		}\")`;
-		// statement += `\n`;
-	}
-
-	for (const check of checkConstraints) {
-		statement += ',\n';
-		statement += `\tCONSTRAINT "${check.name}" CHECK (${check.value})`;
-	}
-
-	statement += `\n);`;
-	statement += `\n`;
-
-	const enableRls = rlsConvertor.convert({
-		type: 'enable_rls',
-		tableName,
-		schema,
-	});
-
-	return [statement, ...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : [])];
-});
-
-const alterColumnGeneratedConvertor = convertor('alter_column_generated', (st) => {
-	const { identity, tableName, columnName, schema } = statement;
-
-	const tableNameWithSchema = schema
-		? `"${schema}"."${tableName}"`
-		: `"${tableName}"`;
-
-	const unsquashedIdentity = identity;
-
-	const identityWithSchema = schema
-		? `"${schema}"."${unsquashedIdentity?.name}"`
-		: `"${unsquashedIdentity?.name}"`;
-
-	const identityStatement = unsquashedIdentity
-		? ` GENERATED ${
-			unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
-		} AS IDENTITY (sequence name ${identityWithSchema}${
-			unsquashedIdentity.increment
-				? ` INCREMENT BY ${unsquashedIdentity.increment}`
-				: ''
-		}${
-			unsquashedIdentity.minValue
-				? ` MINVALUE ${unsquashedIdentity.minValue}`
-				: ''
-		}${
-			unsquashedIdentity.maxValue
-				? ` MAXVALUE ${unsquashedIdentity.maxValue}`
-				: ''
-		}${
-			unsquashedIdentity.startWith
-				? ` START WITH ${unsquashedIdentity.startWith}`
-				: ''
-		}${unsquashedIdentity.cache ? ` CACHE ${unsquashedIdentity.cache}` : ''}${
-			unsquashedIdentity.cycle ? ` CYCLE` : ''
-		})`
-		: '';
-
-	return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" ADD${identityStatement};`;
-
-	//AlterTableAlterColumnDroenerated
-	const { tableName, columnName, schema } = statement;
-
-	const tableNameWithSchema = schema
-		? `"${schema}"."${tableName}"`
-		: `"${tableName}"`;
-
-	return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" DROP IDENTITY;`;
-
-	//AlterTableAlterColumnAlterGenerated
-	const { identity, oldIdentity, tableName, columnName, schema } = statement;
-
-	const tableNameWithSchema = schema
-		? `"${schema}"."${tableName}"`
-		: `"${tableName}"`;
-
-	const unsquashedIdentity = identity;
-	const unsquashedOldIdentity = oldIdentity;
-
-	const statementsToReturn: string[] = [];
-
-	if (unsquashedOldIdentity.type !== unsquashedIdentity.type) {
-		statementsToReturn.push(
-			`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET GENERATED ${
-				unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
-			};`,
-		);
-	}
-
-	if (unsquashedOldIdentity.minValue !== unsquashedIdentity.minValue) {
-		statementsToReturn.push(
-			`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET MINVALUE ${unsquashedIdentity.minValue};`,
-		);
-	}
-
-	if (unsquashedOldIdentity.maxValue !== unsquashedIdentity.maxValue) {
-		statementsToReturn.push(
-			`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET MAXVALUE ${unsquashedIdentity.maxValue};`,
-		);
-	}
-
-	if (unsquashedOldIdentity.increment !== unsquashedIdentity.increment) {
-		statementsToReturn.push(
-			`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET INCREMENT BY ${unsquashedIdentity.increment};`,
-		);
-	}
-
-	if (unsquashedOldIdentity.startWith !== unsquashedIdentity.startWith) {
-		statementsToReturn.push(
-			`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET START WITH ${unsquashedIdentity.startWith};`,
-		);
-	}
-
-	if (unsquashedOldIdentity.cache !== unsquashedIdentity.cache) {
-		statementsToReturn.push(
-			`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET CACHE ${unsquashedIdentity.cache};`,
-		);
-	}
-
-	if (unsquashedOldIdentity.cycle !== unsquashedIdentity.cycle) {
-		statementsToReturn.push(
-			`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET ${
-				unsquashedIdentity.cycle ? `CYCLE` : 'NO CYCLE'
-			};`,
-		);
-	}
-
-	return statementsToReturn;
-});
-
-
-const addUniqueConvertor = convertor('add_unique', (st) => {
-	const { unique } = st;
-	const tableNameWithSchema = unique.schema
-		? `"${unique.schema}"."${unique.table}"`
-		: `"${unique.table}"`;
-	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unique.name}" UNIQUE${
-		unique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
-	}("${unique.columns.join('","')}");`;
-});
-
-const dropUniqueConvertor = convertor('drop_unique', (st) => {
-	const { unique } = st;
-	const tableNameWithSchema = unique.schema
-		? `"${unique.schema}"."${unique.table}"`
-		: `"${unique.table}"`;
-	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${unique.name}";`;
-});
-
-const renameUniqueConvertor = convertor('rename_unique', (st) => {
-	const { from, to } = st;
-	const tableNameWithSchema = to.schema
-		? `"${to.schema}"."${to.table}"`
-		: `"${to.table}"`;
-	return `ALTER TABLE ${tableNameWithSchema} RENAME CONSTRAINT "${from.name}" TO "${to.name}";`;
-});
-
-const addCheckConvertor = convertor('add_check', (st) => {
-	const { check } = st;
-	const tableNameWithSchema = check.schema
-		? `"${check.schema}"."${check.table}"`
-		: `"${check.table}"`;
-	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${check.name}" CHECK (${check.value});`;
-});
-
-const dropCheckConvertor = convertor('drop_check', (st) => {
-	const { check } = st;
-	const tableNameWithSchema = check.schema
-		? `"${check.schema}"."${check.table}"`
-		: `"${check.table}"`;
-	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${check.name}";`;
-});
-
-const createSequenceConvertor = convertor('create_sequence', (st) => {
-	const { name, schema, minValue, maxValue, increment, startWith, cache, cycle } = st.sequence;
-	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
-
-	return `CREATE SEQUENCE ${sequenceWithSchema}${increment ? ` INCREMENT BY ${increment}` : ''}${
-		minValue ? ` MINVALUE ${minValue}` : ''
-	}${maxValue ? ` MAXVALUE ${maxValue}` : ''}${startWith ? ` START WITH ${startWith}` : ''}${
-		cache ? ` CACHE ${cache}` : ''
-	}${cycle ? ` CYCLE` : ''};`;
-});
-
-const dropSequenceConvertor = convertor('drop_sequence', (st) => {
-	const { name, schema } = st.sequence;
-	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
-	return `DROP SEQUENCE ${sequenceWithSchema};`;
-});
-
-const renameSequenceConvertor = convertor('rename_sequence', (st) => {
-	const sequenceWithSchemaFrom = st.from.schema
-		? `"${st.from.schema}"."${st.from.name}"`
-		: `"${st.from.name}"`;
-	const sequenceWithSchemaTo = st.to.schema
-		? `"${st.to.schema}"."${st.to.name}"`
-		: `"${st.to.name}"`;
-	return `ALTER SEQUENCE ${sequenceWithSchemaFrom} RENAME TO "${sequenceWithSchemaTo}";`;
-});
-
-const moveSequenceConvertor = convertor('move_sequence', (st) => {
-	const sequenceWithSchema = st.schemaFrom
-		? `"${st.schemaFrom}"."${st.name}"`
-		: `"${st.name}"`;
-	const seqSchemaTo = st.schemaTo ? `"${st.schemaTo}"` : `public`;
-	return `ALTER SEQUENCE ${sequenceWithSchema} SET SCHEMA ${seqSchemaTo};`;
-});
-
-const alterSequenceConvertor = convertor('alter_sequence', (st) => {
-	const { schema, name, increment, minValue, maxValue, startWith, cache, cycle } = st.sequence;
-
-	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
-
-	return `ALTER SEQUENCE ${sequenceWithSchema}${increment ? ` INCREMENT BY ${increment}` : ''}${
-		minValue ? ` MINVALUE ${minValue}` : ''
-	}${maxValue ? ` MAXVALUE ${maxValue}` : ''}${startWith ? ` START WITH ${startWith}` : ''}${
-		cache ? ` CACHE ${cache}` : ''
-	}${cycle ? ` CYCLE` : ''};`;
-});
-
-const createEnumConvertor = convertor('create_enum', (st) => {
-	const { name, schema, values } = st.enum;
-	const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
-
-	let valuesStatement = '(';
-	valuesStatement += values.map((it) => `'${escapeSingleQuotes(it)}'`).join(', ');
-	valuesStatement += ')';
-
-	return `CREATE TYPE ${enumNameWithSchema} AS ENUM${valuesStatement};`;
-});
-
-const dropEnumConvertor = convertor('drop_enum', (st) => {
-	const { name, schema } = st.enum;
-	const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
-	return `DROP TYPE ${enumNameWithSchema};`;
-});
-
-const renameEnumConvertor = convertor('rename_enum', (st) => {
-	const from = st.from.schema ? `"${st.from.schema}"."${st.from.name}"` : `"${st.from.name}"`;
-	const to = st.to.schema ? `"${st.to.schema}"."${st.to.name}"` : `"${st.to.name}"`;
-	return `ALTER TYPE ${from} RENAME TO "${to}";`;
-});
-
-const moveEnumConvertor = convertor('move_enum', (st) => {
-	const { schemaFrom, schemaTo, name } = st;
-	const enumNameWithSchema = schemaFrom ? `"${schemaFrom}"."${name}"` : `"${name}"`;
-	return `ALTER TYPE ${enumNameWithSchema} SET SCHEMA "${schemaTo}";`;
-});
-
-const alterEnumConvertor = convertor('alter_enum', (st) => {
-	const { diff, enum: e } = st;
-
-	const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
-	const valuesStatement = values.map((it) => `'${escapeSingleQuotes(it)}'`).join(', ');
-
-	return `ALTER TYPE ${enumNameWithSchema} ADD VALUE IF NOT EXISTS ${valuesStatement};`;
-
-	// AlterTypeAddValueConvertor
-	const { name, schema, value, before } = st;
-	const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
-	return `ALTER TYPE ${enumNameWithSchema} ADD VALUE '${value}'${before.length ? ` BEFORE '${before}'` : ''};`;
-});
-
-const dropEnumValueConvertor = convertor('drop_enum_value', (st) => {
-	const { columnsWithEnum, name, newValues, schema } = st;
-	const statements: string[] = [];
-	for (const withEnum of columnsWithEnum) {
-		statements.push(
-			`ALTER TABLE "${withEnum.schema}"."${withEnum.table}" ALTER COLUMN "${withEnum.column}" SET DATA TYPE text;`,
-		);
-	}
-
-	statements.push(new DropTypeEnumConvertor().convert({ name: name, schema, type: 'drop_type_enum' }));
-	statements.push(new CreateTypeEnumConvertor().convert({
-		name: name,
-		schema: schema,
-		values: newValues,
-		type: 'create_type_enum',
-	}));
-
-	for (const withEnum of columnsWithEnum) {
-		statements.push(
-			`ALTER TABLE "${withEnum.schema}"."${withEnum.table}" ALTER COLUMN "${withEnum.column}" SET DATA TYPE "${schema}"."${name}" USING "${withEnum.column}"::"${schema}"."${name}";`,
-		);
-	}
-
-	return statements;
-});
-
-const dropTableConvertor = convertor('drop_table', (st) => {
-	const { name, schema, policies } = st.table;
-
-	const tableNameWithSchema = schema
-		? `"${schema}"."${name}"`
-		: `"${name}"`;
-
-	const droppedPolicies = policies.map((policy) => dropPolicyConvertor.convert({ policy }) as string);
-
-	return [
-		...droppedPolicies,
-		`DROP TABLE ${tableNameWithSchema} CASCADE;`,
-	];
-});
-
-const renameTableConvertor = convertor('rename_table', (st) => {
-	const from = st.from.schema
-		? `"${st.from.schema}"."${st.from.name}"`
-		: `"${st.from.name}"`;
-	const to = st.to.schema
-		? `"${st.to.schema}"."${st.to.name}"`
-		: `"${st.to.name}"`;
-
-	return `ALTER TABLE ${from} RENAME TO ${to};`;
-});
-
-const renameColumnConvertor = convertor('rename_column', (st) => {
-	const { table, schema } = st.from;
-	const tableNameWithSchema = schema
-		? `"${schema}"."${table}"`
-		: `"${table}"`;
-
-	return `ALTER TABLE ${tableNameWithSchema} RENAME COLUMN "${st.from.name}" TO "${st.to.name}";`;
-});
-
-const dropColumnConvertor = convertor('drop_column', (st) => {
-	const { schema, table, name } = st.column;
-
-	const tableNameWithSchema = schema
-		? `"${schema}"."${table}"`
-		: `"${table}"`;
-
-	return `ALTER TABLE ${tableNameWithSchema} DROP COLUMN "${name}";`;
-});
-
-const addColumnConvertor = convertor('add_column', (st) => {
-	const { tableName, column, schema } = statement;
-	const { name, type, notNull, generated, primaryKey, identity } = column;
-
-	const primaryKeyStatement = primaryKey ? ' PRIMARY KEY' : '';
-
-	const tableNameWithSchema = schema
-		? `"${schema}"."${tableName}"`
-		: `"${tableName}"`;
-
-	const defaultStatement = `${column.default !== undefined ? ` DEFAULT ${column.default}` : ''}`;
-
-	const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
-		? `"${column.typeSchema}".`
-		: '';
-
-	const fixedType = parseType(schemaPrefix, column.type);
-
-	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
-
-	const unsquashedIdentity = identity;
-
-	const identityWithSchema = schema
-		? `"${schema}"."${unsquashedIdentity?.name}"`
-		: `"${unsquashedIdentity?.name}"`;
-
-	const identityStatement = unsquashedIdentity
-		? ` GENERATED ${
-			unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
-		} AS IDENTITY (sequence name ${identityWithSchema}${
-			unsquashedIdentity.increment
-				? ` INCREMENT BY ${unsquashedIdentity.increment}`
-				: ''
-		}${
-			unsquashedIdentity.minValue
-				? ` MINVALUE ${unsquashedIdentity.minValue}`
-				: ''
-		}${
-			unsquashedIdentity.maxValue
-				? ` MAXVALUE ${unsquashedIdentity.maxValue}`
-				: ''
-		}${
-			unsquashedIdentity.startWith
-				? ` START WITH ${unsquashedIdentity.startWith}`
-				: ''
-		}${unsquashedIdentity.cache ? ` CACHE ${unsquashedIdentity.cache}` : ''}${
-			unsquashedIdentity.cycle ? ` CYCLE` : ''
-		})`
-		: '';
-
-	const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
-
-	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
-});
-
-const alterColumnConvertor = convertor('alter_column', (st) => {
-	const { tableName, columnName, newDataType, schema } = statement;
-
-	const tableNameWithSchema = schema
-		? `"${schema}"."${tableName}"`
-		: `"${tableName}"`;
-
-	return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${newDataType};`;
-
-	// AlterTableAlterColumnSetDefaultConvertor
-	return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DEFAULT ${statement.newDefaultValue};`;
-
-	// AlterTableAlterColumnDropDefaultConvertor
-	return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" DROP DEFAULT;`;
-
-	// AlterTableAlterColumnDropGeneratedConvertor
-	return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" DROP EXPRESSION;`;
-
-	// AlterTableAlterColumnSetExpressionConvertor
-	const {
-		columnNotNull: notNull,
-		columnDefault,
-		columnPk,
-		columnGenerated,
-	} = statement;
-
-	const addColumnStatement = addColumnConvertor.convert({ column });
-	return [
-		`ALTER TABLE ${tableNameWithSchema} drop column "${columnName}";`,
-		addColumnStatement,
-	];
-
-	// AlterTableAlterColumnAlterGeneratedConvertor
-	const addColumnStatement = addColumnConvertor.convert({ column });
-	return [
-		`ALTER TABLE ${tableNameWithSchema} drop column "${columnName}";`,
-		addColumnStatement,
-	];
-});
-
-class AlterTableCreateCompositePrimaryKeyConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'create_composite_pk';
-	}
-
-	convert(statement: JsonCreateCompositePK) {
-		const { name, columns } = statement.primaryKey;
-
-		const tableNameWithSchema = statement.schema
-			? `"${statement.schema}"."${statement.tableName}"`
-			: `"${statement.tableName}"`;
-
-		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.primaryKey}" PRIMARY KEY("${
-			columns.join('","')
-		}");`;
-	}
-}
-class AlterTableDeleteCompositePrimaryKeyConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'delete_composite_pk';
-	}
-
-	convert(statement: JsonDropCompositePK) {
-		const tableNameWithSchema = statement.schema
-			? `"${statement.schema}"."${statement.tableName}"`
-			: `"${statement.tableName}"`;
-
-		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.constraintName}";`;
-	}
-}
-
-class AlterTableAlterCompositePrimaryKeyConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'alter_composite_pk';
-	}
-
-	convert(statement: JsonAlterCompositePK) {
-		const { name: oldName } = statement.oldPK;
-		const { name: newName, columns: newColumns } = statement.newPK;
-
-		const tableNameWithSchema = statement.schema
-			? `"${statement.schema}"."${statement.tableName}"`
-			: `"${statement.tableName}"`;
-
-		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${oldName}";\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${newName}" PRIMARY KEY("${
-			newColumns.join('","')
-		}");`;
-	}
-}
-
-class AlterTableAlterColumnSetPrimaryKeyConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_set_pk'
-		);
-	}
-
-	convert(statement: JsonAlterColumnSetPrimaryKeyStatement) {
-		const { tableName, columnName } = statement;
-
-		const tableNameWithSchema = statement.schema
-			? `"${statement.schema}"."${statement.tableName}"`
-			: `"${statement.tableName}"`;
-
-		return `ALTER TABLE ${tableNameWithSchema} ADD PRIMARY KEY ("${columnName}");`;
-	}
-}
-
-class AlterTableAlterColumnDropPrimaryKeyConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_drop_pk'
-		);
-	}
-
-	convert(statement: JsonAlterColumnDropPrimaryKeyStatement) {
-		const { tableName, columnName, schema } = statement;
-		return `/* 
-    Unfortunately in current drizzle-kit version we can't automatically get name for primary key.
-    We are working on making it available!
-
-    Meanwhile you can:
-        1. Check pk name in your database, by running
-            SELECT constraint_name FROM information_schema.table_constraints
-            WHERE table_schema = '${typeof schema === 'undefined' || schema === '' ? 'public' : schema}'
-                AND table_name = '${tableName}'
-                AND constraint_type = 'PRIMARY KEY';
-        2. Uncomment code below and paste pk name manually
-        
-    Hope to release this update as soon as possible
-*/
-
--- ALTER TABLE "${tableName}" DROP CONSTRAINT "<constraint_name>";`;
-	}
-}
-
-class AlterTableAlterColumnSetNotNullConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_set_notnull'
-		);
-	}
-
-	convert(statement: JsonAlterColumnSetNotNullStatement) {
-		const { tableName, columnName } = statement;
-
-		const tableNameWithSchema = statement.schema
-			? `"${statement.schema}"."${statement.tableName}"`
-			: `"${statement.tableName}"`;
-
-		return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET NOT NULL;`;
-	}
-}
-
-class AlterTableAlterColumnDropNotNullConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_drop_notnull'
-		);
-	}
-
-	convert(statement: JsonAlterColumnDropNotNullStatement) {
-		const { tableName, columnName } = statement;
-
-		const tableNameWithSchema = statement.schema
-			? `"${statement.schema}"."${statement.tableName}"`
-			: `"${statement.tableName}"`;
-
-		return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" DROP NOT NULL;`;
-	}
-}
-
-class CreateForeignKeyConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'create_reference';
-	}
-
-	convert(statement: JsonCreateReferenceStatement): string {
-		const { name, tableFrom, tableTo, columnsFrom, columnsTo, onDelete, onUpdate, schemaTo } = statement.foreignKey;
-
-		const onDeleteStatement = onDelete ? ` ON DELETE ${onDelete}` : '';
-		const onUpdateStatement = onUpdate ? ` ON UPDATE ${onUpdate}` : '';
-		const fromColumnsString = columnsFrom.map((it) => `"${it}"`).join(',');
-		const toColumnsString = columnsTo.map((it) => `"${it}"`).join(',');
-
-		const tableNameWithSchema = statement.schema
-			? `"${statement.schema}"."${tableFrom}"`
-			: `"${tableFrom}"`;
-
-		const tableToNameWithSchema = schemaTo
-			? `"${schemaTo}"."${tableTo}"`
-			: `"${tableTo}"`;
-
-		const alterStatement =
-			`ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
-
-		let sql = 'DO $$ BEGIN\n';
-		sql += ' ' + alterStatement + ';\n';
-		sql += 'EXCEPTION\n';
-		sql += ' WHEN duplicate_object THEN null;\n';
-		sql += 'END $$;\n';
-		return sql;
-	}
-}
-
-class AlterForeignKeyConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'alter_reference';
-	}
-
-	convert(statement: JsonAlterReferenceStatement): string {
-		const newFk = statement.foreignKey;
-		const oldFk = statement.oldFkey;
-
-		const tableNameWithSchema = statement.schema
-			? `"${statement.schema}"."${oldFk.tableFrom}"`
-			: `"${oldFk.tableFrom}"`;
-
-		let sql = `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${oldFk.name}";\n`;
-
-		const onDeleteStatement = newFk.onDelete
-			? ` ON DELETE ${newFk.onDelete}`
-			: '';
-		const onUpdateStatement = newFk.onUpdate
-			? ` ON UPDATE ${newFk.onUpdate}`
-			: '';
-
-		const fromColumnsString = newFk.columnsFrom
-			.map((it) => `"${it}"`)
-			.join(',');
-		const toColumnsString = newFk.columnsTo.map((it) => `"${it}"`).join(',');
-
-		const tableFromNameWithSchema = oldFk.schemaTo
-			? `"${oldFk.schemaTo}"."${oldFk.tableFrom}"`
-			: `"${oldFk.tableFrom}"`;
-
-		const tableToNameWithSchema = newFk.schemaTo
-			? `"${newFk.schemaTo}"."${newFk.tableFrom}"`
-			: `"${newFk.tableFrom}"`;
-
-		const alterStatement =
-			`ALTER TABLE ${tableFromNameWithSchema} ADD CONSTRAINT "${newFk.name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
-
-		sql += 'DO $$ BEGIN\n';
-		sql += ' ' + alterStatement + ';\n';
-		sql += 'EXCEPTION\n';
-		sql += ' WHEN duplicate_object THEN null;\n';
-		sql += 'END $$;\n';
-		return sql;
-	}
-}
-
-class DeleteForeignKeyConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'delete_reference';
-	}
-
-	convert(statement: JsonDeleteReferenceStatement): string {
-		const tableFrom = statement.tableName; // delete fk from renamed table case
-		const { name } = statement.foreignKey;
-
-		const tableNameWithSchema = statement.schema
-			? `"${statement.schema}"."${tableFrom}"`
-			: `"${tableFrom}"`;
-
-		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${name}";\n`;
-	}
-}
-
-class CreateIndexConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'create_index';
-	}
-
-	convert(statement: JsonCreateIndexStatement): string {
-		const {
-			name,
-			columns,
-			isUnique,
-			concurrently,
-			with: withMap,
-			method,
-			where,
-		} = statement.index;
-		// // since postgresql 9.5
-		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
-		const value = columns
-			.map(
-				(it) =>
-					`${it.isExpression ? it.expression : `"${it.expression}"`}${
-						it.opclass ? ` ${it.opclass}` : it.asc ? '' : ' DESC'
-					}${
-						(it.asc && it.nulls && it.nulls === 'last') || it.opclass
-							? ''
-							: ` NULLS ${it.nulls!.toUpperCase()}`
-					}`,
-			)
-			.join(',');
-
-		const tableNameWithSchema = statement.schema
-			? `"${statement.schema}"."${statement.tableName}"`
-			: `"${statement.tableName}"`;
-
-		function reverseLogic(mappedWith: Record<string, string>): string {
-			let reversedString = '';
-			for (const key in mappedWith) {
-				// TODO: wtf??
-				if (mappedWith.hasOwnProperty(key)) {
-					reversedString += `${key}=${mappedWith[key]},`;
-				}
-			}
-			reversedString = reversedString.slice(0, -1);
-			return reversedString;
-		}
-
-		return `CREATE ${indexPart}${
-			concurrently ? ' CONCURRENTLY' : ''
-		} IF NOT EXISTS "${name}" ON ${tableNameWithSchema} USING ${method} (${value})${
-			Object.keys(withMap!).length !== 0
-				? ` WITH (${reverseLogic(withMap!)})`
-				: ''
-		}${where ? ` WHERE ${where}` : ''};`;
-	}
-}
-
-class DropIndexConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'drop_index';
-	}
-
-	convert(statement: JsonDropIndexStatement): string {
-		const { name } = statement.index;
-		return `DROP INDEX IF EXISTS "${name}";`;
-	}
-}
-
-class CreateSchemaConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'create_schema';
-	}
-
-	convert(statement: JsonCreateSchema) {
-		const { name } = statement;
-		return `CREATE SCHEMA "${name}";\n`;
-	}
-}
-
-class RenameSchemaConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'rename_schema';
-	}
-
-	convert(statement: JsonRenameSchema) {
-		const { from, to } = statement;
-		return `ALTER SCHEMA "${from}" RENAME TO "${to}";\n`;
-	}
-}
-
-class DropSchemaConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return statement.type === 'drop_schema';
-	}
-
-	convert(statement: JsonCreateSchema) {
-		const { name } = statement;
-		return `DROP SCHEMA "${name}";\n`;
-	}
-}
-
-class AlterTableSetSchemaConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return (
-			statement.type === 'alter_table_set_schema'
-		);
-	}
-
-	convert(statement: JsonMoveTable) {
-		const { tableName, schemaFrom, schemaTo } = statement;
-
-		return `ALTER TABLE "${schemaFrom}"."${tableName}" SET SCHEMA "${schemaTo}";\n`;
-	}
-}
-
-class AlterTableSetNewSchemaConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return (
-			statement.type === 'alter_table_set_new_schema'
-		);
-	}
-
-	convert(statement: JsonAlterTableSetNewSchema) {
-		const { tableName, to, from } = statement;
-
-		const tableNameWithSchema = from
-			? `"${from}"."${tableName}"`
-			: `"${tableName}"`;
-
-		return `ALTER TABLE ${tableNameWithSchema} SET SCHEMA "${to}";\n`;
-	}
-}
-
-class AlterTableRemoveFromSchemaConvertor implements Convertor {
-	can(statement: JsonStatement): boolean {
-		return (
-			statement.type === 'alter_table_remove_from_schema'
-		);
-	}
-
-	convert(statement: JsonAlterTableRemoveFromSchema) {
-		const { tableName, schema } = statement;
-
-		const tableNameWithSchema = schema
-			? `"${schema}"."${tableName}"`
-			: `"${tableName}"`;
-
-		return `ALTER TABLE ${tableNameWithSchema} SET SCHEMA public;\n`;
-	}
-}
-
-const convertors: Convertor[] = [];
 export function fromJson(
 	statements: JsonStatement[],
 ) {
