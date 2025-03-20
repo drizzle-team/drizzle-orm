@@ -821,7 +821,7 @@ test('custom binary', async (ctx) => {
 
 	expect(res).toEqual([{
 		id,
-		sqlId: Buffer.from(id, 'hex'),
+		sqlId: Buffer.from(id, 'hex').toString(),
 		rawId: id,
 	}]);
 });
