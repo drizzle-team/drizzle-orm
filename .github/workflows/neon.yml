@@ -1,0 +1,40 @@
+on:
+    workflow_dispatch
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-20.04
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker
+      uses: docker/setup-buildx-action@v2
+
+    - name: Run Docker Compose
+      run: docker-compose -f docker-compose-neon.yml up -d
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install pnpm
+      run: npm install -g pnpm
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: Build project
+      run: pnpm build
+
+    - name: Run tests for neon-http
+      env:
+        NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+      run: pnpm -C integration-tests test:vitest:neon-http
+
+    - name: Run tests for neon-serverless
+      env:
+        NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+      run: pnpm -C integration-tests test:vitest:neon-serverless

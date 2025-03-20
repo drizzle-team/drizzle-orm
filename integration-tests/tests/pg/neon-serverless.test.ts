@@ -8,7 +8,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { mySchema, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
+import { mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
@@ -516,7 +516,7 @@ skipTests([
 	'mySchema :: select all fields',
 	'mySchema :: delete with returning all fields',
 ]);
-// tests();
+tests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);
