@@ -1258,43 +1258,53 @@ WHERE
 
 					const tableForeignKeys = await db.query(
 						`SELECT
-            con.contype AS constraint_type,
-            nsp.nspname AS constraint_schema,
-            con.conname AS constraint_name,
-            rel.relname AS table_name,
-            att.attname AS column_name,
-            fnsp.nspname AS foreign_table_schema,
-            frel.relname AS foreign_table_name,
-            fatt.attname AS foreign_column_name,
-            CASE con.confupdtype
-              WHEN 'a' THEN 'NO ACTION'
-              WHEN 'r' THEN 'RESTRICT'
-              WHEN 'n' THEN 'SET NULL'
-              WHEN 'c' THEN 'CASCADE'
-              WHEN 'd' THEN 'SET DEFAULT'
-            END AS update_rule,
-            CASE con.confdeltype
-              WHEN 'a' THEN 'NO ACTION'
-              WHEN 'r' THEN 'RESTRICT'
-              WHEN 'n' THEN 'SET NULL'
-              WHEN 'c' THEN 'CASCADE'
-              WHEN 'd' THEN 'SET DEFAULT'
-            END AS delete_rule
-          FROM
-            pg_catalog.pg_constraint con
-            JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
-            JOIN pg_catalog.pg_namespace nsp ON nsp.oid = con.connamespace
-            LEFT JOIN pg_catalog.pg_attribute att ON att.attnum = ANY (con.conkey)
-              AND att.attrelid = con.conrelid
-            LEFT JOIN pg_catalog.pg_class frel ON frel.oid = con.confrelid
-            LEFT JOIN pg_catalog.pg_namespace fnsp ON fnsp.oid = frel.relnamespace
-            LEFT JOIN pg_catalog.pg_attribute fatt ON fatt.attnum = ANY (con.confkey)
-              AND fatt.attrelid = con.confrelid
-          WHERE
-            nsp.nspname = '${tableSchema}'
-            AND rel.relname = '${tableName}'
-            AND con.contype IN ('f');`,
-					);
+						con.contype AS constraint_type,
+						nsp.nspname AS constraint_schema,
+						con.conname AS constraint_name,
+						rel.relname AS table_name,
+						att.attname AS column_name,
+						fnsp.nspname AS foreign_table_schema,
+						frel.relname AS foreign_table_name,
+						fatt.attname AS foreign_column_name,
+						CASE con.confupdtype
+							WHEN 'a' THEN 'NO ACTION'
+							WHEN 'r' THEN 'RESTRICT'
+							WHEN 'n' THEN 'SET NULL'
+							WHEN 'c' THEN 'CASCADE'
+							WHEN 'd' THEN 'SET DEFAULT'
+						END AS update_rule,
+						CASE con.confdeltype
+							WHEN 'a' THEN 'NO ACTION'
+							WHEN 'r' THEN 'RESTRICT'
+							WHEN 'n' THEN 'SET NULL'
+							WHEN 'c' THEN 'CASCADE'
+							WHEN 'd' THEN 'SET DEFAULT'
+						END AS delete_rule
+				FROM pg_catalog.pg_constraint con
+				JOIN pg_catalog.pg_class rel 
+					ON rel.oid = con.conrelid
+				JOIN pg_catalog.pg_namespace nsp 
+					ON nsp.oid = con.connamespace
+
+				CROSS JOIN generate_subscripts(con.conkey, 1) AS s(i)
+
+				LEFT JOIN pg_catalog.pg_attribute att
+					ON att.attrelid  = con.conrelid
+					AND att.attnum   = con.conkey[s.i]
+
+				LEFT JOIN pg_catalog.pg_class frel
+					ON frel.oid = con.confrelid
+
+				LEFT JOIN pg_catalog.pg_namespace fnsp
+					ON fnsp.oid = frel.relnamespace
+
+				LEFT JOIN pg_catalog.pg_attribute fatt
+					ON fatt.attrelid = con.confrelid
+					AND fatt.attnum   = con.confkey[s.i]
+
+				WHERE nsp.nspname = '${tableSchema}' 
+					AND rel.relname = '${tableName}' 
+					AND con.contype IN ('f')`);
 
 					foreignKeysCount += tableForeignKeys.length;
 					if (progressCallback) {
