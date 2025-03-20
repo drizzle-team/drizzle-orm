@@ -14,6 +14,60 @@ const intAffinities = [
 	'INT8',
 ];
 
+export function sqlTypeFrom(sqlType: string): string {
+	const lowered = sqlType.toLowerCase();
+	if (
+		[
+			'int',
+			// 'integer', redundant
+			// 'integer auto_increment', redundant
+			'tinyint',
+			'smallint',
+			'mediumint',
+			'bigint',
+			'unsigned big int',
+			// 'int2', redundant
+			// 'int8', redundant
+		].some((it) => lowered.startsWith(it))
+	) {
+		return 'integer';
+	}
+
+	if (
+		[
+			'character',
+			'varchar',
+			'varying character',
+			'national varying character',
+			'nchar',
+			'native character',
+			'nvarchar',
+			'text',
+			'clob',
+		].some((it) => lowered.startsWith(it))
+	) {
+		const match = lowered.match(/\d+/);
+
+		if (match) {
+			return `text(${match[0]})`;
+		}
+
+		return 'text';
+	}
+
+	if (lowered.startsWith('blob')) {
+		return 'blob';
+	}
+
+	if (
+		['real', 'double', 'double precision', 'float'].some((it) => lowered.startsWith(it))
+	) {
+		return 'real';
+	}
+
+	return 'numeric';
+}
+
 export const parseTableSQL = (sql: string) => {
 	const namedChecks = [...sql.matchAll(namedCheckPattern)].map((it) => {
 		const [_, name, value] = it;

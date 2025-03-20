@@ -23,7 +23,7 @@ import {
 	PrimaryKey,
 	UniqueConstraint,
 } from './ddl';
-import { indexName } from '../../serializer/pgSerializer';
+import { indexName } from './serializer';
 import { unescapeSingleQuotes } from '../../utils';
 
 const pgImportsList = new Set([

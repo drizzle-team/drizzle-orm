@@ -1,7 +1,7 @@
-import { originUUID } from '../../global';
-import { boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
-import { createDDL, SQLiteDDL, SqliteEntity } from './ddl';
 import { array, validator } from 'src/dialects/simpleValidator';
+import { boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
+import { originUUID } from '../../global';
+import { createDDL, SQLiteDDL, SqliteEntity } from './ddl';
 
 // ------- V3 --------
 const index = object({
@@ -147,7 +147,7 @@ export const snapshotValidator = validator({
 	dialect: ['sqlite'],
 	id: 'string',
 	prevId: 'string',
-	ddl: array<SqliteEntity>((it) => true),
+	ddl: array<SqliteEntity>((it) => ddl.entities.validate(it)),
 	meta: { tables: 'record', columns: 'record' },
 });
 

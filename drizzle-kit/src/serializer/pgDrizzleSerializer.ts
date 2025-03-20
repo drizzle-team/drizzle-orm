@@ -31,7 +31,7 @@ import type {
 	View,
 } from '../dialects/postgres/ddl';
 import { escapeSingleQuotes, isPgArrayType, RecordValues, RecordValuesAnd, SchemaError, SchemaWarning } from '../utils';
-import { InterimSchema } from './pgSerializer';
+import { InterimSchema } from '../dialects/postgres/serializer';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {

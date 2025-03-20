@@ -39,7 +39,7 @@ import {
 	PostgresPushSquasher,
 	squashPgScheme,
 } from './dialects/postgres/ddl';
-import { generatePgSnapshot } from './serializer/pgSerializer';
+import { generatePgSnapshot } from './dialects/postgres/serializer';
 import {
 	SingleStoreSchema as SingleStoreSchemaKit,
 	singlestoreSchema,
