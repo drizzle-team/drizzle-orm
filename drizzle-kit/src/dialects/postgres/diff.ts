@@ -1,4 +1,3 @@
-import { integer } from 'drizzle-orm/sqlite-core';
 import {
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
@@ -12,7 +11,7 @@ import {
 } from '../../snapshot-differ/common';
 import { prepareMigrationMeta } from '../../utils';
 import { diff } from '../dialect';
-import { groupDiffs, Named } from '../utils';
+import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
 import {
 	CheckConstraint,
@@ -75,6 +74,7 @@ export const applyPgSnapshotsDiff = async (
 	fksResolver: (
 		input: ColumnsResolverInput<ForeignKey>,
 	) => Promise<ColumnsResolverOutput<ForeignKey>>,
+	type: 'default' | 'push',
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -292,7 +292,7 @@ export const applyPgSnapshotsDiff = async (
 		ddl1.indexes.update({
 			set: {
 				columns: (it) => {
-					if (!it.expression && it.value === rename.from.name) {
+					if (!it.isExpression && it.value === rename.from.name) {
 						return { ...it, value: rename.to.name };
 					}
 					return it;
@@ -585,7 +585,7 @@ export const applyPgSnapshotsDiff = async (
 
 	const jsonStatements: JsonStatement[] = [];
 
-	const jsonCreateIndexes = indexesCreates.map((index) => prepareStatement('add_index', { index }));
+	const jsonCreateIndexes = indexesCreates.map((index) => prepareStatement('create_index', { index }));
 	const jsonDropIndexes = indexesDeletes.map((index) => prepareStatement('drop_index', { index }));
 	const jsonDropTables = deletedTables.map((it) => prepareStatement('drop_table', { table: tableFromDDL(it, ddl2) }));
 	const jsonRenameTables = renamedTables.map((it) => prepareStatement('rename_table', it));
@@ -594,8 +594,23 @@ export const applyPgSnapshotsDiff = async (
 	const jsonDropColumnsStatemets = columnsToDelete.map((it) => prepareStatement('drop_column', { column: it }));
 	const jsonAddColumnsStatemets = columnsToCreate.map((it) => prepareStatement('add_column', { column: it }));
 
-	const jsonAddedCompositePKs = pksCreates.map((it) => prepareStatement('add_composite_pk', { pk: it }));
-	const jsonDeletedCompositePKs = pksDeletes.map((it) => prepareStatement('drop_composite_pk', { pk: it }));
+	const columnAlters = alters.filter((it) => it.entityType === 'columns');
+	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null);
+	const jsonRecreateColumns = columnsToRecreate.map((it) =>
+		prepareStatement('recreate_column', {
+			column: ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!,
+		})
+	);
+
+	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null)).map((it) =>
+		prepareStatement('alter_column', {
+			diff: it,
+			column: ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!,
+		})
+	);
+
+	const jsonAddPrimaryKeys = pksCreates.map((it) => prepareStatement('add_pk', { pk: it }));
+	const jsonDropPrimaryKeys = pksDeletes.map((it) => prepareStatement('drop_pk', { pk: it }));
 
 	const jsonAddedUniqueConstraints = uniqueCreates.map((it) => prepareStatement('add_unique', { unique: it }));
 	const jsonDeletedUniqueConstraints = uniqueDeletes.map((it) => prepareStatement('drop_unique', { unique: it }));
@@ -611,13 +626,13 @@ export const applyPgSnapshotsDiff = async (
 	const alteredFKs = alters.filter((it) => it.entityType === 'fks');
 	const alteredUniques = alters.filter((it) => it.entityType === 'uniques');
 	const alteredChecks = alters.filter((it) => it.entityType === 'checks');
-	const jsonAlteredCompositePKs = alteredPKs.map((it) => prepareStatement('alter_composite_pk', { diff: it }));
+	const jsonAlteredCompositePKs = alteredPKs.map((it) => prepareStatement('alter_pk', { diff: it }));
 	const jsonAlteredUniqueConstraints = alteredUniques.map((it) => prepareStatement('alter_unique', { diff: it }));
 	const jsonAlterCheckConstraints = alteredChecks.map((it) => prepareStatement('alter_check', { diff: it }));
 
-	const jsonCreateReferences = fksCreates.map((it) => prepareStatement('create_reference', { fk: it }));
-	const jsonDropReferences = fksDeletes.map((it) => prepareStatement('drop_reference', { fk: it }));
-	const jsonRenameReferences = fksRenames.map((it) => prepareStatement('rename_reference', it));
+	const jsonCreateReferences = fksCreates.map((it) => prepareStatement('create_fk', { fk: it }));
+	const jsonDropReferences = fksDeletes.map((it) => prepareStatement('drop_fk', { fk: it }));
+	const jsonRenameReferences = fksRenames.map((it) => prepareStatement('rename_fk', it));
 
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
@@ -645,6 +660,21 @@ export const applyPgSnapshotsDiff = async (
 	const jsonMoveEnums = movedEnums.map((it) => prepareStatement('move_enum', it));
 	const jsonRenameEnums = renamedEnums.map((it) => prepareStatement('rename_enum', it));
 	const enumsAlters = alters.filter((it) => it.entityType === 'enums');
+	const recreateEnums = [];
+	const alterEnums = [];
+	for (const alter of enumsAlters) {
+		const values = alter.values!;
+		const res = diffStringArrays(values.from, values.to);
+		const e = { ...alter, values: values.to };
+
+		if (res.some((it) => it.type === 'removed')) {
+			// recreate enum
+			const columns = ddl2.columns.list({ typeSchema: alter.schema, type: alter.name });
+			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns }));
+		} else {
+			alterEnums.push(prepareStatement('alter_enum', { diff: res, enum: e }));
+		}
+	}
 	const jsonAlterEnums = enumsAlters.map((it) => prepareStatement('alter_enum', { diff: it }));
 
 	const createSequences = createdSequences.map((it) => prepareStatement('create_sequence', { sequence: it }));
@@ -676,9 +706,13 @@ export const applyPgSnapshotsDiff = async (
 		prepareStatement('rename_view', it)
 	);
 	const viewsAlters = alters.filter((it) => it.entityType === 'views').filter((it) =>
-		!(it.isExisting && it.isExisting.to)
+		!(it.isExisting && it.isExisting.to) && !(it.definition && type === 'push')
 	);
 	const jsonAlterViews = viewsAlters.map((it) => prepareStatement('alter_view', { diff: it }));
+	const jsonRecreateViews = createdViews.filter((it) => it.definition && type !== 'push').map((it) => {
+		const from = ddl1.views.one({ schema: it.schema, name: it.name })!;
+		return prepareStatement('recreate_view', { from, to: it });
+	});
 
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
@@ -703,6 +737,7 @@ export const applyPgSnapshotsDiff = async (
 	// jsonStatements.push(...jsonDisableRLSStatements);
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
+	jsonStatements.push(...jsonRecreateViews);
 	jsonStatements.push(...jsonAlterViews);
 
 	jsonStatements.push(...jsonDropTables);
@@ -718,11 +753,11 @@ export const applyPgSnapshotsDiff = async (
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
 	jsonStatements.push(...jsonDropIndexes);
-	jsonStatements.push(...jsonDeletedCompositePKs);
+	jsonStatements.push(...jsonDropPrimaryKeys);
 
 	// jsonStatements.push(...jsonTableAlternations); // TODO: check
 
-	jsonStatements.push(...jsonAddedCompositePKs);
+	jsonStatements.push(...jsonAddPrimaryKeys);
 	jsonStatements.push(...jsonAddColumnsStatemets);
 
 	// jsonStatements.push(...jsonCreateReferencesForCreatedTables); // TODO: check

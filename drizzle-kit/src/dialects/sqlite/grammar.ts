@@ -2,6 +2,18 @@ const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
 const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'i');
 
+const intAffinities = [
+	'INT',
+	'INTEGER',
+	'TINYINT',
+	'SMALLINT',
+	'MEDIUMINT',
+	'BIGINT',
+	'UNSIGNED BIG INT',
+	'INT2',
+	'INT8',
+];
+
 export const parseTableSQL = (sql: string) => {
 	const namedChecks = [...sql.matchAll(namedCheckPattern)].map((it) => {
 		const [_, name, value] = it;

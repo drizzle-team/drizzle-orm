@@ -1011,7 +1011,7 @@ WHERE
 
 						if (typeof indexToReturn[indexName] !== 'undefined') {
 							indexToReturn[indexName].columns.push({
-								expression: indexColumnName,
+								isExpression: indexColumnName,
 								asc: !desc,
 								nulls: nullsFirst ? 'first' : 'last',
 								opclass,
@@ -1022,7 +1022,7 @@ WHERE
 								name: indexName,
 								columns: [
 									{
-										expression: indexColumnName,
+										isExpression: indexColumnName,
 										asc: !desc,
 										nulls: nullsFirst ? 'first' : 'last',
 										opclass,
@@ -1271,7 +1271,7 @@ WHERE
 					// { "check_option":"cascaded","security_barrier":true} -> // { "checkOption":"cascaded","securityBarrier":true}
 					const withOption = Object.values(resultWith).length
 						? Object.fromEntries(Object.entries(resultWith).map(([key, value]) => [key.camelCase(), value]))
-						: undefined;
+						: null;
 
 					const materialized = row.type === 'materialized_view';
 
@@ -1282,8 +1282,8 @@ WHERE
 						isExisting: false,
 						definition: definition,
 						materialized: materialized,
-						with: withOption,
-						tablespace: viewInfo.tablespace_name ?? undefined,
+						with: withOption ?? null,
+						tablespace: viewInfo.tablespace_name ?? null,
 					};
 				} catch (e) {
 					rej(e);
