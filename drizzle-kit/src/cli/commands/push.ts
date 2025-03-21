@@ -511,18 +511,20 @@ export const sqlitePush = async (
 		if (statementsToExecute.length === 0) {
 			render(`\n[${chalk.blue('i')}] No changes detected`);
 		} else {
-			if (!('driver' in credentials)) {
-				await db.run('begin');
-				try {
-					for (const dStmnt of statementsToExecute) {
-						await db.run(dStmnt);
-					}
-					await db.run('commit');
-				} catch (e) {
-					console.error(e);
-					await db.run('rollback');
-					process.exit(1);
+			// D1-HTTP does not support transactions
+			// there might a be a better way to fix this
+			// in the db connection itself
+			const isNotD1 = !('driver' in credentials && credentials.driver === 'd1-http');
+			isNotD1 ?? await db.run('begin');
+			try {
+				for (const dStmnt of statementsToExecute) {
+					await db.run(dStmnt);
 				}
+				isNotD1 ?? await db.run('commit');
+			} catch (e) {
+				console.error(e);
+				isNotD1 ?? await db.run('rollback');
+				process.exit(1);
 			}
 			render(`[${chalk.green('✓')}] Changes applied`);
 		}
