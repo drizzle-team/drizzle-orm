@@ -34,6 +34,7 @@ import {
 	uniqueIndex,
 	varbinary,
 	varchar,
+	vector,
 	year,
 } from '~/singlestore-core/index.ts';
 import { singlestoreSchema } from '~/singlestore-core/schema.ts';
@@ -917,6 +918,8 @@ Expect<
 		varchar: varchar('varchar', { length: 1 }),
 		varchar2: varchar('varchar2', { length: 1, enum: ['a', 'b', 'c'] }),
 		varchardef: varchar('varchardef', { length: 1 }).default(''),
+		vector: vector('vector', { dimensions: 1 }),
+		vector2: vector('vector2', { dimensions: 1, elementType: 'I8' }),
 		year: year('year'),
 		yeardef: year('yeardef').default(0),
 	});
@@ -1015,6 +1018,8 @@ Expect<
 		varchar: varchar({ length: 1 }),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }),
 		varchardef: varchar({ length: 1 }).default(''),
+		vector: vector({ dimensions: 1 }),
+		vector2: vector({ dimensions: 1, elementType: 'I8' }),
 		year: year(),
 		yeardef: year().default(0),
 	});

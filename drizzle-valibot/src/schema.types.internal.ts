@@ -67,8 +67,7 @@ export type BuildSchema<
 	TType extends 'select' | 'insert' | 'update',
 	TColumns extends Record<string, any>,
 	TRefinements extends Record<string, any> | undefined,
-> // @ts-ignore false-positive
- = v.ObjectSchema<
+> = v.ObjectSchema<
 	Simplify<
 		RemoveNever<
 			{

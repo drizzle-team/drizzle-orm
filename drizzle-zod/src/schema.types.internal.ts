@@ -39,12 +39,19 @@ export type BuildRefine<
 	: never;
 
 type HandleRefinement<
+	TType extends 'select' | 'insert' | 'update',
 	TRefinement extends z.ZodTypeAny | ((schema: z.ZodTypeAny) => z.ZodTypeAny),
 	TColumn extends Column,
-> = TRefinement extends (schema: z.ZodTypeAny) => z.ZodTypeAny
-	? TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
-	: z.ZodNullable<ReturnType<TRefinement>>
+> = TRefinement extends (schema: any) => z.ZodTypeAny ? (TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
+		: z.ZodNullable<ReturnType<TRefinement>>) extends infer TSchema
+		? TType extends 'update' ? z.ZodOptional<Assume<TSchema, z.ZodTypeAny>> : TSchema
+	: z.ZodTypeAny
 	: TRefinement;
+
+type IsRefinementDefined<TRefinements, TKey extends string> = TKey extends keyof TRefinements
+	? TRefinements[TKey] extends z.ZodTypeAny | ((schema: any) => any) ? true
+	: false
+	: false;
 
 export type BuildSchema<
 	TType extends 'select' | 'insert' | 'update',
@@ -56,9 +63,8 @@ export type BuildSchema<
 			{
 				[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column
 					? TRefinements extends object
-						? TRefinements[Assume<K, keyof TRefinements>] extends
-							infer TRefinement extends z.ZodTypeAny | ((schema: z.ZodTypeAny) => z.ZodTypeAny)
-							? HandleRefinement<TRefinement, TColumn>
+						? IsRefinementDefined<TRefinements, Assume<K, string>> extends true
+							? HandleRefinement<TType, TRefinements[Assume<K, keyof TRefinements>], TColumn>
 						: HandleColumn<TType, TColumn>
 					: HandleColumn<TType, TColumn>
 					: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View ? BuildSchema<

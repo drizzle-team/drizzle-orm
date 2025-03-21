@@ -1,10 +1,20 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { integer, pgEnum, pgMaterializedView, pgSchema, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
+import {
+	customType,
+	integer,
+	pgEnum,
+	pgMaterializedView,
+	pgSchema,
+	pgTable,
+	pgView,
+	serial,
+	text,
+} from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
 const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
@@ -234,6 +244,32 @@ test('refine table - select', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
+test('refine table - select with custom data type', (t) => {
+	const customText = customType({ dataType: () => 'text' });
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().notNull(),
+		c4: customText(),
+	});
+
+	const customTextSchema = z.string().min(1).max(100);
+	const result = createSelectSchema(table, {
+		c2: (schema) => schema.max(1000),
+		c3: z.string().transform(Number),
+		c4: customTextSchema,
+	});
+	const expected = z.object({
+		c1: integerSchema.nullable(),
+		c2: integerSchema.max(1000),
+		c3: z.string().transform(Number),
+		c4: customTextSchema,
+	});
+
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
 test('refine table - insert', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
@@ -459,6 +495,59 @@ test('all data types', (t) => {
 		array1: z.array(integerSchema),
 		array2: z.array(z.array(integerSchema).length(2)),
 		array3: z.array(z.array(z.string().max(10)).length(2)),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('type coercion - all', (t) => {
+	const table = pgTable('test', ({
+		bigint,
+		boolean,
+		timestamp,
+		integer,
+		text,
+	}) => ({
+		bigint: bigint({ mode: 'bigint' }).notNull(),
+		boolean: boolean().notNull(),
+		timestamp: timestamp().notNull(),
+		integer: integer().notNull(),
+		text: text().notNull(),
+	}));
+
+	const { createSelectSchema } = createSchemaFactory({
+		coerce: true,
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		bigint: z.coerce.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
+		boolean: z.coerce.boolean(),
+		timestamp: z.coerce.date(),
+		integer: z.coerce.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		text: z.coerce.string(),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('type coercion - mixed', (t) => {
+	const table = pgTable('test', ({
+		timestamp,
+		integer,
+	}) => ({
+		timestamp: timestamp().notNull(),
+		integer: integer().notNull(),
+	}));
+
+	const { createSelectSchema } = createSchemaFactory({
+		coerce: {
+			date: true,
+		},
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		timestamp: z.coerce.date(),
+		integer: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
