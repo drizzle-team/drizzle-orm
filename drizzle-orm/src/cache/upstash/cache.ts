@@ -32,46 +32,76 @@ export class UpstashCache extends Cache {
 			: undefined;
 	}
 
-	override async get(key: string, _tables: string[], _isTag: boolean) {
-		const res = await this.redis.get<any[]>(key) ?? undefined;
-		return res;
+	override async get(key: string, tables: string[], isTag: boolean = false): Promise<any[] | undefined> {
+		const compositeKey = tables.sort().join(','); // Generate the composite key for the query
+
+		if (isTag) {
+			// Handle cache lookup for tags
+			const tagCompositeKey = await this.redis.hget<string>('tagsMap', key); // Retrieve composite key associated with the tag
+			if (tagCompositeKey) {
+				return await this.redis.hget(tagCompositeKey, key) as any[]; // Retrieve the cached result for the tag
+			}
+			return undefined;
+		}
+
+		// Normal cache lookup for the composite key
+		return await this.redis.hget(compositeKey, key) ?? undefined; // Retrieve result for normal query
 	}
 
-	override async put(key: string, response: any, tables: string[], isTag: boolean, config?: CacheConfig) {
-		await this.redis.set(key, response, config ? this.toInternalConfig(config) : this.internalConfig);
-		for (const table of tables) {
-			await this.redis.sadd(table, key);
+	override async put(
+		key: string,
+		response: any,
+		tables: string[],
+		isTag: boolean = false,
+		_config?: CacheConfig,
+	): Promise<void> {
+		if (isTag) {
+			// When it's a tag, store the response in the composite key
+			const compositeKey = tables.sort().join(',');
+			await this.redis.hset(compositeKey, { [key]: response }); // Store the result with the tag under the composite key
+			await this.redis.hset('tagsMap', { [key]: compositeKey }); // Store the tag and its composite key in the map
+			for (const table of tables) {
+				await this.redis.sadd(`prefix_${table}`, compositeKey);
+			}
+		} else {
+			// Normal cache store
+			const compositeKey = tables.sort().join(',');
+			await this.redis.hset(compositeKey, { [key]: response }); // Store the result with the composite key
 		}
 	}
 
 	override async onMutate(params: MutationOption) {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
+		const tags = Array.isArray(params.tags) ? params.tags : params.tags ? [params.tags] : [];
+		const tables = Array.isArray(params.tables) ? params.tables : params.tables ? [params.tables] : [];
+		const mappedTables = tables.map((table) => is(table, Table) ? table[OriginalName] : table as string);
+		const prefixedMappedTables = tables.map((table) => `prefix_${table}`);
 
 		const keysToDelete = new Set<string>();
 
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? table[OriginalName] : table as string;
-			const keys = await this.redis.smembers(tableName);
-			for (const key of keys) keysToDelete.add(key); // Add to the set
+		// Invalidate by table
+		if (tables.length > 0) {
+			// @ts-expect-error
+			const compositeKeys: string[] = await this.redis.sunion(...prefixedMappedTables);
+			for (const composite of compositeKeys) {
+				const keys = await this.redis.hkeys(composite);
+				for (const key of keys) keysToDelete.add(key);
+				await this.redis.del(composite); // Remove composite entry
+			}
+			await this.redis.del(...prefixedMappedTables, ...mappedTables); // Remove table mappings
 		}
 
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			const pipeline = this.redis.pipeline();
-
-			for (const tag of tagsArray) {
-				pipeline.del(tag);
+		// Invalidate by tag (WITHOUT invalidating the entire table)
+		for (const tag of tags) {
+			const compositeKey = await this.redis.hget<string>('tagsMap', tag);
+			if (compositeKey) {
+				await this.redis.hdel(compositeKey, tag); // Only remove the tag-related entry
+				await this.redis.hdel('tagsMap', tag); // Remove tag reference
 			}
+		}
 
-			for (const key of keysToDelete) {
-				pipeline.del(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? table[OriginalName] : table as string;
-					pipeline.srem(tableName, key);
-				}
-			}
-
-			await pipeline.exec();
+		// Delete affected cache entries
+		if (keysToDelete.size > 0) {
+			await this.redis.del(...keysToDelete);
 		}
 	}
 }

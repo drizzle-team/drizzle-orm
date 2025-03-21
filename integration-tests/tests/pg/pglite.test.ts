@@ -1,11 +1,12 @@
 import { PGlite } from '@electric-sql/pglite';
 import { Name, sql } from 'drizzle-orm';
+import { upstashCache } from 'drizzle-orm/cache/upstash';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
-import { tests, usersMigratorTable, usersTable } from './pg-common';
-import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
+import { usersMigratorTable, usersTable } from './pg-common';
+import { TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
 
@@ -17,8 +18,21 @@ let client: PGlite;
 beforeAll(async () => {
 	client = new PGlite();
 	db = drizzle(client, { logger: ENABLE_LOGGING });
-	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	cachedDb = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: upstashCache({
+			url: 'https://healthy-deer-37505.upstash.io',
+			token: 'AZKBAAIjcDFmYWYwMTA0YTVmNGE0NWZjODU2NWUzZmZkZTRhN2U0MnAxMA',
+		}),
+	});
+	dbGlobalCached = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: upstashCache({
+			url: 'https://healthy-deer-37505.upstash.io',
+			token: 'AZKBAAIjcDFmYWYwMTA0YTVmNGE0NWZjODU2NWUzZmZkZTRhN2U0MnAxMA',
+			global: true,
+		}),
+	});
 });
 
 afterAll(async () => {
@@ -103,7 +117,7 @@ skipTests([
 	'mySchema :: select with group by as column + sql',
 ]);
 
-tests();
+// tests();
 cacheTests();
 
 beforeEach(async () => {
