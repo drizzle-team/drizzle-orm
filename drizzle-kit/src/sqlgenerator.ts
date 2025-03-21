@@ -84,7 +84,7 @@ import {
 	JsonStatement,
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
-import { MySqlSquasher } from './serializer/mysqlSchema';
+import { MySqlSquasher, decodeRaw } from './serializer/mysqlSchema';
 import { PgSquasher, policy } from './serializer/pgSchema';
 import { SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
@@ -3481,7 +3481,7 @@ class CreateMySqlIndexConvertor extends Convertor {
 
 	convert(statement: JsonCreateIndexStatement): string {
 		// should be changed
-		const { name, columns, isUnique } = MySqlSquasher.unsquashIdx(
+		const { name, columns, isUnique, raw } = MySqlSquasher.unsquashIdx(
 			statement.data,
 		);
 		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
@@ -3496,7 +3496,7 @@ class CreateMySqlIndexConvertor extends Convertor {
 			})
 			.join(',');
 
-		return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString});`;
+		return raw ? decodeRaw(raw) as string : `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString});`;
 	}
 }
 
