@@ -59,6 +59,7 @@ export interface JsonRecreateTableStatement {
 	type: 'recreate_table';
 	tableName: string;
 	columns: Column[];
+	columnsToTransfer: string[];
 	referenceData: {
 		name: string;
 		tableFrom: string;
@@ -77,6 +78,7 @@ export interface JsonRecreateSingleStoreTableStatement {
 	type: 'singlestore_recreate_table';
 	tableName: string;
 	columns: Column[];
+	columnsToTransfer: string[];
 	compositePKs: string[];
 	uniqueConstraints?: string[];
 }
