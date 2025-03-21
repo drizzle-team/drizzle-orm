@@ -1,24 +1,22 @@
-import {
-	ColumnBuilderBase,
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	MakeColumnConfig,
-	NotNull,
-} from '~/column-builder.ts';
+import { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { CheckBuilder } from '~/pg-core/checks.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-type ApplyNotNull<T extends ColumnBuilderBase, TNotNull extends boolean> = TNotNull extends true ? NotNull<T> : T;
+type PgTypeToTsType<T extends string> = T extends 'text' | 'varchar' | 'citext' ? string
+	: T extends 'integer' | 'int' | 'serial' ? number
+	: T extends 'boolean' | 'bool' ? boolean
+	: T extends 'jsonb' ? object // Add more mappings as needed
+	: any; // Fallback
 
 export type PgDomainColumnBuilderInitial<TName extends string, TType extends string, TNotNull extends boolean = false> =
 	PgDomainColumnBuilder<{
 		name: TName;
 		dataType: 'string';
 		columnType: 'PgDomainColumn';
-		data: string;
+		data: PgTypeToTsType<TType>;
 		driverParam: string;
 		enumValues: undefined;
 		domainType: TType;
@@ -27,9 +25,9 @@ export type PgDomainColumnBuilderInitial<TName extends string, TType extends str
 
 const isPgDomainSym = Symbol.for('drizzle:isPgDomain');
 export interface PgDomain<TType extends string, TNotNull extends boolean = false> {
-	(): ApplyNotNull<PgDomainColumnBuilderInitial<'', TType, TNotNull>, TNotNull>;
-	<TName extends string>(name: TName): ApplyNotNull<PgDomainColumnBuilderInitial<TName, TType, TNotNull>, TNotNull>;
-	<TName extends string>(name?: TName): ApplyNotNull<PgDomainColumnBuilderInitial<TName, TType, TNotNull>, TNotNull>;
+	(): PgDomainColumnBuilderInitial<'', TType, TNotNull>;
+	<TName extends string>(name: TName): PgDomainColumnBuilderInitial<TName, TType, TNotNull>;
+	<TName extends string>(name?: TName): PgDomainColumnBuilderInitial<TName, TType, TNotNull>;
 
 	readonly domainName: string;
 	readonly domainType: TType;
