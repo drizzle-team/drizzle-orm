@@ -1,5 +1,6 @@
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import { entityKind } from '~/entity.ts';
+import { wrapPromiseCaptureStacktrace } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -41,7 +42,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper } = this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', () => {
-					return client.unsafe(query, params as any[]);
+					return wrapPromiseCaptureStacktrace(client.unsafe(query, params as any[]));
 				});
 			}
 
@@ -51,7 +52,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 					'drizzle.query.params': JSON.stringify(params),
 				});
 
-				return client.unsafe(query, params as any[]).values();
+				return wrapPromiseCaptureStacktrace(client.unsafe(query, params as any[]).values());
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
@@ -75,7 +76,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 					'drizzle.query.text': this.queryString,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.client.unsafe(this.queryString, params as any[]);
+				return wrapPromiseCaptureStacktrace(this.client.unsafe(this.queryString, params as any[]));
 			});
 		});
 	}
@@ -130,14 +131,14 @@ export class PostgresJsSession<
 
 	query(query: string, params: unknown[]): Promise<RowList<Row[]>> {
 		this.logger.logQuery(query, params);
-		return this.client.unsafe(query, params as any[]).values();
+		return wrapPromiseCaptureStacktrace(this.client.unsafe(query, params as any[]).values());
 	}
 
 	queryObjects<T extends Row>(
 		query: string,
 		params: unknown[],
 	): Promise<RowList<T[]>> {
-		return this.client.unsafe(query, params as any[]);
+		return wrapPromiseCaptureStacktrace(this.client.unsafe(query, params as any[]));
 	}
 
 	override transaction<T>(
