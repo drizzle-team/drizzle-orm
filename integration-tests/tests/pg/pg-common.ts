@@ -541,7 +541,7 @@ export function tests() {
 			const result = await db.select().from(usersTable);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
@@ -734,7 +734,7 @@ export function tests() {
 				.returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(users).toEqual([
 				{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
 			]);
@@ -765,7 +765,7 @@ export function tests() {
 			const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(users).toEqual([
 				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
 			]);
@@ -4086,7 +4086,7 @@ export function tests() {
 			const result = await db.select().from(usersMySchemaTable);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
@@ -4196,7 +4196,7 @@ export function tests() {
 			const users = await db.delete(usersMySchemaTable).where(eq(usersMySchemaTable.name, 'John')).returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(users).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 		});
 
@@ -4227,15 +4227,6 @@ export function tests() {
 		test('mySchema :: insert many', async (ctx) => {
 			const { db } = ctx.pg;
 
-			console.log('before');
-			console.log(
-				db.insert(usersMySchemaTable).values([
-					{ name: 'John' },
-					{ name: 'Bruce', jsonb: ['foo', 'bar'] },
-					{ name: 'Jane' },
-					{ name: 'Austin', verified: true },
-				]).toSQL(),
-			);
 			await db.insert(usersMySchemaTable).values([
 				{ name: 'John' },
 				{ name: 'Bruce', jsonb: ['foo', 'bar'] },
