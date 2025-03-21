@@ -915,7 +915,7 @@ const column = (
 	}
 
 	if (domainTypes.has(`${domainTypeSchema}.${type}`)) {
-		return `${withCasing(name, casing)}: ${withCasing(type, casing)}`;
+		return `${withCasing(name, casing)}: ${withCasing(type, casing)}()`;
 	}
 
 	if (lowered.startsWith('serial')) {
