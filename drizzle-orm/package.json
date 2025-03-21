@@ -47,6 +47,7 @@
 	"peerDependencies": {
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
+		"@db/sqlite": "npm:@jsr/db__sqlite@^0.12.0",
 		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
@@ -156,6 +157,9 @@
 			"optional": true
 		},
 		"@prisma/client": {
+			"optional": true
+		},
+		"@db/sqlite": {
 			"optional": true
 		}
 	},
