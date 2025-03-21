@@ -1,46 +1,56 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import {
+	ColumnBuilderBase,
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	MakeColumnConfig,
+	NotNull,
+} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { CheckBuilder } from '~/pg-core/checks.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgDomainColumnBuilderInitial<TName extends string, TType extends string> = PgDomainColumnBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgDomainColumn';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-	domainType: TType;
-}>;
+type ApplyNotNull<T extends ColumnBuilderBase, TNotNull extends boolean> = TNotNull extends true ? NotNull<T> : T;
+
+export type PgDomainColumnBuilderInitial<TName extends string, TType extends string, TNotNull extends boolean = false> =
+	PgDomainColumnBuilder<{
+		name: TName;
+		dataType: 'string';
+		columnType: 'PgDomainColumn';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		domainType: TType;
+		notNull: TNotNull;
+	}>;
 
 const isPgDomainSym = Symbol.for('drizzle:isPgDomain');
-export interface PgDomain<TType extends string> {
-	(): PgDomainColumnBuilderInitial<'', TType>;
-	<TName extends string>(name: TName): PgDomainColumnBuilderInitial<TName, TType>;
-	<TName extends string>(name?: TName): PgDomainColumnBuilderInitial<TName, TType>;
+export interface PgDomain<TType extends string, TNotNull extends boolean = false> {
+	(): ApplyNotNull<PgDomainColumnBuilderInitial<'', TType, TNotNull>, TNotNull>;
+	<TName extends string>(name: TName): ApplyNotNull<PgDomainColumnBuilderInitial<TName, TType, TNotNull>, TNotNull>;
+	<TName extends string>(name?: TName): ApplyNotNull<PgDomainColumnBuilderInitial<TName, TType, TNotNull>, TNotNull>;
 
 	readonly domainName: string;
 	readonly domainType: TType;
 	readonly schema: string | undefined;
-	readonly notNull: boolean;
+	readonly notNull: TNotNull;
 	readonly defaultValue?: string;
 	readonly checkConstraints?: CheckBuilder[];
 	/** @internal */
 	[isPgDomainSym]: true;
 }
 
-export function isPgDomain(obj: unknown): obj is PgDomain<string> {
+export function isPgDomain(obj: unknown): obj is PgDomain<string, boolean> {
 	return !!obj && typeof obj === 'function' && isPgDomainSym in obj && obj[isPgDomainSym] === true;
 }
 
 export class PgDomainColumnBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'PgDomainColumn'> & { domainType: string },
-> extends PgColumnBuilder<T, { domain: PgDomain<T['domainType']> }> {
+	T extends ColumnBuilderBaseConfig<'string', 'PgDomainColumn'> & { domainType: string; notNull: boolean },
+> extends PgColumnBuilder<T, { domain: PgDomain<T['domainType'], T['notNull']> }> {
 	static override readonly [entityKind]: string = 'PgDomainColumnBuilder';
 
-	constructor(name: T['name'], domainInstance: PgDomain<T['domainType']>) {
+	constructor(name: T['name'], domainInstance: PgDomain<T['domainType'], T['notNull']>) {
 		super(name, 'string', 'PgDomainColumn');
 		this.config.domain = domainInstance;
 		this.config.notNull = domainInstance.notNull;
@@ -51,15 +61,15 @@ export class PgDomainColumnBuilder<
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgDomainColumn<
 		MakeColumnConfig<
-			T & { domainType: T['domainType'] },
+			T & { domainType: T['domainType']; notNull: T['notNull'] },
 			TTableName
-		> & { domainType: T['domainType'] }
+		> & { domainType: T['domainType']; notNull: T['notNull'] }
 	> {
 		return new PgDomainColumn<
 			MakeColumnConfig<
-				T & { domainType: T['domainType'] },
+				T & { domainType: T['domainType']; notNull: T['notNull'] },
 				TTableName
-			> & { domainType: T['domainType'] }
+			> & { domainType: T['domainType']; notNull: T['notNull'] }
 		>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
@@ -68,8 +78,8 @@ export class PgDomainColumnBuilder<
 }
 
 export class PgDomainColumn<
-	T extends ColumnBaseConfig<'string', 'PgDomainColumn'> & { domainType: string },
-> extends PgColumn<T, { domain: PgDomain<T['domainType']> }> {
+	T extends ColumnBaseConfig<'string', 'PgDomainColumn'> & { domainType: string; notNull: boolean },
+> extends PgColumn<T, { domain: PgDomain<T['domainType'], T['notNull']> }> {
 	static override readonly [entityKind]: string = 'PgDomainColumn';
 
 	readonly domain = this.config.domain;
@@ -87,42 +97,42 @@ export class PgDomainColumn<
 	}
 }
 
-export function pgDomain<TType extends string>(
+export function pgDomain<TType extends string, TNotNull extends boolean = false>(
 	domainName: string,
 	domainType: TType,
 	options?: {
-		notNull?: boolean;
+		notNull?: TNotNull;
 		defaultValue?: string;
 		checkConstraints?: CheckBuilder[];
 	},
-): PgDomain<TType> {
+): PgDomain<TType, TNotNull> {
 	return pgDomainWithSchema(domainName, domainType, undefined, options);
 }
 
 /** @internal */
-export function pgDomainWithSchema<TType extends string>(
+export function pgDomainWithSchema<TType extends string, TNotNull extends boolean = false>(
 	domainName: string,
 	domainType: TType,
 	schema?: string,
 	options?: {
-		notNull?: boolean;
+		notNull?: TNotNull;
 		defaultValue?: string;
 		checkConstraints?: CheckBuilder[];
 	},
-): PgDomain<TType> {
-	const domainInstance: PgDomain<TType> = Object.assign(
-		<TName extends string>(name?: TName): PgDomainColumnBuilderInitial<TName, TType> =>
+): PgDomain<TType, TNotNull> {
+	const domainInstance = Object.assign(
+		<TName extends string = ''>(name?: TName): PgDomainColumnBuilderInitial<TName, TType, TNotNull> =>
 			new PgDomainColumnBuilder(name ?? '' as TName, domainInstance),
 		{
 			domainName,
 			domainType,
 			schema,
-			notNull: options?.notNull ?? false,
+			notNull: (options?.notNull ?? false) as TNotNull,
 			defaultValue: options?.defaultValue,
 			checkConstraints: options?.checkConstraints,
 			[isPgDomainSym]: true,
 		} as const,
-	);
+	) as PgDomain<TType, TNotNull>;
 
 	return domainInstance;
 }

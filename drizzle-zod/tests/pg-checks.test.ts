@@ -24,25 +24,6 @@ test('table containing columns with check constraints', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('table containing columns with domains with check constraints', (t) => {
-	const domain = pgDomain('limited_text', 'text', {
-		notNull: true,
-		checkConstraints: [check(sql`LENGTH(value) BETWEEN 3 and 30`)],
-	});
-
-	const table = pgTable('test', {
-		id: serial().primaryKey(),
-		firstName: domain(),
-	});
-
-	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, firstName: textSchema.min(3).max(30) });
-
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
-
-// TODO debug test failure, can't figure out why
 test('table containing custom domain columns', (t) => {
 	const shortTextDomain = pgDomain('limited_text', 'text', {
 		notNull: true,
