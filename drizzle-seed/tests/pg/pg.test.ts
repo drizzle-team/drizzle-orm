@@ -433,3 +433,23 @@ test('overlapping a foreign key constraint with a one-to-many relation', async (
 	predicate = posts.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
 	expect(predicate).toBe(true);
 });
+
+test('seeding while ignoring column', async () => {
+	await seed(db, { users: schema.users }).refine(() => ({
+		users: {
+			columns: {
+				name: false,
+			},
+		},
+	}));
+
+	const result = await db.select().from(schema.users);
+
+	expect(result.length).toBe(10);
+	const predicate = result.every((row) =>
+		Object.entries(row).every(([colName, colVal]) =>
+			(colName === 'name' && colVal === null) || (colName !== 'name' && colVal !== null)
+		)
+	);
+	expect(predicate).toBe(true);
+});
