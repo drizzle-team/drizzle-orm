@@ -160,6 +160,11 @@ export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'buffer', 'SQLiteBlobBu
 			return value;
 		}
 
+		// For RQBv2
+		if (typeof value === 'string') {
+			return Buffer.from(value, 'hex');
+		}
+
 		return Buffer.from(value as Uint8Array);
 	}
 

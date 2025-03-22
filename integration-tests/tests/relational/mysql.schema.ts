@@ -265,6 +265,14 @@ export const allTypesTable = mysqlTable('all_types', {
 		mode: 'string',
 	}),
 	decimal: decimal(),
+	decimalNum: decimal({
+		scale: 30,
+		mode: 'number',
+	}),
+	decimalBig: decimal({
+		scale: 30,
+		mode: 'bigint',
+	}),
 	double: double(),
 	float: float(),
 	int: int(),

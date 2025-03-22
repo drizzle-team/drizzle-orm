@@ -920,6 +920,8 @@ export class PgDialect {
 
 			switch (targetType) {
 				case 'PgNumeric':
+				case 'PgNumericNumber':
+				case 'PgNumericBigInt':
 				case 'PgBigInt64':
 				case 'PgBigSerial64':
 				case 'PgTimestampString':

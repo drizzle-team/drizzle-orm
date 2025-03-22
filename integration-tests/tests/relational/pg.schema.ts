@@ -227,6 +227,12 @@ export const allTypesTable = pgTable('all_types', {
 	macaddr: macaddr(),
 	macaddr8: macaddr8(),
 	numeric: numeric(),
+	numericNum: numeric({
+		mode: 'number',
+	}),
+	numericBig: numeric({
+		mode: 'bigint',
+	}),
 	point: point({
 		mode: 'xy',
 	}),
@@ -285,6 +291,12 @@ export const allTypesTable = pgTable('all_types', {
 	arrmacaddr: macaddr().array(),
 	arrmacaddr8: macaddr8().array(),
 	arrnumeric: numeric().array(),
+	arrnumericNum: numeric({
+		mode: 'number',
+	}).array(),
+	arrnumericBig: numeric({
+		mode: 'bigint',
+	}).array(),
 	arrpoint: point({
 		mode: 'xy',
 	}).array(),
