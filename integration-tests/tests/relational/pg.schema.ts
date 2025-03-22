@@ -37,10 +37,26 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const usersTable = pgTable('users', {
-	id: serial().primaryKey(),
-	name: text().notNull(),
-	verified: boolean().notNull().default(false),
-	invitedBy: integer().references((): PgColumn => usersTable.id),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: integer('invited_by').references((): PgColumn => usersTable.id),
+});
+
+export const schemaV1 = pgSchema('schemaV1');
+
+export const usersV1 = schemaV1.table('usersV1', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: integer('invited_by'),
+});
+
+export const usersTableV1 = schemaV1.table('users_table_V1', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: integer('invited_by'),
 });
 
 export const usersConfig = relations(usersTable, ({ one, many }) => ({

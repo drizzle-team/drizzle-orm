@@ -61,6 +61,10 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 					if (typeId === types.builtins.INTERVAL) {
 						return (val: any) => val;
 					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
 					// timestamp[]
 					if (typeId === 1115 as any) {
 						return (val: any) => val;
@@ -99,6 +103,10 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 						return (val: any) => val;
 					}
 					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId === 1231 as any) {
 						return (val: any) => val;
 					}
 					// timestamp[]

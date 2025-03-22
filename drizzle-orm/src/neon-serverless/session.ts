@@ -63,6 +63,10 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 					if (typeId === types.builtins.INTERVAL) {
 						return (val: any) => val;
 					}
+					// numeric[]
+					if (typeId === 1231) {
+						return (val: any) => val;
+					}
 					// timestamp[]
 					if (typeId === 1115) {
 						return (val) => val;
@@ -103,21 +107,25 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 					if (typeId === types.builtins.INTERVAL) {
 						return (val: any) => val;
 					}
+					// numeric[]
+					if (typeId === 1231) {
+						return (val: any) => val;
+					}
 					// timestamp[]
 					if (typeId === 1115) {
-						return (val: any) => val;
+						return (val) => val;
 					}
 					// timestamp with timezone[]
 					if (typeId === 1185) {
-						return (val: any) => val;
+						return (val) => val;
 					}
 					// interval[]
 					if (typeId === 1187) {
-						return (val: any) => val;
+						return (val) => val;
 					}
 					// date[]
 					if (typeId === 1182) {
-						return (val: any) => val;
+						return (val) => val;
 					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
