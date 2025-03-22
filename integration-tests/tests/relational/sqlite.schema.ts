@@ -163,6 +163,12 @@ export const allTypesTable = sqliteTable('all_types', {
 		mode: 'json',
 	}),
 	numeric: numeric(),
+	numericNum: numeric({
+		mode: 'number',
+	}),
+	numericBig: numeric({
+		mode: 'bigint',
+	}),
 	real: real(),
 	text: text({
 		mode: 'text',

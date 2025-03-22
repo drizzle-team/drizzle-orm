@@ -1175,6 +1175,9 @@ export class MySqlDialect {
 				case 'MySqlDateTimeString':
 				case 'MySqlTimestampString':
 				case 'MySqlFloat':
+				case 'MySqlDecimal':
+				case 'MySqlDecimalNumber':
+				case 'MySqlDecimalBigInt':
 				case 'MySqlBigInt64': {
 					return sql`cast(${name} as char) as ${sql.identifier(key)}`;
 				}
