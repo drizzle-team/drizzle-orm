@@ -2,6 +2,7 @@ import {
 	type AnyMySqlColumn,
 	bigint,
 	boolean,
+	mysqlSchema,
 	mysqlTable,
 	primaryKey,
 	serial,
@@ -19,6 +20,23 @@ export const usersTable = mysqlTable('users', {
 		(): AnyMySqlColumn => usersTable.id,
 	),
 });
+
+const schemaV1 = mysqlSchema('schemaV1');
+
+export const usersV1 = schemaV1.table('usersV1', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: bigint('invited_by', { mode: 'number' }),
+});
+
+export const usersTableV1 = schemaV1.table('users_table_V1', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: bigint('invited_by', { mode: 'number' }),
+});
+
 export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	invitee: one(usersTable, {
 		fields: [usersTable.invitedBy],
