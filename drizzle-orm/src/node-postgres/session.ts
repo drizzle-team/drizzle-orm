@@ -57,6 +57,10 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 					if (typeId === types.builtins.INTERVAL) {
 						return (val) => val;
 					}
+					// numeric[]
+					if (typeId === 1231) {
+						return (val) => val;
+					}
 					// timestamp[]
 					if (typeId === 1115) {
 						return (val) => val;
@@ -95,6 +99,10 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 						return (val) => val;
 					}
 					if (typeId === types.builtins.INTERVAL) {
+						return (val) => val;
+					}
+					// numeric[]
+					if (typeId === 1231) {
 						return (val) => val;
 					}
 					// timestamp[]
