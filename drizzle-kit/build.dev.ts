@@ -24,7 +24,7 @@ esbuild.buildSync({
 	platform: 'node',
 	external: ['drizzle-orm', 'esbuild', ...driversPackages],
 	banner: {
-		js: `#!/usr/bin/env -S node --loader @esbuild-kit/esm-loader --no-warnings`,
+		js: `#!/usr/bin/env -S tsx --no-warnings`,
 	},
 });
 
