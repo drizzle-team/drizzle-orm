@@ -366,7 +366,7 @@ export function findAddedAndRemoved(columnNames1: string[], columnNames2: string
 }
 
 export function ensureDotSlash(p: string): string {
-	return p.startsWith('./') ? p : `./${p}`;
+	return p.replace(/^\.\//, '').replace(/^\//, '').replace(/^/, './');
 }
 
 export function escapeSingleQuotes(str: string) {
