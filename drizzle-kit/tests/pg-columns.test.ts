@@ -1,4 +1,4 @@
-import { integer, pgTable, primaryKey, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
+import { bigint, bit, integer, pgTable, primaryKey, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
@@ -469,16 +469,55 @@ test('varchar and text default values escape single quotes', async (t) => {
 			id: serial('id').primaryKey(),
 			text: text('text').default("escape's quotes"),
 			varchar: varchar('varchar').default("escape's quotes"),
+			text2: text('text2').default(''),
+			varchar2: varchar('varchar2', { length: 200 }).default(''),
 		}),
 	};
 
 	const { sqlStatements } = await diffTestSchemas(schema1, schem2, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toStrictEqual(
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "table" ADD COLUMN "text" text DEFAULT \'escape\'\'s quotes\';',
-	);
-	expect(sqlStatements[1]).toStrictEqual(
 		'ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT \'escape\'\'s quotes\';',
+		'ALTER TABLE "table" ADD COLUMN "text2" text DEFAULT \'\';',
+		'ALTER TABLE "table" ADD COLUMN "varchar2" varchar(200) DEFAULT \'\';',
+	]);
+});
+
+test('bit type', async (t) => {
+	const schema1 = {};
+
+	const schema2 = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			bit: bit('bit', { dimensions: 10 }),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toStrictEqual(
+		'CREATE TABLE "table" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"bit" bit(10)\n);\n',
+	);
+});
+
+test('bigint with default', async (t) => {
+	const schema1 = {};
+
+	const schema2 = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			bigint1: bigint('bigint1', { mode: 'bigint' }).default(0n),
+			bigint2: bigint('bigint2', { mode: 'bigint' }).default(10n),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toStrictEqual(
+		'CREATE TABLE "table" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"bigint1" bigint DEFAULT 0,\n\t"bigint2" bigint DEFAULT 10\n);\n',
 	);
 });

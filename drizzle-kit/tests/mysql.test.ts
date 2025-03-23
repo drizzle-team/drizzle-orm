@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	bigint,
 	foreignKey,
 	index,
 	int,
@@ -619,21 +620,21 @@ test('varchar and text default values escape single quotes', async (t) => {
 			enum: mysqlEnum('enum', ["escape's quotes", "escape's quotes 2"]).default("escape's quotes"),
 			text: text('text').default("escape's quotes"),
 			varchar: varchar('varchar', { length: 255 }).default("escape's quotes"),
+			text2: text('text2').default(''),
+			varchar2: varchar('varchar2', { length: 255 }).default(''),
 		}),
 	};
 
 	const { sqlStatements } = await diffTestSchemasMysql(schema1, schem2, []);
 
-	expect(sqlStatements.length).toBe(3);
-	expect(sqlStatements[0]).toStrictEqual(
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements).toStrictEqual([
 		"ALTER TABLE `table` ADD `enum` enum('escape''s quotes','escape''s quotes 2') DEFAULT 'escape''s quotes';",
-	);
-	expect(sqlStatements[1]).toStrictEqual(
 		"ALTER TABLE `table` ADD `text` text DEFAULT ('escape''s quotes');",
-	);
-	expect(sqlStatements[2]).toStrictEqual(
 		"ALTER TABLE `table` ADD `varchar` varchar(255) DEFAULT 'escape''s quotes';",
-	);
+		"ALTER TABLE `table` ADD `text2` text DEFAULT ('');",
+		"ALTER TABLE `table` ADD `varchar2` varchar(255) DEFAULT '';",
+	]);
 });
 
 test('composite primary key', async () => {
@@ -860,4 +861,22 @@ test('optional db aliases (camel case)', async () => {
 	const st6 = `CREATE INDEX \`t1Idx\` ON \`t1\` (\`t1Idx\`);`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
+});
+
+test('bigint with default', async (t) => {
+	const schema1 = {};
+
+	const schema2 = {
+		table: mysqlTable('table', {
+			bigint1: bigint('bigint1', { mode: 'bigint' }).default(0n),
+			bigint2: bigint('bigint2', { mode: 'bigint' }).default(10n),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(schema1, schema2, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toStrictEqual(
+		'CREATE TABLE \`table\` (\n\t\`bigint1\` bigint DEFAULT 0,\n\t\`bigint2\` bigint DEFAULT 10\n);\n',
+	);
 });

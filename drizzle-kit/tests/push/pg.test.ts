@@ -29,6 +29,7 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uniqueIndex,
 	uuid,
 	varchar,
@@ -1956,6 +1957,7 @@ test('add identity to column - few params', async () => {
 
 	expect(statements).toStrictEqual([
 		{
+			changedSerialToIntegerIdentity: false,
 			columnName: 'id',
 			identity: 'custom_name;byDefault;1;2147483647;1;1;1;false',
 			schema: '',
@@ -1963,6 +1965,7 @@ test('add identity to column - few params', async () => {
 			type: 'alter_table_alter_column_set_identity',
 		},
 		{
+			changedSerialToIntegerIdentity: false,
 			columnName: 'id1',
 			identity: 'custom_name1;always;1;2147483647;4;1;1;false',
 			schema: '',
@@ -4338,4 +4341,143 @@ test('alter inherit in role', async (t) => {
 	for (const st of sqlStatements) {
 		await client.query(st);
 	}
+});
+
+test('switch serial to integer generated always as identity', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		table: pgTable('table', {
+			id: integer('id').generatedAlwaysAsIdentity().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" ALTER COLUMN "id" DROP DEFAULT;',
+		'DROP SEQUENCE "table_id_seq";',
+		'ALTER TABLE "table" ALTER COLUMN "id" ADD GENERATED ALWAYS AS IDENTITY (sequence name "table_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
+		'SELECT setval(pg_get_serial_sequence(\'table\', \'id\'), coalesce(max("id"), 0) + 1, false) FROM "table";',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test('bigint generated always as identity', async (t) => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		table: pgTable('table', {
+			id: bigint('id', { mode: 'bigint' }).generatedAlwaysAsIdentity().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE "table" (\n\t"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "table_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1)\n);\n',
+	]);
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});
+
+test("identity doesn't change when table name has non-alphanumeric characters", async () => {
+	const client = new PGlite();
+
+	const schema1 = {};
+
+	const schema2 = {
+		table1: pgTable('table-1', {
+			id: integer('id').generatedAlwaysAsIdentity().primaryKey(),
+		}),
+		table2: pgTable('table-2', {
+			id: integer('id').generatedByDefaultAsIdentity().primaryKey(),
+		}),
+	};
+
+	await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+	);
+	const { sqlStatements: sqlStatements2 } = await diffTestSchemasPush(
+		client,
+		schema2,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+	);
+
+	expect(sqlStatements2).toStrictEqual([]);
+});
+
+test("shouldn't drop unique constraint", async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		table: pgTable('table', {
+			id: integer('id').primaryKey(),
+			u2: text('u2'),
+			u1: text('u1'),
+		}, (t) => [
+			unique('table_u1_u2_uni').on(t.u1, t.u2),
+		]),
+	};
+
+	const schema2 = {
+		table: pgTable('table', {
+			id: integer('id').primaryKey(),
+			u2: text('u2'),
+			u1: text('u1'),
+		}, (t) => [
+			unique('table_u1_u2_uni').on(t.u1, t.u2),
+		]),
+	};
+
+	const { sqlStatements } = await diffTestSchemasPush(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		['public'],
+		undefined,
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
 });

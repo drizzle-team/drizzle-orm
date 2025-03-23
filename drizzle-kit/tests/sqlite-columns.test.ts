@@ -1,5 +1,6 @@
 import {
 	AnySQLiteColumn,
+	blob,
 	foreignKey,
 	index,
 	int,
@@ -1037,13 +1038,33 @@ test('text default values escape single quotes', async (t) => {
 		table: sqliteTable('table', {
 			id: integer('id').primaryKey(),
 			text: text('text').default("escape's quotes"),
+			text2: text('text2').default(''),
 		}),
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schem2, []);
 
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements).toStrictEqual([
+		"ALTER TABLE `table` ADD `text` text DEFAULT 'escape''s quotes';",
+		"ALTER TABLE `table` ADD `text2` text DEFAULT '';",
+	]);
+});
+
+test('bigint with default', async (t) => {
+	const schema1 = {};
+
+	const schema2 = {
+		table: sqliteTable('table', {
+			bigint1: blob('bigint1', { mode: 'bigint' }).default(0n),
+			bigint2: blob('bigint2', { mode: 'bigint' }).default(10n),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toStrictEqual(
-		"ALTER TABLE `table` ADD `text` text DEFAULT 'escape''s quotes';",
+		'CREATE TABLE \`table\` (\n\t\`bigint1\` blob DEFAULT 0,\n\t\`bigint2\` blob DEFAULT 10\n);\n',
 	);
 });

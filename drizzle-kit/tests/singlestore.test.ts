@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	bigint,
 	index,
 	int,
 	json,
@@ -974,5 +975,23 @@ test('set not null + rename table on table with indexes', async () => {
 	);
 	expect(sqlStatements[4]).toBe(
 		'ALTER TABLE `__new_table1` RENAME TO `table1`;',
+	);
+});
+
+test('bigint with default', async (t) => {
+	const schema1 = {};
+
+	const schema2 = {
+		table: singlestoreTable('table', {
+			bigint1: bigint('bigint1', { mode: 'bigint' }).default(0n),
+			bigint2: bigint('bigint2', { mode: 'bigint' }).default(10n),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(schema1, schema2, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toStrictEqual(
+		'CREATE TABLE \`table\` (\n\t\`bigint1\` bigint DEFAULT 0,\n\t\`bigint2\` bigint DEFAULT 10\n);\n',
 	);
 });

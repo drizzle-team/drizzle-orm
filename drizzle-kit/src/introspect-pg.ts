@@ -275,7 +275,9 @@ export const relationsToTypeScriptForStudio = (
 };
 
 function generateIdentityParams(identity: Column['identity']) {
-	let paramsObj = `{ name: "${identity!.name}"`;
+	let paramsObj = `{ name: ${
+		identity!.name.startsWith('"') && identity!.name.endsWith('"') ? identity!.name : `"${identity!.name}"`
+	}`;
 	if (identity?.startWith) {
 		paramsObj += `, startWith: ${identity.startWith}`;
 	}
@@ -818,8 +820,9 @@ const mapDefault = (
 		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 	}
 
-	if (lowered.startsWith('geometry')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	if (lowered === 'geometry(point)') {
+		const match = defaultValue?.match(/\d+/g) ?? [];
+		return typeof defaultValue !== 'undefined' ? `.default([${match[0]}, ${match[1]}])` : '';
 	}
 
 	if (lowered.startsWith('vector')) {
