@@ -25,14 +25,20 @@ test('table containing columns with check constraints', (t) => {
 });
 
 test('table containing custom domain columns', (t) => {
-	const shortTextDomain = pgDomain('limited_text', 'text', {
-		notNull: true,
-		checkConstraints: [check('limited_text_length', sql`(length(value) BETWEEN 3 and 50)`)],
-	});
+	// const shortTextDomain = pgDomain('limited_text', 'text', {
+	// 	notNull: true,
+	// 	checkConstraints: [check('limited_text_length', sql`(length(value) BETWEEN 3 and 50)`)],
+	// });
+
+	const shortTextDomain = pgDomain(
+		'limited_text',
+		text().notNull()
+			.checkConstraint(check('limited_text_length', sql`(length(value) BETWEEN 3 and 50)`)),
+	);
 
 	const table = pgTable('users', {
-		id: serial('id').primaryKey(),
-		email: shortTextDomain(),
+		id: serial('id'),
+		email: shortTextDomain,
 	});
 
 	const result = createSelectSchema(table);

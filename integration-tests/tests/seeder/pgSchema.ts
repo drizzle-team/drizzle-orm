@@ -143,7 +143,7 @@ export const allDataTypes = schema.table('all_data_types', {
 	bigserialNumber: bigserial('bigserial_number', { mode: 'number' }),
 	boolean: boolean('boolean'),
 	text: text('text'),
-	varchar: varchar('varchar', { length: 256 }),
+	varchar: varchar('varchar', { length: 256 }).notNull().default('abc'),
 	char: char('char', { length: 256 }),
 	numeric: numeric('numeric'),
 	decimal: decimal('decimal'),

@@ -288,7 +288,7 @@ export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptio
 	let checkConstraints = column.checkConstraints;
 	let columnName = column.name;
 	if (isColumnType<PgDomainColumn<any>>(column, ['PgDomainColumn'])) {
-		checkConstraints = column.domain.checkConstraints;
+		checkConstraints = column.checkConstraints;
 		columnName = 'VALUE';
 	}
 

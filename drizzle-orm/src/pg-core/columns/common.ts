@@ -48,6 +48,14 @@ export abstract class PgColumnBuilder<
 
 	static override readonly [entityKind]: string = 'PgColumnBuilder';
 
+	getDataType(): T['dataType'] {
+		return this.config.dataType as T['dataType'];
+	}
+
+	getColumnType(): T['columnType'] {
+		return this.config.columnType as T['columnType'];
+	}
+
 	array<TSize extends number | undefined = undefined>(size?: TSize): PgArrayBuilder<
 		& {
 			name: T['name'];
