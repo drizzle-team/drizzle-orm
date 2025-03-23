@@ -1,6 +1,9 @@
+import { Named } from 'src/cli/commands/migrate';
+import { mapEntries, mapKeys } from 'src/global';
 import { JsonStatement } from 'src/jsonStatements';
-import { SQLiteSchemaSquashed } from 'src/serializer/sqliteSchema';
+import { Column, SQLiteSchemaSquashed } from 'src/serializer/sqliteSchema';
 import { sqliteCombineStatements } from 'src/statementCombiner';
+import { copy } from 'src/utils';
 import { expect, test } from 'vitest';
 
 test(`renamed column and altered this column type`, async (t) => {
@@ -80,7 +83,7 @@ test(`renamed column and altered this column type`, async (t) => {
 						notNull: true,
 						autoincrement: false,
 					},
-					lastName: {
+					lastName123: {
 						name: 'lastName123',
 						type: 'int',
 						primaryKey: false,
@@ -106,7 +109,70 @@ test(`renamed column and altered this column type`, async (t) => {
 		views: {},
 	};
 
-	const newJsonStatements = [
+	const columnRenames = [] as {
+		table: string;
+		renames: { from: Column; to: Column }[];
+	}[];
+	columnRenames.push({
+		table: 'user',
+		renames: [{
+			from: json1.tables['user'].columns['lastName'],
+			to: json2.tables['user'].columns['lastName123'],
+		}],
+	});
+	const columnRenamesDict = columnRenames.reduce(
+		(acc, it) => {
+			acc[it.table] = it.renames;
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				from: Named;
+				to: Named;
+			}[]
+		>,
+	);
+	const columnChangeFor = (
+		column: string,
+		renamedColumns: { from: Named; to: Named }[],
+	) => {
+		for (let ren of renamedColumns) {
+			if (column === ren.from.name) {
+				return ren.to.name;
+			}
+		}
+
+		return column;
+	};
+
+	const columnsPatchedSnap1 = copy(json1);
+	columnsPatchedSnap1.tables = mapEntries(
+		columnsPatchedSnap1.tables,
+		(tableKey, tableValue) => {
+			const patchedColumns = mapKeys(
+				tableValue.columns,
+				(columnKey, column) => {
+					const rens = columnRenamesDict[tableValue.name] || [];
+					const newName = columnChangeFor(columnKey, rens);
+					column.name = newName;
+					return newName;
+				},
+			);
+
+			tableValue.columns = patchedColumns;
+			return [tableKey, tableValue];
+		},
+	);
+
+	const newJsonStatements: JsonStatement[] = [
+		{
+			newColumnName: 'lastName123',
+			oldColumnName: 'lastName',
+			schema: '',
+			tableName: 'user',
+			type: 'alter_table_rename_column',
+		},
 		{
 			type: 'recreate_table',
 			tableName: 'user',
@@ -133,13 +199,14 @@ test(`renamed column and altered this column type`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['firstName', 'lastName123', 'test'],
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
 			checkConstraints: [],
 		},
 	];
-	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
+	expect(sqliteCombineStatements(statements, json2, columnsPatchedSnap1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -254,7 +321,7 @@ test(`renamed column and droped column "test"`, async (t) => {
 			schema: '',
 		},
 	];
-	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
+	expect(sqliteCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -369,13 +436,14 @@ test(`droped column that is part of composite pk`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id', 'first_nam'],
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
 			checkConstraints: [],
 		},
 	];
-	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
+	expect(sqliteCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -630,6 +698,7 @@ test(`drop column "ref"."name", rename column "ref"."age". dropped primary key "
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id', 'first_name', 'iq'],
 			compositePKs: [],
 			referenceData: [],
 			uniqueConstraints: [],
@@ -637,7 +706,7 @@ test(`drop column "ref"."name", rename column "ref"."age". dropped primary key "
 		},
 	];
 
-	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
+	expect(sqliteCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -788,6 +857,7 @@ test(`create reference on exising column (table includes unique index). expect t
 					onUpdate: 'no action',
 				},
 			],
+			columnsToTransfer: ['unique', 'ref_pk'],
 			uniqueConstraints: [],
 			checkConstraints: [],
 		},
@@ -800,7 +870,7 @@ test(`create reference on exising column (table includes unique index). expect t
 		},
 	];
 
-	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
+	expect(sqliteCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -970,7 +1040,7 @@ test(`add columns. set fk`, async (t) => {
 		views: {},
 	};
 
-	const newJsonStatements = [
+	const newJsonStatements: JsonStatement[] = [
 		{
 			columns: [
 				{
@@ -1002,6 +1072,7 @@ test(`add columns. set fk`, async (t) => {
 					type: 'integer',
 				},
 			],
+			columnsToTransfer: ['id1', 'new_age'],
 			compositePKs: [],
 			referenceData: [
 				{
@@ -1024,7 +1095,7 @@ test(`add columns. set fk`, async (t) => {
 			checkConstraints: [],
 		},
 	];
-	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
+	expect(sqliteCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -1205,7 +1276,7 @@ test(`add column and fk`, async (t) => {
 			referenceData: 'ref_test1_user_new_age_fk;ref;test1;user;new_age;no action;no action',
 		},
 	];
-	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
+	expect(sqliteCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
