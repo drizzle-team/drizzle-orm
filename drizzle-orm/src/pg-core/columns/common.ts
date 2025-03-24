@@ -13,7 +13,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Simplify, Update } from '~/utils.ts';
 
-import { CheckBuilder } from '~/pg-core';
+import { check } from '~/pg-core/checks.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
@@ -74,12 +74,14 @@ export abstract class PgColumnBuilder<
 		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size as any);
 	}
 
-	checkConstraint(check: CheckBuilder) {
+	checkConstraint(name: string, value: SQL): this;
+	checkConstraint(value: SQL): this;
+	checkConstraint(nameOrValue: string | SQL, maybeValue?: SQL): this {
 		if (!this.config.checkConstraints) {
 			this.config.checkConstraints = [];
 		}
 
-		this.config.checkConstraints.push(check);
+		this.config.checkConstraints.push(check(nameOrValue as any, maybeValue as any));
 		return this;
 	}
 

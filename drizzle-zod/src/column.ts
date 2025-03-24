@@ -285,10 +285,9 @@ export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptio
 		schema = z.any();
 	}
 
-	let checkConstraints = column.checkConstraints;
 	let columnName = column.name;
+	const checkConstraints = column.checkConstraints;
 	if (isColumnType<PgDomainColumn<any>>(column, ['PgDomainColumn'])) {
-		checkConstraints = column.checkConstraints;
 		columnName = 'VALUE';
 	}
 
