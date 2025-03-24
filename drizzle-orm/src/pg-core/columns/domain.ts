@@ -5,8 +5,8 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 // drizzle column type identifier
-export const PG_DOMAIN_COLUMN_TYPE = 'PgDomainColumn' as const;
-export type PgDomainColumnType = typeof PG_DOMAIN_COLUMN_TYPE;
+export const PG_DOMAIN_TYPE = 'PgDomain' as const;
+export type PgDomainType = typeof PG_DOMAIN_TYPE;
 
 // Shared base type for the common properties
 // we inherit these from the wrapped builder
@@ -23,7 +23,7 @@ type PgDomainColumnBaseConfig<TColumnBase extends PgColumnBuilder<any, any>> = {
 type PgDomainColumnBuilderConfig<TColumnBase extends PgColumnBuilder<any, any>> =
 	& ColumnBuilderBaseConfig<
 		TColumnBase['_']['dataType'],
-		PgDomainColumnType
+		PgDomainType
 	>
 	& PgDomainColumnBaseConfig<TColumnBase>;
 
@@ -32,7 +32,7 @@ type PgDomainColumnBuilderConfig<TColumnBase extends PgColumnBuilder<any, any>> 
 type PgDomainColumnConfig<TColumnBase extends PgColumnBuilder<any, any>> =
 	& ColumnBaseConfig<
 		TColumnBase['_']['dataType'],
-		PgDomainColumnType
+		PgDomainType
 	>
 	& PgDomainColumnBaseConfig<TColumnBase>;
 
@@ -43,15 +43,15 @@ export type BuilderRuntimeConfig = {
 };
 
 // domain column builder classa
-export class PgDomainColumnBuilder<
+export class PgDomainBuilder<
 	T extends PgDomainColumnBuilderConfig<PgColumnBuilder<any, any>>,
 > extends PgColumnBuilder<T, BuilderRuntimeConfig> {
-	static override readonly [entityKind]: string = 'PgDomainColumnBuilder';
+	static override readonly [entityKind]: string = 'PgDomainBuilder';
 
 	columnBuilder: PgColumnBuilder<any, any>;
 
 	constructor(name: T['name'], columnBuilder: PgColumnBuilder<any, any>, schema?: string) {
-		super(name, columnBuilder.getDataType(), PG_DOMAIN_COLUMN_TYPE);
+		super(name, columnBuilder.getDataType(), PG_DOMAIN_TYPE);
 		// this.config.columnBuilder = columnBuilder;
 		// this.config.notNull = true;
 		this.config.schema = schema;
@@ -62,7 +62,7 @@ export class PgDomainColumnBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgDomainColumn<MakeColumnConfig<T, TTableName>> {
+	): PgDomain<MakeColumnConfig<T, TTableName>> {
 		const column = this.columnBuilder.build(table);
 
 		Object.assign(this.config, {
@@ -74,7 +74,7 @@ export class PgDomainColumnBuilder<
 			checkConstraints: column.checkConstraints,
 		});
 
-		return new PgDomainColumn<MakeColumnConfig<T, TTableName>>(
+		return new PgDomain<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
@@ -82,15 +82,15 @@ export class PgDomainColumnBuilder<
 }
 
 // domain column class
-export class PgDomainColumn<T extends PgDomainColumnConfig<PgColumnBuilder<any, any>>> extends PgColumn<T> {
-	static override readonly [entityKind]: string = 'PgDomainColumn';
+export class PgDomain<T extends PgDomainColumnConfig<PgColumnBuilder<any, any>>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgDomain';
 
 	readonly schema: string | undefined;
 	readonly column: PgColumn;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
-		config: PgDomainColumnBuilder<T>['config'],
+		config: PgDomainBuilder<T>['config'],
 	) {
 		super(table, config);
 		this.schema = config.schema;
@@ -117,24 +117,15 @@ export function pgDomainWithSchema<TColumnBuilder extends PgColumnBuilder<any, a
 	columnBuilder: TColumnBuilder,
 	schema?: string,
 ) {
-	return new PgDomainColumnBuilder<PgDomainColumnBuilderConfig<TColumnBuilder>>(
+	return new PgDomainBuilder<PgDomainColumnBuilderConfig<TColumnBuilder>>(
 		name ?? '',
 		columnBuilder,
 		schema,
 	);
 }
 
-// const isPgDomainSym = Symbol.for('drizzle:isPgDomain');
+const isPgDomainSym = Symbol.for('drizzle:isPgDomain');
 
-// interface for later
-// export interface PgDomain<TColumnBase extends PgColumnBuilder<any, any>> {
-// 	(): PgDomainColumnBuilderInitial<'', TColumnBase>;
-// 	<TName extends string>(name: TName): PgDomainColumnBuilderInitial<TName, TColumnBase>;
-//
-// 	/** @internal */
-// 	[isPgDomainSym]: true;
-// }
-
-// export function isPgDomain(obj: unknown): obj is PgDomain<PgColumnBuilder<any, any>> {
-// 	return !!obj && typeof obj === 'function' && isPgDomainSym in obj && obj[isPgDomainSym] === true;
-// }
+export function isPgDomain(obj: unknown): obj is PgDomain<PgDomainColumnConfig<any>> {
+	return !!obj && typeof obj === 'function' && isPgDomainSym in obj && obj[isPgDomainSym] === true;
+}

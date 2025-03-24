@@ -20,7 +20,7 @@ import type {
 	PgBigSerial53,
 	PgBinaryVector,
 	PgChar,
-	PgDomainColumn,
+	PgDomain,
 	PgDoublePrecision,
 	PgGeometry,
 	PgGeometryObject,
@@ -299,7 +299,7 @@ export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptio
 
 	let columnName = column.name;
 	const checkConstraints = column.checkConstraints;
-	if (isColumnType<PgDomainColumn<any>>(column, ['PgDomainColumn'])) {
+	if (isColumnType<PgDomain<any>>(column, ['PgDomainColumn'])) {
 		columnName = 'VALUE';
 	}
 

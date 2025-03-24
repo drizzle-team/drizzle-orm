@@ -31,6 +31,11 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
+		// TODO look into this
+		if (is(t, PgDomain)) {
+			domains.push(t);
+		}
+
 		if (isPgEnum(t)) {
 			enums.push(t);
 			return;
@@ -67,6 +72,7 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 	return { tables, domains, enums, schemas, sequences, views, matViews, roles, policies };
 };
 
+// todo look into all of this
 export const prepareFromPgImports = async (imports: string[]) => {
 	const tables: AnyPgTable[] = [];
 	const domains: PgDomain<any>[] = [];

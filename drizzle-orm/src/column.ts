@@ -1,4 +1,4 @@
-import { Check, CheckBuilder } from '~/pg-core';
+import type { CheckBuilder } from '~/pg-core';
 import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderRuntimeConfig,

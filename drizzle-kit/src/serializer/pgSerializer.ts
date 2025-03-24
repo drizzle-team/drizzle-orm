@@ -9,7 +9,6 @@ import {
 	PgColumn,
 	PgDialect,
 	PgDomain,
-	PgDomainColumn,
 	PgEnum,
 	PgEnumColumn,
 	PgMaterializedView,
@@ -164,13 +163,9 @@ export const generatePgSnapshot = (
 			const primaryKey: boolean = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
+			// todo understand this
 			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
-			const domainTypeSchema = is(column, PgDomainColumn) ? column.domain.schema : undefined;
-
-			// TODO remove
-			if (is(column, PgDomainColumn)) {
-				console.log(`printing domain ${column.domain}`);
-			}
+			const domainTypeSchema = is(column, PgDomain) ? column.schema : undefined;
 
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
@@ -888,10 +883,11 @@ export const generatePgSnapshot = (
 
 		obj.checkConstraints?.forEach((checkConstraint, index) => {
 			// Validate unique constraint names within domain
-			const domainKey = `"${obj.schema ?? 'public'}"."${obj.domainName}"`;
+			// TODO check old domain name
+			const domainKey = `"${obj.schema ?? 'public'}"."${obj.getSQLType()}"`;
 
 			// you can have multiple unnamed checks per domain (using the default above)
-			let defaultCheckName = `${obj.domainName}_check`;
+			let defaultCheckName = `${obj.getSQLType()}_check`;
 			let checkName = checkConstraint.name ?? defaultCheckName;
 			if (checksInTable[domainKey]?.includes(checkName) && checkName == defaultCheckName) {
 				checkName += `_${index}`;
@@ -908,13 +904,13 @@ export const generatePgSnapshot = (
 		});
 
 		const domainSchema = obj.schema || 'public';
-		const key = `${domainSchema}.${obj.domainName}`;
+		const key = `${domainSchema}.${obj.getSQLType()}`;
 		map[key] = {
-			name: obj.domainName,
+			name: obj.getSQLType(),
 			schema: domainSchema,
 			notNull: obj.notNull,
-			baseType: obj.domainType,
-			defaultValue: obj.defaultValue,
+			baseType: obj.columnType,
+			defaultValue: obj.default,
 			checkConstraints: checksObject,
 		};
 
