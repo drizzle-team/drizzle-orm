@@ -71,6 +71,8 @@ type CheckConstraints = {
 	minLength?: number;
 	maxLength?: number;
 	regex?: RegExp;
+	minInclusive?: boolean;
+	maxInclusive?: boolean;
 };
 
 function parseCheckConstraints(sql: string, columnName: string): CheckConstraints | null {
@@ -117,24 +119,30 @@ function parseCheckConstraints(sql: string, columnName: string): CheckConstraint
 	if (numericBetweenMatch) {
 		constraints.min = Number(numericBetweenMatch[1]);
 		constraints.max = Number(numericBetweenMatch[2]);
+		constraints.minInclusive = true;
+		constraints.maxInclusive = true;
 	}
 	// Greater-than-or-equal and greater-than for numbers
 	const numGteMatch = createConstraintRegex('', '\\s*>=\\s*(\\d+)').exec(sql);
 	if (numGteMatch) {
 		constraints.min = Number(numGteMatch[1]);
+		constraints.minInclusive = true;
 	}
 	const numGtMatch = createConstraintRegex('', '\\s*>\\s*(\\d+)').exec(sql);
 	if (numGtMatch) {
-		constraints.min = Number(numGtMatch[1]) + 1;
+		constraints.min = Number(numGtMatch[1]);
+		constraints.minInclusive = false;
 	}
 	// Less-than-or-equal and less-than for numbers
 	const numLteMatch = createConstraintRegex('', '\\s*<=\\s*(\\d+)').exec(sql);
 	if (numLteMatch) {
 		constraints.max = Number(numLteMatch[1]);
+		constraints.maxInclusive = true;
 	}
 	const numLtMatch = createConstraintRegex('', '\\s*<\\s*(\\d+)').exec(sql);
 	if (numLtMatch) {
-		constraints.max = Number(numLtMatch[1]) - 1;
+		constraints.max = Number(numLtMatch[1]);
+		constraints.maxInclusive = false;
 	}
 
 	// --- Pattern constraints ---
@@ -205,10 +213,10 @@ export function applyConstraints<T extends z.ZodTypeAny>(
 	if (typeName === 'ZodNumber') {
 		let newSchema = schema as unknown as z.ZodNumber;
 		if (constraints.min !== undefined) {
-			newSchema = newSchema.min(constraints.min);
+			newSchema = constraints.minInclusive ? newSchema.gte(constraints.min) : newSchema.gt(constraints.min);
 		}
 		if (constraints.max !== undefined) {
-			newSchema = newSchema.max(constraints.max);
+			newSchema = constraints.maxInclusive ? newSchema.lte(constraints.max) : newSchema.lt(constraints.max);
 		}
 		return newSchema;
 	}
@@ -217,10 +225,14 @@ export function applyConstraints<T extends z.ZodTypeAny>(
 	if (typeName === 'ZodBigInt') {
 		let newSchema = schema as unknown as z.ZodBigInt;
 		if (constraints.min !== undefined) {
-			newSchema = newSchema.min(BigInt(constraints.min));
+			newSchema = constraints.minInclusive
+				? newSchema.gte(BigInt(constraints.min))
+				: newSchema.gt(BigInt(constraints.min));
 		}
 		if (constraints.max !== undefined) {
-			newSchema = newSchema.max(BigInt(constraints.max));
+			newSchema = constraints.maxInclusive
+				? newSchema.lte(BigInt(constraints.max))
+				: newSchema.lt(BigInt(constraints.max));
 		}
 		return newSchema;
 	}
