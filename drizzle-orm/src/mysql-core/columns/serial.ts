@@ -10,7 +10,7 @@ import type {
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
 	IsPrimaryKey<
@@ -30,14 +30,13 @@ export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
 >;
 
 export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSerial'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T>
+	extends MySqlColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'MySqlSerialBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'MySqlSerial');
 		this.config.hasDefault = true;
-		this.config.autoIncrement = true;
 	}
 
 	/** @internal */
@@ -50,7 +49,7 @@ export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 
 export class MySqlSerial<
 	T extends ColumnBaseConfig<'number', 'MySqlSerial'>,
-> extends MySqlColumnWithAutoIncrement<T> {
+> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlSerial';
 
 	getSQLType(): string {

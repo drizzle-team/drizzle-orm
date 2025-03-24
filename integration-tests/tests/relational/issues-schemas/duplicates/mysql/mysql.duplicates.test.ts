@@ -88,7 +88,7 @@ beforeEach(async () => {
 	await db.execute(
 		sql`
 			CREATE TABLE \`members\` (
-			    \`id\` serial AUTO_INCREMENT PRIMARY KEY NOT NULL,
+			    \`id\` serial PRIMARY KEY NOT NULL,
 			    \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			    \`updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			    \`name_en\` varchar(50) NOT NULL,
@@ -102,7 +102,7 @@ beforeEach(async () => {
 	await db.execute(
 		sql`
 			CREATE TABLE \`artist_to_member\` (
-			    \`id\` serial AUTO_INCREMENT PRIMARY KEY NOT NULL,
+			    \`id\` serial PRIMARY KEY NOT NULL,
 			    \`member_id\` int NOT NULL,
 			    \`artist_id\` int NOT NULL);
 		`,
@@ -110,7 +110,7 @@ beforeEach(async () => {
 	await db.execute(
 		sql`
 			CREATE TABLE \`artists\` (
-			    \`id\` serial AUTO_INCREMENT PRIMARY KEY NOT NULL,
+			    \`id\` serial PRIMARY KEY NOT NULL,
 			    \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			    \`updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			    \`name_en\` varchar(50) NOT NULL,
@@ -129,7 +129,7 @@ beforeEach(async () => {
 	await db.execute(
 		sql`
 			CREATE TABLE \`albums\` (
-			    \`id\` serial AUTO_INCREMENT PRIMARY KEY NOT NULL,
+			    \`id\` serial PRIMARY KEY NOT NULL,
 			    \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			    \`updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			    \`artist_id\` int NOT NULL,
