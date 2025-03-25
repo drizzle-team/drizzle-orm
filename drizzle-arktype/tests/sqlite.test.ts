@@ -1,6 +1,7 @@
-import { type } from 'arktype';
+import { Type, type } from 'arktype';
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { bigintNarrow, bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
@@ -349,6 +350,20 @@ test('all data types', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: Type<TopLevelCondition, {}> = type('unknown.any') as any;
+	const table = sqliteTable('test', {
+		json1: text({ mode: 'json' }).$type<TopLevelCondition>().notNull(),
+		json2: blob({ mode: 'json' }).$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = type({
+		json1: TopLevelCondition,
+		json2: TopLevelCondition.or(type.null),
+	});
+	Expect<Equal<type.infer<typeof result>, type.infer<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = sqliteTable('test', { id: int() });

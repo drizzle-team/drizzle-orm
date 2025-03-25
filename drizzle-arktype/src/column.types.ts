@@ -18,17 +18,20 @@ export type GetBaseColumn<TColumn extends Column> = TColumn['_'] extends { baseC
 export type GetArktypeType<
 	TData,
 	TDataType extends string,
+	TColumnType extends string,
 	TEnumValues extends [string, ...string[]] | undefined,
 	TBaseColumn extends Column | undefined,
 > = TBaseColumn extends Column ? Type<TData, {}>
 	: ArrayHasAtLeastOneValue<TEnumValues> extends true ? Type<Assume<TEnumValues, any[]>[number], {}>
 	: TData extends infer TTuple extends [any, ...any[]]
-		? type.instantiate<{ [K in keyof TTuple]: GetArktypeType<TTuple[K], string, undefined, undefined> }>
+		? type.instantiate<{ [K in keyof TTuple]: GetArktypeType<TTuple[K], string, string, undefined, undefined> }>
 	: TData extends Date ? Type<Date, {}>
 	: TData extends Buffer ? Type<Buffer, {}>
 	: TDataType extends 'array' ? Type<TData, {}>
 	: TData extends infer TDict extends Record<string, any>
-		? type.instantiate<{ [K in keyof TDict]: GetArktypeType<TDict[K], string, undefined, undefined> }>
+		? TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
+			? Type<TDict, {}>
+		: type.instantiate<{ [K in keyof TDict]: GetArktypeType<TDict[K], string, string, undefined, undefined> }>
 	: TDataType extends 'json' ? Type<Json, {}>
 	: TData extends number ? Type<number, {}>
 	: TData extends bigint ? Type<bigint, {}>
@@ -63,6 +66,7 @@ export type HandleColumn<
 > = GetArktypeType<
 	TColumn['_']['data'],
 	TColumn['_']['dataType'],
+	TColumn['_']['columnType'],
 	GetEnumValuesFromColumn<TColumn>,
 	GetBaseColumn<TColumn>
 > extends infer TSchema ? TType extends 'select' ? HandleSelectColumn<TSchema, TColumn>

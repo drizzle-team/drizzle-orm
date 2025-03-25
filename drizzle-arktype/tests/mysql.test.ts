@@ -1,6 +1,7 @@
-import { type } from 'arktype';
+import { Type, type } from 'arktype';
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { bigintNarrow, jsonSchema, unsignedBigintNarrow } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
@@ -452,6 +453,18 @@ test('all data types', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: Type<TopLevelCondition, {}> = type('unknown.any') as any;
+	const table = mysqlTable('test', {
+		json: json().$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = type({
+		json: TopLevelCondition.or(type.null),
+	});
+	Expect<Equal<type.infer<typeof result>, type.infer<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = mysqlTable('test', { id: int() });

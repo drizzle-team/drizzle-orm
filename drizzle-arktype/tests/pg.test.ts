@@ -1,8 +1,10 @@
-import { type } from 'arktype';
+import { Type, type } from 'arktype';
 import { type Equal, sql } from 'drizzle-orm';
 import {
 	customType,
 	integer,
+	json,
+	jsonb,
 	pgEnum,
 	pgMaterializedView,
 	pgSchema,
@@ -11,6 +13,7 @@ import {
 	serial,
 	text,
 } from 'drizzle-orm/pg-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { bigintNarrow, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
@@ -498,6 +501,20 @@ test('all data types', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: Type<TopLevelCondition, {}> = type('unknown.any') as any;
+	const table = pgTable('test', {
+		json: json().$type<TopLevelCondition>().notNull(),
+		jsonb: jsonb().$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = type({
+		json: TopLevelCondition,
+		jsonb: TopLevelCondition.or(type.null),
+	});
+	Expect<Equal<type.infer<typeof result>, type.infer<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });

@@ -27,6 +27,7 @@ export type BuildRefineColumns<
 			[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column ? GetArktypeType<
 					TColumn['_']['data'],
 					TColumn['_']['dataType'],
+					TColumn['_']['columnType'],
 					GetEnumValuesFromColumn<TColumn>,
 					GetBaseColumn<TColumn>
 				> extends infer TSchema extends GenericSchema ? TSchema
