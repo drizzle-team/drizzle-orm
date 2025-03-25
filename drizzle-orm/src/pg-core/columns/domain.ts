@@ -5,7 +5,7 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 // drizzle column type identifier
-export const PG_DOMAIN_TYPE = 'PgDomain' as const;
+export const PG_DOMAIN_TYPE = 'PgDomainColumn' as const;
 export type PgDomainType = typeof PG_DOMAIN_TYPE;
 
 // Shared base type for the common properties
@@ -46,7 +46,7 @@ export type BuilderRuntimeConfig = {
 export class PgDomainColumnBuilder<
 	T extends PgDomainColumnBuilderConfig<PgColumnBuilder<any, any>>,
 > extends PgColumnBuilder<T, BuilderRuntimeConfig> {
-	static override readonly [entityKind]: string = 'PgDomainBuilder';
+	static override readonly [entityKind]: string = 'PgDomainColumnBuilder';
 
 	// used internally for serialization and introspection
 	readonly domainName: string;
@@ -88,7 +88,7 @@ export class PgDomainColumnBuilder<
 
 // domain column class
 export class PgDomainColumn<T extends PgDomainColumnConfig<PgColumnBuilder<any, any>>> extends PgColumn<T> {
-	static override readonly [entityKind]: string = 'PgDomain';
+	static override readonly [entityKind]: string = PG_DOMAIN_TYPE;
 
 	// TODO confirm if needed or not
 	readonly schema: string | undefined;
