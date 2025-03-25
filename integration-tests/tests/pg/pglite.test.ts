@@ -5,8 +5,7 @@ import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
-import { usersMigratorTable, usersTable } from './pg-common';
-import { TestGlobalCache, tests as cacheTests } from './pg-common-cache';
+import { tests, usersMigratorTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
@@ -21,15 +20,15 @@ beforeAll(async () => {
 	cachedDb = drizzle(client, {
 		logger: ENABLE_LOGGING,
 		cache: upstashCache({
-			url: 'https://healthy-deer-37505.upstash.io',
-			token: 'AZKBAAIjcDFmYWYwMTA0YTVmNGE0NWZjODU2NWUzZmZkZTRhN2U0MnAxMA',
+			url: '',
+			token: '',
 		}),
 	});
 	dbGlobalCached = drizzle(client, {
 		logger: ENABLE_LOGGING,
 		cache: upstashCache({
-			url: 'https://healthy-deer-37505.upstash.io',
-			token: 'AZKBAAIjcDFmYWYwMTA0YTVmNGE0NWZjODU2NWUzZmZkZTRhN2U0MnAxMA',
+			url: '',
+			token: '',
 			global: true,
 		}),
 	});
@@ -117,8 +116,8 @@ skipTests([
 	'mySchema :: select with group by as column + sql',
 ]);
 
-// tests();
-cacheTests();
+tests();
+// cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);
