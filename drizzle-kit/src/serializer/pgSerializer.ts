@@ -9,6 +9,7 @@ import {
 	PgColumn,
 	PgDialect,
 	PgDomain,
+	PgDomainColumn,
 	PgEnum,
 	PgEnumColumn,
 	PgMaterializedView,
@@ -24,6 +25,7 @@ import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
 import { snapshotVersion } from '../global';
+import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
 import {
 	CheckConstraint,
 	Column,
@@ -42,8 +44,7 @@ import {
 	Table,
 	UniqueConstraint,
 	View,
-} from '../serializer/pgSchema';
-import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
+} from './pgSchema';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
@@ -165,7 +166,7 @@ export const generatePgSnapshot = (
 
 			// todo understand this
 			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
-			const domainTypeSchema = is(column, PgDomain) ? column.schema : undefined;
+			const domainTypeSchema = is(column, PgDomainColumn) ? column.schema : undefined;
 
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
@@ -881,10 +882,10 @@ export const generatePgSnapshot = (
 		// Process check constraints similar to tables
 		const checksObject: Record<string, CheckConstraint> = {};
 
-		obj.checkConstraints?.forEach((checkConstraint, index) => {
+		obj.domain.checkConstraints?.forEach((checkConstraint, index) => {
 			// Validate unique constraint names within domain
 			// TODO check old domain name
-			const domainKey = `"${obj.schema ?? 'public'}"."${obj.getSQLType()}"`;
+			const domainKey = `"${obj.schema ?? 'public'}"."${obj.name}"`;
 
 			// you can have multiple unnamed checks per domain (using the default above)
 			let defaultCheckName = `${obj.getSQLType()}_check`;
@@ -904,9 +905,9 @@ export const generatePgSnapshot = (
 		});
 
 		const domainSchema = obj.schema || 'public';
-		const key = `${domainSchema}.${obj.getSQLType()}`;
+		const key = `${domainSchema}.${obj.name}`;
 		map[key] = {
-			name: obj.getSQLType(),
+			name: obj.name,
 			schema: domainSchema,
 			notNull: obj.notNull,
 			baseType: obj.columnType,

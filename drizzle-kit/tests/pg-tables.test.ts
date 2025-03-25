@@ -959,14 +959,14 @@ test('optional db aliases (camel case)', async () => {
 });
 
 test('domain with not null and check constraints', async () => {
-	const emailDomain = pgDomain('email', 'text', {
-		notNull: true,
-		checkConstraints: [check('valid_email', sql`VALUE ~ '^[^@]+@[^@]+\.[^@]+$'`)],
-	});
+	const emailDomain = pgDomain(
+		'email',
+		text().notNull().checkConstraint('valid_email', sql`VALUE ~ '^[^@]+@[^@]+\.[^@]+$'`),
+	);
 
 	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
-		email: emailDomain(),
+		email: emailDomain('email'),
 	});
 
 	const to = {
@@ -990,15 +990,15 @@ test('domain with not null and check constraints', async () => {
 });
 
 test('domain with default value and check constraints', async () => {
-	const shortTextDomain = pgDomain('short_text', 'text', {
-		notNull: false,
-		defaultValue: 'placeholder',
-		checkConstraints: [check('text_check', sql`(LENGTH(value)) BETWEEN 3 and 30)`)],
-	});
+	const shortTextDomain = pgDomain(
+		'short_text',
+		text().notNull().default('placeholder')
+			.checkConstraint('text_check', sql`(LENGTH(value)) BETWEEN 3 and 30)`),
+	);
 
 	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
-		first_name: shortTextDomain(),
+		first_name: shortTextDomain('id'),
 	});
 
 	const to = {

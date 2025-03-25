@@ -27,13 +27,12 @@ test('table containing columns with check constraints', (t) => {
 test('table containing custom domain columns', (t) => {
 	const shortTextDomain = pgDomain(
 		'limited_text',
-		text().notNull()
-			.checkConstraint('limited_text_length', sql`(length(value) BETWEEN 3 and 50)`),
+		text().notNull().checkConstraint('limited_text_length', sql`(length(value) BETWEEN 3 and 50)`),
 	);
 
 	const table = pgTable('users', {
 		id: serial('id').notNull(),
-		email: shortTextDomain,
+		email: shortTextDomain('email'),
 	});
 
 	const result = createSelectSchema(table);

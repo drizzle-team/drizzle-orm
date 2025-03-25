@@ -76,11 +76,7 @@ test('domains #3 drop domain simple', async () => {
 
 test('domains #4 create domain with constraint', async () => {
 	const to = {
-		domain: pgDomain(
-			'domain',
-			text()
-				.checkConstraint(check('check', sql`VALUE ~ '^[A-Za-z]+$'`)),
-		),
+		domain: pgDomain('domain', text().checkConstraint('check', sql`VALUE ~ '^[A-Za-z]+$'`)),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
@@ -132,11 +128,7 @@ test('domains #6 alter domain to add constraint', async () => {
 	};
 
 	const to = {
-		domain: pgDomain(
-			'domain',
-			text()
-				.checkConstraint(check('custom_check', sql`VALUE ~ '^[A-Za-z]+$'`)),
-		),
+		domain: pgDomain('domain', text().checkConstraint('custom_check', sql`VALUE ~ '^[A-Za-z]+$'`)),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
@@ -159,11 +151,7 @@ test('domains #6 alter domain to add constraint', async () => {
 
 test('domains #7 alter domain to drop constraint', async () => {
 	const from = {
-		domain: pgDomain(
-			'domain',
-			text()
-				.checkConstraint(check('domain_check', sql`VALUE ~ '^[A-Za-z]+$'`)),
-		),
+		domain: pgDomain('domain', text().checkConstraint('domain_check', sql`VALUE ~ '^[A-Za-z]+$'`)),
 	};
 
 	const to = {
@@ -294,11 +282,7 @@ test('domains #11 alter domain to drop default value', async () => {
 
 test('domains #12 create domain with unnamed constraint', async () => {
 	const to = {
-		domain: pgDomain(
-			'domain',
-			text()
-				.checkConstraint(check(sql`VALUE ~ '^[A-Za-z]+$'`)),
-		),
+		domain: pgDomain('domain', text().checkConstraint(sql`VALUE ~ '^[A-Za-z]+$'`)),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);

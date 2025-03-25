@@ -48,6 +48,10 @@ export abstract class PgColumnBuilder<
 
 	static override readonly [entityKind]: string = 'PgColumnBuilder';
 
+	getConfig() {
+		return this.config;
+	}
+
 	getDataType(): T['dataType'] {
 		return this.config.dataType as T['dataType'];
 	}
