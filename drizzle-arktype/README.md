@@ -10,8 +10,8 @@
 
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { createInsertSchema, createSelectSchema } from 'drizzle-valibot';
-import { string, parse, number, pipe } from 'valibot';
+import { createInsertSchema, createSelectSchema } from 'drizzle-arktype';
+import { type } from 'arktype';
 
 const users = pgTable('users', {
 	id: serial('id').primaryKey(),
