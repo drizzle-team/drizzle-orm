@@ -32,13 +32,13 @@ const selectUserSchema = createSelectSchema(users);
 
 // Overriding the fields
 const insertUserSchema = createInsertSchema(users, {
-	role: string,
+	role: type('string'),
 });
 
 // Refining the fields - useful if you want to change the fields before they become nullable/optional in the final schema
 const insertUserSchema = createInsertSchema(users, {
-	id: (schema) => `${schema} > 0`,
-	role: `string`,
+	id: (schema) => schema.atLeast(1),
+	role: type('string'),
 });
 
 // Usage
