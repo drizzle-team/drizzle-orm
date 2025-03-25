@@ -37,6 +37,11 @@ export class NeonHttpDriver {
 		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
 		types.setTypeParser(types.builtins.DATE, (val) => val);
 		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
+		types.setTypeParser(1231, (val) => val);
+		types.setTypeParser(1115, (val) => val);
+		types.setTypeParser(1185, (val) => val);
+		types.setTypeParser(1187, (val) => val);
+		types.setTypeParser(1182, (val) => val);
 	}
 }
 
