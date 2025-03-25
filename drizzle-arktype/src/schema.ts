@@ -1,8 +1,8 @@
+import { Type, type } from 'arktype';
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import * as v from 'valibot';
-import { columnToSchema, mapEnumValues } from './column.ts';
+import { columnToSchema } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
 import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from './schema.types.ts';
 import { isPgEnum } from './utils.ts';
@@ -15,8 +15,8 @@ function handleColumns(
 	columns: Record<string, any>,
 	refinements: Record<string, any>,
 	conditions: Conditions,
-): v.GenericSchema {
-	const columnSchemas: Record<string, v.GenericSchema> = {};
+): Type<any, any> {
+	const columnSchemas: Record<string, Type<any, any>> = {};
 
 	for (const [key, selected] of Object.entries(columns)) {
 		if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
@@ -26,13 +26,16 @@ function handleColumns(
 		}
 
 		const refinement = refinements[key];
-		if (refinement !== undefined && typeof refinement !== 'function') {
+		if (
+			refinement !== undefined
+			&& (typeof refinement !== 'function' || (typeof refinement === 'function' && refinement.expression !== undefined))
+		) {
 			columnSchemas[key] = refinement;
 			continue;
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = column ? columnToSchema(column) : v.any();
+		const schema = column ? columnToSchema(column) : type('unknown.any');
 		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
 
 		if (conditions.never(column)) {
@@ -43,24 +46,24 @@ function handleColumns(
 
 		if (column) {
 			if (conditions.nullable(column)) {
-				columnSchemas[key] = v.nullable(columnSchemas[key]!);
+				columnSchemas[key] = columnSchemas[key]!.or(type.null);
 			}
 
 			if (conditions.optional(column)) {
-				columnSchemas[key] = v.optional(columnSchemas[key]!);
+				columnSchemas[key] = columnSchemas[key]!.optional() as any;
 			}
 		}
 	}
 
-	return v.object(columnSchemas) as any;
+	return type(columnSchemas);
 }
 
-export const createSelectSchema: CreateSelectSchema = (
+export const createSelectSchema = ((
 	entity: Table | View | PgEnum<[string, ...string[]]>,
 	refine?: Record<string, any>,
 ) => {
 	if (isPgEnum(entity)) {
-		return v.enum(mapEnumValues(entity.enumValues));
+		return type.enumerated(...entity.enumValues);
 	}
 	const columns = getColumns(entity);
 	return handleColumns(columns, refine ?? {}, {
@@ -68,9 +71,9 @@ export const createSelectSchema: CreateSelectSchema = (
 		optional: () => false,
 		nullable: (column) => !column.notNull,
 	}) as any;
-};
+}) as CreateSelectSchema;
 
-export const createInsertSchema: CreateInsertSchema = (
+export const createInsertSchema = ((
 	entity: Table,
 	refine?: Record<string, any>,
 ) => {
@@ -80,9 +83,9 @@ export const createInsertSchema: CreateInsertSchema = (
 		optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
 		nullable: (column) => !column.notNull,
 	}) as any;
-};
+}) as CreateInsertSchema;
 
-export const createUpdateSchema: CreateUpdateSchema = (
+export const createUpdateSchema = ((
 	entity: Table,
 	refine?: Record<string, any>,
 ) => {
@@ -92,4 +95,4 @@ export const createUpdateSchema: CreateUpdateSchema = (
 		optional: () => true,
 		nullable: (column) => !column.notNull,
 	}) as any;
-};
+}) as CreateUpdateSchema;

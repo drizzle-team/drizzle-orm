@@ -1,7 +1,6 @@
+import type { Type } from 'arktype';
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import type * as v from 'valibot';
-import type { EnumValuesToEnum } from './column.types.ts';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
 export interface CreateSelectSchema {
@@ -23,7 +22,7 @@ export interface CreateSelectSchema {
 		refine: NoUnknownKeys<TRefine, TView['$inferSelect']>,
 	): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
 
-	<TEnum extends PgEnum<any>>(enum_: TEnum): v.EnumSchema<EnumValuesToEnum<TEnum['enumValues']>, undefined>;
+	<TEnum extends PgEnum<any>>(enum_: TEnum): Type<TEnum['enumValues'][number], {}>;
 }
 
 export interface CreateInsertSchema {

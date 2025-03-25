@@ -1,10 +1,12 @@
+import type { Type, type } from 'arktype';
+import { Inferred } from 'arktype/internal/methods/base.ts';
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
-import type * as v from 'valibot';
 import type {
-	ExtractAdditionalProperties,
+	ArktypeNullable,
+	ArktypeOptional,
+	GetArktypeType,
 	GetBaseColumn,
 	GetEnumValuesFromColumn,
-	GetValibotType,
 	HandleColumn,
 } from './column.types.ts';
 import type { GetSelection, RemoveNever } from './utils.ts';
@@ -15,20 +17,20 @@ export interface Conditions {
 	nullable: (column: Column) => boolean;
 }
 
+type GenericSchema = Inferred | [Inferred, '?'];
+
 export type BuildRefineColumns<
 	TColumns extends Record<string, any>,
 > = Simplify<
 	RemoveNever<
 		{
-			[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column ? GetValibotType<
+			[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column ? GetArktypeType<
 					TColumn['_']['data'],
 					TColumn['_']['dataType'],
-					TColumn['_']['columnType'],
 					GetEnumValuesFromColumn<TColumn>,
-					GetBaseColumn<TColumn>,
-					ExtractAdditionalProperties<TColumn>
-				> extends infer TSchema extends v.GenericSchema ? TSchema
-				: v.AnySchema
+					GetBaseColumn<TColumn>
+				> extends infer TSchema extends GenericSchema ? TSchema
+				: Type<any, {}>
 				: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View
 					? BuildRefineColumns<GetSelection<TObject>>
 				: TColumns[K];
@@ -39,8 +41,8 @@ export type BuildRefineColumns<
 export type BuildRefine<
 	TColumns extends Record<string, any>,
 > = BuildRefineColumns<TColumns> extends infer TBuildColumns ? {
-		[K in keyof TBuildColumns]?: TBuildColumns[K] extends v.GenericSchema
-			? ((schema: TBuildColumns[K]) => v.GenericSchema) | v.GenericSchema
+		[K in keyof TBuildColumns]?: TBuildColumns[K] extends GenericSchema
+			? ((schema: TBuildColumns[K]) => GenericSchema) | GenericSchema
 			: TBuildColumns[K] extends Record<string, any> ? Simplify<BuildRefine<TBuildColumns[K]>>
 			: never;
 	}
@@ -48,18 +50,18 @@ export type BuildRefine<
 
 type HandleRefinement<
 	TType extends 'select' | 'insert' | 'update',
-	TRefinement extends v.GenericSchema | ((schema: v.GenericSchema) => v.GenericSchema),
+	TRefinement extends GenericSchema | ((schema: GenericSchema) => GenericSchema),
 	TColumn extends Column,
-> = TRefinement extends (schema: any) => v.GenericSchema ? (
+> = TRefinement extends (schema: any) => GenericSchema ? (
 		TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
-			: v.NullableSchema<ReturnType<TRefinement>, undefined>
-	) extends infer TSchema ? TType extends 'update' ? v.OptionalSchema<Assume<TSchema, v.GenericSchema>, undefined>
+			: ArktypeNullable<ReturnType<TRefinement>>
+	) extends infer TSchema ? TType extends 'update' ? ArktypeOptional<TSchema>
 		: TSchema
-	: v.AnySchema
+	: Type<any, {}>
 	: TRefinement;
 
 type IsRefinementDefined<TRefinements, TKey extends string> = TKey extends keyof TRefinements
-	? TRefinements[TKey] extends v.GenericSchema | ((schema: any) => any) ? true
+	? TRefinements[TKey] extends GenericSchema | ((schema: any) => any) ? true
 	: false
 	: false;
 
@@ -67,7 +69,7 @@ export type BuildSchema<
 	TType extends 'select' | 'insert' | 'update',
 	TColumns extends Record<string, any>,
 	TRefinements extends Record<string, any> | undefined,
-> = v.ObjectSchema<
+> = type.instantiate<
 	Simplify<
 		RemoveNever<
 			{
@@ -86,11 +88,10 @@ export type BuildSchema<
 								: undefined
 								: undefined
 						>
-					: v.AnySchema;
+					: any;
 			}
 		>
-	>,
-	undefined
+	>
 >;
 
 export type NoUnknownKeys<
@@ -98,7 +99,7 @@ export type NoUnknownKeys<
 	TCompare extends Record<string, any>,
 > = {
 	[K in keyof TRefinement]: K extends keyof TCompare
-		? TRefinement[K] extends Record<string, v.GenericSchema> ? NoUnknownKeys<TRefinement[K], TCompare[K]>
+		? TRefinement[K] extends Record<string, GenericSchema> ? NoUnknownKeys<TRefinement[K], TCompare[K]>
 		: TRefinement[K]
 		: DrizzleTypeError<`Found unknown key in refinement: "${K & string}"`>;
 };

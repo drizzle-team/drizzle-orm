@@ -1,3 +1,4 @@
+import { type Type, type } from 'arktype';
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
 import type {
 	MySqlBigInt53,
@@ -53,79 +54,76 @@ import type {
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
-import * as v from 'valibot';
 import { CONSTANTS } from './constants.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
-import type { Json } from './utils.ts';
 
-export const literalSchema = v.union([v.string(), v.number(), v.boolean(), v.null()]);
-export const jsonSchema: v.GenericSchema<Json> = v.union([
-	literalSchema,
-	v.array(v.any()),
-	v.record(v.string(), v.any()),
-]);
-export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+export const literalSchema = type('string | number | boolean | null');
+export const jsonSchema = literalSchema.or(type('unknown.any[] | Record<string, unknown.any>'));
+export const bufferSchema = type.instanceOf(Buffer); // eslint-disable-line no-instanceof/no-instanceof
 
-export function mapEnumValues(values: string[]) {
-	return Object.fromEntries(values.map((value) => [value, value]));
-}
-
-export function columnToSchema(column: Column): v.GenericSchema {
-	let schema!: v.GenericSchema;
+export function columnToSchema(column: Column): Type<any, any> {
+	let schema!: Type<any, any>;
 
 	if (isWithEnum(column)) {
-		schema = column.enumValues.length ? v.enum(mapEnumValues(column.enumValues)) : v.string();
+		schema = column.enumValues.length ? type.enumerated(...column.enumValues) : type.string;
 	}
 
 	if (!schema) {
 		// Handle specific types
 		if (isColumnType<PgGeometry<any> | PgPointTuple<any>>(column, ['PgGeometry', 'PgPointTuple'])) {
-			schema = v.tuple([v.number(), v.number()]);
+			schema = type([type.number, type.number]);
 		} else if (
 			isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])
 		) {
-			schema = v.object({ x: v.number(), y: v.number() });
+			schema = type({
+				x: type.number,
+				y: type.number,
+			});
 		} else if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
-			schema = v.array(v.number());
-			schema = column.dimensions ? v.pipe(schema as v.ArraySchema<any, any>, v.length(column.dimensions)) : schema;
+			schema = column.dimensions
+				? type.number.array().exactlyLength(column.dimensions)
+				: type.number.array();
 		} else if (isColumnType<PgLineTuple<any>>(column, ['PgLine'])) {
-			schema = v.tuple([v.number(), v.number(), v.number()]);
-			v.array(v.array(v.number()));
+			schema = type([type.number, type.number, type.number]);
 		} else if (isColumnType<PgLineABC<any>>(column, ['PgLineABC'])) {
-			schema = v.object({ a: v.number(), b: v.number(), c: v.number() });
+			schema = type({
+				a: type.number,
+				b: type.number,
+				c: type.number,
+			});
 		} // Handle other types
 		else if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
-			schema = v.array(columnToSchema(column.baseColumn));
-			schema = column.size ? v.pipe(schema as v.ArraySchema<any, any>, v.length(column.size)) : schema;
+			const arraySchema = columnToSchema(column.baseColumn).array();
+			schema = column.size ? arraySchema.exactlyLength(column.size) : arraySchema;
 		} else if (column.dataType === 'array') {
-			schema = v.array(v.any());
+			schema = type('unknown.any').array();
 		} else if (column.dataType === 'number') {
 			schema = numberColumnToSchema(column);
 		} else if (column.dataType === 'bigint') {
 			schema = bigintColumnToSchema(column);
 		} else if (column.dataType === 'boolean') {
-			schema = v.boolean();
+			schema = type.boolean;
 		} else if (column.dataType === 'date') {
-			schema = v.date();
+			schema = type.Date;
 		} else if (column.dataType === 'string') {
 			schema = stringColumnToSchema(column);
 		} else if (column.dataType === 'json') {
 			schema = jsonSchema;
 		} else if (column.dataType === 'custom') {
-			schema = v.any();
+			schema = type('unknown.any');
 		} else if (column.dataType === 'buffer') {
 			schema = bufferSchema;
 		}
 	}
 
 	if (!schema) {
-		schema = v.any();
+		schema = type('unknown.any');
 	}
 
 	return schema;
 }
 
-function numberColumnToSchema(column: Column): v.GenericSchema {
+function numberColumnToSchema(column: Column): Type<any, any> {
 	let unsigned = column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
@@ -225,28 +223,39 @@ function numberColumnToSchema(column: Column): v.GenericSchema {
 		max = Number.MAX_SAFE_INTEGER;
 	}
 
-	const actions: any[] = [v.minValue(min), v.maxValue(max)];
-	if (integer) {
-		actions.push(v.integer());
-	}
-	return v.pipe(v.number(), ...actions);
+	return (integer ? type.keywords.number.integer : type.number).atLeast(min).atMost(max);
 }
 
-function bigintColumnToSchema(column: Column): v.GenericSchema {
+/** @internal */
+export const unsignedBigintNarrow = (v: bigint, ctx: { mustBe: (expected: string) => false }) =>
+	v < 0n ? ctx.mustBe('greater than') : v > CONSTANTS.INT64_UNSIGNED_MAX ? ctx.mustBe('less than') : true;
+
+/** @internal */
+export const bigintNarrow = (v: bigint, ctx: { mustBe: (expected: string) => false }) =>
+	v < CONSTANTS.INT64_MIN ? ctx.mustBe('greater than') : v > CONSTANTS.INT64_MAX ? ctx.mustBe('less than') : true;
+
+function bigintColumnToSchema(column: Column): Type<any, any> {
 	const unsigned = column.getSQLType().includes('unsigned');
-	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
-	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
-
-	return v.pipe(v.bigint(), v.minValue(min), v.maxValue(max));
+	return type.bigint.narrow(unsigned ? unsignedBigintNarrow : bigintNarrow);
 }
 
-function stringColumnToSchema(column: Column): v.GenericSchema {
+function stringColumnToSchema(column: Column): Type<any, any> {
 	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
-		return v.pipe(v.string(), v.uuid());
+		return type(/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/iu);
+	}
+	if (
+		isColumnType<
+			PgBinaryVector<
+				ColumnBaseConfig<'string', 'PgBinaryVector'> & {
+					dimensions: number;
+				}
+			>
+		>(column, ['PgBinaryVector'])
+	) {
+		return type(`/^[01]{${column.dimensions}}$/`);
 	}
 
 	let max: number | undefined;
-	let regex: RegExp | undefined;
 	let fixed = false;
 
 	if (isColumnType<PgVarchar<any> | SQLiteText<any>>(column, ['PgVarchar', 'SQLiteText'])) {
@@ -278,19 +287,5 @@ function stringColumnToSchema(column: Column): v.GenericSchema {
 		fixed = true;
 	}
 
-	if (isColumnType<PgBinaryVector<any>>(column, ['PgBinaryVector'])) {
-		regex = /^[01]+$/;
-		max = column.dimensions;
-	}
-
-	const actions: any[] = [];
-	if (regex) {
-		actions.push(v.regex(regex));
-	}
-	if (max && fixed) {
-		actions.push(v.length(max));
-	} else if (max) {
-		actions.push(v.maxLength(max));
-	}
-	return actions.length > 0 ? v.pipe(v.string(), ...actions) : v.string();
+	return max && fixed ? type.string.exactlyLength(max) : max ? type.string.atMostLength(max) : type.string;
 }

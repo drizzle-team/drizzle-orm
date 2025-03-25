@@ -1,25 +1,15 @@
+import { type } from 'arktype';
 import { type Equal } from 'drizzle-orm';
 import { customType, int, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
-import * as v from 'valibot';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintNarrow, jsonSchema, unsignedBigintNarrow } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
-const intSchema = v.pipe(
-	v.number(),
-	v.minValue(CONSTANTS.INT32_MIN as number),
-	v.maxValue(CONSTANTS.INT32_MAX as number),
-	v.integer(),
-);
-const serialNumberModeSchema = v.pipe(
-	v.number(),
-	v.minValue(0 as number),
-	v.maxValue(Number.MAX_SAFE_INTEGER as number),
-	v.integer(),
-);
-const textSchema = v.pipe(v.string(), v.maxLength(CONSTANTS.INT16_UNSIGNED_MAX as number));
+const intSchema = type.keywords.number.integer.atLeast(CONSTANTS.INT32_MIN).atMost(CONSTANTS.INT32_MAX);
+const serialNumberModeSchema = type.keywords.number.integer.atLeast(0).atMost(Number.MAX_SAFE_INTEGER);
+const textSchema = type.string.atMostLength(CONSTANTS.INT16_UNSIGNED_MAX);
 
 test('table - select', (t) => {
 	const table = singlestoreTable('test', {
@@ -28,7 +18,7 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = v.object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = type({ id: serialNumberModeSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -41,7 +31,7 @@ test('table in schema - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = v.object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = type({ id: serialNumberModeSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -54,10 +44,10 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = v.object({
-		id: v.optional(serialNumberModeSchema),
+	const expected = type({
+		id: serialNumberModeSchema.optional(),
 		name: textSchema,
-		age: v.optional(v.nullable(intSchema)),
+		age: intSchema.or(type.null).optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -71,10 +61,10 @@ test('table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table);
-	const expected = v.object({
-		id: v.optional(serialNumberModeSchema),
-		name: v.optional(textSchema),
-		age: v.optional(v.nullable(intSchema)),
+	const expected = type({
+		id: serialNumberModeSchema.optional(),
+		name: textSchema.optional(),
+		age: intSchema.or(type.null).optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -142,10 +132,10 @@ test('nullability - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = v.object({
-		c1: v.nullable(intSchema),
+	const expected = type({
+		c1: intSchema.or(type.null),
 		c2: intSchema,
-		c3: v.nullable(intSchema),
+		c3: intSchema.or(type.null),
 		c4: intSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -162,11 +152,11 @@ test('nullability - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
+	const expected = type({
+		c1: intSchema.or(type.null).optional(),
 		c2: intSchema,
-		c3: v.optional(v.nullable(intSchema)),
-		c4: v.optional(intSchema),
+		c3: intSchema.or(type.null).optional(),
+		c4: intSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -182,11 +172,11 @@ test('nullability - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table);
-	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
-		c2: v.optional(intSchema),
-		c3: v.optional(v.nullable(intSchema)),
-		c4: v.optional(intSchema),
+	const expected = type({
+		c1: intSchema.or(type.null).optional(),
+		c2: intSchema.optional(),
+		c3: intSchema.or(type.null).optional(),
+		c4: intSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -200,13 +190,13 @@ test('refine table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	const expected = v.object({
-		c1: v.nullable(intSchema),
-		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+	const expected = type({
+		c1: intSchema.or(type.null),
+		c2: intSchema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -221,16 +211,16 @@ test('refine table - select with custom data type', (t) => {
 		c4: customText(),
 	});
 
-	const customTextSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(100));
+	const customTextSchema = type.string.atLeastLength(1).atMostLength(100);
 	const result = createSelectSchema(table, {
-		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 		c4: customTextSchema,
 	});
-	const expected = v.object({
-		c1: v.nullable(intSchema),
-		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+	const expected = type({
+		c1: intSchema.or(type.null),
+		c2: intSchema.atMost(1000),
+		c3: type.string.pipe(Number),
 		c4: customTextSchema,
 	});
 
@@ -247,13 +237,13 @@ test('refine table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
-		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+	const expected = type({
+		c1: intSchema.or(type.null).optional(),
+		c2: intSchema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -268,13 +258,13 @@ test('refine table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
-		c2: v.optional(v.pipe(intSchema, v.maxValue(1000))),
-		c3: v.pipe(v.string(), v.transform(Number)),
+	const expected = type({
+		c1: intSchema.or(type.null).optional(),
+		c2: intSchema.atMost(1000).optional(),
+		c3: type.string.pipe(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -305,29 +295,29 @@ test('refine table - update', (t) => {
 
 // 	const result = createSelectSchema(view, {
 // 		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-// 		c3: v.pipe(v.string(), v.transform(Number)),
+// 		c3: v.pipe(type.string, v.transform(Number)),
 // 		nested: {
 // 			c5: (schema) => v.pipe(schema, v.maxValue(1000)),
-// 			c6: v.pipe(v.string(), v.transform(Number)),
+// 			c6: v.pipe(type.string, v.transform(Number)),
 // 		},
 // 		table: {
 // 			c2: (schema) => v.pipe(schema, v.maxValue(1000)),
-// 			c3: v.pipe(v.string(), v.transform(Number)),
+// 			c3: v.pipe(type.string, v.transform(Number)),
 // 		},
 // 	});
 // 	const expected = v.object({
 // 		c1: v.nullable(intSchema),
 // 		c2: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-// 		c3: v.pipe(v.string(), v.transform(Number)),
+// 		c3: v.pipe(type.string, v.transform(Number)),
 // 		nested: v.object({
 // 			c4: v.nullable(intSchema),
 // 			c5: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-// 			c6: v.pipe(v.string(), v.transform(Number)),
+// 			c6: v.pipe(type.string, v.transform(Number)),
 // 		}),
 // 		table: v.object({
 // 			c1: v.nullable(intSchema),
 // 			c2: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-// 			c3: v.pipe(v.string(), v.transform(Number)),
+// 			c3: v.pipe(type.string, v.transform(Number)),
 // 			c4: v.nullable(intSchema),
 // 			c5: v.nullable(intSchema),
 // 			c6: v.nullable(intSchema),
@@ -414,52 +404,52 @@ test('all data types', (t) => {
 	}));
 
 	const result = createSelectSchema(table);
-	const expected = v.object({
-		bigint1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
-		bigint2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
-		bigint3: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
-		bigint4: v.pipe(v.bigint(), v.minValue(0n as bigint), v.maxValue(CONSTANTS.INT64_UNSIGNED_MAX)),
-		binary: v.string(),
-		boolean: v.boolean(),
-		char1: v.pipe(v.string(), v.length(10 as number)),
-		char2: v.enum({ a: 'a', b: 'b', c: 'c' }),
-		date1: v.date(),
-		date2: v.string(),
-		datetime1: v.date(),
-		datetime2: v.string(),
-		decimal1: v.string(),
-		decimal2: v.string(),
-		double1: v.pipe(v.number(), v.minValue(CONSTANTS.INT48_MIN), v.maxValue(CONSTANTS.INT48_MAX)),
-		double2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(CONSTANTS.INT48_UNSIGNED_MAX)),
-		float1: v.pipe(v.number(), v.minValue(CONSTANTS.INT24_MIN), v.maxValue(CONSTANTS.INT24_MAX)),
-		float2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(CONSTANTS.INT24_UNSIGNED_MAX)),
-		int1: v.pipe(v.number(), v.minValue(CONSTANTS.INT32_MIN), v.maxValue(CONSTANTS.INT32_MAX), v.integer()),
-		int2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(CONSTANTS.INT32_UNSIGNED_MAX), v.integer()),
+	const expected = type({
+		bigint1: type.keywords.number.integer.atLeast(Number.MIN_SAFE_INTEGER).atMost(Number.MAX_SAFE_INTEGER),
+		bigint2: type.bigint.narrow(bigintNarrow),
+		bigint3: type.keywords.number.integer.atLeast(0).atMost(Number.MAX_SAFE_INTEGER),
+		bigint4: type.bigint.narrow(unsignedBigintNarrow),
+		binary: type.string,
+		boolean: type.boolean,
+		char1: type.string.exactlyLength(10),
+		char2: type.enumerated('a', 'b', 'c'),
+		date1: type.Date,
+		date2: type.string,
+		datetime1: type.Date,
+		datetime2: type.string,
+		decimal1: type.string,
+		decimal2: type.string,
+		double1: type.number.atLeast(CONSTANTS.INT48_MIN).atMost(CONSTANTS.INT48_MAX),
+		double2: type.number.atLeast(0).atMost(CONSTANTS.INT48_UNSIGNED_MAX),
+		float1: type.number.atLeast(CONSTANTS.INT24_MIN).atMost(CONSTANTS.INT24_MAX),
+		float2: type.number.atLeast(0).atMost(CONSTANTS.INT24_UNSIGNED_MAX),
+		int1: type.keywords.number.integer.atLeast(CONSTANTS.INT32_MIN).atMost(CONSTANTS.INT32_MAX),
+		int2: type.keywords.number.integer.atLeast(0).atMost(CONSTANTS.INT32_UNSIGNED_MAX),
 		json: jsonSchema,
-		mediumint1: v.pipe(v.number(), v.minValue(CONSTANTS.INT24_MIN), v.maxValue(CONSTANTS.INT24_MAX), v.integer()),
-		mediumint2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(CONSTANTS.INT24_UNSIGNED_MAX), v.integer()),
-		enum: v.enum({ a: 'a', b: 'b', c: 'c' }),
-		real: v.pipe(v.number(), v.minValue(CONSTANTS.INT48_MIN), v.maxValue(CONSTANTS.INT48_MAX)),
-		serial: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
-		smallint1: v.pipe(v.number(), v.minValue(CONSTANTS.INT16_MIN), v.maxValue(CONSTANTS.INT16_MAX), v.integer()),
-		smallint2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(CONSTANTS.INT16_UNSIGNED_MAX), v.integer()),
-		text1: v.pipe(v.string(), v.maxLength(CONSTANTS.INT16_UNSIGNED_MAX)),
-		text2: v.enum({ a: 'a', b: 'b', c: 'c' }),
-		time: v.string(),
-		timestamp1: v.date(),
-		timestamp2: v.string(),
-		tinyint1: v.pipe(v.number(), v.minValue(CONSTANTS.INT8_MIN), v.maxValue(CONSTANTS.INT8_MAX), v.integer()),
-		tinyint2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(CONSTANTS.INT8_UNSIGNED_MAX), v.integer()),
-		varchar1: v.pipe(v.string(), v.maxLength(10 as number)),
-		varchar2: v.enum({ a: 'a', b: 'b', c: 'c' }),
-		varbinary: v.string(),
-		year: v.pipe(v.number(), v.minValue(1901 as number), v.maxValue(2155 as number), v.integer()),
-		longtext1: v.pipe(v.string(), v.maxLength(CONSTANTS.INT32_UNSIGNED_MAX)),
-		longtext2: v.enum({ a: 'a', b: 'b', c: 'c' }),
-		mediumtext1: v.pipe(v.string(), v.maxLength(CONSTANTS.INT24_UNSIGNED_MAX)),
-		mediumtext2: v.enum({ a: 'a', b: 'b', c: 'c' }),
-		tinytext1: v.pipe(v.string(), v.maxLength(CONSTANTS.INT8_UNSIGNED_MAX)),
-		tinytext2: v.enum({ a: 'a', b: 'b', c: 'c' }),
+		mediumint1: type.keywords.number.integer.atLeast(CONSTANTS.INT24_MIN).atMost(CONSTANTS.INT24_MAX),
+		mediumint2: type.keywords.number.integer.atLeast(0).atMost(CONSTANTS.INT24_UNSIGNED_MAX),
+		enum: type.enumerated('a', 'b', 'c'),
+		real: type.number.atLeast(CONSTANTS.INT48_MIN).atMost(CONSTANTS.INT48_MAX),
+		serial: type.keywords.number.integer.atLeast(0).atMost(Number.MAX_SAFE_INTEGER),
+		smallint1: type.keywords.number.integer.atLeast(CONSTANTS.INT16_MIN).atMost(CONSTANTS.INT16_MAX),
+		smallint2: type.keywords.number.integer.atLeast(0).atMost(CONSTANTS.INT16_UNSIGNED_MAX),
+		text1: type.string.atMostLength(CONSTANTS.INT16_UNSIGNED_MAX),
+		text2: type.enumerated('a', 'b', 'c'),
+		time: type.string,
+		timestamp1: type.Date,
+		timestamp2: type.string,
+		tinyint1: type.keywords.number.integer.atLeast(CONSTANTS.INT8_MIN).atMost(CONSTANTS.INT8_MAX),
+		tinyint2: type.keywords.number.integer.atLeast(0).atMost(CONSTANTS.INT8_UNSIGNED_MAX),
+		varchar1: type.string.atMostLength(10),
+		varchar2: type.enumerated('a', 'b', 'c'),
+		varbinary: type.string,
+		year: type.keywords.number.integer.atLeast(1901).atMost(2155),
+		longtext1: type.string.atMostLength(CONSTANTS.INT32_UNSIGNED_MAX),
+		longtext2: type.enumerated('a', 'b', 'c'),
+		mediumtext1: type.string.atMostLength(CONSTANTS.INT24_UNSIGNED_MAX),
+		mediumtext2: type.enumerated('a', 'b', 'c'),
+		tinytext1: type.string.atMostLength(CONSTANTS.INT8_UNSIGNED_MAX),
+		tinytext2: type.enumerated('a', 'b', 'c'),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -468,19 +458,19 @@ test('all data types', (t) => {
 /* Disallow unknown keys in table refinement - select */ {
 	const table = singlestoreTable('test', { id: int() });
 	// @ts-expect-error
-	createSelectSchema(table, { unknown: v.string() });
+	createSelectSchema(table, { unknown: type.string });
 }
 
 /* Disallow unknown keys in table refinement - insert */ {
 	const table = singlestoreTable('test', { id: int() });
 	// @ts-expect-error
-	createInsertSchema(table, { unknown: v.string() });
+	createInsertSchema(table, { unknown: type.string });
 }
 
 /* Disallow unknown keys in table refinement - update */ {
 	const table = singlestoreTable('test', { id: int() });
 	// @ts-expect-error
-	createUpdateSchema(table, { unknown: v.string() });
+	createUpdateSchema(table, { unknown: type.string });
 }
 
 // /* Disallow unknown keys in view qb - select */ {
@@ -488,13 +478,13 @@ test('all data types', (t) => {
 // 	const view = mysqlView('test').as((qb) => qb.select().from(table));
 // 	const nestedSelect = mysqlView('test').as((qb) => qb.select({ table }).from(table));
 // 	// @ts-expect-error
-// 	createSelectSchema(view, { unknown: v.string() });
+// 	createSelectSchema(view, { unknown: type.string });
 // 	// @ts-expect-error
-// 	createSelectSchema(nestedSelect, { table: { unknown: v.string() } });
+// 	createSelectSchema(nestedSelect, { table: { unknown: type.string } });
 // }
 
 // /* Disallow unknown keys in view columns - select */ {
 // 	const view = mysqlView('test', { id: int() }).as(sql``);
 // 	// @ts-expect-error
-// 	createSelectSchema(view, { unknown: v.string() });
+// 	createSelectSchema(view, { unknown: type.string });
 // }

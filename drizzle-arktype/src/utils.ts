@@ -1,6 +1,6 @@
+import type { type } from 'arktype';
 import type { Column, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import type * as v from 'valibot';
 import type { literalSchema } from './column.ts';
 
 export function isColumnType<T extends Column>(column: Column, columnTypes: string[]): column is T {
@@ -13,8 +13,8 @@ export function isWithEnum(column: Column): column is typeof column & { enumValu
 
 export const isPgEnum: (entity: any) => entity is PgEnum<[string, ...string[]]> = isWithEnum as any;
 
-type Literal = v.InferOutput<typeof literalSchema>;
-export type Json = Literal | { [key: string]: any } | any[];
+type Literal = type.infer<typeof literalSchema>;
+export type Json = Literal | Record<string, any> | any[];
 
 export type IsNever<T> = [T] extends [never] ? true : false;
 
