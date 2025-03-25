@@ -55,8 +55,8 @@
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"peerDependencies": {
-		"drizzle-orm": ">=0.36.0",
-		"arktype": ">=2.0.0"
+		"arktype": ">=2.0.0",
+		"drizzle-orm": ">=0.36.0"
 	},
 	"devDependencies": {
 		"@rollup/plugin-typescript": "^11.1.0",
@@ -64,6 +64,7 @@
 		"arktype": "^2.1.10",
 		"cpy": "^10.1.0",
 		"drizzle-orm": "link:../drizzle-orm/dist",
+		"json-rules-engine": "7.3.0",
 		"rimraf": "^5.0.0",
 		"rollup": "^3.20.7",
 		"vite-tsconfig-paths": "^4.3.2",
