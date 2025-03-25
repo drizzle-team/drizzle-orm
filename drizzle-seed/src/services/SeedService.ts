@@ -411,7 +411,7 @@ export class SeedService {
 			) {
 				orderedTablesNames.push(parent);
 			} else {
-				leafTablesNames.push(parent);
+				leafTablesNames.push(...tablesInOutRelations[parent]!.requiredTableNames, parent);
 				continue;
 			}
 

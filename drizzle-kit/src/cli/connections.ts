@@ -15,6 +15,7 @@ import {
 	type SqliteProxy,
 } from '../utils';
 import { assertPackages, checkPackage } from './utils';
+import { GelCredentials } from './validations/gel';
 import { LibSQLCredentials } from './validations/libsql';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
@@ -412,6 +413,72 @@ export const preparePostgresDB = async (
 
 	console.error(
 		"To connect to Postgres database - please install either of 'pg', 'postgres', '@neondatabase/serverless' or '@vercel/postgres' drivers",
+	);
+	process.exit(1);
+};
+
+export const prepareGelDB = async (
+	credentials?: GelCredentials,
+): Promise<
+	DB & {
+		proxy: Proxy;
+	}
+> => {
+	if (await checkPackage('gel')) {
+		const gel = await import('gel');
+
+		let client: any;
+		if (!credentials) {
+			client = gel.createClient();
+			try {
+				await client.querySQL(`select 1;`);
+			} catch (error: any) {
+				if (error instanceof gel.ClientConnectionError) {
+					console.error(
+						`It looks like you forgot to link the Gel project or provide the database credentials.
+To link your project, please refer https://docs.geldata.com/reference/cli/gel_instance/gel_instance_link, or add the dbCredentials to your configuration file.`,
+					);
+					process.exit(1);
+				}
+
+				throw error;
+			}
+		} else if ('url' in credentials) {
+			'tlsSecurity' in credentials
+				? client = gel.createClient({ dsn: credentials.url, tlsSecurity: credentials.tlsSecurity, concurrency: 1 })
+				: client = gel.createClient({ dsn: credentials.url, concurrency: 1 });
+		} else {
+			gel.createClient({ ...credentials, concurrency: 1 });
+		}
+
+		const query = async (sql: string, params?: any[]) => {
+			const result = params?.length ? await client.querySQL(sql, params) : await client.querySQL(sql);
+			return result as any[];
+		};
+
+		const proxy: Proxy = async (params: ProxyParams) => {
+			const { method, mode, params: sqlParams, sql, typings } = params;
+
+			let result: any[];
+			switch (mode) {
+				case 'array':
+					result = sqlParams.length
+						? await client.withSQLRowMode('array').querySQL(sql, sqlParams)
+						: await client.querySQL(sql);
+					break;
+				case 'object':
+					result = sqlParams.length ? await client.querySQL(sql, sqlParams) : await client.querySQL(sql);
+					break;
+			}
+
+			return result;
+		};
+
+		return { query, proxy };
+	}
+
+	console.error(
+		"To connect to gel database - please install 'edgedb' driver",
 	);
 	process.exit(1);
 };

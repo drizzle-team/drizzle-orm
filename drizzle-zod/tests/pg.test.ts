@@ -14,7 +14,7 @@ import { test } from 'vitest';
 import { z } from 'zod';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
 const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
@@ -495,6 +495,59 @@ test('all data types', (t) => {
 		array1: z.array(integerSchema),
 		array2: z.array(z.array(integerSchema).length(2)),
 		array3: z.array(z.array(z.string().max(10)).length(2)),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('type coercion - all', (t) => {
+	const table = pgTable('test', ({
+		bigint,
+		boolean,
+		timestamp,
+		integer,
+		text,
+	}) => ({
+		bigint: bigint({ mode: 'bigint' }).notNull(),
+		boolean: boolean().notNull(),
+		timestamp: timestamp().notNull(),
+		integer: integer().notNull(),
+		text: text().notNull(),
+	}));
+
+	const { createSelectSchema } = createSchemaFactory({
+		coerce: true,
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		bigint: z.coerce.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
+		boolean: z.coerce.boolean(),
+		timestamp: z.coerce.date(),
+		integer: z.coerce.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		text: z.coerce.string(),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('type coercion - mixed', (t) => {
+	const table = pgTable('test', ({
+		timestamp,
+		integer,
+	}) => ({
+		timestamp: timestamp().notNull(),
+		integer: integer().notNull(),
+	}));
+
+	const { createSelectSchema } = createSchemaFactory({
+		coerce: {
+			date: true,
+		},
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		timestamp: z.coerce.date(),
+		integer: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

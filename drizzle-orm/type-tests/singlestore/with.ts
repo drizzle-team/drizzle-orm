@@ -78,3 +78,29 @@ const orders = singlestoreTable('orders', {
 		}[], typeof allFromWith>
 	>;
 }
+
+{
+	const providers = singlestoreTable('providers', {
+		id: serial().primaryKey(),
+		providerName: text().notNull(),
+	});
+
+	const sq1 = db.$with('providers_sq', {
+		name: providers.providerName,
+	}).as(sql`select provider_name as name from providers`);
+	const q1 = await db.with(sq1).select().from(sq1);
+	Expect<Equal<typeof q1, { name: string }[]>>;
+
+	const sq2 = db.$with('providers_sq', {
+		nested: {
+			id: providers.id,
+		},
+	}).as(() => sql`select id from providers`);
+	const q2 = await db.with(sq2).select().from(sq2);
+	Expect<Equal<typeof q2, { nested: { id: number } }[]>>;
+
+	// @ts-expect-error
+	db.$with('providers_sq', { name: providers.providerName }).as(db.select().from(providers));
+	// @ts-expect-error
+	db.$with('providers_sq', { name: providers.providerName }).as((qb) => qb.select().from(providers));
+}

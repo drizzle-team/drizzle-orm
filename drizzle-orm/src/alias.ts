@@ -88,8 +88,11 @@ export class RelationTableAliasProxyHandler<T extends Relation> implements Proxy
 	}
 }
 
-export function aliasedTable<T extends Table>(table: T, tableAlias: string): T {
-	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false));
+export function aliasedTable<T extends Table | View>(
+	table: T,
+	tableAlias: string,
+): T {
+	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false)) as any;
 }
 
 export function aliasedRelation<T extends Relation>(relation: T, tableAlias: string): T {

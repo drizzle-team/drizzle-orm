@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
 	index,
+	int,
 	json,
 	primaryKey,
 	serial,
@@ -214,6 +215,13 @@ test('add table #7', async () => {
 
 	expect(statements.length).toBe(2);
 	expect(statements[0]).toStrictEqual({
+		type: 'rename_table',
+		tableNameFrom: 'users1',
+		tableNameTo: 'users2',
+		fromSchema: undefined,
+		toSchema: undefined,
+	});
+	expect(statements[1]).toStrictEqual({
 		type: 'create_table',
 		tableName: 'users',
 		schema: undefined,
@@ -225,13 +233,6 @@ test('add table #7', async () => {
 			indexes: {},
 		},
 		compositePkName: '',
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'rename_table',
-		tableNameFrom: 'users1',
-		tableNameTo: 'users2',
-		fromSchema: undefined,
-		toSchema: undefined,
 	});
 });
 
@@ -577,4 +578,401 @@ test('add table with indexes', async () => {
 		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`email`);',
 		'CREATE INDEX `indexColExpr` ON `users` ((lower(`email`)),`email`);',
 	]);
+});
+
+test('rename table', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			json: json('json').default([]),
+		}),
+	};
+
+	const to = {
+		table1: singlestoreTable('table1', {
+			json1: json('json').default([]),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, [`public.table->public.table1`]);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `table` RENAME TO `table1`;',
+	);
+});
+
+test('rename column', async () => {
+	const from = {
+		users: singlestoreTable('table', {
+			json: json('json').default([]),
+		}),
+	};
+
+	const to = {
+		users: singlestoreTable('table', {
+			json1: json('json1').default([]),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, [`public.table.json->public.table.json1`]);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `table` CHANGE `json` `json1`;',
+	);
+});
+
+test('change data type', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int(),
+			age: text(),
+		}),
+	};
+
+	const to = {
+		table: singlestoreTable('table', {
+			id: int(),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		`CREATE TABLE \`__new_table\` (
+\t\`id\` int,
+\t\`age\` int
+);\n`,
+	);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
+	);
+	expect(sqlStatements[2]).toBe(
+		'DROP TABLE `table`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+	);
+});
+
+test('drop not null', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int().notNull(),
+			age: int(),
+		}),
+	};
+
+	const to = {
+		table: singlestoreTable('table', {
+			id: int(),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		`CREATE TABLE \`__new_table\` (
+\t\`id\` int,
+\t\`age\` int
+);\n`,
+	);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
+	);
+	expect(sqlStatements[2]).toBe(
+		'DROP TABLE `table`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+	);
+});
+
+test('set not null', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int(),
+			age: int(),
+		}),
+	};
+
+	const to = {
+		table: singlestoreTable('table', {
+			id: int().notNull(),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		`CREATE TABLE \`__new_table\` (
+\t\`id\` int NOT NULL,
+\t\`age\` int
+);\n`,
+	);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
+	);
+	expect(sqlStatements[2]).toBe(
+		'DROP TABLE `table`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+	);
+});
+
+test('set default with not null column', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int().notNull(),
+			age: int(),
+		}),
+	};
+
+	const to = {
+		table: singlestoreTable('table', {
+			id: int().notNull().default(1),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		`CREATE TABLE \`__new_table\` (
+\t\`id\` int NOT NULL DEFAULT 1,
+\t\`age\` int
+);\n`,
+	);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
+	);
+	expect(sqlStatements[2]).toBe(
+		'DROP TABLE `table`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+	);
+});
+
+test('drop default with not null column', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int().notNull().default(1),
+			age: int(),
+		}),
+	};
+
+	const to = {
+		table: singlestoreTable('table', {
+			id: int().notNull(),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		`CREATE TABLE \`__new_table\` (
+\t\`id\` int NOT NULL,
+\t\`age\` int
+);\n`,
+	);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
+	);
+	expect(sqlStatements[2]).toBe(
+		'DROP TABLE `table`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+	);
+});
+
+test('set default', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int(),
+			age: int(),
+		}),
+	};
+
+	const to = {
+		table: singlestoreTable('table', {
+			id: int().default(1),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `table` MODIFY COLUMN `id` int DEFAULT 1;',
+	);
+});
+
+test('drop default', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int().default(1),
+			age: int(),
+		}),
+	};
+
+	const to = {
+		table: singlestoreTable('table', {
+			id: int(),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `table` MODIFY COLUMN `id` int;',
+	);
+});
+
+test('set pk', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int(),
+			age: int(),
+		}),
+	};
+
+	const to = {
+		table: singlestoreTable('table', {
+			id: int().primaryKey(),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		`CREATE TABLE \`__new_table\` (
+\t\`id\` int NOT NULL,
+\t\`age\` int,
+\tCONSTRAINT \`table_id\` PRIMARY KEY(\`id\`)
+);\n`,
+	);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
+	);
+	expect(sqlStatements[2]).toBe(
+		'DROP TABLE `table`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+	);
+});
+
+test('drop pk', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int().primaryKey(),
+			age: int(),
+		}),
+	};
+
+	const to = {
+		table: singlestoreTable('table', {
+			id: int(),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		`CREATE TABLE \`__new_table\` (
+\t\`id\` int,
+\t\`age\` int
+);\n`,
+	);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
+	);
+	expect(sqlStatements[2]).toBe(
+		'DROP TABLE `table`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+	);
+});
+
+test('set not null + rename column on table with indexes', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int('id').default(1),
+			age: int(),
+		}),
+	};
+
+	const to = {
+		table: singlestoreTable('table', {
+			id3: int('id3').notNull().default(1),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, [`public.table.id->public.table.id3`]);
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE \`table\` CHANGE `id` `id3`;',
+	);
+	expect(sqlStatements[1]).toBe(
+		`CREATE TABLE \`__new_table\` (
+\t\`id3\` int NOT NULL DEFAULT 1,
+\t\`age\` int
+);\n`,
+	);
+	expect(sqlStatements[2]).toBe(
+		'INSERT INTO `__new_table`(`id3`, `age`) SELECT `id3`, `age` FROM `table`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'DROP TABLE `table`;',
+	);
+	expect(sqlStatements[4]).toBe(
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+	);
+});
+
+test('set not null + rename table on table with indexes', async () => {
+	const from = {
+		table: singlestoreTable('table', {
+			id: int('id').default(1),
+			age: int(),
+		}),
+	};
+
+	const to = {
+		table1: singlestoreTable('table1', {
+			id: int('id').notNull().default(1),
+			age: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, [`public.table->public.table1`]);
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `table` RENAME TO `table1`;',
+	);
+	expect(sqlStatements[1]).toBe(
+		`CREATE TABLE \`__new_table1\` (
+\t\`id\` int NOT NULL DEFAULT 1,
+\t\`age\` int
+);\n`,
+	);
+	expect(sqlStatements[2]).toBe(
+		'INSERT INTO `__new_table1`(\`id\`, \`age\`) SELECT \`id\`, \`age\` FROM `table1`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'DROP TABLE `table1`;',
+	);
+	expect(sqlStatements[4]).toBe(
+		'ALTER TABLE `__new_table1` RENAME TO `table1`;',
+	);
 });
