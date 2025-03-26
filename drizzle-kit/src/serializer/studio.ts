@@ -26,7 +26,6 @@ import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { assertUnreachable } from 'src/global';
-import superjson from 'superjson';
 import { z } from 'zod';
 import { safeRegister } from '../cli/commands/utils';
 import type { MysqlCredentials } from '../cli/validations/mysql';
@@ -52,6 +51,7 @@ export type Setup = {
 	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore';
 	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
 	proxy: (params: ProxyParams) => Promise<any[] | any>;
+	transaction?: (queries: ProxyParams[]) => Promise<any[]>;
 	customDefaults: CustomDefault[];
 	schema: Record<string, Record<string, AnyTable<any>>>;
 	relations: Record<string, Relations>;
@@ -60,7 +60,7 @@ export type Setup = {
 
 export type ProxyParams = {
 	sql: string;
-	params: any[];
+	params?: any[];
 	typings?: any[];
 	mode: 'array' | 'object';
 	method: 'values' | 'get' | 'all' | 'run' | 'execute';
@@ -213,9 +213,7 @@ export const prepareSingleStoreSchema = async (path: string | string[]) => {
 	return { schema: singlestoreSchema, relations, files };
 };
 
-const getCustomDefaults = <T extends AnyTable<{}>>(
-	schema: Record<string, Record<string, T>>,
-): CustomDefault[] => {
+const getCustomDefaults = <T extends AnyTable<{}>>(schema: Record<string, Record<string, T>>): CustomDefault[] => {
 	const customDefaults: CustomDefault[] = [];
 
 	Object.entries(schema).map(([schema, tables]) => {
@@ -356,6 +354,7 @@ export const drizzleForSQLite = async (
 		dialect: 'sqlite',
 		driver: 'driver' in credentials ? credentials.driver : undefined,
 		proxy: sqliteDB.proxy,
+		transaction: sqliteDB.transaction,
 		customDefaults,
 		schema: sqliteSchema,
 		relations,
@@ -429,11 +428,7 @@ export const extractRelations = (tablesConfig: {
 	const relations = Object.values(tablesConfig.tables)
 		.map((it) =>
 			Object.entries(it.relations).map(([name, relation]) => {
-				const normalized = normalizeRelation(
-					tablesConfig.tables,
-					tablesConfig.tableNamesMap,
-					relation,
-				);
+				const normalized = normalizeRelation(tablesConfig.tables, tablesConfig.tableNamesMap, relation);
 				const rel = relation;
 				const refTableName = rel.referencedTableName;
 				const refTable = rel.referencedTable;
@@ -489,14 +484,27 @@ const proxySchema = z.object({
 		params: z.array(z.any()).optional(),
 		typings: z.string().array().optional(),
 		mode: z.enum(['array', 'object']).default('object'),
-		method: z.union([
-			z.literal('values'),
-			z.literal('get'),
-			z.literal('all'),
-			z.literal('run'),
-			z.literal('execute'),
-		]),
+		method: z.union([z.literal('values'), z.literal('get'), z.literal('all'), z.literal('run'), z.literal('execute')]),
 	}),
+});
+
+const transactionSchema = z.object({
+	type: z.literal('transaction'),
+	data: z
+		.object({
+			sql: z.string(),
+			params: z.array(z.any()).optional(),
+			typings: z.string().array().optional(),
+			mode: z.enum(['array', 'object']).default('object'),
+			method: z.union([
+				z.literal('values'),
+				z.literal('get'),
+				z.literal('all'),
+				z.literal('run'),
+				z.literal('execute'),
+			]),
+		})
+		.array(),
 });
 
 const defaultsSchema = z.object({
@@ -512,30 +520,25 @@ const defaultsSchema = z.object({
 		.min(1),
 });
 
-const schema = z.union([init, proxySchema, defaultsSchema]);
-
-superjson.registerCustom<Buffer, number[]>(
-	{
-		isApplicable: (v): v is Buffer => v instanceof Buffer,
-		serialize: (v) => [...v],
-		deserialize: (v) => Buffer.from(v),
-	},
-	'buffer',
-);
+const schema = z.union([init, proxySchema, transactionSchema, defaultsSchema]);
 
 const jsonStringify = (data: any) => {
 	return JSON.stringify(data, (_key, value) => {
+		// Convert Error to object
+		if (value instanceof Error) {
+			return {
+				error: value.message,
+			};
+		}
+
+		// Convert BigInt to string
 		if (typeof value === 'bigint') {
 			return value.toString();
 		}
 
 		// Convert Buffer and ArrayBuffer to base64
 		if (
-			(value
-				&& typeof value === 'object'
-				&& 'type' in value
-				&& 'data' in value
-				&& value.type === 'Buffer')
+			(value && typeof value === 'object' && 'type' in value && 'data' in value && value.type === 'Buffer')
 			|| value instanceof ArrayBuffer
 			|| value instanceof Buffer
 		) {
@@ -557,16 +560,7 @@ export type Server = {
 };
 
 export const prepareServer = async (
-	{
-		dialect,
-		driver,
-		proxy,
-		customDefaults,
-		schema: drizzleSchema,
-		relations,
-		dbHash,
-		schemaFiles,
-	}: Setup,
+	{ dialect, driver, proxy, transaction, customDefaults, schema: drizzleSchema, relations, dbHash, schemaFiles }: Setup,
 	app?: Hono,
 ): Promise<Server> => {
 	app = app !== undefined ? app : new Hono();
@@ -592,11 +586,9 @@ export const prepareServer = async (
 			Object.entries(drizzleSchema)
 				.map(([schemaName, schema]) => {
 					// have unique keys across schemas
-					const mappedTableEntries = Object.entries(schema).map(
-						([tableName, table]) => {
-							return [`__${schemaName}__.${tableName}`, table];
-						},
-					);
+					const mappedTableEntries = Object.entries(schema).map(([tableName, table]) => {
+						return [`__${schemaName}__.${tableName}`, table];
+					});
 
 					return mappedTableEntries;
 				})
@@ -605,10 +597,7 @@ export const prepareServer = async (
 		...relations,
 	};
 
-	const relationsConfig = extractTablesRelationalConfig(
-		relationalSchema,
-		createTableRelationsHelpers,
-	);
+	const relationsConfig = extractTablesRelationalConfig(relationalSchema, createTableRelationsHelpers);
 
 	app.post('/', zValidator('json', schema), async (c) => {
 		const body = c.req.valid('json');
@@ -640,22 +629,21 @@ export const prepareServer = async (
 			return c.json(JSON.parse(jsonStringify(result)));
 		}
 
+		if (type === 'transaction' && transaction) {
+			const result = await transaction(body.data);
+			return c.json(JSON.parse(jsonStringify(result)));
+		}
+
 		if (type === 'defaults') {
 			const columns = body.data;
 
 			const result = columns.map((column) => {
 				const found = customDefaults.find((d) => {
-					return (
-						d.schema === column.schema
-						&& d.table === column.table
-						&& d.column === column.column
-					);
+					return d.schema === column.schema && d.table === column.table && d.column === column.column;
 				});
 
 				if (!found) {
-					throw new Error(
-						`Custom default not found for ${column.schema}.${column.table}.${column.column}`,
-					);
+					throw new Error(`Custom default not found for ${column.schema}.${column.table}.${column.column}`);
 				}
 
 				const value = found.func();
