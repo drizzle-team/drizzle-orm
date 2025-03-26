@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { getTableName, is, SQL } from 'drizzle-orm';
+import { ColumnBuilderBaseConfig, getTableName, is, SQL } from 'drizzle-orm';
 import {
 	AnyPgTable,
 	getMaterializedViewConfig,
@@ -7,6 +7,7 @@ import {
 	getViewConfig,
 	IndexedColumn,
 	PgColumn,
+	PgColumnBuilder,
 	PgDialect,
 	PgDomain,
 	PgDomainColumn,
@@ -882,13 +883,13 @@ export const generatePgSnapshot = (
 		// Process check constraints similar to tables
 		const checksObject: Record<string, CheckConstraint> = {};
 
-		obj.domain.checkConstraints?.forEach((checkConstraint, index) => {
+		obj.domainCheckConstraints?.forEach((checkConstraint, index) => {
 			// Validate unique constraint names within domain
 			// TODO check old domain name
 			const domainKey = `"${obj.schema ?? 'public'}"."${obj.name}"`;
 
 			// you can have multiple unnamed checks per domain (using the default above)
-			let defaultCheckName = `${obj.getSQLType()}_check`;
+			let defaultCheckName = `${obj.domainName}_check`;
 			let checkName = checkConstraint.name ?? defaultCheckName;
 			if (checksInTable[domainKey]?.includes(checkName) && checkName == defaultCheckName) {
 				checkName += `_${index}`;
@@ -907,11 +908,11 @@ export const generatePgSnapshot = (
 		const domainSchema = obj.schema || 'public';
 		const key = `${domainSchema}.${obj.name}`;
 		map[key] = {
-			name: obj.name,
+			name: obj.domainName,
 			schema: domainSchema,
-			notNull: obj.notNull,
-			baseType: obj.columnType,
-			defaultValue: obj.default,
+			notNull: obj.domainNotNull,
+			baseType: obj.domainType,
+			defaultValue: obj.domainDefaultValue,
 			checkConstraints: checksObject,
 		};
 

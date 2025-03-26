@@ -197,8 +197,7 @@ export abstract class ColumnBuilder<
 
 	protected config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
 
-	/** @internal */
-	get readonlyConfig(): Readonly<ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>> {
+	getConfig(): ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig> {
 		return this.config;
 	}
 

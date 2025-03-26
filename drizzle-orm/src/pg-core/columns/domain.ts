@@ -1,6 +1,7 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
+import type { CheckBuilder } from '~/pg-core/checks.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
@@ -10,12 +11,14 @@ export type PgDomainType = typeof PG_DOMAIN_TYPE;
 
 // Shared base type for the common properties
 // we inherit these from the wrapped builder
+// this gets used in type ColumnBuilderTypeConfig
 type PgDomainColumnBaseConfig<TColumnBase extends PgColumnBuilder<any, any>> = {
 	data: TColumnBase['_']['data'];
 	notNull: TColumnBase['_']['notNull'];
 	hasDefault: TColumnBase['_']['hasDefault'];
 	identity: TColumnBase['_']['identity'];
 	generated: TColumnBase['_']['generated'];
+	checkConstraints: TColumnBase['_']['checkConstraints'];
 };
 
 // domain column builder config
@@ -44,31 +47,47 @@ export type BuilderRuntimeConfig = {
 
 // domain column builder classa
 export class PgDomainColumnBuilder<
-	T extends PgDomainColumnBuilderConfig<PgColumnBuilder<any, any>>,
+	TColumnBuilder extends PgColumnBuilder<any, any>,
+	T extends PgDomainColumnBuilderConfig<TColumnBuilder>,
 > extends PgColumnBuilder<T, BuilderRuntimeConfig> {
 	static override readonly [entityKind]: string = 'PgDomainColumnBuilder';
 
 	// used internally for serialization and introspection
-	readonly domainName: string;
 	readonly schema: string | undefined;
-	readonly columnBuilder: PgColumnBuilder<any, any>;
-	readonly columnConfig: Readonly<ColumnBuilderRuntimeConfig<any, any>>;
+	readonly domain: TColumnBuilder;
+	readonly domainName: string;
 
-	constructor(name: T['name'], interfaceInstance: PgDomain<PgColumnBuilder<any, any>>) {
-		super(name, interfaceInstance.columnBuilder.getDataType(), PG_DOMAIN_TYPE);
+	// these already exist on the PgColumn base class
+	readonly domainNotNull: boolean;
+	readonly domainHasDefault: boolean;
+	readonly domainCheckConstraints: CheckBuilder[] | undefined;
+
+	readonly domainType: TColumnBuilder['_']['columnType'];
+	readonly domainDefaultValue: TColumnBuilder['default'];
+
+	constructor(name: T['name'], interfaceInstance: PgDomain<TColumnBuilder>) {
+		super(name, interfaceInstance.domain.getDataType(), PG_DOMAIN_TYPE);
 
 		this.domainName = interfaceInstance.domainName;
 		this.schema = interfaceInstance.schema;
-		this.columnBuilder = interfaceInstance.columnBuilder;
-		this.columnConfig = this.columnBuilder.readonlyConfig;
+		this.domain = interfaceInstance.domain;
+
+		// copying over from config for PgDomain interface usage
+		const config = this.domain.getConfig();
+		this.domainNotNull = config.notNull;
+		this.domainHasDefault = config.hasDefault;
+		this.domainCheckConstraints = config.checkConstraints;
+		this.domainType = config.dataType;
+		this.domainDefaultValue = config.defaultValue;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgDomainColumn<MakeColumnConfig<T, TTableName>> {
-		const column = this.columnBuilder.build(table);
+	): PgDomainColumn<TColumnBuilder, MakeColumnConfig<T, TTableName>> {
+		const column = this.domain.build(table);
 
+		// copying over from internal config for column class
 		Object.assign(this.config, {
 			column,
 			schema: this.config.schema,
@@ -79,7 +98,7 @@ export class PgDomainColumnBuilder<
 			checkConstraints: column.checkConstraints,
 		});
 
-		return new PgDomainColumn<MakeColumnConfig<T, TTableName>>(
+		return new PgDomainColumn<TColumnBuilder, MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
@@ -87,20 +106,21 @@ export class PgDomainColumnBuilder<
 }
 
 // domain column class
-export class PgDomainColumn<T extends PgDomainColumnConfig<PgColumnBuilder<any, any>>> extends PgColumn<T> {
+export class PgDomainColumn<
+	TColumnBuilder extends PgColumnBuilder<any, any>,
+	T extends PgDomainColumnConfig<TColumnBuilder>,
+> extends PgColumn<T> {
 	static override readonly [entityKind]: string = PG_DOMAIN_TYPE;
 
-	// TODO confirm if needed or not
+	// used internally for serialization and introspection
 	readonly schema: string | undefined;
-	readonly domain: PgColumn;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
-		config: PgDomainColumnBuilder<T>['config'],
+		config: PgDomainColumnBuilder<TColumnBuilder, T>['config'],
 	) {
 		super(table, config);
 		this.schema = config.schema;
-		this.domain = config.column;
 	}
 
 	getSQLType(): string {
@@ -110,14 +130,21 @@ export class PgDomainColumn<T extends PgDomainColumnConfig<PgColumnBuilder<any, 
 
 const isPgDomainSym = Symbol.for('drizzle:isPgDomain');
 
-// pg domains can be in their builder or built forms when used internally which complicates usage
-// this interface makes it easy to both construct the builder and get relevant values
+// a domain can be accessed before it's a builder (before a column name is passed)
+// this is the return value from pgDomain()
+// or it can be accessed as a builder (after a column name is passed)
+// this is the return value from calling the function returned from pgDomain()
+// this interface normalizes the two for ease within the serialization and introspection code
 export interface PgDomain<TColumnBuilder extends PgColumnBuilder<any, any>> {
-	(name?: string): PgDomainColumnBuilder<PgDomainColumnBuilderConfig<TColumnBuilder>>;
+	(name?: string): PgDomainColumnBuilder<TColumnBuilder, PgDomainColumnBuilderConfig<TColumnBuilder>>;
 
-	readonly domainName: string;
 	readonly schema: string | undefined;
-	readonly columnBuilder: TColumnBuilder;
+	readonly domain: TColumnBuilder;
+	readonly domainName: string;
+	readonly domainType: TColumnBuilder['_']['columnType'];
+	readonly domainNotNull: boolean;
+	readonly domainDefaultValue: TColumnBuilder['default'];
+	readonly domainCheckConstraints: CheckBuilder[] | undefined;
 
 	/** @internal */
 	[isPgDomainSym]: true;
@@ -146,11 +173,18 @@ export function pgDomainWithSchema<TColumnBuilder extends PgColumnBuilder<any, a
 	// calls to this returned object will need to pass a column name for that particular table
 	const instanceWrapper = Object.assign(
 		<TName extends string = ''>(name?: TName) =>
-			new PgDomainColumnBuilder<PgDomainColumnBuilderConfig<TColumnBuilder>>(name ?? '' as TName, instanceWrapper),
+			new PgDomainColumnBuilder<TColumnBuilder, PgDomainColumnBuilderConfig<TColumnBuilder>>(
+				name ?? '' as TName,
+				instanceWrapper,
+			),
 		{
-			domainName,
 			schema,
-			columnBuilder,
+			domain: columnBuilder,
+			domainName,
+			domainType: columnBuilder.getConfig().dataType,
+			domainNotNull: columnBuilder.getConfig().notNull,
+			domainDefaultValue: columnBuilder.getConfig().default,
+			domainCheckConstraints: columnBuilder.getConfig().checkConstraints,
 			[isPgDomainSym]: true,
 		} as const,
 	) as PgDomain<TColumnBuilder>;
