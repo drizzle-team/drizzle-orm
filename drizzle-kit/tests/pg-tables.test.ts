@@ -992,13 +992,12 @@ test('domain with not null and check constraints', async () => {
 test('domain with default value and check constraints', async () => {
 	const shortTextDomain = pgDomain(
 		'short_text',
-		text().notNull().default('placeholder')
-			.checkConstraint('text_check', sql`(LENGTH(value)) BETWEEN 3 and 30)`),
+		text().default('placeholder').checkConstraint('text_check', sql`(LENGTH(value)) BETWEEN 3 and 30)`),
 	);
 
 	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
-		first_name: shortTextDomain('id'),
+		firstName: shortTextDomain('first_name'),
 	});
 
 	const to = {

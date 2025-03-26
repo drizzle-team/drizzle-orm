@@ -38,7 +38,7 @@ const domainSchema = object({
 	schema: string(),
 	baseType: string(),
 	notNull: boolean().optional(),
-	defaultValue: string().optional(),
+	defaultValue: any().optional(),
 	checkConstraints: record(string(), checkConstraint).optional(),
 }).strict();
 

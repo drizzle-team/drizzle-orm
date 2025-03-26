@@ -44,13 +44,13 @@ test('domains #2 create domain not null', async () => {
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`CREATE DOMAIN "folder"."domain" AS varchar NOT NULL;`);
+	expect(sqlStatements[0]).toBe(`CREATE DOMAIN "folder"."domain" AS varchar(256) NOT NULL;`);
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		type: 'create_domain',
 		name: 'domain',
 		schema: 'folder',
-		baseType: 'varchar',
+		baseType: 'varchar(256)',
 		notNull: true,
 		defaultValue: undefined,
 		checkConstraints: [],
@@ -76,7 +76,7 @@ test('domains #3 drop domain simple', async () => {
 
 test('domains #4 create domain with constraint', async () => {
 	const to = {
-		domain: pgDomain('domain', text().checkConstraint('check', sql`VALUE ~ '^[A-Za-z]+$'`)),
+		domain: pgDomain('domain', text().checkConstraint('custom_check', sql`VALUE ~ '^[A-Za-z]+$'`)),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
@@ -117,7 +117,7 @@ test('domains #5 create domain with default value', async () => {
 		schema: 'public',
 		baseType: 'integer',
 		notNull: false,
-		defaultValue: '42',
+		defaultValue: 42,
 		checkConstraints: [],
 	});
 });

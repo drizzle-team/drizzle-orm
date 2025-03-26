@@ -168,7 +168,6 @@ export const generatePgSnapshot = (
 			// todo understand this
 			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
 			const domainTypeSchema = is(column, PgDomainColumn) ? column.schema : undefined;
-
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
 			const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';

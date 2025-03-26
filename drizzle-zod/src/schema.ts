@@ -1,6 +1,6 @@
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import type { Table, View } from 'drizzle-orm';
-import type { PgEnum } from 'drizzle-orm/pg-core';
+import type { PgDomainColumn, PgEnum } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { columnToSchema } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
@@ -10,7 +10,7 @@ import type {
 	CreateSelectSchema,
 	CreateUpdateSchema,
 } from './schema.types.ts';
-import { isPgEnum } from './utils.ts';
+import { isColumnType, isPgEnum } from './utils.ts';
 
 function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
@@ -70,6 +70,11 @@ const selectConditions: Conditions = {
 	never: () => false,
 	optional: () => false,
 	nullable: (column) => {
+		if (isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn'])) {
+			// if either the wrapped column or the column instance is nullable, nullable is true
+			return !(column.domain.notNull || column.notNull);
+		}
+
 		return !column.notNull;
 	},
 };
