@@ -29,6 +29,10 @@ export class PgHalfVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgH
 		this.config.dimensions = config.dimensions;
 	}
 
+	getSQLType(): string {
+		return `halfvec(${this.config.dimensions})`;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

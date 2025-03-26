@@ -22,6 +22,10 @@ export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number'
 		super(name, 'number', 'PgDoublePrecision');
 	}
 
+	getSQLType(): string {
+		return 'double precision';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

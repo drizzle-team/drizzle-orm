@@ -25,6 +25,10 @@ export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBi
 		super(name, 'number', 'PgBigInt53');
 	}
 
+	getSQLType(): string {
+		return 'bigint';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -64,6 +68,10 @@ export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBi
 
 	constructor(name: T['name']) {
 		super(name, 'bigint', 'PgBigInt64');
+	}
+
+	getSQLType(): string {
+		return 'bigint';
 	}
 
 	/** @internal */

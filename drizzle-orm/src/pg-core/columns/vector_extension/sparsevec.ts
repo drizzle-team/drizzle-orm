@@ -27,6 +27,10 @@ export class PgSparseVectorBuilder<T extends ColumnBuilderBaseConfig<'string', '
 		this.config.dimensions = config.dimensions;
 	}
 
+	getSQLType(): string {
+		return `sparsevec(${this.config.dimensions})`;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

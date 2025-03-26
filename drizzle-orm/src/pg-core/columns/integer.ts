@@ -23,6 +23,10 @@ export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInt
 		super(name, 'number', 'PgInteger');
 	}
 
+	getSQLType(): string {
+		return 'integer';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

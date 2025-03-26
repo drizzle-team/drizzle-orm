@@ -20,6 +20,10 @@ export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJsonb'>
 		super(name, 'json', 'PgJsonb');
 	}
 
+	getSQLType(): string {
+		return 'jsonb';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

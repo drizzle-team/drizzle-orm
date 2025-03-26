@@ -960,7 +960,7 @@ test('optional db aliases (camel case)', async () => {
 
 test('domain with not null and check constraints', async () => {
 	const emailDomain = pgDomain(
-		'email',
+		'email_field',
 		text().notNull().checkConstraint('valid_email', sql`VALUE ~ '^[^@]+@[^@]+\.[^@]+$'`),
 	);
 
@@ -977,12 +977,12 @@ test('domain with not null and check constraints', async () => {
 	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements[0]).toContain(
-		`CREATE DOMAIN "public"."email" AS text NOT NULL CONSTRAINT valid_email CHECK (VALUE ~ '^[^@]+@[^@]+\.[^@]+$');`,
+		`CREATE DOMAIN "public"."email_field" AS text NOT NULL CONSTRAINT valid_email CHECK (VALUE ~ '^[^@]+@[^@]+\.[^@]+$');`,
 	);
 
 	const createTableStatement = `CREATE TABLE "users" (
 	"id" serial PRIMARY KEY NOT NULL,
-	"email" "email"
+	"email" "email_field"
 );
 `;
 

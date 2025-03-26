@@ -24,6 +24,10 @@ export class PgPointTupleBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgP
 		super(name, 'array', 'PgPointTuple');
 	}
 
+	getSQLType(): string {
+		return 'point';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -71,6 +75,10 @@ export class PgPointObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgP
 
 	constructor(name: string) {
 		super(name, 'json', 'PgPointObject');
+	}
+
+	getSQLType(): string {
+		return 'point';
 	}
 
 	/** @internal */

@@ -33,6 +33,11 @@ export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgTim
 		this.config.precision = precision;
 	}
 
+	getSQLType(): string {
+		const precision = this.config.precision === undefined ? '' : ` (${this.config.precision})`;
+		return `timestamp${precision}${this.config.withTimezone ? ' with time zone' : ''}`;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -92,6 +97,11 @@ export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string'
 		super(name, 'string', 'PgTimestampString');
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
+	}
+
+	getSQLType(): string {
+		const precision = this.config.precision === undefined ? '' : `(${this.config.precision})`;
+		return `timestamp${precision}${this.config.withTimezone ? ' with time zone' : ''}`;
 	}
 
 	/** @internal */

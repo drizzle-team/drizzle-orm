@@ -1199,11 +1199,6 @@ const createTableColumns = (
 	}, {} as Record<string, ForeignKey[]>);
 
 	columns.forEach((it) => {
-		if (it.type === 'limited_text') {
-			console.log(it);
-			console.log(it.domainTypeSchema);
-		}
-
 		const columnStatement = column(
 			tableName,
 			it.type,

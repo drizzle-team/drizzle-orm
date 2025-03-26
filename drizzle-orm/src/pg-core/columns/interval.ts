@@ -28,6 +28,13 @@ export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgIn
 		this.config.intervalConfig = intervalConfig;
 	}
 
+	getSQLType(): string {
+		const { intervalConfig } = this.config;
+		const fields = intervalConfig.fields ? ` ${intervalConfig.fields}` : '';
+		const precision = intervalConfig.precision ? `(${intervalConfig.precision})` : '';
+		return `interval${fields}${precision}`;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

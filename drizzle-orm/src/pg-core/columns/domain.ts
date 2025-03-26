@@ -81,6 +81,10 @@ export class PgDomainColumnBuilder<
 		this.domainDefaultValue = config.defaultValue;
 	}
 
+	getSQLType(): string {
+		return this.domainType;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -114,6 +118,7 @@ export class PgDomainColumn<
 
 	// used internally for serialization and introspection
 	readonly schema: string | undefined;
+	readonly domainType: TColumnBuilder['_']['columnType'];
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
@@ -121,6 +126,7 @@ export class PgDomainColumn<
 	) {
 		super(table, config);
 		this.schema = config.schema;
+		this.domainType = config.column.getSQLType();
 	}
 
 	getSQLType(): string {
@@ -181,7 +187,7 @@ export function pgDomainWithSchema<TColumnBuilder extends PgColumnBuilder<any, a
 			schema,
 			domain: columnBuilder,
 			domainName,
-			domainType: columnBuilder.getConfig().dataType,
+			domainType: columnBuilder.getSQLType(),
 			domainNotNull: columnBuilder.getConfig().notNull,
 			domainDefaultValue: columnBuilder.getConfig().default,
 			domainCheckConstraints: columnBuilder.getConfig().checkConstraints,

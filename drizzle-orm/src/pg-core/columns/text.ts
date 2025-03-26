@@ -27,6 +27,10 @@ export class PgTextBuilder<
 		this.config.enumValues = config.enum;
 	}
 
+	getSQLType(): string {
+		return 'text';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

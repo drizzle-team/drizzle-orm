@@ -42,6 +42,10 @@ export class PgEnumColumnBuilder<
 		this.config.enum = enumInstance;
 	}
 
+	getSQLType(): string {
+		return this.config.enum.enumName;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

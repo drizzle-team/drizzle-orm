@@ -52,9 +52,7 @@ export abstract class PgColumnBuilder<
 		return this.config.dataType as T['dataType'];
 	}
 
-	getColumnType(): T['columnType'] {
-		return this.config.columnType as T['columnType'];
-	}
+	abstract getSQLType(): string;
 
 	array<TSize extends number | undefined = undefined>(size?: TSize): PgArrayBuilder<
 		& {
@@ -311,6 +309,10 @@ export class PgArrayBuilder<
 		super(name, 'array', 'PgArray');
 		this.config.baseBuilder = baseBuilder;
 		this.config.size = size;
+	}
+
+	getSQLType(): string {
+		return `${this.config.baseBuilder.getSQLType()}[${typeof this.config.size === 'number' ? this.config.size : ''}]`;
 	}
 
 	/** @internal */

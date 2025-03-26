@@ -35,6 +35,10 @@ export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number', 'P
 		this.config.notNull = true;
 	}
 
+	getSQLType(): string {
+		return 'bigserial';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -82,6 +86,10 @@ export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'P
 	constructor(name: string) {
 		super(name, 'bigint', 'PgBigSerial64');
 		this.config.hasDefault = true;
+	}
+
+	getSQLType(): string {
+		return 'bigserial';
 	}
 
 	/** @internal */

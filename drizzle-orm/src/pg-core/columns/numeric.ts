@@ -29,6 +29,16 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 		this.config.scale = scale;
 	}
 
+	getSQLType(): string {
+		if (this.config.precision !== undefined && this.config.scale !== undefined) {
+			return `numeric(${this.config.precision}, ${this.config.scale})`;
+		} else if (this.config.precision === undefined) {
+			return 'numeric';
+		} else {
+			return `numeric(${this.config.precision})`;
+		}
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

@@ -23,6 +23,10 @@ export class PgGeometryBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGeo
 		super(name, 'array', 'PgGeometry');
 	}
 
+	getSQLType(): string {
+		return 'geometry(point)';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -66,6 +70,10 @@ export class PgGeometryObjectBuilder<T extends ColumnBuilderBaseConfig<'json', '
 
 	constructor(name: T['name']) {
 		super(name, 'json', 'PgGeometryObject');
+	}
+
+	getSQLType(): string {
+		return 'geometry(point)';
 	}
 
 	/** @internal */

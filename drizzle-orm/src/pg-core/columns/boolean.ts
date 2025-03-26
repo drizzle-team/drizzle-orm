@@ -20,6 +20,10 @@ export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'PgBo
 		super(name, 'boolean', 'PgBoolean');
 	}
 
+	getSQLType(): string {
+		return 'boolean';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

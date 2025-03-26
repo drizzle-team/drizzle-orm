@@ -20,6 +20,10 @@ export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>
 		super(name, 'string', 'PgInet');
 	}
 
+	getSQLType(): string {
+		return 'inet';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

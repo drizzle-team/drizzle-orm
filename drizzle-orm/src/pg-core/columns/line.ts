@@ -22,6 +22,10 @@ export class PgLineBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgLine'>>
 		super(name, 'array', 'PgLine');
 	}
 
+	getSQLType(): string {
+		return 'line';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -64,6 +68,10 @@ export class PgLineABCBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgLineA
 
 	constructor(name: T['name']) {
 		super(name, 'json', 'PgLineABC');
+	}
+
+	getSQLType(): string {
+		return 'line';
 	}
 
 	/** @internal */

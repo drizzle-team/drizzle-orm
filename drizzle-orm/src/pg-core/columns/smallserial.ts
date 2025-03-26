@@ -34,6 +34,10 @@ export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'P
 		this.config.notNull = true;
 	}
 
+	getSQLType(): string {
+		return 'smallserial';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

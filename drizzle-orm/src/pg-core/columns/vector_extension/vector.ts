@@ -29,6 +29,10 @@ export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVecto
 		this.config.dimensions = config.dimensions;
 	}
 
+	getSQLType(): string {
+		return `vector(${this.config.dimensions})`;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

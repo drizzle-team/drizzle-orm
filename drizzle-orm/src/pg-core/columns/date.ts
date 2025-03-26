@@ -22,6 +22,10 @@ export class PgDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgDate'>> 
 		super(name, 'date', 'PgDate');
 	}
 
+	getSQLType(): string {
+		return 'date';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -62,6 +66,10 @@ export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'Pg
 
 	constructor(name: T['name']) {
 		super(name, 'string', 'PgDateString');
+	}
+
+	getSQLType(): string {
+		return 'date';
 	}
 
 	/** @internal */
