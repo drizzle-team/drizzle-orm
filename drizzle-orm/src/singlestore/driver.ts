@@ -11,8 +11,8 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
-import { version } from '../../package.json';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import { npmVersion } from '~/version.ts';
 import type {
 	SingleStoreDriverClient,
 	SingleStoreDriverPreparedQueryHKT,
@@ -105,32 +105,28 @@ export type AnySingleStoreDriverConnection = Pool | Connection | CallbackPool | 
 
 const CONNECTION_ATTRS: PoolOptions['connectAttributes'] = {
 	_connector_name: 'SingleStore Drizzle ORM Driver',
-	_connector_version: version,
+	_connector_version: npmVersion,
 };
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends AnySingleStoreDriverConnection = CallbackPool,
 >(
-	...params: IfNotImported<
-		CallbackPool,
-		[ImportTypeError<'singlestore'>],
-		[
-			TClient | string,
-		] | [
-			TClient | string,
-			SingleStoreDriverDrizzleConfig<TSchema>,
-		] | [
-			(
-				& SingleStoreDriverDrizzleConfig<TSchema>
-				& ({
-					connection: string | PoolOptions;
-				} | {
-					client: TClient;
-				})
-			),
-		]
-	>
+	...params: [
+		TClient | string,
+	] | [
+		TClient | string,
+		SingleStoreDriverDrizzleConfig<TSchema>,
+	] | [
+		(
+			& SingleStoreDriverDrizzleConfig<TSchema>
+			& ({
+				connection: string | PoolOptions;
+			} | {
+				client: TClient;
+			})
+		),
+	]
 ): SingleStoreDriverDatabase<TSchema> & {
 	$client: TClient;
 } {
