@@ -16,13 +16,11 @@ export const isPgEnum: (entity: any) => entity is PgEnum<[string, ...string[]]> 
 type Literal = type.infer<typeof literalSchema>;
 export type Json = Literal | Record<string, any> | any[];
 
-export type IsNever<T> = [T] extends [never] ? true : false;
+export type IsEnumDefined<TEnum extends [string, ...string[]] | undefined> = [string, ...string[]] extends TEnum ? false
+	: undefined extends TEnum ? false
+	: true;
 
-export type ArrayHasAtLeastOneValue<TEnum extends [any, ...any[]] | undefined> = TEnum extends [infer TString, ...any[]]
-	? TString extends `${infer TLiteral}` ? TLiteral extends any ? true
-		: false
-	: false
-	: false;
+export type IsNever<T> = [T] extends [never] ? true : false;
 
 export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['identity'] extends 'always' ? true
 	: TColumn['_']['generated'] extends undefined ? false
@@ -35,11 +33,10 @@ export type RemoveNever<T> = {
 	[K in keyof T as T[K] extends never ? never : K]: T[K];
 };
 
-export type RemoveNeverElements<T extends any[]> = T extends [infer First, ...infer Rest]
-	? IsNever<First> extends true ? RemoveNeverElements<Rest>
-	: [First, ...RemoveNeverElements<Rest>]
-	: [];
-
 export type GetSelection<T extends SelectedFieldsFlat<Column> | Table | View> = T extends Table ? T['_']['columns']
 	: T extends View ? T['_']['selectedFields']
 	: T;
+
+export type IsUnknown<T> = unknown extends T ? [T] extends [null] ? false
+	: true
+	: false;

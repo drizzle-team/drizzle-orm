@@ -4,7 +4,8 @@ import { expect, type TaskContext } from 'vitest';
 export function expectSchemaShape<T extends Type<any, any>>(t: TaskContext, expected: T) {
 	return {
 		from(actual: T) {
-			expect(actual.equals(expected as any)).toStrictEqual(true);
+			expect(actual.json).toStrictEqual(expected.json);
+			expect(actual.expression).toStrictEqual(expected.expression);
 		},
 	};
 }

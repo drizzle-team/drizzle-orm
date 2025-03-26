@@ -1,11 +1,9 @@
 import type { Type, type } from 'arktype';
-import { Inferred } from 'arktype/internal/methods/base.ts';
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type {
 	ArktypeNullable,
 	ArktypeOptional,
 	GetArktypeType,
-	GetBaseColumn,
 	GetEnumValuesFromColumn,
 	HandleColumn,
 } from './column.types.ts';
@@ -17,7 +15,7 @@ export interface Conditions {
 	nullable: (column: Column) => boolean;
 }
 
-type GenericSchema = Inferred | [Inferred, '?'];
+type GenericSchema = type.cast<unknown> | [type.cast<unknown>, '?'];
 
 export type BuildRefineColumns<
 	TColumns extends Record<string, any>,
@@ -26,10 +24,8 @@ export type BuildRefineColumns<
 		{
 			[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column ? GetArktypeType<
 					TColumn['_']['data'],
-					TColumn['_']['dataType'],
 					TColumn['_']['columnType'],
-					GetEnumValuesFromColumn<TColumn>,
-					GetBaseColumn<TColumn>
+					GetEnumValuesFromColumn<TColumn>
 				> extends infer TSchema extends GenericSchema ? TSchema
 				: Type<any, {}>
 				: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View

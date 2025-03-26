@@ -57,12 +57,12 @@ import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-c
 import { CONSTANTS } from './constants.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
 
-export const literalSchema = type('string | number | boolean | null');
-export const jsonSchema = literalSchema.or(type('unknown.any[] | Record<string, unknown.any>'));
+export const literalSchema = type.string.or(type.number).or(type.boolean).or(type.null);
+export const jsonSchema = literalSchema.or(type.unknown.as<any>().array()).or(type.object.as<Record<string, any>>());
 export const bufferSchema = type.instanceOf(Buffer); // eslint-disable-line no-instanceof/no-instanceof
 
-export function columnToSchema(column: Column): Type<any, any> {
-	let schema!: Type<any, any>;
+export function columnToSchema(column: Column): Type {
+	let schema!: Type;
 
 	if (isWithEnum(column)) {
 		schema = column.enumValues.length ? type.enumerated(...column.enumValues) : type.string;
@@ -96,7 +96,7 @@ export function columnToSchema(column: Column): Type<any, any> {
 			const arraySchema = columnToSchema(column.baseColumn).array();
 			schema = column.size ? arraySchema.exactlyLength(column.size) : arraySchema;
 		} else if (column.dataType === 'array') {
-			schema = type('unknown.any').array();
+			schema = type.unknown.array();
 		} else if (column.dataType === 'number') {
 			schema = numberColumnToSchema(column);
 		} else if (column.dataType === 'bigint') {
@@ -110,20 +110,20 @@ export function columnToSchema(column: Column): Type<any, any> {
 		} else if (column.dataType === 'json') {
 			schema = jsonSchema;
 		} else if (column.dataType === 'custom') {
-			schema = type('unknown.any');
+			schema = type.unknown;
 		} else if (column.dataType === 'buffer') {
 			schema = bufferSchema;
 		}
 	}
 
 	if (!schema) {
-		schema = type('unknown.any');
+		schema = type.unknown;
 	}
 
 	return schema;
 }
 
-function numberColumnToSchema(column: Column): Type<any, any> {
+function numberColumnToSchema(column: Column): Type<number, any> {
 	let unsigned = column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
@@ -234,14 +234,14 @@ export const unsignedBigintNarrow = (v: bigint, ctx: { mustBe: (expected: string
 export const bigintNarrow = (v: bigint, ctx: { mustBe: (expected: string) => false }) =>
 	v < CONSTANTS.INT64_MIN ? ctx.mustBe('greater than') : v > CONSTANTS.INT64_MAX ? ctx.mustBe('less than') : true;
 
-function bigintColumnToSchema(column: Column): Type<any, any> {
+function bigintColumnToSchema(column: Column): Type {
 	const unsigned = column.getSQLType().includes('unsigned');
 	return type.bigint.narrow(unsigned ? unsignedBigintNarrow : bigintNarrow);
 }
 
-function stringColumnToSchema(column: Column): Type<any, any> {
+function stringColumnToSchema(column: Column): Type {
 	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
-		return type(/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/iu);
+		return type(/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/iu).describe('a RFC-4122-compliant UUID');
 	}
 	if (
 		isColumnType<
@@ -252,7 +252,8 @@ function stringColumnToSchema(column: Column): Type<any, any> {
 			>
 		>(column, ['PgBinaryVector'])
 	) {
-		return type(`/^[01]{${column.dimensions}}$/`);
+		return type(`/^[01]{${column.dimensions}}$/`)
+			.describe(`a string containing ones or zeros while being ${column.dimensions} characters long`);
 	}
 
 	let max: number | undefined;

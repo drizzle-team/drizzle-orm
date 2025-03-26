@@ -1,43 +1,23 @@
 import { Type, type } from 'arktype';
 import type { Assume, Column } from 'drizzle-orm';
-import type { ArrayHasAtLeastOneValue, ColumnIsGeneratedAlwaysAs, IsNever, Json } from './utils.ts';
+import type { ColumnIsGeneratedAlwaysAs, IsEnumDefined, IsNever, IsUnknown, Json } from './utils.ts';
 
 export type ArktypeNullable<TSchema> = Type<type.infer<TSchema> | null, {}>;
 
-export type ArktypeOptional<TSchema> = [Type<type.infer<TSchema> | undefined, {}>, '?'];
+export type ArktypeOptional<TSchema> = [Type<type.infer<TSchema>, {}>, '?'];
 
 export type GetEnumValuesFromColumn<TColumn extends Column> = TColumn['_'] extends { enumValues: [string, ...string[]] }
 	? TColumn['_']['enumValues']
 	: undefined;
 
-export type GetBaseColumn<TColumn extends Column> = TColumn['_'] extends { baseColumn: Column | never | undefined }
-	? IsNever<TColumn['_']['baseColumn']> extends false ? TColumn['_']['baseColumn']
-	: undefined
-	: undefined;
-
 export type GetArktypeType<
 	TData,
-	TDataType extends string,
 	TColumnType extends string,
 	TEnumValues extends [string, ...string[]] | undefined,
-	TBaseColumn extends Column | undefined,
-> = TBaseColumn extends Column ? Type<TData, {}>
-	: ArrayHasAtLeastOneValue<TEnumValues> extends true ? Type<Assume<TEnumValues, any[]>[number], {}>
-	: TData extends infer TTuple extends [any, ...any[]]
-		? type.instantiate<{ [K in keyof TTuple]: GetArktypeType<TTuple[K], string, string, undefined, undefined> }>
-	: TData extends Date ? Type<Date, {}>
-	: TData extends Buffer ? Type<Buffer, {}>
-	: TDataType extends 'array' ? Type<TData, {}>
-	: TData extends infer TDict extends Record<string, any>
-		? TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
-			? Type<TDict, {}>
-		: type.instantiate<{ [K in keyof TDict]: GetArktypeType<TDict[K], string, string, undefined, undefined> }>
-	: TDataType extends 'json' ? Type<Json, {}>
-	: TData extends number ? Type<number, {}>
-	: TData extends bigint ? Type<bigint, {}>
-	: TData extends boolean ? Type<boolean, {}>
-	: TData extends string ? Type<string, {}>
-	: Type<any, {}>;
+> = IsEnumDefined<TEnumValues> extends true ? Type<Assume<TEnumValues, any[]>[number]>
+	: TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
+		? IsUnknown<TData> extends true ? Type<Json> : Type<TData>
+	: Type<TData>;
 
 type HandleSelectColumn<
 	TSchema,
@@ -65,12 +45,10 @@ export type HandleColumn<
 	TColumn extends Column,
 > = GetArktypeType<
 	TColumn['_']['data'],
-	TColumn['_']['dataType'],
 	TColumn['_']['columnType'],
-	GetEnumValuesFromColumn<TColumn>,
-	GetBaseColumn<TColumn>
+	GetEnumValuesFromColumn<TColumn>
 > extends infer TSchema ? TType extends 'select' ? HandleSelectColumn<TSchema, TColumn>
 	: TType extends 'insert' ? HandleInsertColumn<TSchema, TColumn>
 	: TType extends 'update' ? HandleUpdateColumn<TSchema, TColumn>
 	: TSchema
-	: Type<any, {}>;
+	: Type;

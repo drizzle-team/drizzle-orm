@@ -15,8 +15,8 @@ function handleColumns(
 	columns: Record<string, any>,
 	refinements: Record<string, any>,
 	conditions: Conditions,
-): Type<any, any> {
-	const columnSchemas: Record<string, Type<any, any>> = {};
+): Type {
+	const columnSchemas: Record<string, Type> = {};
 
 	for (const [key, selected] of Object.entries(columns)) {
 		if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
@@ -35,7 +35,7 @@ function handleColumns(
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = column ? columnToSchema(column) : type('unknown.any');
+		const schema = column ? columnToSchema(column) : type.unknown;
 		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
 
 		if (conditions.never(column)) {
