@@ -776,7 +776,7 @@ export const relationsToTypeScript = (
 		string,
 		{
 			name: string;
-			type: 'one' | 'many' | 'through';
+			type: 'one' | 'many' | 'through' | 'many-through';
 			tableFrom: string;
 			schemaFrom?: string;
 			columnsFrom: string[];
@@ -793,12 +793,6 @@ export const relationsToTypeScript = (
 	// Process all foreign keys as before.
 	Object.values(schema.tables).forEach((table) => {
 		const fks = Object.values(table.foreignKeys);
-
-		// if table has 2 from fk's(one) from different tables
-		//   - do not include this table in one
-		//   - include many and one of them include through
-
-		// if more - just one to many
 
 		if (fks.length === 2) {
 			const [fk1, fk2] = fks;
@@ -839,11 +833,14 @@ export const relationsToTypeScript = (
 
 				tableRelations[toTable2].push({
 					name: plural(toTable1),
-					type: 'many',
+					type: 'many-through',
 					tableFrom: tableFrom2,
 					columnsFrom: fk2.columnsFrom,
 					tableTo: toTable2,
 					columnsTo: columnsTo2,
+					tableThrough,
+					columnsThroughFrom,
+					columnsThroughTo,
 				});
 			}
 		} else {
@@ -915,7 +912,11 @@ export const relationsToTypeScript = (
 				);
 				if (hasDuplicatedRelation) {
 					name = `${relation.name}_${
-						relation.type === 'one'
+						relation.type === 'through'
+							? `via_${relation.tableThrough}`
+							: relation.type === 'many-through'
+							? `via_${relation.tableThrough}`
+							: relation.type === 'one'
 							? relation.columnsFrom.join('_')
 							: relation.columnsTo.join('_')
 					}`;
@@ -949,38 +950,10 @@ export const relationsToTypeScript = (
 				relationString += `\n\t\t${relation.name}: r.one.${relation.tableTo}({\n\t\t\tfrom: ${from},\n\t\t\tto: ${to}`
 					+ (relation.relationName ? `,\n\t\t\talias: "${relation.relationName}"` : '')
 					+ `\n\t\t}),`;
-			} else if (relation.type === 'many') {
+			} else if (relation.type === 'many' || relation.type === 'many-through') {
 				relationString += `\n\t\t${relation.name}: r.many.${relation.tableTo}(`
 					+ (relation.relationName ? `{\n\t\t\talias: "${relation.relationName}"\n\t\t}` : '')
 					+ `),`;
-
-				// // For many-to-many relations using .through().
-				// if (relation.hasThrough) {
-				// 	const from = relation.columnsFrom.length === 1
-				// 		? `r.${relation.tableFrom}.${
-				// 			relation.columnsFrom[0]
-				// 		}.through(r.${relation.tableFrom}.${relation.tableFrom})`
-				// 		: `[${
-				// 			relation.columnsFrom
-				// 				.map((it) => `r.${relation.tableFrom}.${it}.through(r.${relation.tableFrom}.${relation.tableFrom})`)
-				// 				.join(', ')
-				// 		}]`;
-				// 	const to = relation.columnsTo.length === 1
-				// 		? `r.${relation.tableTo}.${relation.columnsTo[0]}.through(r.${relation.tableTo}.${relation.tableTo})`
-				// 		: `[${
-				// 			relation.columnsTo
-				// 				.map((it) => `r.${relation.tableTo}.${it}.through(r.${relation.tableTo}.${relation.tableTo})`)
-				// 				.join(', ')
-				// 		}]`;
-				// 	relationString +=
-				// 		`\n\t\t${relation.name}: r.many.${relation.tableTo}({\n\t\t\tfrom: ${from},\n\t\t\tto: ${to}`
-				// 		+ (relation.relationName ? `,\n\t\t\talias: "${relation.relationName}"` : '')
-				// 		+ `\n\t\t}),`;
-				// } else {
-				// 	relationString += `\n\t\t${relation.name}: r.many.${relation.tableTo}({`
-				// 		+ (relation.relationName ? `\n\t\t\talias: "${relation.relationName}"` : '')
-				// 		+ `\n\t\t}),`;
-				// }
 			} else {
 				const from = relation.columnsThroughFrom!.length === 1
 					? `r.${relation.tableFrom}.${relation.columnsFrom[0]}.through(r.${relation.tableThrough}.${
@@ -992,7 +965,7 @@ export const relationsToTypeScript = (
 							.join(', ')
 					}]`;
 				const to = relation.columnsThroughTo!.length === 1
-					? `r.${relation.tableTo}.${relation.columnsThroughTo![0]}.through(r.${relation.tableThrough}.${
+					? `r.${relation.tableTo}.${relation.columnsTo![0]}.through(r.${relation.tableThrough}.${
 						relation.columnsThroughTo![0]
 					})`
 					: `[${

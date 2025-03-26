@@ -368,6 +368,9 @@ export function escapeSingleQuotes(str: string) {
 }
 
 export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolean) {
+	if (str === "''") {
+		return str;
+	}
 	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
 	return str.replace(/''/g, "'").replace(regex, "\\'");
 }
