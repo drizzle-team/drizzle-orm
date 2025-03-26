@@ -12,6 +12,7 @@ import { DefaultLogger } from '~/logger.ts';
 import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { version } from '../../package.json';
 import type {
 	SingleStoreDriverClient,
 	SingleStoreDriverPreparedQueryHKT,
@@ -102,6 +103,11 @@ function isCallbackClient(client: any): client is CallbackClient {
 
 export type AnySingleStoreDriverConnection = Pool | Connection | CallbackPool | CallbackConnection;
 
+const CONNECTION_ATTRS: PoolOptions['connectAttributes'] = {
+	_connector_name: 'SingleStore Drizzle ORM Driver',
+	_connector_version: version,
+};
+
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends AnySingleStoreDriverConnection = CallbackPool,
@@ -132,6 +138,7 @@ export function drizzle<
 		const connectionString = params[0]!;
 		const instance = createPool({
 			uri: connectionString,
+			connectAttributes: CONNECTION_ATTRS,
 		});
 
 		return construct(instance, params[1]) as any;
@@ -144,9 +151,24 @@ export function drizzle<
 
 		if (client) return construct(client, drizzleConfig) as any;
 
-		const instance = typeof connection === 'string'
-			? createPool({ uri: connection, supportBigNumbers: true })
-			: createPool(connection!);
+		let opts: PoolOptions = {};
+		if (typeof connection === 'string') {
+			opts = {
+				uri: connection,
+				supportBigNumbers: true,
+				connectAttributes: CONNECTION_ATTRS,
+			};
+		} else {
+			opts = {
+				...connection,
+				connectAttributes: {
+					...connection!.connectAttributes,
+					...CONNECTION_ATTRS,
+				},
+			};
+		}
+
+		const instance = createPool(opts);
 		const db = construct(instance, drizzleConfig);
 
 		return db as any;
