@@ -312,8 +312,10 @@ export class MySqlDialect {
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
 		const tableSql = (() => {
-			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
+				return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
+					sql.identifier(table[Table.Symbol.OriginalName])
+				} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
 
 			return table;
