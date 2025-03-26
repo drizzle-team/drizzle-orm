@@ -447,38 +447,38 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			const paramName = paramNameFor(it.name, domainSchema);
 			const func = domainSchema ? `${domainSchema}.domain` : 'pgDomain';
 
-			let params = `'${it.baseType}'`; // Base type is now a separate argument
-			let options = '{'; // Build the options object separately
+			// TODO handle all logic by porting from column() function below
+			let type = it.baseType;
+			if (type.startsWith('varchar(') && type.length > 7) {
+				type = `varchar({ length: ${type.substring(8, type.length - 1)}})`;
+			} else {
+				type += '()';
+			}
 
+			// Start with base type function
+			let domainChain = `${func}("${it.name}", ${type}`;
+
+			// Apply chained methods based on properties
 			if (it.notNull) {
-				options += `notNull: true,`;
+				domainChain += '.notNull()';
 			}
 			if (it.defaultValue) {
-				options += `defaultValue: \`${it.defaultValue}\`,`; // Use template literals
+				domainChain += `.default(${it.defaultValue})`;
 			}
 			if (it.checkConstraints && Object.keys(it.checkConstraints).length > 0) {
 				const checkStmts = Object.entries(it.checkConstraints)
 					.map(([, check]) => {
-						// Use check name and provided expression
-						return `check('${check.name}', sql\`${check.value}\`)`;
-					}).join(', ');
-
-				options += `checkConstraints: [${checkStmts}],`;
+						return `\n\t.checkConstraint('${check.name}', sql\`${check.value}\`)`;
+					}).join('');
+				domainChain += checkStmts;
 			}
 
-			options += '}'; // close the options object
+			// Close function chain
+			domainChain += ')';
 
-			// Remove trailing comma if options object is not empty
-			if (options.length > 2) {
-				options = options.replace(/,$/, '');
-			}
-
-			// Pass baseType and options separately.
-			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", ${params}${
-				options !== '{}' ? `, ${options}` : ''
-			})\n`;
+			return `export const ${withCasing(paramName, casing)} = ${domainChain};\n`;
 		})
-		.join('')
+		.join('\n')
 		.concat('\n');
 
 	const enumStatements = Object.values(schema.enums)
@@ -915,9 +915,10 @@ const column = (
 	}
 
 	if (domainTypes.has(`${domainTypeSchema}.${type}`)) {
-		return `${withCasing(name, casing)}: ${withCasing(type, casing)}()`;
+		return `${withCasing(name, casing)}: ${withCasing(type, casing)}(${dbColumnName({ name, casing })})`;
 	}
 
+	// TODO move all of the below into a function so that it can be used for domain serialization
 	if (lowered.startsWith('serial')) {
 		return `${withCasing(name, casing)}: serial(${dbColumnName({ name, casing })})`;
 	}

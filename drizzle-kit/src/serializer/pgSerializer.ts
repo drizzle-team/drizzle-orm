@@ -1151,8 +1151,12 @@ WHERE
 		const schemaName = domainConstraint.schema || 'public';
 		const key = `${schemaName}.${domainConstraint.name}`;
 		let baseType = domainConstraint.base_type;
-		if (baseType === 'character varying' && domainConstraint.varchar_length) {
-			baseType += ` (${domainConstraint.varchar_length})`;
+		if (baseType === 'character varying') {
+			baseType = 'varchar';
+
+			if (domainConstraint.varchar_length) {
+				baseType += `(${domainConstraint.varchar_length})`;
+			}
 		}
 
 		if (!domainsToReturn[key]) {
@@ -1587,6 +1591,7 @@ WHERE
 							}
 						}
 
+						// TODO make this available for domain code above as well
 						columnTypeMapped = columnTypeMapped
 							.replace('character varying', 'varchar')
 							.replace(' without time zone', '')
