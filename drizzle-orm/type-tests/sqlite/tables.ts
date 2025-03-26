@@ -171,6 +171,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
 				isPrimaryKey: true;
@@ -187,6 +188,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
 				isPrimaryKey: true;
@@ -222,6 +224,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 					isPrimaryKey: false;
@@ -238,6 +241,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 					isPrimaryKey: false;
@@ -269,6 +273,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 					isPrimaryKey: false;
@@ -285,6 +290,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 					isPrimaryKey: false;

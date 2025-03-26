@@ -55,9 +55,34 @@ import {
 } from '~/pg-core/view.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel } from '~/table.ts';
+import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+
+export const identityColumnsTable = pgTable('identity_columns_table', {
+	generatedCol: integer('generated_col').generatedAlwaysAs(1),
+	alwaysAsIdentity: integer('always_as_identity').generatedAlwaysAsIdentity(),
+	byDefaultAsIdentity: integer('by_default_as_identity').generatedByDefaultAsIdentity(),
+	name: text('name'),
+});
+
+Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferSelect']>>;
+Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferSelect']>>;
+Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferInsert']>>;
+Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferInsert']>>;
+Expect<
+	Equal<
+		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
+		Simplify<typeof identityColumnsTable['$inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+	>
+>;
+Expect<
+	Equal<
+		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
+		Simplify<typeof identityColumnsTable['_']['inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+	>
+>;
 
 export const users = pgTable(
 	'users_table',
@@ -78,23 +103,23 @@ export const users = pgTable(
 		enumCol: myEnum('enum_col').notNull(),
 		arrayCol: text('array_col').array().notNull(),
 	},
-	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class.asc().nullsFirst(), sql``),
-		usersAge2Idx: index('usersAge2Idx').on(sql``),
-		uniqueClass: uniqueIndex('uniqueClass')
+	(users) => [
+		uniqueIndex('usersAge1Idx').on(users.class.asc().nullsFirst(), sql``),
+		index('usersAge2Idx').on(sql``),
+		uniqueIndex('uniqueClass')
 			.using('btree', users.class.desc().op('text_ops'), users.subClass.nullsLast())
 			.where(sql`${users.class} is not null`)
 			.concurrently(),
-		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] })
+		check('legalAge', sql`${users.age1} > 18`),
+		foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] })
 			.onUpdate('cascade')
 			.onDelete('cascade'),
-		usersClassComplexFK: foreignKey({
+		foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		}),
-		pk: primaryKey(users.age1, users.class),
-	}),
+		primaryKey(users.age1, users.class),
+	],
 );
 
 Expect<Equal<InferSelectModel<typeof users>, typeof users['$inferSelect']>>;
@@ -114,9 +139,7 @@ export const smallSerialTest = pgTable('cities_table', {
 	id: smallserial('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+});
 
 Expect<
 	Equal<{
@@ -172,9 +195,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+}, (cities) => [index().on(cities.id)]);
 
 export const newYorkers = pgView('new_yorkers')
 	.with({
@@ -209,6 +230,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -225,6 +247,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -268,6 +291,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -284,6 +308,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -325,6 +350,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -341,6 +367,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -382,6 +409,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -398,6 +426,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -429,6 +458,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -445,6 +475,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -476,6 +507,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -492,6 +524,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -538,6 +571,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -554,6 +588,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -600,6 +635,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -616,6 +652,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -660,6 +697,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -676,6 +714,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -720,6 +759,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -736,6 +776,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -767,6 +808,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -783,6 +825,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -814,6 +857,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -830,6 +874,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -945,6 +990,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -961,6 +1007,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				notNull: true;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -977,6 +1024,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				notNull: true;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -993,6 +1041,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;

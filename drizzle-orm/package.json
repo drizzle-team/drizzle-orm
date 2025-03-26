@@ -1,10 +1,11 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.35.3",
+	"version": "0.41.0",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
-		"build": "scripts/build.ts",
+		"p": "prisma generate --schema src/prisma/schema.prisma",
+		"build": "pnpm p && scripts/build.ts",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",
 		"test": "vitest run",
@@ -28,6 +29,7 @@
 		"orm",
 		"pg",
 		"mysql",
+		"singlestore",
 		"postgresql",
 		"postgres",
 		"sqlite",
@@ -44,11 +46,11 @@
 	},
 	"peerDependencies": {
 		"@aws-sdk/client-rds-data": ">=3",
-		"@cloudflare/workers-types": ">=3",
-		"@electric-sql/pglite": ">=0.1.1",
+		"@cloudflare/workers-types": ">=4",
+		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
-		"@neondatabase/serverless": ">=0.1",
+		"@neondatabase/serverless": ">=0.10.0",
 		"@op-engineering/op-sqlite": ">=2",
 		"@opentelemetry/api": "^1.4.1",
 		"@planetscale/database": ">=1",
@@ -56,21 +58,20 @@
 		"@tidbcloud/serverless": "*",
 		"@types/better-sqlite3": "*",
 		"@types/pg": "*",
-		"@types/react": ">=18",
 		"@types/sql.js": "*",
 		"@vercel/postgres": ">=0.8.0",
 		"@xata.io/client": "*",
 		"better-sqlite3": ">=7",
 		"bun-types": "*",
-		"expo-sqlite": ">=13.2.0",
+		"expo-sqlite": ">=14.0.0",
 		"knex": "*",
 		"kysely": "*",
 		"mysql2": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
-		"react": ">=18",
 		"sql.js": ">=1",
-		"sqlite3": ">=5"
+		"sqlite3": ">=5",
+		"gel": ">=2"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -130,19 +131,19 @@
 		"@libsql/client": {
 			"optional": true
 		},
+		"@libsql/client-wasm": {
+			"optional": true
+		},
 		"@opentelemetry/api": {
 			"optional": true
 		},
 		"expo-sqlite": {
 			"optional": true
 		},
+		"gel": {
+			"optional": true
+		},
 		"@op-engineering/op-sqlite": {
-			"optional": true
-		},
-		"react": {
-			"optional": true
-		},
-		"@types/react": {
 			"optional": true
 		},
 		"@electric-sql/pglite": {
@@ -160,12 +161,12 @@
 	},
 	"devDependencies": {
 		"@aws-sdk/client-rds-data": "^3.549.0",
-		"@cloudflare/workers-types": "^4.20230904.0",
+		"@cloudflare/workers-types": "^4.20241112.0",
 		"@electric-sql/pglite": "^0.2.12",
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",
 		"@miniflare/d1": "^2.14.4",
-		"@neondatabase/serverless": "^0.9.0",
+		"@neondatabase/serverless": "^0.10.0",
 		"@op-engineering/op-sqlite": "^2.0.16",
 		"@opentelemetry/api": "^1.4.1",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
@@ -180,9 +181,10 @@
 		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
 		"better-sqlite3": "^8.4.0",
-		"bun-types": "^0.6.6",
+		"bun-types": "^1.2.0",
 		"cpy": "^10.1.0",
-		"expo-sqlite": "^13.2.0",
+		"expo-sqlite": "^14.0.0",
+		"gel": "^2.0.0",
 		"knex": "^2.4.2",
 		"kysely": "^0.25.0",
 		"mysql2": "^3.3.3",

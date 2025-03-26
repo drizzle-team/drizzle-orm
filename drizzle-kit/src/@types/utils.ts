@@ -13,6 +13,7 @@ declare global {
 		random(): T;
 	}
 }
+
 import camelcase from 'camelcase';
 
 String.prototype.trimChar = function(char: string) {

@@ -34,8 +34,10 @@ test('add table #1', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 	});
 });
@@ -63,6 +65,8 @@ test('add table #2', async () => {
 			},
 		],
 		compositePKs: [],
+		isRLSEnabled: false,
+		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
 		compositePkName: '',
@@ -103,7 +107,9 @@ test('add table #3', async () => {
 			},
 		],
 		compositePKs: ['id;users_pk'],
+		policies: [],
 		uniqueConstraints: [],
+		isRLSEnabled: false,
 		checkConstraints: [],
 		compositePkName: 'users_pk',
 	});
@@ -124,16 +130,20 @@ test('add table #4', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isRLSEnabled: false,
 		compositePkName: '',
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_table',
 		tableName: 'posts',
+		policies: [],
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		checkConstraints: [],
 		compositePkName: '',
@@ -160,9 +170,11 @@ test('add table #5', async () => {
 		schema: 'folder',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
+		isRLSEnabled: false,
 	});
 });
 
@@ -185,11 +197,14 @@ test('add table #6', async () => {
 		columns: [],
 		compositePKs: [],
 		uniqueConstraints: [],
+		policies: [],
 		compositePkName: '',
 		checkConstraints: [],
+		isRLSEnabled: false,
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
+		policies: [],
 		tableName: 'users1',
 		schema: '',
 	});
@@ -216,8 +231,10 @@ test('add table #7', async () => {
 		schema: '',
 		columns: [],
 		compositePKs: [],
+		policies: [],
 		uniqueConstraints: [],
 		compositePkName: '',
+		isRLSEnabled: false,
 		checkConstraints: [],
 	});
 	expect(statements[1]).toStrictEqual({
@@ -244,7 +261,7 @@ test('add table #8: geometry types', async () => {
 	expect(statements.length).toBe(1);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL\n);\n`,
+		`CREATE TABLE "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL\n);\n`,
 	]);
 });
 
@@ -273,7 +290,9 @@ test('multiproject schema add table #1', async () => {
 			},
 		],
 		compositePKs: [],
+		policies: [],
 		compositePkName: '',
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		checkConstraints: [],
 	});
@@ -296,6 +315,7 @@ test('multiproject schema drop table #1', async () => {
 		schema: '',
 		tableName: 'prefix_users',
 		type: 'drop_table',
+		policies: [],
 	});
 });
 
@@ -340,7 +360,7 @@ test('add table #8: column with pgvector', async () => {
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements[0]).toBe(
-		`CREATE TABLE IF NOT EXISTS "users2" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"name" vector(3)\n);
+		`CREATE TABLE "users2" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"name" vector(3)\n);
 `,
 	);
 });
@@ -365,8 +385,10 @@ test('add schema + table #1', async () => {
 		type: 'create_table',
 		tableName: 'users',
 		schema: 'folder',
+		policies: [],
 		columns: [],
 		compositePKs: [],
+		isRLSEnabled: false,
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
@@ -623,6 +645,7 @@ test('drop table + rename schema #1', async () => {
 		type: 'drop_table',
 		tableName: 'users',
 		schema: 'folder2',
+		policies: [],
 	});
 });
 
@@ -648,8 +671,108 @@ test('create table with tsvector', async () => {
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "posts" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"title" text NOT NULL,\n\t"description" text NOT NULL\n);\n',
-		`CREATE INDEX IF NOT EXISTS "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
+		'CREATE TABLE "posts" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"title" text NOT NULL,\n\t"description" text NOT NULL\n);\n',
+		`CREATE INDEX "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
+	]);
+});
+
+test('composite primary key', async () => {
+	const from = {};
+	const to = {
+		table: pgTable('works_to_creators', {
+			workId: integer('work_id').notNull(),
+			creatorId: integer('creator_id').notNull(),
+			classification: text('classification').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				columns: [t.workId, t.creatorId, t.classification],
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE "works_to_creators" (\n\t"work_id" integer NOT NULL,\n\t"creator_id" integer NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_work_id_creator_id_classification_pk" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
+	]);
+});
+
+test('add column before creating unique constraint', async () => {
+	const from = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const to = {
+		table: pgTable('table', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			uq: unique('uq').on(t.name),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" ADD COLUMN "name" text NOT NULL;',
+		'ALTER TABLE "table" ADD CONSTRAINT "uq" UNIQUE("name");',
+	]);
+});
+
+test('alter composite primary key', async () => {
+	const from = {
+		table: pgTable('table', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+			col3: text('col3').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				name: 'table_pk',
+				columns: [t.col1, t.col2],
+			}),
+		})),
+	};
+	const to = {
+		table: pgTable('table', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+			col3: text('col3').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				name: 'table_pk',
+				columns: [t.col2, t.col3],
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "table" DROP CONSTRAINT "table_pk";\n--> statement-breakpoint\nALTER TABLE "table" ADD CONSTRAINT "table_pk" PRIMARY KEY("col2","col3");',
+	]);
+});
+
+test('add index with op', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}),
+	};
+	const to = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			nameIdx: index().using('gin', t.name.op('gin_trgm_ops')),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE INDEX "users_name_index" ON "users" USING gin ("name" gin_trgm_ops);',
 	]);
 });
 
@@ -706,7 +829,7 @@ test('optional db aliases (snake case)', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'snake_case');
 
-	const st1 = `CREATE TABLE IF NOT EXISTS "t1" (
+	const st1 = `CREATE TABLE "t1" (
 	"t1_id1" integer PRIMARY KEY NOT NULL,
 	"t1_col2" integer NOT NULL,
 	"t1_col3" integer NOT NULL,
@@ -718,35 +841,27 @@ test('optional db aliases (snake case)', async () => {
 );
 `;
 
-	const st2 = `CREATE TABLE IF NOT EXISTS "t2" (
+	const st2 = `CREATE TABLE "t2" (
 	"t2_id" serial PRIMARY KEY NOT NULL
 );
 `;
 
-	const st3 = `CREATE TABLE IF NOT EXISTS "t3" (
+	const st3 = `CREATE TABLE "t3" (
 	"t3_id1" integer,
 	"t3_id2" integer,
 	CONSTRAINT "t3_t3_id1_t3_id2_pk" PRIMARY KEY("t3_id1","t3_id2")
 );
 `;
 
-	const st4 = `DO $$ BEGIN
- ALTER TABLE "t1" ADD CONSTRAINT "t1_t2_ref_t2_t2_id_fk" FOREIGN KEY ("t2_ref") REFERENCES "public"."t2"("t2_id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
-`;
+	const st4 =
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t2_ref_t2_t2_id_fk" FOREIGN KEY ("t2_ref") REFERENCES "public"."t2"("t2_id") ON DELETE no action ON UPDATE no action;`;
 
-	const st5 = `DO $$ BEGIN
- ALTER TABLE "t1" ADD CONSTRAINT "t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk" FOREIGN KEY ("t1_col2","t1_col3") REFERENCES "public"."t3"("t3_id1","t3_id2") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
-`;
+	const st5 =
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk" FOREIGN KEY ("t1_col2","t1_col3") REFERENCES "public"."t3"("t3_id1","t3_id2") ON DELETE no action ON UPDATE no action;`;
 
-	const st6 = `CREATE UNIQUE INDEX IF NOT EXISTS "t1_uni_idx" ON "t1" USING btree ("t1_uni_idx");`;
+	const st6 = `CREATE UNIQUE INDEX "t1_uni_idx" ON "t1" USING btree ("t1_uni_idx");`;
 
-	const st7 = `CREATE INDEX IF NOT EXISTS "t1_idx" ON "t1" USING btree ("t1_idx") WHERE "t1"."t1_idx" > 0;`;
+	const st7 = `CREATE INDEX "t1_idx" ON "t1" USING btree ("t1_idx") WHERE "t1"."t1_idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
@@ -804,7 +919,7 @@ test('optional db aliases (camel case)', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'camelCase');
 
-	const st1 = `CREATE TABLE IF NOT EXISTS "t1" (
+	const st1 = `CREATE TABLE "t1" (
 	"t1Id1" integer PRIMARY KEY NOT NULL,
 	"t1Col2" integer NOT NULL,
 	"t1Col3" integer NOT NULL,
@@ -816,35 +931,27 @@ test('optional db aliases (camel case)', async () => {
 );
 `;
 
-	const st2 = `CREATE TABLE IF NOT EXISTS "t2" (
+	const st2 = `CREATE TABLE "t2" (
 	"t2Id" serial PRIMARY KEY NOT NULL
 );
 `;
 
-	const st3 = `CREATE TABLE IF NOT EXISTS "t3" (
+	const st3 = `CREATE TABLE "t3" (
 	"t3Id1" integer,
 	"t3Id2" integer,
 	CONSTRAINT "t3_t3Id1_t3Id2_pk" PRIMARY KEY("t3Id1","t3Id2")
 );
 `;
 
-	const st4 = `DO $$ BEGIN
- ALTER TABLE "t1" ADD CONSTRAINT "t1_t2Ref_t2_t2Id_fk" FOREIGN KEY ("t2Ref") REFERENCES "public"."t2"("t2Id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
-`;
+	const st4 =
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t2Ref_t2_t2Id_fk" FOREIGN KEY ("t2Ref") REFERENCES "public"."t2"("t2Id") ON DELETE no action ON UPDATE no action;`;
 
-	const st5 = `DO $$ BEGIN
- ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "public"."t3"("t3Id1","t3Id2") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
-`;
+	const st5 =
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "public"."t3"("t3Id1","t3Id2") ON DELETE no action ON UPDATE no action;`;
 
-	const st6 = `CREATE UNIQUE INDEX IF NOT EXISTS "t1UniIdx" ON "t1" USING btree ("t1UniIdx");`;
+	const st6 = `CREATE UNIQUE INDEX "t1UniIdx" ON "t1" USING btree ("t1UniIdx");`;
 
-	const st7 = `CREATE INDEX IF NOT EXISTS "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
+	const st7 = `CREATE INDEX "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });

@@ -1,30 +1,26 @@
 import { type Client, type Config, createClient } from '@libsql/client/sqlite3';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { construct, type LibSQLDatabase } from '../driver-core.ts';
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends Client = Client,
 >(
-	...params: IfNotImported<
-		Client,
-		[ImportTypeError<'@libsql/client'>],
-		[
-			TClient | string,
-		] | [
-			TClient | string,
-			DrizzleConfig<TSchema>,
-		] | [
-			(
-				& DrizzleConfig<TSchema>
-				& ({
-					connection: string | Config;
-				} | {
-					client: TClient;
-				})
-			),
-		]
-	>
+	...params: [
+		TClient | string,
+	] | [
+		TClient | string,
+		DrizzleConfig<TSchema>,
+	] | [
+		(
+			& DrizzleConfig<TSchema>
+			& ({
+				connection: string | Config;
+			} | {
+				client: TClient;
+			})
+		),
+	]
 ): LibSQLDatabase<TSchema> & {
 	$client: TClient;
 } {
