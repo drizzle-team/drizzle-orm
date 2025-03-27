@@ -285,6 +285,9 @@ jobs:
 
   release:
     permissions: write-all
+    needs:
+      - test
+      - attw
     strategy:
       fail-fast: false
       matrix:

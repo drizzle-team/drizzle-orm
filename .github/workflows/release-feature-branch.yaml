@@ -191,7 +191,7 @@ jobs:
 
             neon-serverless)
               docker compose -f docker-neon.yml up -d
-              pnpm vitest run tests/pg/neon-serverless.test.ts
+              pnpm vitest run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
               docker compose -f docker-neon.yml down
             ;;
 
