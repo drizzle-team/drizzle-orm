@@ -21,10 +21,18 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
+import {
+	applyMixins,
+	type DrizzleTypeError,
+	getTableColumns,
+	getTableLikeName,
+	haveSameKeys,
+	type NeonAuthToken,
+	type ValueOrArray,
+} from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
@@ -34,17 +42,18 @@ import type {
 	LockConfig,
 	LockStrength,
 	PgCreateSetOperatorFn,
-	PgJoinFn,
 	PgSelectConfig,
 	PgSelectDynamic,
 	PgSelectHKT,
 	PgSelectHKTBase,
+	PgSelectJoinFn,
 	PgSelectPrepare,
 	PgSelectWithout,
 	PgSetOperatorExcludedMethods,
 	PgSetOperatorWithResult,
 	SelectedFields,
 	SetOperatorRightSelect,
+	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
 export class PgSelectBuilder<
@@ -81,6 +90,13 @@ export class PgSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	/**
 	 * Specify the table, subquery, or other target that you're
 	 * building a select query against.
@@ -88,7 +104,10 @@ export class PgSelectBuilder<
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
 	 */
 	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
-		source: TFrom,
+		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
+			: TFrom,
 	): CreatePgSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
@@ -96,34 +115,35 @@ export class PgSelectBuilder<
 		TSelection extends undefined ? 'single' : 'partial'
 	> {
 		const isPartialSelect = !!this.fields;
+		const src = source as TFrom;
 
 		let fields: SelectedFields;
 		if (this.fields) {
 			fields = this.fields;
-		} else if (is(source, Subquery)) {
+		} else if (is(src, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
-				Object.keys(source[SubqueryConfig].selection).map((
+				Object.keys(src._.selectedFields).map((
 					key,
-				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
+				) => [key, src[key as unknown as keyof typeof src] as unknown as SelectedFields[string]]),
 			);
-		} else if (is(source, PgViewBase)) {
-			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
-		} else if (is(source, SQL)) {
+		} else if (is(src, PgViewBase)) {
+			fields = src[ViewBaseConfig].selectedFields as SelectedFields;
+		} else if (is(src, SQL)) {
 			fields = {};
 		} else {
-			fields = getTableColumns<PgTable>(source);
+			fields = getTableColumns<PgTable>(src);
 		}
 
-		return new PgSelectBase({
-			table: source,
+		return (new PgSelectBase({
+			table: src,
 			fields,
 			isPartialSelect,
 			session: this.session,
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
-		}) as any;
+		}).setToken(this.authToken)) as any;
 	}
 }
 
@@ -139,7 +159,7 @@ export abstract class PgSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'PgSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'PgSelectQueryBuilder';
 
 	override readonly _: {
 		readonly dialect: 'pg';
@@ -194,8 +214,8 @@ export abstract class PgSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): PgJoinFn<this, TDynamic, TJoinType> {
-		return (
+	): PgSelectJoinFn<this, TDynamic, TJoinType> {
+		return ((
 			table: PgTable | Subquery | PgViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
@@ -215,7 +235,7 @@ export abstract class PgSelectQueryBuilderBase<
 				}
 				if (typeof tableName === 'string' && !is(table, SQL)) {
 					const selection = is(table, Subquery)
-						? table[SubqueryConfig].selection
+						? table._.selectedFields
 						: is(table, View)
 						? table[ViewBaseConfig].selectedFields
 						: table[Table.Symbol.Columns];
@@ -266,7 +286,7 @@ export abstract class PgSelectQueryBuilderBase<
 			}
 
 			return this as any;
-		};
+		}) as any;
 	}
 
 	/**
@@ -947,11 +967,11 @@ export class PgSelectBase<
 	TResult,
 	TSelectedFields
 > implements RunnableQuery<TResult, 'pg'>, SQLWrapper {
-	static readonly [entityKind]: string = 'PgSelect';
+	static override readonly [entityKind]: string = 'PgSelect';
 
 	/** @internal */
 	_prepare(name?: string): PgSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap } = this;
+		const { session, config, dialect, joinsNotNullableMap, authToken } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
@@ -959,9 +979,10 @@ export class PgSelectBase<
 			const fieldsList = orderSelectedFields<PgColumn>(config.fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);
+			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true);
 			query.joinsNotNullableMap = joinsNotNullableMap;
-			return query;
+
+			return query.setToken(authToken);
 		});
 	}
 
@@ -976,9 +997,16 @@ export class PgSelectBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 }

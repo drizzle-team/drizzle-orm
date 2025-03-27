@@ -1,158 +1,242 @@
 import type { OPSQLiteConnection, QueryResult } from '@op-engineering/op-sqlite';
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
 import {
-    type PreparedQueryConfig as PreparedQueryConfigBase,
-    SQLitePreparedQuery,
-    type SQLiteExecuteMethod,
-    SQLiteSession,
-    type SQLiteTransactionConfig,
+	type PreparedQueryConfig as PreparedQueryConfigBase,
+	type SQLiteExecuteMethod,
+	SQLitePreparedQuery,
+	SQLiteSession,
+	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
 
 export interface OPSQLiteSessionOptions {
-    logger?: Logger;
+	logger?: Logger;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class OPSQLiteSession<
-    TFullSchema extends Record<string, unknown>,
-    TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'async', QueryResult, TFullSchema, TSchema> {
-    static readonly [entityKind]: string = 'OPSQLiteSession';
+	TFullSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteSession<'async', QueryResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+	static override readonly [entityKind]: string = 'OPSQLiteSession';
 
-    private logger: Logger;
+	private logger: Logger;
 
-    constructor(
-        private client: OPSQLiteConnection,
-        dialect: SQLiteAsyncDialect,
-        private schema: RelationalSchemaConfig<TSchema> | undefined,
-        options: OPSQLiteSessionOptions = {},
+	constructor(
+		private client: OPSQLiteConnection,
+		dialect: SQLiteAsyncDialect,
+		private relations: AnyRelations | undefined,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		options: OPSQLiteSessionOptions = {},
+	) {
+		super(dialect);
+		this.logger = options.logger ?? new NoopLogger();
+	}
 
-    ) {
-        super(dialect);
-        this.logger = options.logger ?? new NoopLogger();
-    }
+	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
+		customResultMapper?: (rows: unknown[][]) => unknown,
+	): OPSQLitePreparedQuery<T> {
+		return new OPSQLitePreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
+	}
 
-    prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
-        query: Query,
-        fields: SelectedFieldsOrdered | undefined,
-        executeMethod: SQLiteExecuteMethod,
-        customResultMapper?: (rows: unknown[][]) => unknown,
-    ): OPSQLitePreparedQuery<T> {
-        return new OPSQLitePreparedQuery(this.client, query, this.logger, fields, executeMethod, customResultMapper);
-    }
+	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+	): OPSQLitePreparedQuery<T, true> {
+		return new OPSQLitePreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			false,
+			customResultMapper,
+			true,
+		);
+	}
 
-    override transaction<T>(
-        transaction: (tx: OPSQLiteTransaction<TFullSchema, TSchema>) => T,
-        config: SQLiteTransactionConfig = {},
-    ): T {
-        const tx = new OPSQLiteTransaction('async', this.dialect, this, this.schema);
-        this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
-        try {
-            const result = transaction(tx);
-            this.run(sql`commit`);
-            return result;
-        } catch (err) {
-            this.run(sql`rollback`);
-            throw err;
-        }
-    }
+	override transaction<T>(
+		transaction: (tx: OPSQLiteTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+		config: SQLiteTransactionConfig = {},
+	): T {
+		const tx = new OPSQLiteTransaction('async', this.dialect, this, this.relations, this.schema);
+		this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
+		try {
+			const result = transaction(tx);
+			this.run(sql`commit`);
+			return result;
+		} catch (err) {
+			this.run(sql`rollback`);
+			throw err;
+		}
+	}
 }
 
 export class OPSQLiteTransaction<
-    TFullSchema extends Record<string, unknown>,
-    TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'async', QueryResult, TFullSchema, TSchema> {
-    static readonly [entityKind]: string = 'OPSQLiteTransaction';
+	TFullSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteTransaction<'async', QueryResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+	static override readonly [entityKind]: string = 'OPSQLiteTransaction';
 
-    override transaction<T>(transaction: (tx: OPSQLiteTransaction<TFullSchema, TSchema>) => T): T {
-        const savepointName = `sp${this.nestedIndex}`;
-        const tx = new OPSQLiteTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
-        this.session.run(sql.raw(`savepoint ${savepointName}`));
-        try {
-            const result = transaction(tx);
-            this.session.run(sql.raw(`release savepoint ${savepointName}`));
-            return result;
-        } catch (err) {
-            this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
-            throw err;
-        }
-    }
+	override transaction<T>(
+		transaction: (tx: OPSQLiteTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+	): T {
+		const savepointName = `sp${this.nestedIndex}`;
+		const tx = new OPSQLiteTransaction(
+			'async',
+			this.dialect,
+			this.session,
+			this.relations,
+			this.schema,
+			this.nestedIndex + 1,
+		);
+		this.session.run(sql.raw(`savepoint ${savepointName}`));
+		try {
+			const result = transaction(tx);
+			this.session.run(sql.raw(`release savepoint ${savepointName}`));
+			return result;
+		} catch (err) {
+			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			throw err;
+		}
+	}
 }
 
-export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
-    { type: 'async'; run: QueryResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
+export class OPSQLitePreparedQuery<
+	T extends PreparedQueryConfig = PreparedQueryConfig,
+	TIsRqbV2 extends boolean = false,
+> extends SQLitePreparedQuery<
+	{ type: 'async'; run: QueryResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-    static readonly [entityKind]: string = 'OPSQLitePreparedQuery';
+	static override readonly [entityKind]: string = 'OPSQLitePreparedQuery';
 
-    constructor(
+	constructor(
 		private client: OPSQLiteConnection,
-        query: Query,
-        private logger: Logger,
-        private fields: SelectedFieldsOrdered | undefined,
-        executeMethod: SQLiteExecuteMethod,
-        private customResultMapper?: (rows: unknown[][]) => unknown,
-    ) {
-        super('sync', executeMethod, query);
-    }
+		query: Query,
+		private logger: Logger,
+		private fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		private _isResponseInArrayMode: boolean,
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+		) => unknown,
+		private isRqbV2Query?: TIsRqbV2,
+	) {
+		super('sync', executeMethod, query);
+	}
 
-    run(placeholderValues?: Record<string, unknown>): Promise<QueryResult> {
-        const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-        this.logger.logQuery(this.query.sql, params);
+	run(placeholderValues?: Record<string, unknown>): Promise<QueryResult> {
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
 
-        return this.client.executeAsync(this.query.sql, params);
-    }
+		return this.client.executeAsync(this.query.sql, params);
+	}
 
-    async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-        const { fields, joinsNotNullableMap, query, logger, customResultMapper, client } = this;
-        if (!fields && !customResultMapper) {
-            const params = fillPlaceholders(query.params, placeholderValues ?? {});
-            logger.logQuery(query.sql, params);
+	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+		if (this.isRqbV2Query) return this.allRqbV2(placeholderValues);
 
-            return client.execute(query.sql, params).rows?._array || [];
-        }
+		const { fields, joinsNotNullableMap, query, logger, customResultMapper, client } = this;
+		if (!fields && !customResultMapper) {
+			const params = fillPlaceholders(query.params, placeholderValues ?? {});
+			logger.logQuery(query.sql, params);
 
-        const rows = await this.values(placeholderValues) as unknown[][];
-        if (customResultMapper) {
-            return customResultMapper(rows) as T['all'];
-        }
-        return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
-    }
+			return client.execute(query.sql, params).rows?._array || [];
+		}
 
-    async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-        const { fields, joinsNotNullableMap, customResultMapper, query, logger, client } = this;
-        const params = fillPlaceholders(query.params, placeholderValues ?? {});
-        logger.logQuery(query.sql, params);
-        if (!fields && !customResultMapper) {
-            const rows = client.execute(query.sql, params).rows?._array || [];
-            return rows[0];
-        }
+		const rows = await this.values(placeholderValues) as unknown[][];
+		if (customResultMapper) {
+			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
+		}
+		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+	}
 
-        const rows = await this.values(placeholderValues) as unknown[][];
-        const row = rows[0];
+	private async allRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+		const { query, logger, customResultMapper, client } = this;
 
-        if (!row) {
-            return undefined;
-        }
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
 
-        if (customResultMapper) {
-            return customResultMapper(rows) as T['get'];
-        }
+		const rows = client.execute(query.sql, params).rows?._array || [];
 
-        return mapResultRow(fields!, row, joinsNotNullableMap);
-    }
+		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows) as T['all'];
+	}
 
-    values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
-        const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-        this.logger.logQuery(this.query.sql, params);
-        return this.client.executeRawAsync(this.query.sql, params);
-    }
+	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+		if (this.isRqbV2Query) return this.getRqbV2(placeholderValues);
+
+		const { fields, joinsNotNullableMap, customResultMapper, query, logger, client } = this;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
+		if (!fields && !customResultMapper) {
+			const rows = client.execute(query.sql, params).rows?._array || [];
+			return rows[0];
+		}
+
+		const rows = await this.values(placeholderValues) as unknown[][];
+		const row = rows[0];
+
+		if (!row) {
+			return undefined;
+		}
+
+		if (customResultMapper) {
+			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['get'];
+		}
+
+		return mapResultRow(fields!, row, joinsNotNullableMap);
+	}
+
+	private async getRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+		const { customResultMapper, query, logger, client } = this;
+
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
+
+		const rows = client.execute(query.sql, params).rows?._array || [];
+		const row = rows[0];
+
+		if (!row) {
+			return undefined;
+		}
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]) as T['get'];
+	}
+
+	values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
+		return this.client.executeRawAsync(this.query.sql, params);
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
+	}
 }

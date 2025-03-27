@@ -1,13 +1,14 @@
 import { entityKind } from '~/entity.ts';
+import { TableName } from '~/table.utils.ts';
 import type { MySqlColumn } from './columns/index.ts';
-import { MySqlTable } from './table.ts';
+import type { MySqlTable } from './table.ts';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);
 }
 
 export function uniqueKeyName(table: MySqlTable, columns: string[]) {
-	return `${table[MySqlTable.Symbol.Name]}_${columns.join('_')}_unique`;
+	return `${table[TableName]}_${columns.join('_')}_unique`;
 }
 
 export class UniqueConstraintBuilder {

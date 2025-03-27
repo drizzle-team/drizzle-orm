@@ -1,10 +1,11 @@
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleError, TransactionRollbackError } from '~/errors.ts';
-import type { TablesRelationalConfig } from '~/relations.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations, TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { QueryPromise } from '../index.ts';
 import { BaseSQLiteDatabase } from './db.ts';
 import type { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
@@ -19,7 +20,7 @@ export interface PreparedQueryConfig {
 }
 
 export class ExecuteResultSync<T> extends QueryPromise<T> {
-	static readonly [entityKind]: string = 'ExecuteResultSync';
+	static override readonly [entityKind]: string = 'ExecuteResultSync';
 
 	constructor(private resultCb: () => T) {
 		super();
@@ -93,6 +94,9 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 			}
 		}
 	}
+
+	/** @internal */
+	abstract isResponseInArrayMode(): boolean;
 }
 
 export interface SQLiteTransactionConfig {
@@ -104,8 +108,10 @@ export type SQLiteExecuteMethod = 'run' | 'all' | 'get';
 export abstract class SQLiteSession<
 	TResultKind extends 'sync' | 'async',
 	TRunResult,
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
+	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'SQLiteSession';
 
@@ -118,6 +124,7 @@ export abstract class SQLiteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
@@ -125,19 +132,38 @@ export abstract class SQLiteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TResultKind }> {
-		return this.prepareQuery(query, fields, executeMethod);
+		return this.prepareQuery(query, fields, executeMethod, isResponseInArrayMode);
+	}
+
+	abstract prepareRelationalQuery(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		customResultMapper: (rows: Record<string, unknown>[], mapColumnValue?: (value: unknown) => unknown) => unknown,
+	): SQLitePreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
+
+	prepareOneTimeRelationalQuery(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		customResultMapper: (rows: Record<string, unknown>[], mapColumnValue?: (value: unknown) => unknown) => unknown,
+	): SQLitePreparedQuery<PreparedQueryConfig & { type: TResultKind }> {
+		return this.prepareRelationalQuery(query, fields, executeMethod, customResultMapper);
 	}
 
 	abstract transaction<T>(
-		transaction: (tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TSchema>) => Result<TResultKind, T>,
+		transaction: (
+			tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TTablesConfig, TSchema>,
+		) => Result<TResultKind, T>,
 		config?: SQLiteTransactionConfig,
 	): Result<TResultKind, T>;
 
 	run(query: SQL): Result<TResultKind, TRunResult> {
 		const staticQuery = this.dialect.sqlToQuery(query);
 		try {
-			return this.prepareOneTimeQuery(staticQuery, undefined, 'run').run() as Result<TResultKind, TRunResult>;
+			return this.prepareOneTimeQuery(staticQuery, undefined, 'run', false).run() as Result<TResultKind, TRunResult>;
 		} catch (err) {
 			throw new DrizzleError({ cause: err, message: `Failed to run the query '${staticQuery.sql}'` });
 		}
@@ -149,7 +175,10 @@ export abstract class SQLiteSession<
 	}
 
 	all<T = unknown>(query: SQL): Result<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').all() as Result<TResultKind, T[]>;
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).all() as Result<
+			TResultKind,
+			T[]
+		>;
 	}
 
 	/** @internal */
@@ -158,7 +187,10 @@ export abstract class SQLiteSession<
 	}
 
 	get<T = unknown>(query: SQL): Result<TResultKind, T> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').get() as Result<TResultKind, T>;
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).get() as Result<
+			TResultKind,
+			T
+		>;
 	}
 
 	/** @internal */
@@ -169,10 +201,16 @@ export abstract class SQLiteSession<
 	values<T extends any[] = unknown[]>(
 		query: SQL,
 	): Result<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').values() as Result<
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).values() as Result<
 			TResultKind,
 			T[]
 		>;
+	}
+
+	async count(sql: SQL) {
+		const result = await this.values(sql) as [[number]];
+
+		return result[0][0];
 	}
 
 	/** @internal */
@@ -188,23 +226,28 @@ export type DBResult<TKind extends 'sync' | 'async', TResult> = { sync: TResult;
 export abstract class SQLiteTransaction<
 	TResultType extends 'sync' | 'async',
 	TRunResult,
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends BaseSQLiteDatabase<TResultType, TRunResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteTransaction';
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
+	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
+> extends BaseSQLiteDatabase<TResultType, TRunResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+	static override readonly [entityKind]: string = 'SQLiteTransaction';
 
 	constructor(
 		resultType: TResultType,
 		dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultType],
-		session: SQLiteSession<TResultType, TRunResult, TFullSchema, TSchema>,
+		session: SQLiteSession<TResultType, TRunResult, TFullSchema, TRelations, TTablesConfig, TSchema>,
+		protected relations: AnyRelations | undefined,
 		protected schema: {
 			fullSchema: Record<string, unknown>;
 			schema: TSchema;
 			tableNamesMap: Record<string, string>;
 		} | undefined,
 		protected readonly nestedIndex = 0,
+		rowModeRQB?: boolean,
+		forbidJsonb?: boolean,
 	) {
-		super(resultType, dialect, session, schema);
+		super(resultType, dialect, session, relations, schema, rowModeRQB, forbidJsonb);
 	}
 
 	rollback(): never {

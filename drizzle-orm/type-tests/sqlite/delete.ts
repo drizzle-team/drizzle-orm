@@ -152,3 +152,7 @@ Expect<Equal<any[][], typeof deleteValuesBunReturningPartial>>;
 		// @ts-expect-error method was already called
 		.returning();
 }
+
+{
+	db.delete(users).where(sql``).limit(1).orderBy(sql``);
+}

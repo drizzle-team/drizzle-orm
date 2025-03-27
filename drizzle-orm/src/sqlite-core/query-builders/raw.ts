@@ -1,8 +1,8 @@
 import { entityKind } from '~/entity.ts';
-import type { SQL, SQLWrapper } from '~/index.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
+import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '../dialect.ts';
 
 type SQLiteRawAction = 'all' | 'get' | 'values' | 'run';
@@ -10,14 +10,12 @@ export interface SQLiteRawConfig {
 	action: SQLiteRawAction;
 }
 
-export interface SQLiteRaw<TResult>
-	extends QueryPromise<TResult>, RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
-{}
+export interface SQLiteRaw<TResult> extends QueryPromise<TResult>, RunnableQuery<TResult, 'sqlite'>, SQLWrapper {}
 
 export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
 {
-	static readonly [entityKind]: string = 'SQLiteRaw';
+	static override readonly [entityKind]: string = 'SQLiteRaw';
 
 	declare readonly _: {
 		readonly dialect: 'sqlite';
@@ -49,5 +47,10 @@ export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 
 	_prepare(): PreparedQuery {
 		return this;
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return false;
 	}
 }
