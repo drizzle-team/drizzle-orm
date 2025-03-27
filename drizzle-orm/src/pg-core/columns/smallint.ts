@@ -2,7 +2,8 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import { PgColumn } from './common.ts';
+import { PgIntColumnBaseBuilder } from './int.common.ts';
 
 export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
 	name: TName;
@@ -13,8 +14,10 @@ export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallInt'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgSmallIntBuilder';
+export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallInt'>>
+	extends PgIntColumnBaseBuilder<T>
+{
+	static override readonly [entityKind]: string = 'PgSmallIntBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'PgSmallInt');
@@ -29,7 +32,7 @@ export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSm
 }
 
 export class PgSmallInt<T extends ColumnBaseConfig<'number', 'PgSmallInt'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgSmallInt';
+	static override readonly [entityKind]: string = 'PgSmallInt';
 
 	getSQLType(): string {
 		return 'smallint';
@@ -43,6 +46,8 @@ export class PgSmallInt<T extends ColumnBaseConfig<'number', 'PgSmallInt'>> exte
 	};
 }
 
-export function smallint<TName extends string>(name: TName): PgSmallIntBuilderInitial<TName> {
-	return new PgSmallIntBuilder(name);
+export function smallint(): PgSmallIntBuilderInitial<''>;
+export function smallint<TName extends string>(name: TName): PgSmallIntBuilderInitial<TName>;
+export function smallint(name?: string) {
+	return new PgSmallIntBuilder(name ?? '');
 }

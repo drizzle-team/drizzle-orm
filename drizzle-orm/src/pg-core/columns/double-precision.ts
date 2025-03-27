@@ -16,7 +16,7 @@ export type PgDoublePrecisionBuilderInitial<TName extends string> = PgDoublePrec
 export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgDoublePrecision'>>
 	extends PgColumnBuilder<T>
 {
-	static readonly [entityKind]: string = 'PgDoublePrecisionBuilder';
+	static override readonly [entityKind]: string = 'PgDoublePrecisionBuilder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'PgDoublePrecision');
@@ -34,7 +34,7 @@ export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number'
 }
 
 export class PgDoublePrecision<T extends ColumnBaseConfig<'number', 'PgDoublePrecision'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgDoublePrecision';
+	static override readonly [entityKind]: string = 'PgDoublePrecision';
 
 	getSQLType(): string {
 		return 'double precision';
@@ -48,6 +48,8 @@ export class PgDoublePrecision<T extends ColumnBaseConfig<'number', 'PgDoublePre
 	}
 }
 
-export function doublePrecision<TName extends string>(name: TName): PgDoublePrecisionBuilderInitial<TName> {
-	return new PgDoublePrecisionBuilder(name);
+export function doublePrecision(): PgDoublePrecisionBuilderInitial<''>;
+export function doublePrecision<TName extends string>(name: TName): PgDoublePrecisionBuilderInitial<TName>;
+export function doublePrecision(name?: string) {
+	return new PgDoublePrecisionBuilder(name ?? '');
 }
