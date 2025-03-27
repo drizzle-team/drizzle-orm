@@ -495,6 +495,18 @@ function extractGeneratedColumns(input: string): Record<string, ColumnInfo> {
 	return columns;
 }
 
+function filterIgnoredTablesByField(fieldName: string) {
+	// _cf_ is a prefix for internal Cloudflare D1 tables (e.g. _cf_KV, _cf_METADATA)
+	// _litestream_ is a prefix for internal Litestream tables (e.g. _litestream_seq, _litestream_lock)
+	// libsql_ is a prefix for internal libSQL tables (e.g. libsql_wasm_func_table)
+	// sqlite_ is a prefix for internal SQLite tables (e.g. sqlite_sequence, sqlite_stat1)
+	return `${fieldName} != '__drizzle_migrations'
+			AND ${fieldName} NOT LIKE '\\_cf\\_%' ESCAPE '\\'
+			AND ${fieldName} NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
+			AND ${fieldName} NOT LIKE 'libsql\\_%' ESCAPE '\\'
+			AND ${fieldName} NOT LIKE 'sqlite\\_%' ESCAPE '\\'`;
+}
+
 export const fromDatabase = async (
 	db: SQLiteDB,
 	tablesFilter: (table: string) => boolean = (table) => true,
@@ -518,33 +530,30 @@ export const fromDatabase = async (
 		hidden: number;
 		sql: string;
 		type: 'view' | 'table';
-	}>(
-		`SELECT 
-    m.name as "tableName", p.name as "columnName", p.type as "columnType", p."notnull" as "notNull", p.dflt_value as "defaultValue", p.pk as pk, p.hidden as hidden, m.sql, m.type as type
-    FROM sqlite_master AS m JOIN pragma_table_xinfo(m.name) AS p
-    WHERE (m.type = 'table' OR m.type = 'view')
-    and m.tbl_name != 'sqlite_sequence' 
-    and m.tbl_name != 'sqlite_stat1' 
-    and m.tbl_name != '_litestream_seq' 
-    and m.tbl_name != '_litestream_lock' 
-    and m.tbl_name != 'libsql_wasm_func_table' 
-    and m.tbl_name != '__drizzle_migrations' 
-    and m.tbl_name != '_cf_KV';
-    `,
-	);
+	}>(`SELECT 
+		  m.name as "tableName",
+		  p.name as "columnName",
+		  p.type as "columnType",
+		  p."notnull" as "notNull",
+		  p.dflt_value as "defaultValue",
+		  p.pk as pk,
+		  p.hidden as hidden,
+		  m.sql,
+		  m.type as type
+		FROM sqlite_master AS m
+		JOIN pragma_table_xinfo(m.name) AS p
+		WHERE (m.type = 'table' OR m.type = 'view') 
+		  AND ${filterIgnoredTablesByField('m.tbl_name')};`);
 
 	const tablesWithSeq: string[] = [];
 
 	const seq = await db.query<{
 		name: string;
-	}>(
-		`SELECT * FROM sqlite_master WHERE name != 'sqlite_sequence' 
-    and name != 'sqlite_stat1' 
-    and name != '_litestream_seq' 
-    and name != '_litestream_lock' 
-    and tbl_name != '_cf_KV' 
-    and sql GLOB '*[ *' || CHAR(9) || CHAR(10) || CHAR(13) || ']AUTOINCREMENT[^'']*';`,
-	);
+	}>(`SELECT
+		  *
+		FROM sqlite_master
+		WHERE sql GLOB '*[ *' || CHAR(9) || CHAR(10) || CHAR(13) || ']AUTOINCREMENT[^'']*'
+    	  AND ${filterIgnoredTablesByField('tbl_name')};`);
 
 	for (const s of seq) {
 		tablesWithSeq.push(s.name);
@@ -685,11 +694,19 @@ export const fromDatabase = async (
 			onDelete: string;
 			seq: number;
 			id: number;
-		}>(
-			`SELECT m.name as "tableFrom", f.id as "id", f."table" as "tableTo", f."from", f."to", f."on_update" as "onUpdate", f."on_delete" as "onDelete", f.seq as "seq"
-      FROM sqlite_master m, pragma_foreign_key_list(m.name) as f 
-      where m.tbl_name != '_cf_KV';`,
-		);
+		}>(`SELECT
+			  m.name as "tableFrom",
+			  f.id as "id",
+			  f."table" as "tableTo",
+			  f."from",
+			  f."to",
+			  f."on_update" as "onUpdate",
+			  f."on_delete" as "onDelete",
+			  f.seq as "seq"
+      		FROM
+			  sqlite_master m,
+			  pragma_foreign_key_list(m.name) as f
+      		WHERE ${filterIgnoredTablesByField('m.tbl_name')};`);
 
 		const fkByTableName: Record<string, ForeignKey> = {};
 
@@ -752,21 +769,20 @@ export const fromDatabase = async (
 		columnName: string;
 		isUnique: number;
 		seq: string;
-	}>(
-		`SELECT 
-    m.tbl_name as tableName,
-    il.name as indexName,
-    ii.name as columnName,
-    il.[unique] as isUnique,
-    il.seq as seq
-FROM sqlite_master AS m,
-    pragma_index_list(m.name) AS il,
-    pragma_index_info(il.name) AS ii
-WHERE 
-    m.type = 'table' 
-    and il.name NOT LIKE 'sqlite_autoindex_%'
-    and m.tbl_name != '_cf_KV';`,
-	);
+	}>(`SELECT 
+    	  m.tbl_name as tableName,
+    	  il.name as indexName,
+    	  ii.name as columnName,
+    	  il.[unique] as isUnique,
+    	  il.seq as seq
+		FROM 
+		  sqlite_master AS m,
+    	  pragma_index_list(m.name) AS il,
+    	  pragma_index_info(il.name) AS ii
+		WHERE 
+		  m.type = 'table' 
+    	  AND il.name NOT LIKE 'sqlite\\_autoindex\\_%' ESCAPE '\\'
+    	  AND ${filterIgnoredTablesByField('m.tbl_name')};`);
 
 	for (const idxRow of idxs) {
 		const tableName = idxRow.tableName;
@@ -862,9 +878,15 @@ WHERE
 	const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
 	let checkCounter = 0;
 	const checkConstraints: Record<string, CheckConstraint> = {};
-	const checks = await db.query<{ tableName: string; sql: string }>(`SELECT name as "tableName", sql as "sql"
+	const checks = await db.query<{
+		tableName: string;
+		sql: string;
+	}>(`SELECT
+		  name as "tableName",
+		  sql as "sql"
 		FROM sqlite_master 
-		WHERE type = 'table' AND name != 'sqlite_sequence';`);
+		WHERE type = 'table'
+		  AND ${filterIgnoredTablesByField('tbl_name')};`);
 	for (const check of checks) {
 		if (!tablesFilter(check.tableName)) continue;
 
