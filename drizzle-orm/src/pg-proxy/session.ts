@@ -4,10 +4,11 @@ import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery as PreparedQueryBase, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query } from '~/sql/sql.ts';
+import type { QueryWithTypings } from '~/sql/sql.ts';
+import { fillPlaceholders } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
@@ -20,7 +21,7 @@ export class PgRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<PgRemoteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgRemoteSession';
+	static override readonly [entityKind]: string = 'PgRemoteSession';
 
 	private logger: Logger;
 
@@ -35,7 +36,7 @@ export class PgRemoteSession<
 	}
 
 	prepareQuery<T extends PreparedQueryConfig>(
-		query: Query,
+		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
@@ -45,6 +46,7 @@ export class PgRemoteSession<
 			this.client,
 			query.sql,
 			query.params,
+			query.typings,
 			this.logger,
 			fields,
 			isResponseInArrayMode,
@@ -64,7 +66,7 @@ export class PgProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<PgRemoteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgProxyTransaction';
+	static override readonly [entityKind]: string = 'PgProxyTransaction';
 
 	override async transaction<T>(
 		_transaction: (tx: PgProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
@@ -74,12 +76,13 @@ export class PgProxyTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryBase<T> {
-	static readonly [entityKind]: string = 'PgProxyPreparedQuery';
+	static override readonly [entityKind]: string = 'PgProxyPreparedQuery';
 
 	constructor(
 		private client: RemoteCallback,
 		private queryString: string,
 		private params: unknown[],
+		private typings: any[] | undefined,
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
@@ -91,7 +94,7 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
 			const params = fillPlaceholders(this.params, placeholderValues);
-			const { fields, client, queryString, joinsNotNullableMap, customResultMapper, logger } = this;
+			const { fields, client, queryString, joinsNotNullableMap, customResultMapper, logger, typings } = this;
 
 			span?.setAttributes({
 				'drizzle.query.text': queryString,
@@ -102,7 +105,7 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', async () => {
-					const { rows } = await client(queryString, params as any[], 'execute');
+					const { rows } = await client(queryString, params as any[], 'execute', typings);
 
 					return rows;
 				});
@@ -114,7 +117,7 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 					'drizzle.query.params': JSON.stringify(params),
 				});
 
-				const { rows } = await client(queryString, params as any[], 'all');
+				const { rows } = await client(queryString, params as any[], 'all', typings);
 
 				return rows;
 			});
@@ -127,7 +130,8 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 		});
 	}
 
-	async all() {}
+	async all() {
+	}
 
 	/** @internal */
 	isResponseInArrayMode(): boolean {
@@ -135,7 +139,7 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 	}
 }
 
-export interface PgRemoteQueryResultHKT extends QueryResultHKT {
+export interface PgRemoteQueryResultHKT extends PgQueryResultHKT {
 	type: Assume<this['row'], {
 		[column: string]: any;
 	}>[];

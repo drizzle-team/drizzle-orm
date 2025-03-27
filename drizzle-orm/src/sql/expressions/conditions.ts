@@ -228,7 +228,7 @@ export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *   .where(lt(cars.year, 2000))
  * ```
  *
- * @see lte for greater-than-or-equal
+ * @see lte for less-than-or-equal
  */
 export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
 	return sql`${left} < ${bindIfParam(right, left)}`;
@@ -255,11 +255,6 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
 /**
  * Test whether the first parameter, a column or expression,
  * has a value from a list passed as the second argument.
- *
- * ## Throws
- *
- * The argument passed in the second array can't be empty:
- * if an empty is provided, this method will throw.
  *
  * ## Examples
  *
@@ -289,7 +284,7 @@ export function inArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('inArray requires at least one value');
+			return sql`false`;
 		}
 		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
 	}
@@ -301,11 +296,6 @@ export function inArray(
  * Test whether the first parameter, a column or expression,
  * has a value that is not present in a list passed as the
  * second argument.
- *
- * ## Throws
- *
- * The argument passed in the second array can't be empty:
- * if an empty is provided, this method will throw.
  *
  * ## Examples
  *
@@ -335,7 +325,7 @@ export function notInArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('notInArray requires at least one value');
+			return sql`true`;
 		}
 		return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
 	}
@@ -536,7 +526,7 @@ export function notBetween(
  *
  * @see ilike for a case-insensitive version of this condition
  */
-export function like(column: Column, value: string | SQLWrapper): SQL {
+export function like(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
 	return sql`${column} like ${value}`;
 }
 
@@ -558,7 +548,7 @@ export function like(column: Column, value: string | SQLWrapper): SQL {
  * @see like for the inverse condition
  * @see notIlike for a case-insensitive version of this condition
  */
-export function notLike(column: Column, value: string | SQLWrapper): SQL {
+export function notLike(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
 	return sql`${column} not like ${value}`;
 }
 
@@ -581,7 +571,7 @@ export function notLike(column: Column, value: string | SQLWrapper): SQL {
  *
  * @see like for a case-sensitive version of this condition
  */
-export function ilike(column: Column, value: string | SQLWrapper): SQL {
+export function ilike(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
 	return sql`${column} ilike ${value}`;
 }
 
@@ -603,7 +593,7 @@ export function ilike(column: Column, value: string | SQLWrapper): SQL {
  * @see ilike for the inverse condition
  * @see notLike for a case-sensitive version of this condition
  */
-export function notIlike(column: Column, value: string | SQLWrapper): SQL {
+export function notIlike(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
 	return sql`${column} not ilike ${value}`;
 }
 

@@ -15,7 +15,7 @@ const defaultOptions = {
 	databaseURL: 'https://Andrii-Sherman-s-workspace-2r5ujp.us-east-1.xata.sh/db/integration-tests',
 };
 
-// eslint-disable-next-line drizzle/require-entity-kind
+// eslint-disable-next-line drizzle-internal/require-entity-kind
 export class XataClient extends DatabaseClient<DatabaseSchema> {
 	constructor(options?: BaseClientOptions) {
 		super({ ...defaultOptions, ...options }, tables);
