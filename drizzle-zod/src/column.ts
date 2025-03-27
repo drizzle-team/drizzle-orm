@@ -78,16 +78,23 @@ type CheckConstraints = {
 function parseCheckConstraints(sql: string, columnName: string): CheckConstraints | null {
 	const constraints: CheckConstraints = {};
 
+	// TODO think about organizing how we store the CHECK constraint values.
+	// TODO this should be turned into a finite state machine, i would imagine pg has one built in
+	// right now fromDatabase() from pgSerializer.ts stores includes CHECK at the front
+
 	// Helper to build a regex targeting either the bare column or a function call.
 	const createConstraintRegex = (fnPrefix: string, pattern: string) => {
+		// postgres can turn something like LENGTH(TRIM(value)) BETWEEN 3 and 100)
+		// into something like CHECK (((length(TRIM(BOTH FROM VALUE)) >= 3) AND (length(TRIM(BOTH FROM VALUE)) <= 100)))
 		const fnPart = fnPrefix
-			? `${fnPrefix}\\s*\\(\\s*"?${columnName}"?\\s*\\)`
+			? `${fnPrefix}\\s*\\(\\s*(?:"?\\s*trim\\s*\\(\\s*(?:both from\\s*)?${columnName}\\s*\\)\\s*"?|\\"?\\s*${columnName}\\s*\\"?)\\s*\\)`
 			: `"?${columnName}"?`;
 		return new RegExp(`${fnPart}\\s*${pattern}`, 'i');
 	};
 
 	// --- String Length Constraints via length(column) ---
 	// BETWEEN pattern (inclusive)
+	const abc = createConstraintRegex('length', '\\s+BETWEEN\\s+(\\d+)\\s+AND\\s+(\\d+)');
 	const lengthBetweenMatch = createConstraintRegex('length', '\\s+BETWEEN\\s+(\\d+)\\s+AND\\s+(\\d+)').exec(sql);
 	if (lengthBetweenMatch) {
 		constraints.minLength = Number(lengthBetweenMatch[1]);
@@ -95,6 +102,7 @@ function parseCheckConstraints(sql: string, columnName: string): CheckConstraint
 	}
 
 	// Greater-than-or-equal and greater-than for length
+	const def = createConstraintRegex('length', '\\s*>=\\s*(\\d+)');
 	const lengthGteMatch = createConstraintRegex('length', '\\s*>=\\s*(\\d+)').exec(sql);
 	if (lengthGteMatch) {
 		constraints.minLength = Number(lengthGteMatch[1]);

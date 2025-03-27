@@ -3,7 +3,7 @@ import { integer, pgDomain, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { CONSTANTS } from '~/constants.ts';
-import { createSelectSchema } from '../src';
+import { createInsertSchema, createSelectSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
 // TODO think about what to do with the existing filters being added when check constraints are involved
@@ -24,20 +24,63 @@ test('table containing columns with check constraints', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('table containing custom domain columns', (t) => {
+test('selecting from table containing custom domain columns', (t) => {
+	const shortTextDomain = pgDomain(
+		'limited_text',
+		text().notNull().checkConstraint('limited_text_length', sql`length(value) BETWEEN 3 and 50`),
+	);
+
+	const table = pgTable('users', {
+		id: serial('id').notNull(),
+		email: shortTextDomain(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		id: integerSchema,
+		email: textSchema.min(3).max(50),
+	});
+
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('selecting from table containing custom domain columns with complicated postgres syntax', (t) => {
+	const shortTextDomain = pgDomain(
+		'limited_text',
+		text().notNull().checkConstraint(
+			'limited_text_length',
+			sql`CHECK (((length(TRIM(BOTH FROM VALUE)) >= 8) AND (length(TRIM(BOTH FROM VALUE)) <= 64)))`,
+		),
+	);
+
+	const table = pgTable('users', {
+		id: serial('id').notNull(),
+		email: shortTextDomain(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		id: integerSchema,
+		email: textSchema.min(8).max(64),
+	});
+
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('inserting into table containing custom domain columns', (t) => {
 	const shortTextDomain = pgDomain(
 		'limited_text',
 		text().notNull().checkConstraint('limited_text_length', sql`(length(value) BETWEEN 3 and 50)`),
 	);
 
 	const table = pgTable('users', {
-		id: serial('id').notNull(),
-		email: shortTextDomain('email'),
+		email: shortTextDomain(),
 	});
 
-	const result = createSelectSchema(table);
+	const result = createInsertSchema(table);
 	const expected = z.object({
-		id: integerSchema,
 		email: textSchema.min(3).max(50),
 	});
 

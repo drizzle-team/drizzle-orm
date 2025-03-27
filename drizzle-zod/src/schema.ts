@@ -66,29 +66,39 @@ function handleEnum(enum_: PgEnum<any>, factory?: CreateSchemaFactoryOptions) {
 	return zod.enum(enum_.enumValues);
 }
 
+function isNullable(column: Column) {
+	if (isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn'])) {
+		// if either the wrapped column or the column instance is nullable, nullable is true
+		return !column.domain.notNull && !column.notNull;
+	}
+
+	return !column.notNull;
+}
+
 const selectConditions: Conditions = {
 	never: () => false,
 	optional: () => false,
-	nullable: (column) => {
-		if (isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn'])) {
-			// if either the wrapped column or the column instance is nullable, nullable is true
-			return !(column.domain.notNull || column.notNull);
-		}
-
-		return !column.notNull;
-	},
+	nullable: (column) => isNullable(column),
 };
 
 const insertConditions: Conditions = {
 	never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
-	optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
-	nullable: (column) => !column.notNull,
+	optional: (column) => {
+		if (isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn'])) {
+			// handle both the underlying column and the column itself
+			return (column.domain.hasDefault || column.hasDefault)
+				|| (!column.domain.notNull && !column.notNull);
+		}
+
+		return !column.notNull || column.hasDefault;
+	},
+	nullable: (column) => isNullable(column),
 };
 
 const updateConditions: Conditions = {
 	never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
 	optional: () => true,
-	nullable: (column) => !column.notNull,
+	nullable: (column) => isNullable(column),
 };
 
 export const createSelectSchema: CreateSelectSchema = (

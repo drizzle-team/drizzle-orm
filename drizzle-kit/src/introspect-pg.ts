@@ -424,7 +424,6 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		if (it.schema && it.schema !== 'public' && it.schema !== '') {
 			imports.pg.push('pgSchema');
 		} else if (it.schema === 'public') {
-			imports.pg.push('check');
 			imports.pg.push('pgDomain');
 		}
 	});
