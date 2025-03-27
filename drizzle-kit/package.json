@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "0.30.4",
+	"version": "0.30.6",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -46,7 +46,8 @@
 		"@drizzle-team/brocli": "^0.10.2",
 		"@esbuild-kit/esm-loader": "^2.5.5",
 		"esbuild": "^0.19.7",
-		"esbuild-register": "^3.5.0"
+		"esbuild-register": "^3.5.0",
+		"gel": "^2.0.0"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.15.3",
@@ -114,7 +115,7 @@
 		"wrangler": "^3.22.1",
 		"ws": "^8.16.0",
 		"zod": "^3.20.2",
-		"zx": "^7.2.2"
+		"zx": "^8.3.2"
 	},
 	"exports": {
 		".": {

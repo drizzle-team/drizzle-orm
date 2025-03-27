@@ -55,6 +55,26 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 					if (typeId === types.builtins.INTERVAL) {
 						return (val: any) => val;
 					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115 as any) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185 as any) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId === 1187 as any) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId === 1182 as any) {
+						return (val: any) => val;
+					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
 				},
@@ -77,6 +97,26 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 						return (val: any) => val;
 					}
 					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115 as any) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185 as any) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId === 1187 as any) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId === 1182 as any) {
 						return (val: any) => val;
 					}
 					// @ts-ignore

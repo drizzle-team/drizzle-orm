@@ -63,7 +63,7 @@ export interface MySqlVarCharConfig<
 	TLength extends number | undefined = number | undefined,
 > {
 	enum?: TEnum;
-	length?: TLength;
+	length: TLength;
 }
 
 export function varchar<U extends string, T extends Readonly<[U, ...U[]]>, L extends number | undefined>(

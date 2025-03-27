@@ -1,5 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
+import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SingleStoreColumn } from './singlestore-core/index.ts';
@@ -16,9 +17,15 @@ export type ColumnDataType =
 	| 'date'
 	| 'bigint'
 	| 'custom'
-	| 'buffer';
+	| 'buffer'
+	| 'dateDuration'
+	| 'duration'
+	| 'relDuration'
+	| 'localTime'
+	| 'localDate'
+	| 'localDateTime';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common' | 'gel';
 
 export type GeneratedStorageMode = 'virtual' | 'stored';
 
@@ -356,11 +363,18 @@ export type BuildColumn<
 				>
 			>
 		>
+	: TDialect extends 'gel' ? GelColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+		>
 	: never;
 
 export type BuildIndexColumn<
 	TDialect extends Dialect,
-> = TDialect extends 'pg' ? ExtraConfigColumn : never;
+> = TDialect extends 'pg' ? ExtraConfigColumn
+	: TDialect extends 'gel' ? GelExtraConfigColumn
+	: never;
 
 // TODO
 // try to make sql as well + indexRaw
@@ -398,4 +412,5 @@ export type ChangeColumnTableName<TColumn extends Column, TAlias extends string,
 		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: never;
