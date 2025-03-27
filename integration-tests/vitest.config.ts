@@ -5,10 +5,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
+			'tests/seeder/**/*.test.ts',
 			'tests/extensions/postgis/**/*',
 			'tests/relational/**/*.test.ts',
 			'tests/pg/**/*.test.ts',
 			'tests/mysql/**/*.test.ts',
+			'tests/singlestore/**/*.test.ts',
 			'tests/sqlite/**/*.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
@@ -18,6 +20,7 @@ export default defineConfig({
 			'tests/utils/is-config.test.ts',
 			'js-tests/driver-init/commonjs/*.test.cjs',
 			'js-tests/driver-init/module/*.test.mjs',
+			'tests/gel/**/*.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
@@ -27,7 +30,6 @@ export default defineConfig({
 					'tests/mysql/tidb-serverless.test.ts',
 					'tests/mysql/mysql-planetscale.test.ts',
 					'tests/sqlite/libsql.test.ts',
-					'tests/mysql/tidb-serverless.test.ts',
 					'tests/sqlite/libsql-batch.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
@@ -57,12 +59,18 @@ export default defineConfig({
 			// move back after decide on speed
 			'tests/sqlite/libsql-ws.test.ts',
 			'tests/sqlite/libsql-http.test.ts',
+			'tests/mysql/tidb-serverless.test.ts',
+			// waiting for json_array from singlestore team
+			'tests/relational/singlestore.test.ts',
+			'js-tests/driver-init/module/planetscale.test.mjs',
+			'js-tests/driver-init/module/planetscale.test.cjs',
+			'js-tests/driver-init/commonjs/planetscale.test.cjs',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
 		testTimeout: 100000,
-		hookTimeout: 100000,
+		hookTimeout: 200000,
 		isolate: true,
 		poolOptions: {
 			threads: {

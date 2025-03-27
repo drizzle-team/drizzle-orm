@@ -4,12 +4,13 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'path';
 import { parse } from 'url';
 import type { NamedWithSchema } from './cli/commands/migrate';
-import { CasingType } from './cli/validations/common';
 import { info } from './cli/views';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
+import { backwardCompatibleGelSchema } from './serializer/gelSchema';
 import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';
+import { backwardCompatibleSingleStoreSchema } from './serializer/singlestoreSchema';
 import { backwardCompatibleSqliteSchema } from './serializer/sqliteSchema';
 import type { ProxyParams } from './serializer/studio';
 
@@ -123,6 +124,10 @@ const validatorForDialect = (dialect: Dialect) => {
 			return { validator: backwardCompatibleSqliteSchema, version: 6 };
 		case 'mysql':
 			return { validator: backwardCompatibleMysqlSchema, version: 5 };
+		case 'singlestore':
+			return { validator: backwardCompatibleSingleStoreSchema, version: 1 };
+		case 'gel':
+			return { validator: backwardCompatibleGelSchema, version: 1 };
 	}
 };
 

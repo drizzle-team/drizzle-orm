@@ -13,7 +13,6 @@ export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntB
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlMediumInt'>>

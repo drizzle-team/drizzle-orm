@@ -12,7 +12,6 @@ export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
 export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlFloat'>>

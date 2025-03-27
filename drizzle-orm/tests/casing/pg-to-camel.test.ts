@@ -62,7 +62,7 @@ describe('postgres to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."firstName" || \' \' || "users"."lastName" as "name", "users"."AGE" from "users" left join "test"."developers" on "users"."id" = "developers"."userId" order by "users"."firstName" asc',
+				'select "users"."firstName" || \' \' || "users"."lastName" as "name", "users"."AGE" from "users" left join "test"."developers" on "users"."id" = "test"."developers"."userId" order by "users"."firstName" asc',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(cache);
@@ -151,7 +151,7 @@ describe('postgres to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."id", "users"."AGE", "users"."firstName" || \' \' || "users"."lastName" as "name", "users_developers"."data" as "developers" from "users" left join lateral (select json_build_array("users_developers"."usesDrizzleOrm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."userId" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2 limit $3',
+				'select "users"."id", "users"."AGE", "users"."firstName" || \' \' || "users"."lastName" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."usesDrizzleOrm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."userId" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2 limit $3',
 			params: [1, 1, 1],
 			typings: ['none', 'none', 'none'],
 		});
@@ -179,7 +179,7 @@ describe('postgres to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."id", "users"."AGE", "users"."firstName" || \' \' || "users"."lastName" as "name", "users_developers"."data" as "developers" from "users" left join lateral (select json_build_array("users_developers"."usesDrizzleOrm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."userId" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2',
+				'select "users"."id", "users"."AGE", "users"."firstName" || \' \' || "users"."lastName" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."usesDrizzleOrm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."userId" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2',
 			params: [1, 1],
 			typings: ['none', 'none'],
 		});
