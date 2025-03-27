@@ -302,6 +302,10 @@ importers:
         version: 8.3.2
 
   drizzle-orm:
+    dependencies:
+      '@db/sqlite':
+        specifier: npm:@jsr/db__sqlite@^0.12.0
+        version: '@jsr/db__sqlite@0.12.0'
     devDependencies:
       '@aws-sdk/client-rds-data':
         specifier: ^3.549.0
@@ -640,6 +644,9 @@ importers:
       '@aws-sdk/credential-providers':
         specifier: ^3.549.0
         version: 3.569.0(@aws-sdk/client-sso-oidc@3.583.0)
+      '@db/sqlite':
+        specifier: npm:@jsr/db__sqlite@^0.12.0
+        version: '@jsr/db__sqlite@0.12.0'
       '@electric-sql/pglite':
         specifier: 0.2.12
         version: 0.2.12
@@ -3175,6 +3182,36 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
+
+  '@jsr/db__sqlite@0.12.0':
+    resolution: {integrity: sha512-nTMYOzEl8oFhtPS90tAdMbpYTec7/brHtlVLt8afAsNLX+z1FkEIWljxqJS8UDzN23wCTsNXL96NArqBaJRy9A==, tarball: https://npm.jsr.io/~/11/@jsr/db__sqlite/0.12.0.tgz}
+
+  '@jsr/denosaurs__plug@1.0.6':
+    resolution: {integrity: sha512-3sRBjWs6Str1+5w8Lj5t4dDNxUJB6RWJaxAf1e04CHwbbPBbyzrzKs2iammkGlEra8yL2RO70+c8x0/52as6XA==, tarball: https://npm.jsr.io/~/11/@jsr/denosaurs__plug/1.0.6.tgz}
+
+  '@jsr/std__assert@0.217.0':
+    resolution: {integrity: sha512-kCGfcXX8lMcZHWrCgFhbdpNloB50MkLwHdRZvZKjZK424F9g+M742jkTDLMOJmwkDoEqFKyNVrGhPtspS4+NvQ==, tarball: https://npm.jsr.io/~/11/@jsr/std__assert/0.217.0.tgz}
+
+  '@jsr/std__assert@0.221.0':
+    resolution: {integrity: sha512-Y+nGzU7AiBuMGt9i7lwADiJ5ZpSwYr1f3ee3dnUIkUF9BuzX+sMJf6v2QGYDOOfo1EdNZCslQZlj3x62mwnw9w==, tarball: https://npm.jsr.io/~/11/@jsr/std__assert/0.221.0.tgz}
+
+  '@jsr/std__encoding@0.221.0':
+    resolution: {integrity: sha512-fWvwcY1zzMTPt97PVRwHaM5Vyh27NsAeX6yxy9YSLbXjDnW6zjMGmQC5qJqDAz7d8IWq/uUTPZ+A1kr1ps2eUA==, tarball: https://npm.jsr.io/~/11/@jsr/std__encoding/0.221.0.tgz}
+
+  '@jsr/std__fmt@0.217.0':
+    resolution: {integrity: sha512-AM33Cr/V3St3Cj5O4QQe4aMKGyzL9eYz+mOC58BmqxgeZwFbvSC06DzM2DS3ixcsAnwH2kYMXHpCBax0sT9q8Q==, tarball: https://npm.jsr.io/~/11/@jsr/std__fmt/0.217.0.tgz}
+
+  '@jsr/std__fmt@0.221.0':
+    resolution: {integrity: sha512-PErSfwKu1c9yl0a4J1U3f6PR1eZFU451Meok3d4i6OnuM8YCwqndfK/KzdIr7eYykkvB2ln/6JnF/wV37zil4A==, tarball: https://npm.jsr.io/~/11/@jsr/std__fmt/0.221.0.tgz}
+
+  '@jsr/std__fs@0.221.0':
+    resolution: {integrity: sha512-abz06JVR6M2YduJXDnsw3mHzUix85gpJquLbNUAjPe74XYH19BP85beNKH+xNQDYrRaQSN9zCIaQvg2Dmd+csQ==, tarball: https://npm.jsr.io/~/11/@jsr/std__fs/0.221.0.tgz}
+
+  '@jsr/std__path@0.217.0':
+    resolution: {integrity: sha512-KoqEpZX9CE8zyyr4+X6AROOGYv95AysnJni2E5g9pqG+IGUUuNjOC3yRTvHnsB5tJ6uQs6DwET5chIdUPcylIQ==, tarball: https://npm.jsr.io/~/11/@jsr/std__path/0.217.0.tgz}
+
+  '@jsr/std__path@0.221.0':
+    resolution: {integrity: sha512-O8iaP3yhg7nBXkoFsJS8KtL3kLESehM04YbkHEmW3hT93f1citXvR1chYVr7tlSyAcQSzc9WVvcLlX/T19XNhA==, tarball: https://npm.jsr.io/~/11/@jsr/std__path/0.221.0.tgz}
 
   '@libsql/client-wasm@0.10.0':
     resolution: {integrity: sha512-xSlpGdBGEr4mRtjCnDejTqtDpct2ng8cqHUQs+S4xG1yv0h+hLdzOtQJSY9JV9T/2MWWDfdCiEntPs2SdErSJA==}
@@ -14137,6 +14174,45 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.4.15
+
+  '@jsr/db__sqlite@0.12.0':
+    dependencies:
+      '@jsr/denosaurs__plug': 1.0.6
+      '@jsr/std__path': 0.217.0
+
+  '@jsr/denosaurs__plug@1.0.6':
+    dependencies:
+      '@jsr/std__encoding': 0.221.0
+      '@jsr/std__fmt': 0.221.0
+      '@jsr/std__fs': 0.221.0
+      '@jsr/std__path': 0.221.0
+
+  '@jsr/std__assert@0.217.0':
+    dependencies:
+      '@jsr/std__fmt': 0.217.0
+
+  '@jsr/std__assert@0.221.0':
+    dependencies:
+      '@jsr/std__fmt': 0.221.0
+
+  '@jsr/std__encoding@0.221.0': {}
+
+  '@jsr/std__fmt@0.217.0': {}
+
+  '@jsr/std__fmt@0.221.0': {}
+
+  '@jsr/std__fs@0.221.0':
+    dependencies:
+      '@jsr/std__assert': 0.221.0
+      '@jsr/std__path': 0.221.0
+
+  '@jsr/std__path@0.217.0':
+    dependencies:
+      '@jsr/std__assert': 0.217.0
+
+  '@jsr/std__path@0.221.0':
+    dependencies:
+      '@jsr/std__assert': 0.221.0
 
   '@libsql/client-wasm@0.10.0':
     dependencies:
