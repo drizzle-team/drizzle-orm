@@ -42,5 +42,7 @@ export class WithSubquery<
 	TAlias extends string = string,
 	TSelection extends Record<string, unknown> = Record<string, unknown>,
 > extends Subquery<TAlias, TSelection> {
-	static readonly [entityKind]: string = 'WithSubquery';
+	static override readonly [entityKind]: string = 'WithSubquery';
 }
+
+export type WithSubqueryWithoutSelection<TAlias extends string> = WithSubquery<TAlias, {}>;

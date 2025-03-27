@@ -1,36 +1,40 @@
+import { boolean, command, number, string } from '@drizzle-team/brocli';
 import chalk from 'chalk';
-import { checkHandler } from './commands/check';
-import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
+import 'dotenv/config';
+import { mkdirSync } from 'fs';
+import { renderWithTask } from 'hanji';
+import { dialects } from 'src/schemaValidator';
 import '../@types/utils';
+import { assertUnreachable } from '../global';
+import { type Setup } from '../serializer/studio';
 import { assertV1OutFolder } from '../utils';
+import { certs } from '../utils/certs';
+import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
 import { upMysqlHandler } from './commands/mysqlUp';
 import { upPgHandler } from './commands/pgUp';
+import { upSinglestoreHandler } from './commands/singlestoreUp';
 import { upSqliteHandler } from './commands/sqliteUp';
 import {
 	prepareCheckParams,
 	prepareDropParams,
+	prepareExportConfig,
 	prepareGenerateConfig,
 	prepareMigrateConfig,
 	preparePullConfig,
 	preparePushConfig,
 	prepareStudioConfig,
 } from './commands/utils';
+import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
-import 'dotenv/config';
-import { boolean, command, number, string } from '@drizzle-team/brocli';
-import { mkdirSync } from 'fs';
-import { renderWithTask } from 'hanji';
-import { dialects } from 'src/schemaValidator';
-import { assertUnreachable } from '../global';
-import type { Setup } from '../serializer/studio';
-import { certs } from '../utils/certs';
-import { grey, MigrateProgress } from './views';
+import { error, grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
-	.desc(`Database dialect: 'postgresql', 'mysql' or 'sqlite'`);
+	.desc(
+		`Database dialect: 'postgresql', 'mysql', 'sqlite', 'turso' or 'singlestore'`,
+	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
 const optionBreakpoints = boolean().desc(
@@ -41,12 +45,15 @@ const optionDriver = string()
 	.enum(...drivers)
 	.desc('Database driver');
 
+const optionCasing = string().enum('camelCase', 'snake_case').desc('Casing for serialization');
+
 export const generate = command({
 	name: 'generate',
 	options: {
 		config: optionConfig,
 		dialect: optionDialect,
 		driver: optionDriver,
+		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
 		out: optionOut,
 		name: string().desc('Migration file name'),
@@ -63,7 +70,7 @@ export const generate = command({
 			'generate',
 			opts,
 			['prefix', 'name', 'custom'],
-			['driver', 'breakpoints', 'schema', 'out', 'dialect'],
+			['driver', 'breakpoints', 'schema', 'out', 'dialect', 'casing'],
 		);
 		return prepareGenerateConfig(opts, from);
 	},
@@ -77,6 +84,8 @@ export const generate = command({
 			prepareAndMigratePg,
 			prepareAndMigrateMysql,
 			prepareAndMigrateSqlite,
+			prepareAndMigrateLibSQL,
+			prepareAndMigrateSingleStore,
 		} = await import('./commands/migrate');
 
 		const dialect = opts.dialect;
@@ -86,6 +95,17 @@ export const generate = command({
 			await prepareAndMigrateMysql(opts);
 		} else if (dialect === 'sqlite') {
 			await prepareAndMigrateSqlite(opts);
+		} else if (dialect === 'turso') {
+			await prepareAndMigrateLibSQL(opts);
+		} else if (dialect === 'singlestore') {
+			await prepareAndMigrateSingleStore(opts);
+		} else if (dialect === 'gel') {
+			console.log(
+				error(
+					`You can't use 'generate' command with Gel dialect`,
+				),
+			);
+			process.exit(1);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -148,6 +168,17 @@ export const migrate = command({
 						migrationsSchema: schema,
 					}),
 				);
+			} else if (dialect === 'singlestore') {
+				const { connectToSingleStore } = await import('./connections');
+				const { migrate } = await connectToSingleStore(credentials);
+				await renderWithTask(
+					new MigrateProgress(),
+					migrate({
+						migrationsFolder: out,
+						migrationsTable: table,
+						migrationsSchema: schema,
+					}),
+				);
 			} else if (dialect === 'sqlite') {
 				const { connectToSQLite } = await import('./connections');
 				const { migrate } = await connectToSQLite(credentials);
@@ -159,6 +190,24 @@ export const migrate = command({
 						migrationsSchema: schema,
 					}),
 				);
+			} else if (dialect === 'turso') {
+				const { connectToLibSQL } = await import('./connections');
+				const { migrate } = await connectToLibSQL(credentials);
+				await renderWithTask(
+					new MigrateProgress(),
+					migrate({
+						migrationsFolder: opts.out,
+						migrationsTable: table,
+						migrationsSchema: schema,
+					}),
+				);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'migrate' command with Gel dialect`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -189,6 +238,8 @@ const optionsDatabaseCredentials = {
 	ssl: string().desc('ssl mode'),
 	// Turso
 	authToken: string('auth-token').desc('Database auth token [Turso]'),
+	// gel
+	tlsSecurity: string('tlsSecurity').desc('tls security mode'),
 	// specific cases
 	driver: optionDriver,
 } as const;
@@ -198,6 +249,7 @@ export const push = command({
 	options: {
 		config: optionConfig,
 		dialect: optionDialect,
+		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
 		...optionsFilters,
 		...optionsDatabaseCredentials,
@@ -231,6 +283,8 @@ export const push = command({
 				'schemaFilters',
 				'extensionsFilters',
 				'tablesFilter',
+				'casing',
+				'tlsSecurity',
 			],
 		);
 
@@ -249,6 +303,8 @@ export const push = command({
 			tablesFilter,
 			schemasFilter,
 			force,
+			casing,
+			entities,
 		} = config;
 
 		try {
@@ -261,6 +317,7 @@ export const push = command({
 					strict,
 					verbose,
 					force,
+					casing,
 				);
 			} else if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
@@ -292,7 +349,9 @@ export const push = command({
 					credentials,
 					tablesFilter,
 					schemasFilter,
+					entities,
 					force,
+					casing,
 				);
 			} else if (dialect === 'sqlite') {
 				const { sqlitePush } = await import('./commands/push');
@@ -303,7 +362,37 @@ export const push = command({
 					credentials,
 					tablesFilter,
 					force,
+					casing,
 				);
+			} else if (dialect === 'turso') {
+				const { libSQLPush } = await import('./commands/push');
+				await libSQLPush(
+					schemaPath,
+					verbose,
+					strict,
+					credentials,
+					tablesFilter,
+					force,
+					casing,
+				);
+			} else if (dialect === 'singlestore') {
+				const { singlestorePush } = await import('./commands/push');
+				await singlestorePush(
+					schemaPath,
+					credentials,
+					tablesFilter,
+					strict,
+					verbose,
+					force,
+					casing,
+				);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'push' command with Gel dialect`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -359,8 +448,21 @@ export const up = command({
 			upMysqlHandler(out);
 		}
 
-		if (dialect === 'sqlite') {
+		if (dialect === 'sqlite' || dialect === 'turso') {
 			upSqliteHandler(out);
+		}
+
+		if (dialect === 'singlestore') {
+			upSinglestoreHandler(out);
+		}
+
+		if (dialect === 'gel') {
+			console.log(
+				error(
+					`You can't use 'up' command with Gel dialect`,
+				),
+			);
+			process.exit(1);
 		}
 	},
 });
@@ -399,6 +501,7 @@ export const pull = command({
 				'tablesFilter',
 				'schemaFilters',
 				'extensionsFilters',
+				'tlsSecurity',
 			],
 		);
 		return preparePullConfig(opts, from);
@@ -416,6 +519,7 @@ export const pull = command({
 			tablesFilter,
 			schemasFilter,
 			prefix,
+			entities,
 		} = config;
 		mkdirSync(out, { recursive: true });
 
@@ -462,6 +566,7 @@ export const pull = command({
 					tablesFilter,
 					schemasFilter,
 					prefix,
+					entities,
 				);
 			} else if (dialect === 'mysql') {
 				const { introspectMysql } = await import('./commands/introspect');
@@ -482,6 +587,38 @@ export const pull = command({
 					credentials,
 					tablesFilter,
 					prefix,
+				);
+			} else if (dialect === 'turso') {
+				const { introspectLibSQL } = await import('./commands/introspect');
+				await introspectLibSQL(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					prefix,
+				);
+			} else if (dialect === 'singlestore') {
+				const { introspectSingleStore } = await import('./commands/introspect');
+				await introspectSingleStore(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					prefix,
+				);
+			} else if (dialect === 'gel') {
+				const { introspectGel } = await import('./commands/introspect');
+				await introspectGel(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					schemasFilter,
+					prefix,
+					entities,
 				);
 			} else {
 				assertUnreachable(dialect);
@@ -543,6 +680,9 @@ export const studio = command({
 			drizzleForMySQL,
 			prepareSQLiteSchema,
 			drizzleForSQLite,
+			prepareSingleStoreSchema,
+			drizzleForSingleStore,
+			drizzleForLibSQL,
 		} = await import('../serializer/studio');
 
 		let setup: Setup;
@@ -583,6 +723,28 @@ export const studio = command({
 					? await prepareSQLiteSchema(schemaPath)
 					: { schema: {}, relations: {}, files: [] };
 				setup = await drizzleForSQLite(credentials, schema, relations, files);
+			} else if (dialect === 'turso') {
+				const { schema, relations, files } = schemaPath
+					? await prepareSQLiteSchema(schemaPath)
+					: { schema: {}, relations: {}, files: [] };
+				setup = await drizzleForLibSQL(credentials, schema, relations, files);
+			} else if (dialect === 'singlestore') {
+				const { schema, relations, files } = schemaPath
+					? await prepareSingleStoreSchema(schemaPath)
+					: { schema: {}, relations: {}, files: [] };
+				setup = await drizzleForSingleStore(
+					credentials,
+					schema,
+					relations,
+					files,
+				);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'studio' command with Gel dialect`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -636,6 +798,57 @@ export const studio = command({
 		} catch (e) {
 			console.error(e);
 			process.exit(0);
+		}
+	},
+});
+
+export const exportRaw = command({
+	name: 'export',
+	desc: 'Generate diff between current state and empty state in specified formats: sql',
+	options: {
+		sql: boolean('sql').default(true).desc('Generate as sql'),
+		config: optionConfig,
+		dialect: optionDialect,
+		schema: string().desc('Path to a schema file or folder'),
+	},
+	transform: async (opts) => {
+		const from = assertCollisions('export', opts, ['sql'], ['dialect', 'schema']);
+		return prepareExportConfig(opts, from);
+	},
+	handler: async (opts) => {
+		await assertOrmCoreVersion();
+		await assertPackages('drizzle-orm');
+
+		const {
+			prepareAndExportPg,
+			prepareAndExportMysql,
+			prepareAndExportSqlite,
+			prepareAndExportLibSQL,
+			prepareAndExportSinglestore,
+		} = await import(
+			'./commands/migrate'
+		);
+
+		const dialect = opts.dialect;
+		if (dialect === 'postgresql') {
+			await prepareAndExportPg(opts);
+		} else if (dialect === 'mysql') {
+			await prepareAndExportMysql(opts);
+		} else if (dialect === 'sqlite') {
+			await prepareAndExportSqlite(opts);
+		} else if (dialect === 'turso') {
+			await prepareAndExportLibSQL(opts);
+		} else if (dialect === 'singlestore') {
+			await prepareAndExportSinglestore(opts);
+		} else if (dialect === 'gel') {
+			console.log(
+				error(
+					`You can't use 'export' command with Gel dialect`,
+				),
+			);
+			process.exit(1);
+		} else {
+			assertUnreachable(dialect);
 		}
 	},
 });

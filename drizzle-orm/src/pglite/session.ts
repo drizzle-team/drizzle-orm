@@ -7,7 +7,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
@@ -15,7 +15,7 @@ import { types } from '@electric-sql/pglite';
 export type PgliteClient = PGlite;
 
 export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'PglitePreparedQuery';
+	static override readonly [entityKind]: string = 'PglitePreparedQuery';
 
 	private rawQueryConfig: QueryOptions;
 	private queryConfig: QueryOptions;
@@ -38,6 +38,16 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 				[types.TIMESTAMPTZ]: (value) => value,
 				[types.INTERVAL]: (value) => value,
 				[types.DATE]: (value) => value,
+				// numeric[]
+				[1231]: (value) => value,
+				// timestamp[]
+				[1115]: (value) => value,
+				// timestamp with timezone[]
+				[1185]: (value) => value,
+				// interval[]
+				[1187]: (value) => value,
+				// date[]
+				[1182]: (value) => value,
 			},
 		};
 		this.queryConfig = {
@@ -47,6 +57,16 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 				[types.TIMESTAMPTZ]: (value) => value,
 				[types.INTERVAL]: (value) => value,
 				[types.DATE]: (value) => value,
+				// numeric[]
+				[1231]: (value) => value,
+				// timestamp[]
+				[1115]: (value) => value,
+				// timestamp with timezone[]
+				[1185]: (value) => value,
+				// interval[]
+				[1187]: (value) => value,
+				// date[]
+				[1182]: (value) => value,
 			},
 		};
 	}
@@ -89,7 +109,7 @@ export class PgliteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<PgliteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgliteSession';
+	static override readonly [entityKind]: string = 'PgliteSession';
 
 	private logger: Logger;
 
@@ -140,13 +160,20 @@ export class PgliteSession<
 			return transaction(tx);
 		}) as Promise<T>;
 	}
+
+	override async count(sql: SQL): Promise<number> {
+		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
+		return Number(
+			res['rows'][0]['count'],
+		);
+	}
 }
 
 export class PgliteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<PgliteQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'PgliteTransaction';
+	static override readonly [entityKind]: string = 'PgliteTransaction';
 
 	override async transaction<T>(transaction: (tx: PgliteTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;

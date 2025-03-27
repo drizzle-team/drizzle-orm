@@ -66,7 +66,7 @@ export class One<
 	TTableName extends string = string,
 	TIsNullable extends boolean = boolean,
 > extends Relation<TTableName> {
-	static readonly [entityKind]: string = 'One';
+	static override readonly [entityKind]: string = 'One';
 
 	declare protected $relationBrand: 'One';
 
@@ -98,7 +98,7 @@ export class One<
 }
 
 export class Many<TTableName extends string> extends Relation<TTableName> {
-	static readonly [entityKind]: string = 'Many';
+	static override readonly [entityKind]: string = 'Many';
 
 	declare protected $relationBrand: 'Many';
 
@@ -214,22 +214,27 @@ export type DBQueryConfig<
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
 > =
 	& {
-		columns?: {
-			[K in keyof TTableConfig['columns']]?: boolean;
-		};
-		with?: {
-			[K in keyof TTableConfig['relations']]?:
-				| true
-				| DBQueryConfig<
-					TTableConfig['relations'][K] extends One ? 'one' : 'many',
-					false,
-					TSchema,
-					FindTableByDBName<
+		columns?:
+			| {
+				[K in keyof TTableConfig['columns']]?: boolean;
+			}
+			| undefined;
+		with?:
+			| {
+				[K in keyof TTableConfig['relations']]?:
+					| true
+					| DBQueryConfig<
+						TTableConfig['relations'][K] extends One ? 'one' : 'many',
+						false,
 						TSchema,
-						TTableConfig['relations'][K]['referencedTableName']
+						FindTableByDBName<
+							TSchema,
+							TTableConfig['relations'][K]['referencedTableName']
+						>
 					>
-				>;
-		};
+					| undefined;
+			}
+			| undefined;
 		extras?:
 			| Record<string, SQL.Aliased>
 			| ((
@@ -238,7 +243,8 @@ export type DBQueryConfig<
 						: TTableConfig['columns']
 				>,
 				operators: { sql: Operators['sql'] },
-			) => Record<string, SQL.Aliased>);
+			) => Record<string, SQL.Aliased>)
+			| undefined;
 	}
 	& (TRelationType extends 'many' ?
 			& {
@@ -260,11 +266,12 @@ export type DBQueryConfig<
 								: TTableConfig['columns']
 						>,
 						operators: OrderByOperators,
-					) => ValueOrArray<AnyColumn | SQL>);
-				limit?: number | Placeholder;
+					) => ValueOrArray<AnyColumn | SQL>)
+					| undefined;
+				limit?: number | Placeholder | undefined;
 			}
 			& (TIsRoot extends true ? {
-					offset?: number | Placeholder;
+					offset?: number | Placeholder | undefined;
 				}
 				: {})
 		: {});

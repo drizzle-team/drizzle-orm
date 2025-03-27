@@ -6,6 +6,7 @@ import { eq, gt } from '~/expressions.ts';
 import {
 	bigint,
 	bigserial,
+	bit,
 	boolean,
 	char,
 	check,
@@ -15,11 +16,14 @@ import {
 	decimal,
 	doublePrecision,
 	foreignKey,
+	geometry,
+	halfvec,
 	index,
 	inet,
 	integer,
 	json,
 	jsonb,
+	line,
 	macaddr,
 	macaddr8,
 	numeric,
@@ -27,17 +31,20 @@ import {
 	pgEnum,
 	pgTable,
 	type PgTableWithColumns,
+	point,
 	primaryKey,
 	real,
 	serial,
 	smallint,
 	smallserial,
+	sparsevec,
 	text,
 	time,
 	timestamp,
 	uniqueIndex,
 	uuid,
 	varchar,
+	vector,
 } from '~/pg-core/index.ts';
 import { pgSchema } from '~/pg-core/schema.ts';
 import {
@@ -48,9 +55,34 @@ import {
 } from '~/pg-core/view.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel } from '~/table.ts';
+import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+
+export const identityColumnsTable = pgTable('identity_columns_table', {
+	generatedCol: integer('generated_col').generatedAlwaysAs(1),
+	alwaysAsIdentity: integer('always_as_identity').generatedAlwaysAsIdentity(),
+	byDefaultAsIdentity: integer('by_default_as_identity').generatedByDefaultAsIdentity(),
+	name: text('name'),
+});
+
+Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferSelect']>>;
+Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferSelect']>>;
+Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferInsert']>>;
+Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferInsert']>>;
+Expect<
+	Equal<
+		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
+		Simplify<typeof identityColumnsTable['$inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+	>
+>;
+Expect<
+	Equal<
+		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
+		Simplify<typeof identityColumnsTable['_']['inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+	>
+>;
 
 export const users = pgTable(
 	'users_table',
@@ -71,23 +103,23 @@ export const users = pgTable(
 		enumCol: myEnum('enum_col').notNull(),
 		arrayCol: text('array_col').array().notNull(),
 	},
-	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class.asc().nullsFirst(), sql``),
-		usersAge2Idx: index('usersAge2Idx').on(sql``),
-		uniqueClass: uniqueIndex('uniqueClass')
+	(users) => [
+		uniqueIndex('usersAge1Idx').on(users.class.asc().nullsFirst(), sql``),
+		index('usersAge2Idx').on(sql``),
+		uniqueIndex('uniqueClass')
 			.using('btree', users.class.desc().op('text_ops'), users.subClass.nullsLast())
 			.where(sql`${users.class} is not null`)
 			.concurrently(),
-		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] })
+		check('legalAge', sql`${users.age1} > 18`),
+		foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] })
 			.onUpdate('cascade')
 			.onDelete('cascade'),
-		usersClassComplexFK: foreignKey({
+		foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		}),
-		pk: primaryKey(users.age1, users.class),
-	}),
+		primaryKey(users.age1, users.class),
+	],
 );
 
 Expect<Equal<InferSelectModel<typeof users>, typeof users['$inferSelect']>>;
@@ -107,9 +139,7 @@ export const smallSerialTest = pgTable('cities_table', {
 	id: smallserial('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+});
 
 Expect<
 	Equal<{
@@ -165,9 +195,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+}, (cities) => [index().on(cities.id)]);
 
 export const newYorkers = pgView('new_yorkers')
 	.with({
@@ -202,6 +230,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -218,6 +247,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -261,6 +291,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -277,6 +308,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -318,6 +350,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -334,6 +367,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -375,6 +409,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -391,6 +426,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -422,6 +458,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -438,6 +475,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -469,6 +507,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -485,6 +524,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -499,8 +539,8 @@ export const newYorkers2 = pgMaterializedView('new_yorkers')
 	.using('btree')
 	.with({
 		fillfactor: 90,
-		toast_tuple_target: 0.5,
-		autovacuum_enabled: true,
+		toastTupleTarget: 0.5,
+		autovacuumEnabled: true,
 	})
 	.tablespace('custom_tablespace')
 	.withNoData()
@@ -531,6 +571,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -547,6 +588,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				identity: undefined;
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
@@ -561,8 +603,8 @@ Expect<
 		.using('btree')
 		.with({
 			fillfactor: 90,
-			toast_tuple_target: 0.5,
-			autovacuum_enabled: true,
+			toastTupleTarget: 0.5,
+			autovacuumEnabled: true,
 		})
 		.tablespace('custom_tablespace')
 		.withNoData()
@@ -593,6 +635,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -609,6 +652,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -627,8 +671,8 @@ Expect<
 		.using('btree')
 		.with({
 			fillfactor: 90,
-			toast_tuple_target: 0.5,
-			autovacuum_enabled: true,
+			toastTupleTarget: 0.5,
+			autovacuumEnabled: true,
 		})
 		.tablespace('custom_tablespace')
 		.withNoData()
@@ -653,6 +697,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -669,6 +714,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -687,8 +733,8 @@ Expect<
 		.using('btree')
 		.with({
 			fillfactor: 90,
-			toast_tuple_target: 0.5,
-			autovacuum_enabled: true,
+			toastTupleTarget: 0.5,
+			autovacuumEnabled: true,
 		})
 		.tablespace('custom_tablespace')
 		.withNoData()
@@ -713,6 +759,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -729,6 +776,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -760,6 +808,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -776,6 +825,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -807,6 +857,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -823,6 +874,7 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					identity: undefined;
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
@@ -872,8 +924,11 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	});
 
 	customTextRequired('t', { length: 10 });
+	customTextRequired({ length: 10 });
 	// @ts-expect-error - config is required
 	customTextRequired('t');
+	// @ts-expect-error - config is required
+	customTextRequired();
 }
 
 {
@@ -900,92 +955,102 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 
 	customTextOptional('t', { length: 10 });
 	customTextOptional('t');
+	customTextOptional({ length: 10 });
+	customTextOptional();
 }
 
 {
-	const cities = pgTable('cities_table', {
+	const cities1 = pgTable('cities_table', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull().primaryKey(),
 		role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
 		population: integer('population').default(0),
 	});
+	const cities2 = pgTable('cities_table', ({ serial, text, integer }) => ({
+		id: serial('id').primaryKey(),
+		name: text('name').notNull().primaryKey(),
+		role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
+		population: integer('population').default(0),
+	}));
 
-	Expect<
-		Equal<
-			PgTableWithColumns<{
-				name: 'cities_table';
-				schema: undefined;
-				dialect: 'pg';
-				columns: {
-					id: PgColumn<{
-						tableName: 'cities_table';
-						name: 'id';
-						dataType: 'number';
-						columnType: 'PgSerial';
-						data: number;
-						driverParam: number;
-						hasDefault: true;
-						notNull: true;
-						enumValues: undefined;
-						baseColumn: never;
-						generated: undefined;
-						isPrimaryKey: true;
-						isAutoincrement: false;
-						hasRuntimeDefault: false;
-					}>;
-					name: PgColumn<{
-						tableName: 'cities_table';
-						name: 'name';
-						dataType: 'string';
-						columnType: 'PgText';
-						data: string;
-						driverParam: string;
-						hasDefault: false;
-						enumValues: [string, ...string[]];
-						notNull: true;
-						baseColumn: never;
-						generated: undefined;
-						isPrimaryKey: true;
-						isAutoincrement: false;
-						hasRuntimeDefault: false;
-					}>;
-					role: PgColumn<{
-						tableName: 'cities_table';
-						name: 'role';
-						dataType: 'string';
-						columnType: 'PgText';
-						data: 'admin' | 'user';
-						driverParam: string;
-						hasDefault: true;
-						enumValues: ['admin', 'user'];
-						notNull: true;
-						baseColumn: never;
-						generated: undefined;
-						isPrimaryKey: false;
-						isAutoincrement: false;
-						hasRuntimeDefault: false;
-					}>;
-					population: PgColumn<{
-						tableName: 'cities_table';
-						name: 'population';
-						dataType: 'number';
-						columnType: 'PgInteger';
-						data: number;
-						driverParam: string | number;
-						notNull: false;
-						hasDefault: true;
-						enumValues: undefined;
-						baseColumn: never;
-						generated: undefined;
-						isPrimaryKey: false;
-						isAutoincrement: false;
-						hasRuntimeDefault: false;
-					}>;
-				};
-			}>,
-			typeof cities
-		>
-	>;
+	type Expected = PgTableWithColumns<{
+		name: 'cities_table';
+		schema: undefined;
+		dialect: 'pg';
+		columns: {
+			id: PgColumn<{
+				tableName: 'cities_table';
+				name: 'id';
+				dataType: 'number';
+				columnType: 'PgSerial';
+				data: number;
+				driverParam: number;
+				hasDefault: true;
+				notNull: true;
+				enumValues: undefined;
+				baseColumn: never;
+				generated: undefined;
+				identity: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}>;
+			name: PgColumn<{
+				tableName: 'cities_table';
+				name: 'name';
+				dataType: 'string';
+				columnType: 'PgText';
+				data: string;
+				driverParam: string;
+				hasDefault: false;
+				enumValues: [string, ...string[]];
+				notNull: true;
+				baseColumn: never;
+				generated: undefined;
+				identity: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}>;
+			role: PgColumn<{
+				tableName: 'cities_table';
+				name: 'role';
+				dataType: 'string';
+				columnType: 'PgText';
+				data: 'admin' | 'user';
+				driverParam: string;
+				hasDefault: true;
+				enumValues: ['admin', 'user'];
+				notNull: true;
+				baseColumn: never;
+				generated: undefined;
+				identity: undefined;
+				isPrimaryKey: false;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}>;
+			population: PgColumn<{
+				tableName: 'cities_table';
+				name: 'population';
+				dataType: 'number';
+				columnType: 'PgInteger';
+				data: number;
+				driverParam: string | number;
+				notNull: false;
+				hasDefault: true;
+				enumValues: undefined;
+				baseColumn: never;
+				generated: undefined;
+				identity: undefined;
+				isPrimaryKey: false;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}>;
+		};
+	}>;
+
+	Expect<Equal<Expected, typeof cities1>>;
+	Expect<Equal<Expected, typeof cities2>>;
 }
 
 {
@@ -1180,7 +1245,11 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 }
 
 {
+	const enum_ = pgEnum('enum', ['a', 'b', 'c']);
+
 	pgTable('all_columns', {
+		enum: enum_('enum'),
+		enumdef: enum_('enumdef').default('a'),
 		sm: smallint('smallint'),
 		smdef: smallint('smallint_def').default(10),
 		int: integer('integer'),
@@ -1212,13 +1281,125 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		jsonbdef: jsonb('jsonbdef').$type<{ attr: string }>().default({ attr: 'value' }),
 		time: time('time'),
 		time2: time('time2', { precision: 6, withTimezone: true }),
+		timedef: time('timedef').default('00:00:00'),
 		timedefnow: time('timedefnow').defaultNow(),
 		timestamp: timestamp('timestamp'),
 		timestamp2: timestamp('timestamp2', { precision: 6, withTimezone: true }),
 		timestamp3: timestamp('timestamp3', { withTimezone: true }),
 		timestamp4: timestamp('timestamp4', { precision: 4 }),
-		timestampdef: timestamp('timestampdef').defaultNow(),
+		timestampdef: timestamp('timestampdef').default(new Date()),
 		date: date('date', { mode: 'date' }),
-		datedef: date('datedef').defaultNow(),
+		datedef: date('datedef').default('2024-01-01'),
+		datedefnow: date('datedefnow').defaultNow(),
+	});
+
+	pgTable('all_postgis_columns', {
+		geometry: geometry('geometry'),
+		geometry2: geometry('geometry2', { srid: 2, mode: 'xy' }),
+		geometry3: geometry('geometry3', { srid: 3, mode: 'tuple' }),
+		geometry4: geometry('geometry4', { mode: 'tuple' }),
+		geometrydef: geometry('geometrydef').default([1, 2]),
+		point: point('point'),
+		point2: point('point2', { mode: 'xy' }),
+		pointdef: point('pointdef').default([1, 2]),
+		line: line('line'),
+		line2: line('line2', { mode: 'abc' }),
+		linedef: line('linedef').default([1, 2, 3]),
+	});
+
+	pgTable('all_vector_columns', {
+		bit: bit('bit', { dimensions: 1 }),
+		bitdef: bit('bitdef', { dimensions: 1 }).default('1'),
+		halfvec: halfvec('halfvec', { dimensions: 1 }),
+		halfvecdef: halfvec('halfvecdef', { dimensions: 1 }).default([1]),
+		sparsevec: sparsevec('sparsevec', { dimensions: 1 }),
+		sparsevecdef: sparsevec('sparsevecdef', { dimensions: 1 }).default('{1:1}/1'),
+		vector: vector('vector', { dimensions: 1 }),
+		vectordef: vector('vectordef', { dimensions: 1 }).default([1]),
+	});
+}
+
+{
+	const keysAsColumnNames = pgTable('test', {
+		id: serial(),
+		name: text(),
+	});
+
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+}
+
+{
+	const enum_ = pgEnum('enum', ['a', 'b', 'c']);
+
+	pgTable('all_columns_without_name', {
+		enum: enum_(),
+		enumdef: enum_().default('a'),
+		sm: smallint(),
+		smdef: smallint().default(10),
+		int: integer(),
+		intdef: integer().default(10),
+		numeric: numeric(),
+		numeric2: numeric({ precision: 5 }),
+		numeric3: numeric({ scale: 2 }),
+		numeric4: numeric({ precision: 5, scale: 2 }),
+		numericdef: numeric().default('100'),
+		bigint: bigint({ mode: 'number' }),
+		bigintdef: bigint({ mode: 'number' }).default(100),
+		bool: boolean(),
+		booldef: boolean().default(true),
+		text: text(),
+		textdef: text().default('text'),
+		varchar: varchar(),
+		varchardef: varchar().default('text'),
+		serial: serial(),
+		bigserial: bigserial({ mode: 'number' }),
+		decimal: decimal({ precision: 100, scale: 2 }),
+		decimaldef: decimal({ precision: 100, scale: 2 }).default('100.0'),
+		doublePrecision: doublePrecision(),
+		doublePrecisiondef: doublePrecision().default(100),
+		real: real(),
+		realdef: real().default(100),
+		json: json().$type<{ attr: string }>(),
+		jsondef: json().$type<{ attr: string }>().default({ attr: 'value' }),
+		jsonb: jsonb().$type<{ attr: string }>(),
+		jsonbdef: jsonb().$type<{ attr: string }>().default({ attr: 'value' }),
+		time: time(),
+		time2: time({ precision: 6, withTimezone: true }),
+		timedef: time().default('00:00:00'),
+		timedefnow: time().defaultNow(),
+		timestamp: timestamp(),
+		timestamp2: timestamp({ precision: 6, withTimezone: true }),
+		timestamp3: timestamp({ withTimezone: true }),
+		timestamp4: timestamp({ precision: 4 }),
+		timestampdef: timestamp().default(new Date()),
+		date: date({ mode: 'date' }),
+		datedef: date().default('2024-01-01'),
+		datedefnow: date().defaultNow(),
+	});
+
+	pgTable('all_postgis_columns', {
+		geometry: geometry(),
+		geometry2: geometry({ srid: 2, mode: 'xy' }),
+		geometry3: geometry({ srid: 3, mode: 'tuple' }),
+		geometry4: geometry({ mode: 'tuple' }),
+		geometrydef: geometry().default([1, 2]),
+		point: point(),
+		point2: point({ mode: 'xy' }),
+		pointdef: point().default([1, 2]),
+		line: line(),
+		line2: line({ mode: 'abc' }),
+		linedef: line().default([1, 2, 3]),
+	});
+
+	pgTable('all_vector_columns', {
+		bit: bit({ dimensions: 1 }),
+		bitdef: bit({ dimensions: 1 }).default('1'),
+		halfvec: halfvec({ dimensions: 1 }),
+		halfvecdef: halfvec({ dimensions: 1 }).default([1]),
+		sparsevec: sparsevec({ dimensions: 1 }),
+		sparsevecdef: sparsevec({ dimensions: 1 }).default('{1:1}/1'),
+		vector: vector({ dimensions: 1 }),
+		vectordef: vector({ dimensions: 1 }).default([1]),
 	});
 }

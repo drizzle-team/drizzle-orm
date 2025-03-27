@@ -13,13 +13,11 @@ import type { NeonHttpDatabase } from './driver.ts';
  */
 export async function migrate<TSchema extends Record<string, unknown>>(
 	db: NeonHttpDatabase<TSchema>,
-	config: string | MigrationConfig,
+	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	const migrationsTable = typeof config === 'string'
-		? '__drizzle_migrations'
-		: config.migrationsTable ?? '__drizzle_migrations';
-	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsSchema = config.migrationsSchema ?? 'drizzle';
 	const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 			id SERIAL PRIMARY KEY,
