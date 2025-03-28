@@ -432,6 +432,10 @@ test('instrospect strings with single quotes', async () => {
 			enum: myEnum('my_enum').default('escape\'s quotes " '),
 			text: text('text').default('escape\'s quotes " '),
 			varchar: varchar('varchar').default('escape\'s quotes " '),
+			varcharEmpty: varchar('varchar_empty').default(''),
+			/* dprint-ignore-start */
+			varcharSingleQuotes: varchar('varchar_single_quotes').default("I love two '' adjacent single quotes \'\' :)"),
+			/* dprint-ignore-end */
 		}),
 	};
 
