@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-arktype",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Generate arktype schemas from Drizzle ORM schemas",
 	"type": "module",
 	"scripts": {

@@ -4,6 +4,7 @@ packages:
   - drizzle-zod
   - drizzle-typebox
   - drizzle-valibot
+  - drizzle-arktype
   - drizzle-seed
   - integration-tests
   - eslint-plugin-drizzle
