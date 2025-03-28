@@ -4368,6 +4368,80 @@ test('Get user with posts and posts with comments and comments with owner where 
 	});
 });
 
+test('Get deeply nested relation', async (t) => {
+	// Test that relation table alias names do not exceed the Postgres table name limit.
+	const { pgDb: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+	]);
+
+	// This query is nonsense, but it generates a table alias name exceeding 63 characters.
+	const response = await db.query.usersTable.findFirst({
+		columns: {
+			id: true,
+		},
+		with: {
+			usersToGroups: {
+				columns: {},
+				with: {
+					group: {
+						columns: {},
+						with: {
+							usersToGroups: {
+								columns: {},
+								with: {
+									group: {
+										columns: {},
+										with: {
+											usersToGroups: {
+												columns: {},
+												with: {
+													group: {
+														columns: {
+															name: true,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		where: eq(usersTable.name, 'Dan'),
+	});
+
+	expect(response).toEqual({
+		id: 1,
+		usersToGroups: [{
+			group: {
+				usersToGroups: [{
+					group: {
+						usersToGroups: [{
+							group: {
+								name: 'Group1',
+							},
+						}],
+					},
+				}],
+			},
+		}],
+	});
+});
+
 test('[Find Many] Get users with groups', async (t) => {
 	const { pgDbV2: db } = t;
 
