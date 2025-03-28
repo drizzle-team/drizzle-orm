@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-typebox",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Generate Typebox schemas from Drizzle ORM schemas",
 	"type": "module",
 	"scripts": {
