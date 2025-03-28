@@ -6,6 +6,7 @@ import {
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
+	PgArray,
 	PgColumn,
 	PgDialect,
 	PgEnum,
@@ -158,7 +159,14 @@ export const generatePgSnapshot = (
 			const primaryKey: boolean = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+			const getEnumSchema = (column: PgColumn) => {
+				while (is(column, PgArray)) {
+					column = column.baseColumn;
+				}
+				return is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+			};
+			const typeSchema: string | undefined = getEnumSchema(column);
+
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
 
