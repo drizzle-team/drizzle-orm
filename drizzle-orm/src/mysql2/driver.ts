@@ -151,6 +151,7 @@ export function drizzle<
 		const instance = typeof connection === 'string'
 			? createPool({
 				uri: connection,
+				supportBigNumbers: true,
 			})
 			: createPool(connection!);
 		const db = construct(instance, drizzleConfig);
