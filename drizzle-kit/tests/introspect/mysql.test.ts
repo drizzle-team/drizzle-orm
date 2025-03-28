@@ -282,6 +282,7 @@ test('handle unsigned numerical types', async () => {
 			col9: double({ precision: 2, scale: 1, unsigned: true }),
 			col10: decimal({ unsigned: true }),
 			col11: decimal({ precision: 2, scale: 1, unsigned: true }),
+			col12: tinyint({ unsigned: false }),
 		}),
 	};
 
