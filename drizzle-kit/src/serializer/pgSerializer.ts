@@ -6,6 +6,7 @@ import {
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
+	PgArray,
 	PgColumn,
 	PgDialect,
 	PgEnum,
@@ -97,6 +98,19 @@ export function buildArrayString(array: any[], sqlType: string): string {
 	return `{${values}}`;
 }
 
+const getTypeSchema = (column: PgColumn): string | undefined => {
+	if (is(column, PgArray)) {
+		const { baseColumn } = column;
+		if (is(baseColumn, PgEnumColumn)) {
+			return baseColumn.enum.schema || 'public';
+		}
+	}
+
+	if (is(column, PgEnumColumn)) {
+		return column.enum.schema || 'public';
+	}
+};
+
 export const generatePgSnapshot = (
 	tables: AnyPgTable[],
 	enums: PgEnum<any>[],
@@ -158,7 +172,7 @@ export const generatePgSnapshot = (
 			const primaryKey: boolean = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+			const typeSchema = getTypeSchema(column);
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
 
@@ -174,7 +188,7 @@ export const generatePgSnapshot = (
 			const columnToSet: Column = {
 				name,
 				type: column.getSQLType(),
-				typeSchema: typeSchema,
+				typeSchema,
 				primaryKey,
 				notNull,
 				generated: generated
