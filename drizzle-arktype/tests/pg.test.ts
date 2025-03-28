@@ -1,4 +1,4 @@
-import { type Static, Type as t } from '@sinclair/typebox';
+import { Type, type } from 'arktype';
 import { type Equal, sql } from 'drizzle-orm';
 import {
 	customType,
@@ -15,23 +15,23 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintNarrow, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
-const integerSchema = t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: CONSTANTS.INT32_MAX });
-const textSchema = t.String();
+const integerSchema = type.keywords.number.integer.atLeast(CONSTANTS.INT32_MIN).atMost(CONSTANTS.INT32_MAX);
+const textSchema = type.string;
 
-test('table - select', (tc) => {
+test('table - select', (t) => {
 	const table = pgTable('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});
 
 	const result = createSelectSchema(table);
-	const expected = t.Object({ id: integerSchema, name: textSchema });
-	expectSchemaShape(tc, expected).from(result);
+	const expected = type({ id: integerSchema, name: textSchema });
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
@@ -43,12 +43,12 @@ test('table in schema - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = t.Object({ id: integerSchema, name: textSchema });
+	const expected = type({ id: integerSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('table - insert', (tc) => {
+test('table - insert', (t) => {
 	const table = pgTable('test', {
 		id: integer().generatedAlwaysAsIdentity().primaryKey(),
 		name: text().notNull(),
@@ -56,12 +56,12 @@ test('table - insert', (tc) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = t.Object({ name: textSchema, age: t.Optional(t.Union([integerSchema, t.Null()])) });
-	expectSchemaShape(tc, expected).from(result);
+	const expected = type({ name: textSchema, age: integerSchema.or(type.null).optional() });
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('table - update', (tc) => {
+test('table - update', (t) => {
 	const table = pgTable('test', {
 		id: integer().generatedAlwaysAsIdentity().primaryKey(),
 		name: text().notNull(),
@@ -69,15 +69,15 @@ test('table - update', (tc) => {
 	});
 
 	const result = createUpdateSchema(table);
-	const expected = t.Object({
-		name: t.Optional(textSchema),
-		age: t.Optional(t.Union([integerSchema, t.Null()])),
+	const expected = type({
+		name: textSchema.optional(),
+		age: integerSchema.or(type.null).optional(),
 	});
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('view qb - select', (tc) => {
+test('view qb - select', (t) => {
 	const table = pgTable('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
@@ -85,24 +85,24 @@ test('view qb - select', (tc) => {
 	const view = pgView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = t.Object({ id: integerSchema, age: t.Any() });
-	expectSchemaShape(tc, expected).from(result);
+	const expected = type({ id: integerSchema, age: type('unknown.any') });
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('view columns - select', (tc) => {
+test('view columns - select', (t) => {
 	const view = pgView('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = t.Object({ id: integerSchema, name: textSchema });
-	expectSchemaShape(tc, expected).from(result);
+	const expected = type({ id: integerSchema, name: textSchema });
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('materialized view qb - select', (tc) => {
+test('materialized view qb - select', (t) => {
 	const table = pgTable('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
@@ -110,24 +110,24 @@ test('materialized view qb - select', (tc) => {
 	const view = pgMaterializedView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = t.Object({ id: integerSchema, age: t.Any() });
-	expectSchemaShape(tc, expected).from(result);
+	const expected = type({ id: integerSchema, age: type('unknown.any') });
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('materialized view columns - select', (tc) => {
+test('materialized view columns - select', (t) => {
 	const view = pgView('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = t.Object({ id: integerSchema, name: textSchema });
-	expectSchemaShape(tc, expected).from(result);
+	const expected = type({ id: integerSchema, name: textSchema });
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('view with nested fields - select', (tc) => {
+test('view with nested fields - select', (t) => {
 	const table = pgTable('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
@@ -144,25 +144,25 @@ test('view with nested fields - select', (tc) => {
 	);
 
 	const result = createSelectSchema(view);
-	const expected = t.Object({
+	const expected = type({
 		id: integerSchema,
-		nested: t.Object({ name: textSchema, age: t.Any() }),
-		table: t.Object({ id: integerSchema, name: textSchema }),
+		nested: { name: textSchema, age: type('unknown.any') },
+		table: { id: integerSchema, name: textSchema },
 	});
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('enum - select', (tc) => {
+test('enum - select', (t) => {
 	const enum_ = pgEnum('test', ['a', 'b', 'c']);
 
 	const result = createSelectSchema(enum_);
-	const expected = t.Enum({ a: 'a', b: 'b', c: 'c' });
-	expectEnumValues(tc, expected).from(result);
+	const expected = type.enumerated('a', 'b', 'c');
+	expectEnumValues(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('nullability - select', (tc) => {
+test('nullability - select', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
 		c2: integer().notNull(),
@@ -171,17 +171,17 @@ test('nullability - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = t.Object({
-		c1: t.Union([integerSchema, t.Null()]),
+	const expected = type({
+		c1: integerSchema.or(type.null),
 		c2: integerSchema,
-		c3: t.Union([integerSchema, t.Null()]),
+		c3: integerSchema.or(type.null),
 		c4: integerSchema,
 	});
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('nullability - insert', (tc) => {
+test('nullability - insert', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
 		c2: integer().notNull(),
@@ -193,17 +193,17 @@ test('nullability - insert', (tc) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = t.Object({
-		c1: t.Optional(t.Union([integerSchema, t.Null()])),
+	const expected = type({
+		c1: integerSchema.or(type.null).optional(),
 		c2: integerSchema,
-		c3: t.Optional(t.Union([integerSchema, t.Null()])),
-		c4: t.Optional(integerSchema),
-		c7: t.Optional(integerSchema),
+		c3: integerSchema.or(type.null).optional(),
+		c4: integerSchema.optional(),
+		c7: integerSchema.optional(),
 	});
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 });
 
-test('nullability - update', (tc) => {
+test('nullability - update', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
 		c2: integer().notNull(),
@@ -215,18 +215,18 @@ test('nullability - update', (tc) => {
 	});
 
 	const result = createUpdateSchema(table);
-	const expected = t.Object({
-		c1: t.Optional(t.Union([integerSchema, t.Null()])),
-		c2: t.Optional(integerSchema),
-		c3: t.Optional(t.Union([integerSchema, t.Null()])),
-		c4: t.Optional(integerSchema),
-		c7: t.Optional(integerSchema),
+	const expected = type({
+		c1: integerSchema.or(type.null).optional(),
+		c2: integerSchema.optional(),
+		c3: integerSchema.or(type.null).optional(),
+		c4: integerSchema.optional(),
+		c7: integerSchema.optional(),
 	});
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine table - select', (tc) => {
+test('refine table - select', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
 		c2: integer().notNull(),
@@ -234,19 +234,19 @@ test('refine table - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	const expected = t.Object({
-		c1: t.Union([integerSchema, t.Null()]),
-		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	const expected = type({
+		c1: integerSchema.or(type.null),
+		c2: integerSchema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine table - select with custom data type', (tc) => {
+test('refine table - select with custom data type', (t) => {
 	const customText = customType({ dataType: () => 'text' });
 	const table = pgTable('test', {
 		c1: integer(),
@@ -255,24 +255,24 @@ test('refine table - select with custom data type', (tc) => {
 		c4: customText(),
 	});
 
-	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
+	const customTextSchema = type.string.atLeastLength(1).atMostLength(100);
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 		c4: customTextSchema,
 	});
-	const expected = t.Object({
-		c1: t.Union([integerSchema, t.Null()]),
-		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	const expected = type({
+		c1: integerSchema.or(type.null),
+		c2: integerSchema.atMost(1000),
+		c3: type.string.pipe(Number),
 		c4: customTextSchema,
 	});
 
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine table - insert', (tc) => {
+test('refine table - insert', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
 		c2: integer().notNull(),
@@ -281,19 +281,19 @@ test('refine table - insert', (tc) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	const expected = t.Object({
-		c1: t.Optional(t.Union([integerSchema, t.Null()])),
-		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	const expected = type({
+		c1: integerSchema.or(type.null).optional(),
+		c2: integerSchema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine table - update', (tc) => {
+test('refine table - update', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
 		c2: integer().notNull(),
@@ -302,19 +302,19 @@ test('refine table - update', (tc) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	const expected = t.Object({
-		c1: t.Optional(t.Union([integerSchema, t.Null()])),
-		c2: t.Optional(t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 })),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+	const expected = type({
+		c1: integerSchema.or(type.null).optional(),
+		c2: integerSchema.atMost(1000).optional(),
+		c3: type.string.pipe(Number),
 	});
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine view - select', (tc) => {
+test('refine view - select', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
 		c2: integer(),
@@ -338,40 +338,40 @@ test('refine view - select', (tc) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 		nested: {
-			c5: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
-			c6: t.Integer({ minimum: 1, maximum: 10 }),
+			c5: (schema) => schema.atMost(1000),
+			c6: type.string.pipe(Number),
 		},
 		table: {
-			c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
-			c3: t.Integer({ minimum: 1, maximum: 10 }),
+			c2: (schema) => schema.atMost(1000),
+			c3: type.string.pipe(Number),
 		},
 	});
-	const expected = t.Object({
-		c1: t.Union([integerSchema, t.Null()]),
-		c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
-		nested: t.Object({
-			c4: t.Union([integerSchema, t.Null()]),
-			c5: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-			c6: t.Integer({ minimum: 1, maximum: 10 }),
+	const expected = type({
+		c1: integerSchema.or(type.null),
+		c2: integerSchema.atMost(1000).or(type.null),
+		c3: type.string.pipe(Number),
+		nested: type({
+			c4: integerSchema.or(type.null),
+			c5: integerSchema.atMost(1000).or(type.null),
+			c6: type.string.pipe(Number),
 		}),
-		table: t.Object({
-			c1: t.Union([integerSchema, t.Null()]),
-			c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-			c3: t.Integer({ minimum: 1, maximum: 10 }),
-			c4: t.Union([integerSchema, t.Null()]),
-			c5: t.Union([integerSchema, t.Null()]),
-			c6: t.Union([integerSchema, t.Null()]),
+		table: type({
+			c1: integerSchema.or(type.null),
+			c2: integerSchema.atMost(1000).or(type.null),
+			c3: type.string.pipe(Number),
+			c4: integerSchema.or(type.null),
+			c5: integerSchema.or(type.null),
+			c6: integerSchema.or(type.null),
 		}),
 	});
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('all data types', (tc) => {
+test('all data types', (t) => {
 	const table = pgTable('test', ({
 		bigint,
 		bigserial,
@@ -452,86 +452,86 @@ test('all data types', (tc) => {
 	}));
 
 	const result = createSelectSchema(table);
-	const expected = t.Object({
-		bigint1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
-		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
-		bigserial1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
-		bigserial2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
-		bit: t.RegExp(/^[01]+$/, { maxLength: 5 }),
-		boolean: t.Boolean(),
-		date1: t.Date(),
-		date2: t.String(),
-		char1: t.String({ minLength: 10, maxLength: 10 }),
-		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
-		cidr: t.String(),
-		doublePrecision: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
-		geometry1: t.Tuple([t.Number(), t.Number()]),
-		geometry2: t.Object({ x: t.Number(), y: t.Number() }),
-		halfvec: t.Array(t.Number(), { minItems: 3, maxItems: 3 }),
-		inet: t.String(),
-		integer: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: CONSTANTS.INT32_MAX }),
-		interval: t.String(),
+	const expected = type({
+		bigint1: type.keywords.number.integer.atLeast(Number.MIN_SAFE_INTEGER).atMost(Number.MAX_SAFE_INTEGER),
+		bigint2: type.bigint.narrow(bigintNarrow),
+		bigserial1: type.keywords.number.integer.atLeast(Number.MIN_SAFE_INTEGER).atMost(Number.MAX_SAFE_INTEGER),
+		bigserial2: type.bigint.narrow(bigintNarrow),
+		bit: type(/^[01]{5}$/).describe('a string containing ones or zeros while being 5 characters long'),
+		boolean: type.boolean,
+		date1: type.Date,
+		date2: type.string,
+		char1: type.string.exactlyLength(10),
+		char2: type.enumerated('a', 'b', 'c'),
+		cidr: type.string,
+		doublePrecision: type.number.atLeast(CONSTANTS.INT48_MIN).atMost(CONSTANTS.INT48_MAX),
+		geometry1: type([type.number, type.number]),
+		geometry2: type({ x: type.number, y: type.number }),
+		halfvec: type.number.array().exactlyLength(3),
+		inet: type.string,
+		integer: type.keywords.number.integer.atLeast(CONSTANTS.INT32_MIN).atMost(CONSTANTS.INT32_MAX),
+		interval: type.string,
 		json: jsonSchema,
 		jsonb: jsonSchema,
-		line1: t.Object({ a: t.Number(), b: t.Number(), c: t.Number() }),
-		line2: t.Tuple([t.Number(), t.Number(), t.Number()]),
-		macaddr: t.String(),
-		macaddr8: t.String(),
-		numeric: t.String(),
-		point1: t.Object({ x: t.Number(), y: t.Number() }),
-		point2: t.Tuple([t.Number(), t.Number()]),
-		real: t.Number({ minimum: CONSTANTS.INT24_MIN, maximum: CONSTANTS.INT24_MAX }),
-		serial: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: CONSTANTS.INT32_MAX }),
-		smallint: t.Integer({ minimum: CONSTANTS.INT16_MIN, maximum: CONSTANTS.INT16_MAX }),
-		smallserial: t.Integer({ minimum: CONSTANTS.INT16_MIN, maximum: CONSTANTS.INT16_MAX }),
-		text1: t.String(),
-		text2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
-		sparsevec: t.String(),
-		time: t.String(),
-		timestamp1: t.Date(),
-		timestamp2: t.String(),
-		uuid: t.String({ format: 'uuid' }),
-		varchar1: t.String({ maxLength: 10 }),
-		varchar2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
-		vector: t.Array(t.Number(), { minItems: 3, maxItems: 3 }),
-		array1: t.Array(integerSchema),
-		array2: t.Array(t.Array(integerSchema), { minItems: 2, maxItems: 2 }),
-		array3: t.Array(t.Array(t.String({ maxLength: 10 })), { minItems: 2, maxItems: 2 }),
+		line1: type({ a: type.number, b: type.number, c: type.number }),
+		line2: type([type.number, type.number, type.number]),
+		macaddr: type.string,
+		macaddr8: type.string,
+		numeric: type.string,
+		point1: type({ x: type.number, y: type.number }),
+		point2: type([type.number, type.number]),
+		real: type.number.atLeast(CONSTANTS.INT24_MIN).atMost(CONSTANTS.INT24_MAX),
+		serial: type.keywords.number.integer.atLeast(CONSTANTS.INT32_MIN).atMost(CONSTANTS.INT32_MAX),
+		smallint: type.keywords.number.integer.atLeast(CONSTANTS.INT16_MIN).atMost(CONSTANTS.INT16_MAX),
+		smallserial: type.keywords.number.integer.atLeast(CONSTANTS.INT16_MIN).atMost(CONSTANTS.INT16_MAX),
+		text1: type.string,
+		text2: type.enumerated('a', 'b', 'c'),
+		sparsevec: type.string,
+		time: type.string,
+		timestamp1: type.Date,
+		timestamp2: type.string,
+		uuid: type(/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/iu).describe('a RFC-4122-compliant UUID'),
+		varchar1: type.string.atMostLength(10),
+		varchar2: type.enumerated('a', 'b', 'c'),
+		vector: type.number.array().exactlyLength(3),
+		array1: integerSchema.array(),
+		array2: integerSchema.array().array().exactlyLength(2),
+		array3: type.string.atMostLength(10).array().array().exactlyLength(2),
 	});
-	expectSchemaShape(tc, expected).from(result);
+	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 /* Infinitely recursive type */ {
-	const TopLevelCondition: GenericSchema<TopLevelCondition> = t.Any() as any;
+	const TopLevelCondition: Type<TopLevelCondition, {}> = type('unknown.any') as any;
 	const table = pgTable('test', {
 		json: json().$type<TopLevelCondition>().notNull(),
 		jsonb: jsonb().$type<TopLevelCondition>(),
 	});
 	const result = createSelectSchema(table);
-	const expected = t.Object({
+	const expected = type({
 		json: TopLevelCondition,
-		jsonb: t.Union([TopLevelCondition, t.Null()]),
+		jsonb: TopLevelCondition.or(type.null),
 	});
-	Expect<Equal<Static<typeof result>, Static<typeof expected>>>();
+	Expect<Equal<type.infer<typeof result>, type.infer<typeof expected>>>();
 }
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });
 	// @ts-expect-error
-	createSelectSchema(table, { unknown: t.String() });
+	createSelectSchema(table, { unknown: type.string });
 }
 
 /* Disallow unknown keys in table refinement - insert */ {
 	const table = pgTable('test', { id: integer() });
 	// @ts-expect-error
-	createInsertSchema(table, { unknown: t.String() });
+	createInsertSchema(table, { unknown: type.string });
 }
 
 /* Disallow unknown keys in table refinement - update */ {
 	const table = pgTable('test', { id: integer() });
 	// @ts-expect-error
-	createUpdateSchema(table, { unknown: t.String() });
+	createUpdateSchema(table, { unknown: type.string });
 }
 
 /* Disallow unknown keys in view qb - select */ {
@@ -540,18 +540,18 @@ test('all data types', (tc) => {
 	const mView = pgMaterializedView('test').as((qb) => qb.select().from(table));
 	const nestedSelect = pgView('test').as((qb) => qb.select({ table }).from(table));
 	// @ts-expect-error
-	createSelectSchema(view, { unknown: t.String() });
+	createSelectSchema(view, { unknown: type.string });
 	// @ts-expect-error
-	createSelectSchema(mView, { unknown: t.String() });
+	createSelectSchema(mView, { unknown: type.string });
 	// @ts-expect-error
-	createSelectSchema(nestedSelect, { table: { unknown: t.String() } });
+	createSelectSchema(nestedSelect, { table: { unknown: type.string } });
 }
 
 /* Disallow unknown keys in view columns - select */ {
 	const view = pgView('test', { id: integer() }).as(sql``);
 	const mView = pgView('test', { id: integer() }).as(sql``);
 	// @ts-expect-error
-	createSelectSchema(view, { unknown: t.String() });
+	createSelectSchema(view, { unknown: type.string });
 	// @ts-expect-error
-	createSelectSchema(mView, { unknown: t.String() });
+	createSelectSchema(mView, { unknown: type.string });
 }
