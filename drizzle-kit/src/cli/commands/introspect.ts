@@ -834,9 +834,9 @@ export const relationsToTypeScript = (
 				tableRelations[toTable2].push({
 					name: plural(toTable1),
 					type: 'many-through',
-					tableFrom: tableFrom2,
+					tableFrom: toTable2,
 					columnsFrom: fk2.columnsFrom,
-					tableTo: toTable2,
+					tableTo: toTable1,
 					columnsTo: columnsTo2,
 					tableThrough,
 					columnsThroughFrom,
@@ -923,7 +923,7 @@ export const relationsToTypeScript = (
 				}
 				return {
 					...relation,
-					name,
+					name: withCasing(name, casing),
 					relationName,
 				};
 			},
