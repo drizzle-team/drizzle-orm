@@ -526,8 +526,8 @@ export class BaseSQLiteDatabase<
 		return new SQLiteDeleteBase(from, this.session, this.dialect);
 	}
 
-	run(query: SQLWrapper | string): DBResult<TResultKind, TRunResult> {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+	run(query: SQLWrapper): DBResult<TResultKind, TRunResult> {
+		const sequel = query.getSQL();
 		if (this.resultKind === 'async') {
 			return new SQLiteRaw(
 				async () => this.session.run(sequel),
@@ -540,8 +540,8 @@ export class BaseSQLiteDatabase<
 		return this.session.run(sequel) as DBResult<TResultKind, TRunResult>;
 	}
 
-	all<T = unknown>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+	all<T = unknown>(query: SQLWrapper): DBResult<TResultKind, T[]> {
+		const sequel = query.getSQL();
 		if (this.resultKind === 'async') {
 			return new SQLiteRaw(
 				async () => this.session.all(sequel),
@@ -554,8 +554,8 @@ export class BaseSQLiteDatabase<
 		return this.session.all(sequel) as DBResult<TResultKind, T[]>;
 	}
 
-	get<T = unknown>(query: SQLWrapper | string): DBResult<TResultKind, T> {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+	get<T = unknown>(query: SQLWrapper): DBResult<TResultKind, T> {
+		const sequel = query.getSQL();
 		if (this.resultKind === 'async') {
 			return new SQLiteRaw(
 				async () => this.session.get(sequel),
@@ -568,8 +568,8 @@ export class BaseSQLiteDatabase<
 		return this.session.get(sequel) as DBResult<TResultKind, T>;
 	}
 
-	values<T extends unknown[] = unknown[]>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+	values<T extends unknown[] = unknown[]>(query: SQLWrapper): DBResult<TResultKind, T[]> {
+		const sequel = query.getSQL();
 		if (this.resultKind === 'async') {
 			return new SQLiteRaw(
 				async () => this.session.values(sequel),

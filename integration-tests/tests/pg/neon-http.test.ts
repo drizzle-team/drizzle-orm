@@ -542,7 +542,7 @@ describe('$withAuth tests', (it) => {
 	});
 
 	it('exec', async () => {
-		await db.$withAuth('exec').execute(`SELECT 1`).catch(() => null);
+		await db.$withAuth('exec').execute(sql.raw('SELECT 1')).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: false, fullResults: true, authToken: 'exec' });
 	});
@@ -641,7 +641,7 @@ describe('$withAuth callback tests', (it) => {
 	});
 
 	it('exec', async () => {
-		await db.$withAuth(auth('exec')).execute(`SELECT 1`).catch(() => null);
+		await db.$withAuth(auth('exec')).execute(sql.raw('SELECT 1')).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('exec');
 	});
@@ -745,7 +745,7 @@ describe('$withAuth async callback tests', (it) => {
 	});
 
 	it('exec', async () => {
-		await db.$withAuth(auth('exec')).execute(`SELECT 1`).catch(() => null);
+		await db.$withAuth(auth('exec')).execute(sql.raw('SELECT 1')).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('exec');
