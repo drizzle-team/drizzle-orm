@@ -1,4 +1,4 @@
-`drizzle-valibot` is a plugin for [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm) that allows you to generate [valibot](https://valibot.dev/) schemas from Drizzle ORM schemas.
+`drizzle-arktype` is a plugin for [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm) that allows you to generate [arktype](https://arktype.io/) schemas from Drizzle ORM schemas.
 
 **Features**
 
@@ -10,8 +10,8 @@
 
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { createInsertSchema, createSelectSchema } from 'drizzle-valibot';
-import { string, parse, number, pipe } from 'valibot';
+import { createInsertSchema, createSelectSchema } from 'drizzle-arktype';
+import { type } from 'arktype';
 
 const users = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -32,13 +32,13 @@ const selectUserSchema = createSelectSchema(users);
 
 // Overriding the fields
 const insertUserSchema = createInsertSchema(users, {
-	role: string(),
+	role: type('string'),
 });
 
 // Refining the fields - useful if you want to change the fields before they become nullable/optional in the final schema
 const insertUserSchema = createInsertSchema(users, {
-	id: (schema) => pipe([schema, minValue(0)]),
-	role: string(),
+	id: (schema) => schema.atLeast(1),
+	role: type('string'),
 });
 
 // Usage

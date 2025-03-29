@@ -1,6 +1,12 @@
+import type { Type, type } from 'arktype';
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
-import type { z } from 'zod';
-import type { GetBaseColumn, GetEnumValuesFromColumn, GetZodType, HandleColumn } from './column.types.ts';
+import type {
+	ArktypeNullable,
+	ArktypeOptional,
+	GetArktypeType,
+	GetEnumValuesFromColumn,
+	HandleColumn,
+} from './column.types.ts';
 import type { GetSelection, RemoveNever } from './utils.ts';
 
 export interface Conditions {
@@ -9,19 +15,19 @@ export interface Conditions {
 	nullable: (column: Column) => boolean;
 }
 
+type GenericSchema = type.cast<unknown> | [type.cast<unknown>, '?'];
+
 export type BuildRefineColumns<
 	TColumns extends Record<string, any>,
 > = Simplify<
 	RemoveNever<
 		{
-			[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column ? GetZodType<
+			[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column ? GetArktypeType<
 					TColumn['_']['data'],
-					TColumn['_']['dataType'],
 					TColumn['_']['columnType'],
-					GetEnumValuesFromColumn<TColumn>,
-					GetBaseColumn<TColumn>
-				> extends infer TSchema extends z.ZodTypeAny ? TSchema
-				: z.ZodAny
+					GetEnumValuesFromColumn<TColumn>
+				> extends infer TSchema extends GenericSchema ? TSchema
+				: Type<any, {}>
 				: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View
 					? BuildRefineColumns<GetSelection<TObject>>
 				: TColumns[K];
@@ -32,8 +38,8 @@ export type BuildRefineColumns<
 export type BuildRefine<
 	TColumns extends Record<string, any>,
 > = BuildRefineColumns<TColumns> extends infer TBuildColumns ? {
-		[K in keyof TBuildColumns]?: TBuildColumns[K] extends z.ZodTypeAny
-			? ((schema: TBuildColumns[K]) => z.ZodTypeAny) | z.ZodTypeAny
+		[K in keyof TBuildColumns]?: TBuildColumns[K] extends GenericSchema
+			? ((schema: TBuildColumns[K]) => GenericSchema) | GenericSchema
 			: TBuildColumns[K] extends Record<string, any> ? Simplify<BuildRefine<TBuildColumns[K]>>
 			: never;
 	}
@@ -41,16 +47,18 @@ export type BuildRefine<
 
 type HandleRefinement<
 	TType extends 'select' | 'insert' | 'update',
-	TRefinement extends z.ZodTypeAny | ((schema: z.ZodTypeAny) => z.ZodTypeAny),
+	TRefinement extends GenericSchema | ((schema: GenericSchema) => GenericSchema),
 	TColumn extends Column,
-> = TRefinement extends (schema: any) => z.ZodTypeAny ? (TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
-		: z.ZodNullable<ReturnType<TRefinement>>) extends infer TSchema
-		? TType extends 'update' ? z.ZodOptional<Assume<TSchema, z.ZodTypeAny>> : TSchema
-	: z.ZodTypeAny
+> = TRefinement extends (schema: any) => GenericSchema ? (
+		TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
+			: ArktypeNullable<ReturnType<TRefinement>>
+	) extends infer TSchema ? TType extends 'update' ? ArktypeOptional<TSchema>
+		: TSchema
+	: Type<any, {}>
 	: TRefinement;
 
 type IsRefinementDefined<TRefinements, TKey extends string> = TKey extends keyof TRefinements
-	? TRefinements[TKey] extends z.ZodTypeAny | ((schema: any) => any) ? true
+	? TRefinements[TKey] extends GenericSchema | ((schema: any) => any) ? true
 	: false
 	: false;
 
@@ -58,11 +66,11 @@ export type BuildSchema<
 	TType extends 'select' | 'insert' | 'update',
 	TColumns extends Record<string, any>,
 	TRefinements extends Record<string, any> | undefined,
-> = z.ZodObject<
+> = type.instantiate<
 	Simplify<
 		RemoveNever<
 			{
-				[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column
+				readonly [K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column
 					? TRefinements extends object
 						? IsRefinementDefined<TRefinements, Assume<K, string>> extends true
 							? HandleRefinement<TType, TRefinements[Assume<K, keyof TRefinements>], TColumn>
@@ -77,11 +85,10 @@ export type BuildSchema<
 								: undefined
 								: undefined
 						>
-					: z.ZodAny;
+					: any;
 			}
 		>
-	>,
-	'strip'
+	>
 >;
 
 export type NoUnknownKeys<
@@ -89,7 +96,7 @@ export type NoUnknownKeys<
 	TCompare extends Record<string, any>,
 > = {
 	[K in keyof TRefinement]: K extends keyof TCompare
-		? TRefinement[K] extends Record<string, z.ZodTypeAny> ? NoUnknownKeys<TRefinement[K], TCompare[K]>
+		? TRefinement[K] extends Record<string, GenericSchema> ? NoUnknownKeys<TRefinement[K], TCompare[K]>
 		: TRefinement[K]
 		: DrizzleTypeError<`Found unknown key in refinement: "${K & string}"`>;
 };
