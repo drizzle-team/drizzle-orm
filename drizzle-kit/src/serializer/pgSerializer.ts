@@ -1531,37 +1531,26 @@ WHERE
 					}
 
 					const dbIndexes = await db.query(
-						`SELECT  DISTINCT ON (t.relname, ic.relname, k.i) t.relname as table_name, ic.relname AS indexname,
+						`SELECT DISTINCT ON (t.relname, ic.relname, k.i) t.relname as table_name, ic.relname AS indexname,
         k.i AS index_order,
         i.indisunique as is_unique,
         am.amname as method,
         ic.reloptions as with,
-        coalesce(a.attname,
-                  (('{' || pg_get_expr(
-                              i.indexprs,
-                              i.indrelid
-                          )
-                        || '}')::text[]
-                  )[k.i]
-                ) AS column_name,
-          CASE
-        WHEN pg_get_expr(i.indexprs, i.indrelid) IS NOT NULL THEN 1
-        ELSE 0
-    END AS is_expression,
+        CASE 
+            WHEN i.indkey[k.i-1] != 0 THEN a.attname
+            ELSE pg_get_indexdef(i.indexrelid, k.i, true)
+        END AS column_name,
+        CASE WHEN pg_get_expr(i.indexprs, i.indrelid) IS NOT NULL THEN 1 ELSE 0 END AS is_expression,
         i.indoption[k.i-1] & 1 = 1 AS descending,
         i.indoption[k.i-1] & 2 = 2 AS nulls_first,
-        pg_get_expr(
-                              i.indpred,
-                              i.indrelid
-                          ) as where,
-         opc.opcname
-      FROM pg_class t
-          LEFT JOIN pg_index i ON t.oid = i.indrelid
-          LEFT JOIN pg_class ic ON ic.oid = i.indexrelid
-		  CROSS JOIN LATERAL (SELECT unnest(i.indkey), generate_subscripts(i.indkey, 1) + 1) AS k(attnum, i)
-          LEFT JOIN pg_attribute AS a
-            ON i.indrelid = a.attrelid AND k.attnum = a.attnum
-          JOIN pg_namespace c on c.oid = t.relnamespace
+        pg_get_expr(i.indpred, i.indrelid) as where,
+        opc.opcname
+    FROM pg_class t
+        LEFT JOIN pg_index i ON t.oid = i.indrelid
+        LEFT JOIN pg_class ic ON ic.oid = i.indexrelid
+        CROSS JOIN LATERAL generate_series(1, array_length(i.indkey, 1)) AS k(i)
+        LEFT JOIN pg_attribute AS a ON i.indrelid = a.attrelid AND i.indkey[k.i-1] = a.attnum
+        JOIN pg_namespace c on c.oid = t.relnamespace
         LEFT JOIN pg_am AS am ON ic.relam = am.oid
         JOIN pg_opclass opc ON opc.oid = ANY(i.indclass)
       WHERE
