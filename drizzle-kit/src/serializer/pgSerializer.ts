@@ -1567,14 +1567,7 @@ ORDER BY con.conname;`,
         i.indisunique as is_unique,
         am.amname as method,
         ic.reloptions as with,
-        coalesce(a.attname,
-                  (('{' || pg_get_expr(
-                              i.indexprs,
-                              i.indrelid
-                          )
-                        || '}')::text[]
-                  )[k.i]
-                ) AS column_name,
+        coalesce(pg_get_expr(i.indexprs, i.indrelid), a.attname) as column_name,
           CASE
         WHEN pg_get_expr(i.indexprs, i.indrelid) IS NOT NULL THEN 1
         ELSE 0
