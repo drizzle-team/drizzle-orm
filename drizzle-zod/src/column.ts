@@ -53,8 +53,7 @@ import type {
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
-import { z } from 'zod';
-import { z as zod } from 'zod';
+import { z, z as zod } from 'zod';
 import { CONSTANTS } from './constants.ts';
 import type { CreateSchemaFactoryOptions } from './schema.types.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
@@ -67,61 +66,66 @@ export const bufferSchema: z.ZodType<Buffer> = z.custom<Buffer>((v) => v instanc
 export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptions | undefined): z.ZodTypeAny {
 	const z = factory?.zodInstance ?? zod;
 	const coerce = factory?.coerce ?? {};
-	let schema!: z.ZodTypeAny;
 
+	// Handle specific types
 	if (isWithEnum(column)) {
-		schema = column.enumValues.length ? z.enum(column.enumValues) : z.string();
+		return column.enumValues.length ? z.enum(column.enumValues) : z.string();
+	}
+	if (isColumnType<PgGeometry<any> | PgPointTuple<any>>(column, ['PgGeometry', 'PgPointTuple'])) {
+		return z.tuple([z.number(), z.number()]);
+	}
+	if (isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])) {
+		return z.object({ x: z.number(), y: z.number() });
+	}
+	if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
+		const schema = z.array(z.number());
+		return column.dimensions ? schema.length(column.dimensions) : schema;
+	}
+	if (isColumnType<PgLineTuple<any>>(column, ['PgLine'])) {
+		return z.tuple([z.number(), z.number(), z.number()]);
+	}
+	if (isColumnType<PgLineABC<any>>(column, ['PgLineABC'])) {
+		return z.object({
+			a: z.number(),
+			b: z.number(),
+			c: z.number(),
+		});
 	}
 
-	if (!schema) {
-		// Handle specific types
-		if (isColumnType<PgGeometry<any> | PgPointTuple<any>>(column, ['PgGeometry', 'PgPointTuple'])) {
-			schema = z.tuple([z.number(), z.number()]);
-		} else if (
-			isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])
-		) {
-			schema = z.object({ x: z.number(), y: z.number() });
-		} else if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
-			schema = z.array(z.number());
-			schema = column.dimensions ? (schema as z.ZodArray<any>).length(column.dimensions) : schema;
-		} else if (isColumnType<PgLineTuple<any>>(column, ['PgLine'])) {
-			schema = z.tuple([z.number(), z.number(), z.number()]);
-		} else if (isColumnType<PgLineABC<any>>(column, ['PgLineABC'])) {
-			schema = z.object({
-				a: z.number(),
-				b: z.number(),
-				c: z.number(),
-			});
-		} // Handle other types
-		else if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
-			schema = z.array(columnToSchema(column.baseColumn, z));
-			schema = column.size ? (schema as z.ZodArray<any>).length(column.size) : schema;
-		} else if (column.dataType === 'array') {
-			schema = z.array(z.any());
-		} else if (column.dataType === 'number') {
-			schema = numberColumnToSchema(column, z, coerce);
-		} else if (column.dataType === 'bigint') {
-			schema = bigintColumnToSchema(column, z, coerce);
-		} else if (column.dataType === 'boolean') {
-			schema = coerce === true || coerce.boolean ? z.coerce.boolean() : z.boolean();
-		} else if (column.dataType === 'date') {
-			schema = coerce === true || coerce.date ? z.coerce.date() : z.date();
-		} else if (column.dataType === 'string') {
-			schema = stringColumnToSchema(column, z, coerce);
-		} else if (column.dataType === 'json') {
-			schema = jsonSchema;
-		} else if (column.dataType === 'custom') {
-			schema = z.any();
-		} else if (column.dataType === 'buffer') {
-			schema = bufferSchema;
-		}
+	// Handle other types
+	if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
+		const schema = z.array(columnToSchema(column.baseColumn, z));
+		return column.size ? schema.length(column.size) : schema;
+	}
+	if (column.dataType === 'array') {
+		return z.array(z.any());
+	}
+	if (column.dataType === 'number') {
+		return numberColumnToSchema(column, z, coerce);
+	}
+	if (column.dataType === 'bigint') {
+		return bigintColumnToSchema(column, z, coerce);
+	}
+	if (column.dataType === 'boolean') {
+		return coerce === true || coerce.boolean ? z.coerce.boolean() : z.boolean();
+	}
+	if (column.dataType === 'date') {
+		return coerce === true || coerce.date ? z.coerce.date() : z.date();
+	}
+	if (column.dataType === 'string') {
+		return stringColumnToSchema(column, z, coerce);
+	}
+	if (column.dataType === 'json') {
+		return jsonSchema;
+	}
+	if (column.dataType === 'custom') {
+		return z.any();
+	}
+	if (column.dataType === 'buffer') {
+		return bufferSchema;
 	}
 
-	if (!schema) {
-		schema = z.any();
-	}
-
-	return schema;
+	return z.any();
 }
 
 function numberColumnToSchema(
