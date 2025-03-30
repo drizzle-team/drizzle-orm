@@ -18,7 +18,7 @@ export type PgGeographyBuilderInitial<TName extends string> = PgGeographyBuilder
 }>;
 
 export class PgGeographyBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGeography'>> extends PgColumnBuilder<T> {
-    static readonly [entityKind]: string = 'PgGeographyBuilder';
+    static override readonly [entityKind]: string = 'PgGeographyBuilder';
 
     constructor(name: T['name']) {
         super(name, 'array', 'PgGeography');
@@ -36,7 +36,7 @@ export class PgGeographyBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGe
 }
 
 export class PgGeography<T extends ColumnBaseConfig<'array', 'PgGeography'>> extends PgColumn<T> {
-    static readonly [entityKind]: string = 'PgGeography';
+    static override readonly [entityKind]: string = 'PgGeography';
 
     getSQLType(): string {
         return 'geography(point)';
@@ -64,7 +64,7 @@ export type PgGeographyObjectBuilderInitial<TName extends string> = PgGeographyO
 export class PgGeographyObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgGeographyObject'>>
     extends PgColumnBuilder<T>
 {
-    static readonly [entityKind]: string = 'PgGeographyObjectBuilder';
+    static override readonly [entityKind]: string = 'PgGeographyObjectBuilder';
 
     constructor(name: T['name']) {
         super(name, 'json', 'PgGeographyObject');
@@ -82,7 +82,7 @@ export class PgGeographyObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 
 }
 
 export class PgGeographyObject<T extends ColumnBaseConfig<'json', 'PgGeographyObject'>> extends PgColumn<T> {
-    static readonly [entityKind]: string = 'PgGeographyObject';
+    static override readonly [entityKind]: string = 'PgGeographyObject';
 
     getSQLType(): string {
         return 'geography(point)';
