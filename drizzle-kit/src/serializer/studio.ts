@@ -23,7 +23,6 @@ import {
 import { AnySQLiteTable, getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import { Hono } from 'hono';
-import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
@@ -573,7 +572,6 @@ export const prepareServer = async (
 ): Promise<Server> => {
 	app = app !== undefined ? app : new Hono();
 
-	app.use(compress());
 	app.use(async (ctx, next) => {
 		await next();
 		// * https://wicg.github.io/private-network-access/#headers
