@@ -8,7 +8,7 @@ export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 export async function migrate<TSchema extends Record<string, unknown>>(
 	db: PgRemoteDatabase<TSchema>,
 	callback: ProxyMigrator,
-	config: string | MigrationConfig,
+	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
 
