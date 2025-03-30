@@ -835,7 +835,7 @@ export const relationsToTypeScript = (
 					name: plural(toTable1),
 					type: 'many-through',
 					tableFrom: toTable2,
-					columnsFrom: fk2.columnsFrom,
+					columnsFrom: fk2.columnsTo,
 					tableTo: toTable1,
 					columnsTo: columnsTo2,
 					tableThrough,
@@ -899,13 +899,27 @@ export const relationsToTypeScript = (
 					(it, originIndex) => relationIndex !== originIndex && it.tableTo === relation.tableTo,
 				);
 				if (hasMultipleRelations) {
-					relationName = relation.type === 'one'
-						? `${relation.tableFrom}_${relation.columnsFrom.join('_')}_${relation.tableTo}_${
+					// if one relation - we need to name a relation from this table to "many" table
+					if (relation.type === 'one') {
+						relationName = `${relation.tableFrom}_${relation.columnsFrom.join('_')}_${relation.tableTo}_${
 							relation.columnsTo.join('_')
-						}`
-						: `${relation.tableTo}_${relation.columnsTo.join('_')}_${relation.tableFrom}_${
+						}`;
+						// if many relation - name in in different order, so alias names will match
+					} else if (relation.type === 'many') {
+						relationName = `${relation.tableTo}_${relation.columnsTo.join('_')}_${relation.tableFrom}_${
 							relation.columnsFrom.join('_')
 						}`;
+						// if through relation - we need to name a relation from this table to "many" table and include "via"
+					} else if (relation.type === 'through') {
+						relationName = `${relation.tableFrom}_${relation.columnsFrom.join('_')}_${relation.tableTo}_${
+							relation.columnsTo.join('_')
+						}_via_${relation.tableThrough}`;
+						// else is for many-through, meaning we need to reverse the order for tables and columns, but leave "via" the same
+					} else {
+						relationName = `${relation.tableTo}_${relation.columnsTo.join('_')}_${relation.tableFrom}_${
+							relation.columnsFrom.join('_')
+						}_via_${relation.tableThrough}`;
+					}
 				}
 				const hasDuplicatedRelation = originArray.some(
 					(it, originIndex) => relationIndex !== originIndex && it.name === relation.name,
