@@ -7,6 +7,9 @@ import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	asc,
 	between,
 	desc,
@@ -406,6 +409,9 @@ export const operators = {
 	gte,
 	ilike,
 	inArray,
+	arrayContains,
+	arrayContained,
+	arrayOverlaps,
 	isNull,
 	isNotNull,
 	like,
@@ -901,6 +907,9 @@ export interface RelationFieldsFilterInternals<T> {
 	lte?: T | Placeholder | undefined;
 	in?: (T | Placeholder)[] | Placeholder | undefined;
 	notIn?: (T | Placeholder)[] | Placeholder | undefined;
+	arrayContains?: (T extends Array<infer E> ? (E | Placeholder)[] : T) | Placeholder | undefined;
+	arrayContained?: (T extends Array<infer E> ? (E | Placeholder)[] : T) | Placeholder | undefined;
+	arrayOverlaps?: (T extends Array<infer E> ? (E | Placeholder)[] : T) | Placeholder | undefined;
 	like?: string | Placeholder | undefined;
 	ilike?: string | Placeholder | undefined;
 	notLike?: string | Placeholder | undefined;
@@ -979,9 +988,10 @@ export type TableFilter<
 		: Assume<TTable, Table>['_']['columns'],
 > =
 	& {
-		[K in keyof TColumns as K extends keyof TableFilterCommons ? never : K]?: TColumns[K] extends Column
-			? RelationsFieldFilter<TColumns[K]['_']['data']>
-			: RelationsFieldFilter<unknown>;
+		[K in keyof TColumns as K extends keyof TableFilterCommons ? never : K]?:
+			| (TColumns[K] extends Column ? RelationsFieldFilter<TColumns[K]['_']['data']>
+				: RelationsFieldFilter<unknown>)
+			| undefined;
 	}
 	& TableFilterCommons<TTable, TColumns>;
 

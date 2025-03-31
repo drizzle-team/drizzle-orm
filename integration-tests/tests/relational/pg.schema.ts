@@ -5,6 +5,7 @@ import {
 	bigint,
 	bigserial,
 	boolean,
+	bytea,
 	char,
 	cidr,
 	date,
@@ -204,6 +205,7 @@ export const allTypesTable = pgTable('all_types', {
 		mode: 'bigint',
 	}),
 	bool: boolean(),
+	bytea: bytea(),
 	char: char(),
 	cidr: cidr(),
 	date: date({
@@ -268,6 +270,7 @@ export const allTypesTable = pgTable('all_types', {
 		mode: 'bigint',
 	}).array(),
 	arrbool: boolean().array(),
+	arrbytea: bytea().array(),
 	arrchar: char().array(),
 	arrcidr: cidr().array(),
 	arrdate: date({

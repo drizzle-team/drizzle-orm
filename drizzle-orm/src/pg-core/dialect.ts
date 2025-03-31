@@ -926,7 +926,8 @@ export class PgDialect {
 				case 'PgBigSerial64':
 				case 'PgTimestampString':
 				case 'PgGeometry':
-				case 'PgGeometryObject': {
+				case 'PgGeometryObject':
+				case 'PgBytea': {
 					return sql`${name}::text${sql.raw(arrVal).if(arrVal)} as ${sql.identifier(key)}`;
 				}
 				default: {

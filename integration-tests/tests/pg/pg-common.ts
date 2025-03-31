@@ -39,6 +39,7 @@ import {
 	bigint,
 	bigserial,
 	boolean,
+	bytea,
 	char,
 	cidr,
 	date,
@@ -126,6 +127,7 @@ const allTypesTable = pgTable('all_types', {
 		mode: 'bigint',
 	}),
 	bool: boolean('bool'),
+	bytea: bytea('bytea'),
 	char: char('char'),
 	cidr: cidr('cidr'),
 	date: date('date', {
@@ -190,6 +192,7 @@ const allTypesTable = pgTable('all_types', {
 		mode: 'bigint',
 	}).array(),
 	arrbool: boolean('arrbool').array(),
+	arrbytea: bytea('arrbytea').array(),
 	arrchar: char('arrchar').array(),
 	arrcidr: cidr('arrcidr').array(),
 	arrdate: date('arrdate', {
@@ -5730,6 +5733,7 @@ export function tests() {
 					"bigint53" bigint,
 					"bigint64" bigint,
 					"bool" boolean,
+					"bytea" bytea,
 					"char" char,
 					"cidr" "cidr",
 					"date" date,
@@ -5764,6 +5768,7 @@ export function tests() {
 					"arrbigint53" bigint[],
 					"arrbigint64" bigint[],
 					"arrbool" boolean[],
+					"arrbytea" bytea[],
 					"arrchar" char[],
 					"arrcidr" "cidr"[],
 					"arrdate" date[],
@@ -5804,6 +5809,7 @@ export function tests() {
 				bigserial53: 9007199254740991,
 				bigserial64: 5044565289845416380n,
 				bool: true,
+				bytea: Buffer.from('BYTES'),
 				char: 'c',
 				cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
 				inet: '192.168.0.1/24',
@@ -5850,6 +5856,7 @@ export function tests() {
 				arrbigint53: [9007199254740991],
 				arrbigint64: [5044565289845416380n],
 				arrbool: [true],
+				arrbytea: [Buffer.from('BYTES')],
 				arrchar: ['c'],
 				arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
 				arrinet: ['192.168.0.1/24'],
@@ -5905,6 +5912,7 @@ export function tests() {
 				bigint53: number | null;
 				bigint64: bigint | null;
 				bool: boolean | null;
+				bytea: Buffer | null;
 				char: string | null;
 				cidr: string | null;
 				date: Date | null;
@@ -5946,6 +5954,7 @@ export function tests() {
 				arrbigint53: number[] | null;
 				arrbigint64: bigint[] | null;
 				arrbool: boolean[] | null;
+				arrbytea: Buffer[] | null;
 				arrchar: string[] | null;
 				arrcidr: string[] | null;
 				arrdate: Date[] | null;
@@ -5990,6 +5999,7 @@ export function tests() {
 					bigint53: 9007199254740991,
 					bigint64: 5044565289845416380n,
 					bool: true,
+					bytea: Buffer.from('BYTES'),
 					char: 'c',
 					cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
 					date: new Date('2025-03-12T00:00:00.000Z'),
@@ -6024,6 +6034,7 @@ export function tests() {
 					arrbigint53: [9007199254740991],
 					arrbigint64: [5044565289845416380n],
 					arrbool: [true],
+					arrbytea: [Buffer.from('BYTES')],
 					arrchar: ['c'],
 					arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
 					arrdate: [new Date('2025-03-12T00:00:00.000Z')],
