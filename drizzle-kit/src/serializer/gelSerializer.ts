@@ -540,7 +540,7 @@ const generateGelSnapshot = (
 		// 							chalk.underline.blue(
 		// 								tableName,
 		// 							)
-		// 						} table or the table with the duplicated check contraint name`,
+		// 						} table or the table with the duplicated check constraint name`,
 		// 					)
 		// 				}`,
 		// 			);
@@ -790,7 +790,7 @@ const generateGelSnapshot = (
 						console.log(
 							`\n${
 								withStyle.errorWarning(
-									`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(viewName)} table. 
+									`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(viewName)} table.
           The unique constraint ${chalk.underline.blue(column.uniqueName)} on the ${
 										chalk.underline.blue(
 											column.name,
@@ -977,21 +977,21 @@ export const fromDatabase = async (
 	const where = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
 
 	const allTables = await db.query<{ table_schema: string; table_name: string; type: string; rls_enabled: boolean }>(
-		`SELECT 
-    n.nspname::text AS table_schema, 
-    c.relname::text AS table_name, 
-    CASE 
+		`SELECT
+    n.nspname::text AS table_schema,
+    c.relname::text AS table_name,
+    CASE
         WHEN c.relkind = 'r' THEN 'table'
         WHEN c.relkind = 'v' THEN 'view'
         WHEN c.relkind = 'm' THEN 'materialized_view'
     END AS type,
 	c.relrowsecurity AS rls_enabled
-FROM 
+FROM
     pg_catalog.pg_class c
-JOIN 
+JOIN
     pg_catalog.pg_namespace n ON n.oid::text = c.relnamespace::text
-WHERE 
-	c.relkind IN ('r', 'v', 'm') 
+WHERE
+	c.relkind IN ('r', 'v', 'm')
     ${where === '' ? '' : ` AND ${where}`};`,
 	);
 
@@ -1998,25 +1998,25 @@ const defaultForColumn = (column: any, internals: GelKitInternals, tableName: st
 
 const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: string; db: DB }) => {
 	return db.query(
-		`SELECT 
+		`SELECT
     a.attrelid::regclass::text AS table_name,  -- Table, view, or materialized view name
     a.attname::text AS column_name,   -- Column name
-    CASE 
-        WHEN NOT a.attisdropped THEN 
-            CASE 
+    CASE
+        WHEN NOT a.attisdropped THEN
+            CASE
                 WHEN a.attnotnull THEN 'NO'
                 ELSE 'YES'
-            END 
-        ELSE NULL 
+            END
+        ELSE NULL
     END AS is_nullable,  -- NULL or NOT NULL constraint
     a.attndims AS array_dimensions,  -- Array dimensions
-    CASE 
-        WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[]) 
+    CASE
+        WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[])
         AND EXISTS (
             SELECT FROM pg_attrdef ad
-            WHERE ad.adrelid = a.attrelid 
-            AND ad.adnum = a.attnum 
-            AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval(''' 
+            WHERE ad.adrelid = a.attrelid
+            AND ad.adnum = a.attnum
+            AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval('''
                 || pg_get_serial_sequence(a.attrelid::regclass::text, a.attname)::regclass || '''::regclass)'
         )
         THEN CASE a.atttypid
@@ -2040,27 +2040,27 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
     c.identity_minimum::text,  -- Minimum value for identity column
     c.identity_cycle::text,  -- Does the identity column cycle?
     ns.nspname::text AS type_schema  -- Schema of the enum type
-FROM 
+FROM
     pg_attribute a
-JOIN 
+JOIN
     pg_class cls ON cls.oid = a.attrelid  -- Join pg_class to get table/view/materialized view info
-JOIN 
+JOIN
     pg_namespace ns ON ns.oid = cls.relnamespace  -- Join namespace to get schema info
-LEFT JOIN 
-    information_schema.columns c ON c.column_name = a.attname 
-        AND c.table_schema = ns.nspname 
+LEFT JOIN
+    information_schema.columns c ON c.column_name = a.attname
+        AND c.table_schema = ns.nspname
         AND c.table_name = cls.relname  -- Match schema and table/view name
-LEFT JOIN 
+LEFT JOIN
     pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
-LEFT JOIN 
+LEFT JOIN
     pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
-WHERE 
+WHERE
     a.attnum > 0  -- Valid column numbers only
     AND NOT a.attisdropped  -- Skip dropped columns
     AND cls.relkind IN ('r', 'v', 'm')  -- Include regular tables ('r'), views ('v'), and materialized views ('m')
     AND ns.nspname::text = '${schema}'  -- Filter by schema
     AND cls.relname::text = '${table}'  -- Filter by table name
-ORDER BY 
+ORDER BY
     a.attnum;  -- Order by column number`,
 	);
 };
