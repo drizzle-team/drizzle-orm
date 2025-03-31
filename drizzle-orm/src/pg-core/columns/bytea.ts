@@ -9,7 +9,7 @@ export type PgByteaBuilderInitial<TName extends string> = PgByteaBuilder<{
 	dataType: 'buffer';
 	columnType: 'PgBytea';
 	data: Buffer;
-	driverParam: Buffer;
+	driverParam: string;
 	enumValues: undefined;
 }>;
 
