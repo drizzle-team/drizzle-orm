@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client/extension';
 
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
+import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type {
@@ -19,7 +20,7 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class PrismaSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
 	{ type: 'async'; run: []; all: T['all']; get: T['get']; values: never; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'PrismaSQLitePreparedQuery';
+	static override readonly [entityKind]: string = 'PrismaSQLitePreparedQuery';
 
 	constructor(
 		private readonly prisma: PrismaClient,
@@ -59,8 +60,15 @@ export interface PrismaSQLiteSessionOptions {
 	logger?: Logger;
 }
 
-export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<string, never>, Record<string, never>> {
-	static readonly [entityKind]: string = 'PrismaSQLiteSession';
+export class PrismaSQLiteSession extends SQLiteSession<
+	'async',
+	unknown,
+	Record<string, never>,
+	EmptyRelations,
+	ExtractTablesWithRelations<EmptyRelations>,
+	Record<string, never>
+> {
+	static override readonly [entityKind]: string = 'PrismaSQLiteSession';
 
 	private readonly logger: Logger;
 
@@ -81,8 +89,26 @@ export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<
 		return new PrismaSQLitePreparedQuery(this.prisma, query, this.logger, executeMethod);
 	}
 
+	override prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		// query: Query,
+		// fields: SelectedFieldsOrdered | undefined,
+		// executeMethod: SQLiteExecuteMethod,
+	): PrismaSQLitePreparedQuery<T> {
+		throw new Error('Method not implemented.');
+		// return new PrismaSQLitePreparedQuery(this.prisma, query, this.logger, executeMethod);
+	}
+
 	override transaction<T>(
-		_transaction: (tx: SQLiteTransaction<'async', unknown, Record<string, never>, Record<string, never>>) => Promise<T>,
+		_transaction: (
+			tx: SQLiteTransaction<
+				'async',
+				unknown,
+				Record<string, never>,
+				EmptyRelations,
+				ExtractTablesWithRelations<EmptyRelations>,
+				Record<string, never>
+			>,
+		) => Promise<T>,
 		_config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		throw new Error('Method not implemented.');

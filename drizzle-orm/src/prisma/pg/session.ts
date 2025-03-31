@@ -10,11 +10,12 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/index.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/index.ts';
+import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 
 export class PrismaPgPreparedQuery<T> extends PgPreparedQuery<PreparedQueryConfig & { execute: T }> {
-	static readonly [entityKind]: string = 'PrismaPgPreparedQuery';
+	static override readonly [entityKind]: string = 'PrismaPgPreparedQuery';
 
 	constructor(
 		private readonly prisma: PrismaClient,
@@ -44,7 +45,7 @@ export interface PrismaPgSessionOptions {
 }
 
 export class PrismaPgSession extends PgSession {
-	static readonly [entityKind]: string = 'PrismaPgSession';
+	static override readonly [entityKind]: string = 'PrismaPgSession';
 
 	private readonly logger: Logger;
 
@@ -65,8 +66,23 @@ export class PrismaPgSession extends PgSession {
 		return new PrismaPgPreparedQuery(this.prisma, query, this.logger);
 	}
 
+	override prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+		// query: Query,
+	): PgPreparedQuery<T> {
+		throw new Error('Method not implemented.');
+		// return new PrismaPgPreparedQuery(this.prisma, query, this.logger);
+	}
+
 	override transaction<T>(
-		_transaction: (tx: PgTransaction<PgQueryResultHKT, Record<string, never>, Record<string, never>>) => Promise<T>,
+		_transaction: (
+			tx: PgTransaction<
+				PgQueryResultHKT,
+				Record<string, never>,
+				EmptyRelations,
+				ExtractTablesWithRelations<EmptyRelations>,
+				Record<string, never>
+			>,
+		) => Promise<T>,
 		_config?: PgTransactionConfig,
 	): Promise<T> {
 		throw new Error('Method not implemented.');

@@ -74,12 +74,12 @@ export const assertEitherPackage = async (
 	process.exit(1);
 };
 
-const requiredApiVersion = 8;
+const requiredApiVersion = 11;
 export const assertOrmCoreVersion = async () => {
 	try {
 		const { compatibilityVersion } = await import('drizzle-orm/version');
 
-		await import('drizzle-orm/relations');
+		await import('drizzle-orm/_relations');
 
 		if (compatibilityVersion && compatibilityVersion === requiredApiVersion) {
 			return;

@@ -1,6 +1,6 @@
 import retry from 'async-retry';
 import type Docker from 'dockerode';
-import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
+import { asc, eq, Name, sql } from 'drizzle-orm';
 import {
 	alias,
 	binary,
@@ -24,10 +24,11 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { toLocalDate } from '~/utils';
 import { createDockerDB } from './mysql-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: MySql2Database;
+let db: MySql2Database<never, typeof relations>;
 let client: mysql.Connection;
 let container: Docker.Container | undefined;
 
@@ -54,7 +55,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {
@@ -646,7 +647,7 @@ test('prepared statement reuse', async (ctx) => {
 
 	const stmt = db.insert(usersTable).values({
 		verified: true,
-		name: placeholder('name'),
+		name: sql.placeholder('name'),
 	}).prepare();
 
 	for (let i = 0; i < 10; i++) {
@@ -681,7 +682,7 @@ test('prepared statement with placeholder in .where', async (ctx) => {
 		id: usersTable.id,
 		name: usersTable.name,
 	}).from(usersTable)
-		.where(eq(usersTable.id, placeholder('id')))
+		.where(eq(usersTable.id, sql.placeholder('id')))
 		.prepare();
 	const result = await stmt.execute({ id: 1 });
 
@@ -811,7 +812,7 @@ test('custom binary', async (ctx) => {
 
 	expect(res).toEqual([{
 		id,
-		sqlId: Buffer.from(id, 'hex'),
+		sqlId: Buffer.from(id, 'hex').toString(),
 		rawId: id,
 	}]);
 });

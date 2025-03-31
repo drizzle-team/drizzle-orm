@@ -11,11 +11,11 @@ import type { PrismaPgQueryResultHKT } from './session.ts';
 import { PrismaPgSession } from './session.ts';
 
 export class PrismaPgDatabase extends PgDatabase<PrismaPgQueryResultHKT, Record<string, never>> {
-	static readonly [entityKind]: string = 'PrismaPgDatabase';
+	static override readonly [entityKind]: string = 'PrismaPgDatabase';
 
 	constructor(client: PrismaClient, logger: Logger | undefined) {
 		const dialect = new PgDialect();
-		super(dialect, new PrismaPgSession(dialect, client, { logger }), undefined);
+		super(dialect, new PrismaPgSession(dialect, client, { logger }), undefined, undefined);
 	}
 }
 

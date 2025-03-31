@@ -6,7 +6,10 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
+import relations from './relations';
 import { tests, usersTable } from './sqlite-common';
+
+const ENABLE_LOGGING = false;
 
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
@@ -53,7 +56,7 @@ class ServerSimulator {
 	}
 }
 
-let db: SqliteRemoteDatabase;
+let db: SqliteRemoteDatabase<never, typeof relations>;
 let client: Database.Database;
 let serverSimulator: ServerSimulator;
 
@@ -72,9 +75,12 @@ beforeAll(async () => {
 
 			return { rows: rows.data };
 		} catch (e: any) {
-			console.error('Error from sqlite proxy server:', e.response.data);
+			console.error('Error from sqlite proxy server:', e.response?.data ?? e.message);
 			throw e;
 		}
+	}, {
+		logger: ENABLE_LOGGING,
+		relations,
 	});
 });
 

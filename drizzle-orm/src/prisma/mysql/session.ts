@@ -11,6 +11,7 @@ import type {
 	MySqlTransactionConfig,
 } from '~/mysql-core/index.ts';
 import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core/index.ts';
+import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -19,7 +20,7 @@ export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<MySqlPrepare
 	override iterator(_placeholderValues?: Record<string, unknown> | undefined): AsyncGenerator<unknown, any, unknown> {
 		throw new Error('Method not implemented.');
 	}
-	static readonly [entityKind]: string = 'PrismaMySqlPreparedQuery';
+	static override readonly [entityKind]: string = 'PrismaMySqlPreparedQuery';
 
 	constructor(
 		private readonly prisma: PrismaClient,
@@ -41,7 +42,7 @@ export interface PrismaMySqlSessionOptions {
 }
 
 export class PrismaMySqlSession extends MySqlSession {
-	static readonly [entityKind]: string = 'PrismaMySqlSession';
+	static override readonly [entityKind]: string = 'PrismaMySqlSession';
 
 	private readonly logger: Logger;
 
@@ -68,12 +69,21 @@ export class PrismaMySqlSession extends MySqlSession {
 		return new PrismaMySqlPreparedQuery(this.prisma, query, this.logger);
 	}
 
+	override prepareRelationalQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
+		// query: Query,
+	): MySqlPreparedQuery<T> {
+		throw new Error('Method not implemented');
+		// return new PrismaMySqlPreparedQuery(this.prisma, query, this.logger);
+	}
+
 	override transaction<T>(
 		_transaction: (
 			tx: MySqlTransaction<
 				PrismaMySqlQueryResultHKT,
 				PrismaMySqlPreparedQueryHKT,
 				Record<string, never>,
+				EmptyRelations,
+				ExtractTablesWithRelations<EmptyRelations>,
 				Record<string, never>
 			>,
 		) => Promise<T>,

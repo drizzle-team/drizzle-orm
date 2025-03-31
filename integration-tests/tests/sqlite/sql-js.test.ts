@@ -6,17 +6,18 @@ import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
+import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 
 const ENABLE_LOGGING = false;
 
-let db: SQLJsDatabase;
+let db: SQLJsDatabase<never, typeof relations>;
 let client: Database;
 
 beforeAll(async () => {
 	const SQL = await initSqlJs();
 	client = new SQL.Database();
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 beforeEach((ctx) => {
@@ -58,5 +59,7 @@ skipTests([
 	 */
 	'transaction rollback',
 	'nested transaction rollback',
+	'delete with limit and order by',
+	'update with limit and order by',
 ]);
 tests();

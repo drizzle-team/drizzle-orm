@@ -7,8 +7,10 @@ import type { NamedWithSchema } from './cli/commands/migrate';
 import { info } from './cli/views';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
+import { backwardCompatibleGelSchema } from './serializer/gelSchema';
 import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';
+import { backwardCompatibleSingleStoreSchema } from './serializer/singlestoreSchema';
 import { backwardCompatibleSqliteSchema } from './serializer/sqliteSchema';
 import type { ProxyParams } from './serializer/studio';
 
@@ -122,6 +124,10 @@ const validatorForDialect = (dialect: Dialect) => {
 			return { validator: backwardCompatibleSqliteSchema, version: 6 };
 		case 'mysql':
 			return { validator: backwardCompatibleMysqlSchema, version: 5 };
+		case 'singlestore':
+			return { validator: backwardCompatibleSingleStoreSchema, version: 1 };
+		case 'gel':
+			return { validator: backwardCompatibleGelSchema, version: 1 };
 	}
 };
 
@@ -355,4 +361,16 @@ export function findAddedAndRemoved(columnNames1: string[], columnNames2: string
 	const removedColumns = columnNames1.filter((it) => !set2.has(it));
 
 	return { addedColumns, removedColumns };
+}
+
+export function escapeSingleQuotes(str: string) {
+	return str.replace(/'/g, "''");
+}
+
+export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolean) {
+	if (str === "''") {
+		return str;
+	}
+	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
+	return str.replace(/''/g, "'").replace(regex, "\\'");
 }

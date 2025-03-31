@@ -5,15 +5,16 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: PgliteDatabase;
+let db: PgliteDatabase<never, typeof relations>;
 let client: PGlite;
 
 beforeAll(async () => {
 	client = new PGlite();
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {
@@ -86,6 +87,10 @@ skipTests([
 	'subquery with view',
 	'mySchema :: materialized view',
 	'select count()',
+	// not working in 0.2.12
+	'select with group by as sql + column',
+	'select with group by as column + sql',
+	'mySchema :: select with group by as column + sql',
 ]);
 tests();
 

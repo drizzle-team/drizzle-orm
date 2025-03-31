@@ -4,10 +4,11 @@ import { drizzle } from 'drizzle-orm/mysql2';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { createDockerDB, tests } from './mysql-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: MySql2Database;
+let db: MySql2Database<never, typeof relations>;
 let client: mysql.Connection;
 
 beforeAll(async () => {
@@ -19,7 +20,10 @@ beforeAll(async () => {
 		connectionString = conStr;
 	}
 	client = await retry(async () => {
-		client = await mysql.createConnection(connectionString);
+		client = await mysql.createConnection({
+			uri: connectionString!,
+			supportBigNumbers: true,
+		});
 		await client.connect();
 		return client;
 	}, {
@@ -32,7 +36,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {

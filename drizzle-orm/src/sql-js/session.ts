@@ -1,8 +1,9 @@
-import type { BindParams, Database, Statement } from 'sql.js';
+import type { BindParams, Database } from 'sql.js';
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -23,16 +24,19 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class SQLJsSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLJsSession';
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteSession<'sync', void, TFullSchema, TRelations, TTablesConfig, TSchema> {
+	static override readonly [entityKind]: string = 'SQLJsSession';
 
 	private logger: Logger;
 
 	constructor(
 		private client: Database,
 		dialect: SQLiteSyncDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: AnyRelations | undefined,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		options: SQLJsSessionOptions = {},
 	) {
 		super(dialect);
@@ -45,35 +49,32 @@ export class SQLJsSession<
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
 	): PreparedQuery<T> {
-		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query, this.logger, fields, executeMethod, isResponseInArrayMode);
+		return new PreparedQuery(this.client, query, this.logger, fields, executeMethod, isResponseInArrayMode);
 	}
 
-	override prepareOneTimeQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
-	): PreparedQuery<T> {
-		const stmt = this.client.prepare(query.sql);
+		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+	): PreparedQuery<T, true> {
 		return new PreparedQuery(
-			stmt,
+			this.client,
 			query,
 			this.logger,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
+			false,
 			customResultMapper,
 			true,
 		);
 	}
 
 	override transaction<T>(
-		transaction: (tx: SQLJsTransaction<TFullSchema, TSchema>) => T,
+		transaction: (tx: SQLJsTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
-		const tx = new SQLJsTransaction('sync', this.dialect, this, this.schema);
+		const tx = new SQLJsTransaction('sync', this.dialect, this, this.relations, this.schema);
 		this.run(sql.raw(`begin${config.behavior ? ` ${config.behavior}` : ''}`));
 		try {
 			const result = transaction(tx);
@@ -88,13 +89,24 @@ export class SQLJsSession<
 
 export class SQLJsTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLJsTransaction';
+	TRelations extends AnyRelations,
+	TTablesConfig extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteTransaction<'sync', void, TFullSchema, TRelations, TTablesConfig, TSchema> {
+	static override readonly [entityKind]: string = 'SQLJsTransaction';
 
-	override transaction<T>(transaction: (tx: SQLJsTransaction<TFullSchema, TSchema>) => T): T {
+	override transaction<T>(
+		transaction: (tx: SQLJsTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+	): T {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new SQLJsTransaction('sync', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new SQLJsTransaction(
+			'sync',
+			this.dialect,
+			this.session,
+			this.relations,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 		tx.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = transaction(tx);
@@ -107,38 +119,46 @@ export class SQLJsTransaction<
 	}
 }
 
-export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
-> {
-	static readonly [entityKind]: string = 'SQLJsPreparedQuery';
+export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, TIsRqbV2 extends boolean = false>
+	extends PreparedQueryBase<
+		{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
+	>
+{
+	static override readonly [entityKind]: string = 'SQLJsPreparedQuery';
 
 	constructor(
-		private stmt: Statement,
+		private client: Database,
 		query: Query,
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
-		private isOneTimeQuery = false,
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+			mapColumnValue?: (value: unknown) => unknown,
+		) => unknown,
+		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super('sync', executeMethod, query);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): void {
+		const stmt = this.client.prepare(this.query.sql);
+
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		const result = this.stmt.run(params as BindParams);
+		const result = stmt.run(params as BindParams);
 
-		if (this.isOneTimeQuery) {
-			this.free();
-		}
+		stmt.free();
 
 		return result;
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { fields, joinsNotNullableMap, logger, query, stmt, isOneTimeQuery, customResultMapper } = this;
+		if (this.isRqbV2Query) return this.allRqbV2(placeholderValues);
+		const stmt = this.client.prepare(this.query.sql);
+
+		const { fields, joinsNotNullableMap, logger, query, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
@@ -148,9 +168,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 				rows.push(stmt.getAsObject());
 			}
 
-			if (isOneTimeQuery) {
-				this.free();
-			}
+			stmt.free();
 
 			return rows;
 		}
@@ -158,62 +176,114 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const rows = this.values(placeholderValues) as unknown[][];
 
 		if (customResultMapper) {
-			return customResultMapper(rows, normalizeFieldValue) as T['all'];
+			return (customResultMapper as (
+				rows: unknown[][],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)(rows, normalizeFieldValue) as T['all'];
 		}
 
 		return rows.map((row) => mapResultRow(fields!, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap));
 	}
 
+	private allRqbV2(placeholderValues?: Record<string, unknown>): T['all'] {
+		const stmt = this.client.prepare(this.query.sql);
+
+		const { logger, query, customResultMapper } = this;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
+		stmt.bind(params as BindParams);
+		const rows: Record<string, unknown>[] = [];
+		while (stmt.step()) {
+			rows.push(stmt.getAsObject());
+		}
+
+		stmt.free();
+
+		return (customResultMapper as (
+			rows: Record<string, unknown>[],
+			mapColumnValue?: (value: unknown) => unknown,
+		) => unknown)(rows, normalizeFieldValue) as T['all'];
+	}
+
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
+		if (this.isRqbV2Query) return this.getRqbV2(placeholderValues);
+		const stmt = this.client.prepare(this.query.sql);
+
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, stmt, isOneTimeQuery, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, joinsNotNullableMap, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const result = stmt.getAsObject(params as BindParams);
 
-			if (isOneTimeQuery) {
-				this.free();
-			}
+			stmt.free();
 
 			return result;
 		}
 
 		const row = stmt.get(params as BindParams);
 
-		if (isOneTimeQuery) {
-			this.free();
-		}
+		stmt.free();
 
 		if (!row || (row.length === 0 && fields!.length > 0)) {
 			return undefined;
 		}
 
 		if (customResultMapper) {
-			return customResultMapper([row], normalizeFieldValue) as T['get'];
+			return (customResultMapper as (
+				rows: unknown[][],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)([row], normalizeFieldValue) as T['get'];
 		}
 
 		return mapResultRow(fields!, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap);
 	}
 
-	values(placeholderValues?: Record<string, unknown>): T['values'] {
+	private getRqbV2(placeholderValues?: Record<string, unknown>): T['get'] {
+		const stmt = this.client.prepare(this.query.sql);
+
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		this.stmt.bind(params as BindParams);
-		const rows: unknown[] = [];
-		while (this.stmt.step()) {
-			rows.push(this.stmt.get());
+
+		const { customResultMapper } = this;
+
+		const row = stmt.getAsObject(params as BindParams);
+
+		stmt.free();
+
+		if (!row) {
+			return undefined;
 		}
 
-		if (this.isOneTimeQuery) {
-			this.free();
+		let nonUndef = false;
+		for (const v of Object.values(row)) {
+			if (v !== undefined) {
+				nonUndef = true;
+				break;
+			}
 		}
+		if (!nonUndef) return undefined;
 
-		return rows;
+		return (customResultMapper as (
+			rows: Record<string, unknown>[],
+			mapColumnValue?: (value: unknown) => unknown,
+		) => unknown)([row], normalizeFieldValue) as T['get'];
 	}
 
-	free(): boolean {
-		return this.stmt.free();
+	values(placeholderValues?: Record<string, unknown>): T['values'] {
+		const stmt = this.client.prepare(this.query.sql);
+
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
+		stmt.bind(params as BindParams);
+		const rows: unknown[] = [];
+		while (stmt.step()) {
+			rows.push(stmt.get());
+		}
+
+		stmt.free();
+
+		return rows;
 	}
 
 	/** @internal */

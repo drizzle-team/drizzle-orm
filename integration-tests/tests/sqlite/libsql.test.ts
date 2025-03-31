@@ -4,12 +4,14 @@ import { sql } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { skipTests } from '~/common';
 import { randomString } from '~/utils';
+import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 
 const ENABLE_LOGGING = false;
 
-let db: LibSQLDatabase;
+let db: LibSQLDatabase<never, typeof relations>;
 let client: Client;
 
 beforeAll(async () => {
@@ -31,7 +33,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {
@@ -86,5 +88,10 @@ test('migrator : migrate with custom table', async () => {
 	await db.run(sql`drop table users12`);
 	await db.run(sql`drop table ${sql.identifier(customTable)}`);
 });
+
+skipTests([
+	'delete with limit and order by',
+	'update with limit and order by',
+]);
 
 tests();

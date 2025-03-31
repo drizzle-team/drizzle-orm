@@ -38,6 +38,8 @@ test('generate #1', async (t) => {
 		schema: 'schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
+		driver: undefined,
 	});
 });
 
@@ -57,6 +59,8 @@ test('generate #2', async (t) => {
 		schema: 'schema.ts',
 		out: 'out',
 		bundle: false,
+		casing: undefined,
+		driver: undefined,
 	});
 });
 
@@ -73,6 +77,8 @@ test('generate #3', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
+		driver: undefined,
 	});
 });
 
@@ -90,6 +96,8 @@ test('generate #4', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
+		driver: undefined,
 	});
 });
 
@@ -106,6 +114,8 @@ test('generate #5', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
+		driver: undefined,
 	});
 });
 
@@ -122,6 +132,8 @@ test('generate #6', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
+		driver: undefined,
 	});
 });
 
@@ -141,6 +153,8 @@ test('generate #7', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: false,
+		casing: undefined,
+		driver: undefined,
 	});
 });
 
@@ -158,6 +172,26 @@ test('generate #8', async (t) => {
 		schema: './schema.ts',
 		out: 'drizzle',
 		bundle: true, // expo driver
+		casing: undefined,
+		driver: 'expo',
+	});
+});
+
+test('generate #9', async (t) => {
+	const res = await brotest(generate, '--config=durable-sqlite.config.ts');
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		dialect: 'sqlite',
+		name: undefined,
+		custom: false,
+		prefix: 'index',
+		breakpoints: true,
+		schema: './schema.ts',
+		out: 'drizzle',
+		bundle: true, // expo driver
+		casing: undefined,
+		driver: 'durable-sqlite',
 	});
 });
 
@@ -178,6 +212,8 @@ test('generate #9', async (t) => {
 		schema: 'schema.ts',
 		out: 'out',
 		bundle: false,
+		casing: undefined,
+		driver: undefined,
 	});
 });
 

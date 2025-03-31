@@ -1,6 +1,7 @@
 export * from './bigint.ts';
 export * from './bigserial.ts';
 export * from './boolean.ts';
+export * from './bytea.ts';
 export * from './char.ts';
 export * from './cidr.ts';
 export * from './common.ts';
@@ -9,6 +10,7 @@ export * from './date.ts';
 export * from './double-precision.ts';
 export * from './enum.ts';
 export * from './inet.ts';
+export * from './int.common.ts';
 export * from './integer.ts';
 export * from './interval.ts';
 export * from './json.ts';

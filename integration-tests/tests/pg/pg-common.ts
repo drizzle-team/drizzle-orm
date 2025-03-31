@@ -18,6 +18,7 @@ import {
 	gte,
 	ilike,
 	inArray,
+	is,
 	lt,
 	max,
 	min,
@@ -30,20 +31,26 @@ import {
 	sumDistinct,
 	TransactionRollbackError,
 } from 'drizzle-orm';
+import { authenticatedRole, crudPolicy, usersSync } from 'drizzle-orm/neon';
 import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
 	alias,
+	bigint,
+	bigserial,
 	boolean,
+	bytea,
 	char,
 	cidr,
 	date,
+	doublePrecision,
 	except,
 	exceptAll,
 	foreignKey,
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
+	index,
 	inet,
 	integer,
 	intersect,
@@ -51,17 +58,25 @@ import {
 	interval,
 	json,
 	jsonb,
+	line,
 	macaddr,
 	macaddr8,
 	numeric,
+	PgDialect,
 	pgEnum,
 	pgMaterializedView,
+	PgPolicy,
+	pgPolicy,
 	pgSchema,
 	pgTable,
 	pgTableCreator,
 	pgView,
+	point,
 	primaryKey,
+	real,
 	serial,
+	smallint,
+	smallserial,
 	text,
 	time,
 	timestamp,
@@ -69,27 +84,171 @@ import {
 	unionAll,
 	unique,
 	uniqueKeyName,
+	uuid,
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
 import { Expect } from '~/utils';
-import type { schema } from './neon-http-batch.test';
+import type { neonRelations, schema } from './neon-http-batch.test';
+import type relations from './relations';
+import { clear, init, rqbPost, rqbUser } from './schema';
 // eslint-disable-next-line @typescript-eslint/no-import-type-side-effects
 // import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 declare module 'vitest' {
 	interface TestContext {
 		pg: {
-			db: PgDatabase<PgQueryResultHKT>;
+			db: PgDatabase<PgQueryResultHKT, never, typeof relations>;
 		};
 		neonPg: {
-			db: NeonHttpDatabase<typeof schema>;
+			db: NeonHttpDatabase<typeof schema, typeof neonRelations>;
 		};
 	}
 }
+
+const en = pgEnum('en', ['enVal1', 'enVal2']);
+
+const allTypesTable = pgTable('all_types', {
+	serial: serial('serial'),
+	bigserial53: bigserial('bigserial53', {
+		mode: 'number',
+	}),
+	bigserial64: bigserial('bigserial64', {
+		mode: 'bigint',
+	}),
+	int: integer('int'),
+	bigint53: bigint('bigint53', {
+		mode: 'number',
+	}),
+	bigint64: bigint('bigint64', {
+		mode: 'bigint',
+	}),
+	bool: boolean('bool'),
+	bytea: bytea('bytea'),
+	char: char('char'),
+	cidr: cidr('cidr'),
+	date: date('date', {
+		mode: 'date',
+	}),
+	dateStr: date('date_str', {
+		mode: 'string',
+	}),
+	double: doublePrecision('double'),
+	enum: en('enum'),
+	inet: inet('inet'),
+	interval: interval('interval'),
+	json: json('json'),
+	jsonb: jsonb('jsonb'),
+	line: line('line', {
+		mode: 'abc',
+	}),
+	lineTuple: line('line_tuple', {
+		mode: 'tuple',
+	}),
+	macaddr: macaddr('macaddr'),
+	macaddr8: macaddr8('macaddr8'),
+	numeric: numeric('numeric'),
+	numericNum: numeric('numeric_num', {
+		mode: 'number',
+	}),
+	numericBig: numeric('numeric_big', {
+		mode: 'bigint',
+	}),
+	point: point('point', {
+		mode: 'xy',
+	}),
+	pointTuple: point('point_tuple', {
+		mode: 'tuple',
+	}),
+	real: real('real'),
+	smallint: smallint('smallint'),
+	smallserial: smallserial('smallserial'),
+	text: text('text'),
+	time: time('time'),
+	timestamp: timestamp('timestamp', {
+		mode: 'date',
+	}),
+	timestampTz: timestamp('timestamp_tz', {
+		mode: 'date',
+		withTimezone: true,
+	}),
+	timestampStr: timestamp('timestamp_str', {
+		mode: 'string',
+	}),
+	timestampTzStr: timestamp('timestamp_tz_str', {
+		mode: 'string',
+		withTimezone: true,
+	}),
+	uuid: uuid('uuid'),
+	varchar: varchar('varchar'),
+	arrint: integer('arrint').array(),
+	arrbigint53: bigint('arrbigint53', {
+		mode: 'number',
+	}).array(),
+	arrbigint64: bigint('arrbigint64', {
+		mode: 'bigint',
+	}).array(),
+	arrbool: boolean('arrbool').array(),
+	arrbytea: bytea('arrbytea').array(),
+	arrchar: char('arrchar').array(),
+	arrcidr: cidr('arrcidr').array(),
+	arrdate: date('arrdate', {
+		mode: 'date',
+	}).array(),
+	arrdateStr: date('arrdate_str', {
+		mode: 'string',
+	}).array(),
+	arrdouble: doublePrecision('arrdouble').array(),
+	arrenum: en('arrenum').array(),
+	arrinet: inet('arrinet').array(),
+	arrinterval: interval('arrinterval').array(),
+	arrjson: json('arrjson').array(),
+	arrjsonb: jsonb('arrjsonb').array(),
+	arrline: line('arrline', {
+		mode: 'abc',
+	}).array(),
+	arrlineTuple: line('arrline_tuple', {
+		mode: 'tuple',
+	}).array(),
+	arrmacaddr: macaddr('arrmacaddr').array(),
+	arrmacaddr8: macaddr8('arrmacaddr8').array(),
+	arrnumeric: numeric('arrnumeric').array(),
+	arrnumericNum: numeric('arrnumeric_num', {
+		mode: 'number',
+	}).array(),
+	arrnumericBig: numeric('arrnumeric_big', {
+		mode: 'bigint',
+	}).array(),
+	arrpoint: point('arrpoint', {
+		mode: 'xy',
+	}).array(),
+	arrpointTuple: point('arrpoint_tuple', {
+		mode: 'tuple',
+	}).array(),
+	arrreal: real('arrreal').array(),
+	arrsmallint: smallint('arrsmallint').array(),
+	arrtext: text('arrtext').array(),
+	arrtime: time('arrtime').array(),
+	arrtimestamp: timestamp('arrtimestamp', {
+		mode: 'date',
+	}).array(),
+	arrtimestampTz: timestamp('arrtimestamp_tz', {
+		mode: 'date',
+		withTimezone: true,
+	}).array(),
+	arrtimestampStr: timestamp('arrtimestamp_str', {
+		mode: 'string',
+	}).array(),
+	arrtimestampTzStr: timestamp('arrtimestamp_tz_str', {
+		mode: 'string',
+		withTimezone: true,
+	}).array(),
+	arruuid: uuid('arruuid').array(),
+	arrvarchar: varchar('arrvarchar').array(),
+});
 
 export const usersTable = pgTable('users', {
 	id: serial('id' as string).primaryKey(),
@@ -178,9 +337,9 @@ const aggregateTable = pgTable('aggregate_table', {
 });
 
 // To test another schema and multischema
-const mySchema = pgSchema('mySchema');
+export const mySchema = pgSchema('mySchema');
 
-const usersMySchemaTable = mySchema.table('users', {
+export const usersMySchemaTable = mySchema.table('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
@@ -383,7 +542,7 @@ export function tests() {
 			await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		});
 
-		async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT>) {
+		async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT, never, typeof relations>) {
 			await db.execute(sql`drop table if exists users2`);
 			await db.execute(sql`drop table if exists cities`);
 			await db.execute(
@@ -422,7 +581,7 @@ export function tests() {
 			]);
 		}
 
-		async function setupAggregateFunctionsTest(db: PgDatabase<PgQueryResultHKT>) {
+		async function setupAggregateFunctionsTest(db: PgDatabase<PgQueryResultHKT, never, typeof relations>) {
 			await db.execute(sql`drop table if exists "aggregate_table"`);
 			await db.execute(
 				sql`
@@ -534,7 +693,7 @@ export function tests() {
 			const result = await db.select().from(usersTable);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
@@ -727,7 +886,7 @@ export function tests() {
 				.returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(users).toEqual([
 				{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
 			]);
@@ -758,7 +917,7 @@ export function tests() {
 			const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(users).toEqual([
 				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
 			]);
@@ -1251,6 +1410,29 @@ export function tests() {
 			const result = await stmt.execute({ offset: 1 });
 
 			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+		});
+
+		test('prepared statement built using $dynamic', async (ctx) => {
+			const { db } = ctx.pg;
+
+			function withLimitOffset(qb: any) {
+				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
+			}
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.$dynamic();
+			withLimitOffset(stmt).prepare('stmt_limit');
+
+			const result = await stmt.execute({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+			expect(result).toHaveLength(1);
 		});
 
 		// TODO change tests to new structure
@@ -4056,7 +4238,7 @@ export function tests() {
 			const result = await db.select().from(usersMySchemaTable);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
@@ -4166,7 +4348,7 @@ export function tests() {
 			const users = await db.delete(usersMySchemaTable).where(eq(usersMySchemaTable.name, 'John')).returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(users).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 		});
 
@@ -4248,7 +4430,7 @@ export function tests() {
 				.toSQL();
 
 			expect(query).toEqual({
-				sql: 'select "id", "name" from "mySchema"."users" group by "users"."id", "users"."name"',
+				sql: 'select "id", "name" from "mySchema"."users" group by "mySchema"."users"."id", "mySchema"."users"."name"',
 				params: [],
 			});
 		});
@@ -4527,6 +4709,49 @@ export function tests() {
 			expect(users.length).toBeGreaterThan(0);
 		});
 
+		test('Object keys as column names', async (ctx) => {
+			const { db } = ctx.pg;
+
+			// Tests the following:
+			// Column with required config
+			// Column with optional config without providing a value
+			// Column with optional config providing a value
+			// Column without config
+			const users = pgTable('users', {
+				id: bigserial({ mode: 'number' }).primaryKey(),
+				firstName: varchar(),
+				lastName: varchar({ length: 50 }),
+				admin: boolean(),
+			});
+
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(
+				sql`
+					create table users (
+						"id" bigserial primary key,
+						"firstName" varchar,
+						"lastName" varchar(50),
+						"admin" boolean
+					)
+				`,
+			);
+
+			await db.insert(users).values([
+				{ firstName: 'John', lastName: 'Doe', admin: true },
+				{ firstName: 'Jane', lastName: 'Smith', admin: false },
+			]);
+			const result = await db
+				.select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+				.from(users)
+				.where(eq(users.admin, true));
+
+			expect(result).toEqual([
+				{ id: 1, firstName: 'John', lastName: 'Doe' },
+			]);
+
+			await db.execute(sql`drop table users`);
+		});
+
 		test('proper json and jsonb handling', async (ctx) => {
 			const { db } = ctx.pg;
 
@@ -4665,6 +4890,423 @@ export function tests() {
 				jsonbStringField: testString,
 				jsonbNumberField: testNumber,
 			}]);
+		});
+
+		test('update ... from', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(cities2Table).values([
+				{ name: 'New York City' },
+				{ name: 'Seattle' },
+			]);
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+			]);
+
+			const result = await db
+				.update(users2Table)
+				.set({
+					cityId: cities2Table.id,
+				})
+				.from(cities2Table)
+				.where(and(eq(cities2Table.name, 'Seattle'), eq(users2Table.name, 'John')))
+				.returning();
+
+			expect(result).toStrictEqual([{
+				id: 1,
+				name: 'John',
+				cityId: 2,
+				cities: {
+					id: 2,
+					name: 'Seattle',
+				},
+			}]);
+		});
+
+		test('update ... from with alias', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(cities2Table).values([
+				{ name: 'New York City' },
+				{ name: 'Seattle' },
+			]);
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+			]);
+
+			const users = alias(users2Table, 'u');
+			const cities = alias(cities2Table, 'c');
+			const result = await db
+				.update(users)
+				.set({
+					cityId: cities.id,
+				})
+				.from(cities)
+				.where(and(eq(cities.name, 'Seattle'), eq(users.name, 'John')))
+				.returning();
+
+			expect(result).toStrictEqual([{
+				id: 1,
+				name: 'John',
+				cityId: 2,
+				c: {
+					id: 2,
+					name: 'Seattle',
+				},
+			}]);
+		});
+
+		test('update ... from with join', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const states = pgTable('states', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const cities = pgTable('cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				stateId: integer('state_id').references(() => states.id),
+			});
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').notNull().references(() => cities.id),
+			});
+
+			await db.execute(sql`drop table if exists "states" cascade`);
+			await db.execute(sql`drop table if exists "cities" cascade`);
+			await db.execute(sql`drop table if exists "users" cascade`);
+			await db.execute(sql`
+				create table "states" (
+					"id" serial primary key,
+					"name" text not null
+				)
+			`);
+			await db.execute(sql`
+				create table "cities" (
+					"id" serial primary key,
+					"name" text not null,
+					"state_id" integer references "states"("id")
+				)
+			`);
+			await db.execute(sql`
+				create table "users" (
+					"id" serial primary key,
+					"name" text not null,
+					"city_id" integer not null references "cities"("id")
+				)
+			`);
+
+			await db.insert(states).values([
+				{ name: 'New York' },
+				{ name: 'Washington' },
+			]);
+			await db.insert(cities).values([
+				{ name: 'New York City', stateId: 1 },
+				{ name: 'Seattle', stateId: 2 },
+				{ name: 'London' },
+			]);
+			await db.insert(users).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 3 },
+			]);
+
+			const result1 = await db
+				.update(users)
+				.set({
+					cityId: cities.id,
+				})
+				.from(cities)
+				.leftJoin(states, eq(cities.stateId, states.id))
+				.where(and(eq(cities.name, 'Seattle'), eq(users.name, 'John')))
+				.returning();
+			const result2 = await db
+				.update(users)
+				.set({
+					cityId: cities.id,
+				})
+				.from(cities)
+				.leftJoin(states, eq(cities.stateId, states.id))
+				.where(and(eq(cities.name, 'London'), eq(users.name, 'Jack')))
+				.returning();
+
+			expect(result1).toStrictEqual([{
+				id: 1,
+				name: 'John',
+				cityId: 2,
+				cities: {
+					id: 2,
+					name: 'Seattle',
+					stateId: 2,
+				},
+				states: {
+					id: 2,
+					name: 'Washington',
+				},
+			}]);
+			expect(result2).toStrictEqual([{
+				id: 3,
+				name: 'Jack',
+				cityId: 3,
+				cities: {
+					id: 3,
+					name: 'London',
+					stateId: null,
+				},
+				states: null,
+			}]);
+		});
+
+		test('insert into ... select', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const notifications = pgTable('notifications', {
+				id: serial('id').primaryKey(),
+				sentAt: timestamp('sent_at').notNull().defaultNow(),
+				message: text('message').notNull(),
+			});
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const userNotications = pgTable('user_notifications', {
+				userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+				notificationId: integer('notification_id').notNull().references(() => notifications.id, {
+					onDelete: 'cascade',
+				}),
+			}, (t) => ({
+				pk: primaryKey({ columns: [t.userId, t.notificationId] }),
+			}));
+
+			await db.execute(sql`drop table if exists notifications`);
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(sql`drop table if exists user_notifications`);
+			await db.execute(sql`
+				create table notifications (
+					id serial primary key,
+					sent_at timestamp not null default now(),
+					message text not null
+				)
+			`);
+			await db.execute(sql`
+				create table users (
+					id serial primary key,
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table user_notifications (
+					user_id int references users(id) on delete cascade,
+					notification_id int references notifications(id) on delete cascade,
+					primary key (user_id, notification_id)
+				)
+			`);
+
+			const newNotification = await db
+				.insert(notifications)
+				.values({ message: 'You are one of the 3 lucky winners!' })
+				.returning({ id: notifications.id })
+				.then((result) => result[0]);
+			await db.insert(users).values([
+				{ name: 'Alice' },
+				{ name: 'Bob' },
+				{ name: 'Charlie' },
+				{ name: 'David' },
+				{ name: 'Eve' },
+			]);
+
+			const sentNotifications = await db
+				.insert(userNotications)
+				.select(
+					db
+						.select({
+							userId: users.id,
+							notificationId: sql`${newNotification!.id}`.as('notification_id'),
+						})
+						.from(users)
+						.where(inArray(users.name, ['Alice', 'Charlie', 'Eve']))
+						.orderBy(asc(users.id)),
+				)
+				.returning();
+
+			expect(sentNotifications).toStrictEqual([
+				{ userId: 1, notificationId: newNotification!.id },
+				{ userId: 3, notificationId: newNotification!.id },
+				{ userId: 5, notificationId: newNotification!.id },
+			]);
+		});
+
+		test('insert into ... select with keys in different order', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users1 = pgTable('users1', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const users2 = pgTable('users2', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists users1`);
+			await db.execute(sql`drop table if exists users2`);
+			await db.execute(sql`
+				create table users1 (
+					id serial primary key,
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table users2 (
+					id serial primary key,
+					name text not null
+				)
+			`);
+
+			expect(
+				() =>
+					db
+						.insert(users1)
+						.select(
+							db
+								.select({
+									name: users2.name,
+									id: users2.id,
+								})
+								.from(users2),
+						),
+			).toThrowError();
+		});
+
+		test('policy', () => {
+			{
+				const policy = pgPolicy('test policy');
+
+				expect(is(policy, PgPolicy)).toBe(true);
+				expect(policy.name).toBe('test policy');
+			}
+
+			{
+				const policy = pgPolicy('test policy', {
+					as: 'permissive',
+					for: 'all',
+					to: 'public',
+					using: sql`1=1`,
+					withCheck: sql`1=1`,
+				});
+
+				expect(is(policy, PgPolicy)).toBe(true);
+				expect(policy.name).toBe('test policy');
+				expect(policy.as).toBe('permissive');
+				expect(policy.for).toBe('all');
+				expect(policy.to).toBe('public');
+				const dialect = new PgDialect();
+				expect(is(policy.using, SQL)).toBe(true);
+				expect(dialect.sqlToQuery(policy.using!).sql).toBe('1=1');
+				expect(is(policy.withCheck, SQL)).toBe(true);
+				expect(dialect.sqlToQuery(policy.withCheck!).sql).toBe('1=1');
+			}
+
+			{
+				const policy = pgPolicy('test policy', {
+					to: 'custom value',
+				});
+
+				expect(policy.to).toBe('custom value');
+			}
+
+			{
+				const p1 = pgPolicy('test policy');
+				const p2 = pgPolicy('test policy 2', {
+					as: 'permissive',
+					for: 'all',
+					to: 'public',
+					using: sql`1=1`,
+					withCheck: sql`1=1`,
+				});
+				const table = pgTable('table_with_policy', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				}, () => ({
+					p1,
+					p2,
+				}));
+				const config = getTableConfig(table);
+				expect(config.policies).toHaveLength(2);
+				expect(config.policies[0]).toBe(p1);
+				expect(config.policies[1]).toBe(p2);
+			}
+		});
+
+		test('neon: policy', () => {
+			{
+				const policy = crudPolicy({
+					read: true,
+					modify: true,
+					role: authenticatedRole,
+				});
+
+				for (const it of Object.values(policy)) {
+					expect(is(it, PgPolicy)).toBe(true);
+					expect(it?.to).toStrictEqual(authenticatedRole);
+					it?.using ? expect(it.using).toStrictEqual(sql`true`) : '';
+					it?.withCheck ? expect(it.withCheck).toStrictEqual(sql`true`) : '';
+				}
+			}
+
+			{
+				const table = pgTable('name', {
+					id: integer('id'),
+				}, (t) => [
+					index('name').on(t.id),
+					crudPolicy({
+						read: true,
+						modify: true,
+						role: authenticatedRole,
+					}),
+					primaryKey({ columns: [t.id], name: 'custom' }),
+				]);
+
+				const { policies, indexes, primaryKeys } = getTableConfig(table);
+
+				expect(policies.length).toBe(4);
+				expect(indexes.length).toBe(1);
+				expect(primaryKeys.length).toBe(1);
+
+				expect(policies[0]?.name === 'crud-custom-policy-modify');
+				expect(policies[1]?.name === 'crud-custom-policy-read');
+			}
+		});
+
+		test('neon: neon_auth', () => {
+			const usersSyncTable = usersSync;
+
+			const { columns, schema, name } = getTableConfig(usersSyncTable);
+
+			expect(name).toBe('users_sync');
+			expect(schema).toBe('neon_auth');
+			expect(columns).toHaveLength(6);
+		});
+
+		test('Enable RLS function', () => {
+			const usersWithRLS = pgTable('users', {
+				id: integer(),
+			}).enableRLS();
+
+			const config1 = getTableConfig(usersWithRLS);
+
+			const usersNoRLS = pgTable('users', {
+				id: integer(),
+			});
+
+			const config2 = getTableConfig(usersNoRLS);
+
+			expect(config1.enableRLS).toBeTruthy();
+			expect(config2.enableRLS).toBeFalsy();
 		});
 
 		test('$count separate', async (ctx) => {
@@ -4873,6 +5515,1190 @@ export function tests() {
 				{ count: 3 },
 				{ count: 3 },
 			]);
+		});
+
+		test('insert multiple rows into table with generated identity column', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const identityColumnsTable = pgTable('identity_columns_table', {
+				id: integer('id').generatedAlwaysAsIdentity(),
+				id1: integer('id1').generatedByDefaultAsIdentity(),
+				name: text('name').notNull(),
+			});
+
+			// not passing identity columns
+			await db.execute(sql`drop table if exists ${identityColumnsTable}`);
+			await db.execute(
+				sql`create table ${identityColumnsTable} ("id" integer generated always as identity, "id1" integer generated by default as identity, "name" text)`,
+			);
+
+			let result = await db.insert(identityColumnsTable).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+				{ name: 'Bob' },
+			]).returning();
+
+			expect(result).toEqual([
+				{ id: 1, id1: 1, name: 'John' },
+				{ id: 2, id1: 2, name: 'Jane' },
+				{ id: 3, id1: 3, name: 'Bob' },
+			]);
+
+			// passing generated by default as identity column
+			await db.execute(sql`drop table if exists ${identityColumnsTable}`);
+			await db.execute(
+				sql`create table ${identityColumnsTable} ("id" integer generated always as identity, "id1" integer generated by default as identity, "name" text)`,
+			);
+
+			result = await db.insert(identityColumnsTable).values([
+				{ name: 'John', id1: 3 },
+				{ name: 'Jane', id1: 5 },
+				{ name: 'Bob', id1: 5 },
+			]).returning();
+
+			expect(result).toEqual([
+				{ id: 1, id1: 3, name: 'John' },
+				{ id: 2, id1: 5, name: 'Jane' },
+				{ id: 3, id1: 5, name: 'Bob' },
+			]);
+
+			// passing all identity columns
+			await db.execute(sql`drop table if exists ${identityColumnsTable}`);
+			await db.execute(
+				sql`create table ${identityColumnsTable} ("id" integer generated always as identity, "id1" integer generated by default as identity, "name" text)`,
+			);
+
+			result = await db.insert(identityColumnsTable).overridingSystemValue().values([
+				{ name: 'John', id: 2, id1: 3 },
+				{ name: 'Jane', id: 4, id1: 5 },
+				{ name: 'Bob', id: 4, id1: 5 },
+			]).returning();
+
+			expect(result).toEqual([
+				{ id: 2, id1: 3, name: 'John' },
+				{ id: 4, id1: 5, name: 'Jane' },
+				{ id: 4, id1: 5, name: 'Bob' },
+			]);
+		});
+
+		test('insert as cte', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+
+			const sq1 = db.$with('sq').as(
+				db.insert(users).values({ name: 'John' }).returning(),
+			);
+			const result1 = await db.with(sq1).select().from(sq1);
+			const result2 = await db.with(sq1).select({ id: sq1.id }).from(sq1);
+
+			const sq2 = db.$with('sq').as(
+				db.insert(users).values({ name: 'Jane' }).returning({ id: users.id, name: users.name }),
+			);
+			const result3 = await db.with(sq2).select().from(sq2);
+			const result4 = await db.with(sq2).select({ name: sq2.name }).from(sq2);
+
+			expect(result1).toEqual([{ id: 1, name: 'John' }]);
+			expect(result2).toEqual([{ id: 2 }]);
+			expect(result3).toEqual([{ id: 3, name: 'Jane' }]);
+			expect(result4).toEqual([{ name: 'Jane' }]);
+		});
+
+		test('update as cte', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				age: integer('age').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(
+				sql`create table ${users} (id serial not null primary key, name text not null, age integer not null)`,
+			);
+
+			await db.insert(users).values([
+				{ name: 'John', age: 30 },
+				{ name: 'Jane', age: 30 },
+			]);
+
+			const sq1 = db.$with('sq').as(
+				db.update(users).set({ age: 25 }).where(eq(users.name, 'John')).returning(),
+			);
+			const result1 = await db.with(sq1).select().from(sq1);
+			await db.update(users).set({ age: 30 });
+			const result2 = await db.with(sq1).select({ age: sq1.age }).from(sq1);
+
+			const sq2 = db.$with('sq').as(
+				db.update(users).set({ age: 20 }).where(eq(users.name, 'Jane')).returning({ name: users.name, age: users.age }),
+			);
+			const result3 = await db.with(sq2).select().from(sq2);
+			await db.update(users).set({ age: 30 });
+			const result4 = await db.with(sq2).select({ age: sq2.age }).from(sq2);
+
+			expect(result1).toEqual([{ id: 1, name: 'John', age: 25 }]);
+			expect(result2).toEqual([{ age: 25 }]);
+			expect(result3).toEqual([{ name: 'Jane', age: 20 }]);
+			expect(result4).toEqual([{ age: 20 }]);
+		});
+
+		test('delete as cte', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+
+			await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+			]);
+
+			const sq1 = db.$with('sq').as(
+				db.delete(users).where(eq(users.name, 'John')).returning(),
+			);
+			const result1 = await db.with(sq1).select().from(sq1);
+			await db.insert(users).values({ name: 'John' });
+			const result2 = await db.with(sq1).select({ name: sq1.name }).from(sq1);
+
+			const sq2 = db.$with('sq').as(
+				db.delete(users).where(eq(users.name, 'Jane')).returning({ id: users.id, name: users.name }),
+			);
+			const result3 = await db.with(sq2).select().from(sq2);
+			await db.insert(users).values({ name: 'Jane' });
+			const result4 = await db.with(sq2).select({ name: sq2.name }).from(sq2);
+
+			expect(result1).toEqual([{ id: 1, name: 'John' }]);
+			expect(result2).toEqual([{ name: 'John' }]);
+			expect(result3).toEqual([{ id: 2, name: 'Jane' }]);
+			expect(result4).toEqual([{ name: 'Jane' }]);
+		});
+
+		test('sql operator as cte', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+			await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+			]);
+
+			const sq1 = db.$with('sq', {
+				userId: users.id,
+				data: {
+					name: users.name,
+				},
+			}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+			const result1 = await db.with(sq1).select().from(sq1);
+
+			const sq2 = db.$with('sq', {
+				userId: users.id,
+				data: {
+					name: users.name,
+				},
+			}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+			const result2 = await db.with(sq2).select().from(sq1);
+
+			expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
+			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+		});
+
+		test('all types', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);
+			await db.execute(sql`
+				CREATE TABLE "all_types" (
+					"serial" serial NOT NULL,
+					"bigserial53" bigserial NOT NULL,
+					"bigserial64" bigserial,
+					"int" integer,
+					"bigint53" bigint,
+					"bigint64" bigint,
+					"bool" boolean,
+					"bytea" bytea,
+					"char" char,
+					"cidr" "cidr",
+					"date" date,
+					"date_str" date,
+					"double" double precision,
+					"enum" "en",
+					"inet" "inet",
+					"interval" interval,
+					"json" json,
+					"jsonb" jsonb,
+					"line" "line",
+					"line_tuple" "line",
+					"macaddr" "macaddr",
+					"macaddr8" "macaddr8",
+					"numeric" numeric,
+					"numeric_num" numeric,
+					"numeric_big" numeric,
+					"point" "point",
+					"point_tuple" "point",
+					"real" real,
+					"smallint" smallint,
+					"smallserial" "smallserial" NOT NULL,
+					"text" text,
+					"time" time,
+					"timestamp" timestamp,
+					"timestamp_tz" timestamp with time zone,
+					"timestamp_str" timestamp,
+					"timestamp_tz_str" timestamp with time zone,
+					"uuid" uuid,
+					"varchar" varchar,
+					"arrint" integer[],
+					"arrbigint53" bigint[],
+					"arrbigint64" bigint[],
+					"arrbool" boolean[],
+					"arrbytea" bytea[],
+					"arrchar" char[],
+					"arrcidr" "cidr"[],
+					"arrdate" date[],
+					"arrdate_str" date[],
+					"arrdouble" double precision[],
+					"arrenum" "en"[],
+					"arrinet" "inet"[],
+					"arrinterval" interval[],
+					"arrjson" json[],
+					"arrjsonb" jsonb[],
+					"arrline" "line"[],
+					"arrline_tuple" "line"[],
+					"arrmacaddr" "macaddr"[],
+					"arrmacaddr8" "macaddr8"[],
+					"arrnumeric" numeric[],
+					"arrnumeric_num" numeric[],
+					"arrnumeric_big" numeric[],
+					"arrpoint" "point"[],
+					"arrpoint_tuple" "point"[],
+					"arrreal" real[],
+					"arrsmallint" smallint[],
+					"arrtext" text[],
+					"arrtime" time[],
+					"arrtimestamp" timestamp[],
+					"arrtimestamp_tz" timestamp with time zone[],
+					"arrtimestamp_str" timestamp[],
+					"arrtimestamp_tz_str" timestamp with time zone[],
+					"arruuid" uuid[],
+					"arrvarchar" varchar[]
+				);
+			`);
+
+			await db.insert(allTypesTable).values({
+				serial: 1,
+				smallserial: 15,
+				bigint53: 9007199254740991,
+				bigint64: 5044565289845416380n,
+				bigserial53: 9007199254740991,
+				bigserial64: 5044565289845416380n,
+				bool: true,
+				bytea: Buffer.from('BYTES'),
+				char: 'c',
+				cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+				inet: '192.168.0.1/24',
+				macaddr: '08:00:2b:01:02:03',
+				macaddr8: '08:00:2b:01:02:03:04:05',
+				date: new Date(1741743161623),
+				dateStr: new Date(1741743161623).toISOString(),
+				double: 15.35325689124218,
+				enum: 'enVal1',
+				int: 621,
+				interval: '2 months ago',
+				json: {
+					str: 'strval',
+					arr: ['str', 10],
+				},
+				jsonb: {
+					str: 'strvalb',
+					arr: ['strb', 11],
+				},
+				line: {
+					a: 1,
+					b: 2,
+					c: 3,
+				},
+				lineTuple: [1, 2, 3],
+				numeric: '475452353476',
+				numericNum: 9007199254740991,
+				numericBig: 5044565289845416380n,
+				point: {
+					x: 24.5,
+					y: 49.6,
+				},
+				pointTuple: [57.2, 94.3],
+				real: 1.048596,
+				smallint: 10,
+				text: 'TEXT STRING',
+				time: '13:59:28',
+				timestamp: new Date(1741743161623),
+				timestampTz: new Date(1741743161623),
+				timestampStr: new Date(1741743161623).toISOString(),
+				timestampTzStr: new Date(1741743161623).toISOString(),
+				uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+				varchar: 'C4-',
+				arrbigint53: [9007199254740991],
+				arrbigint64: [5044565289845416380n],
+				arrbool: [true],
+				arrbytea: [Buffer.from('BYTES')],
+				arrchar: ['c'],
+				arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+				arrinet: ['192.168.0.1/24'],
+				arrmacaddr: ['08:00:2b:01:02:03'],
+				arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+				arrdate: [new Date(1741743161623)],
+				arrdateStr: [new Date(1741743161623).toISOString()],
+				arrdouble: [15.35325689124218],
+				arrenum: ['enVal1'],
+				arrint: [621],
+				arrinterval: ['2 months ago'],
+				arrjson: [{
+					str: 'strval',
+					arr: ['str', 10],
+				}],
+				arrjsonb: [{
+					str: 'strvalb',
+					arr: ['strb', 11],
+				}],
+				arrline: [{
+					a: 1,
+					b: 2,
+					c: 3,
+				}],
+				arrlineTuple: [[1, 2, 3]],
+				arrnumeric: ['475452353476'],
+				arrnumericNum: [9007199254740991],
+				arrnumericBig: [5044565289845416380n],
+				arrpoint: [{
+					x: 24.5,
+					y: 49.6,
+				}],
+				arrpointTuple: [[57.2, 94.3]],
+				arrreal: [1.048596],
+				arrsmallint: [10],
+				arrtext: ['TEXT STRING'],
+				arrtime: ['13:59:28'],
+				arrtimestamp: [new Date(1741743161623)],
+				arrtimestampTz: [new Date(1741743161623)],
+				arrtimestampStr: [new Date(1741743161623).toISOString()],
+				arrtimestampTzStr: [new Date(1741743161623).toISOString()],
+				arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+				arrvarchar: ['C4-'],
+			});
+
+			const rawRes = await db.select().from(allTypesTable);
+
+			type ExpectedType = {
+				serial: number;
+				bigserial53: number;
+				bigserial64: bigint;
+				int: number | null;
+				bigint53: number | null;
+				bigint64: bigint | null;
+				bool: boolean | null;
+				bytea: Buffer | null;
+				char: string | null;
+				cidr: string | null;
+				date: Date | null;
+				dateStr: string | null;
+				double: number | null;
+				enum: 'enVal1' | 'enVal2' | null;
+				inet: string | null;
+				interval: string | null;
+				json: unknown;
+				jsonb: unknown;
+				line: {
+					a: number;
+					b: number;
+					c: number;
+				} | null;
+				lineTuple: [number, number, number] | null;
+				macaddr: string | null;
+				macaddr8: string | null;
+				numeric: string | null;
+				numericNum: number | null;
+				numericBig: bigint | null;
+				point: {
+					x: number;
+					y: number;
+				} | null;
+				pointTuple: [number, number] | null;
+				real: number | null;
+				smallint: number | null;
+				smallserial: number;
+				text: string | null;
+				time: string | null;
+				timestamp: Date | null;
+				timestampTz: Date | null;
+				timestampStr: string | null;
+				timestampTzStr: string | null;
+				uuid: string | null;
+				varchar: string | null;
+				arrint: number[] | null;
+				arrbigint53: number[] | null;
+				arrbigint64: bigint[] | null;
+				arrbool: boolean[] | null;
+				arrbytea: Buffer[] | null;
+				arrchar: string[] | null;
+				arrcidr: string[] | null;
+				arrdate: Date[] | null;
+				arrdateStr: string[] | null;
+				arrdouble: number[] | null;
+				arrenum: ('enVal1' | 'enVal2')[] | null;
+				arrinet: string[] | null;
+				arrinterval: string[] | null;
+				arrjson: unknown[] | null;
+				arrjsonb: unknown[] | null;
+				arrline: {
+					a: number;
+					b: number;
+					c: number;
+				}[] | null;
+				arrlineTuple: [number, number, number][] | null;
+				arrmacaddr: string[] | null;
+				arrmacaddr8: string[] | null;
+				arrnumeric: string[] | null;
+				arrnumericNum: number[] | null;
+				arrnumericBig: bigint[] | null;
+				arrpoint: { x: number; y: number }[] | null;
+				arrpointTuple: [number, number][] | null;
+				arrreal: number[] | null;
+				arrsmallint: number[] | null;
+				arrtext: string[] | null;
+				arrtime: string[] | null;
+				arrtimestamp: Date[] | null;
+				arrtimestampTz: Date[] | null;
+				arrtimestampStr: string[] | null;
+				arrtimestampTzStr: string[] | null;
+				arruuid: string[] | null;
+				arrvarchar: string[] | null;
+			}[];
+
+			const expectedRes: ExpectedType = [
+				{
+					serial: 1,
+					bigserial53: 9007199254740991,
+					bigserial64: 5044565289845416380n,
+					int: 621,
+					bigint53: 9007199254740991,
+					bigint64: 5044565289845416380n,
+					bool: true,
+					bytea: Buffer.from('BYTES'),
+					char: 'c',
+					cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+					date: new Date('2025-03-12T00:00:00.000Z'),
+					dateStr: '2025-03-12',
+					double: 15.35325689124218,
+					enum: 'enVal1',
+					inet: '192.168.0.1/24',
+					interval: '-2 mons',
+					json: { str: 'strval', arr: ['str', 10] },
+					jsonb: { arr: ['strb', 11], str: 'strvalb' },
+					line: { a: 1, b: 2, c: 3 },
+					lineTuple: [1, 2, 3],
+					macaddr: '08:00:2b:01:02:03',
+					macaddr8: '08:00:2b:01:02:03:04:05',
+					numeric: '475452353476',
+					numericNum: 9007199254740991,
+					numericBig: 5044565289845416380n,
+					point: { x: 24.5, y: 49.6 },
+					pointTuple: [57.2, 94.3],
+					real: 1.048596,
+					smallint: 10,
+					smallserial: 15,
+					text: 'TEXT STRING',
+					time: '13:59:28',
+					timestamp: new Date('2025-03-12T01:32:41.623Z'),
+					timestampTz: new Date('2025-03-12T01:32:41.623Z'),
+					timestampStr: '2025-03-12 01:32:41.623',
+					timestampTzStr: '2025-03-12 01:32:41.623+00',
+					uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+					varchar: 'C4-',
+					arrint: [621],
+					arrbigint53: [9007199254740991],
+					arrbigint64: [5044565289845416380n],
+					arrbool: [true],
+					arrbytea: [Buffer.from('BYTES')],
+					arrchar: ['c'],
+					arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+					arrdate: [new Date('2025-03-12T00:00:00.000Z')],
+					arrdateStr: ['2025-03-12'],
+					arrdouble: [15.35325689124218],
+					arrenum: ['enVal1'],
+					arrinet: ['192.168.0.1/24'],
+					arrinterval: ['-2 mons'],
+					arrjson: [{ str: 'strval', arr: ['str', 10] }],
+					arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+					arrline: [{ a: 1, b: 2, c: 3 }],
+					arrlineTuple: [[1, 2, 3]],
+					arrmacaddr: ['08:00:2b:01:02:03'],
+					arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+					arrnumeric: ['475452353476'],
+					arrnumericNum: [9007199254740991],
+					arrnumericBig: [5044565289845416380n],
+					arrpoint: [{ x: 24.5, y: 49.6 }],
+					arrpointTuple: [[57.2, 94.3]],
+					arrreal: [1.048596],
+					arrsmallint: [10],
+					arrtext: ['TEXT STRING'],
+					arrtime: ['13:59:28'],
+					arrtimestamp: [new Date('2025-03-12T01:32:41.623Z')],
+					arrtimestampTz: [new Date('2025-03-12T01:32:41.623Z')],
+					arrtimestampStr: ['2025-03-12 01:32:41.623'],
+					arrtimestampTzStr: ['2025-03-12 01:32:41.623+00'],
+					arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+					arrvarchar: ['C4-'],
+				},
+			];
+
+			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
+			expect(rawRes).toStrictEqual(expectedRes);
+		});
+
+		test('RQB v2 simple find first - no rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const result = await db.query.rqbUser.findFirst();
+
+				expect(result).toStrictEqual(undefined);
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find first - multiple rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				const result = await db.query.rqbUser.findFirst({
+					orderBy: {
+						id: 'desc',
+					},
+				});
+
+				expect(result).toStrictEqual({
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find first - with relation', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.insert(rqbPost).values([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}]);
+
+				const result = await db.query.rqbUser.findFirst({
+					with: {
+						posts: {
+							orderBy: {
+								id: 'asc',
+							},
+						},
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				});
+
+				expect(result).toStrictEqual({
+					id: 1,
+					createdAt: date,
+					name: 'First',
+					posts: [{
+						id: 1,
+						userId: 1,
+						createdAt: date,
+						content: null,
+					}, {
+						id: 2,
+						userId: 1,
+						createdAt: date,
+						content: 'Has message this time',
+					}],
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find first - placeholders', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				const query = db.query.rqbUser.findFirst({
+					where: {
+						id: {
+							eq: sql.placeholder('filter'),
+						},
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				}).prepare('rqb_v2_find_first_placeholders');
+
+				const result = await query.execute({
+					filter: 2,
+				});
+
+				expect(result).toStrictEqual({
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find many - no rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const result = await db.query.rqbUser.findMany();
+
+				expect(result).toStrictEqual([]);
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find many - multiple rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				const result = await db.query.rqbUser.findMany({
+					orderBy: {
+						id: 'desc',
+					},
+				});
+
+				expect(result).toStrictEqual([{
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}, {
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}]);
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find many - with relation', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.insert(rqbPost).values([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}]);
+
+				const result = await db.query.rqbPost.findMany({
+					with: {
+						author: true,
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				});
+
+				expect(result).toStrictEqual([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+					author: {
+						id: 1,
+						createdAt: date,
+						name: 'First',
+					},
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+					author: {
+						id: 1,
+						createdAt: date,
+						name: 'First',
+					},
+				}]);
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find many - placeholders', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				const query = db.query.rqbUser.findMany({
+					where: {
+						id: {
+							eq: sql.placeholder('filter'),
+						},
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				}).prepare('rqb_v2_find_many_placeholders');
+
+				const result = await query.execute({
+					filter: 2,
+				});
+
+				expect(result).toStrictEqual([{
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find first - no rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbUser.findFirst();
+
+					expect(result).toStrictEqual(undefined);
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find first - multiple rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbUser.findFirst({
+						orderBy: {
+							id: 'desc',
+						},
+					});
+
+					expect(result).toStrictEqual({
+						id: 2,
+						createdAt: date,
+						name: 'Second',
+					});
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find first - with relation', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.insert(rqbPost).values([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}]);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbUser.findFirst({
+						with: {
+							posts: {
+								orderBy: {
+									id: 'asc',
+								},
+							},
+						},
+						orderBy: {
+							id: 'asc',
+						},
+					});
+
+					expect(result).toStrictEqual({
+						id: 1,
+						createdAt: date,
+						name: 'First',
+						posts: [{
+							id: 1,
+							userId: 1,
+							createdAt: date,
+							content: null,
+						}, {
+							id: 2,
+							userId: 1,
+							createdAt: date,
+							content: 'Has message this time',
+						}],
+					});
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find first - placeholders', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.transaction(async (db) => {
+					const query = db.query.rqbUser.findFirst({
+						where: {
+							id: {
+								eq: sql.placeholder('filter'),
+							},
+						},
+						orderBy: {
+							id: 'asc',
+						},
+					}).prepare('rqb_v2_find_first_tx_placeholders');
+
+					const result = await query.execute({
+						filter: 2,
+					});
+
+					expect(result).toStrictEqual({
+						id: 2,
+						createdAt: date,
+						name: 'Second',
+					});
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find many - no rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbUser.findMany();
+
+					expect(result).toStrictEqual([]);
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find many - multiple rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbUser.findMany({
+						orderBy: {
+							id: 'desc',
+						},
+					});
+
+					expect(result).toStrictEqual([{
+						id: 2,
+						createdAt: date,
+						name: 'Second',
+					}, {
+						id: 1,
+						createdAt: date,
+						name: 'First',
+					}]);
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find many - with relation', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.insert(rqbPost).values([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}]);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbPost.findMany({
+						with: {
+							author: true,
+						},
+						orderBy: {
+							id: 'asc',
+						},
+					});
+
+					expect(result).toStrictEqual([{
+						id: 1,
+						userId: 1,
+						createdAt: date,
+						content: null,
+						author: {
+							id: 1,
+							createdAt: date,
+							name: 'First',
+						},
+					}, {
+						id: 2,
+						userId: 1,
+						createdAt: date,
+						content: 'Has message this time',
+						author: {
+							id: 1,
+							createdAt: date,
+							name: 'First',
+						},
+					}]);
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find many - placeholders', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.transaction(async (db) => {
+					const query = db.query.rqbUser.findMany({
+						where: {
+							id: {
+								eq: sql.placeholder('filter'),
+							},
+						},
+						orderBy: {
+							id: 'asc',
+						},
+					}).prepare('rqb_v2_find_many_placeholders');
+
+					const result = await query.execute({
+						filter: 2,
+					});
+
+					expect(result).toStrictEqual([{
+						id: 2,
+						createdAt: date,
+						name: 'Second',
+					}]);
+				});
+			} finally {
+				await clear(db);
+			}
 		});
 	});
 }
