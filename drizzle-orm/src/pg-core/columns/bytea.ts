@@ -31,12 +31,16 @@ export class PgByteaBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'PgBytea
 export class PgBytea<T extends ColumnBaseConfig<'buffer', 'PgBytea'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBytea';
 
-	override mapFromDriverValue(value: Buffer | string): Buffer {
+	override mapFromDriverValue(value: Buffer | Uint8Array | string): Buffer {
 		if (Buffer.isBuffer(value)) return value;
 
-		// Remove '\x'
-		const trimmed = value.slice(2, value.length);
-		return Buffer.from(trimmed, 'hex');
+		if (typeof value === 'string') {
+			// Remove '\x'
+			const trimmed = value.slice(2, value.length);
+			return Buffer.from(trimmed, 'hex');
+		}
+
+		return Buffer.from(value);
 	}
 
 	getSQLType(): string {
