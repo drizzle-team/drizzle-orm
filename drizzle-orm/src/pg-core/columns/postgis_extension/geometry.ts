@@ -31,17 +31,17 @@ export class PgGeometryBuilder<
 	static override readonly [entityKind]: string = 'PgGeometryBuilder';
 
 	constructor(name: T['name']) {
-	super(name, 'array', 'PgGeometry');
+		super(name, 'array', 'PgGeometry');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-	table: AnyPgTable<{ name: TTableName }>
+		table: AnyPgTable<{ name: TTableName }>
 	): PgGeometry<MakeColumnConfig<T, TTableName>> {
-	return new PgGeometry<MakeColumnConfig<T, TTableName>>(
-	table,
-	this.config as ColumnBuilderRuntimeConfig<any, any>
-	);
+		return new PgGeometry<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>
+		);
 	}
 }
 
@@ -51,30 +51,30 @@ export class PgGeometry<
 	static override readonly [entityKind]: string = 'PgGeometry';
 
 	getSQLType(): string {
-	return 'geometry(point)';
+		return 'geometry(point)';
 	}
 
 	override mapFromDriverValue(
-	value: string | [number, number]
+		value: string | [number, number]
 	): [number, number] {
-	if (typeof value !== 'string') return value as [number, number];
+		if (typeof value !== 'string') return value as [number, number];
 
-	return parseEWKB(value);
+		return parseEWKB(value);
 	}
 
 	override mapToDriverValue(value: [number, number]): string {
-	return `point(${value[0]} ${value[1]})`;
+		return `point(${value[0]} ${value[1]})`;
 	}
 }
 
 export type PgGeometryObjectBuilderInitial<TName extends string> =
 	PgGeometryObjectBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'PgGeometryObject';
-	data: { x: number; y: number };
-	driverParam: string;
-	enumValues: undefined;
+		name: TName;
+		dataType: 'json';
+		columnType: 'PgGeometryObject';
+		data: { x: number; y: number };
+		driverParam: string;
+		enumValues: undefined;
 	}>;
 
 export class PgGeometryObjectBuilder<
@@ -83,17 +83,17 @@ export class PgGeometryObjectBuilder<
 	static override readonly [entityKind]: string = 'PgGeometryObjectBuilder';
 
 	constructor(name: T['name']) {
-	super(name, 'json', 'PgGeometryObject');
+		super(name, 'json', 'PgGeometryObject');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
-	table: AnyPgTable<{ name: TTableName }>
+		table: AnyPgTable<{ name: TTableName }>
 	): PgGeometryObject<MakeColumnConfig<T, TTableName>> {
-	return new PgGeometryObject<MakeColumnConfig<T, TTableName>>(
-	table,
-	this.config as ColumnBuilderRuntimeConfig<any, any>
-	);
+		return new PgGeometryObject<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>
+		);
 	}
 }
 
@@ -103,16 +103,16 @@ export class PgGeometryObject<
 	static override readonly [entityKind]: string = 'PgGeometryObject';
 
 	getSQLType(): string {
-	return 'geometry(point)';
+		return 'geometry(point)';
 	}
 
 	override mapFromDriverValue(value: string): { x: number; y: number } {
-	const parsed = parseEWKB(value);
-	return { x: parsed[0], y: parsed[1] };
+		const parsed = parseEWKB(value);
+		return { x: parsed[0], y: parsed[1] };
 	}
 
 	override mapToDriverValue(value: { x: number; y: number }): string {
-	return `point(${value.x} ${value.y})`;
+		return `point(${value.x} ${value.y})`;
 	}
 }
 
@@ -147,10 +147,10 @@ export function geometry<
 export function geometry(a?: string | PgGeometryConfig, b?: PgGeometryConfig) {
 	const { name, config } = getColumnNameAndConfig<PgGeometryConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
-	return new PgGeometryBuilder(name);
+		return new PgGeometryBuilder(name);
 	}
 	if (config?.type === 'multilinestring') {
-	return new PgGeometryMultiLineStringBuilder(name, config);
+		return new PgGeometryMultiLineStringBuilder(name, config);
 	}
 	return new PgGeometryObjectBuilder(name);
 }
