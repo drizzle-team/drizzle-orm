@@ -111,7 +111,7 @@ declare module 'vitest' {
 
 const en = pgEnum('en', ['enVal1', 'enVal2']);
 
-const allTypesTable = pgTable('all_types', {
+export const allTypesTable = pgTable('all_types', {
 	serial: serial('serial'),
 	bigserial53: bigserial('bigserial53', {
 		mode: 'number',
