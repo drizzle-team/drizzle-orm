@@ -11,6 +11,7 @@ import { RowDataPacket } from 'mysql2/promise';
 import { withStyle } from '../cli/validations/outputs';
 import { IntrospectStage, IntrospectStatus } from '../cli/views';
 
+import { VectorIndexType, VectorMetricType } from 'drizzle-orm/singlestore-core/indexes/vector';
 import { CasingType } from 'src/cli/validations/common';
 import type { DB } from '../utils';
 import {
@@ -21,6 +22,7 @@ import {
 	SingleStoreSchemaInternal,
 	Table,
 	UniqueConstraint,
+	VectorIndex,
 } from './singlestoreSchema';
 import { sqlToStr } from './utils';
 
@@ -44,12 +46,14 @@ export const generateSingleStoreSnapshot = (
 			name: tableName,
 			columns,
 			indexes,
+			vectorIndexes,
 			schema,
 			primaryKeys,
 			uniqueConstraints,
 		} = getTableConfig(table);
 		const columnsObject: Record<string, Column> = {};
 		const indexesObject: Record<string, Index> = {};
+		const vectorIndexesObject: Record<string, VectorIndex> = {};
 		const primaryKeysObject: Record<string, PrimaryKey> = {};
 		const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
 
@@ -279,12 +283,57 @@ export const generateSingleStoreSnapshot = (
 			};
 		});
 
+		vectorIndexes.forEach((value) => {
+			const column = value.config.column;
+			const name = value.config.name;
+
+			let indexColumn;
+			if (is(column, SQL)) {
+				const sql = dialect.sqlToQuery(column, 'indexes').sql;
+				if (typeof internal!.indexes![name] === 'undefined') {
+					internal!.indexes![name] = {
+						columns: {
+							[sql]: {
+								isExpression: true,
+							},
+						},
+					};
+				} else {
+					if (typeof internal!.indexes![name]?.columns[sql] === 'undefined') {
+						internal!.indexes![name]!.columns[sql] = {
+							isExpression: true,
+						};
+					} else {
+						internal!.indexes![name]!.columns[sql]!.isExpression = true;
+					}
+				}
+				indexColumn = sql;
+			} else {
+				indexColumn = column.name;
+			}
+
+			vectorIndexesObject[name] = {
+				name,
+				column: indexColumn,
+				indexType: value.config.indexType,
+				metricType: value.config.metricType,
+				nlist: value.config.nlist,
+				nprobe: value.config.nprobe,
+				nbits: value.config.nbits,
+				m: value.config.m,
+				M: value.config.M,
+				ef: value.config.ef,
+				efConstruction: value.config.efConstruction,
+			};
+		});
+
 		// only handle tables without schemas
 		if (!schema) {
 			result[tableName] = {
 				name: tableName,
 				columns: columnsObject,
 				indexes: indexesObject,
+				vectorIndexes: vectorIndexesObject,
 				compositePrimaryKeys: primaryKeysObject,
 				uniqueConstraints: uniqueConstraintObject,
 			};
@@ -618,6 +667,7 @@ export const fromDatabase = async (
 				},
 				compositePrimaryKeys: {},
 				indexes: {},
+				vectorIndexes: {},
 				uniqueConstraints: {},
 			};
 		} else {
@@ -679,6 +729,8 @@ export const fromDatabase = async (
 		const constraintName = idxRow['INDEX_NAME'];
 		const columnName: string = idxRow['COLUMN_NAME'];
 		const isUnique = idxRow['NON_UNIQUE'] === 0;
+		const idxType = idxRow['INDEX_TYPE'];
+		const idxOptions = idxRow['INDEX_OPTIONS'];
 
 		const tableInResult = result[tableName];
 		if (typeof tableInResult === 'undefined') continue;
@@ -702,6 +754,22 @@ export const fromDatabase = async (
 					name: constraintName,
 					columns: [columnName],
 				};
+			}
+		} else {
+			if (idxType === 'VECTOR') {
+				const { index_type: indexType, metric_type: metricType, ...restOpts } = JSON.parse(idxOptions) as
+					& Omit<VectorIndex, 'name' | 'column' | 'indexType' | 'metricType'>
+					& { index_type: VectorIndexType; metric_type: VectorMetricType };
+				const vIdx: VectorIndex = {
+					name: constraintName,
+					column: columnName,
+					indexType,
+					metricType,
+					...restOpts,
+				};
+				tableInResult.vectorIndexes[constraintName] = vIdx;
+			} else {
+				// TODO non-vector indexes
 			}
 		}
 	}
