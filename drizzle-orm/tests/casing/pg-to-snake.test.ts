@@ -153,7 +153,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."id", "users"."AGE", "users"."first_name" || \' \' || "users"."last_name" as "name", "users_developers"."data" as "developers" from "users" left join lateral (select json_build_array("users_developers"."uses_drizzle_orm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2 limit $3',
+				'select "users"."id", "users"."AGE", "users"."first_name" || \' \' || "users"."last_name" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."uses_drizzle_orm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2 limit $3',
 			params: [1, 1, 1],
 			typings: ['none', 'none', 'none'],
 		});
@@ -181,7 +181,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."id", "users"."AGE", "users"."first_name" || \' \' || "users"."last_name" as "name", "users_developers"."data" as "developers" from "users" left join lateral (select json_build_array("users_developers"."uses_drizzle_orm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2',
+				'select "users"."id", "users"."AGE", "users"."first_name" || \' \' || "users"."last_name" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."uses_drizzle_orm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2',
 			params: [1, 1],
 			typings: ['none', 'none'],
 		});

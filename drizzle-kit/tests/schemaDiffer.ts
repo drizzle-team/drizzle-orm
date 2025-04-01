@@ -21,6 +21,7 @@ import {
 import { SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
+import { type Client as GelClient } from 'gel';
 import { Connection } from 'mysql2/promise';
 import { libSqlLogSuggestionsAndReturn } from 'src/cli/commands/libSqlPushUtils';
 import {
@@ -42,10 +43,12 @@ import { logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn } from 's
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { Entities } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
+import { schemaToTypeScript as schemaToTypeScriptGel } from 'src/introspect-gel';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
 import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
 import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/introspect-sqlite';
+import { fromDatabase as fromGelDatabase } from 'src/serializer/gelSerializer';
 import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
 import { mysqlSchema, squashMysqlScheme, ViewSquashed } from 'src/serializer/mysqlSchema';
 import { fromDatabase as fromMySqlDatabase, generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
@@ -2395,6 +2398,35 @@ export const introspectPgToFile = async (
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	};
+};
+
+export const introspectGelToFile = async (
+	client: GelClient,
+	testName: string,
+	schemas: string[] = ['public'],
+	entities?: Entities,
+	casing?: CasingType | undefined,
+) => {
+	// introspect to schema
+	const introspectedSchema = await fromGelDatabase(
+		{
+			query: async (query: string, values?: any[] | undefined) => {
+				const res = await client.querySQL(query, values);
+				return res as any[];
+			},
+		},
+		undefined,
+		schemas,
+		entities,
+	);
+
+	// write to ts file
+	const file = schemaToTypeScriptGel(introspectedSchema, 'camel');
+
+	const path = `tests/introspect/gel/${testName}.ts`;
+	fs.writeFileSync(path, file.file);
+
+	return path;
 };
 
 export const introspectMySQLToFile = async (
