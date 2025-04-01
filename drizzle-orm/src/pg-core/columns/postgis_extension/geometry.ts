@@ -1,10 +1,19 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	MakeColumnConfig,
+} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
+import {
+	PgGeometryMultiLineStringBuilder,
+	type PgGeometryMultiLineStringBuilderInitial,
+	type PgGeometryMultiLineStringConfig,
+} from './geometryMultiLineString.ts';
 import { parseEWKB } from './utils.ts';
 
 export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
@@ -16,7 +25,9 @@ export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgGeometryBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGeometry'>> extends PgColumnBuilder<T> {
+export class PgGeometryBuilder<
+	T extends ColumnBuilderBaseConfig<'array', 'PgGeometry'>,
+> extends PgColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'PgGeometryBuilder';
 
 	constructor(name: T['name']) {
@@ -25,23 +36,27 @@ export class PgGeometryBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGeo
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
+		table: AnyPgTable<{ name: TTableName }>
 	): PgGeometry<MakeColumnConfig<T, TTableName>> {
 		return new PgGeometry<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as ColumnBuilderRuntimeConfig<any, any>
 		);
 	}
 }
 
-export class PgGeometry<T extends ColumnBaseConfig<'array', 'PgGeometry'>> extends PgColumn<T> {
+export class PgGeometry<
+	T extends ColumnBaseConfig<'array', 'PgGeometry'>,
+> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgGeometry';
 
 	getSQLType(): string {
 		return 'geometry(point)';
 	}
 
-	override mapFromDriverValue(value: string | [number, number]): [number, number] {
+	override mapFromDriverValue(
+		value: string | [number, number]
+	): [number, number] {
 		if (typeof value !== 'string') return value as [number, number];
 
 		return parseEWKB(value);
@@ -52,18 +67,19 @@ export class PgGeometry<T extends ColumnBaseConfig<'array', 'PgGeometry'>> exten
 	}
 }
 
-export type PgGeometryObjectBuilderInitial<TName extends string> = PgGeometryObjectBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'PgGeometryObject';
-	data: { x: number; y: number };
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type PgGeometryObjectBuilderInitial<TName extends string> =
+	PgGeometryObjectBuilder<{
+		name: TName;
+		dataType: 'json';
+		columnType: 'PgGeometryObject';
+		data: { x: number; y: number };
+		driverParam: string;
+		enumValues: undefined;
+	}>;
 
-export class PgGeometryObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgGeometryObject'>>
-	extends PgColumnBuilder<T>
-{
+export class PgGeometryObjectBuilder<
+	T extends ColumnBuilderBaseConfig<'json', 'PgGeometryObject'>,
+> extends PgColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'PgGeometryObjectBuilder';
 
 	constructor(name: T['name']) {
@@ -72,16 +88,18 @@ export class PgGeometryObjectBuilder<T extends ColumnBuilderBaseConfig<'json', '
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
+		table: AnyPgTable<{ name: TTableName }>
 	): PgGeometryObject<MakeColumnConfig<T, TTableName>> {
 		return new PgGeometryObject<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as ColumnBuilderRuntimeConfig<any, any>
 		);
 	}
 }
 
-export class PgGeometryObject<T extends ColumnBaseConfig<'json', 'PgGeometryObject'>> extends PgColumn<T> {
+export class PgGeometryObject<
+	T extends ColumnBaseConfig<'json', 'PgGeometryObject'>,
+> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgGeometryObject';
 
 	getSQLType(): string {
@@ -105,17 +123,34 @@ export interface PgGeometryConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {
 }
 
 export function geometry(): PgGeometryBuilderInitial<''>;
-export function geometry<TMode extends PgGeometryConfig['mode'] & {}>(
-	config?: PgGeometryConfig<TMode>,
-): Equal<TMode, 'xy'> extends true ? PgGeometryObjectBuilderInitial<''> : PgGeometryBuilderInitial<''>;
-export function geometry<TName extends string, TMode extends PgGeometryConfig['mode'] & {}>(
+export function geometry(
+	config: { type: 'multilinestring' } & PgGeometryMultiLineStringConfig
+): PgGeometryMultiLineStringBuilderInitial<''>;
+export function geometry<TName extends string>(
 	name: TName,
-	config?: PgGeometryConfig<TMode>,
-): Equal<TMode, 'xy'> extends true ? PgGeometryObjectBuilderInitial<TName> : PgGeometryBuilderInitial<TName>;
+	config: { type: 'multilinestring' } & PgGeometryMultiLineStringConfig
+): PgGeometryMultiLineStringBuilderInitial<TName>;
+export function geometry<TMode extends PgGeometryConfig['mode'] & {}>(
+	config?: PgGeometryConfig<TMode>
+): Equal<TMode, 'xy'> extends true
+	? PgGeometryObjectBuilderInitial<''>
+	: PgGeometryBuilderInitial<''>;
+export function geometry<
+	TName extends string,
+	TMode extends PgGeometryConfig['mode'] & {},
+>(
+	name: TName,
+	config?: PgGeometryConfig<TMode>
+): Equal<TMode, 'xy'> extends true
+	? PgGeometryObjectBuilderInitial<TName>
+	: PgGeometryBuilderInitial<TName>;
 export function geometry(a?: string | PgGeometryConfig, b?: PgGeometryConfig) {
 	const { name, config } = getColumnNameAndConfig<PgGeometryConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
 		return new PgGeometryBuilder(name);
+	}
+	if (config?.type === 'multilinestring') {
+		return new PgGeometryMultiLineStringBuilder(name, config);
 	}
 	return new PgGeometryObjectBuilder(name);
 }
