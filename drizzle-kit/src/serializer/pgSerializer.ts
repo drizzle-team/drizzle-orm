@@ -1336,7 +1336,8 @@ export const fromDatabase = async (
           WHERE
             nsp.nspname = '${tableSchema}'
             AND rel.relname = '${tableName}'
-            AND con.contype IN ('f');`,
+            AND con.contype IN ('f')
+            AND con.conislocal = true;`, // <-- Add this line to filter out inherited constraints
 					);
 
 					foreignKeysCount += tableForeignKeys.length;
