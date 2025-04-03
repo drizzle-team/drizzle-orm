@@ -276,19 +276,25 @@ test('refine table - select with custom data type', (t) => {
 test('refine table - insert', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
-		c2: integer().notNull(),
+		c2: integer(),
 		c3: integer().notNull(),
-		c4: integer().generatedAlwaysAs(1),
+		c4: integer().notNull().default(1),
+		c5: integer().notNull(),
+		c6: integer().generatedAlwaysAs(1),
 	});
 
 	const result = createInsertSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform(Number),
+		c3: (schema) => schema.max(1000),
+		c4: (schema) => schema.max(1000),
+		c5: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: integerSchema.nullable().optional(),
-		c2: integerSchema.max(1000),
-		c3: z.string().transform(Number),
+		c2: integerSchema.max(1000).nullable().optional(),
+		c3: integerSchema.max(1000),
+		c4: integerSchema.max(1000).optional(),
+		c5: z.string().transform(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
