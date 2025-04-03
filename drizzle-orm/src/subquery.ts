@@ -21,15 +21,17 @@ export class Subquery<
 		selectedFields: TSelectedFields;
 		alias: TAlias;
 		isWith: boolean;
+		isMaterialized?: boolean;
 	};
 
-	constructor(sql: SQL, selection: Record<string, unknown>, alias: string, isWith = false) {
+	constructor(sql: SQL, selection: Record<string, unknown>, alias: string, isWith = false, isMaterialized?: boolean) {
 		this._ = {
 			brand: 'Subquery',
 			sql,
 			selectedFields: selection as TSelectedFields,
 			alias: alias as TAlias,
 			isWith,
+			isMaterialized,
 		};
 	}
 
