@@ -26,7 +26,7 @@ import {
 import type { Name, Placeholder, SQLWrapper, View } from '~/sql/index.ts';
 import { and, eq, isSQLWrapper } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	AnySQLiteSelectQueryBuilder,
 	SQLiteDeleteConfig,
@@ -839,6 +839,10 @@ export abstract class SQLiteDialect {
 				case 'SQLiteNumericNumber':
 				case 'SQLiteNumericBigInt': {
 					return sql`cast(${name} as text) as ${sql.identifier(key)}`;
+				}
+
+				case 'SQLiteCustomColumn': {
+					return sql`${(<SQLiteCustomColumn<any>> column).jsonWrapName(name, sql)} as ${sql.identifier(key)}`;
 				}
 
 				default: {

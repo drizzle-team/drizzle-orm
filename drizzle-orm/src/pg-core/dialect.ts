@@ -8,6 +8,7 @@ import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	PgArray,
 	PgColumn,
+	type PgCustomColumn,
 	PgDate,
 	PgDateString,
 	PgJson,
@@ -911,11 +912,11 @@ export class PgDialect {
 			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
 			let targetType = column.columnType;
 			let col = column;
-			let arrVal = '';
+			let dimensionCnt = 0;
 			while (is(col, PgArray)) {
-				col = (column as PgArray<any, any>).baseColumn;
+				col = col.baseColumn;
 				targetType = col.columnType;
-				arrVal = arrVal + '[]';
+				++dimensionCnt;
 			}
 
 			switch (targetType) {
@@ -928,7 +929,14 @@ export class PgDialect {
 				case 'PgGeometry':
 				case 'PgGeometryObject':
 				case 'PgBytea': {
+					const arrVal = '[]'.repeat(dimensionCnt);
+
 					return sql`${name}::text${sql.raw(arrVal).if(arrVal)} as ${sql.identifier(key)}`;
+				}
+				case 'PgCustomColumn': {
+					return sql`${
+						(<PgCustomColumn<any>> col).jsonWrapName(name, sql, dimensionCnt > 0 ? dimensionCnt : undefined)
+					} as ${sql.identifier(key)}`;
 				}
 				default: {
 					return sql`${name} as ${sql.identifier(key)}`;

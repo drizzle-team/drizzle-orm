@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGelTable } from '~/gel-core/table.ts';
-import type { SQL } from '~/sql/sql.ts';
+import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
@@ -63,6 +63,8 @@ export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColu
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private mapJson?: (value: unknown) => T['data'];
+	private wrapName?: (name: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 
 	constructor(
 		table: AnyGelTable<{ name: T['tableName'] }>,
@@ -72,6 +74,8 @@ export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColu
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.mapJson = config.customTypeParams.fromJson;
+		this.wrapName = config.customTypeParams.jsonWrap;
 	}
 
 	getSQLType(): string {
@@ -80,6 +84,16 @@ export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColu
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
 		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
+	}
+
+	mapFromJsonValue(value: unknown): T['data'] {
+		return typeof this.mapJson === 'function' ? this.mapJson(value) : this.mapFromDriverValue(value) as T['data'];
+	}
+
+	jsonWrapName(name: SQL, sql: SQLGenerator, arrayDimensions?: number): SQL {
+		if (typeof this.wrapName === 'function') return this.wrapName(name, sql, arrayDimensions);
+
+		return name;
 	}
 
 	override mapToDriverValue(value: T['data']): T['driverParam'] {
@@ -103,6 +117,11 @@ export type CustomTypeValues = {
 	 * Type helper, that represents what type database driver is accepting for specific database data type
 	 */
 	driverData?: unknown;
+
+	/**
+	 * Type helper, that represents what type field returns after being aggregated to JSON
+	 */
+	jsonData?: unknown;
 
 	/**
 	 * What config type should be used for {@link CustomTypeParams} `dataType` generation
@@ -195,6 +214,37 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional mapping function, that is responsible for data mapping from database's JSON format to JS/TS code
+	 *
+	 * Used by Relational Queries V2
+	 * @example
+	 * For example, when using bigint we need to map it's string representation to JS bigint
+	 * ```
+	 * fromJson(value: string): bigint {
+	 * 	return BigInt(value);
+	 * },
+	 * ```
+	 *
+	 * @default
+	 * Defaults to `fromDriver` function
+	 */
+	fromJson?: (value: T['jsonData']) => T['data'];
+
+	/**
+	 * Optional name wrapper function, that is responsible for modifying field in selection before it's casted to JSON
+	 *
+	 * Used by Relational Queries V2
+	 * @example
+	 * For example, when using bigint we need to cast field to text to preserve data integrity
+	 * ```
+	 * jsonWrap(name: SQL, sql: SQLGenerator, arrayDimensions?: number): SQL {
+	 * 	return sql`${name}::text`
+	 * },
+	 * ```
+	 */
+	jsonWrap?: (name: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 }
 
 /**

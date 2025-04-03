@@ -8,6 +8,7 @@ import {
 	bytea,
 	char,
 	cidr,
+	customType,
 	date,
 	doublePrecision,
 	inet,
@@ -343,4 +344,63 @@ export const studentGrades = pgTable('student_grades', {
 	courseId: integer('course_id').notNull(),
 	semester: varchar({ length: 10 }).notNull(),
 	grade: char({ length: 2 }),
+});
+
+const customBigInt = customType<{
+	data: bigint;
+	driverData: string | bigint;
+	jsonData: string;
+}>({
+	dataType: () => 'bigint',
+	fromDriver: BigInt,
+	fromJson: BigInt,
+});
+
+const customBytes = customType<{
+	data: Buffer;
+	driverData: Buffer;
+	jsonData: string;
+}>({
+	dataType: () => 'bytea',
+	fromJson: (value) => {
+		return Buffer.from(value.slice(2, value.length), 'hex');
+	},
+	jsonWrap: (name, sql, arrayDimensions) => sql`${name}::text${sql.raw('[]'.repeat(arrayDimensions ?? 0))}`,
+});
+
+const customTimestamp = customType<{
+	data: Date;
+	driverData: string;
+	jsonData: string;
+}>({
+	dataType: () => 'timestamp(3)',
+	fromDriver: (value: string) => {
+		return new Date(value + '+0000');
+	},
+	toDriver: (value: Date) => {
+		return value.toISOString();
+	},
+});
+
+const customInt = customType<{
+	data: number;
+	driverData: number;
+}>({
+	dataType: () => 'integer',
+});
+
+export const customTypesTable = pgTable('custom_types', {
+	id: serial('id'),
+	big: customBigInt(),
+	bigArr: customBigInt().array(),
+	bigMtx: customBigInt().array().array(),
+	bytes: customBytes(),
+	bytesArr: customBytes().array(),
+	bytesMtx: customBytes().array().array(),
+	time: customTimestamp(),
+	timeArr: customTimestamp().array(),
+	timeMtx: customTimestamp().array().array(),
+	int: customInt(),
+	intArr: customInt().array(),
+	intMtx: customInt().array().array(),
 });

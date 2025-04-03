@@ -4,7 +4,7 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import { GelColumn, GelDecimal, GelJson, GelUUID } from '~/gel-core/columns/index.ts';
+import { GelArray, GelColumn, type GelCustomColumn, GelDecimal, GelJson, GelUUID } from '~/gel-core/columns/index.ts';
 import type {
 	AnyGelSelectQueryBuilder,
 	GelDeleteConfig,
@@ -890,9 +890,35 @@ export class GelDialect {
 
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
-			switch (column.columnType) {
+			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
+			let targetType = column.columnType;
+			let col = column;
+			let dimensionCnt = 0;
+			while (is(col, GelArray)) {
+				col = col.baseColumn;
+				targetType = col.columnType;
+				++dimensionCnt;
+			}
+
+			switch (targetType) {
+				// WIP - finish after db-side fixes for RQBv2
+				case 'GelNumeric':
+				case 'GelDecimal':
+				case 'GelBigInt64':
+				case 'GelBytes': {
+					const arrVal = '[]'.repeat(dimensionCnt);
+
+					return sql`${name}::text${sql.raw(arrVal).if(arrVal)} as ${sql.identifier(key)}`;
+				}
+
+				case 'GelCustomColumn': {
+					return sql`${
+						(<GelCustomColumn<any>> col).jsonWrapName(name, sql, dimensionCnt > 0 ? dimensionCnt : undefined)
+					} as ${sql.identifier(key)}`;
+				}
+
 				default: {
-					return sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))} as ${sql.identifier(key)}`;
+					return sql`${name} as ${sql.identifier(key)}`;
 				}
 			}
 		}
