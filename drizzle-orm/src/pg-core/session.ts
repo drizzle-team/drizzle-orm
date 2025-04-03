@@ -92,9 +92,11 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				|| this.queryMetadata.type === 'delete'
 			) && this.queryMetadata.tables.length > 0
 		) {
-			const result = await query();
-			await this.cache.onMutate({ tables: this.queryMetadata.tables });
-			return result;
+			const [res] = await Promise.all([
+				query(),
+				this.cache.onMutate({ tables: this.queryMetadata.tables }),
+			]);
+			return res;
 		}
 
 		// don't do any reads if globally disabled
