@@ -792,7 +792,10 @@ export function mapRelationalRow(
 		} else {
 			decoder = field.getSQL().decoder;
 		}
-		row[selectionItem.key] = decoder.mapFromDriverValue(value);
+
+		row[selectionItem.key] = 'mapFromJsonValue' in decoder
+			? (<(value: unknown) => unknown> decoder.mapFromJsonValue)(value)
+			: decoder.mapFromDriverValue(value);
 	}
 
 	return row;

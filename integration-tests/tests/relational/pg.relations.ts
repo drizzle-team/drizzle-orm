@@ -203,4 +203,10 @@ export default defineRelations(schema, (r) => ({
 	courseOfferings: {
 		students: r.many.students(),
 	},
+	customTypesTable: {
+		self: r.many.customTypesTable({
+			from: r.customTypesTable.id,
+			to: r.customTypesTable.id,
+		}),
+	},
 }));

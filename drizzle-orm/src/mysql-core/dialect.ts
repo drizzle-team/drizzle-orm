@@ -31,6 +31,7 @@ import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
+import type { MySqlCustomColumn } from './columns/custom.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
 import type {
@@ -1180,6 +1181,10 @@ export class MySqlDialect {
 				case 'MySqlDecimalBigInt':
 				case 'MySqlBigInt64': {
 					return sql`cast(${name} as char) as ${sql.identifier(key)}`;
+				}
+
+				case 'MySqlCustomColumn': {
+					return sql`${(<MySqlCustomColumn<any>> column).jsonWrapName(name, sql)} as ${sql.identifier(key)}`;
 				}
 
 				default: {
