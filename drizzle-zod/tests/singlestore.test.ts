@@ -233,19 +233,25 @@ test('refine table - select with custom data type', (t) => {
 test('refine table - insert', (t) => {
 	const table = singlestoreTable('test', {
 		c1: int(),
-		c2: int().notNull(),
+		c2: int(),
 		c3: int().notNull(),
-		c4: int().generatedAlwaysAs(1),
+		c4: int().notNull().default(1),
+		c5: int().notNull(),
+		c6: int().generatedAlwaysAs(1),
 	});
 
 	const result = createInsertSchema(table, {
 		c2: (schema) => schema.max(1000),
-		c3: z.string().transform(Number),
+		c3: (schema) => schema.max(1000),
+		c4: (schema) => schema.max(1000),
+		c5: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable().optional(),
-		c2: intSchema.max(1000),
-		c3: z.string().transform(Number),
+		c2: intSchema.max(1000).nullable().optional(),
+		c3: intSchema.max(1000),
+		c4: intSchema.max(1000).optional(),
+		c5: z.string().transform(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
