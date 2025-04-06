@@ -10,9 +10,9 @@ First let's setup your Cloudflare Worker project based on [official docs](https:
 
 name = "neon-cf-demo"
 main = "src/index.ts"
-compatibility_date = "2022-12-09"
+compatibility_date = "2024-09-23"
 usage_model = "unbound"
-node_compat = true
+compatibility_flags = [ "nodejs_compat" ]
 ```
 
 Setup Neon Serverless database - [official docs](https://neon.tech/docs/get-started-with-neon/signing-up), grab database url with project tag, put them in `.dev.vars`. You will need project name for `postgres.js` driver to run migrations - [read here](https://neon.tech/docs/guides/node)
