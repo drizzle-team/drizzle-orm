@@ -290,7 +290,6 @@ export const fromDrizzleSchema = (
 	return { tables, columns, indexes, uniques, fks, pks, checks, views };
 };
 
-
 export const fromDatabase = async (
 	db: SQLiteDB,
 	tablesFilter: (table: string) => boolean = () => true,
@@ -313,16 +312,25 @@ export const fromDatabase = async (
 		type: 'view' | 'table';
 	}>(
 		`SELECT 
-    m.name as "table", p.name as "name", p.type as "columnType", p."notnull" as "notNull", p.dflt_value as "defaultValue", p.pk as pk, p.hidden as hidden, m.sql, m.type as type
-    FROM sqlite_master AS m JOIN pragma_table_xinfo(m.name) AS p
-    WHERE (m.type = 'table' OR m.type = 'view')
-    and m.tbl_name != 'sqlite_sequence' 
-    and m.tbl_name != 'sqlite_stat1' 
-    and m.tbl_name != '_litestream_seq' 
-    and m.tbl_name != '_litestream_lock' 
-    and m.tbl_name != 'libsql_wasm_func_table' 
-    and m.tbl_name != '__drizzle_migrations' 
-    and m.tbl_name != '_cf_KV';
+			m.name as "table", 
+			p.name as "name", 
+			p.type as "columnType",
+			p."notnull" as "notNull", 
+			p.dflt_value as "defaultValue",
+		  p.pk as pk, p.hidden as hidden,
+			m.sql,
+			m.type as type
+    FROM sqlite_master AS m 
+		JOIN pragma_table_xinfo(m.name) AS p
+    WHERE 
+			(m.type = 'table' OR m.type = 'view')
+			and m.tbl_name != 'sqlite_sequence' 
+			and m.tbl_name != 'sqlite_stat1' 
+			and m.tbl_name != '_litestream_seq' 
+			and m.tbl_name != '_litestream_lock' 
+			and m.tbl_name != 'libsql_wasm_func_table' 
+			and m.tbl_name != '__drizzle_migrations' 
+			and m.tbl_name != '_cf_KV';
     `,
 	).then((columns) => columns.filter((it) => tablesFilter(it.table)));
 

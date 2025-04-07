@@ -36,66 +36,99 @@ export type Simplify<T> =
 	}
 	& {};
 
-type ConstraintDuplicate = {
+interface SchemaDuplicate {
+	type: 'schema_name_duplicate';
+	name: string;
+}
+
+interface EnumDuplicate {
+	type: 'enum_name_duplicate';
+	name: string;
+	schema: string;
+}
+
+interface TableDuplicate {
+	type: 'table_name_duplicate';
+	name: string;
+	schema: string;
+}
+interface ColumnDuplicate {
+	type: 'column_name_duplicate';
+	schema: string;
+	table: string;
+	name: string;
+}
+
+interface ConstraintDuplicate {
 	type: 'constraint_name_duplicate';
 	schema: string;
 	table: string;
 	name: string;
-};
-type SequenceDuplicate = {
+}
+interface SequenceDuplicate {
 	type: 'sequence_name_duplicate';
 	schema: string;
 	name: string;
-};
-type ViewDuplicate = {
+}
+
+interface ViewDuplicate {
 	type: 'view_name_duplicate';
 	schema: string;
 	name: string;
-};
+}
 
-type IndexWithoutName = {
+interface IndexWithoutName {
 	type: 'index_no_name';
 	schema: string;
 	table: string;
 	sql: string;
-};
+}
 
-type IndexDuplicate = {
+interface IndexDuplicate {
 	type: 'index_duplicate';
 	schema: string;
 	table: string;
-	indexName: string;
-};
+	name: string;
+}
 
-type PgVectorIndexNoOp = {
+interface PgVectorIndexNoOp {
 	type: 'pgvector_index_noop';
 	table: string;
 	column: string;
 	indexName: string;
 	method: string;
-};
+}
 
-type PolicyDuplicate = {
+interface PolicyDuplicate {
 	type: 'policy_duplicate';
 	schema: string;
 	table: string;
 	policy: string;
-};
+}
+
+interface RoleDuplicate {
+	type: 'role_duplicate';
+	name: string;
+}
 
 export type SchemaError =
+	| SchemaDuplicate
+	| EnumDuplicate
+	| TableDuplicate
+	| ColumnDuplicate
 	| ViewDuplicate
 	| ConstraintDuplicate
 	| SequenceDuplicate
 	| IndexWithoutName
 	| IndexDuplicate
 	| PgVectorIndexNoOp
+	| RoleDuplicate
 	| PolicyDuplicate;
 
-type PolicyNotLinked = {
+interface PolicyNotLinked {
 	type: 'policy_not_linked';
 	policy: string;
-};
-
+}
 export type SchemaWarning = PolicyNotLinked;
 
 export const copy = <T>(it: T): T => {

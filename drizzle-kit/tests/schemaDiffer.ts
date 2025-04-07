@@ -32,7 +32,6 @@ import {
 	roleResolver,
 	schemasResolver,
 	sequencesResolver,
-	sqliteViewsResolver,
 	tablesResolver,
 	uniqueResolver,
 	viewsResolver,
@@ -41,32 +40,29 @@ import { pgSuggestions } from 'src/cli/commands/pgPushUtils';
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { Entities } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
-import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
-import { schemaToTypeScript } from 'src/dialects/postgres/introspect';
-import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
+import { applyPgSnapshotsDiff } from 'src/dialects/postgres/diff';
+import { schemaToTypeScript } from 'src/dialects/postgres/typescript';
+import { fromDatabase, fromDrizzleSchema, generatePgSnapshot } from 'src/dialects/postgres/drizzle';
+import { View as SqliteView } from 'src/dialects/sqlite/ddl';
+import { prepareFromSqliteImports } from 'src/dialects/sqlite/imports';
 import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/dialects/sqlite/introspect';
+import { fromDatabase as fromSqliteDatabase } from 'src/dialects/sqlite/serializer';
+import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
+import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
 import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
 import { mysqlSchema, squashMysqlScheme, ViewSquashed } from 'src/serializer/mysqlSchema';
 import { fromDatabase as fromMySqlDatabase, generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';
-import { drizzleToInternal } from 'src/serializer/pgDrizzleSerializer';
 import { prepareFromPgImports } from 'src/serializer/pgImports';
-import { pgSchema, PostgresGenerateSquasher, PostgresPushSquasher, squashPgScheme } from 'src/dialects/postgres/ddl';
-import { fromDatabase, generatePgSnapshot } from 'src/dialects/postgres/serializer';
 import { prepareFromSingleStoreImports } from 'src/serializer/singlestoreImports';
 import { singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import {
 	fromDatabase as fromSingleStoreDatabase,
 	generateSingleStoreSnapshot,
 } from 'src/serializer/singlestoreSerializer';
-import { prepareFromSqliteImports } from 'src/dialects/sqlite/imports';
-import { sqliteSchema, squashSqliteScheme, View as SqliteView } from 'src/dialects/sqlite/ddl';
-import { fromDatabase as fromSqliteDatabase, fromDrizzleSchema } from 'src/dialects/sqlite/serializer';
-import { applyPgSnapshotsDiff } from 'src/dialects/postgres/diff';
 import {
 	mockChecksResolver,
 	mockColumnsResolver,
 	mockedNamedResolver,
-	mockedNamedWithSchemaResolver,
 	mockEnumsResolver,
 	mockFKsResolver,
 	mockIndexesResolver,
@@ -406,7 +402,7 @@ export const diffTestSchemasPush = async (
 
 	const leftMaterializedViews = Object.values(right).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
-	const { schema } = drizzleToInternal(
+	const { schema } = fromDrizzleSchema(
 		leftTables,
 		leftEnums,
 		leftSchemas,
@@ -1533,8 +1529,6 @@ export const applyLibSQLDiffs = async (
 
 	return { sqlStatements, statements };
 };
-
-
 
 export const diffTestSchemasLibSQL = async (
 	left: SqliteSchema,

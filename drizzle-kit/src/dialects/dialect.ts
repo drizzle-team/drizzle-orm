@@ -18,7 +18,7 @@ type Assume<T, U> = T extends U ? T : U;
 type ExtendedType =
 	| (`${Exclude<DataType, 'string[]'>}?` | DataType)
 	| 'required'
-	| [string, ...string[]]
+	| [string, ...(string | null)[]]
 	| {
 		[K: string]: Exclude<ExtendedType, 'required'>;
 	}
@@ -26,7 +26,7 @@ type ExtendedType =
 		[K: string]: Exclude<ExtendedType, 'required'>;
 	}]);
 
-type InferField<T extends ExtendedType> = T extends string[] ? T[number]
+type InferField<T extends ExtendedType> = T extends (string | null)[] ? T[number]
 	: T extends [Record<string, ExtendedType>] ? {
 			[K in keyof T[0]]: InferField<T[0][K]>;
 		}[]

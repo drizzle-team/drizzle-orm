@@ -15,21 +15,24 @@ export const createDDL = () => {
 			typeSchema: 'string?',
 			primaryKey: 'boolean',
 			notNull: 'boolean',
-			autoincrement: 'boolean?',
 			default: {
 				value: 'string',
 				expression: 'boolean',
 			},
-			isUnique: 'string?',
+			// TODO: remove isunuque, uniquename, nullsnotdistinct
+			// these should be in unique constraints ddl and squash
+			// in sql convertor when possible
+			isUnique: 'boolean?',
 			uniqueName: 'string?',
 			nullsNotDistinct: 'boolean?',
+
 			generated: {
 				type: ['stored', 'virtual'],
 				as: 'string',
 			},
 			identity: {
 				name: 'string',
-				type: ['always', 'default'],
+				type: ['always', 'byDefault'],
 				increment: 'string?',
 				minValue: 'string?',
 				maxValue: 'string?',
@@ -37,10 +40,6 @@ export const createDDL = () => {
 				cache: 'string?',
 				cycle: 'boolean?',
 			},
-			isArray: 'boolean?',
-			dimensions: 'number?',
-			rawType: 'string?',
-			isDefaultAnExpression: 'boolean?',
 		},
 		indexes: {
 			schema: 'required',
@@ -49,8 +48,11 @@ export const createDDL = () => {
 				value: 'string',
 				isExpression: 'boolean',
 				asc: 'boolean',
-				nulls: 'string?',
-				opclass: 'string?',
+				nullsFirst: 'boolean',
+				opclass: {
+					name: 'string',
+					default: 'boolean',
+				},
 			}],
 			isUnique: 'boolean',
 			where: 'string?',
@@ -88,11 +90,11 @@ export const createDDL = () => {
 		},
 		sequences: {
 			schema: 'required',
-			increment: 'string?',
+			incrementBy: 'string?',
 			minValue: 'string?',
 			maxValue: 'string?',
 			startWith: 'string?',
-			cache: 'string?',
+			cacheSize: 'string?',
 			cycle: 'boolean?',
 		},
 		roles: {
@@ -105,7 +107,7 @@ export const createDDL = () => {
 			table: 'required',
 			as: ['PERMISSIVE', 'RESTRICTIVE'],
 			for: ['ALL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE'],
-			roles: 'string[]',
+			roles: 'string[]', // TO { role_name | PUBLIC | CURRENT_ROLE | SESSION_USER }
 			using: 'string?',
 			withCheck: 'string?',
 		},
@@ -113,14 +115,14 @@ export const createDDL = () => {
 			schema: 'required',
 			definition: 'string?',
 			with: {
-				checkOption: ['local', 'cascaded'],
+				checkOption: ['local', 'cascaded', null],
 				securityBarrier: 'boolean?',
-				securityInvoker: 'boolean',
+				securityInvoker: 'boolean?',
 				fillfactor: 'number?',
 				toastTupleTarget: 'number?',
 				parallelWorkers: 'number?',
 				autovacuumEnabled: 'boolean?',
-				vacuumIndexCleanup: ['auto', 'off', 'on'],
+				vacuumIndexCleanup: ['auto', 'off', 'on', null],
 				vacuumTruncate: 'boolean?',
 				autovacuumVacuumThreshold: 'number?',
 				autovacuumVacuumScaleFactor: 'number?',
@@ -136,7 +138,10 @@ export const createDDL = () => {
 				userCatalogTable: 'boolean?',
 			},
 			withNoData: 'boolean?',
-			using: 'string?',
+			using: {
+				name: 'string',
+				default: 'boolean',
+			},
 			tablespace: 'string?',
 			materialized: 'boolean',
 			isExisting: 'boolean',
@@ -178,6 +183,22 @@ export type Table = {
 	isRlsEnabled: boolean;
 };
 
+export interface InterimSchema {
+	schemas: Schema[];
+	enums: Enum[];
+	tables: PostgresEntities['tables'][];
+	columns: Column[];
+	indexes: Index[];
+	pks: PrimaryKey[];
+	fks: ForeignKey[];
+	uniques: UniqueConstraint[];
+	checks: CheckConstraint[];
+	sequences: Sequence[];
+	roles: Role[];
+	policies: Policy[];
+	views: View[];
+}
+
 export const tableFromDDL = (table: PostgresEntities['tables'], ddl: PostgresDDL): Table => {
 	const filter = { schema: table.schema, table: table.name } as const;
 	const columns = ddl.columns.list(filter);
@@ -197,4 +218,7 @@ export const tableFromDDL = (table: PostgresEntities['tables'], ddl: PostgresDDL
 		indexes,
 		policies,
 	};
+};
+
+export const interimToDDL = (interim: InterimSchema): PostgresDDL => {
 };

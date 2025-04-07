@@ -1,4 +1,4 @@
-import { Simplify } from "../utils";
+import { Simplify } from '../utils';
 
 export type Named = {
 	name: string;
@@ -19,6 +19,16 @@ export type RenamedItems<T> = {
 	schema?: string;
 	table: string;
 	renames: { from: T; to: T }[];
+};
+
+type NullIfUndefined<T> = T extends undefined ? null : T;
+
+export const getOrNull = <T extends Record<string, unknown>, TKey extends keyof T>(
+	it: T | null,
+	key: TKey,
+): NullIfUndefined<T[TKey]> | null => {
+	if (it === null) return null;
+	return (it?.[key] ?? null) as any;
 };
 
 export type GroupedRow<

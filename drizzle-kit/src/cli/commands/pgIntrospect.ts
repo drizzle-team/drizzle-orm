@@ -2,7 +2,7 @@ import { renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { originUUID } from '../../global';
 import type { PgSchema, PgSchemaInternal } from '../../dialects/postgres/ddl';
-import { fromDatabase } from '../../dialects/postgres/serializer';
+import { fromDatabase } from '../../dialects/postgres/drizzle';
 import type { DB } from '../../utils';
 import { Entities } from '../validations/cli';
 import { ProgressView } from '../views';
