@@ -39,7 +39,7 @@ import {
 	PostgresPushSquasher,
 	squashPgScheme,
 } from './dialects/postgres/ddl';
-import { generatePgSnapshot } from './dialects/postgres/serializer';
+import { generatePgSnapshot } from './dialects/postgres/drizzle';
 import {
 	SingleStoreSchema as SingleStoreSchemaKit,
 	singlestoreSchema,
@@ -49,7 +49,7 @@ import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer'
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './dialects/sqlite/ddl';
 import { fromDrizzleSchema } from './dialects/sqlite/serializer';
 import type { DB, SQLiteDB } from './utils';
-import { drizzleToInternal } from './serializer/pgDrizzleSerializer';
+import { drizzleToInternal } from './dialects/postgres/pgDrizzleSerializer';
 export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;

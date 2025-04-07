@@ -1,5 +1,5 @@
 import { pgSchema, PostgresGenerateSquasher, squashPgScheme } from '../dialects/postgres/ddl';
-import { generateFromOptional, InterimOptionalSchema } from '../dialects/postgres/serializer';
+import { generateFromOptional, InterimOptionalSchema } from '../dialects/postgres/drizzle';
 import { applyPgSnapshotsDiff } from '../dialects/postgres/diff';
 import {
 	mockColumnsResolver,

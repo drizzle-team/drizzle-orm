@@ -1,7 +1,5 @@
 import { sql } from 'drizzle-orm';
 import { index, pgTable, serial, text, vector } from 'drizzle-orm/pg-core';
-import { JsonCreateIndexStatement } from 'src/jsonStatements';
-import { PgSquasher } from 'src/dialects/postgres/ddl';
 import { diffTestSchemas } from 'tests/schemaDiffer';
 import { expect } from 'vitest';
 import { DialectSuite, run } from './common';

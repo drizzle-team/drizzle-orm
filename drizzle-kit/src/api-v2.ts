@@ -3,9 +3,9 @@ import type { CasingType } from './cli/validations/common';
 import { originUUID } from './global';
 import { prepareFromExports } from './serializer/pgImports';
 import type { PgSchema as PgSchemaKit } from './dialects/postgres/ddl';
-import { generatePgSnapshot } from './dialects/postgres/serializer';
+import { generatePgSnapshot } from './dialects/postgres/drizzle';
 import type { SchemaError, SchemaWarning } from './utils';
-import { drizzleToInternal } from './serializer/pgDrizzleSerializer';
+import { drizzleToInternal } from './dialects/postgres/pgDrizzleSerializer';
 
 export const generatePostgresDrizzleJson = (
 	imports: Record<string, unknown>,

@@ -3,11 +3,9 @@ import fs from 'fs';
 import * as glob from 'glob';
 import Path from 'path';
 import type { CasingType } from 'src/cli/validations/common';
-import { error, schemaError, schemaWarning, sqliteSchemaError } from '../cli/views';
+import { error, schemaError, schemaWarning } from '../cli/views';
 import type { MySqlSchemaInternal } from './mysqlSchema';
-import type { PgSchemaInternal } from '../dialects/postgres/ddl';
 import type { SingleStoreSchemaInternal } from './singlestoreSchema';
-import type { SQLiteDDL } from '../dialects/sqlite/ddl';
 
 export const serializeMySql = async (
 	path: string | string[],
@@ -29,20 +27,20 @@ export const serializePg = async (
 	path: string | string[],
 	casing: CasingType | undefined,
 	schemaFilter?: string[],
-): Promise<PgSchemaInternal> => {
+) => {
 	const filenames = prepareFilenames(path);
 
 	const { prepareFromPgImports } = await import('./pgImports');
-	const { generatePgSnapshot } = await import('../dialects/postgres/serializer');
-	const { drizzleToInternal } = await import('./pgDrizzleSerializer');
+	const { generatePgSnapshot } = await import('../dialects/postgres/drizzle');
+	const { fromDrizzleSchema } = await import('../dialects/postgres/drizzle');
 
-	const { tables, enums, schemas, sequences, views, matViews, roles, policies } = await prepareFromPgImports(
+	const { schemas, enums, tables, sequences, views, matViews, roles, policies } = await prepareFromPgImports(
 		filenames,
 	);
-	const { schema, errors, warnings } = drizzleToInternal(
+	const { schema, errors, warnings } = fromDrizzleSchema(
+		schemas,
 		tables,
 		enums,
-		schemas,
 		sequences,
 		roles,
 		policies,
@@ -61,7 +59,13 @@ export const serializePg = async (
 		process.exit(1);
 	}
 
-	return generatePgSnapshot(schema);
+	const { ddl, errors: errors2 } = generatePgSnapshot(schema);
+
+	if (errors2.length > 0) {
+		console.log(errors.map((it) => schemaError(it)).join('\n'));
+		process.exit(1);
+	}
+	return ddl;
 };
 
 export const serializeSingleStore = async (
