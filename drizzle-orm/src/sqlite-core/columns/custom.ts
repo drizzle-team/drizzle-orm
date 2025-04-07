@@ -117,7 +117,7 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 	}
 }
 
-export type CustomTypeValues = {
+export interface CustomTypeValues {
 	/**
 	 * Required type for custom column, that will infer proper type model
 	 *
@@ -139,8 +139,7 @@ export type CustomTypeValues = {
 	 *
 	 * Needed only in case driver's output and input for type differ
 	 *
-	 * @default
-	 * Defaults to `driverData`
+	 * Defaults to {@link driverData}
 	 */
 	driverOutput?: unknown;
 
@@ -183,7 +182,7 @@ export type CustomTypeValues = {
 	 * });
 	 */
 	default?: boolean;
-};
+}
 
 export interface CustomTypeParams<T extends CustomTypeValues> {
 	/**
@@ -257,9 +256,11 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	/**
 	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
-	 * Used by relational queries
+	 * Used by [relational queries](https://orm.drizzle.team/docs/docs/rqb-v2)
+	 *
+	 * Defaults to {@link fromDriver} function
 	 * @example
-	 * For example, when querying blob column via RQB or JSON funcitons, the result field will be returned as it's hex string representation, as opposed to Buffer from regular query
+	 * For example, when querying blob column via [RQB](https://orm.drizzle.team/docs/docs/rqb-v2) or [JSON functions](https://orm.drizzle.team/docs/docs/json-functions), the result field will be returned as it's hex string representation, as opposed to Buffer from regular query
 	 * To handle that, we need a separate function to handle such field's mapping:
 	 * ```
 	 * fromJson(value: string): Buffer {
@@ -279,17 +280,17 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * 	customField: Buffer([...]);
 	 * }
 	 * ```
-	 * @default
-	 * Defaults to {@link fromDriver} function
 	 */
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
-	 * Optional selection modifier function, that is used for modifying selection of column inside JSON functions
+	 * Optional selection modifier function, that is used for modifying selection of column inside [JSON functions](https://orm.drizzle.team/docs/docs/json-functions)
 	 *
 	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
 	 *
-	 * Used by relational queries
+	 * Used by [relational queries](https://orm.drizzle.team/docs/docs/rqb-v2)
+	 *
+	 * Following types are being casted to text by default: `numeric`, `decimal`, `bigint`, `blob` (via `hex()` function)
 	 * @example
 	 * For example, when using numeric field for bigint storage we need to cast field to text to preserve data integrity
 	 * ```
@@ -335,9 +336,6 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * 	bigint: "5044565289845416380"; // Data is preserved due to conversion of field to text before JSON-ification
 	 * }
 	 * ```
-	 *
-	 * @default
-	 * Following types are being casted to text by default: `numeric`, `decimal`, `bigint`, `blob` (via `hex()` function)
 	 */
 	forJsonSelect?: (identifier: SQL, sql: SQLGenerator) => SQL;
 }
