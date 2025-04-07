@@ -11,7 +11,14 @@ import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.t
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Columns, Table } from '~/table.ts';
-import { type DrizzleTypeError, haveSameKeys, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import {
+	type DrizzleTypeError,
+	haveSameKeys,
+	isIterable,
+	mapUpdateSet,
+	orderSelectedFields,
+	type Simplify,
+} from '~/utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -51,11 +58,11 @@ export class SQLiteInsertBuilder<
 	) {}
 
 	values(value: SQLiteInsertValue<TTable>): SQLiteInsertBase<TTable, TResultType, TRunResult>;
-	values(values: SQLiteInsertValue<TTable>[]): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	values(values: Iterable<SQLiteInsertValue<TTable>>): SQLiteInsertBase<TTable, TResultType, TRunResult>;
 	values(
-		values: SQLiteInsertValue<TTable> | SQLiteInsertValue<TTable>[],
+		rawValues: SQLiteInsertValue<TTable> | Iterable<SQLiteInsertValue<TTable>>,
 	): SQLiteInsertBase<TTable, TResultType, TRunResult> {
-		values = Array.isArray(values) ? values : [values];
+		const values = isIterable(rawValues) ? [...rawValues] : [rawValues];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
