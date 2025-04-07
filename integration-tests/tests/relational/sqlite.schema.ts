@@ -220,8 +220,8 @@ const customBytes = customType<{
 	fromJson: (value) => {
 		return Buffer.from(value, 'hex');
 	},
-	jsonWrap: (name, sql) => {
-		return sql`hex(${name})`;
+	forJsonSelect: (identifier, sql) => {
+		return sql`hex(${identifier})`;
 	},
 });
 

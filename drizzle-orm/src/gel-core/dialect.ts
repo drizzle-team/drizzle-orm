@@ -913,7 +913,7 @@ export class GelDialect {
 
 				case 'GelCustomColumn': {
 					return sql`${
-						(<GelCustomColumn<any>> col).jsonWrapName(name, sql, dimensionCnt > 0 ? dimensionCnt : undefined)
+						(<GelCustomColumn<any>> col).jsonSelectIdentifier(name, sql, dimensionCnt > 0 ? dimensionCnt : undefined)
 					} as ${sql.identifier(key)}`;
 				}
 

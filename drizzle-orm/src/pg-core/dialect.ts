@@ -935,7 +935,7 @@ export class PgDialect {
 				}
 				case 'PgCustomColumn': {
 					return sql`${
-						(<PgCustomColumn<any>> col).jsonWrapName(name, sql, dimensionCnt > 0 ? dimensionCnt : undefined)
+						(<PgCustomColumn<any>> col).jsonSelectIdentifier(name, sql, dimensionCnt > 0 ? dimensionCnt : undefined)
 					} as ${sql.identifier(key)}`;
 				}
 				default: {

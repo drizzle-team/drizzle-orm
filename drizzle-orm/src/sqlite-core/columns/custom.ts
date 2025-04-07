@@ -64,7 +64,7 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
 	private mapJson?: (value: unknown) => T['data'];
-	private wrapName?: (name: SQL, sql: SQLGenerator) => SQL;
+	private forJsonSelect?: (name: SQL, sql: SQLGenerator) => SQL;
 
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
@@ -75,7 +75,7 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
 		this.mapJson = config.customTypeParams.fromJson;
-		this.wrapName = config.customTypeParams.jsonWrap;
+		this.forJsonSelect = config.customTypeParams.forJsonSelect;
 	}
 
 	getSQLType(): string {
@@ -90,8 +90,8 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 		return typeof this.mapJson === 'function' ? this.mapJson(value) : this.mapFromDriverValue(value) as T['data'];
 	}
 
-	jsonWrapName(name: SQL, sql: SQLGenerator): SQL {
-		if (typeof this.wrapName === 'function') return this.wrapName(name, sql);
+	jsonSelectIdentifier(identifier: SQL, sql: SQLGenerator): SQL {
+		if (typeof this.forJsonSelect === 'function') return this.forJsonSelect(identifier, sql);
 
 		const rawType = this.getSQLType().toLowerCase();
 		const parenPos = rawType.indexOf('(');
@@ -101,13 +101,13 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 			case 'numeric':
 			case 'decimal':
 			case 'bigint': {
-				return sql`cast(${name} as text)`;
+				return sql`cast(${identifier} as text)`;
 			}
 			case 'blob': {
-				return sql`hex(${name})`;
+				return sql`hex(${identifier})`;
 			}
 			default: {
-				return name;
+				return identifier;
 			}
 		}
 	}
@@ -133,6 +133,16 @@ export type CustomTypeValues = {
 	 * Type helper, that represents what type database driver is accepting for specific database data type
 	 */
 	driverData?: unknown;
+
+	/**
+	 * Type helper, that represents what type database driver is returning for specific database data type
+	 *
+	 * Needed only in case driver's output and input for type differ
+	 *
+	 * @default
+	 * Defaults to `driverData`
+	 */
+	driverOutput?: unknown;
 
 	/**
 	 * Type helper, that represents what type field returns after being aggregated to JSON
@@ -208,7 +218,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	dataType: (config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined)) => string;
 
 	/**
-	 * Optional mapping function, between user input and driver
+	 * Optional mapping function, that is used to transform inputs from desired to be used in code format to one suitable for driver
 	 * @example
 	 * For example, when using jsonb we need to map JS/TS object to string before writing to database
 	 * ```
@@ -220,47 +230,116 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	toDriver?: (value: T['data']) => T['driverData'] | SQL;
 
 	/**
-	 * Optional mapping function, that is responsible for data mapping from database to JS/TS code
+	 * Optional mapping function, that is used for transforming data returned by driver to desired column's output format
 	 * @example
 	 * For example, when using timestamp we need to map string Date representation to JS Date
 	 * ```
 	 * fromDriver(value: string): Date {
 	 * 	return new Date(value);
-	 * },
+	 * }
+	 * ```
+	 *
+	 * It'll cause the returned data to change from:
+	 * ```
+	 * {
+	 * 	customField: "2025-04-07T03:25:16.635Z";
+	 * }
+	 * ```
+	 * to:
+	 * ```
+	 * {
+	 * 	customField: new Date("2025-04-07T03:25:16.635Z");
+	 * }
 	 * ```
 	 */
-	fromDriver?: (value: T['driverData']) => T['data'];
+	fromDriver?: (value: 'driverOutput' extends keyof T ? T['driverOutput'] : T['driverData']) => T['data'];
 
 	/**
-	 * Optional mapping function, that is responsible for data mapping from database's JSON format to JS/TS code
+	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
-	 * Used by Relational Queries V2
+	 * Used by relational queries
 	 * @example
-	 * For example, when using blob we need to map it's hex representation back to Buffer
+	 * For example, when querying blob column via RQB or JSON funcitons, the result field will be returned as it's hex string representation, as opposed to Buffer from regular query
+	 * To handle that, we need a separate function to handle such field's mapping:
 	 * ```
 	 * fromJson(value: string): Buffer {
 	 * 	return Buffer.from(value, 'hex');
 	 * },
 	 * ```
 	 *
+	 * It'll cause the returned data to change from:
+	 * ```
+	 * {
+	 * 	customField: "04A8...";
+	 * }
+	 * ```
+	 * to:
+	 * ```
+	 * {
+	 * 	customField: Buffer([...]);
+	 * }
+	 * ```
 	 * @default
-	 * Defaults to `fromDriver` function
+	 * Defaults to {@link fromDriver} function
 	 */
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
-	 * Optional name wrapper function, that is responsible for modifying field in selection before it's casted to JSON
+	 * Optional selection modifier function, that is used for modifying selection of column inside JSON functions
 	 *
-	 * Used by Relational Queries V2
+	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
+	 *
+	 * Used by relational queries
 	 * @example
-	 * For example, when using blob we need to cast field to hex to be able to query it in JSON fields
+	 * For example, when using numeric field for bigint storage we need to cast field to text to preserve data integrity
 	 * ```
-	 * jsonWrap(name: SQL, sql: SQLGenerator): SQL {
-	 * 	return sql`hex(${name})`
+	 * forJsonSelect(identifier: SQL, sql: SQLGenerator): SQL {
+	 * 	return sql`cast(${identifier} as text)`
 	 * },
 	 * ```
+	 *
+	 * This will change query from:
+	 * ```
+	 * SELECT
+	 * 	json_object('bigint', `t`.`bigint`)
+	 * 	FROM
+	 * 	(
+	 * 		SELECT
+	 * 		`table`.`custom_bigint` AS "bigint"
+	 * 		FROM
+	 * 		`table`
+	 * 	) AS `t`
+	 * ```
+	 * to:
+	 * ```
+	 * SELECT
+	 * 	json_object('bigint', `t`.`bigint`)
+	 * 	FROM
+	 * 	(
+	 * 		SELECT
+	 * 		cast(`table`.`custom_bigint` as text) AS `bigint`
+	 * 		FROM
+	 * 		`table`
+	 * 	) AS `t`
+	 * ```
+	 *
+	 * Returned by query object will change from:
+	 * ```
+	 * {
+	 * 	bigint: 5044565289845416000; // Partial data loss due to direct conversion to JSON format
+	 * }
+	 * ```
+	 * to:
+	 * ```
+	 * {
+	 * 	bigint: "5044565289845416380"; // Data is preserved due to conversion of field to text before JSON-ification
+	 * }
+	 * ```
+	 *
+	 * @default
+	 * Following types are being casted to text by default: `numeric`, `decimal`, `bigint`, `blob` (via `hex()` function)
 	 */
-	jsonWrap?: (name: SQL, sql: SQLGenerator) => SQL;
+	forJsonSelect?: (identifier: SQL, sql: SQLGenerator) => SQL;
 }
 
 /**

@@ -842,7 +842,7 @@ export abstract class SQLiteDialect {
 				}
 
 				case 'SQLiteCustomColumn': {
-					return sql`${(<SQLiteCustomColumn<any>> column).jsonWrapName(name, sql)} as ${sql.identifier(key)}`;
+					return sql`${(<SQLiteCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
 				}
 
 				default: {

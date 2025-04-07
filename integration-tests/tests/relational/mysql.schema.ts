@@ -319,7 +319,8 @@ export const studentGrades = mysqlTable('student_grades', {
 
 const customBigInt = customType<{
 	data: bigint;
-	driverData: bigint | string;
+	driverData: bigint;
+	driverOutput: string;
 	jsonData: string;
 }>({
 	dataType: () => 'bigint',
@@ -328,7 +329,8 @@ const customBigInt = customType<{
 
 const customBytes = customType<{
 	data: Buffer;
-	driverData: Buffer | Uint8Array;
+	driverData: Buffer;
+	driverOutput: Buffer | Uint8Array;
 	jsonData: string;
 }>({
 	dataType: () => 'blob',
@@ -338,8 +340,8 @@ const customBytes = customType<{
 	fromJson: (value) => {
 		return Buffer.from(value, 'hex');
 	},
-	jsonWrap: (name, sql) => {
-		return sql`hex(${name})`;
+	forJsonSelect: (identifier, sql) => {
+		return sql`hex(${identifier})`;
 	},
 });
 

@@ -348,7 +348,8 @@ export const studentGrades = pgTable('student_grades', {
 
 const customBigInt = customType<{
 	data: bigint;
-	driverData: string | bigint;
+	driverData: bigint;
+	driverOutput: string;
 	jsonData: string;
 }>({
 	dataType: () => 'bigint',
@@ -365,7 +366,8 @@ const customBytes = customType<{
 	fromJson: (value) => {
 		return Buffer.from(value.slice(2, value.length), 'hex');
 	},
-	jsonWrap: (name, sql, arrayDimensions) => sql`${name}::text${sql.raw('[]'.repeat(arrayDimensions ?? 0))}`,
+	forJsonSelect: (identifier, sql, arrayDimensions) =>
+		sql`${identifier}::text${sql.raw('[]'.repeat(arrayDimensions ?? 0))}`,
 });
 
 const customTimestamp = customType<{

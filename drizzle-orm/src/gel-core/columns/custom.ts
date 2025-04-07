@@ -64,7 +64,7 @@ export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColu
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
 	private mapJson?: (value: unknown) => T['data'];
-	private wrapName?: (name: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
+	private forJsonSelect?: (name: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 
 	constructor(
 		table: AnyGelTable<{ name: T['tableName'] }>,
@@ -75,7 +75,7 @@ export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColu
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
 		this.mapJson = config.customTypeParams.fromJson;
-		this.wrapName = config.customTypeParams.jsonWrap;
+		this.forJsonSelect = config.customTypeParams.forJsonSelect;
 	}
 
 	getSQLType(): string {
@@ -90,10 +90,10 @@ export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColu
 		return typeof this.mapJson === 'function' ? this.mapJson(value) : this.mapFromDriverValue(value) as T['data'];
 	}
 
-	jsonWrapName(name: SQL, sql: SQLGenerator, arrayDimensions?: number): SQL {
-		if (typeof this.wrapName === 'function') return this.wrapName(name, sql, arrayDimensions);
+	jsonSelectIdentifier(identifier: SQL, sql: SQLGenerator, arrayDimensions?: number): SQL {
+		if (typeof this.forJsonSelect === 'function') return this.forJsonSelect(identifier, sql, arrayDimensions);
 
-		return name;
+		return identifier;
 	}
 
 	override mapToDriverValue(value: T['data']): T['driverParam'] {
@@ -112,6 +112,16 @@ export type CustomTypeValues = {
 	 * If you want your column to be `number` type after selecting/or on inserting - use `data: number`. Like `integer`
 	 */
 	data: unknown;
+
+	/**
+	 * Type helper, that represents what type database driver is returning for specific database data type
+	 *
+	 * Needed only in case driver's output and input for type differ
+	 *
+	 * @default
+	 * Defaults to `driverData`
+	 */
+	driverOutput?: unknown;
 
 	/**
 	 * Type helper, that represents what type database driver is accepting for specific database data type
@@ -192,7 +202,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	dataType: (config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined)) => string;
 
 	/**
-	 * Optional mapping function, between user input and driver
+	 * Optional mapping function, that is used to transform inputs from desired to be used in code format to one suitable for driver
 	 * @example
 	 * For example, when using jsonb we need to map JS/TS object to string before writing to database
 	 * ```
@@ -204,47 +214,113 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	toDriver?: (value: T['data']) => T['driverData'] | SQL;
 
 	/**
-	 * Optional mapping function, that is responsible for data mapping from database to JS/TS code
+	 * Optional mapping function, that is used for transforming data returned by driver to desired column's output format
 	 * @example
 	 * For example, when using timestamp we need to map string Date representation to JS Date
 	 * ```
 	 * fromDriver(value: string): Date {
 	 * 	return new Date(value);
-	 * },
+	 * }
+	 * ```
+	 *
+	 * It'll cause the returned data to change from:
+	 * ```
+	 * {
+	 * 	customField: "2025-04-07T03:25:16.635Z";
+	 * }
+	 * ```
+	 * to:
+	 * ```
+	 * {
+	 * 	customField: new Date("2025-04-07T03:25:16.635Z");
+	 * }
 	 * ```
 	 */
-	fromDriver?: (value: T['driverData']) => T['data'];
+	fromDriver?: (value: 'driverOutput' extends keyof T ? T['driverOutput'] : T['driverData']) => T['data'];
 
 	/**
-	 * Optional mapping function, that is responsible for data mapping from database's JSON format to JS/TS code
+	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
-	 * Used by Relational Queries V2
+	 * Used by relational queries
 	 * @example
-	 * For example, when using bigint we need to map it's string representation to JS bigint
+	 * For example, when querying bigint column via RQB or JSON funcitons, the result field will be returned as it's string representation, as opposed to bigint from regular query
+	 * To handle that, we need a separate function to handle such field's mapping:
 	 * ```
 	 * fromJson(value: string): bigint {
 	 * 	return BigInt(value);
 	 * },
 	 * ```
 	 *
+	 * It'll cause the returned data to change from:
+	 * ```
+	 * {
+	 * 	customField: "5044565289845416380";
+	 * }
+	 * ```
+	 * to:
+	 * ```
+	 * {
+	 * 	customField: 5044565289845416380n;
+	 * }
+	 * ```
 	 * @default
-	 * Defaults to `fromDriver` function
+	 * Defaults to {@link fromDriver} function
 	 */
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
-	 * Optional name wrapper function, that is responsible for modifying field in selection before it's casted to JSON
+	 * Optional selection modifier function, that is used for modifying selection of column inside JSON functions
 	 *
-	 * Used by Relational Queries V2
+	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
+	 *
+	 * Used by relational queries
 	 * @example
 	 * For example, when using bigint we need to cast field to text to preserve data integrity
 	 * ```
-	 * jsonWrap(name: SQL, sql: SQLGenerator, arrayDimensions?: number): SQL {
-	 * 	return sql`${name}::text`
+	 * forJsonSelect(identifier: SQL, sql: SQLGenerator, arrayDimensions?: number): SQL {
+	 * 	return sql`${identifier}::text`
 	 * },
 	 * ```
+	 *
+	 * This will change query from:
+	 * ```
+	 * SELECT
+	 * 	row_to_json("t".*)
+	 * 	FROM
+	 * 	(
+	 * 		SELECT
+	 * 		"table"."custom_bigint" AS "bigint"
+	 * 		FROM
+	 * 		"table"
+	 * 	) AS "t"
+	 * ```
+	 * to:
+	 * ```
+	 * SELECT
+	 * 	row_to_json("t".*)
+	 * 	FROM
+	 * 	(
+	 * 		SELECT
+	 * 		"table"."custom_bigint"::text AS "bigint"
+	 * 		FROM
+	 * 		"table"
+	 * 	) AS "t"
+	 * ```
+	 *
+	 * Returned by query object will change from:
+	 * ```
+	 * {
+	 * 	bigint: 5044565289845416000; // Partial data loss due to direct conversion to JSON format
+	 * }
+	 * ```
+	 * to:
+	 * ```
+	 * {
+	 * 	bigint: "5044565289845416380"; // Data is preserved due to conversion of field to text before JSON-ification
+	 * }
+	 * ```
 	 */
-	jsonWrap?: (name: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
+	forJsonSelect?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 }
 
 /**

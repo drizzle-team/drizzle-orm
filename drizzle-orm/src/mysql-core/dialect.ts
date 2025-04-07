@@ -1184,7 +1184,7 @@ export class MySqlDialect {
 				}
 
 				case 'MySqlCustomColumn': {
-					return sql`${(<MySqlCustomColumn<any>> column).jsonWrapName(name, sql)} as ${sql.identifier(key)}`;
+					return sql`${(<MySqlCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
 				}
 
 				default: {
