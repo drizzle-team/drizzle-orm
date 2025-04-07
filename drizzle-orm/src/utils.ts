@@ -4,8 +4,8 @@ import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
-import { Param, SQL, View } from './sql/sql.ts';
 import type { DriverValueDecoder } from './sql/sql.ts';
+import { Param, SQL, View } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
@@ -317,3 +317,7 @@ export function isConfig(data: any): boolean {
 }
 
 export type NeonAuthToken = string | (() => string | Promise<string>);
+
+export function isIterable<T>(data: unknown): data is Iterable<T> {
+	return typeof data === 'object' && data !== null && Symbol.iterator in data;
+}
