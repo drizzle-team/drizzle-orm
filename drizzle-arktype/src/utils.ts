@@ -16,17 +16,12 @@ export const isPgEnum: (entity: any) => entity is PgEnum<[string, ...string[]]> 
 type Literal = type.infer<typeof literalSchema>;
 export type Json = Literal | Record<string, any> | any[];
 
-export type IsEnumDefined<TEnum extends [string, ...string[]] | undefined> = [string, ...string[]] extends TEnum ? false
+export type IsEnumDefined<TEnum extends string[] | undefined> = [string, ...string[]] extends TEnum ? false
 	: undefined extends TEnum ? false
 	: true;
 
-export type IsNever<T> = [T] extends [never] ? true : false;
-
 export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['identity'] extends 'always' ? true
-	: TColumn['_']['generated'] extends undefined ? false
-	: TColumn['_']['generated'] extends infer TGenerated extends { type: string }
-		? TGenerated['type'] extends 'byDefault' ? false
-		: true
+	: TColumn['_']['generated'] extends { type: 'byDefault' } | undefined ? false
 	: true;
 
 export type RemoveNever<T> = {
