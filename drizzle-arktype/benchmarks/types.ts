@@ -16,7 +16,7 @@ const teardown = setup();
 
 bench('select schema', () => {
 	return createSelectSchema(users);
-}).types([13155, 'instantiations']);
+}).types([13129, 'instantiations']);
 
 bench('select schema with refinements', () => {
 	return createSelectSchema(users, {
@@ -25,6 +25,6 @@ bench('select schema with refinements', () => {
 		lastName: (t) => t.atMostLength(100),
 		age: type.number.atLeast(1),
 	});
-}).types([23093, 'instantiations']);
+}).types([21631, 'instantiations']);
 
 teardown();
