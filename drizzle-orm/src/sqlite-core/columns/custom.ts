@@ -256,11 +256,11 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	/**
 	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
-	 * Used by [relational queries](https://orm.drizzle.team/docs/docs/rqb-v2)
+	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
 	 *
 	 * Defaults to {@link fromDriver} function
 	 * @example
-	 * For example, when querying blob column via [RQB](https://orm.drizzle.team/docs/docs/rqb-v2) or [JSON functions](https://orm.drizzle.team/docs/docs/json-functions), the result field will be returned as it's hex string representation, as opposed to Buffer from regular query
+	 * For example, when querying blob column via [RQB](https://orm.drizzle.team/docs/rqb-v2) or [JSON functions](https://orm.drizzle.team/docs/json-functions), the result field will be returned as it's hex string representation, as opposed to Buffer from regular query
 	 * To handle that, we need a separate function to handle such field's mapping:
 	 * ```
 	 * fromJson(value: string): Buffer {
@@ -284,11 +284,11 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
-	 * Optional selection modifier function, that is used for modifying selection of column inside [JSON functions](https://orm.drizzle.team/docs/docs/json-functions)
+	 * Optional selection modifier function, that is used for modifying selection of column inside [JSON functions](https://orm.drizzle.team/docs/json-functions)
 	 *
 	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
 	 *
-	 * Used by [relational queries](https://orm.drizzle.team/docs/docs/rqb-v2)
+	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
 	 *
 	 * Following types are being casted to text by default: `numeric`, `decimal`, `bigint`, `blob` (via `hex()` function)
 	 * @example
