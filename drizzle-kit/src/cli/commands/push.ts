@@ -32,6 +32,7 @@ export const mysqlPush = async (
 	verbose: boolean,
 	force: boolean,
 	casing: CasingType | undefined,
+	safe: boolean,
 ) => {
 	const { connectToMySQL } = await import('../connections');
 	const { mysqlPushIntrospect } = await import('./mysqlIntrospect');
@@ -93,6 +94,14 @@ export const mysqlPush = async (
 						.join('\n'),
 				);
 				console.log();
+			}
+
+			if (safe && shouldAskForApprove) {
+				console.log(withStyle.warning('Found data-loss statements:'));
+				console.log(infoToPrint.join('\n'));
+				console.log();
+				console.log(chalk.red('Safe mode is enabled - aborting'));
+				process.exit(1);
 			}
 
 			if (!force && strict) {
@@ -171,6 +180,7 @@ export const singlestorePush = async (
 	verbose: boolean,
 	force: boolean,
 	casing: CasingType | undefined,
+	safe: boolean,
 ) => {
 	const { connectToSingleStore } = await import('../connections');
 	const { singlestorePushIntrospect } = await import('./singlestoreIntrospect');
@@ -219,6 +229,14 @@ export const singlestorePush = async (
 				console.log();
 				console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
 				console.log();
+			}
+
+			if (safe && shouldAskForApprove) {
+				console.log(withStyle.warning('Found data-loss statements:'));
+				console.log(infoToPrint.join('\n'));
+				console.log();
+				console.log(chalk.red('Safe mode is enabled - aborting'));
+				process.exit(1);
 			}
 
 			if (!force && strict) {
@@ -296,6 +314,7 @@ export const pgPush = async (
 	entities: Entities,
 	force: boolean,
 	casing: CasingType | undefined,
+	safe: boolean,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const { pgPushIntrospect } = await import('./pgIntrospect');
@@ -337,6 +356,14 @@ export const pgPush = async (
 				console.log();
 				console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
 				console.log();
+			}
+
+			if (safe && shouldAskForApprove) {
+				console.log(withStyle.warning('Found data-loss statements:'));
+				console.log(infoToPrint.join('\n'));
+				console.log();
+				console.log(chalk.red('Safe mode is enabled - aborting'));
+				process.exit(1);
 			}
 
 			if (!force && strict) {
@@ -418,6 +445,7 @@ export const sqlitePush = async (
 	tablesFilter: string[],
 	force: boolean,
 	casing: CasingType | undefined,
+	safe: boolean,
 ) => {
 	const { connectToSQLite } = await import('../connections');
 	const { sqlitePushIntrospect } = await import('./sqliteIntrospect');
@@ -446,6 +474,14 @@ export const sqlitePush = async (
 			statements.squashedCur,
 			statements.meta!,
 		);
+
+		if (safe && shouldAskForApprove) {
+			console.log(withStyle.warning('Found data-loss statements:'));
+			console.log(infoToPrint.join('\n'));
+			console.log();
+			console.log(chalk.red('Safe mode is enabled - aborting'));
+			process.exit(1);
+		}
 
 		if (verbose && statementsToExecute.length > 0) {
 			console.log();
@@ -539,6 +575,7 @@ export const libSQLPush = async (
 	tablesFilter: string[],
 	force: boolean,
 	casing: CasingType | undefined,
+	safe: boolean,
 ) => {
 	const { connectToLibSQL } = await import('../connections');
 	const { sqlitePushIntrospect } = await import('./sqliteIntrospect');
@@ -567,6 +604,14 @@ export const libSQLPush = async (
 			statements.squashedCur,
 			statements.meta!,
 		);
+
+		if (safe && shouldAskForApprove) {
+			console.log(withStyle.warning('Found data-loss statements:'));
+			console.log(infoToPrint.join('\n'));
+			console.log();
+			console.log(chalk.red('Safe mode is enabled - aborting'));
+			process.exit(1);
+		}
 
 		if (verbose && statementsToExecute.length > 0) {
 			console.log();
