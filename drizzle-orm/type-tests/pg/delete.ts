@@ -2,6 +2,8 @@ import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { eq } from '~/expressions.ts';
+import type { PgDelete } from '~/pg-core/index.ts';
+import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
 
@@ -38,3 +40,39 @@ const deleteReturningPartialStmt = db.delete(users).returning({
 }).prepare('deleteReturningPartialStmt');
 const deleteReturningPartialPrepared = await deleteReturningPartialStmt.execute();
 Expect<Equal<{ myId: number; myHomeCity: number }[], typeof deleteReturningPartialPrepared>>;
+
+{
+	function dynamic<T extends PgDelete>(qb: T) {
+		return qb.where(sql``).returning();
+	}
+
+	const qbBase = db.delete(users).$dynamic();
+	const qb = dynamic(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	function withReturning<T extends PgDelete>(qb: T) {
+		return qb.returning();
+	}
+
+	const qbBase = db.delete(users).$dynamic();
+	const qb = withReturning(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	db
+		.delete(users)
+		.where(sql``)
+		// @ts-expect-error method was already called
+		.where(sql``);
+
+	db
+		.delete(users)
+		.returning()
+		// @ts-expect-error method was already called
+		.returning();
+}

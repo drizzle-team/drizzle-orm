@@ -1,6 +1,6 @@
 import { is } from '~/entity.ts';
 import { Table } from '~/table.ts';
-import { ViewBaseConfig } from '~/view.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
 import type { ForeignKey } from './foreign-keys.ts';
@@ -11,7 +11,7 @@ import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
 import { SQLiteTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
-import { type SQLiteView, SQLiteViewConfig } from './view.ts';
+import type { SQLiteView } from './view.ts';
 
 export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 	const columns = Object.values(table[SQLiteTable.Symbol.Columns]);
@@ -26,7 +26,8 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[SQLiteTable.Symbol.Columns]);
-		for (const builder of Object.values(extraConfig)) {
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
+		for (const builder of Object.values(extraValues)) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
@@ -60,6 +61,6 @@ export function getViewConfig<
 >(view: SQLiteView<TName, TExisting>) {
 	return {
 		...view[ViewBaseConfig],
-		...view[SQLiteViewConfig],
+		// ...view[SQLiteViewConfig],
 	};
 }

@@ -1,5 +1,5 @@
 import type { AnyColumn, Column } from './column.ts';
-import type { SQL } from './sql/index.ts';
+import type { SQL } from './sql/sql.ts';
 import type { Table } from './table.ts';
 
 export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends AnyColumn<{
@@ -11,8 +11,19 @@ export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends A
 export type OptionalKeyOnly<
 	TKey extends string,
 	T extends Column,
-> = TKey extends RequiredKeyOnly<TKey, T> ? never : TKey;
+	OverrideT extends boolean | undefined = false,
+> = TKey extends RequiredKeyOnly<TKey, T> ? never
+	: T extends {
+		_: {
+			generated: undefined;
+		};
+	} ? (
+			T['_']['identity'] extends 'always' ? OverrideT extends true ? TKey : never
+				: TKey
+		)
+	: never;
 
+// TODO: SQL -> SQLWrapper
 export type SelectedFieldsFlat<TColumn extends Column> = Record<
 	string,
 	TColumn | SQL | SQL.Aliased

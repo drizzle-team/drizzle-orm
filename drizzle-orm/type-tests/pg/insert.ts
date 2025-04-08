@@ -1,9 +1,11 @@
 import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { sql } from '~/sql/index.ts';
+import { boolean, pgTable, QueryBuilder, serial, text } from '~/pg-core/index.ts';
+import type { PgInsert } from '~/pg-core/query-builders/insert.ts';
+import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
-import { users } from './tables.ts';
+import { identityColumnsTable, users } from './tables.ts';
 
 const insert = await db
 	.insert(users)
@@ -172,3 +174,126 @@ Expect<
 		classLower: string;
 	}[], typeof insertReturningSqlPrepared>
 >;
+
+{
+	function dynamic<T extends PgInsert>(qb: T) {
+		return qb.returning().onConflictDoNothing().onConflictDoUpdate({ set: {}, target: users.id, where: sql`` });
+	}
+
+	const qbBase = db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, arrayCol: [] }).$dynamic();
+	const qb = dynamic(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	function withReturning<T extends PgInsert>(qb: T) {
+		return qb.returning();
+	}
+
+	const qbBase = db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, arrayCol: [] }).$dynamic();
+	const qb = withReturning(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	db
+		.insert(users)
+		.values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, arrayCol: [] })
+		.returning()
+		// @ts-expect-error method was already called
+		.returning();
+}
+
+{
+	const users1 = pgTable('users1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		admin: boolean('admin').notNull().default(false),
+	});
+	const users2 = pgTable('users2', {
+		id: serial('id').primaryKey(),
+		firstName: text('first_name').notNull(),
+		lastName: text('last_name').notNull(),
+		admin: boolean('admin').notNull().default(false),
+		phoneNumber: text('phone_number'),
+	});
+
+	const qb = new QueryBuilder();
+
+	db.insert(users1).select(sql`select * from users1`);
+	db.insert(users1).select(() => sql`select * from users1`);
+
+	db
+		.insert(users1)
+		.select(
+			qb.select({
+				name: users2.firstName,
+				admin: users2.admin,
+			}).from(users2),
+		);
+
+	db
+		.insert(users1)
+		.select(
+			qb.select({
+				name: users2.firstName,
+				admin: users2.admin,
+			}).from(users2).where(sql``),
+		);
+
+	db
+		.insert(users2)
+		.select(
+			qb.select({
+				firstName: users2.firstName,
+				lastName: users2.lastName,
+				admin: users2.admin,
+			}).from(users2),
+		);
+
+	db
+		.insert(users1)
+		.select(
+			qb.select({
+				name: sql`${users2.firstName} || ' ' || ${users2.lastName}`.as('name'),
+				admin: users2.admin,
+			}).from(users2),
+		);
+
+	db
+		.insert(users1)
+		.select(
+			// @ts-expect-error name is undefined
+			qb.select({ admin: users1.admin }).from(users1),
+		);
+
+	db.insert(users1).select(db.select().from(users1));
+	db.insert(users1).select(() => db.select().from(users1));
+	db.insert(users1).select((qb) => qb.select().from(users1));
+	// @ts-expect-error tables have different keys
+	db.insert(users1).select(db.select().from(users2));
+	// @ts-expect-error tables have different keys
+	db.insert(users1).select(() => db.select().from(users2));
+}
+
+{
+	db.insert(identityColumnsTable).values([
+		{ byDefaultAsIdentity: 4, name: 'fdf' },
+	]);
+
+	// @ts-expect-error
+	db.insert(identityColumnsTable).values([
+		{ alwaysAsIdentity: 2 },
+	]);
+
+	db.insert(identityColumnsTable).overridingSystemValue().values([
+		{ alwaysAsIdentity: 2 },
+	]);
+
+	// @ts-expect-error
+	db.insert(identityColumnsTable).values([
+		{ generatedCol: 2 },
+	]);
+}

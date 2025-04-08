@@ -1,4 +1,3 @@
-import terser from '@rollup/plugin-terser';
 import typescript from '@rollup/plugin-typescript';
 import { defineConfig } from 'rollup';
 
@@ -23,13 +22,12 @@ export default defineConfig([
 		],
 		external: [
 			/^drizzle-orm\/?/,
-			'zod',
+			'@sinclair/typebox',
 		],
 		plugins: [
 			typescript({
 				tsconfig: 'tsconfig.build.json',
 			}),
-			terser(),
 		],
 	},
 ]);

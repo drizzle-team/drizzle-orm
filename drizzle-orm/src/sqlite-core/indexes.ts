@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
-import type { SQL } from '~/sql/index.ts';
-import { type SQLiteColumn } from './columns/index.ts';
+import type { SQL } from '~/sql/sql.ts';
+import type { SQLiteColumn } from './columns/index.ts';
 import type { SQLiteTable } from './table.ts';
 
 export interface IndexConfig {

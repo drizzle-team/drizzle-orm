@@ -1,12 +1,20 @@
 name: "Feature Request"
-description: Suggest new feature for Drizzle
+description: Suggest new feature
 title: "[FEATURE]:"
 labels: ["enhancement"]
 
 body:
+  - type: checkboxes
+    id: verified
+    attributes:
+      label: Feature hasn't been suggested before.
+      options:
+        - label: I have verified this feature I'm about to request hasn't been suggested before.
+          required: true
+
   - type: textarea
     attributes:
-      label: Describe what you want
-      description: What is the problem? What do you want to change or add?
+      label: Describe the enhancement you want to request
+      description: What do you want to change or add? What are the benefits of implementing this?
     validations:
       required: true

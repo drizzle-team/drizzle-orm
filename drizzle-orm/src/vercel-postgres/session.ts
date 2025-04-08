@@ -3,6 +3,7 @@ import {
 	type QueryConfig,
 	type QueryResult,
 	type QueryResultRow,
+	types,
 	type VercelClient,
 	VercelPool,
 	type VercelPoolClient,
@@ -11,19 +12,19 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { type PgDialect, PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
-import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/index.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
-export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
-	static readonly [entityKind]: string = 'VercelPgPreparedQuery';
+export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
+	static override readonly [entityKind]: string = 'VercelPgPreparedQuery';
 
 	private rawQuery: QueryConfig;
-	private query: QueryArrayConfig;
+	private queryConfig: QueryArrayConfig;
 
 	constructor(
 		private client: VercelPgClient,
@@ -32,17 +33,96 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends Prepar
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super();
+		super({ sql: queryString, params });
 		this.rawQuery = {
 			name,
 			text: queryString,
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115 as any) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185 as any) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId === 1187 as any) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId === 1182 as any) {
+						return (val: any) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
-		this.query = {
+		this.queryConfig = {
 			name,
 			text: queryString,
 			rowMode: 'array',
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115 as any) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185 as any) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId === 1187 as any) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId === 1182 as any) {
+						return (val: any) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 	}
 
@@ -51,7 +131,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends Prepar
 
 		this.logger.logQuery(this.rawQuery.text, params);
 
-		const { fields, rawQuery, client, query, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, rawQuery, client, queryConfig: query, joinsNotNullableMap, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			return client.query(rawQuery, params);
 		}
@@ -74,7 +154,12 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends Prepar
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQuery.text, params);
-		return this.client.query(this.query, params).then((result) => result.rows);
+		return this.client.query(this.queryConfig, params).then((result) => result.rows);
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }
 
@@ -86,7 +171,7 @@ export class VercelPgSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<VercelPgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'VercelPgSession';
+	static override readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;
 
@@ -104,8 +189,9 @@ export class VercelPgSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
+	): PgPreparedQuery<T> {
 		return new VercelPgPreparedQuery(
 			this.client,
 			query.sql,
@@ -113,6 +199,7 @@ export class VercelPgSession<
 			this.logger,
 			fields,
 			name,
+			isResponseInArrayMode,
 			customResultMapper,
 		);
 	}
@@ -134,6 +221,12 @@ export class VercelPgSession<
 		return this.client.query<T>(query, params);
 	}
 
+	override async count(sql: SQL): Promise<number> {
+		const result = await this.execute(sql);
+
+		return Number((result as any)['rows'][0]['count']);
+	}
+
 	override async transaction<T>(
 		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
@@ -141,7 +234,7 @@ export class VercelPgSession<
 		const session = this.client instanceof VercelPool // eslint-disable-line no-instanceof/no-instanceof
 			? new VercelPgSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
-		const tx = new VercelPgTransaction(this.dialect, session, this.schema);
+		const tx = new VercelPgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		try {
 			const result = await transaction(tx);
@@ -162,13 +255,18 @@ export class VercelPgTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<VercelPgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'VercelPgTransaction';
+	static override readonly [entityKind]: string = 'VercelPgTransaction';
 
 	override async transaction<T>(
 		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new VercelPgTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new VercelPgTransaction<TFullSchema, TSchema>(
+			this.dialect,
+			this.session,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -181,6 +279,6 @@ export class VercelPgTransaction<
 	}
 }
 
-export interface VercelPgQueryResultHKT extends QueryResultHKT {
+export interface VercelPgQueryResultHKT extends PgQueryResultHKT {
 	type: QueryResult<Assume<this['row'], QueryResultRow>>;
 }

@@ -2,9 +2,10 @@ import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import type { Relation } from './relations.ts';
-import { SQL, sql } from './sql/index.ts';
+import type { View } from './sql/sql.ts';
+import { SQL, sql } from './sql/sql.ts';
 import { Table } from './table.ts';
-import { type View, ViewBaseConfig } from './view.ts';
+import { ViewBaseConfig } from './view-common.ts';
 
 export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
@@ -87,8 +88,11 @@ export class RelationTableAliasProxyHandler<T extends Relation> implements Proxy
 	}
 }
 
-export function aliasedTable<T extends Table>(table: T, tableAlias: string): T {
-	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false));
+export function aliasedTable<T extends Table | View>(
+	table: T,
+	tableAlias: string,
+): T {
+	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false)) as any;
 }
 
 export function aliasedRelation<T extends Relation>(relation: T, tableAlias: string): T {

@@ -1,0 +1,29 @@
+{
+	"compilerOptions": {
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"moduleResolution": "nodenext",
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"allowJs": true,
+		"resolveJsonModule": true,
+		"lib": [
+			"esnext"
+		],
+		"composite": false,
+		"incremental": false,
+		"skipLibCheck": true,
+		"outDir": "dist",
+		"module": "nodenext",
+		"target": "es6",
+		"exactOptionalPropertyTypes": true,
+		"noUncheckedIndexedAccess": true
+	},
+	"include": [
+		"src/**/*.ts",
+		"package.json"
+	]
+}

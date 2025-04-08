@@ -21,11 +21,15 @@ import {
 	notLike,
 	or,
 } from '~/expressions.ts';
-import { param, sql } from '~/sql/index.ts';
+import { type InferSelectViewModel, param, sql } from '~/sql/sql.ts';
 import { alias } from '~/sqlite-core/alias.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import { integer, text } from '~/sqlite-core/index.ts';
+import type { SQLiteSelect, SQLiteSelectQueryBuilder } from '~/sqlite-core/query-builders/select.types.ts';
+import { sqliteTable } from '~/sqlite-core/table.ts';
+import { sqliteView } from '~/sqlite-core/view.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
 
@@ -437,4 +441,181 @@ Expect<
 			typeof result
 		>
 	>;
+}
+
+{
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1));
+
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		// @ts-expect-error - can't use where twice
+		.where(eq(users.id, 1));
+
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		.limit(10)
+		// @ts-expect-error - can't use where twice
+		.where(eq(users.id, 1));
+}
+
+{
+	function withFriends<T extends SQLiteSelect>(qb: T) {
+		const friends = alias(users, 'friends');
+		const friends2 = alias(users, 'friends2');
+		const friends3 = alias(users, 'friends3');
+		const friends4 = alias(users, 'friends4');
+		const friends5 = alias(users, 'friends5');
+		return qb
+			.leftJoin(friends, sql`true`)
+			.leftJoin(friends2, sql`true`)
+			.leftJoin(friends3, sql`true`)
+			.leftJoin(friends4, sql`true`)
+			.leftJoin(friends5, sql`true`);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await withFriends(qb);
+	Expect<
+		Equal<typeof result, {
+			users_table: typeof users.$inferSelect;
+			friends: typeof users.$inferSelect | null;
+			friends2: typeof users.$inferSelect | null;
+			friends3: typeof users.$inferSelect | null;
+			friends4: typeof users.$inferSelect | null;
+			friends5: typeof users.$inferSelect | null;
+		}[]>
+	>;
+}
+
+{
+	function withFriends<T extends SQLiteSelectQueryBuilder>(qb: T) {
+		const friends = alias(users, 'friends');
+		const friends2 = alias(users, 'friends2');
+		const friends3 = alias(users, 'friends3');
+		const friends4 = alias(users, 'friends4');
+		const friends5 = alias(users, 'friends5');
+		return qb
+			.leftJoin(friends, sql`true`)
+			.leftJoin(friends2, sql`true`)
+			.leftJoin(friends3, sql`true`)
+			.leftJoin(friends4, sql`true`)
+			.leftJoin(friends5, sql`true`);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await withFriends(qb);
+	Expect<
+		Equal<typeof result, {
+			users_table: typeof users.$inferSelect;
+			friends: typeof users.$inferSelect | null;
+			friends2: typeof users.$inferSelect | null;
+			friends3: typeof users.$inferSelect | null;
+			friends4: typeof users.$inferSelect | null;
+			friends5: typeof users.$inferSelect | null;
+		}[]>
+	>;
+}
+
+{
+	function dynamic<T extends SQLiteSelect>(qb: T) {
+		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await dynamic(qb);
+	Expect<Equal<typeof result, typeof users.$inferSelect[]>>;
+}
+
+{
+	db
+		.select()
+		.from(users)
+		.where(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.where(sql``);
+
+	db
+		.select()
+		.from(users)
+		.having(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.having(sql``);
+
+	db
+		.select()
+		.from(users)
+		.groupBy(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.groupBy(sql``);
+
+	db
+		.select()
+		.from(users)
+		.orderBy(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.orderBy(sql``);
+
+	db
+		.select()
+		.from(users)
+		.limit(10)
+		.where(sql``)
+		// @ts-expect-error method was already called
+		.limit(10);
+
+	db
+		.select()
+		.from(users)
+		.offset(10)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.offset(10);
+}
+
+{
+	const table1 = sqliteTable('table1', {
+		id: integer().primaryKey(),
+		name: text().notNull(),
+	});
+	const table2 = sqliteTable('table2', {
+		id: integer().primaryKey(),
+		age: integer().notNull(),
+	});
+	const table3 = sqliteTable('table3', {
+		id: integer().primaryKey(),
+		phone: text().notNull(),
+	});
+	const view = sqliteView('view').as((qb) =>
+		qb.select({
+			table: table1,
+			column: table2.age,
+			nested: {
+				column: table3.phone,
+			},
+		}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``)
+	);
+	const result = await db.select().from(view);
+
+	Expect<
+		Equal<typeof result, {
+			table: typeof table1.$inferSelect;
+			column: number;
+			nested: {
+				column: string | null;
+			};
+		}[]>
+	>;
+	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
 }

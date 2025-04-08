@@ -1,0 +1,9 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"declaration": true,
+		"emitDeclarationOnly": true,
+		"noEmit": false
+	},
+	"include": ["src/index.ts", "src/utils.ts", "src/utils-studio.ts", "src/api.ts"]
+}

@@ -45,7 +45,7 @@ describe.concurrent('parsePgArray', () => {
 	});
 
 	it('parses array with empty values', ({ expect }) => {
-		const input = '{1,,3}';
+		const input = '{1,"",3}';
 		const output = table.a.mapFromDriverValue(input);
 		expect(output).toEqual(['1', '', '3']);
 	});

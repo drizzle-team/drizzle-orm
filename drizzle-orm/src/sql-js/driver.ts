@@ -8,7 +8,7 @@ import {
 } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { SQLJsSession } from './session.ts';
 
 export type SQLJsDatabase<
@@ -19,7 +19,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: Database,
 	config: DrizzleConfig<TSchema> = {},
 ): SQLJsDatabase<TSchema> {
-	const dialect = new SQLiteSyncDialect();
+	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

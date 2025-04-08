@@ -1,6 +1,6 @@
 import type { RunResult } from 'better-sqlite3';
 import { eq, inArray } from '~/expressions.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';

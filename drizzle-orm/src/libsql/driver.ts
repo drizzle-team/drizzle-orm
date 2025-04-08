@@ -1,91 +1,60 @@
-import type { Client, ResultSet } from '@libsql/client';
-import { entityKind } from '~/entity.ts';
-import { DefaultLogger } from '~/logger.ts';
-import type { SelectResult } from '~/query-builders/select.types.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type {
-	SQLiteDelete,
-	SQLiteInsert,
-	SQLiteSelect,
-	SQLiteUpdate,
-} from '~/sqlite-core/index.ts';
-import type { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query.ts';
-import type { SQLiteRaw } from '~/sqlite-core/query-builders/raw.ts';
-import { type DrizzleConfig } from '~/utils.ts';
-import { LibSQLSession } from './session.ts';
+import { type Client, type Config, createClient } from '@libsql/client';
+import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import { construct as construct, type LibSQLDatabase } from './driver-core.ts';
 
-export type BatchParameters =
-	| SQLiteUpdate<any, 'async', ResultSet, any>
-	| SQLiteSelect<any, 'async', ResultSet, any, any>
-	| SQLiteDelete<any, 'async', ResultSet, any>
-	| Omit<SQLiteDelete<any, 'async', ResultSet, any>, 'where'>
-	| Omit<SQLiteUpdate<any, 'async', ResultSet, any>, 'where'>
-	| SQLiteInsert<any, 'async', ResultSet, any>
-	| SQLiteRelationalQuery<'async', any>
-	| SQLiteRaw<any>;
-
-export type BatchResponse<U extends BatchParameters, TQuery extends Readonly<[U, ...U[]]>> = {
-	[K in keyof TQuery]: TQuery[K] extends
-		SQLiteSelect<infer _TTable, 'async', infer _TRes, infer TSelection, infer TSelectMode, infer TNullabilityMap>
-		? SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
-		: TQuery[K] extends SQLiteUpdate<infer _TTable, 'async', infer _TRunResult, infer _TReturning>
-			? _TReturning extends undefined ? _TRunResult : _TReturning[]
-		: TQuery[K] extends Omit<SQLiteUpdate<infer _TTable, 'async', infer _TRunResult, infer _TReturning>, 'where'>
-			? _TReturning extends undefined ? _TRunResult : _TReturning[]
-		: TQuery[K] extends SQLiteInsert<infer _TTable, 'async', infer _TRunResult, infer _TReturning>
-			? _TReturning extends undefined ? _TRunResult : _TReturning[]
-		: TQuery[K] extends SQLiteDelete<infer _TTable, 'async', infer _TRunResult, infer _TReturning>
-			? _TReturning extends undefined ? _TRunResult : _TReturning[]
-		: TQuery[K] extends Omit<SQLiteDelete<infer _TTable, 'async', infer _TRunResult, infer _TReturning>, 'where'>
-			? _TReturning extends undefined ? _TRunResult : _TReturning[]
-		: TQuery[K] extends SQLiteRelationalQuery<'async', infer TResult> ? TResult
-		: TQuery[K] extends SQLiteRaw<infer TResult> ? TResult
-		: never;
-};
-
-export class LibSQLDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends BaseSQLiteDatabase<'async', ResultSet, TSchema> {
-	static readonly [entityKind]: string = 'LibSQLDatabase';
-
-	async batch<U extends BatchParameters, T extends Readonly<[U, ...U[]]>>(
-		batch: T,
-	): Promise<BatchResponse<U, T>> {
-		return await (this.session as LibSQLSession<TSchema, any>).batch(batch) as BatchResponse<U, T>;
-	}
-}
+export { LibSQLDatabase } from './driver-core.ts';
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
->(client: Client, config: DrizzleConfig<TSchema> = {}): LibSQLDatabase<TSchema> {
-	const dialect = new SQLiteAsyncDialect();
-	let logger;
-	if (config.logger === true) {
-		logger = new DefaultLogger();
-	} else if (config.logger !== false) {
-		logger = config.logger;
+	TClient extends Client = Client,
+>(
+	...params: [
+		TClient | string,
+	] | [
+		TClient | string,
+		DrizzleConfig<TSchema>,
+	] | [
+		(
+			& DrizzleConfig<TSchema>
+			& ({
+				connection: string | Config;
+			} | {
+				client: TClient;
+			})
+		),
+	]
+): LibSQLDatabase<TSchema> & {
+	$client: TClient;
+} {
+	if (typeof params[0] === 'string') {
+		const instance = createClient({
+			url: params[0],
+		});
+
+		return construct(instance, params[1]) as any;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
+	if (isConfig(params[0])) {
+		const { connection, client, ...drizzleConfig } = params[0] as
+			& { connection?: Config; client?: TClient }
+			& DrizzleConfig<TSchema>;
+
+		if (client) return construct(client, drizzleConfig) as any;
+
+		const instance = typeof connection === 'string' ? createClient({ url: connection }) : createClient(connection!);
+
+		return construct(instance, drizzleConfig) as any;
 	}
 
-	const session = new LibSQLSession(client, dialect, schema, { logger }, undefined);
-	return new LibSQLDatabase('async', dialect, session, schema) as LibSQLDatabase<TSchema>;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+}
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
+		config?: DrizzleConfig<TSchema>,
+	): LibSQLDatabase<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }

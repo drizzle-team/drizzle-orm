@@ -1,5 +1,5 @@
 import type { Span, Tracer } from '@opentelemetry/api';
-import { iife } from '~/utils.ts';
+import { iife } from '~/tracing-utils.ts';
 import { npmVersion } from '~/version.ts';
 
 let otel: typeof import('@opentelemetry/api') | undefined;
