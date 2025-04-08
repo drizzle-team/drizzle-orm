@@ -34,7 +34,7 @@ test('array #1: empty array default', async (t) => {
 		type: 'alter_table_add_column',
 		tableName: 'test',
 		schema: '',
-		column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{}'::integer[]" },
+		column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{}'" },
 	});
 });
 
@@ -58,7 +58,7 @@ test('array #2: integer array default', async (t) => {
 		type: 'alter_table_add_column',
 		tableName: 'test',
 		schema: '',
-		column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{1,2,3}'::integer[]" },
+		column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{1,2,3}'" },
 	});
 });
 
@@ -82,7 +82,7 @@ test('array #3: bigint array default', async (t) => {
 		type: 'alter_table_add_column',
 		tableName: 'test',
 		schema: '',
-		column: { name: 'values', type: 'bigint[]', primaryKey: false, notNull: false, default: "'{1,2,3}'::bigint[]" },
+		column: { name: 'values', type: 'bigint[]', primaryKey: false, notNull: false, default: "'{1,2,3}'" },
 	});
 });
 
@@ -111,7 +111,7 @@ test('array #4: boolean array default', async (t) => {
 			type: 'boolean[]',
 			primaryKey: false,
 			notNull: false,
-			default: "'{true,false,true}'::boolean[]",
+			default: "'{true,false,true}'",
 		},
 	});
 });
@@ -141,7 +141,7 @@ test('array #5: multi-dimensional array default', async (t) => {
 			type: 'integer[][]',
 			primaryKey: false,
 			notNull: false,
-			default: "'{{1,2},{3,4}}'::integer[][]",
+			default: "'{{1,2},{3,4}}'",
 		},
 	});
 });
@@ -171,7 +171,7 @@ test('array #6: date array default', async (t) => {
 			type: 'date[]',
 			primaryKey: false,
 			notNull: false,
-			default: '\'{"2024-08-06","2024-08-07"}\'::date[]',
+			default: '\'{"2024-08-06","2024-08-07"}\'',
 		},
 	});
 });
@@ -201,7 +201,7 @@ test('array #7: timestamp array default', async (t) => {
 			type: 'timestamp[]',
 			primaryKey: false,
 			notNull: false,
-			default: '\'{"2024-08-06 00:00:00.000","2024-08-07 00:00:00.000"}\'::timestamp[]',
+			default: '\'{"2024-08-06 00:00:00.000","2024-08-07 00:00:00.000"}\'',
 		},
 	});
 });
@@ -231,7 +231,7 @@ test('array #8: json array default', async (t) => {
 			type: 'json[]',
 			primaryKey: false,
 			notNull: false,
-			default: '\'{"{\\"a\\":1}","{\\"b\\":2}"}\'::json[]',
+			default: '\'{"{\\"a\\":1}","{\\"b\\":2}"}\'',
 		},
 	});
 });
@@ -261,7 +261,7 @@ test('array #9: text array default', async (t) => {
 			type: 'text[]',
 			primaryKey: false,
 			notNull: false,
-			default: '\'{"abc","def"}\'::text[]',
+			default: '\'{"abc","def"}\'',
 		},
 	});
 });
@@ -294,7 +294,7 @@ test('array #10: uuid array default', async (t) => {
 			type: 'uuid[]',
 			primaryKey: false,
 			notNull: false,
-			default: '\'{"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11","b0eebc99-9c0b-4ef8-bb6d-cbb9bd380a11"}\'::uuid[]',
+			default: '\'{"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11","b0eebc99-9c0b-4ef8-bb6d-cbb9bd380a11"}\'',
 		},
 	});
 });
@@ -328,7 +328,7 @@ test('array #11: enum array default', async (t) => {
 			type: 'test_enum[]',
 			primaryKey: false,
 			notNull: false,
-			default: '\'{"a","b","c"}\'::test_enum[]',
+			default: '\'{"a","b","c"}\'',
 		},
 	});
 });
@@ -362,7 +362,7 @@ test('array #12: enum empty array default', async (t) => {
 			type: 'test_enum[]',
 			primaryKey: false,
 			notNull: false,
-			default: "'{}'::test_enum[]",
+			default: "'{}'",
 		},
 	});
 });

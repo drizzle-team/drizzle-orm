@@ -129,6 +129,7 @@ test('add table to schema #3', async () => {
 		},
 		compositePkName: '',
 		compositePKs: [],
+		checkConstraints: [],
 	});
 });
 

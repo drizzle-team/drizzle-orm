@@ -26,7 +26,7 @@ export class OPSQLiteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'async', QueryResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'OPSQLiteSession';
+	static override readonly [entityKind]: string = 'OPSQLiteSession';
 
 	private logger: Logger;
 
@@ -79,7 +79,7 @@ export class OPSQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'async', QueryResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'OPSQLiteTransaction';
+	static override readonly [entityKind]: string = 'OPSQLiteTransaction';
 
 	override transaction<T>(transaction: (tx: OPSQLiteTransaction<TFullSchema, TSchema>) => T): T {
 		const savepointName = `sp${this.nestedIndex}`;
@@ -99,7 +99,7 @@ export class OPSQLiteTransaction<
 export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
 	{ type: 'async'; run: QueryResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'OPSQLitePreparedQuery';
+	static override readonly [entityKind]: string = 'OPSQLitePreparedQuery';
 
 	constructor(
 		private client: OPSQLiteConnection,

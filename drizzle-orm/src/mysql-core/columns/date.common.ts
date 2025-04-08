@@ -18,7 +18,7 @@ export abstract class MySqlDateColumnBaseBuilder<
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlDateColumnBaseConfig, TExtraConfig> {
-	static readonly [entityKind]: string = 'MySqlDateColumnBuilder';
+	static override readonly [entityKind]: string = 'MySqlDateColumnBuilder';
 
 	defaultNow() {
 		return this.default(sql`(now())`);
@@ -36,7 +36,7 @@ export abstract class MySqlDateBaseColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 > extends MySqlColumn<T, MySqlDateColumnBaseConfig & TRuntimeConfig> {
-	static readonly [entityKind]: string = 'MySqlDateColumn';
+	static override readonly [entityKind]: string = 'MySqlDateColumn';
 
 	readonly hasOnUpdateNow: boolean = this.config.hasOnUpdateNow;
 }

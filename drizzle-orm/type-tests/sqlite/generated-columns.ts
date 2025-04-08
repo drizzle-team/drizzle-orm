@@ -11,12 +11,14 @@ const users = sqliteTable(
 		firstName: text('first_name', { length: 255 }),
 		lastName: text('last_name', { length: 255 }),
 		email: text('email').notNull(),
-		fullName: text('full_name').generatedAlwaysAs(sql`concat_ws(first_name, ' ', last_name)`),
+		fullName: text('full_name')
+			.generatedAlwaysAs(sql`concat_ws(first_name, ' ', last_name)`),
 		upperName: text('upper_name').generatedAlwaysAs(
 			sql` case when first_name is null then null else upper(first_name) end `,
 		).$type<string | null>(), // There is no way for drizzle to detect nullability in these cases. This is how the user can work around it
 	},
 );
+
 {
 	type User = typeof users.$inferSelect;
 	type NewUser = typeof users.$inferInsert;

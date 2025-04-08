@@ -86,6 +86,14 @@ export abstract class MySqlSession<
 
 	abstract all<T = unknown>(query: SQL): Promise<T[]>;
 
+	async count(sql: SQL): Promise<number> {
+		const res = await this.execute<[[{ count: string }]]>(sql);
+
+		return Number(
+			res[0][0]['count'],
+		);
+	}
+
 	abstract transaction<T>(
 		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
 		config?: MySqlTransactionConfig,
@@ -122,7 +130,7 @@ export abstract class MySqlTransaction<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > extends MySqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'MySqlTransaction';
+	static override readonly [entityKind]: string = 'MySqlTransaction';
 
 	constructor(
 		dialect: MySqlDialect,
