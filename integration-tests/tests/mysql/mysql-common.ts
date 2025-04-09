@@ -4664,6 +4664,120 @@ export function tests(driver?: string) {
 		expect(query.sql).to.include('USE INDEX (posts_user_id_index)');
 	});
 
+	test('MySqlTable :: select with cross join `use index` hint', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
+
+		await db.execute(sql`drop table if exists ${posts}`);
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`
+			create table ${users} (
+				\`id\` serial primary key,
+				\`name\` varchar(100) not null
+			)
+		`);
+		await db.execute(sql`
+			create table ${posts} (
+				\`id\` serial primary key,
+				\`text\` varchar(100) not null,
+				\`user_id\` int not null references users(id) on delete cascade
+			)
+		`);
+		await db.execute(sql`create index posts_user_id_index ON posts(user_id)`);
+
+		await db.insert(users).values([
+			{ id: 1, name: 'Alice' },
+			{ id: 2, name: 'Bob' },
+		]);
+
+		await db.insert(posts).values([
+			{ id: 1, text: 'Alice post', userId: 1 },
+			{ id: 2, text: 'Bob post', userId: 2 },
+		]);
+
+		const result = await db.select()
+			.from(users)
+			.crossJoin(posts, {
+				useIndex: [postsTableUserIdIndex],
+			})
+			.orderBy(users.id, posts.id);
+
+		expect(result).toStrictEqual([{
+			users: { id: 1, name: 'Alice' },
+			posts: { id: 1, text: 'Alice post', userId: 1 },
+		}, {
+			users: { id: 1, name: 'Alice' },
+			posts: { id: 2, text: 'Bob post', userId: 2 },
+		}, {
+			users: { id: 2, name: 'Bob' },
+			posts: { id: 1, text: 'Alice post', userId: 1 },
+		}, {
+			users: { id: 2, name: 'Bob' },
+			posts: { id: 2, text: 'Bob post', userId: 2 },
+		}]);
+	});
+
+	test('MySqlTable :: select with cross join `use index` hint on 1 index', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
+
+		await db.execute(sql`drop table if exists ${posts}`);
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`
+			create table ${users} (
+				\`id\` serial primary key,
+				\`name\` varchar(100) not null
+			)
+		`);
+		await db.execute(sql`
+			create table ${posts} (
+				\`id\` serial primary key,
+				\`text\` varchar(100) not null,
+				\`user_id\` int not null references users(id) on delete cascade
+			)
+		`);
+		await db.execute(sql`create index posts_user_id_index ON posts(user_id)`);
+
+		const query = db.select({
+			userId: users.id,
+			name: users.name,
+			postId: posts.id,
+			text: posts.text,
+		})
+			.from(users)
+			.crossJoin(posts, {
+				useIndex: postsTableUserIdIndex,
+			})
+			.where(and(
+				eq(users.name, 'David'),
+				eq(posts.text, 'David post'),
+			)).toSQL();
+
+		expect(query.sql).to.include('USE INDEX (posts_user_id_index)');
+	});
+
 	test('MySqlTable :: select with join `use index` hint on multiple indexes', async (ctx) => {
 		const { db } = ctx.mysql;
 

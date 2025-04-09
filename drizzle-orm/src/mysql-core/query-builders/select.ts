@@ -227,10 +227,24 @@ export abstract class MySqlSelectQueryBuilderBase<
 			TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
 		>(
 			table: MySqlTable | Subquery | MySqlViewBase | SQL,
-			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
-			onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
+			a?:
+				| ((aliases: TSelection) => SQL | undefined)
+				| SQL
+				| undefined
+				| (TJoinedTable extends MySqlTable ? IndexConfig
+					: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views'),
+			b?: TJoinedTable extends MySqlTable ? IndexConfig
 				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 		) => {
+			const isCrossJoin = joinType === 'cross';
+			let on = (isCrossJoin ? undefined : a) as (
+				| ((aliases: TSelection) => SQL | undefined)
+				| SQL
+				| undefined
+			);
+			const onIndex = (isCrossJoin ? a : b) as TJoinedTable extends MySqlTable ? IndexConfig
+				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views';
+
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
 
@@ -326,6 +340,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
+	 * @param onIndex index hint.
 	 *
 	 * @example
 	 *
@@ -344,7 +359,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId with use index hint
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -365,6 +380,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
+	 * @param onIndex index hint.
 	 *
 	 * @example
 	 *
@@ -383,7 +399,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId with use index hint
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -404,6 +420,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
+	 * @param onIndex index hint.
 	 *
 	 * @example
 	 *
@@ -422,7 +439,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId with use index hint
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -443,6 +460,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
+	 * @param onIndex index hint.
 	 *
 	 * @example
 	 *
@@ -461,7 +479,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId with use index hint
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -481,6 +499,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join}
 	 *
 	 * @param table the table to join.
+	 * @param onIndex index hint.
 	 *
 	 * @example
 	 *
@@ -497,6 +516,16 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * })
 	 *   .from(users)
 	 *   .crossJoin(pets)
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .crossJoin(pets, {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
 	crossJoin = this.createJoin('cross');

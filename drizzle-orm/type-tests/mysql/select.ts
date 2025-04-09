@@ -962,6 +962,30 @@ await db
 		>
 	>;
 
+	const join3 = await db.select().from(table1)
+		.crossJoin(table2, {
+			useIndex: [table2AgeIndex, table2Table1Index],
+			forceIndex: [table2AgeIndex, table2Table1Index],
+			ignoreIndex: [table2AgeIndex, table2Table1Index],
+		});
+
+	Expect<
+		Equal<
+			{
+				table1: {
+					id: number;
+					name: string;
+				};
+				table2: {
+					id: number;
+					age: number;
+					table1Id: number;
+				};
+			}[],
+			typeof join3
+		>
+	>;
+
 	const sqJoin1 = await db.select().from(table1, {
 		useIndex: table1NameIndex,
 	})
@@ -1023,4 +1047,16 @@ await db
 			table2Table1Index,
 			ignoreIndex: [table2AgeIndex, table2Table1Index],
 		});
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.crossJoin(table2, eq(table1.id, table2.table1Id), {
+			useIndex: [table2AgeIndex, table2Table1Index],
+			forceIndex: [table2AgeIndex, table2Table1Index],
+			ignoreIndex: [table2AgeIndex, table2Table1Index],
+		});
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.crossJoin(table2, eq(table1.id, table2.table1Id));
 }

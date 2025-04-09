@@ -119,15 +119,23 @@ export type MySqlJoinFn<
 > = 'cross' extends TJoinType ? <
 		TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
 		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
-	>(table: TJoinedTable) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
+	>(
+		table: TJoinedTable,
+		onIndex?:
+			| (TJoinedTable extends MySqlTable ? IndexConfig
+				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views')
+			| undefined,
+	) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
 	: <
 		TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
 		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 	>(
 		table: TJoinedTable,
 		on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-		onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
-			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
+		onIndex?:
+			| (TJoinedTable extends MySqlTable ? IndexConfig
+				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views')
+			| undefined,
 	) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<MySqlColumn>;
