@@ -326,6 +326,19 @@ export class GelArray<
 		this.size = config.size;
 	}
 
+	override mapFromDriverValue(value: unknown[]): T['data'] {
+		return value.map((v) => this.baseColumn.mapFromDriverValue(v));
+	}
+
+	// Needed for arrays of custom types
+	mapFromJsonValue(value: unknown[]): T['data'] {
+		const base = this.baseColumn;
+
+		return 'mapFromJsonValue' in base
+			? value.map((v) => (<(value: unknown) => unknown> base.mapFromJsonValue)(v))
+			: value.map((v) => base.mapFromDriverValue(v));
+	}
+
 	getSQLType(): string {
 		return `${this.baseColumn.getSQLType()}[${typeof this.size === 'number' ? this.size : ''}]`;
 	}
