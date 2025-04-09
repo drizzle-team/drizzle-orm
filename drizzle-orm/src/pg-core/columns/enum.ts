@@ -5,20 +5,20 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 import type { Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgEnumColumnBuilderInitial<TName extends string, TValues extends string[]> =
-	PgEnumColumnBuilder<{
-		name: TName;
-		dataType: 'string';
-		columnType: 'PgEnumColumn';
-		data: TValues[number];
-		enumValues: TValues;
-		driverParam: string;
-		generated: undefined;
-	}>;
+export type PgEnumColumnBuilderInitial<TName extends string, TValues extends string[]> = PgEnumColumnBuilder<{
+	name: TName;
+	dataType: 'string';
+	columnType: 'PgEnumColumn';
+	data: TValues[number];
+	enumValues: TValues;
+	driverParam: string;
+}>;
 
 const isPgEnumSym = Symbol.for('drizzle:isPgEnum');
 export interface PgEnum<TValues extends string[]> {
+	(): PgEnumColumnBuilderInitial<'', TValues>;
 	<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, TValues>;
+	<TName extends string>(name?: TName): PgEnumColumnBuilderInitial<TName, TValues>;
 
 	readonly enumName: string;
 	readonly enumValues: TValues;
@@ -34,9 +34,9 @@ export function isPgEnum(obj: unknown): obj is PgEnum<[string, ...string[]]> {
 export class PgEnumColumnBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'PgEnumColumn'> & { enumValues: string[] },
 > extends PgColumnBuilder<T, { enum: PgEnum<T['enumValues']> }> {
-	static readonly [entityKind]: string = 'PgEnumColumnBuilder';
+	static override readonly [entityKind]: string = 'PgEnumColumnBuilder';
 
-	constructor(name: string, enumInstance: PgEnum<T['enumValues']>) {
+	constructor(name: T['name'], enumInstance: PgEnum<T['enumValues']>) {
 		super(name, 'string', 'PgEnumColumn');
 		this.config.enum = enumInstance;
 	}
@@ -55,7 +55,7 @@ export class PgEnumColumnBuilder<
 export class PgEnumColumn<T extends ColumnBaseConfig<'string', 'PgEnumColumn'> & { enumValues: string[] }>
 	extends PgColumn<T, { enum: PgEnum<T['enumValues']> }>
 {
-	static readonly [entityKind]: string = 'PgEnumColumn';
+	static override readonly [entityKind]: string = 'PgEnumColumn';
 
 	readonly enum = this.config.enum;
 	override readonly enumValues = this.config.enum.enumValues;
@@ -81,7 +81,7 @@ export function pgEnum<U extends string, T extends ReadonlyArray<U>>(
 	if (values.length === 0) {
 		throw new Error(`You have an empty array for "${enumName}" enum values`);
 	}
-	
+
 	return pgEnumWithSchema(enumName, values, undefined);
 }
 
@@ -92,8 +92,8 @@ export function pgEnumWithSchema<U extends string, T extends ReadonlyArray<U>>(
 	schema?: string,
 ): PgEnum<Writable<T>> {
 	const enumInstance: PgEnum<Writable<T>> = Object.assign(
-		<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, Writable<T>> =>
-			new PgEnumColumnBuilder(name, enumInstance),
+		<TName extends string>(name?: TName): PgEnumColumnBuilderInitial<TName, Writable<T>> =>
+			new PgEnumColumnBuilder(name ?? '' as TName, enumInstance),
 		{
 			enumName,
 			enumValues: values,

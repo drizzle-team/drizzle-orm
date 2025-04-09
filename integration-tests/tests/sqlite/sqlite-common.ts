@@ -29,11 +29,13 @@ import {
 	foreignKey,
 	getTableConfig,
 	getViewConfig,
+	index,
 	int,
 	integer,
 	intersect,
 	numeric,
 	primaryKey,
+	real,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
@@ -43,7 +45,7 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
 
@@ -55,6 +57,44 @@ declare module 'vitest' {
 	}
 }
 
+const allTypesTable = sqliteTable('all_types', {
+	int: integer('int', {
+		mode: 'number',
+	}),
+	bool: integer('bool', {
+		mode: 'boolean',
+	}),
+	time: integer('time', {
+		mode: 'timestamp',
+	}),
+	timeMs: integer('time_ms', {
+		mode: 'timestamp_ms',
+	}),
+	bigint: blob('bigint', {
+		mode: 'bigint',
+	}),
+	buffer: blob('buffer', {
+		mode: 'buffer',
+	}),
+	json: blob('json', {
+		mode: 'json',
+	}),
+	numeric: numeric('numeric'),
+	numericNum: numeric('numeric_num', {
+		mode: 'number',
+	}),
+	numericBig: numeric('numeric_big', {
+		mode: 'bigint',
+	}),
+	real: real('real'),
+	text: text('text', {
+		mode: 'text',
+	}),
+	jsonText: text('json_text', {
+		mode: 'json',
+	}),
+});
+
 export const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
@@ -63,7 +103,7 @@ export const usersTable = sqliteTable('users', {
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`strftime('%s', 'now')`),
 });
 
-const usersOnUpdate = sqliteTable('users_on_update', {
+export const usersOnUpdate = sqliteTable('users_on_update', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	name: text('name').notNull(),
 	updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
@@ -124,6 +164,14 @@ const pkExampleTable = sqliteTable('pk_example', {
 	compositePk: primaryKey({ columns: [table.id, table.name] }),
 }));
 
+const conflictChainExampleTable = sqliteTable('conflict_chain_example', {
+	id: integer('id').notNull().unique(),
+	name: text('name').notNull(),
+	email: text('email').notNull(),
+}, (table) => ({
+	compositePk: primaryKey({ columns: [table.id, table.name] }),
+}));
+
 const bigIntExample = sqliteTable('big_int_example', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
@@ -153,6 +201,11 @@ export function tests() {
 			await db.run(sql`drop table if exists ${orders}`);
 			await db.run(sql`drop table if exists ${bigIntExample}`);
 			await db.run(sql`drop table if exists ${pkExampleTable}`);
+			await db.run(sql`drop table if exists ${conflictChainExampleTable}`);
+			await db.run(sql`drop table if exists ${allTypesTable}`);
+			await db.run(sql`drop table if exists user_notifications_insert_into`);
+			await db.run(sql`drop table if exists users_insert_into`);
+			await db.run(sql`drop table if exists notifications_insert_into`);
 
 			await db.run(sql`
 				create table ${usersTable} (
@@ -203,6 +256,14 @@ export function tests() {
 			await db.run(sql`
 				create table ${pkExampleTable} (
 					id integer not null,
+					name text not null,
+					email text not null,
+					primary key (id, name)
+				)
+			`);
+			await db.run(sql`
+				create table ${conflictChainExampleTable} (
+					id integer not null unique,
 					name text not null,
 					email text not null,
 					primary key (id, name)
@@ -844,10 +905,7 @@ export function tests() {
 		test('prepared statement reuse', async (ctx) => {
 			const { db } = ctx.sqlite;
 
-			const stmt = db.insert(usersTable).values({
-				verified: true,
-				name: sql.placeholder('name'),
-			}).prepare();
+			const stmt = db.insert(usersTable).values({ name: sql.placeholder('name') }).prepare();
 
 			for (let i = 0; i < 10; i++) {
 				await stmt.run({ name: `John ${i}` });
@@ -856,20 +914,41 @@ export function tests() {
 			const result = await db.select({
 				id: usersTable.id,
 				name: usersTable.name,
+			}).from(usersTable).all();
+
+			expect(result).toEqual([
+				{ id: 1, name: 'John 0' },
+				{ id: 2, name: 'John 1' },
+				{ id: 3, name: 'John 2' },
+				{ id: 4, name: 'John 3' },
+				{ id: 5, name: 'John 4' },
+				{ id: 6, name: 'John 5' },
+				{ id: 7, name: 'John 6' },
+				{ id: 8, name: 'John 7' },
+				{ id: 9, name: 'John 8' },
+				{ id: 10, name: 'John 9' },
+			]);
+		});
+
+		test('insert: placeholders on columns with encoder', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const stmt = db.insert(usersTable).values({
+				name: 'John',
+				verified: sql.placeholder('verified'),
+			}).prepare();
+
+			await stmt.run({ verified: true });
+			await stmt.run({ verified: false });
+
+			const result = await db.select({
+				id: usersTable.id,
 				verified: usersTable.verified,
 			}).from(usersTable).all();
 
 			expect(result).toEqual([
-				{ id: 1, name: 'John 0', verified: true },
-				{ id: 2, name: 'John 1', verified: true },
-				{ id: 3, name: 'John 2', verified: true },
-				{ id: 4, name: 'John 3', verified: true },
-				{ id: 5, name: 'John 4', verified: true },
-				{ id: 6, name: 'John 5', verified: true },
-				{ id: 7, name: 'John 6', verified: true },
-				{ id: 8, name: 'John 7', verified: true },
-				{ id: 9, name: 'John 8', verified: true },
-				{ id: 10, name: 'John 9', verified: true },
+				{ id: 1, verified: true },
+				{ id: 2, verified: false },
 			]);
 		});
 
@@ -886,6 +965,68 @@ export function tests() {
 			const result = await stmt.all({ id: 1 });
 
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
+		});
+
+		test('prepared statement with placeholder in .limit', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values({ name: 'John' }).run();
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.where(eq(usersTable.id, sql.placeholder('id')))
+				.limit(sql.placeholder('limit'))
+				.prepare();
+
+			const result = await stmt.all({ id: 1, limit: 1 });
+
+			expect(result).toEqual([{ id: 1, name: 'John' }]);
+			expect(result).toHaveLength(1);
+		});
+
+		test('prepared statement with placeholder in .offset', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).run();
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.limit(sql.placeholder('limit'))
+				.offset(sql.placeholder('offset'))
+				.prepare();
+
+			const result = await stmt.all({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+		});
+
+		test('prepared statement built using $dynamic', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			function withLimitOffset(qb: any) {
+				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
+			}
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).run();
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.$dynamic();
+			withLimitOffset(stmt).prepare('stmt_limit');
+
+			const result = await stmt.all({ limit: 1, offset: 1 });
+
+			expect(result).toEqual([{ id: 2, name: 'John1' }]);
+			expect(result).toHaveLength(1);
 		});
 
 		test('select with group by as field', async (ctx) => {
@@ -1370,7 +1511,7 @@ export function tests() {
 				cityId: integer('city_id').notNull(),
 			}).existing();
 
-			await db.run(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
+			await db.run(sql`create view if not exists new_yorkers as ${getViewConfig(newYorkers1).query}`);
 
 			await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]).run();
 
@@ -1764,7 +1905,7 @@ export function tests() {
 			await db.run(
 				sql`create table ${users} (id integer not null primary key, name text not null, city_id integer not null)`,
 			);
-			await db.run(sql`create view ${newYorkers} as ${getViewConfig(newYorkers).query}`);
+			await db.run(sql`create view if not exists ${newYorkers} as ${getViewConfig(newYorkers).query}`);
 
 			db.insert(users).values([
 				{ name: 'John', cityId: 1 },
@@ -1951,6 +2092,165 @@ export function tests() {
 				.all();
 
 			expect(res).toEqual([{ id: 1, name: 'John', email: 'john1@example.com' }]);
+		});
+
+		test('insert with onConflict chained (.update -> .nothing)', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]).run();
+
+			await db
+				.insert(conflictChainExampleTable)
+				.values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+					id: 2,
+					name: 'Anthony',
+					email: 'idthief@example.com',
+				}])
+				.onConflictDoUpdate({
+					target: [conflictChainExampleTable.id, conflictChainExampleTable.name],
+					set: { email: 'john1@example.com' },
+				})
+				.onConflictDoNothing({ target: conflictChainExampleTable.id })
+				.run();
+
+			const res = await db
+				.select({
+					id: conflictChainExampleTable.id,
+					name: conflictChainExampleTable.name,
+					email: conflictChainExampleTable.email,
+				})
+				.from(conflictChainExampleTable)
+				.orderBy(conflictChainExampleTable.id)
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John', email: 'john1@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]);
+		});
+
+		test('insert with onConflict chained (.nothing -> .update)', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]).run();
+
+			await db
+				.insert(conflictChainExampleTable)
+				.values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+					id: 2,
+					name: 'Anthony',
+					email: 'idthief@example.com',
+				}])
+				.onConflictDoUpdate({
+					target: [conflictChainExampleTable.id, conflictChainExampleTable.name],
+					set: { email: 'john1@example.com' },
+				})
+				.onConflictDoNothing({ target: conflictChainExampleTable.id })
+				.run();
+
+			const res = await db
+				.select({
+					id: conflictChainExampleTable.id,
+					name: conflictChainExampleTable.name,
+					email: conflictChainExampleTable.email,
+				})
+				.from(conflictChainExampleTable)
+				.orderBy(conflictChainExampleTable.id)
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John', email: 'john1@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]);
+		});
+
+		test('insert with onConflict chained (.update -> .update)', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]).run();
+
+			await db
+				.insert(conflictChainExampleTable)
+				.values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+					id: 2,
+					name: 'Anthony',
+					email: 'idthief@example.com',
+				}])
+				.onConflictDoUpdate({
+					target: [conflictChainExampleTable.id, conflictChainExampleTable.name],
+					set: { email: 'john1@example.com' },
+				})
+				.onConflictDoUpdate({ target: conflictChainExampleTable.id, set: { email: 'john2@example.com' } })
+				.run();
+
+			const res = await db
+				.select({
+					id: conflictChainExampleTable.id,
+					name: conflictChainExampleTable.name,
+					email: conflictChainExampleTable.email,
+				})
+				.from(conflictChainExampleTable)
+				.orderBy(conflictChainExampleTable.id)
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John', email: 'john1@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: 'john2@example.com',
+			}]);
+		});
+
+		test('insert with onConflict chained (.nothing -> .nothing)', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]).run();
+
+			await db
+				.insert(conflictChainExampleTable)
+				.values([{ id: 1, name: 'John', email: 'john@example.com' }, {
+					id: 2,
+					name: 'Anthony',
+					email: 'idthief@example.com',
+				}])
+				.onConflictDoNothing({
+					target: [conflictChainExampleTable.id, conflictChainExampleTable.name],
+				})
+				.onConflictDoNothing({ target: conflictChainExampleTable.id })
+				.run();
+
+			const res = await db
+				.select({
+					id: conflictChainExampleTable.id,
+					name: conflictChainExampleTable.name,
+					email: conflictChainExampleTable.email,
+				})
+				.from(conflictChainExampleTable)
+				.orderBy(conflictChainExampleTable.id)
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John', email: 'john@example.com' }, {
+				id: 2,
+				name: 'John Second',
+				email: '2john@example.com',
+			}]);
 		});
 
 		test('insert undefined', async (ctx) => {
@@ -2509,6 +2809,34 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
+		test('define constraints as array', async (_ctx) => {
+			const table = sqliteTable('name', {
+				id: int(),
+			}, (t) => [
+				index('name').on(t.id),
+				primaryKey({ columns: [t.id], name: 'custom' }),
+			]);
+
+			const { indexes, primaryKeys } = getTableConfig(table);
+
+			expect(indexes.length).toBe(1);
+			expect(primaryKeys.length).toBe(1);
+		});
+
+		test('define constraints as array inside third param', async (_ctx) => {
+			const table = sqliteTable('name', {
+				id: int(),
+			}, (t) => [
+				index('name').on(t.id),
+				primaryKey({ columns: [t.id], name: 'custom' }),
+			]);
+
+			const { indexes, primaryKeys } = getTableConfig(table);
+
+			expect(indexes.length).toBe(1);
+			expect(primaryKeys.length).toBe(1);
+		});
+
 		test('aggregate function: count', async (ctx) => {
 			const { db } = ctx.sqlite;
 			const table = aggregateTable;
@@ -2661,6 +2989,383 @@ export function tests() {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
 			}
 		});
+
+		test('$count separate', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const countTestTable = sqliteTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${countTestTable}`);
+			await db.run(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.$count(countTestTable);
+
+			await db.run(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual(4);
+		});
+
+		test('$count embedded', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const countTestTable = sqliteTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${countTestTable}`);
+			await db.run(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.select({
+				count: db.$count(countTestTable),
+			}).from(countTestTable);
+
+			await db.run(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual([
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+			]);
+		});
+
+		test('$count separate reuse', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const countTestTable = sqliteTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${countTestTable}`);
+			await db.run(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = db.$count(countTestTable);
+
+			const count1 = await count;
+
+			await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+			const count2 = await count;
+
+			await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+			const count3 = await count;
+
+			await db.run(sql`drop table ${countTestTable}`);
+
+			expect(count1).toStrictEqual(4);
+			expect(count2).toStrictEqual(5);
+			expect(count3).toStrictEqual(6);
+		});
+
+		test('$count embedded reuse', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const countTestTable = sqliteTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${countTestTable}`);
+			await db.run(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = db.select({
+				count: db.$count(countTestTable),
+			}).from(countTestTable);
+
+			const count1 = await count;
+
+			await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+			const count2 = await count;
+
+			await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+			const count3 = await count;
+
+			await db.run(sql`drop table ${countTestTable}`);
+
+			expect(count1).toStrictEqual([
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+				{ count: 4 },
+			]);
+			expect(count2).toStrictEqual([
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+				{ count: 5 },
+			]);
+			expect(count3).toStrictEqual([
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+				{ count: 6 },
+			]);
+		});
+
+		test('$count separate with filters', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const countTestTable = sqliteTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${countTestTable}`);
+			await db.run(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.$count(countTestTable, gt(countTestTable.id, 1));
+
+			await db.run(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual(3);
+		});
+
+		test('$count embedded with filters', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const countTestTable = sqliteTable('count_test', {
+				id: int('id').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${countTestTable}`);
+			await db.run(sql`create table ${countTestTable} (id int, name text)`);
+
+			await db.insert(countTestTable).values([
+				{ id: 1, name: 'First' },
+				{ id: 2, name: 'Second' },
+				{ id: 3, name: 'Third' },
+				{ id: 4, name: 'Fourth' },
+			]);
+
+			const count = await db.select({
+				count: db.$count(countTestTable, gt(countTestTable.id, 1)),
+			}).from(countTestTable);
+
+			await db.run(sql`drop table ${countTestTable}`);
+
+			expect(count).toStrictEqual([
+				{ count: 3 },
+				{ count: 3 },
+				{ count: 3 },
+				{ count: 3 },
+			]);
+		});
+
+		test('update with limit and order by', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values([
+				{ name: 'Barry', verified: false },
+				{ name: 'Alan', verified: false },
+				{ name: 'Carl', verified: false },
+			]);
+
+			await db.update(usersTable).set({ verified: true }).limit(2).orderBy(asc(usersTable.name));
+
+			const result = await db.select({ name: usersTable.name, verified: usersTable.verified }).from(usersTable).orderBy(
+				asc(usersTable.name),
+			);
+
+			expect(result).toStrictEqual([
+				{ name: 'Alan', verified: true },
+				{ name: 'Barry', verified: true },
+				{ name: 'Carl', verified: false },
+			]);
+		});
+
+		test('delete with limit and order by', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values([
+				{ name: 'Barry', verified: false },
+				{ name: 'Alan', verified: false },
+				{ name: 'Carl', verified: false },
+			]);
+
+			await db.delete(usersTable).where(eq(usersTable.verified, false)).limit(1).orderBy(asc(usersTable.name));
+
+			const result = await db.select({ name: usersTable.name, verified: usersTable.verified }).from(usersTable).orderBy(
+				asc(usersTable.name),
+			);
+			expect(result).toStrictEqual([
+				{ name: 'Barry', verified: false },
+				{ name: 'Carl', verified: false },
+			]);
+		});
+
+		test('all types', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.run(sql`
+				CREATE TABLE \`all_types\`(
+					\`int\` integer,
+					\`bool\` integer,
+					\`time\` integer,
+					\`time_ms\` integer,
+					\`bigint\` blob,
+					\`buffer\` blob,
+					\`json\` blob,
+					\`numeric\` numeric,
+					\`numeric_num\` numeric,
+					\`numeric_big\` numeric,
+					\`real\` real,
+					\`text\` text,
+					\`json_text\` text
+					);
+			`);
+
+			await db.insert(allTypesTable).values({
+				int: 1,
+				bool: true,
+				bigint: 5044565289845416380n,
+				buffer: Buffer.from([
+					0x44,
+					0x65,
+					0x73,
+					0x70,
+					0x61,
+					0x69,
+					0x72,
+					0x20,
+					0x6F,
+					0x20,
+					0x64,
+					0x65,
+					0x73,
+					0x70,
+					0x61,
+					0x69,
+					0x72,
+					0x2E,
+					0x2E,
+					0x2E,
+				]),
+				json: {
+					str: 'strval',
+					arr: ['str', 10],
+				},
+				jsonText: {
+					str: 'strvalb',
+					arr: ['strb', 11],
+				},
+				numeric: '475452353476',
+				numericNum: 9007199254740991,
+				numericBig: 5044565289845416380n,
+				real: 1.048596,
+				text: 'TEXT STRING',
+				time: new Date(1741743161623),
+				timeMs: new Date(1741743161623),
+			});
+
+			const rawRes = await db.select().from(allTypesTable);
+
+			expect(typeof rawRes[0]?.numericBig).toStrictEqual('bigint');
+
+			type ExpectedType = {
+				int: number | null;
+				bool: boolean | null;
+				time: Date | null;
+				timeMs: Date | null;
+				bigint: bigint | null;
+				buffer: Buffer | null;
+				json: unknown;
+				numeric: string | null;
+				numericNum: number | null;
+				numericBig: bigint | null;
+				real: number | null;
+				text: string | null;
+				jsonText: unknown;
+			}[];
+
+			const expectedRes: ExpectedType = [
+				{
+					int: 1,
+					bool: true,
+					time: new Date('2025-03-12T01:32:41.000Z'),
+					timeMs: new Date('2025-03-12T01:32:41.623Z'),
+					bigint: 5044565289845416380n,
+					buffer: Buffer.from([
+						0x44,
+						0x65,
+						0x73,
+						0x70,
+						0x61,
+						0x69,
+						0x72,
+						0x20,
+						0x6F,
+						0x20,
+						0x64,
+						0x65,
+						0x73,
+						0x70,
+						0x61,
+						0x69,
+						0x72,
+						0x2E,
+						0x2E,
+						0x2E,
+					]),
+					json: { str: 'strval', arr: ['str', 10] },
+					numeric: '475452353476',
+					numericNum: 9007199254740991,
+					numericBig: 5044565289845416380n,
+					real: 1.048596,
+					text: 'TEXT STRING',
+					jsonText: { str: 'strvalb', arr: ['strb', 11] },
+				},
+			];
+
+			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
+			expect(rawRes).toStrictEqual(expectedRes);
+		});
 	});
 
 	test('table configs: unique third param', () => {
@@ -2733,5 +3438,377 @@ export function tests() {
 			.limit(-1);
 
 		expect(users.length).toBeGreaterThan(0);
+	});
+
+	test('update ... from', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		await db.run(sql`drop table if exists \`cities\``);
+		await db.run(sql`drop table if exists \`users2\``);
+		await db.run(sql`
+			create table \`cities\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null
+			)
+		`);
+		await db.run(sql`
+			create table \`users2\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null,
+				\`city_id\` integer references \`cities\`(\`id\`)
+			)
+		`);
+
+		await db.insert(citiesTable).values([
+			{ name: 'New York City' },
+			{ name: 'Seattle' },
+		]);
+		await db.insert(users2Table).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+		]);
+
+		const result = await db
+			.update(users2Table)
+			.set({
+				cityId: citiesTable.id,
+			})
+			.from(citiesTable)
+			.where(and(eq(citiesTable.name, 'Seattle'), eq(users2Table.name, 'John')))
+			.returning();
+
+		expect(result).toStrictEqual([{
+			id: 1,
+			name: 'John',
+			cityId: 2,
+		}]);
+	});
+
+	test('update ... from with alias', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		await db.run(sql`drop table if exists \`users2\``);
+		await db.run(sql`drop table if exists \`cities\``);
+		await db.run(sql`
+			create table \`cities\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null
+			)
+		`);
+		await db.run(sql`
+			create table \`users2\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null,
+				\`city_id\` integer references \`cities\`(\`id\`)
+			)
+		`);
+
+		await db.insert(citiesTable).values([
+			{ name: 'New York City' },
+			{ name: 'Seattle' },
+		]);
+		await db.insert(users2Table).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+		]);
+
+		const cities = alias(citiesTable, 'c');
+		const result = await db
+			.update(users2Table)
+			.set({
+				cityId: cities.id,
+			})
+			.from(cities)
+			.where(and(eq(cities.name, 'Seattle'), eq(users2Table.name, 'John')))
+			.returning();
+
+		expect(result).toStrictEqual([{
+			id: 1,
+			name: 'John',
+			cityId: 2,
+		}]);
+
+		await db.run(sql`drop table if exists \`users2\``);
+	});
+
+	test('update ... from with join', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		const states = sqliteTable('states', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+		const cities = sqliteTable('cities', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+			stateId: integer('state_id').references(() => states.id),
+		});
+		const users = sqliteTable('users', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+			cityId: integer('city_id').notNull().references(() => cities.id),
+		});
+
+		await db.run(sql`drop table if exists \`states\``);
+		await db.run(sql`drop table if exists \`cities\``);
+		await db.run(sql`drop table if exists \`users\``);
+		await db.run(sql`
+			create table \`states\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null
+			)
+		`);
+		await db.run(sql`
+			create table \`cities\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null,
+				\`state_id\` integer references \`states\`(\`id\`)
+			)
+		`);
+		await db.run(sql`
+			create table \`users\` (
+				\`id\` integer primary key autoincrement,
+				\`name\` text not null,
+				\`city_id\` integer not null references \`cities\`(\`id\`)
+			)
+		`);
+
+		await db.insert(states).values([
+			{ name: 'New York' },
+			{ name: 'Washington' },
+		]);
+		await db.insert(cities).values([
+			{ name: 'New York City', stateId: 1 },
+			{ name: 'Seattle', stateId: 2 },
+			{ name: 'London' },
+		]);
+		await db.insert(users).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+			{ name: 'Jack', cityId: 3 },
+		]);
+
+		const result1 = await db
+			.update(users)
+			.set({
+				cityId: cities.id,
+			})
+			.from(cities)
+			.leftJoin(states, eq(cities.stateId, states.id))
+			.where(and(eq(cities.name, 'Seattle'), eq(users.name, 'John')))
+			.returning();
+		const result2 = await db
+			.update(users)
+			.set({
+				cityId: cities.id,
+			})
+			.from(cities)
+			.leftJoin(states, eq(cities.stateId, states.id))
+			.where(and(eq(cities.name, 'London'), eq(users.name, 'Jack')))
+			.returning();
+
+		expect(result1).toStrictEqual([{
+			id: 1,
+			name: 'John',
+			cityId: 2,
+		}]);
+		expect(result2).toStrictEqual([{
+			id: 3,
+			name: 'Jack',
+			cityId: 3,
+		}]);
+	});
+
+	test('insert into ... select', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		const notifications = sqliteTable('notifications_insert_into', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			sentAt: integer('sent_at', { mode: 'timestamp' }).notNull().default(sql`current_timestamp`),
+			message: text('message').notNull(),
+		});
+		const users = sqliteTable('users_insert_into', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+		const userNotications = sqliteTable('user_notifications_insert_into', {
+			userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+			notificationId: integer('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
+		}, (t) => ({
+			pk: primaryKey({ columns: [t.userId, t.notificationId] }),
+		}));
+
+		await db.run(sql`drop table if exists notifications_insert_into`);
+		await db.run(sql`drop table if exists users_insert_into`);
+		await db.run(sql`drop table if exists user_notifications_insert_into`);
+		await db.run(sql`
+			create table notifications_insert_into (
+				id integer primary key autoincrement,
+				sent_at integer not null default (current_timestamp),
+				message text not null
+			)
+		`);
+		await db.run(sql`
+			create table users_insert_into (
+				id integer primary key autoincrement,
+				name text not null
+			)
+		`);
+		await db.run(sql`
+			create table user_notifications_insert_into (
+				user_id integer references users_insert_into(id) on delete cascade,
+				notification_id integer references notifications_insert_into(id) on delete cascade,
+				primary key (user_id, notification_id)
+			)
+		`);
+
+		const newNotification = await db
+			.insert(notifications)
+			.values({ message: 'You are one of the 3 lucky winners!' })
+			.returning({ id: notifications.id })
+			.then((result) => result[0]);
+		await db.insert(users).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+			{ name: 'David' },
+			{ name: 'Eve' },
+		]);
+
+		const sentNotifications = await db
+			.insert(userNotications)
+			.select(
+				db
+					.select({
+						userId: users.id,
+						notificationId: sql`${newNotification!.id}`.as('notification_id'),
+					})
+					.from(users)
+					.where(inArray(users.name, ['Alice', 'Charlie', 'Eve']))
+					.orderBy(asc(users.id)),
+			)
+			.returning();
+
+		expect(sentNotifications).toStrictEqual([
+			{ userId: 1, notificationId: newNotification!.id },
+			{ userId: 3, notificationId: newNotification!.id },
+			{ userId: 5, notificationId: newNotification!.id },
+		]);
+	});
+
+	test('insert into ... select with keys in different order', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		const users1 = sqliteTable('users1', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+		const users2 = sqliteTable('users2', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+
+		await db.run(sql`drop table if exists users1`);
+		await db.run(sql`drop table if exists users2`);
+		await db.run(sql`
+			create table users1 (
+				id integer primary key autoincrement,
+				name text not null
+			)
+		`);
+		await db.run(sql`
+			create table users2 (
+				id integer primary key autoincrement,
+				name text not null
+			)
+		`);
+
+		await expect(async () => {
+			db
+				.insert(users1)
+				.select(
+					db
+						.select({
+							name: users2.name,
+							id: users2.id,
+						})
+						.from(users2),
+				);
+		}).rejects.toThrowError();
+	});
+
+	test('Object keys as column names', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		// Tests the following:
+		// Column with optional config without providing a value
+		// Column with optional config providing a value
+		// Column without config
+		const users = sqliteTable('users', {
+			id: integer().primaryKey({ autoIncrement: true }),
+			createdAt: integer({ mode: 'timestamp' }),
+			name: text(),
+		});
+
+		await db.run(sql`drop table if exists users`);
+		await db.run(
+			sql`
+				create table users (
+					\`id\` integer primary key autoincrement,
+					\`createdAt\` integer,
+					\`name\` text
+				)
+			`,
+		);
+
+		await db.insert(users).values([
+			{ createdAt: new Date(Date.now() - 2592000000), name: 'John' },
+			{ createdAt: new Date(Date.now() - 86400000), name: 'Jane' },
+		]);
+		const result = await db
+			.select({ id: users.id, name: users.name })
+			.from(users)
+			.where(gt(users.createdAt, new Date(Date.now() - 2592000000)));
+
+		expect(result).toEqual([
+			{ id: 2, name: 'Jane' },
+		]);
+
+		await db.run(sql`drop table users`);
+	});
+
+	test('sql operator as cte', async (ctx) => {
+		const { db } = ctx.sqlite;
+
+		const users = sqliteTable('users', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+
+		await db.run(sql`drop table if exists ${users}`);
+		await db.run(sql`create table ${users} (id integer not null primary key autoincrement, name text not null)`);
+		await db.insert(users).values([
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
+
+		const sq1 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name,
+			},
+		}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+		const result1 = await db.with(sq1).select().from(sq1);
+
+		const sq2 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name,
+			},
+		}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+		const result2 = await db.with(sq2).select().from(sq1);
+
+		expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
+		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 	});
 }

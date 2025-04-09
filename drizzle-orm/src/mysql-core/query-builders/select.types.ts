@@ -25,7 +25,7 @@ import type { Assume, ValidateShape } from '~/utils.ts';
 import type { MySqlPreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MySqlViewBase } from '../view-base.ts';
 import type { MySqlViewWithSelection } from '../view.ts';
-import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
+import type { IndexConfig, MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
 
 export interface MySqlSelectJoinConfig {
 	on: SQL | undefined;
@@ -33,6 +33,9 @@ export interface MySqlSelectJoinConfig {
 	alias: string | undefined;
 	joinType: JoinType;
 	lateral?: boolean;
+	useIndex?: string[];
+	forceIndex?: string[];
+	ignoreIndex?: string[];
 }
 
 export type BuildAliasTable<TTable extends MySqlTable | View, TAlias extends string> = TTable extends Table
@@ -74,6 +77,9 @@ export interface MySqlSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
+	useIndex?: string[];
+	forceIndex?: string[];
+	ignoreIndex?: string[];
 }
 
 export type MySqlJoin<
@@ -91,7 +97,7 @@ export type MySqlJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends MySqlTable ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 					: never,
 				T['_']['selectMode']
 			>,
@@ -116,6 +122,8 @@ export type MySqlJoinFn<
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+	onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
+		: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 ) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<MySqlColumn>;
