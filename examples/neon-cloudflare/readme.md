@@ -1,4 +1,4 @@
-### Example project for [DrizzleORM](https://driz.li/orm) + [Cloudflare Worker](https://workers.cloudflare.com) + [Neon Serverless](https://github.com/neondatabase/serverless)
+### Example project for [Drizzle ORM](https://driz.li/orm) + [Cloudflare Worker](https://workers.cloudflare.com) + [Neon Serverless](https://github.com/neondatabase/serverless)
 ---
 
 

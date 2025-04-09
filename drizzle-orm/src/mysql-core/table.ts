@@ -1,20 +1,24 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
+import { getMySqlColumnBuilders, type MySqlColumnBuilders } from './columns/all.ts';
 import type { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderBase } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
-export type MySqlTableExtraConfig = Record<
-	string,
+export type MySqlTableExtraConfigValue =
 	| AnyIndexBuilder
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder
+	| UniqueConstraintBuilder;
+
+export type MySqlTableExtraConfig = Record<
+	string,
+	MySqlTableExtraConfigValue
 >;
 
 export type TableConfig = TableConfigBase<MySqlColumn>;
@@ -23,7 +27,7 @@ export type TableConfig = TableConfigBase<MySqlColumn>;
 export const InlineForeignKeys = Symbol.for('drizzle:MySqlInlineForeignKeys');
 
 export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
-	static readonly [entityKind]: string = 'MySqlTable';
+	static override readonly [entityKind]: string = 'MySqlTable';
 
 	declare protected $columns: T['columns'];
 
@@ -60,8 +64,12 @@ export function mysqlTableWithSchema<
 	TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
 >(
 	name: TTableName,
-	columns: TColumnsMap,
-	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig) | undefined,
+	columns: TColumnsMap | ((columnTypes: MySqlColumnBuilders) => TColumnsMap),
+	extraConfig:
+		| ((
+			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
+		) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
+		| undefined,
 	schema: TSchemaName,
 	baseName = name,
 ): MySqlTableWithColumns<{
@@ -77,9 +85,12 @@ export function mysqlTableWithSchema<
 		dialect: 'mysql';
 	}>(name, schema, baseName);
 
+	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getMySqlColumnBuilders()) : columns;
+
 	const builtColumns = Object.fromEntries(
-		Object.entries(columns).map(([name, colBuilderBase]) => {
+		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as MySqlColumnBuilder;
+			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
@@ -89,6 +100,11 @@ export function mysqlTableWithSchema<
 	const table = Object.assign(rawTable, builtColumns);
 
 	table[Table.Symbol.Columns] = builtColumns;
+	table[Table.Symbol.ExtraConfigColumns] = builtColumns as unknown as BuildExtraConfigColumns<
+		TTableName,
+		TColumnsMap,
+		'mysql'
+	>;
 
 	if (extraConfig) {
 		table[MySqlTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (
@@ -106,7 +122,94 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+		extraConfig?: (
+			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
+		) => MySqlTableExtraConfigValue[],
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfigValue[],
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+	/**
+	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
+	}>;
+
+	/**
+	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = mysqlTable("users", {
+	 * 	id: int(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
+		extraConfig: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
 	): MySqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;

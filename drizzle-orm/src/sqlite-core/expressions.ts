@@ -1,6 +1,6 @@
 import { bindIfParam } from '~/expressions.ts';
-import type { SQL, SQLChunk, SQLWrapper } from '~/sql/index.ts';
-import { sql } from '~/sql/index.ts';
+import type { SQL, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 
 export * from '~/expressions.ts';

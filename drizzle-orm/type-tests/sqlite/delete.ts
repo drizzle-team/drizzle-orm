@@ -3,7 +3,7 @@ import { eq } from '~/expressions.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import type { SQLiteDelete } from '~/sqlite-core/index.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import { bunDb, db } from './db.ts';
@@ -151,4 +151,8 @@ Expect<Equal<any[][], typeof deleteValuesBunReturningPartial>>;
 		.returning()
 		// @ts-expect-error method was already called
 		.returning();
+}
+
+{
+	db.delete(users).where(sql``).limit(1).orderBy(sql``);
 }

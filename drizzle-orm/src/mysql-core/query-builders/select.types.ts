@@ -1,11 +1,11 @@
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlTable, MySqlTableWithColumns } from '~/mysql-core/table.ts';
-import type { MySqlViewBase, MySqlViewWithSelection } from '~/mysql-core/view.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
 	SelectedFieldsOrdered as SelectedFieldsOrderedBase,
 } from '~/operations.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -16,14 +16,16 @@ import type {
 	MapColumnsToTableAlias,
 	SelectMode,
 	SelectResult,
+	SetOperator,
 } from '~/query-builders/select.types.ts';
-import type { Placeholder, SQL } from '~/sql/index.ts';
+import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
-import type { Assume } from '~/utils.ts';
-import type { ColumnsSelection, View } from '~/view.ts';
-import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
-import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
+import type { Assume, ValidateShape } from '~/utils.ts';
+import type { MySqlPreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
+import type { MySqlViewBase } from '../view-base.ts';
+import type { MySqlViewWithSelection } from '../view.ts';
+import type { IndexConfig, MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
 
 export interface MySqlSelectJoinConfig {
 	on: SQL | undefined;
@@ -31,6 +33,9 @@ export interface MySqlSelectJoinConfig {
 	alias: string | undefined;
 	joinType: JoinType;
 	lateral?: boolean;
+	useIndex?: string[];
+	forceIndex?: string[];
+	ignoreIndex?: string[];
 }
 
 export type BuildAliasTable<TTable extends MySqlTable | View, TAlias extends string> = TTable extends Table
@@ -64,6 +69,17 @@ export interface MySqlSelectConfig {
 		config: LockConfig;
 	};
 	distinct?: boolean;
+	setOperators: {
+		rightSelect: TypedQueryBuilder<any, any>;
+		type: SetOperator;
+		isAll: boolean;
+		orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+		limit?: number | Placeholder;
+		offset?: number | Placeholder;
+	}[];
+	useIndex?: string[];
+	forceIndex?: string[];
+	ignoreIndex?: string[];
 }
 
 export type MySqlJoin<
@@ -81,11 +97,12 @@ export type MySqlJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends MySqlTable ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 					: never,
 				T['_']['selectMode']
 			>,
 			T['_']['selectMode'] extends 'partial' ? T['_']['selectMode'] : 'multiple',
+			T['_']['preparedQueryHKT'],
 			AppendToNullabilityMap<T['_']['nullabilityMap'], TJoinedName, TJoinType>,
 			TDynamic,
 			T['_']['excludedMethods']
@@ -105,6 +122,8 @@ export type MySqlJoinFn<
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+	onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
+		: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 ) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<MySqlColumn>;
@@ -144,6 +163,7 @@ export type MySqlSelectKind<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability>,
 	TDynamic extends boolean,
 	TExcludedMethods extends string,
@@ -153,6 +173,7 @@ export type MySqlSelectKind<
 	tableName: TTableName;
 	selection: TSelection;
 	selectMode: TSelectMode;
+	preparedQueryHKT: TPreparedQueryHKT;
 	nullabilityMap: TNullabilityMap;
 	dynamic: TDynamic;
 	excludedMethods: TExcludedMethods;
@@ -170,7 +191,7 @@ export interface MySqlSelectQueryBuilderHKT extends MySqlSelectHKTBase {
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
 		this['dynamic'],
 		this['excludedMethods'],
-		this['result'],
+		Assume<this['result'], any[]>,
 		Assume<this['selectedFields'], ColumnsSelection>
 	>;
 }
@@ -184,31 +205,46 @@ export interface MySqlSelectHKT extends MySqlSelectHKTBase {
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
 		this['dynamic'],
 		this['excludedMethods'],
-		this['result'],
+		Assume<this['result'], any[]>,
 		Assume<this['selectedFields'], ColumnsSelection>
 	>;
 }
+
+export type MySqlSetOperatorExcludedMethods =
+	| 'where'
+	| 'having'
+	| 'groupBy'
+	| 'session'
+	| 'leftJoin'
+	| 'rightJoin'
+	| 'innerJoin'
+	| 'fullJoin'
+	| 'for';
 
 export type MySqlSelectWithout<
 	T extends AnyMySqlSelectQueryBuilder,
 	TDynamic extends boolean,
 	K extends keyof T & string,
+	TResetExcluded extends boolean = false,
 > = TDynamic extends true ? T : Omit<
 	MySqlSelectKind<
 		T['_']['hkt'],
 		T['_']['tableName'],
 		T['_']['selection'],
 		T['_']['selectMode'],
+		T['_']['preparedQueryHKT'],
 		T['_']['nullabilityMap'],
 		TDynamic,
-		T['_']['excludedMethods'] | K
+		TResetExcluded extends true ? K : T['_']['excludedMethods'] | K,
+		T['_']['result'],
+		T['_']['selectedFields']
 	>,
-	T['_']['excludedMethods'] | K
+	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
 >;
 
 export type MySqlSelectPrepare<T extends AnyMySqlSelect> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
-	PreparedQueryConfig & {
+	MySqlPreparedQueryConfig & {
 		execute: T['_']['result'];
 		iterator: T['_']['result'][number];
 	},
@@ -220,6 +256,7 @@ export type MySqlSelectDynamic<T extends AnyMySqlSelectQueryBuilder> = MySqlSele
 	T['_']['tableName'],
 	T['_']['selection'],
 	T['_']['selectMode'],
+	T['_']['preparedQueryHKT'],
 	T['_']['nullabilityMap'],
 	true,
 	never,
@@ -243,7 +280,7 @@ export type MySqlSelectQueryBuilder<
 	TSelectMode extends SelectMode = SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-	TResult = unknown,
+	TResult extends any[] = unknown[],
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > = MySqlSelectQueryBuilderBase<
 	THKT,
@@ -260,6 +297,46 @@ export type MySqlSelectQueryBuilder<
 
 export type AnyMySqlSelectQueryBuilder = MySqlSelectQueryBuilderBase<any, any, any, any, any, any, any, any, any>;
 
+export type AnyMySqlSetOperatorInterface = MySqlSetOperatorInterface<any, any, any, any, any, any, any, any, any>;
+
+export interface MySqlSetOperatorInterface<
+	TTableName extends string | undefined,
+	TSelection extends ColumnsSelection,
+	TSelectMode extends SelectMode,
+	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> {
+	_: {
+		readonly hkt: MySqlSelectHKT;
+		readonly tableName: TTableName;
+		readonly selection: TSelection;
+		readonly selectMode: TSelectMode;
+		readonly preparedQueryHKT: TPreparedQueryHKT;
+		readonly nullabilityMap: TNullabilityMap;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+		readonly result: TResult;
+		readonly selectedFields: TSelectedFields;
+	};
+}
+
+export type MySqlSetOperatorWithResult<TResult extends any[]> = MySqlSetOperatorInterface<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	TResult,
+	any
+>;
+
 export type MySqlSelect<
 	TTableName extends string | undefined = string | undefined,
 	TSelection extends ColumnsSelection = Record<string, any>,
@@ -268,3 +345,96 @@ export type MySqlSelect<
 > = MySqlSelectBase<TTableName, TSelection, TSelectMode, PreparedQueryHKTBase, TNullabilityMap, true, never>;
 
 export type AnyMySqlSelect = MySqlSelectBase<any, any, any, any, any, any, any, any>;
+
+export type MySqlSetOperator<
+	TTableName extends string | undefined = string | undefined,
+	TSelection extends ColumnsSelection = Record<string, any>,
+	TSelectMode extends SelectMode = SelectMode,
+	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+> = MySqlSelectBase<
+	TTableName,
+	TSelection,
+	TSelectMode,
+	TPreparedQueryHKT,
+	TNullabilityMap,
+	true,
+	MySqlSetOperatorExcludedMethods
+>;
+
+export type SetOperatorRightSelect<
+	TValue extends MySqlSetOperatorWithResult<TResult>,
+	TResult extends any[],
+> = TValue extends MySqlSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
+	? ValidateShape<
+		TValueResult[number],
+		TResult[number],
+		TypedQueryBuilder<any, TValueResult>
+	>
+	: TValue;
+
+export type SetOperatorRestSelect<
+	TValue extends readonly MySqlSetOperatorWithResult<TResult>[],
+	TResult extends any[],
+> = TValue extends [infer First, ...infer Rest]
+	? First extends MySqlSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
+		? Rest extends AnyMySqlSetOperatorInterface[] ? [
+				ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>>,
+				...SetOperatorRestSelect<Rest, TResult>,
+			]
+		: ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>[]>
+	: never
+	: TValue;
+
+export type MySqlCreateSetOperatorFn = <
+	TTableName extends string | undefined,
+	TSelection extends ColumnsSelection,
+	TSelectMode extends SelectMode,
+	TValue extends MySqlSetOperatorWithResult<TResult>,
+	TRest extends MySqlSetOperatorWithResult<TResult>[],
+	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+>(
+	leftSelect: MySqlSetOperatorInterface<
+		TTableName,
+		TSelection,
+		TSelectMode,
+		TPreparedQueryHKT,
+		TNullabilityMap,
+		TDynamic,
+		TExcludedMethods,
+		TResult,
+		TSelectedFields
+	>,
+	rightSelect: SetOperatorRightSelect<TValue, TResult>,
+	...restSelects: SetOperatorRestSelect<TRest, TResult>
+) => MySqlSelectWithout<
+	MySqlSelectBase<
+		TTableName,
+		TSelection,
+		TSelectMode,
+		TPreparedQueryHKT,
+		TNullabilityMap,
+		TDynamic,
+		TExcludedMethods,
+		TResult,
+		TSelectedFields
+	>,
+	false,
+	MySqlSetOperatorExcludedMethods,
+	true
+>;
+
+export type GetMySqlSetOperators = {
+	union: MySqlCreateSetOperatorFn;
+	intersect: MySqlCreateSetOperatorFn;
+	except: MySqlCreateSetOperatorFn;
+	unionAll: MySqlCreateSetOperatorFn;
+	intersectAll: MySqlCreateSetOperatorFn;
+	exceptAll: MySqlCreateSetOperatorFn;
+};

@@ -1,6 +1,6 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import type { MySqlRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
@@ -26,7 +26,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		id: sql.raw('id'),
 		hash: sql.raw('hash'),
 		created_at: sql.raw('created_at'),
-	}).from(sql.raw(migrationsTable)).orderBy(
+	}).from(sql.identifier(migrationsTable).getSQL()).orderBy(
 		sql.raw('created_at desc'),
 	).limit(1);
 
@@ -42,8 +42,8 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 			queriesToRun.push(
 				...migration.sql,
 				`insert into ${
-					sql.identifier(migrationsTable)
-				} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
+					sql.identifier(migrationsTable).value
+				} (\`hash\`, \`created_at\`) values('${migration.hash}', '${migration.folderMillis}')`,
 			);
 		}
 	}

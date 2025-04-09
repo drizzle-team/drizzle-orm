@@ -8,10 +8,16 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Query, QueryWithTypings, SQL } from '~/sql/index.ts';
+import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
-import type { Mode, MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
+import type {
+	Mode,
+	MySqlPreparedQueryConfig,
+	MySqlSession,
+	PreparedQueryHKTBase,
+	PreparedQueryKind,
+} from '../session.ts';
 import type { MySqlTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
@@ -71,7 +77,7 @@ export class MySqlRelationalQuery<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TResult,
 > extends QueryPromise<TResult> {
-	static readonly [entityKind]: string = 'MySqlRelationalQuery';
+	static override readonly [entityKind]: string = 'MySqlRelationalQuery';
 
 	declare protected $brand: 'MySqlRelationalQuery';
 
@@ -102,10 +108,10 @@ export class MySqlRelationalQuery<
 				}
 				return rows as TResult;
 			},
-		) as PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true>;
+		) as PreparedQueryKind<TPreparedQueryHKT, MySqlPreparedQueryConfig & { execute: TResult }, true>;
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _getQuery() {
 		const query = this.mode === 'planetscale'
 			? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
 				fullSchema: this.fullSchema,
@@ -125,10 +131,20 @@ export class MySqlRelationalQuery<
 				queryConfig: this.config,
 				tableAlias: this.tableConfig.tsName,
 			});
+		return query;
+	}
+
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 
 		return { builtQuery, query };
+	}
+
+	/** @internal */
+	getSQL(): SQL {
+		return this._getQuery().sql as SQL;
 	}
 
 	toSQL(): Query {
