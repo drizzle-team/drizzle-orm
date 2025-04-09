@@ -5,15 +5,14 @@ import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> =
-	MySqlEnumColumnBuilder<{
-		name: TName;
-		dataType: 'string';
-		columnType: 'MySqlEnumColumn';
-		data: TEnum[number];
-		driverParam: string;
-		enumValues: TEnum;
-	}>;
+export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends string[]> = MySqlEnumColumnBuilder<{
+	name: TName;
+	dataType: 'string';
+	columnType: 'MySqlEnumColumn';
+	data: TEnum[number];
+	driverParam: string;
+	enumValues: TEnum;
+}>;
 
 export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlEnumColumn'>>
 	extends MySqlColumnBuilder<T, { enumValues: T['enumValues'] }>
@@ -51,7 +50,7 @@ export class MySqlEnumColumn<T extends ColumnBaseConfig<'string', 'MySqlEnumColu
 export function mysqlEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
 	values: T | Writable<T>,
 ): MySqlEnumColumnBuilderInitial<'', Writable<T>>;
-export function mysqlEnum<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
+export function mysqlEnum<TName extends string, U extends string, T extends ReadonlyArray<U>>(
 	name: TName,
 	values: T | Writable<T>,
 ): MySqlEnumColumnBuilderInitial<TName, Writable<T>>;

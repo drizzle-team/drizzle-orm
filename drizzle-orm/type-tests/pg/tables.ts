@@ -59,6 +59,16 @@ import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+export const noValuesEnum = pgEnum('my_enum_no_values', []);
+
+enum eCategoryType {
+	red = 'red',
+	green = 'green',
+}
+export const enumFromEnum = pgEnum(
+	'type',
+	Object.values(eCategoryType),
+);
 
 export const identityColumnsTable = pgTable('identity_columns_table', {
 	generatedCol: integer('generated_col').generatedAlwaysAs(1),

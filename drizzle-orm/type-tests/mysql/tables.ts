@@ -45,6 +45,11 @@ import type { InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
+enum eMyEnum {
+	Value1 = 'Value1',
+	Value2 = 'Value2',
+}
+
 export const users = mysqlTable(
 	'users_table',
 	{
@@ -61,6 +66,7 @@ export const users = mysqlTable(
 		age1: int('age1').notNull(),
 		createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
 		enumCol: mysqlEnum('enum_col', ['a', 'b', 'c']).notNull(),
+		enumCol1: mysqlEnum('enum_col1', Object.values(eMyEnum)).notNull(),
 	},
 	(users) => ({
 		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
