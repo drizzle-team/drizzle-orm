@@ -13,7 +13,7 @@ import { PrismaMySqlSession } from './session.ts';
 export class PrismaMySqlDatabase
 	extends MySqlDatabase<PrismaMySqlQueryResultHKT, PrismaMySqlPreparedQueryHKT, Record<string, never>>
 {
-	static readonly [entityKind]: string = 'PrismaMySqlDatabase';
+	static override readonly [entityKind]: string = 'PrismaMySqlDatabase';
 
 	constructor(client: PrismaClient, logger: Logger | undefined) {
 		const dialect = new MySqlDialect();

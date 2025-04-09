@@ -3,6 +3,7 @@ import {
 	type QueryConfig,
 	type QueryResult,
 	type QueryResultRow,
+	types,
 	type VercelClient,
 	VercelPool,
 	type VercelPoolClient,
@@ -14,13 +15,13 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
 export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'VercelPgPreparedQuery';
+	static override readonly [entityKind]: string = 'VercelPgPreparedQuery';
 
 	private rawQuery: QueryConfig;
 	private queryConfig: QueryArrayConfig;
@@ -39,11 +40,89 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		this.rawQuery = {
 			name,
 			text: queryString,
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115 as any) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185 as any) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId === 1187 as any) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId === 1182 as any) {
+						return (val: any) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 		this.queryConfig = {
 			name,
 			text: queryString,
 			rowMode: 'array',
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115 as any) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185 as any) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId === 1187 as any) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId === 1182 as any) {
+						return (val: any) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 	}
 
@@ -92,7 +171,7 @@ export class VercelPgSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<VercelPgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'VercelPgSession';
+	static override readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;
 
@@ -142,6 +221,12 @@ export class VercelPgSession<
 		return this.client.query<T>(query, params);
 	}
 
+	override async count(sql: SQL): Promise<number> {
+		const result = await this.execute(sql);
+
+		return Number((result as any)['rows'][0]['count']);
+	}
+
 	override async transaction<T>(
 		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
@@ -170,7 +255,7 @@ export class VercelPgTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<VercelPgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'VercelPgTransaction';
+	static override readonly [entityKind]: string = 'VercelPgTransaction';
 
 	override async transaction<T>(
 		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
