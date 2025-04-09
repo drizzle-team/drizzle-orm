@@ -407,7 +407,7 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
 	 *
-	 * See docs: {@link https://orm.drizzle.team/docs/joins#full-join}
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join}
 	 *
 	 * @param table the table to join.
 	 *
